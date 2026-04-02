@@ -15,7 +15,9 @@ import userEvent from '@testing-library/user-event';
 
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: Record<string, unknown>) => (
-    <a href={href as string} {...props}>{children as React.ReactNode}</a>
+    <a href={href as string} {...props}>
+      {children as React.ReactNode}
+    </a>
   ),
 }));
 
@@ -60,9 +62,14 @@ function defaultProps(overrides: Record<string, any> = {}) {
 describe('OrganiseSection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }),
+    );
   });
-  afterEach(() => { vi.unstubAllGlobals(); });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it('returns null when canEdit is false and all arrays are empty', () => {
     const { container } = render(
@@ -106,11 +113,7 @@ describe('OrganiseSection', () => {
   });
 
   it('shows keyword badges with remove buttons when canEdit is true', () => {
-    render(
-      <OrganiseSection
-        {...defaultProps({ keywords: ['security'] })}
-      />,
-    );
+    render(<OrganiseSection {...defaultProps({ keywords: ['security'] })} />);
     expect(screen.getByLabelText('Remove security')).toBeInTheDocument();
   });
 
@@ -141,11 +144,7 @@ describe('OrganiseSection', () => {
 
   it('shows inline "Add" links for empty categories', () => {
     // Has keywords but not tags or workspaces
-    render(
-      <OrganiseSection
-        {...defaultProps({ keywords: ['security'] })}
-      />,
-    );
+    render(<OrganiseSection {...defaultProps({ keywords: ['security'] })} />);
     expect(screen.getByText('Assign to...')).toBeInTheDocument();
     expect(screen.getByText('Add tags')).toBeInTheDocument();
   });

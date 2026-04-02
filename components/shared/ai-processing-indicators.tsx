@@ -104,9 +104,7 @@ export function AiProcessingIndicators({
             disabled={classifying}
             className="h-7 gap-1.5 text-xs"
           >
-            {classifying ? (
-              <Loader2 className="size-3 animate-spin" />
-            ) : null}
+            {classifying ? <Loader2 className="size-3 animate-spin" /> : null}
             {classifying ? 'Classifying...' : 'Classify now'}
           </Button>
         </div>
@@ -123,9 +121,7 @@ export function AiProcessingIndicators({
             disabled={summarising}
             className="h-7 gap-1.5 text-xs"
           >
-            {summarising ? (
-              <Loader2 className="size-3 animate-spin" />
-            ) : null}
+            {summarising ? <Loader2 className="size-3 animate-spin" /> : null}
             {summarising ? 'Generating...' : 'Generate summary'}
           </Button>
         </div>

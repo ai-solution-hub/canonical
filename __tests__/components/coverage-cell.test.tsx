@@ -27,7 +27,9 @@ import { CoverageCell } from '@/components/coverage/coverage-cell';
 // Factories
 // ---------------------------------------------------------------------------
 
-function createCellData(overrides: Partial<CoverageCellData> = {}): CoverageCellData {
+function createCellData(
+  overrides: Partial<CoverageCellData> = {},
+): CoverageCellData {
   return {
     domain_name: 'security',
     subtopic_name: 'data-protection',
@@ -49,14 +51,18 @@ const formatSubtopic = (s: string) =>
 
 describe('CoverageCell', () => {
   it('renders subtopic name and item count', () => {
-    render(<CoverageCell data={createCellData()} formatSubtopic={formatSubtopic} />);
+    render(
+      <CoverageCell data={createCellData()} formatSubtopic={formatSubtopic} />,
+    );
 
     expect(screen.getByText('Data Protection')).toBeInTheDocument();
     expect(screen.getByText('10')).toBeInTheDocument();
   });
 
   it('renders browse link with correct query params', () => {
-    render(<CoverageCell data={createCellData()} formatSubtopic={formatSubtopic} />);
+    render(
+      <CoverageCell data={createCellData()} formatSubtopic={formatSubtopic} />,
+    );
 
     const browseLink = screen.getByText('Data Protection').closest('a');
     expect(browseLink).toHaveAttribute(
@@ -64,11 +70,15 @@ describe('CoverageCell', () => {
       expect.stringContaining('/browse?'),
     );
     expect(browseLink?.getAttribute('href')).toContain('domain=security');
-    expect(browseLink?.getAttribute('href')).toContain('subtopic=data-protection');
+    expect(browseLink?.getAttribute('href')).toContain(
+      'subtopic=data-protection',
+    );
   });
 
   it('renders freshness indicators for non-zero counts', () => {
-    render(<CoverageCell data={createCellData()} formatSubtopic={formatSubtopic} />);
+    render(
+      <CoverageCell data={createCellData()} formatSubtopic={formatSubtopic} />,
+    );
 
     expect(screen.getByText('6 Fresh')).toBeInTheDocument();
     expect(screen.getByText('2 Aging')).toBeInTheDocument();
@@ -92,11 +102,21 @@ describe('CoverageCell', () => {
 
   describe('Review stale items link', () => {
     it('shows "Review stale items" link when stale + expired > 0', () => {
-      render(<CoverageCell data={createCellData()} formatSubtopic={formatSubtopic} />);
+      render(
+        <CoverageCell
+          data={createCellData()}
+          formatSubtopic={formatSubtopic}
+        />,
+      );
 
-      const reviewLink = screen.getByRole('link', { name: /review.*stale.*items.*data protection/i });
+      const reviewLink = screen.getByRole('link', {
+        name: /review.*stale.*items.*data protection/i,
+      });
       expect(reviewLink).toBeInTheDocument();
-      expect(reviewLink).toHaveAttribute('href', expect.stringContaining('/review?'));
+      expect(reviewLink).toHaveAttribute(
+        'href',
+        expect.stringContaining('/review?'),
+      );
       expect(reviewLink.getAttribute('href')).toContain('domain=security');
       expect(reviewLink.getAttribute('href')).toContain('status=all');
     });
@@ -123,7 +143,12 @@ describe('CoverageCell', () => {
     });
 
     it('includes ArrowRight icon in review link', () => {
-      render(<CoverageCell data={createCellData()} formatSubtopic={formatSubtopic} />);
+      render(
+        <CoverageCell
+          data={createCellData()}
+          formatSubtopic={formatSubtopic}
+        />,
+      );
 
       const reviewLink = screen.getByRole('link', { name: /review.*stale/i });
       // The ArrowRight icon is rendered with aria-hidden="true"

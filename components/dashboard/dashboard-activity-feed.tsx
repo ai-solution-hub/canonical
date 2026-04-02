@@ -151,9 +151,7 @@ const TIME_GROUP_ORDER: TimeGroup[] = [
 /**
  * Organises grouped activities into time-based sections.
  */
-function groupByTime(
-  grouped: GroupedActivity[],
-): TimeGroupedActivities[] {
+function groupByTime(grouped: GroupedActivity[]): TimeGroupedActivities[] {
   const buckets = new Map<TimeGroup, GroupedActivity[]>();
 
   for (const group of TIME_GROUP_ORDER) {
@@ -231,7 +229,8 @@ export function DashboardActivityFeed({
 
   const timeGroups = useMemo(() => {
     // Detect pre-grouped data from the RPC (has event_count field)
-    const isPreGrouped = activities.length > 0 && 'event_count' in activities[0];
+    const isPreGrouped =
+      activities.length > 0 && 'event_count' in activities[0];
 
     let grouped: GroupedActivity[];
     if (isPreGrouped) {
@@ -286,8 +285,8 @@ export function DashboardActivityFeed({
               const userName =
                 group.count === 1
                   ? group.representative.user_id
-                    ? displayNames.get(group.representative.user_id) ??
-                      'Unknown user'
+                    ? (displayNames.get(group.representative.user_id) ??
+                      'Unknown user')
                     : 'System'
                   : null;
 
@@ -321,7 +320,9 @@ export function DashboardActivityFeed({
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {userName && <>{userName}</>}
-                      {userName && timestamp && <span aria-hidden="true"> &middot; </span>}
+                      {userName && timestamp && (
+                        <span aria-hidden="true"> &middot; </span>
+                      )}
                       {!userName && group.count > 1 && timestamp && (
                         <>{timestamp}</>
                       )}

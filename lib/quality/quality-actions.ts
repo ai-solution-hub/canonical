@@ -107,8 +107,7 @@ export function suggestQualityActions(
   const actions: QualityAction[] = [];
 
   for (const item of items) {
-    const itemTitle =
-      item.suggested_title || item.title || 'Untitled';
+    const itemTitle = item.suggested_title || item.title || 'Untitled';
     const citationCount = item.citation_count ?? 0;
 
     // 0. Score drop — critical priority if item dropped below threshold
@@ -133,10 +132,7 @@ export function suggestQualityActions(
     }
 
     // a. Freshness — weight 30%, so fixing this can gain up to 30 points
-    if (
-      item.freshness === 'stale' ||
-      item.freshness === 'expired'
-    ) {
+    if (item.freshness === 'stale' || item.freshness === 'expired') {
       const isExpired = item.freshness === 'expired';
       actions.push({
         itemId: item.id,
@@ -179,7 +175,8 @@ export function suggestQualityActions(
       actions.push({
         itemId: item.id,
         itemTitle,
-        action: 'Generate summary — missing summary reduces quality score by ~15 points',
+        action:
+          'Generate summary — missing summary reduces quality score by ~15 points',
         category: 'summary',
         priority: 'high',
         estimatedScoreImpact: 15,
@@ -205,7 +202,8 @@ export function suggestQualityActions(
       actions.push({
         itemId: item.id,
         itemTitle,
-        action: 'Assign content owner — unowned items cannot receive governance notifications',
+        action:
+          'Assign content owner — unowned items cannot receive governance notifications',
         category: 'completeness',
         priority: 'medium',
         estimatedScoreImpact: 0, // owner is not in the scoring formula but is governance-critical
@@ -237,7 +235,8 @@ export function suggestQualityActions(
       actions.push({
         itemId: item.id,
         itemTitle,
-        action: 'Add citations or source references — zero citations reduces quality score by up to 15 points',
+        action:
+          'Add citations or source references — zero citations reduces quality score by up to 15 points',
         category: 'citations',
         priority: 'low',
         estimatedScoreImpact: 15,
@@ -247,9 +246,17 @@ export function suggestQualityActions(
     }
 
     // Incomplete depth layers (brief/detail/reference) — weight 20%
-    const depthCount = countDepthLayers(item.brief, item.detail, item.reference);
+    const depthCount = countDepthLayers(
+      item.brief,
+      item.detail,
+      item.reference,
+    );
     if (depthCount < 3 && depthCount > 0) {
-      const missingLayers = getMissingLayers(item.brief, item.detail, item.reference);
+      const missingLayers = getMissingLayers(
+        item.brief,
+        item.detail,
+        item.reference,
+      );
       const pointsPerLayer = Math.round(20 / 3);
       const potentialGain = (3 - depthCount) * pointsPerLayer;
       actions.push({
@@ -314,19 +321,19 @@ export async function getTopQualityActions(
   // 1. Fetch governance_config for per-domain thresholds
   // Note: quality_score_threshold was added in Phase 1 migration but may not
   // yet be reflected in the generated database.types.ts. The cast handles this.
-  const { data: govConfigRows } = await supabase
+  const { data: govConfigRows } = (await supabase
     .from('governance_config')
-    .select('domain, quality_score_threshold') as {
-      data: Array<{ domain: string | null; quality_score_threshold: number | null }> | null;
-    };
+    .select('domain, quality_score_threshold')) as {
+    data: Array<{
+      domain: string | null;
+      quality_score_threshold: number | null;
+    }> | null;
+  };
 
   const domainThresholdMap = new Map<string, number>();
   for (const row of govConfigRows ?? []) {
     if (row.domain && row.quality_score_threshold != null) {
-      domainThresholdMap.set(
-        row.domain,
-        row.quality_score_threshold,
-      );
+      domainThresholdMap.set(row.domain, row.quality_score_threshold);
     }
   }
 
@@ -391,7 +398,7 @@ export async function getTopQualityActions(
     const domainThreshold =
       options?.scoreThreshold ??
       (item.primary_domain
-        ? domainThresholdMap.get(item.primary_domain) ?? defaultThreshold
+        ? (domainThresholdMap.get(item.primary_domain) ?? defaultThreshold)
         : defaultThreshold);
 
     if ((item.quality_score ?? 0) <= domainThreshold) {

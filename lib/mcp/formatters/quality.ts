@@ -42,8 +42,17 @@ export function formatQualitySummary(data: QualitySummary): string {
 export interface CoverageGapResult {
   total_gaps: number;
   empty_subtopics: Array<{ domain: string; subtopic: string }>;
-  thin_subtopics: Array<{ domain: string; subtopic: string; item_count: number }>;
-  stale_only_subtopics: Array<{ domain: string; subtopic: string; stale_count: number; expired_count: number }>;
+  thin_subtopics: Array<{
+    domain: string;
+    subtopic: string;
+    item_count: number;
+  }>;
+  stale_only_subtopics: Array<{
+    domain: string;
+    subtopic: string;
+    stale_count: number;
+    expired_count: number;
+  }>;
 }
 
 export function formatCoverageGaps(data: CoverageGapResult): string {
@@ -55,7 +64,10 @@ export function formatCoverageGaps(data: CoverageGapResult): string {
   ];
 
   if (data.empty_subtopics.length > 0) {
-    lines.push(`## Empty Subtopics (0 items) — ${data.empty_subtopics.length}`, '');
+    lines.push(
+      `## Empty Subtopics (0 items) — ${data.empty_subtopics.length}`,
+      '',
+    );
     for (const gap of data.empty_subtopics) {
       lines.push(`- ${gap.domain} > ${gap.subtopic}`);
     }
@@ -65,15 +77,22 @@ export function formatCoverageGaps(data: CoverageGapResult): string {
   if (data.thin_subtopics.length > 0) {
     lines.push(`## Thin Subtopics — ${data.thin_subtopics.length}`, '');
     for (const gap of data.thin_subtopics) {
-      lines.push(`- ${gap.domain} > ${gap.subtopic} (${gap.item_count} item${gap.item_count === 1 ? '' : 's'})`);
+      lines.push(
+        `- ${gap.domain} > ${gap.subtopic} (${gap.item_count} item${gap.item_count === 1 ? '' : 's'})`,
+      );
     }
     lines.push('');
   }
 
   if (data.stale_only_subtopics.length > 0) {
-    lines.push(`## Stale-Only Subtopics — ${data.stale_only_subtopics.length}`, '');
+    lines.push(
+      `## Stale-Only Subtopics — ${data.stale_only_subtopics.length}`,
+      '',
+    );
     for (const gap of data.stale_only_subtopics) {
-      lines.push(`- ${gap.domain} > ${gap.subtopic} (${gap.stale_count} stale, ${gap.expired_count} expired)`);
+      lines.push(
+        `- ${gap.domain} > ${gap.subtopic} (${gap.stale_count} stale, ${gap.expired_count} expired)`,
+      );
     }
     lines.push('');
   }
@@ -122,7 +141,9 @@ export function formatAuditResult(data: AuditResult): string {
 
   // Summary by issue type
   lines.push('## Issues by Type', '');
-  const sortedTypes = Object.entries(data.by_issue_type).sort(([, a], [, b]) => b - a);
+  const sortedTypes = Object.entries(data.by_issue_type).sort(
+    ([, a], [, b]) => b - a,
+  );
   for (const [type, count] of sortedTypes) {
     const label = type.replace(/_/g, ' ');
     lines.push(`- **${label}:** ${count}`);
@@ -134,13 +155,15 @@ export function formatAuditResult(data: AuditResult): string {
   for (const item of data.items) {
     const title = item.suggested_title || item.title || 'Untitled';
     const type = formatContentType(item.content_type);
-    const issues = item.issues.map(i => i.replace(/_/g, ' ')).join(', ');
+    const issues = item.issues.map((i) => i.replace(/_/g, ' ')).join(', ');
     lines.push(`### ${title} (${type})`);
     if (item.primary_domain) lines.push(`**Domain:** ${item.primary_domain}`);
     lines.push(`**Issues:** ${issues}`);
     lines.push(`**Content length:** ${item.content_length} chars`);
     if (item.classification_confidence !== null) {
-      lines.push(`**Confidence:** ${Math.round(item.classification_confidence * 100)}%`);
+      lines.push(
+        `**Confidence:** ${Math.round(item.classification_confidence * 100)}%`,
+      );
     }
     if (item.freshness) lines.push(`**Freshness:** ${item.freshness}`);
     lines.push(`**ID:** ${item.id}`);
@@ -217,7 +240,10 @@ export function formatDuplicatePairs(data: DuplicatePairsResult): string {
 // Quality actions
 // ---------------------------------------------------------------------------
 
-export { type QualityAction, type QualityActionsResult } from '@/lib/quality/quality-actions';
+export {
+  type QualityAction,
+  type QualityActionsResult,
+} from '@/lib/quality/quality-actions';
 
 export function formatQualityActions(data: QualityActionsResult): string {
   const lines: string[] = [
@@ -228,7 +254,9 @@ export function formatQualityActions(data: QualityActionsResult): string {
   ];
 
   if (data.total_actions === 0) {
-    lines.push('No quality improvement actions needed. All items are above the quality threshold.');
+    lines.push(
+      'No quality improvement actions needed. All items are above the quality threshold.',
+    );
     return lines.join('\n');
   }
 
@@ -246,16 +274,22 @@ export function formatQualityActions(data: QualityActionsResult): string {
   // Individual actions
   for (let i = 0; i < data.actions.length; i++) {
     const a = data.actions[i];
-    const priorityLabel = a.priority.charAt(0).toUpperCase() + a.priority.slice(1);
-    const scoreText = a.currentScore !== null ? `Score: ${a.currentScore}` : 'Score: unscored';
-    lines.push(`## ${i + 1}. "${a.itemTitle}" — ${scoreText} (${priorityLabel})`);
+    const priorityLabel =
+      a.priority.charAt(0).toUpperCase() + a.priority.slice(1);
+    const scoreText =
+      a.currentScore !== null ? `Score: ${a.currentScore}` : 'Score: unscored';
+    lines.push(
+      `## ${i + 1}. "${a.itemTitle}" — ${scoreText} (${priorityLabel})`,
+    );
     if (a.domain) {
       lines.push(`**Domain:** ${a.domain}`);
     }
     lines.push(`**Category:** ${a.category}`);
     lines.push(`**Action:** ${a.action}`);
     if (a.estimatedScoreImpact > 0) {
-      lines.push(`**Estimated score improvement:** +${a.estimatedScoreImpact} points`);
+      lines.push(
+        `**Estimated score improvement:** +${a.estimatedScoreImpact} points`,
+      );
     }
     lines.push(`**Item ID:** ${a.itemId}`);
     lines.push('');

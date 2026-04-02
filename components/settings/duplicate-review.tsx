@@ -56,7 +56,9 @@ export function DuplicateReview({
   const [merging, setMerging] = useState<string | null>(null);
   const [mergingAll, setMergingAll] = useState(false);
   const [mergedGroups, setMergedGroups] = useState<Set<string>>(new Set());
-  const [editingCanonical, setEditingCanonical] = useState<Record<string, string>>({});
+  const [editingCanonical, setEditingCanonical] = useState<
+    Record<string, string>
+  >({});
   const [confirmMergeAll, setConfirmMergeAll] = useState(false);
 
   const remainingGroups = duplicates.filter(
@@ -96,9 +98,7 @@ export function DuplicateReview({
       );
       onMergeComplete();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Failed to merge group',
-      );
+      toast.error(err instanceof Error ? err.message : 'Failed to merge group');
     } finally {
       setMerging(null);
     }
@@ -160,10 +160,7 @@ export function DuplicateReview({
   if (duplicates.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-        <Check
-          className="size-8 text-tag-core"
-          aria-hidden="true"
-        />
+        <Check className="size-8 text-tag-core" aria-hidden="true" />
         <p className="text-sm text-muted-foreground">
           No duplicate tags found. All tags are unique.
         </p>
@@ -177,7 +174,8 @@ export function DuplicateReview({
       {isAdmin && remainingGroups.length > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            {remainingGroups.length} duplicate group{remainingGroups.length !== 1 ? 's' : ''} remaining
+            {remainingGroups.length} duplicate group
+            {remainingGroups.length !== 1 ? 's' : ''} remaining
           </p>
           <Button
             variant="outline"
@@ -211,18 +209,25 @@ export function DuplicateReview({
                   <CardTitle className="text-sm font-medium">
                     {isMerged ? (
                       <span className="flex items-center gap-2">
-                        <Check className="size-4 text-tag-core" aria-hidden="true" />
+                        <Check
+                          className="size-4 text-tag-core"
+                          aria-hidden="true"
+                        />
                         Merged
                       </span>
                     ) : (
                       <span className="flex items-center gap-2">
-                        <AlertTriangle className="size-4 text-freshness-aging" aria-hidden="true" />
+                        <AlertTriangle
+                          className="size-4 text-freshness-aging"
+                          aria-hidden="true"
+                        />
                         {group.variant_count} variants
                       </span>
                     )}
                   </CardTitle>
                   <CardDescription>
-                    {group.total_usage} total usage{group.total_usage !== 1 ? 's' : ''} across items
+                    {group.total_usage} total usage
+                    {group.total_usage !== 1 ? 's' : ''} across items
                   </CardDescription>
                 </div>
                 {isAdmin && !isMerged && (
@@ -298,20 +303,16 @@ export function DuplicateReview({
           <DialogHeader>
             <DialogTitle>Merge All Duplicate Groups</DialogTitle>
             <DialogDescription>
-              This will merge {remainingGroups.length} duplicate group{remainingGroups.length !== 1 ? 's' : ''} into
-              their canonical forms. This action cannot be undone.
+              This will merge {remainingGroups.length} duplicate group
+              {remainingGroups.length !== 1 ? 's' : ''} into their canonical
+              forms. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setConfirmMergeAll(false)}
-            >
+            <Button variant="outline" onClick={() => setConfirmMergeAll(false)}>
               Cancel
             </Button>
-            <Button onClick={handleMergeAll}>
-              Merge all
-            </Button>
+            <Button onClick={handleMergeAll}>Merge all</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

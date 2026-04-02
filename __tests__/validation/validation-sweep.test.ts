@@ -37,35 +37,35 @@ const EXEMPT_ROUTE_PATTERNS = [
   '/api/health/',
   '/api/cron/',
   '/api/mcp/',
-  '/api/oauth/grants/',        // Simple DELETE, no user input validation needed
+  '/api/oauth/grants/', // Simple DELETE, no user input validation needed
   '/api/.well-known/',
   '/api/plugin/',
   '/api/jobs/',
-  '/api/dashboard/',           // No user-supplied params
-  '/api/quality/summary/',     // No user-supplied params
-  '/api/search/suggestions/',  // Simple GET
-  '/api/digest/latest/',       // No params
+  '/api/dashboard/', // No user-supplied params
+  '/api/quality/summary/', // No user-supplied params
+  '/api/search/suggestions/', // Simple GET
+  '/api/digest/latest/', // No params
   '/api/content-owners/stats/', // No user-supplied params
-  '/api/coverage/guides/',     // No user-supplied params
+  '/api/coverage/guides/', // No user-supplied params
   '/api/coverage/gap-summary/', // No user-supplied params
   '/api/coverage/templates/list/', // No user-supplied params
-  '/api/certifications/',      // Simple GET/POST using parseBody
+  '/api/certifications/', // Simple GET/POST using parseBody
   '/api/freshness/recalculate-all/', // Cron-like endpoint
-  '/api/reorient/',            // No user-supplied params
+  '/api/reorient/', // No user-supplied params
   '/api/bids/[id]/readiness/', // No user-supplied params
   '/api/bids/[id]/templates/', // Simple GET
   '/api/bids/[id]/responses/[rId]/history/', // Simple GET
   '/api/source-documents/[id]/versions/', // Simple GET
   '/api/source-documents/[id]/', // Uses parseBody already (check below catches it)
-  '/api/items/[id]/files/',    // File upload endpoint
-  '/api/items/[id]/images/',   // File upload endpoint
+  '/api/items/[id]/files/', // File upload endpoint
+  '/api/items/[id]/images/', // File upload endpoint
   '/api/items/[id]/history/[versionId]/', // Simple GET by ID
-  '/api/items/[id]/layers/',   // Uses parseBody
-  '/api/notifications/',       // Simple GET
-  '/api/bids/[id]/tender/',    // File upload (POST), uses parseSearchParams (GET)
+  '/api/items/[id]/layers/', // Uses parseBody
+  '/api/notifications/', // Simple GET
+  '/api/bids/[id]/tender/', // File upload (POST), uses parseSearchParams (GET)
   '/api/bids/[id]/templates/[templateId]/', // Simple GET/PATCH
   '/api/bids/[id]/templates/[templateId]/completions/', // Download endpoint
-  '/api/review/cadence/',      // No user-supplied params
+  '/api/review/cadence/', // No user-supplied params
 ];
 
 function isExempt(routePath: string): boolean {
@@ -120,7 +120,8 @@ describe('validation sweep guard rail', () => {
     // Routes that handle POST/PATCH/PUT bodies or GET query params should
     // import parseBody or parseSearchParams from @/lib/validation.
     const BODY_PATTERN = /request\.json\(\)/;
-    const SEARCH_PARAMS_PATTERN = /searchParams\.get\(|request\.nextUrl\.searchParams/;
+    const SEARCH_PARAMS_PATTERN =
+      /searchParams\.get\(|request\.nextUrl\.searchParams/;
     const VALIDATION_IMPORT = /@\/lib\/validation/;
 
     for (const routeFile of routeFiles) {

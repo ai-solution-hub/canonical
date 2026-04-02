@@ -35,7 +35,13 @@ vi.mock('@/lib/utils', () => ({
 }));
 
 vi.mock('@/components/bid/question-row', () => ({
-  QuestionRow: ({ question, index }: { question: BidQuestion; index: number }) => (
+  QuestionRow: ({
+    question,
+    index,
+  }: {
+    question: BidQuestion;
+    index: number;
+  }) => (
     <div data-testid={`question-row-${question.id}`} role="listitem">
       Q{index}: {question.question_text}
     </div>
@@ -73,13 +79,33 @@ function makeQuestion(overrides: Partial<BidQuestion> = {}): BidQuestion {
 
 function makeQuestions(): BidQuestion[] {
   return [
-    makeQuestion({ id: 'q-1', section_name: 'Technical Approach', section_sequence: 1, question_sequence: 1, question_text: 'Describe your approach' }),
-    makeQuestion({ id: 'q-2', section_name: 'Technical Approach', section_sequence: 1, question_sequence: 2, question_text: 'What is your methodology?' }),
-    makeQuestion({ id: 'q-3', section_name: 'Commercial', section_sequence: 2, question_sequence: 1, question_text: 'Provide your pricing' }),
+    makeQuestion({
+      id: 'q-1',
+      section_name: 'Technical Approach',
+      section_sequence: 1,
+      question_sequence: 1,
+      question_text: 'Describe your approach',
+    }),
+    makeQuestion({
+      id: 'q-2',
+      section_name: 'Technical Approach',
+      section_sequence: 1,
+      question_sequence: 2,
+      question_text: 'What is your methodology?',
+    }),
+    makeQuestion({
+      id: 'q-3',
+      section_name: 'Commercial',
+      section_sequence: 2,
+      question_sequence: 1,
+      question_text: 'Provide your pricing',
+    }),
   ];
 }
 
-function defaultProps(overrides: Partial<Parameters<typeof QuestionList>[0]> = {}) {
+function defaultProps(
+  overrides: Partial<Parameters<typeof QuestionList>[0]> = {},
+) {
   return {
     bidId: 'bid-1',
     questions: makeQuestions(),
@@ -118,8 +144,17 @@ describe('QuestionList', () => {
 
   it('does not render section count when only one section exists', () => {
     const questions = [
-      makeQuestion({ id: 'q-1', section_name: 'Technical', section_sequence: 1 }),
-      makeQuestion({ id: 'q-2', section_name: 'Technical', section_sequence: 1, question_sequence: 2 }),
+      makeQuestion({
+        id: 'q-1',
+        section_name: 'Technical',
+        section_sequence: 1,
+      }),
+      makeQuestion({
+        id: 'q-2',
+        section_name: 'Technical',
+        section_sequence: 1,
+        question_sequence: 2,
+      }),
     ];
     render(<QuestionList {...defaultProps({ questions })} />);
     expect(screen.queryByText(/Across/)).not.toBeInTheDocument();
@@ -185,7 +220,9 @@ describe('QuestionList', () => {
     const user = userEvent.setup();
     render(<QuestionList {...defaultProps()} />);
 
-    const sectionButton = screen.getByText('Technical Approach').closest('button')!;
+    const sectionButton = screen
+      .getByText('Technical Approach')
+      .closest('button')!;
     expect(sectionButton).toHaveAttribute('aria-expanded', 'true');
 
     await user.click(sectionButton);
@@ -195,13 +232,21 @@ describe('QuestionList', () => {
   // ---- Empty states ----
 
   it('shows empty state for viewers when no questions exist', () => {
-    render(<QuestionList {...defaultProps({ questions: [], canEdit: false })} />);
-    expect(screen.getByText('No questions have been added yet.')).toBeInTheDocument();
+    render(
+      <QuestionList {...defaultProps({ questions: [], canEdit: false })} />,
+    );
+    expect(
+      screen.getByText('No questions have been added yet.'),
+    ).toBeInTheDocument();
   });
 
   it('shows editor-specific empty state when no questions exist and canEdit is true', () => {
     render(<QuestionList {...defaultProps({ questions: [] })} />);
-    expect(screen.getByText(/No questions yet. Upload a tender document or add questions manually./)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /No questions yet. Upload a tender document or add questions manually./,
+      ),
+    ).toBeInTheDocument();
   });
 
   it('shows Add Question button in editor empty state', () => {
@@ -214,12 +259,16 @@ describe('QuestionList', () => {
 
   it('shows Add Question button for editors with existing questions', () => {
     render(<QuestionList {...defaultProps()} />);
-    expect(screen.getByRole('button', { name: /Add Question/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Add Question/ }),
+    ).toBeInTheDocument();
   });
 
   it('hides Add Question button for non-editors', () => {
     render(<QuestionList {...defaultProps({ canEdit: false })} />);
-    expect(screen.queryByRole('button', { name: /Add Question/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Add Question/ }),
+    ).not.toBeInTheDocument();
   });
 
   // ---- Add Question dialog ----
@@ -228,7 +277,9 @@ describe('QuestionList', () => {
     const user = userEvent.setup();
     render(<QuestionList {...defaultProps()} />);
     await user.click(screen.getByRole('button', { name: /Add Question/ }));
-    expect(screen.getByText('Manually add a tender question to this bid.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Manually add a tender question to this bid.'),
+    ).toBeInTheDocument();
   });
 
   it('renders all form fields in the add dialog', async () => {
@@ -263,7 +314,10 @@ describe('QuestionList', () => {
     await user.click(screen.getByRole('button', { name: /Add Question/ }));
 
     // Fill in question text
-    await user.type(screen.getByLabelText(/Question Text/), 'How will you deliver?');
+    await user.type(
+      screen.getByLabelText(/Question Text/),
+      'How will you deliver?',
+    );
 
     // Submit
     const buttons = screen.getAllByRole('button', { name: /Add Question/ });
@@ -325,11 +379,15 @@ describe('QuestionList', () => {
     render(<QuestionList {...defaultProps()} />);
     await user.click(screen.getByRole('button', { name: /Add Question/ }));
 
-    expect(screen.getByText('Manually add a tender question to this bid.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Manually add a tender question to this bid.'),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
 
     // Dialog description should no longer be visible
-    expect(screen.queryByText('Manually add a tender question to this bid.')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Manually add a tender question to this bid.'),
+    ).not.toBeInTheDocument();
   });
 });

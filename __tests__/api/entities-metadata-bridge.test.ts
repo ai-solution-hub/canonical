@@ -24,9 +24,8 @@ vi.mock('next/headers', () => ({
 }));
 
 // Import route AFTER mocks
-const { PATCH } = await import(
-  '@/app/api/entities/[canonical_name]/metadata/route'
-);
+const { PATCH } =
+  await import('@/app/api/entities/[canonical_name]/metadata/route');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -64,8 +63,9 @@ function setupEntityUpdate(entityType: string, contentIds: string[]) {
   });
 
   // Entity info lookup for bridge (returns entity_type + content_item_ids)
-  mockSupabase._chain.then.mockReset().mockImplementation(
-    (resolve: (v: unknown) => void) =>
+  mockSupabase._chain.then
+    .mockReset()
+    .mockImplementation((resolve: (v: unknown) => void) =>
       resolve({
         data: contentIds.map((cid) => ({
           entity_type: entityType,
@@ -74,7 +74,7 @@ function setupEntityUpdate(entityType: string, contentIds: string[]) {
         error: null,
         count: contentIds.length,
       }),
-  );
+    );
 
   // Track from() calls
   fromCalls = [];
@@ -83,10 +83,12 @@ function setupEntityUpdate(entityType: string, contentIds: string[]) {
     fromCalls.push(table);
     return mockSupabase._chain;
   });
-  mockSupabase._chain.update.mockImplementation((payload: Record<string, unknown>) => {
-    updatePayloads.push(payload);
-    return mockSupabase._chain;
-  });
+  mockSupabase._chain.update.mockImplementation(
+    (payload: Record<string, unknown>) => {
+      updatePayloads.push(payload);
+      return mockSupabase._chain;
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -107,19 +109,42 @@ beforeEach(() => {
   });
 
   const chainable = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const m of chainable) {
     mockSupabase._chain[m].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockReset().mockResolvedValue({ data: null, error: null });
-  mockSupabase._chain.maybeSingle.mockReset().mockResolvedValue({ data: null, error: null });
-  mockSupabase._chain.then.mockReset().mockImplementation(
-    (resolve: (v: unknown) => void) => resolve({ data: [], error: null, count: 0 }),
-  );
+  mockSupabase._chain.single
+    .mockReset()
+    .mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.maybeSingle
+    .mockReset()
+    .mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.then
+    .mockReset()
+    .mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({ data: [], error: null, count: 0 }),
+    );
 });
 
 // ---------------------------------------------------------------------------

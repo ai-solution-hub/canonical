@@ -89,7 +89,9 @@ export function BidContextProvider({
       const res = await fetch(`/api/bids/${bidId}`);
       if (!res.ok) return;
       const data = await res.json();
-      const metadata = (parseBidMetadata(data.domain_metadata) ?? data.domain_metadata ?? {}) as BidMetadata;
+      const metadata = (parseBidMetadata(data.domain_metadata) ??
+        data.domain_metadata ??
+        {}) as BidMetadata;
       const stats = data.question_stats;
 
       setBid({
@@ -177,7 +179,8 @@ export function BidContextProvider({
         reviewStatus: data.review_status ?? 'draft',
         sourceContentIds:
           data.source_content?.map((s: { id: string }) => s.id) ?? [],
-        qualityScore: data.overall_score ?? data.quality_check?.overall_score ?? null,
+        qualityScore:
+          data.overall_score ?? data.quality_check?.overall_score ?? null,
       });
     } catch (err) {
       // Non-critical — context degrades gracefully without response data
@@ -212,8 +215,6 @@ export function BidContextProvider({
   };
 
   return (
-    <BidContext.Provider value={contextValue}>
-      {children}
-    </BidContext.Provider>
+    <BidContext.Provider value={contextValue}>{children}</BidContext.Provider>
   );
 }

@@ -20,7 +20,11 @@ interface BidCreationFormProps {
   onCreated: (bid: { id: string; name: string }) => void;
 }
 
-export function BidCreationForm({ open, onOpenChange, onCreated }: BidCreationFormProps) {
+export function BidCreationForm({
+  open,
+  onOpenChange,
+  onCreated,
+}: BidCreationFormProps) {
   const [name, setName] = useState('');
   const [buyer, setBuyer] = useState('');
   const [deadline, setDeadline] = useState('');
@@ -54,7 +58,8 @@ export function BidCreationForm({ open, onOpenChange, onCreated }: BidCreationFo
         // Convert date input (YYYY-MM-DD) to ISO datetime with 17:00 UTC
         body.deadline = `${deadline}T17:00:00Z`;
       }
-      if (referenceNumber.trim()) body.reference_number = referenceNumber.trim();
+      if (referenceNumber.trim())
+        body.reference_number = referenceNumber.trim();
       if (estimatedValue.trim()) body.estimated_value = estimatedValue.trim();
       if (notes.trim()) body.notes = notes.trim();
 
@@ -66,7 +71,9 @@ export function BidCreationForm({ open, onOpenChange, onCreated }: BidCreationFo
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || `Failed to create bid (${response.status})`);
+        throw new Error(
+          data.error || `Failed to create bid (${response.status})`,
+        );
       }
 
       const created = await response.json();
@@ -81,15 +88,19 @@ export function BidCreationForm({ open, onOpenChange, onCreated }: BidCreationFo
   }
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => {
-      if (!isOpen) resetForm();
-      onOpenChange(isOpen);
-    }}>
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) resetForm();
+        onOpenChange(isOpen);
+      }}
+    >
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Create New Bid</DialogTitle>
           <DialogDescription>
-            Set up a new bid workspace. You can upload tender documents after creation.
+            Set up a new bid workspace. You can upload tender documents after
+            creation.
           </DialogDescription>
         </DialogHeader>
 
@@ -114,7 +125,8 @@ export function BidCreationForm({ open, onOpenChange, onCreated }: BidCreationFo
           {/* Buyer */}
           <div className="space-y-1.5">
             <Label htmlFor="bid-buyer">
-              Buyer / Issuing Organisation <span className="text-destructive">*</span>
+              Buyer / Issuing Organisation{' '}
+              <span className="text-destructive">*</span>
             </Label>
             <Input
               id="bid-buyer"
@@ -199,7 +211,10 @@ export function BidCreationForm({ open, onOpenChange, onCreated }: BidCreationFo
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={saving || !name.trim() || !buyer.trim()}>
+            <Button
+              type="submit"
+              disabled={saving || !name.trim() || !buyer.trim()}
+            >
               {saving ? (
                 <>
                   <Loader2 className="size-4 animate-spin" aria-hidden="true" />

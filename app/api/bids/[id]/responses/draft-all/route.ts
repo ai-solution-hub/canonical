@@ -55,15 +55,14 @@ export async function POST(
       .single();
 
     if (bidError || !bid) {
-      return NextResponse.json(
-        { error: 'Bid not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
     }
 
     const bidStatus = (bid.status as BidState) ?? 'draft';
     const draftableStates: BidState[] = [
-      'drafting', 'in_review', 'ready_for_export',
+      'drafting',
+      'in_review',
+      'ready_for_export',
     ];
     if (!draftableStates.includes(bidStatus)) {
       return NextResponse.json(
@@ -78,13 +77,18 @@ export async function POST(
     // Fetch all questions for this bid
     const { data: questions, error: questionsError } = await supabase
       .from('bid_questions')
-      .select('id, question_text, word_limit, section_name, confidence_posture, matched_content_ids')
+      .select(
+        'id, question_text, word_limit, section_name, confidence_posture, matched_content_ids',
+      )
       .eq('project_id', id)
       .order('section_sequence', { ascending: true })
       .order('question_sequence', { ascending: true });
 
     if (questionsError) {
-      console.error('Failed to fetch questions for batch drafting:', questionsError);
+      console.error(
+        'Failed to fetch questions for batch drafting:',
+        questionsError,
+      );
       return NextResponse.json(
         { error: 'Failed to fetch questions' },
         { status: 500 },
@@ -199,22 +203,21 @@ export async function POST(
         totalTokens += draftResult.total_tokens;
 
         // Upsert the response (overall_score written to both column and metadata for backward compat)
-        const overallScore = draftResult.metadata.quality_data?.overall_score ?? null;
-        await supabase
-          .from('bid_responses')
-          .upsert(
-            {
-              question_id: question.id,
-              response_text: draftResult.response_text,
-              source_content_ids: draftResult.source_content_ids,
-              metadata: draftResult.metadata as unknown as Json,
-              review_status: 'ai_drafted',
-              drafted_by: null,
-              updated_at: new Date().toISOString(),
-              overall_score: overallScore,
-            },
-            { onConflict: 'question_id' },
-          );
+        const overallScore =
+          draftResult.metadata.quality_data?.overall_score ?? null;
+        await supabase.from('bid_responses').upsert(
+          {
+            question_id: question.id,
+            response_text: draftResult.response_text,
+            source_content_ids: draftResult.source_content_ids,
+            metadata: draftResult.metadata as unknown as Json,
+            review_status: 'ai_drafted',
+            drafted_by: null,
+            updated_at: new Date().toISOString(),
+            overall_score: overallScore,
+          },
+          { onConflict: 'question_id' },
+        );
 
         // Update question status
         await supabase
@@ -229,11 +232,17 @@ export async function POST(
           quality_score: draftResult.metadata.quality_data?.overall_score,
         });
       } catch (draftErr) {
-        console.error(`Batch draft failed for question ${question.id}:`, draftErr);
+        console.error(
+          `Batch draft failed for question ${question.id}:`,
+          draftErr,
+        );
         results.push({
           question_id: question.id,
           status: 'failed',
-          error: draftErr instanceof Error ? draftErr.message : 'Drafting pipeline failed',
+          error:
+            draftErr instanceof Error
+              ? draftErr.message
+              : 'Drafting pipeline failed',
         });
       }
     }

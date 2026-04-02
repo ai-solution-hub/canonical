@@ -23,11 +23,18 @@ export async function GET(request: NextRequest) {
     if (!auth.success) return authFailureResponse(auth);
     const { supabase, role } = auth;
 
-    const parsed = parseSearchParams(ActivityParamsSchema, request.nextUrl.searchParams);
+    const parsed = parseSearchParams(
+      ActivityParamsSchema,
+      request.nextUrl.searchParams,
+    );
     if (!parsed.success) return parsed.response;
     const { limit, before } = parsed.data;
 
-    const rpcParams: { p_limit: number; p_is_admin: boolean; p_before?: string } = {
+    const rpcParams: {
+      p_limit: number;
+      p_is_admin: boolean;
+      p_before?: string;
+    } = {
       p_limit: limit,
       p_is_admin: role === 'admin',
     };
@@ -35,7 +42,10 @@ export async function GET(request: NextRequest) {
       rpcParams.p_before = before;
     }
 
-    const { data, error } = await supabase.rpc('get_grouped_activity_feed', rpcParams);
+    const { data, error } = await supabase.rpc(
+      'get_grouped_activity_feed',
+      rpcParams,
+    );
 
     if (error) {
       console.error('Failed to fetch activity feed:', error);
@@ -46,17 +56,19 @@ export async function GET(request: NextRequest) {
     }
 
     // Map RPC response: latest_at -> created_at (matches ActivityItem interface)
-    const activities = ((data ?? []) as Array<{
-      id: string;
-      type: string;
-      entity_type: string;
-      entity_id: string;
-      summary: string;
-      user_id: string | null;
-      latest_at: string | null;
-      earliest_at: string | null;
-      event_count: number;
-    }>).map((row) => ({
+    const activities = (
+      (data ?? []) as Array<{
+        id: string;
+        type: string;
+        entity_type: string;
+        entity_id: string;
+        summary: string;
+        user_id: string | null;
+        latest_at: string | null;
+        earliest_at: string | null;
+        event_count: number;
+      }>
+    ).map((row) => ({
       id: row.id,
       type: row.type,
       entity_type: row.entity_type,

@@ -201,7 +201,9 @@ describe('formatContentType', () => {
   it('should format underscore-separated types using display name map', () => {
     expect(formatContentType('q_a_pair')).toBe('Q&A Pair');
     expect(formatContentType('case_study')).toBe('Case Study');
-    expect(formatContentType('product_description')).toBe('Product Description');
+    expect(formatContentType('product_description')).toBe(
+      'Product Description',
+    );
   });
 
   it('should format unmapped underscore types as Title Case', () => {

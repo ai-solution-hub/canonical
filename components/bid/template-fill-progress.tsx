@@ -55,7 +55,8 @@ export function TemplateFillProgress({
         onErrorRef.current(msg);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to check job status';
+      const msg =
+        err instanceof Error ? err.message : 'Failed to check job status';
       setError(msg);
     }
   }, [jobId]);
@@ -74,9 +75,14 @@ export function TemplateFillProgress({
   if (error) {
     return (
       <div className="flex flex-col items-center gap-3 rounded-lg border p-6 text-center">
-        <AlertTriangle className="size-8 text-muted-foreground/50" aria-hidden="true" />
+        <AlertTriangle
+          className="size-8 text-muted-foreground/50"
+          aria-hidden="true"
+        />
         <div>
-          <p className="text-sm font-medium text-foreground">Template fill didn&apos;t complete</p>
+          <p className="text-sm font-medium text-foreground">
+            Template fill didn&apos;t complete
+          </p>
           <p className="mt-1 text-xs text-muted-foreground">{error}</p>
         </div>
         {onRetry && (
@@ -92,7 +98,10 @@ export function TemplateFillProgress({
   if (status === 'completed') {
     return (
       <div className="flex flex-col items-center gap-3 rounded-lg border border-template-confirmed/50 p-6 text-center">
-        <CheckCircle className="size-8 text-template-confirmed" aria-hidden="true" />
+        <CheckCircle
+          className="size-8 text-template-confirmed"
+          aria-hidden="true"
+        />
         <p className="text-sm font-medium">Template filled successfully</p>
       </div>
     );
@@ -100,7 +109,10 @@ export function TemplateFillProgress({
 
   return (
     <div className="flex flex-col items-center gap-3 rounded-lg border p-6 text-center">
-      <Loader2 className="size-8 animate-spin text-primary" aria-hidden="true" />
+      <Loader2
+        className="size-8 animate-spin text-primary"
+        aria-hidden="true"
+      />
       <div>
         <p className="text-sm font-medium">{phaseLabel}</p>
         <Progress

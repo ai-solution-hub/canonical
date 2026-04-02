@@ -48,7 +48,9 @@ function setCachedName(id: string, name: string): void {
  */
 const pendingFetches = new Map<string, Promise<void>>();
 
-async function fetchDisplayNames(ids: string[]): Promise<Record<string, string>> {
+async function fetchDisplayNames(
+  ids: string[],
+): Promise<Record<string, string>> {
   // Filter out already-cached IDs
   const needed = ids.filter((id) => getCachedName(id) === undefined);
 

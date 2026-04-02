@@ -44,7 +44,9 @@ const STORAGE_KEY = 'kh-detail-mode';
  * - Editors default to 'editor' but can toggle to 'reader'.
  * - Preference is persisted to localStorage for editors.
  */
-export function useDetailMode({ canEdit }: UseDetailModeOptions): UseDetailModeReturn {
+export function useDetailMode({
+  canEdit,
+}: UseDetailModeOptions): UseDetailModeReturn {
   const [detailMode, setDetailModeState] = useState<DetailMode>(() => {
     if (!canEdit) return 'reader';
 

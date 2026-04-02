@@ -3,7 +3,19 @@
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { Search, Briefcase, LayoutGrid, Library, Menu, Settings, ShieldCheck, BarChart3, BookOpen, Newspaper, ExternalLink } from 'lucide-react';
+import {
+  Search,
+  Briefcase,
+  LayoutGrid,
+  Library,
+  Menu,
+  Settings,
+  ShieldCheck,
+  BarChart3,
+  BookOpen,
+  Newspaper,
+  ExternalLink,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SearchBar } from '@/components/browse/search-bar';
 import {
@@ -21,11 +33,31 @@ import { cn } from '@/lib/utils';
 
 const NAV_LINKS = [
   { href: '/browse', label: 'Browse', icon: LayoutGrid, requiresEdit: false },
-  { href: '/library', label: 'Q&A Library', icon: Library, requiresEdit: false },
-  { href: '/coverage', label: 'Coverage', icon: BarChart3, requiresEdit: false },
+  {
+    href: '/library',
+    label: 'Q&A Library',
+    icon: Library,
+    requiresEdit: false,
+  },
+  {
+    href: '/coverage',
+    label: 'Coverage',
+    icon: BarChart3,
+    requiresEdit: false,
+  },
   { href: '/guide', label: 'Guides', icon: BookOpen, requiresEdit: false },
-  { href: '/workspaces', label: 'Workspaces', icon: Briefcase, requiresEdit: false },
-  { href: '/intelligence', label: 'Intelligence', icon: Newspaper, requiresEdit: true },
+  {
+    href: '/workspaces',
+    label: 'Workspaces',
+    icon: Briefcase,
+    requiresEdit: false,
+  },
+  {
+    href: '/intelligence',
+    label: 'Intelligence',
+    icon: Newspaper,
+    requiresEdit: true,
+  },
   { href: '/review', label: 'Review', icon: ShieldCheck, requiresEdit: true },
 ] as const;
 
@@ -64,7 +96,8 @@ export function SiteHeader() {
         <div className="hidden items-center gap-1 sm:flex">
           {NAV_LINKS.map(({ href, label, icon: Icon, requiresEdit }) => {
             if (requiresEdit && !roleLoading && !canEdit) return null;
-            const isActive = pathname === href || pathname?.startsWith(href + '/');
+            const isActive =
+              pathname === href || pathname?.startsWith(href + '/');
             return (
               <Link
                 key={href}
@@ -75,7 +108,9 @@ export function SiteHeader() {
                   isActive
                     ? 'font-semibold text-foreground'
                     : 'text-muted-foreground hover:text-foreground',
-                  requiresEdit && roleLoading && 'pointer-events-none opacity-50',
+                  requiresEdit &&
+                    roleLoading &&
+                    'pointer-events-none opacity-50',
                 )}
                 tabIndex={requiresEdit && roleLoading ? -1 : undefined}
               >
@@ -138,26 +173,34 @@ export function SiteHeader() {
       <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
         <SheetContent side="left" className="w-72 p-0">
           <SheetHeader className="border-b border-border px-4 py-3">
-            <SheetTitle className="text-lg font-semibold">Knowledge Hub</SheetTitle>
+            <SheetTitle className="text-lg font-semibold">
+              Knowledge Hub
+            </SheetTitle>
             <SheetDescription className="sr-only">
               Main navigation menu
             </SheetDescription>
           </SheetHeader>
-          <nav className="flex flex-col gap-1 p-3" aria-label="Mobile navigation">
+          <nav
+            className="flex flex-col gap-1 p-3"
+            aria-label="Mobile navigation"
+          >
             <Link
               href="/"
               onClick={() => setMobileMenuOpen(false)}
               aria-current={pathname === '/' ? 'page' : undefined}
               className={cn(
                 'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent',
-                pathname === '/' ? 'bg-accent text-foreground' : 'text-muted-foreground',
+                pathname === '/'
+                  ? 'bg-accent text-foreground'
+                  : 'text-muted-foreground',
               )}
             >
               Home
             </Link>
             {NAV_LINKS.map(({ href, label, icon: Icon, requiresEdit }) => {
               if (requiresEdit && !roleLoading && !canEdit) return null;
-              const isActive = pathname === href || pathname?.startsWith(href + '/');
+              const isActive =
+                pathname === href || pathname?.startsWith(href + '/');
               return (
                 <Link
                   key={href}
@@ -169,7 +212,9 @@ export function SiteHeader() {
                     isActive
                       ? 'bg-accent text-foreground'
                       : 'text-muted-foreground',
-                    requiresEdit && roleLoading && 'pointer-events-none opacity-50',
+                    requiresEdit &&
+                      roleLoading &&
+                      'pointer-events-none opacity-50',
                   )}
                   tabIndex={requiresEdit && roleLoading ? -1 : undefined}
                 >
@@ -192,7 +237,9 @@ export function SiteHeader() {
             <Link
               href={SETTINGS_LINK.href}
               onClick={() => setMobileMenuOpen(false)}
-              aria-current={pathname === SETTINGS_LINK.href ? 'page' : undefined}
+              aria-current={
+                pathname === SETTINGS_LINK.href ? 'page' : undefined
+              }
               className={cn(
                 'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent',
                 pathname === SETTINGS_LINK.href

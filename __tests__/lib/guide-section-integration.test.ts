@@ -119,7 +119,8 @@ const SAMPLE_GUIDE_SUGGESTIONS = [
     sectionOrder: 1,
     isRequired: true,
     matchStrength: 'exact' as const,
-    matchReason: 'Matches "SCP Sector Guide" > "Security" — all filters match (subtopic, layer)',
+    matchReason:
+      'Matches "SCP Sector Guide" > "Security" — all filters match (subtopic, layer)',
   },
   {
     guideId: 'guide-1',
@@ -130,7 +131,8 @@ const SAMPLE_GUIDE_SUGGESTIONS = [
     sectionOrder: 2,
     isRequired: false,
     matchStrength: 'partial' as const,
-    matchReason: 'Partially matches "SCP Sector Guide" > "Compliance" — matches subtopic but not layer',
+    matchReason:
+      'Partially matches "SCP Sector Guide" > "Compliance" — matches subtopic but not layer',
   },
 ];
 
@@ -167,9 +169,26 @@ beforeEach(() => {
   mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
 
   const chainable = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const m of chainable) {
     mockSupabase._chain[m].mockReturnValue(mockSupabase._chain);
@@ -178,22 +197,28 @@ beforeEach(() => {
   mockSupabase._chain.single.mockReset();
   mockSupabase._chain.single.mockResolvedValue({ data: null, error: null });
   mockSupabase._chain.maybeSingle.mockReset();
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+  });
   mockSupabase._chain.csv.mockReset();
   mockSupabase._chain.csv.mockResolvedValue({ data: null, error: null });
   mockSupabase._chain.then.mockReset();
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 
   // Storage mocks
   const storageBucket = {
-    upload: vi.fn().mockResolvedValue({ data: { path: 'test-path' }, error: null }),
+    upload: vi
+      .fn()
+      .mockResolvedValue({ data: { path: 'test-path' }, error: null }),
     download: vi.fn().mockResolvedValue({ data: new Blob(), error: null }),
     remove: vi.fn().mockResolvedValue({ data: [], error: null }),
     list: vi.fn().mockResolvedValue({ data: [], error: null }),
-    getPublicUrl: vi.fn().mockReturnValue({ data: { publicUrl: 'https://example.com/file' } }),
+    getPublicUrl: vi
+      .fn()
+      .mockReturnValue({ data: { publicUrl: 'https://example.com/file' } }),
   };
   mockSupabase.storage.from.mockReturnValue(storageBucket);
 
@@ -210,7 +235,10 @@ beforeEach(() => {
     confidence: 'high',
   });
   mockCalculateAndRoundQualityScore.mockReturnValue(0.5);
-  mockCheckForDuplicates.mockResolvedValue({ has_duplicates: false, matches: [] });
+  mockCheckForDuplicates.mockResolvedValue({
+    has_duplicates: false,
+    matches: [],
+  });
   mockFormatDedupWarning.mockReturnValue(null);
 });
 
@@ -222,7 +250,12 @@ describe('POST /api/items — guide section suggestions', () => {
   function setupItemsSuccessPath() {
     configureRole(mockSupabase, 'editor');
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, title: 'Test Security Policy', content_type: 'policy', created_at: '2026-01-01' },
+      data: {
+        id: VALID_UUID,
+        title: 'Test Security Policy',
+        content_type: 'policy',
+        created_at: '2026-01-01',
+      },
       error: null,
     });
   }
@@ -242,7 +275,9 @@ describe('POST /api/items — guide section suggestions', () => {
     const body = await res.json();
     expect(body.guide_section_suggestions).toBeDefined();
     expect(body.guide_section_suggestions).toHaveLength(2);
-    expect(body.guide_section_suggestions[0].guideName).toBe('SCP Sector Guide');
+    expect(body.guide_section_suggestions[0].guideName).toBe(
+      'SCP Sector Guide',
+    );
     expect(body.guide_section_suggestions[0].sectionName).toBe('Security');
     expect(body.guide_section_suggestions[0].matchStrength).toBe('exact');
   });
@@ -282,7 +317,9 @@ describe('POST /api/items — guide section suggestions', () => {
 
   it('still creates item when guide section suggestion throws', async () => {
     setupItemsSuccessPath();
-    mockSuggestGuideSections.mockRejectedValue(new Error('Database connection failed'));
+    mockSuggestGuideSections.mockRejectedValue(
+      new Error('Database connection failed'),
+    );
 
     const req = createTestRequest('/api/items', {
       method: 'POST',

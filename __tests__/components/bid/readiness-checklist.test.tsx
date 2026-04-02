@@ -34,13 +34,41 @@ function makeReadyData(): ReadinessData {
       passing_quality: 5,
     },
     criteria: [
-      { name: 'All questions answered', passed: true, details: '5 of 5 questions answered' },
-      { name: 'All responses reviewed', passed: true, details: '5 of 5 responses approved or edited' },
-      { name: 'Word limits met', passed: true, details: '5 of 5 within word limits' },
-      { name: 'Quality threshold met', passed: true, details: '5 of 5 checked responses pass quality threshold' },
-      { name: 'No unsupported claims', passed: true, details: '5 of 5 responses free of unsupported claims' },
-      { name: 'Has citations', passed: true, details: '5 of 5 checked responses have citations' },
-      { name: 'No critical issues', passed: true, details: '5 of 5 responses free of critical issues' },
+      {
+        name: 'All questions answered',
+        passed: true,
+        details: '5 of 5 questions answered',
+      },
+      {
+        name: 'All responses reviewed',
+        passed: true,
+        details: '5 of 5 responses approved or edited',
+      },
+      {
+        name: 'Word limits met',
+        passed: true,
+        details: '5 of 5 within word limits',
+      },
+      {
+        name: 'Quality threshold met',
+        passed: true,
+        details: '5 of 5 checked responses pass quality threshold',
+      },
+      {
+        name: 'No unsupported claims',
+        passed: true,
+        details: '5 of 5 responses free of unsupported claims',
+      },
+      {
+        name: 'Has citations',
+        passed: true,
+        details: '5 of 5 checked responses have citations',
+      },
+      {
+        name: 'No critical issues',
+        passed: true,
+        details: '5 of 5 responses free of critical issues',
+      },
     ],
     issues: [],
   };
@@ -57,13 +85,41 @@ function makeNotReadyData(): ReadinessData {
       passing_quality: 2,
     },
     criteria: [
-      { name: 'All questions answered', passed: false, details: '3 of 5 questions answered' },
-      { name: 'All responses reviewed', passed: false, details: '2 of 5 responses approved or edited' },
-      { name: 'Word limits met', passed: true, details: '5 of 5 within word limits' },
-      { name: 'Quality threshold met', passed: false, details: '2 of 3 checked responses pass quality threshold' },
-      { name: 'No unsupported claims', passed: true, details: '5 of 5 responses free of unsupported claims' },
-      { name: 'Has citations', passed: true, details: '3 of 3 checked responses have citations' },
-      { name: 'No critical issues', passed: true, details: '5 of 5 responses free of critical issues' },
+      {
+        name: 'All questions answered',
+        passed: false,
+        details: '3 of 5 questions answered',
+      },
+      {
+        name: 'All responses reviewed',
+        passed: false,
+        details: '2 of 5 responses approved or edited',
+      },
+      {
+        name: 'Word limits met',
+        passed: true,
+        details: '5 of 5 within word limits',
+      },
+      {
+        name: 'Quality threshold met',
+        passed: false,
+        details: '2 of 3 checked responses pass quality threshold',
+      },
+      {
+        name: 'No unsupported claims',
+        passed: true,
+        details: '5 of 5 responses free of unsupported claims',
+      },
+      {
+        name: 'Has citations',
+        passed: true,
+        details: '3 of 3 checked responses have citations',
+      },
+      {
+        name: 'No critical issues',
+        passed: true,
+        details: '5 of 5 responses free of critical issues',
+      },
     ],
     issues: [
       {
@@ -128,14 +184,18 @@ describe('ReadinessChecklist', () => {
     );
 
     // Issues should be collapsed by default
-    const expandButton = screen.getByRole('button', { name: /2 questions with issues/i });
+    const expandButton = screen.getByRole('button', {
+      name: /2 questions with issues/i,
+    });
     expect(expandButton).toBeInTheDocument();
 
     // Expand
     await user.click(expandButton);
 
     // Should show per-question issues
-    expect(screen.getByText(/Q4: Risk management approach/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Q4: Risk management approach/),
+    ).toBeInTheDocument();
     expect(screen.getByText('No response drafted')).toBeInTheDocument();
     expect(screen.getByText(/Q5: Team experience/)).toBeInTheDocument();
   });
@@ -153,7 +213,9 @@ describe('ReadinessChecklist', () => {
       />,
     );
 
-    const refreshButton = screen.getByRole('button', { name: /refresh readiness check/i });
+    const refreshButton = screen.getByRole('button', {
+      name: /refresh readiness check/i,
+    });
     await user.click(refreshButton);
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });
@@ -184,7 +246,9 @@ describe('ReadinessChecklist', () => {
       />,
     );
 
-    expect(screen.getByText(/Could not check readiness: Network error/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Could not check readiness: Network error/),
+    ).toBeInTheDocument();
 
     const retryButton = screen.getByRole('button', { name: /retry/i });
     await user.click(retryButton);
@@ -219,12 +283,16 @@ describe('ReadinessBadge', () => {
   });
 
   it('renders nothing when loading', () => {
-    const { container } = render(<ReadinessBadge readiness={null} isLoading={true} />);
+    const { container } = render(
+      <ReadinessBadge readiness={null} isLoading={true} />,
+    );
     expect(container.firstChild).toBeNull();
   });
 
   it('renders nothing when no data', () => {
-    const { container } = render(<ReadinessBadge readiness={null} isLoading={false} />);
+    const { container } = render(
+      <ReadinessBadge readiness={null} isLoading={false} />,
+    );
     expect(container.firstChild).toBeNull();
   });
 

@@ -93,9 +93,7 @@ async function fetchProgressStats(): Promise<ProgressStats> {
 
   // Calculate items this week (Monday start)
   const startOfWeek = new Date();
-  startOfWeek.setDate(
-    startOfWeek.getDate() - ((startOfWeek.getDay() + 6) % 7),
-  ); // Monday
+  startOfWeek.setDate(startOfWeek.getDate() - ((startOfWeek.getDay() + 6) % 7)); // Monday
   startOfWeek.setHours(0, 0, 0, 0);
 
   const itemsThisWeek = data.filter((row: { read_at: string }) => {
@@ -123,7 +121,9 @@ export function useProgress(): UseProgressReturn {
   const { readCount, totalCount, isLoaded, loadReadMarks } = useReadMarks();
 
   // Trigger lazy loading of read marks counts for consumers of this hook
-  useEffect(() => { loadReadMarks(); }, [loadReadMarks]);
+  useEffect(() => {
+    loadReadMarks();
+  }, [loadReadMarks]);
 
   const celebratedRef = useRef<Set<number>>(new Set());
 

@@ -79,7 +79,9 @@ function renderWithQuery(ui: React.ReactElement) {
 // Mock data factory
 // ---------------------------------------------------------------------------
 
-function makeContentItem(overrides: Partial<ContentListItem> = {}): ContentListItem {
+function makeContentItem(
+  overrides: Partial<ContentListItem> = {},
+): ContentListItem {
   return {
     id: 'item-1',
     title: 'Default Article Title',
@@ -161,12 +163,13 @@ describe('ContentCard with QuickReviewActions', () => {
 
   it('actions do not navigate (stopPropagation working)', () => {
     // The card is a Link, so we check the button click doesn't trigger navigation
-    renderWithQuery(
-      <ContentCard item={makeContentItem()} canEdit={true} />,
-    );
+    renderWithQuery(<ContentCard item={makeContentItem()} canEdit={true} />);
 
     const verifyBtn = screen.getByLabelText('Verify');
-    const clickEvent = new MouseEvent('click', { bubbles: true, cancelable: true });
+    const clickEvent = new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+    });
     const preventDefaultSpy = vi.spyOn(clickEvent, 'preventDefault');
     const stopPropagationSpy = vi.spyOn(clickEvent, 'stopPropagation');
 

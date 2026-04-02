@@ -215,7 +215,9 @@ export const QualityIssueRowSchema = z
     content_item_id: z.string().nullable(),
     flag_type: z.string(),
     severity: z.string(),
-    details: z.union([z.record(z.string(), z.unknown()), z.string()]).nullable(),
+    details: z
+      .union([z.record(z.string(), z.unknown()), z.string()])
+      .nullable(),
     resolved: z.boolean(),
     resolved_at: z.string().nullable(),
     resolved_by: z.string().nullable(),

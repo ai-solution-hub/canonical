@@ -55,17 +55,13 @@ describe('StreamingPhaseIndicator', () => {
   });
 
   it('shows quality score when phase is done', () => {
-    render(
-      <StreamingPhaseIndicator phase="done" qualityScore={0.92} />,
-    );
+    render(<StreamingPhaseIndicator phase="done" qualityScore={0.92} />);
 
     expect(screen.getByText('Quality: 92%')).toBeInTheDocument();
   });
 
   it('shows cost when phase is done', () => {
-    render(
-      <StreamingPhaseIndicator phase="done" totalCost={0.0123} />,
-    );
+    render(<StreamingPhaseIndicator phase="done" totalCost={0.0123} />);
 
     expect(screen.getByText('Cost: £0.0123')).toBeInTheDocument();
   });
@@ -74,9 +70,7 @@ describe('StreamingPhaseIndicator', () => {
     const user = userEvent.setup();
     const onCancel = vi.fn();
 
-    render(
-      <StreamingPhaseIndicator phase="drafting" onCancel={onCancel} />,
-    );
+    render(<StreamingPhaseIndicator phase="drafting" onCancel={onCancel} />);
 
     const cancelBtn = screen.getByRole('button', { name: /cancel/i });
     expect(cancelBtn).toBeInTheDocument();

@@ -25,8 +25,20 @@ const {
   mockBidStateLabels,
   mockBidStateShortLabels,
 } = vi.hoisted(() => ({
-  mockRouter: { push: vi.fn(), replace: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn(), prefetch: vi.fn().mockResolvedValue(undefined) },
-  mockUseUserRole: { role: 'editor' as string | null, canEdit: true, canAdmin: false, loading: false },
+  mockRouter: {
+    push: vi.fn(),
+    replace: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+    prefetch: vi.fn().mockResolvedValue(undefined),
+  },
+  mockUseUserRole: {
+    role: 'editor' as string | null,
+    canEdit: true,
+    canAdmin: false,
+    loading: false,
+  },
   mockUseBidActions: vi.fn(),
   mockFormatDateUK: vi.fn((d: string) => d),
   mockGetDeadlineProximity: vi.fn(),
@@ -68,7 +80,9 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: Record<string, unknown>) => (
-    <a href={href as string} {...props}>{children as React.ReactNode}</a>
+    <a href={href as string} {...props}>
+      {children as React.ReactNode}
+    </a>
   ),
 }));
 
@@ -95,7 +109,8 @@ vi.mock('@/lib/format', () => ({
 }));
 
 vi.mock('@/lib/bid/bid-helpers', () => ({
-  getDeadlineProximity: (d: string | null | undefined) => mockGetDeadlineProximity(d),
+  getDeadlineProximity: (d: string | null | undefined) =>
+    mockGetDeadlineProximity(d),
 }));
 
 vi.mock('@/lib/bid/bid-state-machine', () => ({
@@ -125,8 +140,12 @@ vi.mock('react', async (importOriginal) => {
 
 // Stub child components
 vi.mock('@/components/bid/bid-state-indicator', () => ({
-  BidStateBadge: ({ state }: { state: string }) => <span data-testid="bid-state-badge">{state}</span>,
-  BidStateStepper: ({ state }: { state: string }) => <div data-testid="bid-state-stepper">{state}</div>,
+  BidStateBadge: ({ state }: { state: string }) => (
+    <span data-testid="bid-state-badge">{state}</span>
+  ),
+  BidStateStepper: ({ state }: { state: string }) => (
+    <div data-testid="bid-state-stepper">{state}</div>
+  ),
 }));
 
 vi.mock('@/components/bid/bid-export-menu', () => ({
@@ -134,15 +153,18 @@ vi.mock('@/components/bid/bid-export-menu', () => ({
 }));
 
 vi.mock('@/components/coverage/cost-estimate-dialog', () => ({
-  CostEstimateDialog: ({ open }: { open: boolean }) => open ? <div data-testid="cost-estimate-dialog">Cost Estimate</div> : null,
+  CostEstimateDialog: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="cost-estimate-dialog">Cost Estimate</div> : null,
 }));
 
 vi.mock('@/components/bid/bid-outcome', () => ({
-  BidOutcomeDialog: ({ open }: { open: boolean }) => open ? <div data-testid="bid-outcome-dialog">Outcome</div> : null,
+  BidOutcomeDialog: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="bid-outcome-dialog">Outcome</div> : null,
 }));
 
 vi.mock('@/components/bid/kb-integration-review', () => ({
-  KBIntegrationReview: ({ open }: { open: boolean }) => open ? <div data-testid="kb-integration-review">KB Review</div> : null,
+  KBIntegrationReview: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="kb-integration-review">KB Review</div> : null,
 }));
 
 vi.mock('@/components/shared/confidence-badge', () => ({
@@ -164,7 +186,9 @@ vi.mock('@/components/bid/tender-upload', () => ({
 }));
 
 vi.mock('@/components/bid/tender-metadata-prompt', () => ({
-  TenderMetadataPrompt: () => <div data-testid="tender-metadata-prompt">MetadataPrompt</div>,
+  TenderMetadataPrompt: () => (
+    <div data-testid="tender-metadata-prompt">MetadataPrompt</div>
+  ),
 }));
 
 // Import AFTER mocks
@@ -183,9 +207,7 @@ function createTestQueryClient() {
 function renderWithQuery(ui: React.ReactElement) {
   const queryClient = createTestQueryClient();
   return render(
-    <QueryClientProvider client={queryClient}>
-      {ui}
-    </QueryClientProvider>,
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
   );
 }
 
@@ -236,12 +258,24 @@ function makeStats(overrides: Record<string, unknown> = {}) {
 }
 
 function makeDefaultHookReturn(overrides: Record<string, unknown> = {}) {
-  const bid = (overrides.bid !== undefined ? overrides.bid : makeBid()) as ReturnType<typeof makeBid> | null;
-  const stats = (overrides.stats !== undefined ? overrides.stats : null) as ReturnType<typeof makeStats> | null;
-  const totalQuestions = (overrides.totalQuestions !== undefined ? overrides.totalQuestions : 10) as number;
-  const completedCount = (overrides.completedCount !== undefined ? overrides.completedCount : 5) as number;
-  const progressPercent = (overrides.progressPercent !== undefined ? overrides.progressPercent : 50) as number;
-  const bidStatus = (overrides.bidStatus !== undefined ? overrides.bidStatus : 'drafting') as string | null;
+  const bid = (
+    overrides.bid !== undefined ? overrides.bid : makeBid()
+  ) as ReturnType<typeof makeBid> | null;
+  const stats = (
+    overrides.stats !== undefined ? overrides.stats : null
+  ) as ReturnType<typeof makeStats> | null;
+  const totalQuestions = (
+    overrides.totalQuestions !== undefined ? overrides.totalQuestions : 10
+  ) as number;
+  const completedCount = (
+    overrides.completedCount !== undefined ? overrides.completedCount : 5
+  ) as number;
+  const progressPercent = (
+    overrides.progressPercent !== undefined ? overrides.progressPercent : 50
+  ) as number;
+  const bidStatus = (
+    overrides.bidStatus !== undefined ? overrides.bidStatus : 'drafting'
+  ) as string | null;
 
   return {
     bid,
@@ -264,14 +298,17 @@ function makeDefaultHookReturn(overrides: Record<string, unknown> = {}) {
     extractedMetadata: overrides.extractedMetadata ?? null,
     handleStatusTransition: overrides.handleStatusTransition ?? vi.fn(),
     handleUploadComplete: overrides.handleUploadComplete ?? vi.fn(),
-    handleQuestionReviewConfirmed: overrides.handleQuestionReviewConfirmed ?? vi.fn(),
-    handleQuestionReviewCancelled: overrides.handleQuestionReviewCancelled ?? vi.fn(),
+    handleQuestionReviewConfirmed:
+      overrides.handleQuestionReviewConfirmed ?? vi.fn(),
+    handleQuestionReviewCancelled:
+      overrides.handleQuestionReviewCancelled ?? vi.fn(),
     handleDelete: overrides.handleDelete ?? vi.fn(),
     handleMatchQuestions: overrides.handleMatchQuestions ?? vi.fn(),
     handleDraftAll: overrides.handleDraftAll ?? vi.fn(),
     handleOutcomeRecorded: overrides.handleOutcomeRecorded ?? vi.fn(),
     clearExtractedMetadata: overrides.clearExtractedMetadata ?? vi.fn(),
-    handleKBIntegrationComplete: overrides.handleKBIntegrationComplete ?? vi.fn(),
+    handleKBIntegrationComplete:
+      overrides.handleKBIntegrationComplete ?? vi.fn(),
     deleteConfirmOpen: overrides.deleteConfirmOpen ?? false,
     setDeleteConfirmOpen: overrides.setDeleteConfirmOpen ?? vi.fn(),
     handleDeleteConfirmed: overrides.handleDeleteConfirmed ?? vi.fn(),
@@ -319,19 +356,25 @@ describe('BidDetailPage', () => {
 
   it('renders skeleton when loading', () => {
     mockUseBidActions.mockReturnValue(makeDefaultHookReturn({ loading: true }));
-    const { container } = renderWithQuery(<BidDetailPage params={mockParams} />);
+    const { container } = renderWithQuery(
+      <BidDetailPage params={mockParams} />,
+    );
     expect(container.querySelector('.animate-pulse')).toBeInTheDocument();
   });
 
   it('shows not-found state when bid is null', () => {
-    mockUseBidActions.mockReturnValue(makeDefaultHookReturn({ bid: null, bidStatus: 'drafting' }));
+    mockUseBidActions.mockReturnValue(
+      makeDefaultHookReturn({ bid: null, bidStatus: 'drafting' }),
+    );
     renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.getByText('Bid not found')).toBeInTheDocument();
     expect(screen.getByText('Return to Bids')).toBeInTheDocument();
   });
 
   it('shows not-found state when bidStatus is null', () => {
-    mockUseBidActions.mockReturnValue(makeDefaultHookReturn({ bidStatus: null }));
+    mockUseBidActions.mockReturnValue(
+      makeDefaultHookReturn({ bidStatus: null }),
+    );
     renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.getByText('Bid not found')).toBeInTheDocument();
   });
@@ -340,7 +383,9 @@ describe('BidDetailPage', () => {
 
   it('renders the bid name in the header', () => {
     renderWithQuery(<BidDetailPage params={mockParams} />);
-    expect(screen.getByRole('heading', { level: 1, name: 'Test Bid Alpha' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Test Bid Alpha' }),
+    ).toBeInTheDocument();
   });
 
   it('renders the bid state badge', () => {
@@ -375,13 +420,21 @@ describe('BidDetailPage', () => {
   // ---- Deadline proximity ----
 
   it('shows deadline proximity badge when deadline is near', () => {
-    mockGetDeadlineProximity.mockReturnValue({ label: '3 days left', isOverdue: false, daysLeft: 3 });
+    mockGetDeadlineProximity.mockReturnValue({
+      label: '3 days left',
+      isOverdue: false,
+      daysLeft: 3,
+    });
     renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.getByText('3 days left')).toBeInTheDocument();
   });
 
   it('shows overdue proximity badge with overdue styling', () => {
-    mockGetDeadlineProximity.mockReturnValue({ label: 'Overdue', isOverdue: true, daysLeft: -2 });
+    mockGetDeadlineProximity.mockReturnValue({
+      label: 'Overdue',
+      isOverdue: true,
+      daysLeft: -2,
+    });
     renderWithQuery(<BidDetailPage params={mockParams} />);
     const badge = screen.getByText('Overdue');
     expect(badge).toBeInTheDocument();
@@ -397,27 +450,39 @@ describe('BidDetailPage', () => {
   // ---- Action buttons visibility ----
 
   it('shows transition buttons for editors', () => {
-    mockUseBidActions.mockReturnValue(makeDefaultHookReturn({
-      regularTransitions: ['in_review'],
-    }));
+    mockUseBidActions.mockReturnValue(
+      makeDefaultHookReturn({
+        regularTransitions: ['in_review'],
+      }),
+    );
     renderWithQuery(<BidDetailPage params={mockParams} />);
-    expect(screen.getByRole('button', { name: 'In Review' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'In Review' }),
+    ).toBeInTheDocument();
   });
 
   it('hides action buttons for viewers', () => {
     mockUseUserRole.canEdit = false;
     mockUseUserRole.role = 'viewer';
     renderWithQuery(<BidDetailPage params={mockParams} />);
-    expect(screen.queryByRole('button', { name: 'In Review' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'In Review' }),
+    ).not.toBeInTheDocument();
   });
 
   it('filters out withdrawn from transition buttons', () => {
-    mockUseBidActions.mockReturnValue(makeDefaultHookReturn({
-      regularTransitions: ['in_review', 'withdrawn'],
-    }));
+    mockUseBidActions.mockReturnValue(
+      makeDefaultHookReturn({
+        regularTransitions: ['in_review', 'withdrawn'],
+      }),
+    );
     renderWithQuery(<BidDetailPage params={mockParams} />);
-    expect(screen.getByRole('button', { name: 'In Review' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Withdrawn' })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'In Review' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Withdrawn' }),
+    ).not.toBeInTheDocument();
   });
 
   // ---- Admin-only delete ----
@@ -436,7 +501,9 @@ describe('BidDetailPage', () => {
     mockUseUserRole.role = 'editor';
     mockUseUserRole.canEdit = true;
     renderWithQuery(<BidDetailPage params={mockParams} />);
-    expect(screen.queryByRole('button', { name: 'More actions' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'More actions' }),
+    ).not.toBeInTheDocument();
   });
 
   // ---- Tab navigation ----
@@ -458,7 +525,9 @@ describe('BidDetailPage', () => {
 
   it('calls setActiveTab when clicking a tab', async () => {
     const mockSetActiveTab = vi.fn();
-    mockUseBidActions.mockReturnValue(makeDefaultHookReturn({ setActiveTab: mockSetActiveTab }));
+    mockUseBidActions.mockReturnValue(
+      makeDefaultHookReturn({ setActiveTab: mockSetActiveTab }),
+    );
     const user = userEvent.setup();
     renderWithQuery(<BidDetailPage params={mockParams} />);
     const nav = screen.getByRole('tablist', { name: 'Bid sections' });
@@ -475,11 +544,15 @@ describe('BidDetailPage', () => {
 
   it('shows progress bar with completion text', () => {
     renderWithQuery(<BidDetailPage params={mockParams} />);
-    expect(screen.getByText('5 of 10 questions drafted (50%)')).toBeInTheDocument();
+    expect(
+      screen.getByText('5 of 10 questions drafted (50%)'),
+    ).toBeInTheDocument();
   });
 
   it('shows upload prompt when zero questions', () => {
-    mockUseBidActions.mockReturnValue(makeDefaultHookReturn({ totalQuestions: 0 }));
+    mockUseBidActions.mockReturnValue(
+      makeDefaultHookReturn({ totalQuestions: 0 }),
+    );
     renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.getByText(/No questions extracted yet/)).toBeInTheDocument();
   });
@@ -493,46 +566,66 @@ describe('BidDetailPage', () => {
   // ---- Questions tab ----
 
   it('shows bulk actions in questions tab for editors with questions', () => {
-    mockUseBidActions.mockReturnValue(makeDefaultHookReturn({
-      activeTab: 'questions',
-      totalQuestions: 10,
-      stats: makeStats({ unmatched_count: 3 }),
-      bidStatus: 'drafting',
-    }));
+    mockUseBidActions.mockReturnValue(
+      makeDefaultHookReturn({
+        activeTab: 'questions',
+        totalQuestions: 10,
+        stats: makeStats({ unmatched_count: 3 }),
+        bidStatus: 'drafting',
+      }),
+    );
     renderWithQuery(<BidDetailPage params={mockParams} />);
-    expect(screen.getByText(/Find answers for 3 questions/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Find answers for 3 questions/),
+    ).toBeInTheDocument();
   });
 
   it('shows Draft All button when bidStatus is drafting', () => {
-    mockUseBidActions.mockReturnValue(makeDefaultHookReturn({
-      activeTab: 'questions',
-      totalQuestions: 10,
-      bidStatus: 'drafting',
-    }));
+    mockUseBidActions.mockReturnValue(
+      makeDefaultHookReturn({
+        activeTab: 'questions',
+        totalQuestions: 10,
+        bidStatus: 'drafting',
+      }),
+    );
     renderWithQuery(<BidDetailPage params={mockParams} />);
-    expect(screen.getByRole('button', { name: /Draft All/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Draft All/ }),
+    ).toBeInTheDocument();
   });
 
   // ---- Documents tab ----
 
   it('shows upload prompt when no documents', () => {
-    mockUseBidActions.mockReturnValue(makeDefaultHookReturn({
-      activeTab: 'documents',
-      bid: makeBid({ tender_documents: [] }),
-    }));
+    mockUseBidActions.mockReturnValue(
+      makeDefaultHookReturn({
+        activeTab: 'documents',
+        bid: makeBid({ tender_documents: [] }),
+      }),
+    );
     renderWithQuery(<BidDetailPage params={mockParams} />);
-    expect(screen.getByText('No tender documents uploaded yet.')).toBeInTheDocument();
+    expect(
+      screen.getByText('No tender documents uploaded yet.'),
+    ).toBeInTheDocument();
   });
 
   it('lists uploaded documents', () => {
-    mockUseBidActions.mockReturnValue(makeDefaultHookReturn({
-      activeTab: 'documents',
-      bid: makeBid({
-        tender_documents: [
-          { path: 'docs/tender.pdf', filename: 'tender.pdf', size: 51200, mime_type: 'application/pdf', uploaded_at: '2026-03-01' },
-        ],
+    mockUseBidActions.mockReturnValue(
+      makeDefaultHookReturn({
+        activeTab: 'documents',
+        bid: makeBid({
+          tender_documents: [
+            {
+              path: 'docs/tender.pdf',
+              filename: 'tender.pdf',
+              size: 51200,
+              mime_type: 'application/pdf',
+              uploaded_at: '2026-03-01',
+            },
+          ],
+        }),
       }),
-    }));
+    );
     renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.getByText('tender.pdf')).toBeInTheDocument();
     expect(screen.getByText('Uploaded Documents (1)')).toBeInTheDocument();
@@ -541,17 +634,23 @@ describe('BidDetailPage', () => {
   // ---- Delete confirmation dialog ----
 
   it('renders delete confirmation dialog when open', () => {
-    mockUseBidActions.mockReturnValue(makeDefaultHookReturn({ deleteConfirmOpen: true }));
+    mockUseBidActions.mockReturnValue(
+      makeDefaultHookReturn({ deleteConfirmOpen: true }),
+    );
     renderWithQuery(<BidDetailPage params={mockParams} />);
-    expect(screen.getByText(/Are you sure you want to delete/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Are you sure you want to delete/),
+    ).toBeInTheDocument();
   });
 
   it('calls handleDeleteConfirmed when delete is confirmed', async () => {
     const mockHandleDeleteConfirmed = vi.fn();
-    mockUseBidActions.mockReturnValue(makeDefaultHookReturn({
-      deleteConfirmOpen: true,
-      handleDeleteConfirmed: mockHandleDeleteConfirmed,
-    }));
+    mockUseBidActions.mockReturnValue(
+      makeDefaultHookReturn({
+        deleteConfirmOpen: true,
+        handleDeleteConfirmed: mockHandleDeleteConfirmed,
+      }),
+    );
     const user = userEvent.setup();
     renderWithQuery(<BidDetailPage params={mockParams} />);
     await user.click(screen.getByRole('button', { name: 'Delete' }));
@@ -561,22 +660,32 @@ describe('BidDetailPage', () => {
   // ---- Outcome dialog ----
 
   it('shows Record Outcome button for submitted bids', () => {
-    mockUseBidActions.mockReturnValue(makeDefaultHookReturn({
-      isSubmitted: true,
-      bidStatus: 'submitted',
-    }));
+    mockUseBidActions.mockReturnValue(
+      makeDefaultHookReturn({
+        isSubmitted: true,
+        bidStatus: 'submitted',
+      }),
+    );
     renderWithQuery(<BidDetailPage params={mockParams} />);
     // Header actions + NextActionCard both show Record Outcome
-    const outcomeButtons = screen.getAllByRole('button', { name: /Record Outcome/ });
+    const outcomeButtons = screen.getAllByRole('button', {
+      name: /Record Outcome/,
+    });
     expect(outcomeButtons.length).toBeGreaterThanOrEqual(1);
   });
 
   // ---- Extracted metadata prompt ----
 
   it('renders TenderMetadataPrompt when extractedMetadata is present', () => {
-    mockUseBidActions.mockReturnValue(makeDefaultHookReturn({
-      extractedMetadata: { buyer_name: 'Test Buyer', deadline: null, reference_number: null },
-    }));
+    mockUseBidActions.mockReturnValue(
+      makeDefaultHookReturn({
+        extractedMetadata: {
+          buyer_name: 'Test Buyer',
+          deadline: null,
+          reference_number: null,
+        },
+      }),
+    );
     renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.getByTestId('tender-metadata-prompt')).toBeInTheDocument();
   });
@@ -601,82 +710,114 @@ describe('BidDetailPage', () => {
 
   describe('NextActionCard on Overview tab', () => {
     it('shows "Start answering questions" for draft bids', () => {
-      mockUseBidActions.mockReturnValue(makeDefaultHookReturn({
-        bidStatus: 'draft',
-        activeTab: 'overview',
-      }));
+      mockUseBidActions.mockReturnValue(
+        makeDefaultHookReturn({
+          bidStatus: 'draft',
+          activeTab: 'overview',
+        }),
+      );
       renderWithQuery(<BidDetailPage params={mockParams} />);
       expect(screen.getByText('Start answering questions')).toBeInTheDocument();
       // Action link should point to session page (multiple Open Session links exist — header + card)
       const actionLinks = screen.getAllByRole('link', { name: /Open Session/ });
-      expect(actionLinks.some(link => link.getAttribute('href') === '/bid/test-bid-1/session')).toBe(true);
+      expect(
+        actionLinks.some(
+          (link) => link.getAttribute('href') === '/bid/test-bid-1/session',
+        ),
+      ).toBe(true);
     });
 
     it('shows "Start answering questions" for drafting bids', () => {
-      mockUseBidActions.mockReturnValue(makeDefaultHookReturn({
-        bidStatus: 'drafting',
-        activeTab: 'overview',
-      }));
+      mockUseBidActions.mockReturnValue(
+        makeDefaultHookReturn({
+          bidStatus: 'drafting',
+          activeTab: 'overview',
+        }),
+      );
       renderWithQuery(<BidDetailPage params={mockParams} />);
       expect(screen.getByText('Start answering questions')).toBeInTheDocument();
     });
 
     it('shows "Review responses before submission" for in_review bids', () => {
-      mockUseBidActions.mockReturnValue(makeDefaultHookReturn({
-        bidStatus: 'in_review',
-        activeTab: 'overview',
-      }));
+      mockUseBidActions.mockReturnValue(
+        makeDefaultHookReturn({
+          bidStatus: 'in_review',
+          activeTab: 'overview',
+        }),
+      );
       renderWithQuery(<BidDetailPage params={mockParams} />);
-      expect(screen.getByText('Review responses before submission')).toBeInTheDocument();
+      expect(
+        screen.getByText('Review responses before submission'),
+      ).toBeInTheDocument();
       const actionLink = screen.getByRole('link', { name: /Review Responses/ });
       expect(actionLink).toHaveAttribute('href', '/bid/test-bid-1/session');
     });
 
     it('shows "Record the outcome" for submitted bids', () => {
       const mockSetShowOutcome = vi.fn();
-      mockUseBidActions.mockReturnValue(makeDefaultHookReturn({
-        bidStatus: 'submitted',
-        activeTab: 'overview',
-        isSubmitted: true,
-        setShowOutcomeDialog: mockSetShowOutcome,
-      }));
+      mockUseBidActions.mockReturnValue(
+        makeDefaultHookReturn({
+          bidStatus: 'submitted',
+          activeTab: 'overview',
+          isSubmitted: true,
+          setShowOutcomeDialog: mockSetShowOutcome,
+        }),
+      );
       renderWithQuery(<BidDetailPage params={mockParams} />);
-      expect(screen.getByText('Record the outcome when you hear back')).toBeInTheDocument();
+      expect(
+        screen.getByText('Record the outcome when you hear back'),
+      ).toBeInTheDocument();
       // Multiple Record Outcome buttons exist (header + card)
-      const outcomeButtons = screen.getAllByRole('button', { name: /Record Outcome/ });
+      const outcomeButtons = screen.getAllByRole('button', {
+        name: /Record Outcome/,
+      });
       expect(outcomeButtons.length).toBeGreaterThanOrEqual(1);
     });
 
     it('shows "Review responses for your knowledge base" for won bids', () => {
-      mockUseBidActions.mockReturnValue(makeDefaultHookReturn({
-        bidStatus: 'won',
-        activeTab: 'overview',
-        regularTransitions: [],
-      }));
+      mockUseBidActions.mockReturnValue(
+        makeDefaultHookReturn({
+          bidStatus: 'won',
+          activeTab: 'overview',
+          regularTransitions: [],
+        }),
+      );
       renderWithQuery(<BidDetailPage params={mockParams} />);
-      expect(screen.getByText('Review responses for your knowledge base')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /Review for KB/ })).toBeInTheDocument();
+      expect(
+        screen.getByText('Review responses for your knowledge base'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /Review for KB/ }),
+      ).toBeInTheDocument();
     });
 
     it('does not show next action card for viewers', () => {
       mockUseUserRole.canEdit = false;
       mockUseUserRole.role = 'viewer';
-      mockUseBidActions.mockReturnValue(makeDefaultHookReturn({
-        bidStatus: 'drafting',
-        activeTab: 'overview',
-      }));
+      mockUseBidActions.mockReturnValue(
+        makeDefaultHookReturn({
+          bidStatus: 'drafting',
+          activeTab: 'overview',
+        }),
+      );
       renderWithQuery(<BidDetailPage params={mockParams} />);
-      expect(screen.queryByText('Start answering questions')).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('Start answering questions'),
+      ).not.toBeInTheDocument();
     });
 
     it('does not show next action card for withdrawn bids', () => {
-      mockUseBidActions.mockReturnValue(makeDefaultHookReturn({
-        bidStatus: 'withdrawn',
-        activeTab: 'overview',
-        regularTransitions: [],
-      }));
+      mockUseBidActions.mockReturnValue(
+        makeDefaultHookReturn({
+          bidStatus: 'withdrawn',
+          activeTab: 'overview',
+          regularTransitions: [],
+        }),
+      );
       renderWithQuery(<BidDetailPage params={mockParams} />);
-      expect(screen.queryByText('Start answering questions')).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('Start answering questions'),
+      ).not.toBeInTheDocument();
       expect(screen.queryByText('Review responses')).not.toBeInTheDocument();
     });
   });

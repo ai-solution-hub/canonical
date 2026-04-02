@@ -96,7 +96,10 @@ export interface UseReviewQueueDataReturn {
   hasMore: boolean;
   stats: ReviewStatsResponse | null;
   activeAssignment: ReviewAssignmentInfo | null;
-  queueQuery: UseInfiniteQueryResult<InfiniteData<ReviewQueuePage, number>, Error>;
+  queueQuery: UseInfiniteQueryResult<
+    InfiniteData<ReviewQueuePage, number>,
+    Error
+  >;
   queryClient: QueryClient;
   queueFiltersKey: Record<string, unknown>;
 }

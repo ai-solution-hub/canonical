@@ -20,12 +20,13 @@ test.describe('Workspaces page', () => {
   }) => {
     await page.goto('/workspaces');
 
-    await expect(
-      page.getByRole('heading', { name: 'Workspaces' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Workspaces' })).toBeVisible(
+      { timeout: 10000 },
+    );
 
     await expect(
-      page.locator('section[aria-label="Workspaces"]')
+      page
+        .locator('section[aria-label="Workspaces"]')
         .getByText('Use your knowledge base to power different types of work.'),
     ).toBeVisible();
   });
@@ -35,9 +36,9 @@ test.describe('Workspaces page', () => {
   }) => {
     await page.goto('/workspaces');
 
-    await expect(
-      page.getByRole('heading', { name: 'Workspaces' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Workspaces' })).toBeVisible(
+      { timeout: 10000 },
+    );
 
     // The Bids card is a link with aria-label starting with "Bids"
     const bidsCard = page.locator('a[aria-label^="Bids"]').first();
@@ -64,9 +65,9 @@ test.describe('Workspaces page', () => {
   }) => {
     await page.goto('/workspaces');
 
-    await expect(
-      page.getByRole('heading', { name: 'Workspaces' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Workspaces' })).toBeVisible(
+      { timeout: 10000 },
+    );
 
     const bidsCard = page.locator('a[aria-label^="Bids"]').first();
     await expect(bidsCard).toBeVisible();
@@ -74,9 +75,9 @@ test.describe('Workspaces page', () => {
     await bidsCard.click();
 
     await expect(page).toHaveURL('/bid', { timeout: 10000 });
-    await expect(
-      page.getByRole('heading', { name: 'Bids' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test('coming soon workspace card is visually disabled', async ({
@@ -84,9 +85,9 @@ test.describe('Workspaces page', () => {
   }) => {
     await page.goto('/workspaces');
 
-    await expect(
-      page.getByRole('heading', { name: 'Workspaces' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Workspaces' })).toBeVisible(
+      { timeout: 10000 },
+    );
 
     // The Sales Proposals card has aria-label containing "coming soon"
     const comingSoonCard = page.locator('[aria-label*="coming soon"]').first();
@@ -104,7 +105,9 @@ test.describe('Workspaces page', () => {
     await expect(comingSoonCard.getByText('Coming soon')).toBeVisible();
 
     // Card is NOT a link (no href attribute -- it is a <div> not an <a>)
-    const tagName = await comingSoonCard.evaluate((el) => el.tagName.toLowerCase());
+    const tagName = await comingSoonCard.evaluate((el) =>
+      el.tagName.toLowerCase(),
+    );
     expect(tagName).toBe('div');
   });
 
@@ -113,9 +116,9 @@ test.describe('Workspaces page', () => {
   }) => {
     await page.goto('/workspaces');
 
-    await expect(
-      page.getByRole('heading', { name: 'Workspaces' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Workspaces' })).toBeVisible(
+      { timeout: 10000 },
+    );
 
     const bidsCard = page.locator('a[aria-label^="Bids"]').first();
     const comingSoonCard = page.locator('[aria-label*="coming soon"]').first();
@@ -144,14 +147,12 @@ test.describe('Workspaces page', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('Workspaces -- viewer access', () => {
-  test('viewer can access workspaces page', async ({
-    viewerPage: page,
-  }) => {
+  test('viewer can access workspaces page', async ({ viewerPage: page }) => {
     await page.goto('/workspaces');
 
-    await expect(
-      page.getByRole('heading', { name: 'Workspaces' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Workspaces' })).toBeVisible(
+      { timeout: 10000 },
+    );
 
     // Bids card is visible
     const bidsCard = page.locator('a[aria-label^="Bids"]').first();

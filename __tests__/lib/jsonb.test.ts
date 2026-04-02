@@ -40,7 +40,9 @@ describe('parseJsonb', () => {
 
     const result = parseJsonb(SummaryDataSchema, withExtra);
     expect(result).not.toBeNull();
-    expect((result as Record<string, unknown>)?.extra_field).toBe('should be preserved');
+    expect((result as Record<string, unknown>)?.extra_field).toBe(
+      'should be preserved',
+    );
   });
 
   it('should return null for invalid SummaryData (missing required fields)', () => {

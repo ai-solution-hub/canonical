@@ -37,7 +37,12 @@ vi.mock('sonner', () => ({
 }));
 
 vi.mock('@/components/ui/button', () => ({
-  Button: ({ children, onClick, disabled, ...props }: Record<string, unknown>) => (
+  Button: ({
+    children,
+    onClick,
+    disabled,
+    ...props
+  }: Record<string, unknown>) => (
     <button
       onClick={onClick as React.MouseEventHandler}
       disabled={disabled as boolean}
@@ -50,12 +55,39 @@ vi.mock('@/components/ui/button', () => ({
 }));
 
 vi.mock('lucide-react', () => ({
-  Building2: (props: Record<string, unknown>) => <span data-testid="building-icon" aria-hidden={props['aria-hidden'] as string} />,
-  Calendar: (props: Record<string, unknown>) => <span data-testid="calendar-icon" aria-hidden={props['aria-hidden'] as string} />,
-  Hash: (props: Record<string, unknown>) => <span data-testid="hash-icon" aria-hidden={props['aria-hidden'] as string} />,
-  PoundSterling: (props: Record<string, unknown>) => <span data-testid="pound-icon" aria-hidden={props['aria-hidden'] as string} />,
-  FileText: (props: Record<string, unknown>) => <span data-testid="file-icon" aria-hidden={props['aria-hidden'] as string} />,
-  X: (props: Record<string, unknown>) => <span data-testid="x-icon" aria-hidden={props['aria-hidden'] as string} />,
+  Building2: (props: Record<string, unknown>) => (
+    <span
+      data-testid="building-icon"
+      aria-hidden={props['aria-hidden'] as string}
+    />
+  ),
+  Calendar: (props: Record<string, unknown>) => (
+    <span
+      data-testid="calendar-icon"
+      aria-hidden={props['aria-hidden'] as string}
+    />
+  ),
+  Hash: (props: Record<string, unknown>) => (
+    <span
+      data-testid="hash-icon"
+      aria-hidden={props['aria-hidden'] as string}
+    />
+  ),
+  PoundSterling: (props: Record<string, unknown>) => (
+    <span
+      data-testid="pound-icon"
+      aria-hidden={props['aria-hidden'] as string}
+    />
+  ),
+  FileText: (props: Record<string, unknown>) => (
+    <span
+      data-testid="file-icon"
+      aria-hidden={props['aria-hidden'] as string}
+    />
+  ),
+  X: (props: Record<string, unknown>) => (
+    <span data-testid="x-icon" aria-hidden={props['aria-hidden'] as string} />
+  ),
 }));
 
 // Import AFTER mocks
@@ -66,7 +98,9 @@ import type { TenderExtractedMetadata } from '@/types/bid-metadata';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeMetadata(overrides: Partial<TenderExtractedMetadata> = {}): TenderExtractedMetadata {
+function makeMetadata(
+  overrides: Partial<TenderExtractedMetadata> = {},
+): TenderExtractedMetadata {
   return {
     buyer_name: 'Acme Council',
     deadline: '2026-04-15',
@@ -116,12 +150,16 @@ describe('TenderMetadataPrompt', () => {
 
   it('renders accessible region', () => {
     render(<TenderMetadataPrompt {...defaultProps} />);
-    expect(screen.getByRole('region', { name: 'Extracted tender metadata' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', { name: 'Extracted tender metadata' }),
+    ).toBeInTheDocument();
   });
 
   it('renders description text', () => {
     render(<TenderMetadataPrompt {...defaultProps} />);
-    expect(screen.getByText(/following details were extracted/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/following details were extracted/),
+    ).toBeInTheDocument();
   });
 
   // ---- Metadata fields ----
@@ -177,19 +215,34 @@ describe('TenderMetadataPrompt', () => {
   // ---- Confidence indicator ----
 
   it('shows high confidence for values above 0.7', () => {
-    render(<TenderMetadataPrompt {...defaultProps} metadata={makeMetadata({ confidence: 0.9 })} />);
+    render(
+      <TenderMetadataPrompt
+        {...defaultProps}
+        metadata={makeMetadata({ confidence: 0.9 })}
+      />,
+    );
     expect(screen.getByText(/High confidence/)).toBeInTheDocument();
     expect(screen.getByText(/90%/)).toBeInTheDocument();
   });
 
   it('shows medium confidence for values between 0.3 and 0.7', () => {
-    render(<TenderMetadataPrompt {...defaultProps} metadata={makeMetadata({ confidence: 0.5 })} />);
+    render(
+      <TenderMetadataPrompt
+        {...defaultProps}
+        metadata={makeMetadata({ confidence: 0.5 })}
+      />,
+    );
     expect(screen.getByText(/Medium confidence/)).toBeInTheDocument();
     expect(screen.getByText(/50%/)).toBeInTheDocument();
   });
 
   it('shows low confidence for values below 0.3', () => {
-    render(<TenderMetadataPrompt {...defaultProps} metadata={makeMetadata({ confidence: 0.2 })} />);
+    render(
+      <TenderMetadataPrompt
+        {...defaultProps}
+        metadata={makeMetadata({ confidence: 0.2 })}
+      />,
+    );
     expect(screen.getByText(/Low confidence/)).toBeInTheDocument();
     expect(screen.getByText(/20%/)).toBeInTheDocument();
   });
@@ -204,7 +257,9 @@ describe('TenderMetadataPrompt', () => {
       estimated_value: null,
       title: null,
     });
-    const { container } = render(<TenderMetadataPrompt {...defaultProps} metadata={metadata} />);
+    const { container } = render(
+      <TenderMetadataPrompt {...defaultProps} metadata={metadata} />,
+    );
     expect(container.innerHTML).toBe('');
   });
 
@@ -212,21 +267,27 @@ describe('TenderMetadataPrompt', () => {
 
   it('renders dismiss button with icon', () => {
     render(<TenderMetadataPrompt {...defaultProps} />);
-    expect(screen.getByLabelText('Dismiss tender metadata')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Dismiss tender metadata'),
+    ).toBeInTheDocument();
   });
 
   it('hides component when dismiss X button is clicked', async () => {
     const user = userEvent.setup();
     render(<TenderMetadataPrompt {...defaultProps} />);
     await user.click(screen.getByLabelText('Dismiss tender metadata'));
-    expect(screen.queryByText('Tender Metadata Detected')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Tender Metadata Detected'),
+    ).not.toBeInTheDocument();
   });
 
   it('hides component when Dismiss button is clicked', async () => {
     const user = userEvent.setup();
     render(<TenderMetadataPrompt {...defaultProps} />);
     await user.click(screen.getByText('Dismiss'));
-    expect(screen.queryByText('Tender Metadata Detected')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Tender Metadata Detected'),
+    ).not.toBeInTheDocument();
   });
 
   // ---- Apply / Update Bid Details ----
@@ -300,9 +361,13 @@ describe('TenderMetadataPrompt', () => {
     await user.click(screen.getByText('Update Bid Details'));
 
     await waitFor(() => {
-      expect(mockToast.success).toHaveBeenCalledWith('Tender metadata applied to bid');
+      expect(mockToast.success).toHaveBeenCalledWith(
+        'Tender metadata applied to bid',
+      );
     });
-    expect(screen.queryByText('Tender Metadata Detected')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Tender Metadata Detected'),
+    ).not.toBeInTheDocument();
   });
 
   it('calls onUpdated after successful apply', async () => {
@@ -379,7 +444,7 @@ describe('TenderMetadataPrompt', () => {
   it('works without onUpdated callback', async () => {
     mockFetch.mockReturnValueOnce(mockFetchResponse({ ok: true }));
     const user = userEvent.setup();
-    const { onUpdated: _unused, ...propsNoCallback } = defaultProps;  
+    const { onUpdated: _unused, ...propsNoCallback } = defaultProps;
     render(<TenderMetadataPrompt {...propsNoCallback} />);
     await user.click(screen.getByText('Update Bid Details'));
 

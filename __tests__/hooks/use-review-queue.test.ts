@@ -157,7 +157,10 @@ global.requestAnimationFrame = vi.fn((cb) => {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeQueueItem(overrides: Partial<ReviewQueueItem> = {}, index = 0): ReviewQueueItem {
+function makeQueueItem(
+  overrides: Partial<ReviewQueueItem> = {},
+  index = 0,
+): ReviewQueueItem {
   return {
     id: overrides.id ?? `item-${index}`,
     title: overrides.title ?? `Item ${index}`,
@@ -224,16 +227,18 @@ function setupLoadedState(
     queue: items,
     isLoading: false,
     hasMore: overrides?.hasMore ?? false,
-    stats: overrides?.stats ? {
-      total: 100,
-      verified: 50,
-      flagged: 10,
-      unverified: 40,
-      by_domain: {},
-      by_content_type: {},
-      by_source_file: {},
-      ...overrides.stats,
-    } as ReviewStatsResponse : null,
+    stats: overrides?.stats
+      ? ({
+          total: 100,
+          verified: 50,
+          flagged: 10,
+          unverified: 40,
+          by_domain: {},
+          by_content_type: {},
+          by_source_file: {},
+          ...overrides.stats,
+        } as ReviewStatsResponse)
+      : null,
   };
   Object.assign(mockDataReturn, dataOverrides);
 
@@ -267,7 +272,13 @@ describe('useReviewQueue', () => {
       filters: { status: 'unverified' as const } as ReviewFiltersType,
       serverSort: undefined,
       queueSort: 'default' as const,
-      progress: { verified: 0, flagged: 0, skipped: 0, total: 0, sessionReviewed: 0 },
+      progress: {
+        verified: 0,
+        flagged: 0,
+        skipped: 0,
+        total: 0,
+        sessionReviewed: 0,
+      },
       announcement: '',
       showFlagInput: false,
       flagDetails: '',
@@ -359,7 +370,10 @@ describe('useReviewQueue', () => {
 
   describe('data fetching', () => {
     it('fetches queue on mount and sets items', () => {
-      const items = [makeQueueItem({ id: 'q1', title: 'First' }), makeQueueItem({ id: 'q2', title: 'Second' }, 1)];
+      const items = [
+        makeQueueItem({ id: 'q1', title: 'First' }),
+        makeQueueItem({ id: 'q2', title: 'Second' }, 1),
+      ];
       setupLoadedState(items);
 
       const { result } = renderHook(() => useReviewQueue(), {
@@ -375,7 +389,9 @@ describe('useReviewQueue', () => {
 
     it('fetches stats on mount', () => {
       const items = [makeQueueItem()];
-      setupLoadedState(items, { stats: { total: 200, verified: 80, flagged: 15 } });
+      setupLoadedState(items, {
+        stats: { total: 200, verified: 80, flagged: 15 },
+      });
 
       const { result } = renderHook(() => useReviewQueue(), {
         wrapper: createWrapper(),
@@ -419,7 +435,11 @@ describe('useReviewQueue', () => {
 
   describe('navigation', () => {
     it('handleSkip delegates to navigation sub-hook', () => {
-      const items = [makeQueueItem({ id: 'n1' }), makeQueueItem({ id: 'n2' }, 1), makeQueueItem({ id: 'n3' }, 2)];
+      const items = [
+        makeQueueItem({ id: 'n1' }),
+        makeQueueItem({ id: 'n2' }, 1),
+        makeQueueItem({ id: 'n3' }, 2),
+      ];
       setupLoadedState(items);
 
       const { result } = renderHook(() => useReviewQueue(), {
@@ -434,7 +454,10 @@ describe('useReviewQueue', () => {
     });
 
     it('handleBack delegates to navigation sub-hook', () => {
-      const items = [makeQueueItem({ id: 'b1' }), makeQueueItem({ id: 'b2' }, 1)];
+      const items = [
+        makeQueueItem({ id: 'b1' }),
+        makeQueueItem({ id: 'b2' }, 1),
+      ];
       setupLoadedState(items);
 
       const { result } = renderHook(() => useReviewQueue(), {
@@ -506,7 +529,10 @@ describe('useReviewQueue', () => {
     });
 
     it('handleVerify passes note argument through', async () => {
-      const items = [makeQueueItem({ id: 'v2', title: 'Optimistic' }), makeQueueItem({ id: 'v3' }, 1)];
+      const items = [
+        makeQueueItem({ id: 'v2', title: 'Optimistic' }),
+        makeQueueItem({ id: 'v3' }, 1),
+      ];
       setupLoadedState(items);
 
       const { result } = renderHook(() => useReviewQueue(), {
@@ -517,11 +543,16 @@ describe('useReviewQueue', () => {
         await result.current.handleVerify('Review note');
       });
 
-      expect(mockActionsReturn.handleVerify).toHaveBeenCalledWith('Review note');
+      expect(mockActionsReturn.handleVerify).toHaveBeenCalledWith(
+        'Review note',
+      );
     });
 
     it('handleVerify error handling is delegated to actions sub-hook', async () => {
-      const items = [makeQueueItem({ id: 'fail1', title: 'Fail Item' }), makeQueueItem({ id: 'fail2' }, 1)];
+      const items = [
+        makeQueueItem({ id: 'fail1', title: 'Fail Item' }),
+        makeQueueItem({ id: 'fail2' }, 1),
+      ];
       setupLoadedState(items);
 
       mockActionsReturn.handleVerify = vi.fn(async () => {
@@ -545,7 +576,10 @@ describe('useReviewQueue', () => {
     });
 
     it('handleFlagSubmit delegates to actions sub-hook with details', async () => {
-      const items = [makeQueueItem({ id: 'f1', title: 'Flag Me' }), makeQueueItem({ id: 'f2' }, 1)];
+      const items = [
+        makeQueueItem({ id: 'f1', title: 'Flag Me' }),
+        makeQueueItem({ id: 'f2' }, 1),
+      ];
       setupLoadedState(items);
 
       const { result } = renderHook(() => useReviewQueue(), {
@@ -556,7 +590,9 @@ describe('useReviewQueue', () => {
         await result.current.handleFlagSubmit('Needs reclassification');
       });
 
-      expect(mockActionsReturn.handleFlagSubmit).toHaveBeenCalledWith('Needs reclassification');
+      expect(mockActionsReturn.handleFlagSubmit).toHaveBeenCalledWith(
+        'Needs reclassification',
+      );
     });
 
     it('handleFlag opens the flag input', () => {
@@ -575,7 +611,10 @@ describe('useReviewQueue', () => {
     });
 
     it('handleFlagSubmit delegates flag progression to actions sub-hook', async () => {
-      const items = [makeQueueItem({ id: 'fp1' }), makeQueueItem({ id: 'fp2' }, 1)];
+      const items = [
+        makeQueueItem({ id: 'fp1' }),
+        makeQueueItem({ id: 'fp2' }, 1),
+      ];
       setupLoadedState(items);
 
       const { result } = renderHook(() => useReviewQueue(), {
@@ -586,7 +625,9 @@ describe('useReviewQueue', () => {
         await result.current.handleFlagSubmit('Bad data');
       });
 
-      expect(mockActionsReturn.handleFlagSubmit).toHaveBeenCalledWith('Bad data');
+      expect(mockActionsReturn.handleFlagSubmit).toHaveBeenCalledWith(
+        'Bad data',
+      );
     });
   });
 
@@ -763,7 +804,10 @@ describe('useReviewQueue', () => {
 
   describe('announcements', () => {
     it('announcement comes from session sub-hook', () => {
-      setupLoadedState([makeQueueItem({ id: 'a1' }), makeQueueItem({ id: 'a2' }, 1)]);
+      setupLoadedState([
+        makeQueueItem({ id: 'a1' }),
+        makeQueueItem({ id: 'a2' }, 1),
+      ]);
       mockSessionReturn.announcement = 'Item 2 of 10. Next Item.';
 
       const { result } = renderHook(() => useReviewQueue(), {
@@ -774,8 +818,12 @@ describe('useReviewQueue', () => {
     });
 
     it('syncs action announcements into session state', () => {
-      setupLoadedState([makeQueueItem({ id: 'av1' }), makeQueueItem({ id: 'av2' }, 1)]);
-      mockActionsReturn.lastAnnouncement = 'Verified. Item 2 of 100. Verify Announce.';
+      setupLoadedState([
+        makeQueueItem({ id: 'av1' }),
+        makeQueueItem({ id: 'av2' }, 1),
+      ]);
+      mockActionsReturn.lastAnnouncement =
+        'Verified. Item 2 of 100. Verify Announce.';
 
       renderHook(() => useReviewQueue(), {
         wrapper: createWrapper(),
@@ -924,9 +972,15 @@ describe('useReviewQueue', () => {
       expect(mockSessionReturn.setProgress).toHaveBeenCalled();
       const updateFn = mockSessionReturn.setProgress.mock.calls[0][0];
       // Simulate: optimistic progress has verified=55, stats says 50 -> should keep 55
-      const result = updateFn({ verified: 55, flagged: 12, total: 100, skipped: 0, sessionReviewed: 5 });
+      const result = updateFn({
+        verified: 55,
+        flagged: 12,
+        total: 100,
+        skipped: 0,
+        sessionReviewed: 5,
+      });
       expect(result.verified).toBe(55); // Math.max(50, 55) = 55
-      expect(result.flagged).toBe(12);  // Math.max(10, 12) = 12
+      expect(result.flagged).toBe(12); // Math.max(10, 12) = 12
       expect(result.total).toBe(100);
     });
 
@@ -1011,11 +1065,15 @@ describe('useReviewQueue', () => {
 
       expect(result.current.activeAssignment).not.toBeNull();
       expect(result.current.activeAssignment!.id).toBe('assign-1');
-      expect(result.current.activeAssignment!.filter_domains).toEqual(['Technical']);
+      expect(result.current.activeAssignment!.filter_domains).toEqual([
+        'Technical',
+      ]);
     });
 
     it('handlePublish delegates to actions sub-hook', async () => {
-      setupLoadedState([makeQueueItem({ id: 'pub1', governance_review_status: 'draft' })]);
+      setupLoadedState([
+        makeQueueItem({ id: 'pub1', governance_review_status: 'draft' }),
+      ]);
 
       const { result } = renderHook(() => useReviewQueue(), {
         wrapper: createWrapper(),
@@ -1036,17 +1094,42 @@ describe('useReviewQueue', () => {
       });
 
       const expectedProperties = [
-        'queue', 'currentIndex', 'isLoading', 'isActioning', 'hasMore',
-        'progress', 'filters', 'stats', 'showFlagInput', 'flagDetails',
-        'showQueuePanel', 'queueSort', 'announcement',
+        'queue',
+        'currentIndex',
+        'isLoading',
+        'isActioning',
+        'hasMore',
+        'progress',
+        'filters',
+        'stats',
+        'showFlagInput',
+        'flagDetails',
+        'showQueuePanel',
+        'queueSort',
+        'announcement',
         'activeAssignment',
-        'cardRef', 'flagInputRef',
-        'currentItem', 'sortedQueue', 'currentSortedIndex',
-        'handleSelectItem', 'handleVerify', 'handlePublish', 'handleFlagSubmit',
-        'handleFlag', 'handleSkip', 'handleBack', 'handleExit', 'handleEdit',
-        'handleFiltersChange', 'handleTogglePanel',
-        'setShowFlagInput', 'setFlagDetails', 'setFilters', 'setQueueSort',
-        'showHelp', 'setShowHelp',
+        'cardRef',
+        'flagInputRef',
+        'currentItem',
+        'sortedQueue',
+        'currentSortedIndex',
+        'handleSelectItem',
+        'handleVerify',
+        'handlePublish',
+        'handleFlagSubmit',
+        'handleFlag',
+        'handleSkip',
+        'handleBack',
+        'handleExit',
+        'handleEdit',
+        'handleFiltersChange',
+        'handleTogglePanel',
+        'setShowFlagInput',
+        'setFlagDetails',
+        'setFilters',
+        'setQueueSort',
+        'showHelp',
+        'setShowHelp',
       ];
 
       for (const prop of expectedProperties) {

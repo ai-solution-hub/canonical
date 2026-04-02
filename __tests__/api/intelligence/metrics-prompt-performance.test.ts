@@ -183,7 +183,11 @@ describe('GET /api/intelligence/workspaces/:id/metrics/prompt-performance', () =
 
     const prompts = [
       { ...MOCK_PROMPT, id: PROMPT_UUID_1, version: 3 },
-      { ...MOCK_PROMPT, id: 'c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f', version: 1 },
+      {
+        ...MOCK_PROMPT,
+        id: 'c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f',
+        version: 1,
+      },
     ];
 
     // Supabase returns them pre-sorted by our ORDER BY (desc)
@@ -296,9 +300,7 @@ describe('GET /api/intelligence/workspaces/:id/metrics/prompt-performance', () =
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
-          data: [
-            { id: 'f1', flag_type: 'false_positive', feed_articles: {} },
-          ],
+          data: [{ id: 'f1', flag_type: 'false_positive', feed_articles: {} }],
           error: null,
           count: 1,
         }),

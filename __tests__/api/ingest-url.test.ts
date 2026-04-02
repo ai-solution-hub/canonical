@@ -119,7 +119,8 @@ const SAMPLE_URL = 'https://example.com/article';
 
 const SAMPLE_EXTRACTION = {
   title: 'Test Article',
-  content: '<p>This is a sufficiently long test article content that exceeds the minimum threshold for quality checks. It needs to be over five hundred characters to avoid the low-content warning. Let us add more text to make sure we pass the checks. Here is additional content about testing URL ingestion for the knowledge hub platform. The article discusses various aspects of content management and knowledge base systems. More filler text to ensure we comfortably exceed the threshold.</p>',
+  content:
+    '<p>This is a sufficiently long test article content that exceeds the minimum threshold for quality checks. It needs to be over five hundred characters to avoid the low-content warning. Let us add more text to make sure we pass the checks. Here is additional content about testing URL ingestion for the knowledge hub platform. The article discusses various aspects of content management and knowledge base systems. More filler text to ensure we comfortably exceed the threshold.</p>',
   author: 'Test Author',
   excerpt: 'A test article',
   ogImage: 'https://example.com/image.jpg',
@@ -136,7 +137,10 @@ function setupSuccessPath() {
   mockDetectContentType.mockReturnValue('article');
   mockExtractFromUrl.mockResolvedValue(SAMPLE_EXTRACTION);
   mockGenerateEmbedding.mockResolvedValue(SAMPLE_EMBEDDING);
-  mockCheckForDuplicates.mockResolvedValue({ has_duplicates: false, matches: [] });
+  mockCheckForDuplicates.mockResolvedValue({
+    has_duplicates: false,
+    matches: [],
+  });
   mockFormatDedupWarning.mockReturnValue(null);
   mockClassifyContent.mockResolvedValue(undefined);
   mockGenerateSummary.mockResolvedValue(undefined);
@@ -163,15 +167,35 @@ beforeEach(() => {
   mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
 
   const chainable = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainable) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
   mockSupabase._chain.single.mockResolvedValue({ data: null, error: null });
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+  });
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
@@ -313,30 +337,50 @@ describe('POST /api/ingest/url — Successful Import', () => {
 
     // single for insert — returns new item
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: 'new-item-id', title: 'Test Article', content_type: 'article', created_at: '2026-03-19T00:00:00Z' },
+      data: {
+        id: 'new-item-id',
+        title: 'Test Article',
+        content_type: 'article',
+        created_at: '2026-03-19T00:00:00Z',
+      },
       error: null,
     });
 
     // then for content_history insert
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     // single for quality score fetch (latestItem)
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { freshness: 'fresh', classification_confidence: 0.9, brief: null, detail: null, reference: null, ai_summary: null, citation_count: 0 },
+      data: {
+        freshness: 'fresh',
+        classification_confidence: 0.9,
+        brief: null,
+        detail: null,
+        reference: null,
+        ai_summary: null,
+        citation_count: 0,
+      },
       error: null,
     });
 
     // single for domain/subtopic re-fetch (topic suggestion step)
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { primary_domain: 'General Business', primary_subtopic: 'Strategy' },
+      data: {
+        primary_domain: 'General Business',
+        primary_subtopic: 'Strategy',
+      },
       error: null,
     });
 
     // single for final item fetch
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { primary_domain: 'General Business', primary_subtopic: 'Strategy', ai_summary: 'A test summary' },
+      data: {
+        primary_domain: 'General Business',
+        primary_subtopic: 'Strategy',
+        ai_summary: 'A test summary',
+      },
       error: null,
     });
   });
@@ -466,19 +510,35 @@ describe('POST /api/ingest/url — Warnings & Edge Cases', () => {
     mockClassifyContent.mockRejectedValue(new Error('API rate limit'));
 
     // maybeSingle for URL check
-    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
     // single for insert
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: 'new-item-id', title: 'Test', content_type: 'article', created_at: '2026-03-19' },
+      data: {
+        id: 'new-item-id',
+        title: 'Test',
+        content_type: 'article',
+        created_at: '2026-03-19',
+      },
       error: null,
     });
     // then for content_history
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
     // single for quality score fetch
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { freshness: 'fresh', classification_confidence: 0.9, brief: null, detail: null, reference: null, ai_summary: null, citation_count: 0 },
+      data: {
+        freshness: 'fresh',
+        classification_confidence: 0.9,
+        brief: null,
+        detail: null,
+        reference: null,
+        ai_summary: null,
+        citation_count: 0,
+      },
       error: null,
     });
     // single for domain/subtopic re-fetch (topic suggestion)
@@ -512,7 +572,10 @@ describe('POST /api/ingest/url — Warnings & Edge Cases', () => {
     });
 
     // maybeSingle for URL check
-    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
 
     const req = createTestRequest('/api/ingest/url', {
       method: 'POST',
@@ -534,19 +597,35 @@ describe('POST /api/ingest/url — Warnings & Edge Cases', () => {
     });
 
     // maybeSingle for URL check
-    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
     // single for insert
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: 'new-item-id', title: 'Test', content_type: 'article', created_at: '2026-03-19' },
+      data: {
+        id: 'new-item-id',
+        title: 'Test',
+        content_type: 'article',
+        created_at: '2026-03-19',
+      },
       error: null,
     });
     // then for content_history
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
     // single for quality score fetch
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { freshness: 'fresh', classification_confidence: 0.9, brief: null, detail: null, reference: null, ai_summary: null, citation_count: 0 },
+      data: {
+        freshness: 'fresh',
+        classification_confidence: 0.9,
+        brief: null,
+        detail: null,
+        reference: null,
+        ai_summary: null,
+        citation_count: 0,
+      },
       error: null,
     });
     // single for domain/subtopic re-fetch (topic suggestion)
@@ -567,7 +646,9 @@ describe('POST /api/ingest/url — Warnings & Edge Cases', () => {
     const res = await POST(req);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.warnings).toContain('Limited text extracted from this page. The content may be incomplete.');
+    expect(body.warnings).toContain(
+      'Limited text extracted from this page. The content may be incomplete.',
+    );
   });
 
   it('returns dedup matches when found', async () => {
@@ -575,7 +656,12 @@ describe('POST /api/ingest/url — Warnings & Edge Cases', () => {
     setupSuccessPath();
 
     const dedupMatches = [
-      { id: 'dup-1', title: 'Similar Item', similarity: 0.95, match_type: 'near_duplicate' as const },
+      {
+        id: 'dup-1',
+        title: 'Similar Item',
+        similarity: 0.95,
+        match_type: 'near_duplicate' as const,
+      },
     ];
     mockCheckForDuplicates.mockResolvedValue({
       has_duplicates: true,
@@ -584,19 +670,35 @@ describe('POST /api/ingest/url — Warnings & Edge Cases', () => {
     mockFormatDedupWarning.mockReturnValue('1 near-duplicate found');
 
     // maybeSingle for URL check
-    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
     // single for insert
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: 'new-item-id', title: 'Test', content_type: 'article', created_at: '2026-03-19' },
+      data: {
+        id: 'new-item-id',
+        title: 'Test',
+        content_type: 'article',
+        created_at: '2026-03-19',
+      },
       error: null,
     });
     // then for content_history
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
     // single for quality score fetch
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { freshness: 'fresh', classification_confidence: 0.9, brief: null, detail: null, reference: null, ai_summary: null, citation_count: 0 },
+      data: {
+        freshness: 'fresh',
+        classification_confidence: 0.9,
+        brief: null,
+        detail: null,
+        reference: null,
+        ai_summary: null,
+        citation_count: 0,
+      },
       error: null,
     });
     // single for domain/subtopic re-fetch (topic suggestion)
@@ -640,30 +742,50 @@ describe('POST /api/ingest/url — Topic Suggestion', () => {
 
     // single for insert — returns new item
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: 'new-item-id', title: 'Test Article', content_type: 'article', created_at: '2026-03-19T00:00:00Z' },
+      data: {
+        id: 'new-item-id',
+        title: 'Test Article',
+        content_type: 'article',
+        created_at: '2026-03-19T00:00:00Z',
+      },
       error: null,
     });
 
     // then for content_history insert
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     // single for quality score fetch
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { freshness: 'fresh', classification_confidence: 0.9, brief: null, detail: null, reference: null, ai_summary: null, citation_count: 0 },
+      data: {
+        freshness: 'fresh',
+        classification_confidence: 0.9,
+        brief: null,
+        detail: null,
+        reference: null,
+        ai_summary: null,
+        citation_count: 0,
+      },
       error: null,
     });
 
     // single for domain/subtopic re-fetch (for topic suggestion)
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { primary_domain: 'General Business', primary_subtopic: 'Strategy' },
+      data: {
+        primary_domain: 'General Business',
+        primary_subtopic: 'Strategy',
+      },
       error: null,
     });
 
     // single for final item fetch
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { primary_domain: 'General Business', primary_subtopic: 'Strategy', ai_summary: 'A test summary' },
+      data: {
+        primary_domain: 'General Business',
+        primary_subtopic: 'Strategy',
+        ai_summary: 'A test summary',
+      },
       error: null,
     });
   });
@@ -671,8 +793,11 @@ describe('POST /api/ingest/url — Topic Suggestion', () => {
   it('includes topic_suggestion in response when topic match found', async () => {
     mockSuggestTopic.mockResolvedValueOnce({
       topicId: 'general-business-strategy',
-      reason: 'Existing topic group "general-business-strategy" covers this domain and subtopic',
-      existingLayers: [{ id: 'other-id', title: 'Strategy Guide', layer: 'bid_detail' }],
+      reason:
+        'Existing topic group "general-business-strategy" covers this domain and subtopic',
+      existingLayers: [
+        { id: 'other-id', title: 'Strategy Guide', layer: 'bid_detail' },
+      ],
       missingLayers: ['sales_brief', 'research'],
     });
 
@@ -725,15 +850,23 @@ describe('POST /api/ingest/url — Layer Column Write', () => {
     setupSuccessPath();
 
     // maybeSingle for URL check
-    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
     // single for insert
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: 'new-item-id', title: 'Test Article', content_type: 'article', created_at: '2026-03-19T00:00:00Z' },
+      data: {
+        id: 'new-item-id',
+        title: 'Test Article',
+        content_type: 'article',
+        created_at: '2026-03-19T00:00:00Z',
+      },
       error: null,
     });
     // then for content_history
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
     // single for domain/subtopic re-fetch (topic suggestion)
     mockSupabase._chain.single.mockResolvedValueOnce({
@@ -764,7 +897,11 @@ describe('POST /api/ingest/url — Layer Column Write', () => {
         'p_new_data' in call[1] &&
         typeof (call[1] as Record<string, unknown>).p_new_data === 'object' &&
         (call[1] as Record<string, unknown>).p_new_data !== null &&
-        'layer' in ((call[1] as Record<string, unknown>).p_new_data as Record<string, unknown>),
+        'layer' in
+          ((call[1] as Record<string, unknown>).p_new_data as Record<
+            string,
+            unknown
+          >),
     );
     expect(layerRpcCalls).toHaveLength(0);
 
@@ -783,15 +920,23 @@ describe('POST /api/ingest/url — Date Extraction', () => {
     setupSuccessPath();
 
     // maybeSingle for URL check
-    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
     // single for insert
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: 'new-item-id', title: 'Test Article', content_type: 'article', created_at: '2026-03-19T00:00:00Z' },
+      data: {
+        id: 'new-item-id',
+        title: 'Test Article',
+        content_type: 'article',
+        created_at: '2026-03-19T00:00:00Z',
+      },
       error: null,
     });
     // then for content_history
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
     // single for domain/subtopic re-fetch (topic suggestion)
     mockSupabase._chain.single.mockResolvedValueOnce({
@@ -812,7 +957,9 @@ describe('POST /api/ingest/url — Date Extraction', () => {
     });
     await POST(req);
 
-    expect(mockExtractTemporalReferences).toHaveBeenCalledWith(SAMPLE_EXTRACTION.content);
+    expect(mockExtractTemporalReferences).toHaveBeenCalledWith(
+      SAMPLE_EXTRACTION.content,
+    );
     expect(mockExtractDates).toHaveBeenCalledWith(SAMPLE_EXTRACTION.content);
     expect(mockFindExpiryDate).toHaveBeenCalled();
   });
@@ -827,7 +974,9 @@ describe('POST /api/ingest/url — Date Extraction', () => {
     const res = await POST(req);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.warnings.some((w: string) => w.includes('Expiry date detected'))).toBe(true);
+    expect(
+      body.warnings.some((w: string) => w.includes('Expiry date detected')),
+    ).toBe(true);
   });
 
   it('still succeeds when date extraction fails', async () => {
@@ -856,15 +1005,23 @@ describe('POST /api/ingest/url — Quality Score', () => {
     setupSuccessPath();
 
     // maybeSingle for URL check
-    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
     // single for insert
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: 'new-item-id', title: 'Test Article', content_type: 'article', created_at: '2026-03-19T00:00:00Z' },
+      data: {
+        id: 'new-item-id',
+        title: 'Test Article',
+        content_type: 'article',
+        created_at: '2026-03-19T00:00:00Z',
+      },
       error: null,
     });
     // then for content_history
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
     // single for quality score fetch (latestItem)
     mockSupabase._chain.single.mockResolvedValueOnce({

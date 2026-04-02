@@ -43,31 +43,31 @@ export default async function RootLayout({
       <body className={`${instrumentSans.variable} font-sans antialiased`}>
         <ThemeProvider>
           <QueryProvider>
-          <ClientFeaturesProvider>
-          <TaxonomyProvider>
-          <LayerVocabularyProvider>
-          <ReadMarksProvider>
-            <TooltipProvider>
-                  <a href="#main-content" className="skip-link">
-                    Skip to main content
-                  </a>
-                  <AuthAwareChrome>
-                    <main id="main-content">{children}</main>
-                  </AuthAwareChrome>
-                  <CommandPalette />
-                  <KeyboardShortcutsProvider />
-                  <SessionGuard />
-                  <Toaster
-                    position="bottom-right"
-                    toastOptions={{
-                      className: 'font-sans',
-                    }}
-                  />
-            </TooltipProvider>
-          </ReadMarksProvider>
-          </LayerVocabularyProvider>
-          </TaxonomyProvider>
-          </ClientFeaturesProvider>
+            <ClientFeaturesProvider>
+              <TaxonomyProvider>
+                <LayerVocabularyProvider>
+                  <ReadMarksProvider>
+                    <TooltipProvider>
+                      <a href="#main-content" className="skip-link">
+                        Skip to main content
+                      </a>
+                      <AuthAwareChrome>
+                        <main id="main-content">{children}</main>
+                      </AuthAwareChrome>
+                      <CommandPalette />
+                      <KeyboardShortcutsProvider />
+                      <SessionGuard />
+                      <Toaster
+                        position="bottom-right"
+                        toastOptions={{
+                          className: 'font-sans',
+                        }}
+                      />
+                    </TooltipProvider>
+                  </ReadMarksProvider>
+                </LayerVocabularyProvider>
+              </TaxonomyProvider>
+            </ClientFeaturesProvider>
           </QueryProvider>
         </ThemeProvider>
         <Analytics />

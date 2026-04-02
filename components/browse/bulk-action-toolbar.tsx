@@ -135,7 +135,10 @@ export function BulkActionToolbar({
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Delete {selectedCount} Q&A pair{selectedCount !== 1 ? 's' : ''}?</AlertDialogTitle>
+                  <AlertDialogTitle>
+                    Delete {selectedCount} Q&A pair
+                    {selectedCount !== 1 ? 's' : ''}?
+                  </AlertDialogTitle>
                   <AlertDialogDescription>
                     This action cannot be undone. The selected Q&A pairs will be
                     permanently removed from the library.
@@ -169,14 +172,22 @@ export function BulkActionToolbar({
       {/* Progress bar */}
       {bulkOperating && (
         <div className="mt-3 space-y-1.5">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground" aria-live="polite">
+          <div
+            className="flex items-center gap-2 text-xs text-muted-foreground"
+            aria-live="polite"
+          >
             <Loader2 className="size-3.5 animate-spin" />
             <span>
-              {bulkProgress.label} {bulkProgress.current} of {bulkProgress.total}...
+              {bulkProgress.label} {bulkProgress.current} of{' '}
+              {bulkProgress.total}...
             </span>
           </div>
           <Progress
-            value={bulkProgress.total > 0 ? (bulkProgress.current / bulkProgress.total) * 100 : 0}
+            value={
+              bulkProgress.total > 0
+                ? (bulkProgress.current / bulkProgress.total) * 100
+                : 0
+            }
             className="h-1.5"
           />
         </div>

@@ -17,7 +17,8 @@ describe('ContentMetadataSchema', () => {
     import_batch: 'batch-2026-03-19',
     original_filename: 'data-protection.docx',
     file_size: 245_760,
-    mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    mime_type:
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     batch_tag: 'initial-import',
     source_document: 'Company Policies 2026',
 
@@ -127,9 +128,14 @@ describe('ContentMetadataSchema', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.source_file).toBe('test.md');
-      expect((result.data as Record<string, unknown>).custom_field).toBe('custom value');
+      expect((result.data as Record<string, unknown>).custom_field).toBe(
+        'custom value',
+      );
       expect((result.data as Record<string, unknown>).future_feature).toBe(42);
-      expect((result.data as Record<string, unknown>).nested_unknown).toEqual({ a: 1, b: [2, 3] });
+      expect((result.data as Record<string, unknown>).nested_unknown).toEqual({
+        a: 1,
+        b: [2, 3],
+      });
     }
   });
 

@@ -114,12 +114,14 @@ export function useFilterPresets(): UseFilterPresetsReturn {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const [userPresets, setUserPresets] = useState<FilterPreset[]>(loadUserPresets);
+  const [userPresets, setUserPresets] =
+    useState<FilterPreset[]>(loadUserPresets);
 
   // Merge system + user presets (system first, user sorted by createdAt asc)
   const presets = useMemo(() => {
     const sorted = [...userPresets].sort(
-      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
     );
     return [...SYSTEM_PRESETS, ...sorted];
   }, [userPresets]);
@@ -134,7 +136,8 @@ export function useFilterPresets(): UseFilterPresetsReturn {
   const activePreset = useMemo(() => {
     if (!currentNormalised) return null;
     return (
-      presets.find((p) => normaliseParams(p.params) === currentNormalised) ?? null
+      presets.find((p) => normaliseParams(p.params) === currentNormalised) ??
+      null
     );
   }, [presets, currentNormalised]);
 
@@ -189,16 +192,13 @@ export function useFilterPresets(): UseFilterPresetsReturn {
     [userPresets],
   );
 
-  const restorePreset = useCallback(
-    (preset: FilterPreset) => {
-      setUserPresets((prev) => {
-        const updated = [...prev, preset];
-        saveUserPresets(updated);
-        return updated;
-      });
-    },
-    [],
-  );
+  const restorePreset = useCallback((preset: FilterPreset) => {
+    setUserPresets((prev) => {
+      const updated = [...prev, preset];
+      saveUserPresets(updated);
+      return updated;
+    });
+  }, []);
 
   return {
     presets,

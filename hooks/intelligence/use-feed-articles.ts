@@ -65,7 +65,10 @@ export function useFeedArticles(workspaceId: string, filters: ArticleFilters) {
   }
 
   return useQuery({
-    queryKey: queryKeys.intelligence.articles.list(workspaceId, filters as unknown as Record<string, unknown>),
+    queryKey: queryKeys.intelligence.articles.list(
+      workspaceId,
+      filters as unknown as Record<string, unknown>,
+    ),
     queryFn: () =>
       fetchJson<ArticlesResponse>(
         `/api/intelligence/workspaces/${workspaceId}/articles?${params.toString()}`,
@@ -77,13 +80,7 @@ export function useFeedArticles(workspaceId: string, filters: ArticleFilters) {
 export function useFlagArticle(workspaceId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      articleId,
-      data,
-    }: {
-      articleId: string;
-      data: FlagInput;
-    }) =>
+    mutationFn: ({ articleId, data }: { articleId: string; data: FlagInput }) =>
       mutationFetchJson<FeedFlag>(
         `/api/intelligence/workspaces/${workspaceId}/articles/${articleId}/flag`,
         data,

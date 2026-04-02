@@ -23,7 +23,11 @@ export async function POST(request: NextRequest) {
     const { user, supabase } = auth;
 
     // Rate limit: 20 requests per minute
-    const { allowed } = checkRateLimit(`items:create:${user.id}`, 20, 60 * 1000);
+    const { allowed } = checkRateLimit(
+      `items:create:${user.id}`,
+      20,
+      60 * 1000,
+    );
     if (!allowed) return rateLimitResponse();
 
     const raw = await request.json();
@@ -71,9 +75,15 @@ export async function POST(request: NextRequest) {
 
     // Deduplication check (informational — does not block creation)
     const warnings: string[] = [];
-    let dedupMatches: Array<{ id: string; title: string; similarity: number; match_type: string }> = [];
+    let dedupMatches: Array<{
+      id: string;
+      title: string;
+      similarity: number;
+      match_type: string;
+    }> = [];
     try {
-      const { checkForDuplicates, formatDedupWarning } = await import('@/lib/dedup');
+      const { checkForDuplicates, formatDedupWarning } =
+        await import('@/lib/dedup');
       const plainText = htmlToPlainText(content);
       const dedupResult = await checkForDuplicates(
         supabase,
@@ -91,31 +101,32 @@ export async function POST(request: NextRequest) {
     }
 
     // Build the insert payload
-    const insertData: Database['public']['Tables']['content_items']['Insert'] = {
-      title,
-      content,
-      content_type,
-      suggested_title: title,
-      platform: 'manual',
-      captured_date: new Date().toISOString(),
-      created_by: user.id,
-      metadata: { ingestion_source: ingestion_source ?? 'manual' },
-      ...(primary_domain && { primary_domain }),
-      ...(primary_subtopic && { primary_subtopic }),
-      ...(secondary_domain && { secondary_domain }),
-      ...(secondary_subtopic && { secondary_subtopic }),
-      ...(priority && { priority }),
-      ...(user_tags?.length && { user_tags }),
-      ...(ai_keywords?.length && { ai_keywords }),
-      ...(author_name && { author_name }),
-      ...(source_url && { source_url }),
-      ...(brief && { brief }),
-      ...(detail && { detail }),
-      ...(reference && { reference }),
-      ...(embeddingValue && { embedding: embeddingValue }),
-      ...(governance_review_status && { governance_review_status }),
-      ...(source_document_id && { source_document_id }),
-    };
+    const insertData: Database['public']['Tables']['content_items']['Insert'] =
+      {
+        title,
+        content,
+        content_type,
+        suggested_title: title,
+        platform: 'manual',
+        captured_date: new Date().toISOString(),
+        created_by: user.id,
+        metadata: { ingestion_source: ingestion_source ?? 'manual' },
+        ...(primary_domain && { primary_domain }),
+        ...(primary_subtopic && { primary_subtopic }),
+        ...(secondary_domain && { secondary_domain }),
+        ...(secondary_subtopic && { secondary_subtopic }),
+        ...(priority && { priority }),
+        ...(user_tags?.length && { user_tags }),
+        ...(ai_keywords?.length && { ai_keywords }),
+        ...(author_name && { author_name }),
+        ...(source_url && { source_url }),
+        ...(brief && { brief }),
+        ...(detail && { detail }),
+        ...(reference && { reference }),
+        ...(embeddingValue && { embedding: embeddingValue }),
+        ...(governance_review_status && { governance_review_status }),
+        ...(source_document_id && { source_document_id }),
+      };
 
     // Single INSERT with embedding included
     const { data: newItem, error: insertError } = await supabase
@@ -176,12 +187,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Layer inference — suggest and store a layer if not explicitly provided
-    let suggestedLayer: { suggestedLayer: string; reason: string; confidence: string } | undefined;
+    let suggestedLayer:
+      | { suggestedLayer: string; reason: string; confidence: string }
+      | undefined;
     try {
       const { inferLayer } = await import('@/lib/layer-inference');
       const plainTextForLayer = htmlToPlainText(content);
       const effectiveSource = (ingestion_source ?? 'manual') as
-        'manual' | 'url_import' | 'upload' | 'bid_library';
+        | 'manual'
+        | 'url_import'
+        | 'upload'
+        | 'bid_library';
       const suggestion = inferLayer({
         contentType: content_type,
         contentLength: plainTextForLayer.length,
@@ -208,14 +224,17 @@ export async function POST(request: NextRequest) {
 
     // Quality score — calculate and store after AI processing
     try {
-      const { calculateAndRoundQualityScore } = await import('@/lib/quality/quality-score');
+      const { calculateAndRoundQualityScore } =
+        await import('@/lib/quality/quality-score');
       const { createServiceClient } = await import('@/lib/supabase/server');
       const serviceClient = createServiceClient();
 
       // Fetch the latest item state (classification may have updated fields)
       const { data: latestItem } = await serviceClient
         .from('content_items')
-        .select('freshness, classification_confidence, brief, detail, reference, ai_summary, citation_count')
+        .select(
+          'freshness, classification_confidence, brief, detail, reference, ai_summary, citation_count',
+        )
         .eq('id', newItem.id)
         .single();
 
@@ -263,7 +282,10 @@ export async function POST(request: NextRequest) {
         });
 
         if (suggestion) {
-          topicSuggestion = { topicId: suggestion.topicId, reason: suggestion.reason };
+          topicSuggestion = {
+            topicId: suggestion.topicId,
+            reason: suggestion.reason,
+          };
           await serviceClient.rpc('merge_item_metadata', {
             p_item_id: newItem.id,
             p_new_data: { topic_id: suggestion.topicId },
@@ -276,13 +298,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Guide section suggestion — after topic suggestion
-    let guideSectionSuggestions: import('@/lib/guide-section-mapping').GuideSectionMatch[] | undefined;
+    let guideSectionSuggestions:
+      | import('@/lib/guide-section-mapping').GuideSectionMatch[]
+      | undefined;
     {
       const effectiveDomain = primary_domain || '';
       const effectiveSubtopic = primary_subtopic || '';
       if (effectiveDomain) {
         try {
-          const { suggestGuideSections } = await import('@/lib/guide-section-mapping');
+          const { suggestGuideSections } =
+            await import('@/lib/guide-section-mapping');
           const { createServiceClient } = await import('@/lib/supabase/server');
           const serviceClient = createServiceClient();
           const matches = await suggestGuideSections(serviceClient, {
@@ -313,7 +338,9 @@ export async function POST(request: NextRequest) {
         ...(dedupMatches.length > 0 && { duplicate_matches: dedupMatches }),
         ...(suggestedLayer && { suggested_layer: suggestedLayer }),
         ...(topicSuggestion && { topic_suggestion: topicSuggestion }),
-        ...(guideSectionSuggestions && { guide_section_suggestions: guideSectionSuggestions }),
+        ...(guideSectionSuggestions && {
+          guide_section_suggestions: guideSectionSuggestions,
+        }),
       },
       { status: 201 },
     );
@@ -345,7 +372,8 @@ async function classifyInBackground(
     await classifyContent({ supabase, itemId, force: true, userId });
   } catch (err) {
     status = 'failed';
-    errorMessage = err instanceof Error ? err.message : 'Unknown classification error';
+    errorMessage =
+      err instanceof Error ? err.message : 'Unknown classification error';
     console.error(`Background classification failed for ${itemId}:`, err);
     caughtError = err;
   }

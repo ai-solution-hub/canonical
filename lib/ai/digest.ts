@@ -129,7 +129,8 @@ Rules:
 function buildSuggestionsSection(suggestions: ContentSuggestion[]): string {
   if (suggestions.length === 0) return '';
 
-  let text = '\nContent Opportunities (gaps and suggestions for new content):\n';
+  let text =
+    '\nContent Opportunities (gaps and suggestions for new content):\n';
   for (const s of suggestions) {
     text += `- [${s.priority}] ${s.domain} / ${s.subtopic}: ${s.title} — ${s.description}\n`;
   }
@@ -146,7 +147,9 @@ function buildSuggestionsSection(suggestions: ContentSuggestion[]): string {
  *
  * @throws AIServiceError for domain errors (400, 413, 500)
  */
-export async function generateDigest(params: DigestParams): Promise<DigestResult> {
+export async function generateDigest(
+  params: DigestParams,
+): Promise<DigestResult> {
   const {
     supabase,
     periodDays,
@@ -207,7 +210,10 @@ export async function generateDigest(params: DigestParams): Promise<DigestResult
   const typedItems = (items ?? []) as ContentItemRow[];
 
   if (typedItems.length === 0) {
-    throw new AIServiceError('No content items found for the selected filters and period', 400);
+    throw new AIServiceError(
+      'No content items found for the selected filters and period',
+      400,
+    );
   }
 
   // Group items by domain
@@ -249,10 +255,7 @@ export async function generateDigest(params: DigestParams): Promise<DigestResult
     .filter(([, domains]) => domains.size > 1)
     .sort((a, b) => b[1].size - a[1].size)
     .slice(0, 15)
-    .map(
-      ([kw, domains]) =>
-        `${kw} (appears in: ${[...domains].join(', ')})`,
-    );
+    .map(([kw, domains]) => `${kw} (appears in: ${[...domains].join(', ')})`);
 
   // For daily digests, limit detail per item to save tokens
   const isDaily = digestType === 'daily';
@@ -271,8 +274,7 @@ export async function generateDigest(params: DigestParams): Promise<DigestResult
         (item.ai_summary
           ? item.ai_summary.slice(0, summaryMaxLen)
           : 'No summary available');
-      const keywords =
-        item.ai_keywords?.slice(0, maxKeywords).join(', ') ?? '';
+      const keywords = item.ai_keywords?.slice(0, maxKeywords).join(', ') ?? '';
 
       itemsByDomainText += `- [${item.id}] "${displayTitle}" (${item.content_type}) - ${summary}`;
       if (keywords) {
@@ -282,10 +284,7 @@ export async function generateDigest(params: DigestParams): Promise<DigestResult
 
       // Include takeaways if available (skip for daily to save tokens)
       if (maxTakeaways > 0) {
-        const takeaways = item.summary_data?.takeaways?.slice(
-          0,
-          maxTakeaways,
-        );
+        const takeaways = item.summary_data?.takeaways?.slice(0, maxTakeaways);
         if (takeaways && takeaways.length > 0) {
           for (const takeaway of takeaways) {
             itemsByDomainText += `    - ${takeaway}\n`;
@@ -309,7 +308,10 @@ export async function generateDigest(params: DigestParams): Promise<DigestResult
       domainFilter: filterDomain ?? undefined,
     });
   } catch (suggestionsErr) {
-    console.warn('Failed to fetch content suggestions for digest:', suggestionsErr);
+    console.warn(
+      'Failed to fetch content suggestions for digest:',
+      suggestionsErr,
+    );
   }
 
   const suggestionsSection = buildSuggestionsSection(contentSuggestions);
@@ -394,17 +396,16 @@ export async function generateDigest(params: DigestParams): Promise<DigestResult
                   domain: { type: 'string' },
                   subtopic: { type: 'string' },
                   suggestion: { type: 'string' },
-                  priority: { type: 'string', enum: ['critical', 'high', 'medium', 'low'] },
+                  priority: {
+                    type: 'string',
+                    enum: ['critical', 'high', 'medium', 'low'],
+                  },
                 },
                 required: ['domain', 'subtopic', 'suggestion', 'priority'],
               },
             },
           },
-          required: [
-            'domain_summaries',
-            'narrative_summary',
-            'theme_clusters',
-          ],
+          required: ['domain_summaries', 'narrative_summary', 'theme_clusters'],
         },
       },
     ],
@@ -437,7 +438,10 @@ export async function generateDigest(params: DigestParams): Promise<DigestResult
     !parsed.narrative_summary ||
     !Array.isArray(parsed.theme_clusters)
   ) {
-    throw new AIServiceError('Invalid digest structure returned by Claude', 500);
+    throw new AIServiceError(
+      'Invalid digest structure returned by Claude',
+      500,
+    );
   }
 
   // Build an item lookup for merging top items with actual data
@@ -475,8 +479,7 @@ export async function generateDigest(params: DigestParams): Promise<DigestResult
 
   // Calculate tokens used
   const tokensUsed =
-    (response.usage?.input_tokens ?? 0) +
-    (response.usage?.output_tokens ?? 0);
+    (response.usage?.input_tokens ?? 0) + (response.usage?.output_tokens ?? 0);
 
   // Build filter metadata to store alongside the digest
   const filters: DigestFilters | null =
@@ -518,9 +521,14 @@ export async function generateDigest(params: DigestParams): Promise<DigestResult
 
     // Freshness breakdown via server-side aggregation RPC
     const freshnessCounts = { fresh: 0, aging: 0, stale: 0, expired: 0 };
-    const { data: freshnessRows } = await supabase.rpc('get_freshness_breakdown');
+    const { data: freshnessRows } = await supabase.rpc(
+      'get_freshness_breakdown',
+    );
     if (freshnessRows) {
-      for (const row of freshnessRows as Array<{ freshness: string; count: number }>) {
+      for (const row of freshnessRows as Array<{
+        freshness: string;
+        count: number;
+      }>) {
         const f = row.freshness as keyof typeof freshnessCounts;
         if (f in freshnessCounts) freshnessCounts[f] = Number(row.count);
       }
@@ -554,7 +562,9 @@ export async function generateDigest(params: DigestParams): Promise<DigestResult
     metadata: toJson({
       ...(filters ?? {}),
       ...(governanceSummary ? { governance_summary: governanceSummary } : {}),
-      ...(contentOpportunities.length > 0 ? { content_opportunities: contentOpportunities } : {}),
+      ...(contentOpportunities.length > 0
+        ? { content_opportunities: contentOpportunities }
+        : {}),
     }),
     created_by: userId,
   };

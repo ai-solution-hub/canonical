@@ -11,7 +11,9 @@ import {
 } from '@/lib/validation/create-content-schema';
 import type { CreateContentFormValues } from '@/lib/validation/create-content-schema';
 
-function validData(overrides: Partial<CreateContentFormValues> = {}): CreateContentFormValues {
+function validData(
+  overrides: Partial<CreateContentFormValues> = {},
+): CreateContentFormValues {
   return {
     ...CREATE_CONTENT_DEFAULTS,
     title: 'Test Title',
@@ -29,45 +31,70 @@ describe('CreateContentFormSchema', () => {
     });
 
     it('rejects empty title', () => {
-      const result = CreateContentFormSchema.safeParse(validData({ title: '' }));
+      const result = CreateContentFormSchema.safeParse(
+        validData({ title: '' }),
+      );
       expect(result.success).toBe(false);
       if (!result.success) {
-        const titleError = result.error.issues.find((i) => i.path.includes('title'));
+        const titleError = result.error.issues.find((i) =>
+          i.path.includes('title'),
+        );
         expect(titleError).toBeDefined();
         expect(titleError?.message).toContain('Title is required');
       }
     });
 
     it('rejects whitespace-only title', () => {
-      const result = CreateContentFormSchema.safeParse(validData({ title: '   ' }));
+      const result = CreateContentFormSchema.safeParse(
+        validData({ title: '   ' }),
+      );
       expect(result.success).toBe(false);
     });
 
     it('rejects empty content', () => {
-      const result = CreateContentFormSchema.safeParse(validData({ content: '' }));
+      const result = CreateContentFormSchema.safeParse(
+        validData({ content: '' }),
+      );
       expect(result.success).toBe(false);
     });
 
     it('rejects empty content_type', () => {
-      const result = CreateContentFormSchema.safeParse(validData({ content_type: '' }));
+      const result = CreateContentFormSchema.safeParse(
+        validData({ content_type: '' }),
+      );
       expect(result.success).toBe(false);
     });
 
     it('rejects invalid content_type', () => {
-      const result = CreateContentFormSchema.safeParse(validData({ content_type: 'not_a_type' }));
+      const result = CreateContentFormSchema.safeParse(
+        validData({ content_type: 'not_a_type' }),
+      );
       expect(result.success).toBe(false);
     });
   });
 
   describe('content types', () => {
     const validTypes = [
-      'article', 'blog', 'pdf', 'note', 'research', 'other',
-      'q_a_pair', 'case_study', 'policy', 'certification',
-      'compliance', 'methodology', 'capability', 'product_description',
+      'article',
+      'blog',
+      'pdf',
+      'note',
+      'research',
+      'other',
+      'q_a_pair',
+      'case_study',
+      'policy',
+      'certification',
+      'compliance',
+      'methodology',
+      'capability',
+      'product_description',
     ];
 
     it.each(validTypes)('accepts content type: %s', (type) => {
-      const result = CreateContentFormSchema.safeParse(validData({ content_type: type }));
+      const result = CreateContentFormSchema.safeParse(
+        validData({ content_type: type }),
+      );
       expect(result.success).toBe(true);
     });
   });
@@ -113,7 +140,9 @@ describe('CreateContentFormSchema', () => {
     });
 
     it('accepts empty source URL', () => {
-      const result = CreateContentFormSchema.safeParse(validData({ source_url: '' }));
+      const result = CreateContentFormSchema.safeParse(
+        validData({ source_url: '' }),
+      );
       expect(result.success).toBe(true);
     });
 

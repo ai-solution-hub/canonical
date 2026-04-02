@@ -59,7 +59,11 @@ export interface FileUploadState {
   appliedLayerLabel: string;
   reuploadInfo?: FileReuploadInfo;
   // Enriched response data for review step
-  classification?: { domain: string; subtopic: string; confidence: number | null };
+  classification?: {
+    domain: string;
+    subtopic: string;
+    confidence: number | null;
+  };
   aiSummary?: string;
   qualityScore?: number;
   contentType?: string;
@@ -106,7 +110,10 @@ export interface UseFileUploadPipelineReturn {
   setReviewItems: (items: UploadReviewItem[]) => void;
 
   // Layer management
-  handleSetLayerMode: (fileId: string, mode: 'suggest' | 'change' | 'applied') => void;
+  handleSetLayerMode: (
+    fileId: string,
+    mode: 'suggest' | 'change' | 'applied',
+  ) => void;
   handleSetSelectedLayer: (fileId: string, layerKey: string) => void;
   handleDismissDedupWarning: (fileId: string) => void;
 
@@ -139,9 +146,13 @@ export function useFileUploadPipeline(
   const [phase, setPhase] = useState<UploadPhase>('select');
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [fileStates, setFileStates] = useState<Record<string, FileUploadState>>({});
+  const [fileStates, setFileStates] = useState<Record<string, FileUploadState>>(
+    {},
+  );
   const [reviewItems, setReviewItems] = useState<UploadReviewItem[]>([]);
-  const stepTimersRef = useRef<Record<string, ReturnType<typeof setInterval>>>({});
+  const stepTimersRef = useRef<Record<string, ReturnType<typeof setInterval>>>(
+    {},
+  );
 
   // Check skip review preference
   const getSkipReview = useCallback((): boolean => {
@@ -227,7 +238,13 @@ export function useFileUploadPipeline(
 
   // Core upload mutation — wraps the fetch('/api/upload') call
   const uploadFileMutation = useMutation({
-    mutationFn: async ({ file, useDraft }: { file: File; useDraft: boolean }) => {
+    mutationFn: async ({
+      file,
+      useDraft,
+    }: {
+      file: File;
+      useDraft: boolean;
+    }) => {
       const formData = new FormData();
       formData.append('file', file);
       if (useDraft) {
@@ -254,160 +271,174 @@ export function useFileUploadPipeline(
 
   // Upload a single file
   const { mutateAsync: doUploadFile } = uploadFileMutation;
-  const uploadSingleFile = useCallback(async (uploadFile: UploadFile, useDraft: boolean) => {
-    const fileId = uploadFile.id;
+  const uploadSingleFile = useCallback(
+    async (uploadFile: UploadFile, useDraft: boolean) => {
+      const fileId = uploadFile.id;
 
-    // Initialise per-file progress state
-    setFileStates((prev) => ({
-      ...prev,
-      [fileId]: {
-        steps: UPLOAD_STEPS.map((s, i) =>
-          i === 0 ? { ...s, status: 'active' as const } : s,
-        ),
-        dedupMatches: [],
-        showDedupWarning: false,
-        warnings: [],
-        layerMode: 'suggest',
-        selectedLayer: '',
-        appliedLayerLabel: '',
-      },
-    }));
+      // Initialise per-file progress state
+      setFileStates((prev) => ({
+        ...prev,
+        [fileId]: {
+          steps: UPLOAD_STEPS.map((s, i) =>
+            i === 0 ? { ...s, status: 'active' as const } : s,
+          ),
+          dedupMatches: [],
+          showDedupWarning: false,
+          warnings: [],
+          layerMode: 'suggest',
+          selectedLayer: '',
+          appliedLayerLabel: '',
+        },
+      }));
 
-    // Mark as uploading
-    setFiles((prev) =>
-      prev.map((f) =>
-        f.id === fileId ? { ...f, status: 'uploading' as const, progress: 10 } : f,
-      ),
-    );
-
-    // Start cosmetic step advancement
-    stepTimersRef.current[fileId] = setInterval(
-      () => advanceStepsForFile(fileId),
-      STEP_ADVANCE_INTERVAL,
-    );
-
-    try {
-      const data = await doUploadFile({
-        file: uploadFile.file,
-        useDraft,
-      });
-
-      // Stop cosmetic timer
-      if (stepTimersRef.current[fileId]) {
-        clearInterval(stepTimersRef.current[fileId]);
-        delete stepTimersRef.current[fileId];
-      }
-
-      // Mark all steps as done
-      const layerData: FileSuggestedLayer | undefined = data.suggested_layer ?? undefined;
-
-      // Capture re-upload detection info
-      const reuploadData: FileReuploadInfo | undefined = data.reupload_detection
-        ? {
-            matchType: data.reupload_detection.match_type,
-            previousVersion: data.reupload_detection.previous_version,
-            previousDocumentId: data.reupload_detection.previous_document_id,
-            diffAvailable: data.diff_available ?? false,
-            newDocumentId: data.source_document_id ?? undefined,
-          }
-        : undefined;
-
-      const dedupMatches: DedupMatch[] = (data.duplicate_matches ?? []).map(
-        (m: { id: string; title: string; similarity: number; match_type?: string }) => ({
-          id: m.id,
-          title: m.title,
-          similarity: m.similarity,
-          match_type: m.match_type ?? 'near_duplicate',
-        }),
-      );
-
-      setFileStates((prev) => {
-        const state = prev[fileId];
-        if (!state) return prev;
-
-        return {
-          ...prev,
-          [fileId]: {
-            ...state,
-            steps: state.steps.map((s) => ({ ...s, status: 'done' as const })),
-            warnings: data.warnings ?? [],
-            dedupMatches,
-            showDedupWarning: dedupMatches.length > 0,
-            suggestedLayer: layerData,
-            selectedLayer: layerData?.suggestedLayer ?? '',
-            reuploadInfo: reuploadData,
-            // Enriched data for review step
-            classification: data.classification ?? undefined,
-            aiSummary: data.ai_summary ?? undefined,
-            qualityScore: data.quality_score ?? undefined,
-            contentType: data.content_type ?? undefined,
-          },
-        };
-      });
-
+      // Mark as uploading
       setFiles((prev) =>
         prev.map((f) =>
           f.id === fileId
+            ? { ...f, status: 'uploading' as const, progress: 10 }
+            : f,
+        ),
+      );
+
+      // Start cosmetic step advancement
+      stepTimersRef.current[fileId] = setInterval(
+        () => advanceStepsForFile(fileId),
+        STEP_ADVANCE_INTERVAL,
+      );
+
+      try {
+        const data = await doUploadFile({
+          file: uploadFile.file,
+          useDraft,
+        });
+
+        // Stop cosmetic timer
+        if (stepTimersRef.current[fileId]) {
+          clearInterval(stepTimersRef.current[fileId]);
+          delete stepTimersRef.current[fileId];
+        }
+
+        // Mark all steps as done
+        const layerData: FileSuggestedLayer | undefined =
+          data.suggested_layer ?? undefined;
+
+        // Capture re-upload detection info
+        const reuploadData: FileReuploadInfo | undefined =
+          data.reupload_detection
             ? {
-                ...f,
-                status: 'done' as const,
-                progress: 100,
-                resultId: data.id,
+                matchType: data.reupload_detection.match_type,
+                previousVersion: data.reupload_detection.previous_version,
+                previousDocumentId:
+                  data.reupload_detection.previous_document_id,
+                diffAvailable: data.diff_available ?? false,
+                newDocumentId: data.source_document_id ?? undefined,
               }
-            : f,
-        ),
-      );
+            : undefined;
 
-      // Return data for review item construction
-      return {
-        id: data.id as string,
-        title: (data.title as string) || uploadFile.file.name,
-        contentType: (data.content_type as string) || 'other',
-        classification: data.classification as
-          | { domain: string; subtopic: string; confidence: number | null }
-          | undefined,
-        aiSummary: data.ai_summary as string | undefined,
-        qualityScore: data.quality_score as number | undefined,
-        suggestedLayer: layerData,
-        warnings: (data.warnings ?? []) as string[],
-        dedupMatches,
-      };
-    } catch (err) {
-      // Stop cosmetic timer
-      if (stepTimersRef.current[fileId]) {
-        clearInterval(stepTimersRef.current[fileId]);
-        delete stepTimersRef.current[fileId];
-      }
+        const dedupMatches: DedupMatch[] = (data.duplicate_matches ?? []).map(
+          (m: {
+            id: string;
+            title: string;
+            similarity: number;
+            match_type?: string;
+          }) => ({
+            id: m.id,
+            title: m.title,
+            similarity: m.similarity,
+            match_type: m.match_type ?? 'near_duplicate',
+          }),
+        );
 
-      const message = err instanceof Error ? err.message : 'Upload failed';
+        setFileStates((prev) => {
+          const state = prev[fileId];
+          if (!state) return prev;
 
-      setFileStates((prev) => {
-        const state = prev[fileId];
-        if (!state) return prev;
+          return {
+            ...prev,
+            [fileId]: {
+              ...state,
+              steps: state.steps.map((s) => ({
+                ...s,
+                status: 'done' as const,
+              })),
+              warnings: data.warnings ?? [],
+              dedupMatches,
+              showDedupWarning: dedupMatches.length > 0,
+              suggestedLayer: layerData,
+              selectedLayer: layerData?.suggestedLayer ?? '',
+              reuploadInfo: reuploadData,
+              // Enriched data for review step
+              classification: data.classification ?? undefined,
+              aiSummary: data.ai_summary ?? undefined,
+              qualityScore: data.quality_score ?? undefined,
+              contentType: data.content_type ?? undefined,
+            },
+          };
+        });
+
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileId
+              ? {
+                  ...f,
+                  status: 'done' as const,
+                  progress: 100,
+                  resultId: data.id,
+                }
+              : f,
+          ),
+        );
+
+        // Return data for review item construction
         return {
-          ...prev,
-          [fileId]: {
-            ...state,
-            steps: state.steps.map((s) =>
-              s.status === 'active'
-                ? { ...s, status: 'error' as const }
-                : s,
-            ),
-          },
+          id: data.id as string,
+          title: (data.title as string) || uploadFile.file.name,
+          contentType: (data.content_type as string) || 'other',
+          classification: data.classification as
+            | { domain: string; subtopic: string; confidence: number | null }
+            | undefined,
+          aiSummary: data.ai_summary as string | undefined,
+          qualityScore: data.quality_score as number | undefined,
+          suggestedLayer: layerData,
+          warnings: (data.warnings ?? []) as string[],
+          dedupMatches,
         };
-      });
+      } catch (err) {
+        // Stop cosmetic timer
+        if (stepTimersRef.current[fileId]) {
+          clearInterval(stepTimersRef.current[fileId]);
+          delete stepTimersRef.current[fileId];
+        }
 
-      setFiles((prev) =>
-        prev.map((f) =>
-          f.id === fileId
-            ? { ...f, status: 'error' as const, progress: 0, error: message }
-            : f,
-        ),
-      );
+        const message = err instanceof Error ? err.message : 'Upload failed';
 
-      return null;
-    }
-  }, [advanceStepsForFile, doUploadFile]);
+        setFileStates((prev) => {
+          const state = prev[fileId];
+          if (!state) return prev;
+          return {
+            ...prev,
+            [fileId]: {
+              ...state,
+              steps: state.steps.map((s) =>
+                s.status === 'active' ? { ...s, status: 'error' as const } : s,
+              ),
+            },
+          };
+        });
+
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileId
+              ? { ...f, status: 'error' as const, progress: 0, error: message }
+              : f,
+          ),
+        );
+
+        return null;
+      }
+    },
+    [advanceStepsForFile, doUploadFile],
+  );
 
   // Upload all pending files
   const handleUpload = useCallback(async () => {
@@ -475,13 +506,16 @@ export function useFileUploadPipeline(
     [],
   );
 
-  const handleSetSelectedLayer = useCallback((fileId: string, layerKey: string) => {
-    setFileStates((prev) => {
-      const state = prev[fileId];
-      if (!state) return prev;
-      return { ...prev, [fileId]: { ...state, selectedLayer: layerKey } };
-    });
-  }, []);
+  const handleSetSelectedLayer = useCallback(
+    (fileId: string, layerKey: string) => {
+      setFileStates((prev) => {
+        const state = prev[fileId];
+        if (!state) return prev;
+        return { ...prev, [fileId]: { ...state, selectedLayer: layerKey } };
+      });
+    },
+    [],
+  );
 
   const handleDismissDedupWarning = useCallback((fileId: string) => {
     setFileStates((prev) => {
@@ -493,7 +527,9 @@ export function useFileUploadPipeline(
 
   // Computed values
   const pendingCount = files.filter((f) => f.status === 'pending').length;
-  const hasResults = files.some((f) => f.status === 'done' || f.status === 'error');
+  const hasResults = files.some(
+    (f) => f.status === 'done' || f.status === 'error',
+  );
   const hasActiveUploads = files.some(
     (f) => f.status === 'uploading' || f.status === 'extracting',
   );

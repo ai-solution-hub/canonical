@@ -14,7 +14,9 @@ import { render, screen } from '@testing-library/react';
 
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: Record<string, unknown>) => (
-    <a href={href as string} {...props}>{children as React.ReactNode}</a>
+    <a href={href as string} {...props}>
+      {children as React.ReactNode}
+    </a>
   ),
 }));
 
@@ -25,7 +27,9 @@ import type { SaveActionsBarProps } from '@/components/create-content/save-actio
 // Helpers
 // ---------------------------------------------------------------------------
 
-function createDefaultProps(overrides: Partial<SaveActionsBarProps> = {}): SaveActionsBarProps {
+function createDefaultProps(
+  overrides: Partial<SaveActionsBarProps> = {},
+): SaveActionsBarProps {
   return {
     autoClassify: true,
     setAutoClassify: vi.fn(),
@@ -46,8 +50,12 @@ function createDefaultProps(overrides: Partial<SaveActionsBarProps> = {}): SaveA
 // ---------------------------------------------------------------------------
 
 describe('SaveActionsBar', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
-  afterEach(() => { vi.unstubAllGlobals(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it('renders classify and summarise checkboxes', () => {
     render(<SaveActionsBar {...createDefaultProps()} />);

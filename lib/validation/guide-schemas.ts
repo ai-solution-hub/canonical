@@ -1,11 +1,21 @@
 import { z } from 'zod';
 import { getLayerSchema } from './layer-schemas';
 
-export const VALID_GUIDE_TYPES = ['sector', 'product', 'company', 'research', 'custom'] as const;
+export const VALID_GUIDE_TYPES = [
+  'sector',
+  'product',
+  'company',
+  'research',
+  'custom',
+] as const;
 
 export const guideCreateSchema = z.object({
   name: z.string().min(1).max(200),
-  slug: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/),
+  slug: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[a-z0-9-]+$/),
   description: z.string().max(1000).optional(),
   guide_type: z.enum(VALID_GUIDE_TYPES),
   domain_filter: z.string().optional(),
@@ -17,7 +27,12 @@ export const guideCreateSchema = z.object({
 
 export const guideUpdateSchema = z.object({
   name: z.string().min(1).max(200).optional(),
-  slug: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/).optional(),
+  slug: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[a-z0-9-]+$/)
+    .optional(),
   description: z.string().max(1000).nullable().optional(),
   guide_type: z.enum(VALID_GUIDE_TYPES).optional(),
   domain_filter: z.string().nullable().optional(),
@@ -48,8 +63,10 @@ export const guideSectionUpdateSchema = z.object({
 });
 
 export const guideSectionsReorderSchema = z.object({
-  sections: z.array(z.object({
-    id: z.string().uuid(),
-    display_order: z.number().int().min(0),
-  })),
+  sections: z.array(
+    z.object({
+      id: z.string().uuid(),
+      display_order: z.number().int().min(0),
+    }),
+  ),
 });

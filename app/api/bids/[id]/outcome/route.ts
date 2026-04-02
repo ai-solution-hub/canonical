@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  getAuthorisedClient,
-  authFailureResponse,
-} from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
-import { BidOutcomeBodySchema, parseBidMetadata } from '@/lib/validation/schemas';
+import {
+  BidOutcomeBodySchema,
+  parseBidMetadata,
+} from '@/lib/validation/schemas';
 import { canTransition } from '@/lib/bid/bid-state-machine';
 import type { BidState } from '@/lib/bid/bid-state-machine';
 
@@ -47,13 +47,13 @@ export async function POST(
       .single();
 
     if (bidError || !bid) {
-      return NextResponse.json(
-        { error: 'Bid not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
     }
 
-    const bidMetadata = parseBidMetadata(bid.domain_metadata) ?? (bid.domain_metadata as Record<string, unknown> ?? {});
+    const bidMetadata =
+      parseBidMetadata(bid.domain_metadata) ??
+      (bid.domain_metadata as Record<string, unknown>) ??
+      {};
     const currentStatus = (bid.status as BidState) ?? 'draft';
 
     // Validate state transition
@@ -116,17 +116,24 @@ export async function POST(
         const questionIds = questions.map((q) => q.id);
         const { data: responses } = await supabase
           .from('bid_responses')
-          .select('question_id, response_text, source_content_ids, review_status')
+          .select(
+            'question_id, response_text, source_content_ids, review_status',
+          )
           .in('question_id', questionIds)
           .in('review_status', ['approved', 'edited']);
 
         if (responses) {
-          const questionMap = new Map(questions.map((q) => [q.id, q.question_text]));
+          const questionMap = new Map(
+            questions.map((q) => [q.id, q.question_text]),
+          );
 
           kbCandidates = responses.map((r) => {
             // Recommend based on whether sources exist
-            const hasExistingSources = r.source_content_ids && r.source_content_ids.length > 0;
-            const recommendation = hasExistingSources ? 'update_existing' as const : 'new_entry' as const;
+            const hasExistingSources =
+              r.source_content_ids && r.source_content_ids.length > 0;
+            const recommendation = hasExistingSources
+              ? ('update_existing' as const)
+              : ('new_entry' as const);
 
             return {
               question_id: r.question_id,

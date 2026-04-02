@@ -89,7 +89,8 @@ describe('estimateQuestionCost', () => {
     const result = estimateQuestionCost(100, 5000);
     // System prompt (300) * 3 passes + question tokens * 3 + content tokens * 1.1 + output tokens
     // Input: 300+100+500 (pass1) + 300+100+5000 (pass2) + 300+2000+100 (pass3)
-    const expectedInput = (300 + 100 + 500) + (300 + 100 + 5000) + (300 + 2000 + 100);
+    const expectedInput =
+      300 + 100 + 500 + (300 + 100 + 5000) + (300 + 2000 + 100);
     expect(result.inputTokens).toBe(expectedInput);
     // Output: 500 + 2000 + 200
     expect(result.outputTokens).toBe(2700);
@@ -135,8 +136,18 @@ describe('estimateBatchCost', () => {
 
   it('sums costs across multiple questions', () => {
     const questions = [
-      { id: '1', questionText: 'Question one?', contentTokens: 5000, contentItemCount: 3 },
-      { id: '2', questionText: 'Question two?', contentTokens: 3000, contentItemCount: 2 },
+      {
+        id: '1',
+        questionText: 'Question one?',
+        contentTokens: 5000,
+        contentItemCount: 3,
+      },
+      {
+        id: '2',
+        questionText: 'Question two?',
+        contentTokens: 3000,
+        contentItemCount: 2,
+      },
     ];
 
     const result = estimateBatchCost(questions);
@@ -155,7 +166,12 @@ describe('estimateBatchCost', () => {
   it('truncates long question text in breakdown', () => {
     const longText = 'A'.repeat(200);
     const result = estimateBatchCost([
-      { id: '1', questionText: longText, contentTokens: 1000, contentItemCount: 1 },
+      {
+        id: '1',
+        questionText: longText,
+        contentTokens: 1000,
+        contentItemCount: 1,
+      },
     ]);
 
     expect(result.breakdown[0].questionText.length).toBeLessThanOrEqual(103); // 100 + '...'
@@ -165,7 +181,12 @@ describe('estimateBatchCost', () => {
   it('preserves short question text without truncation', () => {
     const shortText = 'How do you ensure quality?';
     const result = estimateBatchCost([
-      { id: '1', questionText: shortText, contentTokens: 1000, contentItemCount: 1 },
+      {
+        id: '1',
+        questionText: shortText,
+        contentTokens: 1000,
+        contentItemCount: 1,
+      },
     ]);
 
     expect(result.breakdown[0].questionText).toBe(shortText);
@@ -173,7 +194,12 @@ describe('estimateBatchCost', () => {
 
   it('includes content item count in breakdown', () => {
     const result = estimateBatchCost([
-      { id: '1', questionText: 'Test?', contentTokens: 1000, contentItemCount: 5 },
+      {
+        id: '1',
+        questionText: 'Test?',
+        contentTokens: 1000,
+        contentItemCount: 5,
+      },
     ]);
 
     expect(result.breakdown[0].contentItemCount).toBe(5);

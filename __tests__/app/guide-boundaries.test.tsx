@@ -61,7 +61,7 @@ describe('Guides Error Boundary', () => {
     render(<GuidesError error={error} reset={reset} />);
     expect(screen.getByRole('link', { name: /return home/i })).toHaveAttribute(
       'href',
-      '/'
+      '/',
     );
   });
 
@@ -82,7 +82,7 @@ describe('Guides Loading Skeleton', () => {
     render(<GuidesLoading />);
     expect(screen.getByRole('status')).toHaveAttribute(
       'aria-label',
-      'Loading guides'
+      'Loading guides',
     );
   });
 
@@ -109,9 +109,7 @@ describe('Guide Detail Error Boundary', () => {
 
   it('renders the heading text', () => {
     render(<GuideDetailError error={error} reset={reset} />);
-    expect(
-      screen.getByText(/couldn.*t load this guide/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/couldn.*t load this guide/i)).toBeInTheDocument();
   });
 
   it('renders a contextual icon with aria-hidden', () => {
@@ -131,7 +129,7 @@ describe('Guide Detail Error Boundary', () => {
   it('has a navigation link to /guide', () => {
     render(<GuideDetailError error={error} reset={reset} />);
     expect(
-      screen.getByRole('link', { name: /back to guides/i })
+      screen.getByRole('link', { name: /back to guides/i }),
     ).toHaveAttribute('href', '/guide');
   });
 
@@ -152,7 +150,7 @@ describe('Guide Detail Loading Skeleton', () => {
     render(<GuideDetailLoading />);
     expect(screen.getByRole('status')).toHaveAttribute(
       'aria-label',
-      'Loading guide'
+      'Loading guide',
     );
   });
 

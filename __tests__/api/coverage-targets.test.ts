@@ -63,9 +63,26 @@ function resetMocks() {
   });
 
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
@@ -105,8 +122,9 @@ describe('GET /api/coverage/targets', () => {
       },
     ];
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: mockTargets, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: mockTargets, error: null }),
     );
 
     const res = await GET();
@@ -122,8 +140,8 @@ describe('GET /api/coverage/targets', () => {
   it('returns empty targets when none exist', async () => {
     configureRole(mockSupabase, 'viewer');
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const res = await GET();
@@ -136,8 +154,9 @@ describe('GET /api/coverage/targets', () => {
   it('returns 500 on database error', async () => {
     configureRole(mockSupabase, 'viewer');
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { message: 'DB error' } }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: { message: 'DB error' } }),
     );
 
     const res = await GET();
@@ -157,8 +176,9 @@ describe('GET /api/coverage/targets', () => {
       },
     ];
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: mockTargets, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: mockTargets, error: null }),
     );
 
     const res = await GET();
@@ -194,11 +214,13 @@ describe('PUT /api/coverage/targets', () => {
     const req = createTestRequest('/api/coverage/targets', {
       method: 'PUT',
       body: {
-        targets: [{
-          domain_id: DOMAIN_UUID,
-          metric_name: 'item_count',
-          target_value: 10,
-        }],
+        targets: [
+          {
+            domain_id: DOMAIN_UUID,
+            metric_name: 'item_count',
+            target_value: 10,
+          },
+        ],
       },
     });
 
@@ -211,7 +233,11 @@ describe('PUT /api/coverage/targets', () => {
 
     const req = createTestRequest('/api/coverage/targets', {
       method: 'PUT',
-      body: { targets: [{ domain_id: 'not-a-uuid', metric_name: 'invalid', target_value: -1 }] },
+      body: {
+        targets: [
+          { domain_id: 'not-a-uuid', metric_name: 'invalid', target_value: -1 },
+        ],
+      },
     });
 
     const res = await PUT(req);
@@ -237,8 +263,8 @@ describe('PUT /api/coverage/targets', () => {
     configureRole(mockSupabase, 'admin');
 
     // Mock upsert chain to succeed
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest('/api/coverage/targets', {
@@ -273,11 +299,13 @@ describe('PUT /api/coverage/targets', () => {
     const req = createTestRequest('/api/coverage/targets', {
       method: 'PUT',
       body: {
-        targets: [{
-          domain_id: DOMAIN_UUID,
-          metric_name: 'unknown_metric',
-          target_value: 10,
-        }],
+        targets: [
+          {
+            domain_id: DOMAIN_UUID,
+            metric_name: 'unknown_metric',
+            target_value: 10,
+          },
+        ],
       },
     });
 
@@ -291,11 +319,13 @@ describe('PUT /api/coverage/targets', () => {
     const req = createTestRequest('/api/coverage/targets', {
       method: 'PUT',
       body: {
-        targets: [{
-          domain_id: DOMAIN_UUID,
-          metric_name: 'item_count',
-          target_value: -5,
-        }],
+        targets: [
+          {
+            domain_id: DOMAIN_UUID,
+            metric_name: 'item_count',
+            target_value: -5,
+          },
+        ],
       },
     });
 
@@ -306,18 +336,21 @@ describe('PUT /api/coverage/targets', () => {
   it('returns 500 on upsert error', async () => {
     configureRole(mockSupabase, 'admin');
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { message: 'Constraint violation' } }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: { message: 'Constraint violation' } }),
     );
 
     const req = createTestRequest('/api/coverage/targets', {
       method: 'PUT',
       body: {
-        targets: [{
-          domain_id: DOMAIN_UUID,
-          metric_name: 'item_count',
-          target_value: 10,
-        }],
+        targets: [
+          {
+            domain_id: DOMAIN_UUID,
+            metric_name: 'item_count',
+            target_value: 10,
+          },
+        ],
       },
     });
 

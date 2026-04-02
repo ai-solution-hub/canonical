@@ -47,10 +47,7 @@ export function useDigestData() {
 
   // ─── Latest digest query ───
 
-  const {
-    data: latestDigest,
-    isLoading: loading,
-  } = useQuery({
+  const { data: latestDigest, isLoading: loading } = useQuery({
     queryKey: queryKeys.digests.latest,
     queryFn: async () => {
       const data = await fetchJson<{ digest: Digest | null }>(
@@ -62,10 +59,7 @@ export function useDigestData() {
 
   // ─── Past digests list ───
 
-  const {
-    data: pastDigests = [],
-    isLoading: loadingPastDigests,
-  } = useQuery({
+  const { data: pastDigests = [], isLoading: loadingPastDigests } = useQuery({
     queryKey: queryKeys.digests.list(10, 0),
     queryFn: async () => {
       const data = await fetchJson<{ digests: PastDigestEntry[] }>(
@@ -79,10 +73,7 @@ export function useDigestData() {
 
   const generateMutation = useMutation({
     mutationFn: (params: GenerateDigestParams) =>
-      mutationFetchJson<DigestGenerateResponse>(
-        '/api/digest/generate',
-        params,
-      ),
+      mutationFetchJson<DigestGenerateResponse>('/api/digest/generate', params),
     onSuccess: (data) => {
       // Update the latest digest cache directly
       queryClient.setQueryData(queryKeys.digests.latest, data.digest);
@@ -93,7 +84,9 @@ export function useDigestData() {
       toast.success('Report generated successfully');
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Failed to generate report');
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to generate report',
+      );
     },
   });
 
@@ -101,25 +94,28 @@ export function useDigestData() {
 
   // Load a specific past digest into the "current" slot via the detail endpoint.
   // Results are cached via queryClient.fetchQuery with the detail query key.
-  const loadDigest = useCallback(async (digestId: string) => {
-    try {
-      const digest = await queryClient.fetchQuery({
-        queryKey: queryKeys.digests.detail(digestId),
-        queryFn: async () => {
-          const data = await fetchJson<{ digest: Digest | null }>(
-            `/api/digest/${digestId}`,
-          );
-          return data.digest;
-        },
-      });
+  const loadDigest = useCallback(
+    async (digestId: string) => {
+      try {
+        const digest = await queryClient.fetchQuery({
+          queryKey: queryKeys.digests.detail(digestId),
+          queryFn: async () => {
+            const data = await fetchJson<{ digest: Digest | null }>(
+              `/api/digest/${digestId}`,
+            );
+            return data.digest;
+          },
+        });
 
-      if (digest) {
-        queryClient.setQueryData(queryKeys.digests.latest, digest);
+        if (digest) {
+          queryClient.setQueryData(queryKeys.digests.latest, digest);
+        }
+      } catch {
+        toast.error('Failed to load report');
       }
-    } catch {
-      toast.error('Failed to load report');
-    }
-  }, [queryClient]);
+    },
+    [queryClient],
+  );
 
   return {
     currentDigest: latestDigest ?? null,

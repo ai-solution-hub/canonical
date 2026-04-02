@@ -54,7 +54,9 @@ beforeEach(() => {
   );
 });
 
-function makeProps(overrides: Partial<{ itemId: string; itemTitle: string }> = {}) {
+function makeProps(
+  overrides: Partial<{ itemId: string; itemTitle: string }> = {},
+) {
   return {
     itemId: 'item-123',
     itemTitle: 'Test Content Item',
@@ -85,13 +87,17 @@ describe('DeleteContentDialog', () => {
     await user.click(screen.getByRole('button', { name: /Delete/i }));
 
     expect(screen.getByText('Delete Content Item')).toBeInTheDocument();
-    expect(screen.getByText(/Are you sure you want to delete this item/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Are you sure you want to delete this item/),
+    ).toBeInTheDocument();
   });
 
   it('shows item title in confirmation dialog', async () => {
     const user = userEvent.setup();
     render(
-      <DeleteContentDialog {...makeProps({ itemTitle: 'My Important Document' })} />,
+      <DeleteContentDialog
+        {...makeProps({ itemTitle: 'My Important Document' })}
+      />,
     );
 
     await user.click(screen.getByRole('button', { name: /Delete/i }));
@@ -114,7 +120,9 @@ describe('DeleteContentDialog', () => {
     render(<DeleteContentDialog {...makeProps({ itemId: 'item-456' })} />);
 
     await user.click(screen.getByRole('button', { name: /Delete/i }));
-    await user.click(screen.getByRole('button', { name: /Delete permanently/i }));
+    await user.click(
+      screen.getByRole('button', { name: /Delete permanently/i }),
+    );
 
     expect(globalThis.fetch).toHaveBeenCalledWith('/api/items/item-456', {
       method: 'DELETE',
@@ -126,7 +134,9 @@ describe('DeleteContentDialog', () => {
     render(<DeleteContentDialog {...makeProps()} />);
 
     await user.click(screen.getByRole('button', { name: /Delete/i }));
-    await user.click(screen.getByRole('button', { name: /Delete permanently/i }));
+    await user.click(
+      screen.getByRole('button', { name: /Delete permanently/i }),
+    );
 
     await waitFor(() => {
       expect(toast.success).toHaveBeenCalledWith('Content item deleted');
@@ -143,7 +153,9 @@ describe('DeleteContentDialog', () => {
     render(<DeleteContentDialog {...makeProps()} />);
 
     await user.click(screen.getByRole('button', { name: /Delete/i }));
-    await user.click(screen.getByRole('button', { name: /Delete permanently/i }));
+    await user.click(
+      screen.getByRole('button', { name: /Delete permanently/i }),
+    );
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('Forbidden');

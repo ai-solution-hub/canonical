@@ -8,9 +8,7 @@ import {
 import type { ContentListItem } from '@/types/content';
 
 // Minimal stub satisfying ContentListItem for cursor tests
-function makeItem(
-  overrides: Partial<ContentListItem> = {},
-): ContentListItem {
+function makeItem(overrides: Partial<ContentListItem> = {}): ContentListItem {
   return {
     id: 'abc-123',
     title: 'Test Item',
@@ -54,11 +52,15 @@ describe('getSortOptionFromFilters', () => {
   });
 
   it('returns "freshness-stale" when sort is freshness and order is asc', () => {
-    expect(getSortOptionFromFilters('freshness', 'asc')).toBe('freshness-stale');
+    expect(getSortOptionFromFilters('freshness', 'asc')).toBe(
+      'freshness-stale',
+    );
   });
 
   it('returns "quality-lowest" when sort is quality_score and order is asc', () => {
-    expect(getSortOptionFromFilters('quality_score', 'asc')).toBe('quality-lowest');
+    expect(getSortOptionFromFilters('quality_score', 'asc')).toBe(
+      'quality-lowest',
+    );
   });
 
   it('returns "date-asc" when order is asc (and sort is not domain/confidence)', () => {

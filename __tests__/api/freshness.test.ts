@@ -65,16 +65,41 @@ function resetMocks() {
   });
 
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockResolvedValue({ data: null, error: null, count: null });
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null, count: null });
+  mockSupabase._chain.single.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
@@ -161,8 +186,9 @@ describe('POST /api/freshness/calculate', () => {
   it('returns 500 when item fetch fails', async () => {
     configureRole(mockSupabase, 'editor');
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { message: 'DB error' } }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: { message: 'DB error' } }),
     );
 
     const req = createTestRequest('/api/freshness/calculate', {
@@ -179,8 +205,8 @@ describe('POST /api/freshness/calculate', () => {
   it('returns 404 when no items found for provided IDs', async () => {
     configureRole(mockSupabase, 'editor');
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const req = createTestRequest('/api/freshness/calculate', {
@@ -198,13 +224,24 @@ describe('POST /api/freshness/calculate', () => {
     configureRole(mockSupabase, 'editor');
 
     const mockItems = [
-      { id: VALID_UUID, lifecycle_type: 'evergreen', updated_at: '2026-01-01T00:00:00Z', expiry_date: null },
-      { id: VALID_UUID_2, lifecycle_type: 'date_bound', updated_at: '2025-06-01T00:00:00Z', expiry_date: '2026-06-01' },
+      {
+        id: VALID_UUID,
+        lifecycle_type: 'evergreen',
+        updated_at: '2026-01-01T00:00:00Z',
+        expiry_date: null,
+      },
+      {
+        id: VALID_UUID_2,
+        lifecycle_type: 'date_bound',
+        updated_at: '2025-06-01T00:00:00Z',
+        expiry_date: '2026-06-01',
+      },
     ];
 
     // Fetch items
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: mockItems, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: mockItems, error: null }),
     );
 
     // batchCalculateFreshness returns a Map
@@ -236,20 +273,32 @@ describe('POST /api/freshness/calculate', () => {
     configureRole(mockSupabase, 'editor');
 
     const mockItems = [
-      { id: VALID_UUID, lifecycle_type: 'evergreen', updated_at: '2026-01-01T00:00:00Z', expiry_date: null },
-      { id: VALID_UUID_2, lifecycle_type: 'evergreen', updated_at: '2025-01-01T00:00:00Z', expiry_date: null },
+      {
+        id: VALID_UUID,
+        lifecycle_type: 'evergreen',
+        updated_at: '2026-01-01T00:00:00Z',
+        expiry_date: null,
+      },
+      {
+        id: VALID_UUID_2,
+        lifecycle_type: 'evergreen',
+        updated_at: '2025-01-01T00:00:00Z',
+        expiry_date: null,
+      },
     ];
 
     // Fetch items succeeds
     let fetchCalled = false;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      if (!fetchCalled) {
-        fetchCalled = true;
-        return resolve({ data: mockItems, error: null });
-      }
-      // Subsequent .then calls (from update chain) — first succeeds, second fails
-      return resolve({ data: null, error: { message: 'Update failed' } });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        if (!fetchCalled) {
+          fetchCalled = true;
+          return resolve({ data: mockItems, error: null });
+        }
+        // Subsequent .then calls (from update chain) — first succeeds, second fails
+        return resolve({ data: null, error: { message: 'Update failed' } });
+      },
+    );
 
     const freshnessMap = new Map<string, string>();
     freshnessMap.set(VALID_UUID, 'fresh');
@@ -335,13 +384,15 @@ describe('POST /api/freshness/recalculate-all', () => {
     configureRole(mockSupabase, 'admin');
 
     mockSupabase.rpc.mockResolvedValueOnce({
-      data: [{
-        total_count: 50,
-        fresh_count: 30,
-        aging_count: 10,
-        stale_count: 5,
-        expired_count: 5,
-      }],
+      data: [
+        {
+          total_count: 50,
+          fresh_count: 30,
+          aging_count: 10,
+          stale_count: 5,
+          expired_count: 5,
+        },
+      ],
       error: null,
     });
 

@@ -174,16 +174,18 @@ export function ResponseActions({
                 {showRegenerateInput ? 'Send' : 'Regenerate'}
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Re-draft with different instructions</TooltipContent>
+            <TooltipContent>
+              Re-draft with different instructions
+            </TooltipContent>
           </Tooltip>
 
           {/* ── Separator between generate and tools groups ── */}
-          {((!hasDraft) || (hasDraft && !isApproved)) && (
+          {(!hasDraft || (hasDraft && !isApproved)) && (
             <Separator orientation="vertical" className="mx-0.5 h-5" />
           )}
 
           {/* ── Tools group: More (Author Manually / Flag) ── */}
-          {((!hasDraft) || (hasDraft && !isApproved)) && (
+          {(!hasDraft || (hasDraft && !isApproved)) && (
             <DropdownMenu>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -211,7 +213,10 @@ export function ResponseActions({
                 {hasDraft && !isApproved && (
                   <DropdownMenuItem onClick={() => onAction('flag_for_review')}>
                     {loadingAction === 'flag_for_review' ? (
-                      <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
+                      <Loader2
+                        className="mr-2 size-4 animate-spin"
+                        aria-hidden="true"
+                      />
                     ) : (
                       <Flag className="mr-2 size-4" aria-hidden="true" />
                     )}

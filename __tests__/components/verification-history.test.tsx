@@ -111,10 +111,12 @@ function resetMocks() {
     mockChain[m] = vi.fn().mockReturnValue(mockChain);
   }
   mockChain.catch = vi.fn().mockReturnValue(mockChain);
-  mockChain.then = vi.fn().mockImplementation((resolve: (v: unknown) => void) => {
-    resolve({ data: [], error: null });
-    return { catch: vi.fn() };
-  });
+  mockChain.then = vi
+    .fn()
+    .mockImplementation((resolve: (v: unknown) => void) => {
+      resolve({ data: [], error: null });
+      return { catch: vi.fn() };
+    });
   mockChain.maybeSingle = vi.fn().mockReturnValue({
     then: vi.fn().mockImplementation((resolve: (v: unknown) => void) => {
       resolve({ data: null, error: null });
@@ -209,7 +211,9 @@ describe('VerificationHistory', () => {
     render(<VerificationHistory contentItemId={ITEM_ID} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Verification history \(3\)/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Verification history \(3\)/),
+      ).toBeInTheDocument();
     });
   });
 
@@ -222,11 +226,15 @@ describe('VerificationHistory', () => {
     render(<VerificationHistory contentItemId={ITEM_ID} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Verification history \(3\)/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Verification history \(3\)/),
+      ).toBeInTheDocument();
     });
 
     // The list should not be visible yet
-    expect(screen.queryByRole('list', { name: 'Verification history' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('list', { name: 'Verification history' }),
+    ).not.toBeInTheDocument();
   });
 
   it('expands when the toggle button is clicked', async () => {
@@ -240,14 +248,18 @@ describe('VerificationHistory', () => {
     render(<VerificationHistory contentItemId={ITEM_ID} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Verification history \(3\)/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Verification history \(3\)/),
+      ).toBeInTheDocument();
     });
 
     // Click to expand
     await user.click(screen.getByText(/Verification history \(3\)/));
 
     // Now the list should be visible
-    expect(screen.getByRole('list', { name: 'Verification history' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('list', { name: 'Verification history' }),
+    ).toBeInTheDocument();
   });
 
   it('renders all action types with correct labels', async () => {
@@ -261,7 +273,9 @@ describe('VerificationHistory', () => {
     render(<VerificationHistory contentItemId={ITEM_ID} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Verification history \(3\)/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Verification history \(3\)/),
+      ).toBeInTheDocument();
     });
 
     await user.click(screen.getByText(/Verification history \(3\)/));
@@ -283,7 +297,9 @@ describe('VerificationHistory', () => {
     render(<VerificationHistory contentItemId={ITEM_ID} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Verification history \(3\)/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Verification history \(3\)/),
+      ).toBeInTheDocument();
     });
 
     await user.click(screen.getByText(/Verification history \(3\)/));
@@ -293,7 +309,9 @@ describe('VerificationHistory', () => {
     expect(screen.getByText('Statistics need updating')).toBeInTheDocument();
 
     // Entry 3 has no note — should only have 2 italic note paragraphs
-    const notes = screen.getAllByText(/Content looks accurate|Statistics need updating/);
+    const notes = screen.getAllByText(
+      /Content looks accurate|Statistics need updating/,
+    );
     expect(notes).toHaveLength(2);
   });
 
@@ -308,7 +326,9 @@ describe('VerificationHistory', () => {
     render(<VerificationHistory contentItemId={ITEM_ID} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Verification history \(3\)/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Verification history \(3\)/),
+      ).toBeInTheDocument();
     });
 
     await user.click(screen.getByText(/Verification history \(3\)/));
@@ -333,7 +353,9 @@ describe('VerificationHistory', () => {
     render(<VerificationHistory contentItemId={ITEM_ID} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Verification history \(1\)/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Verification history \(1\)/),
+      ).toBeInTheDocument();
     });
 
     await user.click(screen.getByText(/Verification history \(1\)/));
@@ -352,10 +374,14 @@ describe('VerificationHistory', () => {
     render(<VerificationHistory contentItemId={ITEM_ID} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Verification history \(3\)/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Verification history \(3\)/),
+      ).toBeInTheDocument();
     });
 
-    const toggleButton = screen.getByRole('button', { name: /Verification history/ });
+    const toggleButton = screen.getByRole('button', {
+      name: /Verification history/,
+    });
     expect(toggleButton).toHaveAttribute('aria-expanded', 'false');
 
     await user.click(toggleButton);

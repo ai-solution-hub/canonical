@@ -62,22 +62,17 @@ vi.mock('@/lib/templates/template-coverage', () => ({
 
 // Import route handlers AFTER mocks are registered
 const { GET: coverageGet } = await import('@/app/api/coverage/route');
-const { GET: gapSummaryGet } = await import(
-  '@/app/api/coverage/gap-summary/route'
-);
-const { GET: templatesGet } = await import(
-  '@/app/api/coverage/templates/route'
-);
-const { GET: templatesListGet } = await import(
-  '@/app/api/coverage/templates/list/route'
-);
+const { GET: gapSummaryGet } =
+  await import('@/app/api/coverage/gap-summary/route');
+const { GET: templatesGet } =
+  await import('@/app/api/coverage/templates/route');
+const { GET: templatesListGet } =
+  await import('@/app/api/coverage/templates/list/route');
 const { GET: dashboardGet } = await import('@/app/api/dashboard/route');
-const { GET: qualityGet, PATCH: qualityPatch } = await import(
-  '@/app/api/quality/route'
-);
-const { GET: qualitySummaryGet } = await import(
-  '@/app/api/quality/summary/route'
-);
+const { GET: qualityGet, PATCH: qualityPatch } =
+  await import('@/app/api/quality/route');
+const { GET: qualitySummaryGet } =
+  await import('@/app/api/quality/summary/route');
 const { GET: insightsGet } = await import('@/app/api/insights/route');
 
 // ---------------------------------------------------------------------------
@@ -106,9 +101,26 @@ beforeEach(() => {
 
   // Chainable methods return the chain
   const chainable = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const m of chainable) {
     mockSupabase._chain[m].mockReturnValue(mockSupabase._chain);
@@ -125,9 +137,8 @@ beforeEach(() => {
   mockSupabase._chain.csv.mockReset();
   mockSupabase._chain.csv.mockResolvedValue({ data: null, error: null });
   mockSupabase._chain.then.mockReset();
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 
   // External dependency mocks
@@ -141,7 +152,13 @@ beforeEach(() => {
       expired_content_count: 0,
     },
     active_bids: [],
-    freshness_summary: { fresh: 10, ageing: 2, stale: 1, expired: 0, unknown: 0 },
+    freshness_summary: {
+      fresh: 10,
+      ageing: 2,
+      stale: 1,
+      expired: 0,
+      unknown: 0,
+    },
     errors: [],
   });
   mockListAvailableTemplates.mockResolvedValue([]);
@@ -283,7 +300,11 @@ describe('GET /api/coverage/gap-summary', () => {
       { id: '1', title: 'Test', primary_domain: 'Engineering' },
     ]);
     mockFetchTemplateRequirements.mockResolvedValueOnce([
-      { requirement_key: 'r1', template_version: '1.0', template_type: 'prequalification' },
+      {
+        requirement_key: 'r1',
+        template_version: '1.0',
+        template_type: 'prequalification',
+      },
     ]);
     mockComputeTemplateCoverage.mockReturnValueOnce({
       template_name: 'saq-pqs',
@@ -392,8 +413,16 @@ describe('GET /api/coverage/templates/list', () => {
 
   it('returns 200 with templates array on success', async () => {
     const templates = [
-      { template_name: 'saq-pqs', template_version: '1.0', template_type: 'prequalification' },
-      { template_name: 'iso-9001', template_version: '2.0', template_type: 'certification' },
+      {
+        template_name: 'saq-pqs',
+        template_version: '1.0',
+        template_type: 'prequalification',
+      },
+      {
+        template_name: 'iso-9001',
+        template_version: '2.0',
+        template_type: 'certification',
+      },
     ];
     mockListAvailableTemplates.mockResolvedValueOnce(templates);
 
@@ -444,7 +473,13 @@ describe('GET /api/dashboard', () => {
         expired_content_count: 0,
       },
       active_bids: [],
-      freshness_summary: { fresh: 10, ageing: 2, stale: 1, expired: 0, unknown: 0 },
+      freshness_summary: {
+        fresh: 10,
+        ageing: 2,
+        stale: 1,
+        expired: 0,
+        unknown: 0,
+      },
       errors: [],
     };
     mockFetchUnifiedDashboardData.mockResolvedValueOnce(dashboardData);
@@ -498,10 +533,21 @@ describe('GET /api/dashboard', () => {
         expired_content_count: null,
       },
       active_bids: [],
-      freshness_summary: { fresh: 0, ageing: 0, stale: 0, expired: 0, unknown: 0 },
+      freshness_summary: {
+        fresh: 0,
+        ageing: 0,
+        stale: 0,
+        expired: 0,
+        unknown: 0,
+      },
       errors: [
-        'query1', 'query2', 'query3', 'query4',
-        'query5', 'query6', 'query7',
+        'query1',
+        'query2',
+        'query3',
+        'query4',
+        'query5',
+        'query6',
+        'query7',
       ],
     });
 
@@ -529,7 +575,12 @@ describe('GET /api/quality', () => {
 
   it('returns 200 with paginated quality flags on success', async () => {
     const qualityItems = [
-      { id: VALID_UUID, flag_type: 'missing_content', severity: 'high', resolved: false },
+      {
+        id: VALID_UUID,
+        flag_type: 'missing_content',
+        severity: 'high',
+        resolved: false,
+      },
     ];
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>

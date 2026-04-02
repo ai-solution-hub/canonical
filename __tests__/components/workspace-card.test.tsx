@@ -12,13 +12,18 @@ vi.mock('@/lib/format', () => ({
   formatRelativeDate: (date: string) => date,
 }));
 
-import { WorkspaceCard, type WorkspaceWithCounts } from '@/components/workspace/workspace-card';
+import {
+  WorkspaceCard,
+  type WorkspaceWithCounts,
+} from '@/components/workspace/workspace-card';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeWorkspace(overrides: Partial<WorkspaceWithCounts> = {}): WorkspaceWithCounts {
+function makeWorkspace(
+  overrides: Partial<WorkspaceWithCounts> = {},
+): WorkspaceWithCounts {
   return {
     id: 'ws-1',
     name: 'Test Workspace',
@@ -39,7 +44,10 @@ function makeWorkspace(overrides: Partial<WorkspaceWithCounts> = {}): WorkspaceW
   };
 }
 
-function renderCard(overrides: Partial<WorkspaceWithCounts> = {}, readOnly = false) {
+function renderCard(
+  overrides: Partial<WorkspaceWithCounts> = {},
+  readOnly = false,
+) {
   const workspace = makeWorkspace(overrides);
   return render(
     <WorkspaceCard
@@ -124,7 +132,9 @@ describe('WorkspaceCard', () => {
 
     it('does not show arrow icon for types without a route', () => {
       renderCard({ type: 'kb_section' });
-      expect(screen.queryByTitle(/Opens .* detail page/)).not.toBeInTheDocument();
+      expect(
+        screen.queryByTitle(/Opens .* detail page/),
+      ).not.toBeInTheDocument();
     });
   });
 });

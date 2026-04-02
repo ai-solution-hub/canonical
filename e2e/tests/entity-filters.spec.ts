@@ -24,10 +24,14 @@ import { test, expect } from '../fixtures';
 test.describe('Entity type filter on browse page', () => {
   test.beforeEach(async ({ authenticatedPage: page }) => {
     await page.goto('/browse');
-    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({
+      timeout: 10000,
+    });
   });
 
-  test('filter panel contains Entity Type section when entities exist', async ({ authenticatedPage: page }) => {
+  test('filter panel contains Entity Type section when entities exist', async ({
+    authenticatedPage: page,
+  }) => {
     // Open filter panel
     const filtersButton = page.getByRole('button', { name: /filter/i });
     await filtersButton.scrollIntoViewIfNeeded();
@@ -42,7 +46,9 @@ test.describe('Entity type filter on browse page', () => {
 
     // Entity Type section only renders if entityTypeCounts.length > 0 (live data).
     // If the section is present, verify it can be expanded.
-    if (await entityTypeButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+    if (
+      await entityTypeButton.isVisible({ timeout: 5000 }).catch(() => false)
+    ) {
       // Click to expand the section (it is collapsed by default)
       await entityTypeButton.click();
 
@@ -61,7 +67,9 @@ test.describe('Entity type filter on browse page', () => {
     }
   });
 
-  test('selecting an entity type marks it as pressed and can be applied', async ({ authenticatedPage: page }) => {
+  test('selecting an entity type marks it as pressed and can be applied', async ({
+    authenticatedPage: page,
+  }) => {
     const filtersButton = page.getByRole('button', { name: /filter/i });
     await filtersButton.scrollIntoViewIfNeeded();
     await filtersButton.click();
@@ -71,7 +79,9 @@ test.describe('Entity type filter on browse page', () => {
 
     const entityTypeButton = sheet.getByRole('button', { name: 'Entity Type' });
 
-    if (await entityTypeButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+    if (
+      await entityTypeButton.isVisible({ timeout: 5000 }).catch(() => false)
+    ) {
       // Expand the Entity Type section
       await entityTypeButton.click();
 
@@ -104,18 +114,22 @@ test.describe('Entity type filter on browse page', () => {
       // FilterBadges renders "Entity Type:" label with the capitalised type name
       if (typeName) {
         // The badge renders the type name capitalised (first letter upper)
-        await expect(
-          page.getByText('Entity Type:'),
-        ).toBeVisible({ timeout: 5000 });
+        await expect(page.getByText('Entity Type:')).toBeVisible({
+          timeout: 5000,
+        });
       }
     }
   });
 });
 
 test.describe('Entity name filter', () => {
-  test('Entities section shows entity names filtered by selected type', async ({ authenticatedPage: page }) => {
+  test('Entities section shows entity names filtered by selected type', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/browse');
-    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({
+      timeout: 10000,
+    });
 
     const filtersButton = page.getByRole('button', { name: /filter/i });
     await filtersButton.scrollIntoViewIfNeeded();
@@ -129,8 +143,10 @@ test.describe('Entity name filter', () => {
     const entitiesButton = sheet.getByRole('button', { name: 'Entities' });
 
     if (
-      await entityTypeButton.isVisible({ timeout: 5000 }).catch(() => false) &&
-      await entitiesButton.isVisible({ timeout: 3000 }).catch(() => false)
+      (await entityTypeButton
+        .isVisible({ timeout: 5000 })
+        .catch(() => false)) &&
+      (await entitiesButton.isVisible({ timeout: 3000 }).catch(() => false))
     ) {
       // Expand the Entities section first to see all entities
       await entitiesButton.click();
@@ -157,9 +173,9 @@ test.describe('Entity name filter', () => {
 
       // After selecting a type, the helper text should change to indicate filtering
       // "Showing {type} entities — clear type filter to see all"
-      await expect(
-        sheet.getByText(/Showing .+ entities/),
-      ).toBeVisible({ timeout: 5000 });
+      await expect(sheet.getByText(/Showing .+ entities/)).toBeVisible({
+        timeout: 5000,
+      });
 
       // The entity count may have changed (filtered down)
       // At minimum, there should still be entity buttons visible if this type has entities
@@ -168,9 +184,13 @@ test.describe('Entity name filter', () => {
     }
   });
 
-  test('selecting an entity name marks it as pressed', async ({ authenticatedPage: page }) => {
+  test('selecting an entity name marks it as pressed', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/browse');
-    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({
+      timeout: 10000,
+    });
 
     const filtersButton = page.getByRole('button', { name: /filter/i });
     await filtersButton.scrollIntoViewIfNeeded();
@@ -197,9 +217,13 @@ test.describe('Entity name filter', () => {
     }
   });
 
-  test('applying both entity type and entity name shows both badges', async ({ authenticatedPage: page }) => {
+  test('applying both entity type and entity name shows both badges', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/browse');
-    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({
+      timeout: 10000,
+    });
 
     const filtersButton = page.getByRole('button', { name: /filter/i });
     await filtersButton.scrollIntoViewIfNeeded();
@@ -212,8 +236,10 @@ test.describe('Entity name filter', () => {
     const entitiesButton = sheet.getByRole('button', { name: 'Entities' });
 
     if (
-      await entityTypeButton.isVisible({ timeout: 5000 }).catch(() => false) &&
-      await entitiesButton.isVisible({ timeout: 3000 }).catch(() => false)
+      (await entityTypeButton
+        .isVisible({ timeout: 5000 })
+        .catch(() => false)) &&
+      (await entitiesButton.isVisible({ timeout: 3000 }).catch(() => false))
     ) {
       // Select entity type
       await entityTypeButton.click();
@@ -227,7 +253,9 @@ test.describe('Entity name filter', () => {
       await expect(entitiesGroup).toBeVisible();
 
       const firstEntityBtn = entitiesGroup.getByRole('button').first();
-      if (await firstEntityBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      if (
+        await firstEntityBtn.isVisible({ timeout: 3000 }).catch(() => false)
+      ) {
         await firstEntityBtn.click();
 
         // Apply filters
@@ -235,7 +263,9 @@ test.describe('Entity name filter', () => {
         await expect(sheet).not.toBeVisible({ timeout: 5000 });
 
         // Both filter badges should appear
-        await expect(page.getByText('Entity Type:')).toBeVisible({ timeout: 5000 });
+        await expect(page.getByText('Entity Type:')).toBeVisible({
+          timeout: 5000,
+        });
         await expect(page.getByText('Entity:')).toBeVisible({ timeout: 5000 });
       }
     }
@@ -243,9 +273,13 @@ test.describe('Entity name filter', () => {
 });
 
 test.describe('Entity co-occurrence in filter panel', () => {
-  test('Entity Co-occurrence section shows pairs when data exists', async ({ authenticatedPage: page }) => {
+  test('Entity Co-occurrence section shows pairs when data exists', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/browse');
-    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({
+      timeout: 10000,
+    });
 
     const filtersButton = page.getByRole('button', { name: /filter/i });
     await filtersButton.scrollIntoViewIfNeeded();
@@ -255,21 +289,31 @@ test.describe('Entity co-occurrence in filter panel', () => {
     await expect(sheet).toBeVisible({ timeout: 5000 });
 
     // Entity Co-occurrence section only renders when allEntities.length > 0
-    const coOccurrenceButton = sheet.getByRole('button', { name: 'Entity Co-occurrence' });
+    const coOccurrenceButton = sheet.getByRole('button', {
+      name: 'Entity Co-occurrence',
+    });
 
-    if (await coOccurrenceButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+    if (
+      await coOccurrenceButton.isVisible({ timeout: 5000 }).catch(() => false)
+    ) {
       // Expand the section
       await coOccurrenceButton.click();
 
       // Wait for loading to complete — the component fetches from /api/entities/co-occurrence
       // Either the list appears or the "No frequently co-occurring entities found" message
-      const pairsList = sheet.getByRole('list', { name: 'Co-occurring entity pairs' });
-      const noPairsMessage = sheet.getByText('No frequently co-occurring entities found');
-      const helpText = sheet.getByText('Entities that frequently appear together in content');
+      const pairsList = sheet.getByRole('list', {
+        name: 'Co-occurring entity pairs',
+      });
+      const noPairsMessage = sheet.getByText(
+        'No frequently co-occurring entities found',
+      );
+      const helpText = sheet.getByText(
+        'Entities that frequently appear together in content',
+      );
 
-      await expect(
-        pairsList.or(noPairsMessage),
-      ).toBeVisible({ timeout: 10000 });
+      await expect(pairsList.or(noPairsMessage)).toBeVisible({
+        timeout: 10000,
+      });
 
       // Help text should always be visible
       await expect(helpText).toBeVisible();
@@ -282,15 +326,21 @@ test.describe('Entity co-occurrence in filter panel', () => {
 
         // Each pair item should have two entity filter buttons
         const firstItem = listItems.first();
-        const entityButtons = firstItem.locator('button[aria-label^="Filter by entity:"]');
+        const entityButtons = firstItem.locator(
+          'button[aria-label^="Filter by entity:"]',
+        );
         await expect(entityButtons).toHaveCount(2);
       }
     }
   });
 
-  test('clicking a co-occurrence entity sets it as the entity filter', async ({ authenticatedPage: page }) => {
+  test('clicking a co-occurrence entity sets it as the entity filter', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/browse');
-    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({
+      timeout: 10000,
+    });
 
     const filtersButton = page.getByRole('button', { name: /filter/i });
     await filtersButton.scrollIntoViewIfNeeded();
@@ -299,12 +349,18 @@ test.describe('Entity co-occurrence in filter panel', () => {
     const sheet = page.locator('[role="dialog"]');
     await expect(sheet).toBeVisible({ timeout: 5000 });
 
-    const coOccurrenceButton = sheet.getByRole('button', { name: 'Entity Co-occurrence' });
+    const coOccurrenceButton = sheet.getByRole('button', {
+      name: 'Entity Co-occurrence',
+    });
 
-    if (await coOccurrenceButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+    if (
+      await coOccurrenceButton.isVisible({ timeout: 5000 }).catch(() => false)
+    ) {
       await coOccurrenceButton.click();
 
-      const pairsList = sheet.getByRole('list', { name: 'Co-occurring entity pairs' });
+      const pairsList = sheet.getByRole('list', {
+        name: 'Co-occurring entity pairs',
+      });
 
       if (await pairsList.isVisible({ timeout: 10000 }).catch(() => false)) {
         // Click the first entity button in the first pair
@@ -318,13 +374,21 @@ test.describe('Entity co-occurrence in filter panel', () => {
           await firstEntityButton.click();
 
           // Now also expand the Entities section to verify the entity was selected
-          const entitiesButton = sheet.getByRole('button', { name: 'Entities' });
-          if (await entitiesButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+          const entitiesButton = sheet.getByRole('button', {
+            name: 'Entities',
+          });
+          if (
+            await entitiesButton.isVisible({ timeout: 3000 }).catch(() => false)
+          ) {
             await entitiesButton.click();
-            const entitiesGroup = sheet.getByRole('group', { name: 'Entities' });
+            const entitiesGroup = sheet.getByRole('group', {
+              name: 'Entities',
+            });
 
             // At least one entity button should now be pressed
-            const pressedEntity = entitiesGroup.locator('button[aria-pressed="true"]');
+            const pressedEntity = entitiesGroup.locator(
+              'button[aria-pressed="true"]',
+            );
             await expect(pressedEntity.first()).toBeVisible({ timeout: 5000 });
           }
         }
@@ -334,9 +398,13 @@ test.describe('Entity co-occurrence in filter panel', () => {
 });
 
 test.describe('Filter badge display and removal', () => {
-  test('entity type filter badge has a remove button', async ({ authenticatedPage: page }) => {
+  test('entity type filter badge has a remove button', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/browse');
-    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({
+      timeout: 10000,
+    });
 
     // Open filter panel and apply an entity type filter
     const filtersButton = page.getByRole('button', { name: /filter/i });
@@ -348,7 +416,9 @@ test.describe('Filter badge display and removal', () => {
 
     const entityTypeButton = sheet.getByRole('button', { name: 'Entity Type' });
 
-    if (await entityTypeButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+    if (
+      await entityTypeButton.isVisible({ timeout: 5000 }).catch(() => false)
+    ) {
       await entityTypeButton.click();
 
       const entityTypeGroup = sheet.getByRole('group', { name: 'Entity Type' });
@@ -363,7 +433,9 @@ test.describe('Filter badge display and removal', () => {
       const badge = page.getByText('Entity Type:');
       if (await badge.isVisible({ timeout: 5000 }).catch(() => false)) {
         // The remove button has aria-label "Remove Entity Type filter: {value}"
-        const removeButton = page.getByRole('button', { name: /Remove Entity Type filter/ });
+        const removeButton = page.getByRole('button', {
+          name: /Remove Entity Type filter/,
+        });
         await expect(removeButton).toBeVisible();
 
         // Click to remove the filter
@@ -375,9 +447,13 @@ test.describe('Filter badge display and removal', () => {
     }
   });
 
-  test('clear all button removes all active entity filters', async ({ authenticatedPage: page }) => {
+  test('clear all button removes all active entity filters', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/browse');
-    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({
+      timeout: 10000,
+    });
 
     // Apply entity type + entity name filters
     const filtersButton = page.getByRole('button', { name: /filter/i });
@@ -391,8 +467,10 @@ test.describe('Filter badge display and removal', () => {
     const entitiesButton = sheet.getByRole('button', { name: 'Entities' });
 
     if (
-      await entityTypeButton.isVisible({ timeout: 5000 }).catch(() => false) &&
-      await entitiesButton.isVisible({ timeout: 3000 }).catch(() => false)
+      (await entityTypeButton
+        .isVisible({ timeout: 5000 })
+        .catch(() => false)) &&
+      (await entitiesButton.isVisible({ timeout: 3000 }).catch(() => false))
     ) {
       // Select entity type
       await entityTypeButton.click();
@@ -406,7 +484,9 @@ test.describe('Filter badge display and removal', () => {
       await expect(entitiesGroup).toBeVisible();
 
       const firstEntityBtn = entitiesGroup.getByRole('button').first();
-      if (await firstEntityBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      if (
+        await firstEntityBtn.isVisible({ timeout: 3000 }).catch(() => false)
+      ) {
         await firstEntityBtn.click();
 
         // Apply
@@ -418,11 +498,15 @@ test.describe('Filter badge display and removal', () => {
         const entityBadge = page.getByText('Entity:');
 
         if (
-          await entityTypeBadge.isVisible({ timeout: 5000 }).catch(() => false) &&
-          await entityBadge.isVisible({ timeout: 3000 }).catch(() => false)
+          (await entityTypeBadge
+            .isVisible({ timeout: 5000 })
+            .catch(() => false)) &&
+          (await entityBadge.isVisible({ timeout: 3000 }).catch(() => false))
         ) {
           // The "Clear all" button appears when activeFilterCount > 1
-          const clearAllButton = page.getByRole('button', { name: 'Clear all' });
+          const clearAllButton = page.getByRole('button', {
+            name: 'Clear all',
+          });
           await expect(clearAllButton).toBeVisible();
 
           await clearAllButton.click();
@@ -435,9 +519,13 @@ test.describe('Filter badge display and removal', () => {
     }
   });
 
-  test('clear all inside filter panel resets entity draft selections', async ({ authenticatedPage: page }) => {
+  test('clear all inside filter panel resets entity draft selections', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/browse');
-    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({
+      timeout: 10000,
+    });
 
     const filtersButton = page.getByRole('button', { name: /filter/i });
     await filtersButton.scrollIntoViewIfNeeded();
@@ -448,7 +536,9 @@ test.describe('Filter badge display and removal', () => {
 
     const entityTypeButton = sheet.getByRole('button', { name: 'Entity Type' });
 
-    if (await entityTypeButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+    if (
+      await entityTypeButton.isVisible({ timeout: 5000 }).catch(() => false)
+    ) {
       // Select an entity type
       await entityTypeButton.click();
       const entityTypeGroup = sheet.getByRole('group', { name: 'Entity Type' });
@@ -469,10 +559,14 @@ test.describe('Filter badge display and removal', () => {
 });
 
 test.describe('Entity badges on item detail page', () => {
-  test('item detail page shows Entities section in Relationships', async ({ authenticatedPage: page }) => {
+  test('item detail page shows Entities section in Relationships', async ({
+    authenticatedPage: page,
+  }) => {
     // Navigate to browse and click any item to get to detail
     await page.goto('/browse');
-    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({
+      timeout: 10000,
+    });
 
     const itemLink = page.locator('a[href^="/item/"]').first();
     if (await itemLink.isVisible({ timeout: 5000 }).catch(() => false)) {
@@ -480,18 +574,28 @@ test.describe('Entity badges on item detail page', () => {
       await expect(page).toHaveURL(/\/item\//);
 
       // Wait for the page to load
-      await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10000 });
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible({
+        timeout: 10000,
+      });
 
       // The Relationships section is a collapsible section. Look for its toggle button.
-      const relationshipsButton = page.getByRole('button', { name: 'Relationships' });
+      const relationshipsButton = page.getByRole('button', {
+        name: 'Relationships',
+      });
 
-      if (await relationshipsButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+      if (
+        await relationshipsButton
+          .isVisible({ timeout: 5000 })
+          .catch(() => false)
+      ) {
         // Expand if collapsed
         await relationshipsButton.click();
 
         // EntityBadges renders a <section aria-label="Entities mentioned in this content">
         // with either entity badges or "No entities detected in this content."
-        const entitiesSection = page.locator('section[aria-label="Entities mentioned in this content"]');
+        const entitiesSection = page.locator(
+          'section[aria-label="Entities mentioned in this content"]',
+        );
         await expect(entitiesSection).toBeVisible({ timeout: 10000 });
 
         // The section should have an "Entities" heading
@@ -499,27 +603,43 @@ test.describe('Entity badges on item detail page', () => {
 
         // Either entity badges or the empty state should be present
         const entityBadge = entitiesSection.locator('.flex.flex-wrap');
-        const emptyState = entitiesSection.getByText('No entities detected in this content.');
-        await expect(entityBadge.first().or(emptyState)).toBeVisible({ timeout: 5000 });
+        const emptyState = entitiesSection.getByText(
+          'No entities detected in this content.',
+        );
+        await expect(entityBadge.first().or(emptyState)).toBeVisible({
+          timeout: 5000,
+        });
       }
     }
   });
 
-  test('item detail Relationships section shows Related by Shared Entities', async ({ authenticatedPage: page }) => {
+  test('item detail Relationships section shows Related by Shared Entities', async ({
+    authenticatedPage: page,
+  }) => {
     // Navigate to an item that is likely to have entities (browse for any item)
     await page.goto('/browse');
-    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({
+      timeout: 10000,
+    });
 
     const itemLink = page.locator('a[href^="/item/"]').first();
     if (await itemLink.isVisible({ timeout: 5000 }).catch(() => false)) {
       await itemLink.click();
       await expect(page).toHaveURL(/\/item\//);
-      await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10000 });
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible({
+        timeout: 10000,
+      });
 
       // The Relationships section contains RelatedByEntities
-      const relationshipsButton = page.getByRole('button', { name: 'Relationships' });
+      const relationshipsButton = page.getByRole('button', {
+        name: 'Relationships',
+      });
 
-      if (await relationshipsButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+      if (
+        await relationshipsButton
+          .isVisible({ timeout: 5000 })
+          .catch(() => false)
+      ) {
         await relationshipsButton.click();
 
         // RelatedByEntities renders "Related by Shared Entities" heading
@@ -528,9 +648,13 @@ test.describe('Entity badges on item detail page', () => {
         await page.waitForTimeout(2000);
 
         // If related entities exist, the heading should be visible
-        const relatedHeading = page.getByRole('heading', { name: 'Related by Shared Entities' });
+        const relatedHeading = page.getByRole('heading', {
+          name: 'Related by Shared Entities',
+        });
         // This is data-dependent — may or may not be visible
-        if (await relatedHeading.isVisible({ timeout: 5000 }).catch(() => false)) {
+        if (
+          await relatedHeading.isVisible({ timeout: 5000 }).catch(() => false)
+        ) {
           // Should show a list of related items with links
           const relatedLinks = page.locator('a[href^="/item/"]');
           // At least one related item should be in the relationships area

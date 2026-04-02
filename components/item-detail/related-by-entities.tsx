@@ -49,7 +49,10 @@ export function RelatedByEntities({
         .eq('content_item_id', contentItemId);
 
       if (entError) {
-        console.error('RelatedByEntities: failed to fetch entities for item:', entError);
+        console.error(
+          'RelatedByEntities: failed to fetch entities for item:',
+          entError,
+        );
       }
       if (entError || !myEntities || myEntities.length === 0) {
         setLoading(false);
@@ -69,7 +72,10 @@ export function RelatedByEntities({
         .neq('content_item_id', contentItemId);
 
       if (sharedError) {
-        console.error('RelatedByEntities: failed to fetch shared entity mentions:', sharedError);
+        console.error(
+          'RelatedByEntities: failed to fetch shared entity mentions:',
+          sharedError,
+        );
       }
       if (sharedError || !sharedMentions || sharedMentions.length === 0) {
         setLoading(false);
@@ -108,16 +114,17 @@ export function RelatedByEntities({
       const ids = topItems.map(([id]) => id);
       const { data: details, error: detailError } = await supabase
         .from('content_items')
-        .select(
-          'id, title, suggested_title, primary_domain, content_type',
-        )
+        .select('id, title, suggested_title, primary_domain, content_type')
         .in('id', ids)
         .or(
           'governance_review_status.is.null,governance_review_status.neq.draft',
         );
 
       if (detailError) {
-        console.error('RelatedByEntities: failed to fetch content item details:', detailError);
+        console.error(
+          'RelatedByEntities: failed to fetch content item details:',
+          detailError,
+        );
       }
       if (detailError || !details) {
         setLoading(false);
@@ -183,13 +190,15 @@ export function RelatedByEntities({
                     <DomainBadge domain={item.primary_domain} />
                   )}
                   <span className="text-xs text-muted-foreground">
-                    {item.shared_entity_count} shared entit{item.shared_entity_count !== 1 ? 'ies' : 'y'}
+                    {item.shared_entity_count} shared entit
+                    {item.shared_entity_count !== 1 ? 'ies' : 'y'}
                   </span>
                 </div>
                 {item.shared_entities.length > 0 && (
                   <p className="mt-0.5 truncate text-xs text-muted-foreground">
                     {item.shared_entities.slice(0, 3).join(', ')}
-                    {item.shared_entities.length > 3 && ` +${item.shared_entities.length - 3} more`}
+                    {item.shared_entities.length > 3 &&
+                      ` +${item.shared_entities.length - 3} more`}
                   </p>
                 )}
               </div>

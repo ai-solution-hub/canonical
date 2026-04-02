@@ -325,7 +325,9 @@ async function main(): Promise<void> {
   );
 
   if (filtered.length === 0) {
-    console.log('No matching results. Try a lower --threshold or broader query.');
+    console.log(
+      'No matching results. Try a lower --threshold or broader query.',
+    );
     return;
   }
 

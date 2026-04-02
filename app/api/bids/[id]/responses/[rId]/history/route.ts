@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  getAuthenticatedClient,
-  unauthorisedResponse,
-} from '@/lib/auth';
+import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 
 export const maxDuration = 30;

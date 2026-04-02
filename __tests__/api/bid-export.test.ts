@@ -73,16 +73,41 @@ function resetMocks() {
   });
 
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockResolvedValue({ data: null, error: null, count: null });
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null, count: null });
+  mockSupabase._chain.single.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
@@ -218,8 +243,7 @@ describe('Bid Export API', () => {
 
       // Questions: empty
       mockSupabase._chain.then.mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: [], error: null }),
+        (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
       );
 
       const request = createTestRequest(`/api/bids/${BID_UUID}/export/docx`, {
@@ -375,8 +399,7 @@ describe('Bid Export API', () => {
 
       // Questions: empty
       mockSupabase._chain.then.mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: [], error: null }),
+        (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
       );
 
       const request = createTestRequest(`/api/bids/${BID_UUID}/export/xlsx`, {

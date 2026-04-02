@@ -1,5 +1,8 @@
 import { test, expect } from '../fixtures';
-import { getSettingsNav, navigateToSettingsSection } from '../helpers/responsive';
+import {
+  getSettingsNav,
+  navigateToSettingsSection,
+} from '../helpers/responsive';
 
 /**
  * Flow 9: Settings
@@ -12,21 +15,23 @@ import { getSettingsNav, navigateToSettingsSection } from '../helpers/responsive
 test.describe('Settings page', () => {
   test.beforeEach(async ({ authenticatedPage: page }) => {
     await page.goto('/settings');
-    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({
+      timeout: 10000,
+    });
   });
 
-  test('settings page loads with heading', async ({ authenticatedPage: page }) => {
-    await expect(
-      page.getByRole('heading', { name: 'Settings' }),
-    ).toBeVisible();
+  test('settings page loads with heading', async ({
+    authenticatedPage: page,
+  }) => {
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
 
     // Subheading for admin users
-    await expect(
-      page.getByText(/Manage your profile/),
-    ).toBeVisible();
+    await expect(page.getByText(/Manage your profile/)).toBeVisible();
   });
 
-  test('sidebar navigation shows expected sections for admin', async ({ authenticatedPage: page }) => {
+  test('sidebar navigation shows expected sections for admin', async ({
+    authenticatedPage: page,
+  }) => {
     const settingsNav = await getSettingsNav(page);
 
     // Personal group
@@ -43,13 +48,17 @@ test.describe('Settings page', () => {
     await expect(settingsNav.getByText('Activity')).toBeVisible();
   });
 
-  test('profile section is the default view', async ({ authenticatedPage: page }) => {
+  test('profile section is the default view', async ({
+    authenticatedPage: page,
+  }) => {
     const settingsNav = await getSettingsNav(page);
     const profileButton = settingsNav.getByText('Profile');
     await expect(profileButton).toHaveAttribute('aria-current', 'page');
   });
 
-  test('can navigate to Integrations section', async ({ authenticatedPage: page }) => {
+  test('can navigate to Integrations section', async ({
+    authenticatedPage: page,
+  }) => {
     await navigateToSettingsSection(page, 'Integrations');
 
     // URL should update
@@ -57,20 +66,24 @@ test.describe('Settings page', () => {
 
     // Verify by re-opening nav and checking active state
     const settingsNav = await getSettingsNav(page);
-    await expect(
-      settingsNav.getByText('Integrations'),
-    ).toHaveAttribute('aria-current', 'page');
+    await expect(settingsNav.getByText('Integrations')).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
   });
 
-  test('can navigate to Domain Coverage section', async ({ authenticatedPage: page }) => {
+  test('can navigate to Domain Coverage section', async ({
+    authenticatedPage: page,
+  }) => {
     await navigateToSettingsSection(page, 'Domain Coverage');
 
     await expect(page).toHaveURL(/section=taxonomy/);
 
     const settingsNav = await getSettingsNav(page);
-    await expect(
-      settingsNav.getByText('Domain Coverage'),
-    ).toHaveAttribute('aria-current', 'page');
+    await expect(settingsNav.getByText('Domain Coverage')).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
   });
 
   test('can navigate to Tags section', async ({ authenticatedPage: page }) => {
@@ -79,9 +92,10 @@ test.describe('Settings page', () => {
     await expect(page).toHaveURL(/section=tags/);
 
     const settingsNav = await getSettingsNav(page);
-    await expect(
-      settingsNav.getByText('Tags'),
-    ).toHaveAttribute('aria-current', 'page');
+    await expect(settingsNav.getByText('Tags')).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
   });
 
   test('can navigate to Team section', async ({ authenticatedPage: page }) => {
@@ -90,84 +104,111 @@ test.describe('Settings page', () => {
     await expect(page).toHaveURL(/section=team/);
 
     const settingsNav = await getSettingsNav(page);
-    await expect(
-      settingsNav.getByText('Team'),
-    ).toHaveAttribute('aria-current', 'page');
+    await expect(settingsNav.getByText('Team')).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
   });
 
-  test('can navigate to Quality Review section', async ({ authenticatedPage: page }) => {
+  test('can navigate to Quality Review section', async ({
+    authenticatedPage: page,
+  }) => {
     await navigateToSettingsSection(page, 'Quality Review');
 
     await expect(page).toHaveURL(/section=governance/);
 
     const settingsNav = await getSettingsNav(page);
-    await expect(
-      settingsNav.getByText('Quality Review'),
-    ).toHaveAttribute('aria-current', 'page');
+    await expect(settingsNav.getByText('Quality Review')).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
   });
 
-  test('can navigate to Activity section', async ({ authenticatedPage: page }) => {
+  test('can navigate to Activity section', async ({
+    authenticatedPage: page,
+  }) => {
     await navigateToSettingsSection(page, 'Activity');
 
     await expect(page).toHaveURL(/section=activity/);
 
     const settingsNav = await getSettingsNav(page);
-    await expect(
-      settingsNav.getByText('Activity'),
-    ).toHaveAttribute('aria-current', 'page');
+    await expect(settingsNav.getByText('Activity')).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
   });
 
-  test('settings page loads directly via section query param', async ({ authenticatedPage: page }) => {
+  test('settings page loads directly via section query param', async ({
+    authenticatedPage: page,
+  }) => {
     // Navigate directly to the team section via URL
     await page.goto('/settings?section=team');
-    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({
+      timeout: 10000,
+    });
 
     const settingsNav = await getSettingsNav(page);
-    await expect(
-      settingsNav.getByText('Team'),
-    ).toHaveAttribute('aria-current', 'page');
+    await expect(settingsNav.getByText('Team')).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
   });
 
-  test('invalid section param falls back to profile', async ({ authenticatedPage: page }) => {
+  test('invalid section param falls back to profile', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/settings?section=nonexistent');
-    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({
+      timeout: 10000,
+    });
 
     // Should fall back to the profile section
     const settingsNav = await getSettingsNav(page);
-    await expect(
-      settingsNav.getByText('Profile'),
-    ).toHaveAttribute('aria-current', 'page');
+    await expect(settingsNav.getByText('Profile')).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
   });
 });
 
 test.describe('Settings — section content', () => {
-  test('profile section shows user information', async ({ authenticatedPage: page }) => {
+  test('profile section shows user information', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/settings?section=profile');
-    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({
+      timeout: 10000,
+    });
 
     // The profile section should display user-related content
     // Scope to the main content area to avoid matching sidebar/header text
     const main = page.locator('main');
-    await expect(
-      main.getByText('Profile Information'),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(main.getByText('Profile Information')).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test('integrations section loads', async ({ authenticatedPage: page }) => {
     await page.goto('/settings?section=integrations');
-    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({
+      timeout: 10000,
+    });
 
     // Integrations section should show MCP connection details
     // Scope to the main content area to avoid matching sidebar text
     const main = page.locator('main');
-    await expect(
-      main.getByText(/MCP/i).first(),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(main.getByText(/MCP/i).first()).toBeVisible({
+      timeout: 10000,
+    });
   });
 
-  test('team section shows user management for admins', async ({ authenticatedPage: page }) => {
+  test('team section shows user management for admins', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/settings?section=team');
-    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({
+      timeout: 10000,
+    });
 
     // Team section should show the Team Members heading
     const main = page.locator('main');
@@ -178,9 +219,13 @@ test.describe('Settings — section content', () => {
 });
 
 test.describe('Settings — navigation via site header', () => {
-  test('settings button in header navigates to settings page', async ({ authenticatedPage: page }) => {
+  test('settings button in header navigates to settings page', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/');
-    await expect(page.getByRole('link', { name: 'Knowledge Hub' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('link', { name: 'Knowledge Hub' })).toBeVisible(
+      { timeout: 10000 },
+    );
 
     // Click the Settings icon button in the site header (not the ThemeSettings
     // "Appearance settings" button). Scope to <header> and use exact: true.
@@ -188,8 +233,6 @@ test.describe('Settings — navigation via site header', () => {
     await header.getByRole('button', { name: 'Settings', exact: true }).click();
 
     await expect(page).toHaveURL(/\/settings/);
-    await expect(
-      page.getByRole('heading', { name: 'Settings' }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
   });
 });

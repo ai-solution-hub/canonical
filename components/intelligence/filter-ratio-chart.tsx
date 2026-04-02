@@ -15,7 +15,10 @@ const PADDING = { top: 20, right: 20, bottom: 40, left: 45 };
 const Y_TICKS = [0, 25, 50, 75, 100];
 
 /** Format a YYYY-MM-DD date as DD/MM for daily or "W{nn}" for weekly */
-function formatXLabel(dateStr: string, granularity: 'daily' | 'weekly'): string {
+function formatXLabel(
+  dateStr: string,
+  granularity: 'daily' | 'weekly',
+): string {
   if (granularity === 'weekly') {
     const d = new Date(dateStr);
     const start = new Date(d.getFullYear(), 0, 1);
@@ -49,7 +52,8 @@ export function FilterRatioChart({
         setHoveredIndex(null);
         return;
       }
-      const step = data.length > 1 ? chartWidth / (data.length - 1) : chartWidth;
+      const step =
+        data.length > 1 ? chartWidth / (data.length - 1) : chartWidth;
       const idx = Math.round(relX / step);
       setHoveredIndex(Math.max(0, Math.min(data.length - 1, idx)));
     },
@@ -207,10 +211,12 @@ export function FilterRatioChart({
             {formatXLabel(hoveredPoint.date, granularity)}
           </p>
           <p>
-            Pass rate: <span className="font-semibold">{hoveredPoint.ratio}%</span>
+            Pass rate:{' '}
+            <span className="font-semibold">{hoveredPoint.ratio}%</span>
           </p>
           <p>
-            Total: {hoveredPoint.total} | Passed: {hoveredPoint.passed} | Filtered: {hoveredPoint.filtered}
+            Total: {hoveredPoint.total} | Passed: {hoveredPoint.passed} |
+            Filtered: {hoveredPoint.filtered}
           </p>
         </div>
       )}

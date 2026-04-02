@@ -45,7 +45,10 @@ export function useReviewNavigation(
   queue: ReviewQueueItem[],
   isLoading: boolean,
   queueSort: QueueSortField,
-  queueQuery: UseInfiniteQueryResult<InfiniteData<ReviewQueuePage, number>, Error>,
+  queueQuery: UseInfiniteQueryResult<
+    InfiniteData<ReviewQueuePage, number>,
+    Error
+  >,
 ): UseReviewNavigationReturn {
   // -----------------------------------------------------------------------
   // Navigation state

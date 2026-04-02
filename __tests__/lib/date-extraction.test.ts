@@ -33,7 +33,10 @@ import {
  * Find a specific extraction by its ISO date string.
  * Useful when multiple dates are extracted from a single text.
  */
-function findByDate(extractions: DateExtraction[], isoDate: string): DateExtraction | undefined {
+function findByDate(
+  extractions: DateExtraction[],
+  isoDate: string,
+): DateExtraction | undefined {
   return extractions.find((e) => e.date === isoDate);
 }
 
@@ -265,7 +268,9 @@ describe('extractDates', () => {
 
   describe('false positive rejection', () => {
     it('rejects "Data Protection Act 2018"', () => {
-      const results = extractDates('Compliant with the Data Protection Act 2018.');
+      const results = extractDates(
+        'Compliant with the Data Protection Act 2018.',
+      );
       expect(results).toHaveLength(0);
     });
 
@@ -280,7 +285,9 @@ describe('extractDates', () => {
     });
 
     it('rejects "v2.0" and version numbers', () => {
-      const results = extractDates('System upgraded to v2.0 in the latest release.');
+      const results = extractDates(
+        'System upgraded to v2.0 in the latest release.',
+      );
       expect(results).toHaveLength(0);
     });
 
@@ -295,7 +302,9 @@ describe('extractDates', () => {
     });
 
     it('rejects "section 4.2"', () => {
-      const results = extractDates('As described in section 4.2 of the manual.');
+      const results = extractDates(
+        'As described in section 4.2 of the manual.',
+      );
       expect(results).toHaveLength(0);
     });
 
@@ -305,7 +314,9 @@ describe('extractDates', () => {
     });
 
     it('rejects "Regulation 2016"', () => {
-      const results = extractDates('Under the General Data Protection Regulation 2016.');
+      const results = extractDates(
+        'Under the General Data Protection Regulation 2016.',
+      );
       expect(results).toHaveLength(0);
     });
 
@@ -316,7 +327,7 @@ describe('extractDates', () => {
 
     it('still extracts real dates near false positive text', () => {
       const results = extractDates(
-        'Our ISO 27001:2022 certification expires 25 March 2027.'
+        'Our ISO 27001:2022 certification expires 25 March 2027.',
       );
       expect(results).toHaveLength(1);
       expect(results[0].date).toBe('2027-03-25');
@@ -325,7 +336,7 @@ describe('extractDates', () => {
 
     it('extracts ISO date but not years from a year range in the same text', () => {
       const results = extractDates(
-        'Budget period 2020-2025 and expiry 2027-03-15'
+        'Budget period 2020-2025 and expiry 2027-03-15',
       );
       // Should extract the ISO date 2027-03-15 as expiry
       const isoDate = findByDate(results, '2027-03-15');
@@ -391,7 +402,9 @@ describe('extractDates', () => {
     });
 
     it('returns empty array for text with no dates', () => {
-      const results = extractDates('This is a paragraph about quality management systems and best practices.');
+      const results = extractDates(
+        'This is a paragraph about quality management systems and best practices.',
+      );
       expect(results).toEqual([]);
     });
 
@@ -449,7 +462,8 @@ describe('extractDates', () => {
     });
 
     it('handles text with newlines and special formatting', () => {
-      const text = 'Certificate Details:\n  Expiry: 25/03/2027\n  Issued: 01/01/2025';
+      const text =
+        'Certificate Details:\n  Expiry: 25/03/2027\n  Issued: 01/01/2025';
       const results = extractDates(text);
       expect(results).toHaveLength(2);
     });
@@ -474,7 +488,8 @@ describe('extractDates', () => {
 
   describe('multiple dates in text', () => {
     it('extracts multiple dates from the same text', () => {
-      const text = 'Issued on 01/01/2025. Certificate expires 25/03/2027. Next review: June 2026.';
+      const text =
+        'Issued on 01/01/2025. Certificate expires 25/03/2027. Next review: June 2026.';
       const results = extractDates(text);
       expect(results.length).toBeGreaterThanOrEqual(3);
 
@@ -504,7 +519,8 @@ describe('extractDates', () => {
     });
 
     it('handles mixed date formats in the same text', () => {
-      const text = 'Effective from 2025-01-15. Expires 25 March 2027. Review: June 2026.';
+      const text =
+        'Effective from 2025-01-15. Expires 25 March 2027. Review: June 2026.';
       const results = extractDates(text);
       expect(results.length).toBeGreaterThanOrEqual(3);
     });
@@ -523,7 +539,9 @@ describe('extractDates', () => {
 
   describe('context snippet extraction', () => {
     it('includes surrounding text in context_snippet', () => {
-      const results = extractDates('Our ISO 27001 certificate expires 25 March 2027. Please renew.');
+      const results = extractDates(
+        'Our ISO 27001 certificate expires 25 March 2027. Please renew.',
+      );
       expect(results).toHaveLength(1);
       expect(results[0].context_snippet).toContain('certificate expires');
       expect(results[0].context_snippet).toContain('25 March 2027');
@@ -535,7 +553,8 @@ describe('extractDates', () => {
     });
 
     it('adds ellipsis for truncated context', () => {
-      const longText = 'A'.repeat(200) + ' expires 25/03/2027 ' + 'B'.repeat(200);
+      const longText =
+        'A'.repeat(200) + ' expires 25/03/2027 ' + 'B'.repeat(200);
       const results = extractDates(longText);
       expect(results).toHaveLength(1);
       expect(results[0].context_snippet).toMatch(/^\.\.\./);

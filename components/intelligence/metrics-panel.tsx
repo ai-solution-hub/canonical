@@ -35,7 +35,8 @@ function formatRelativeTime(dateString: string | null): string {
 
   if (diffMins < 1) return 'Just now';
   if (diffMins < 60) return `${diffMins} min${diffMins !== 1 ? 's' : ''} ago`;
-  if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+  if (diffHours < 24)
+    return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
 
   return date.toLocaleDateString('en-GB', {
     day: '2-digit',
@@ -154,7 +155,10 @@ export function MetricsPanel({
 
         {metrics.sources_with_errors > 0 && (
           <div className="flex items-center gap-1.5">
-            <AlertTriangle className="size-3.5 text-warning" aria-hidden="true" />
+            <AlertTriangle
+              className="size-3.5 text-warning"
+              aria-hidden="true"
+            />
             <span>
               Sources with Errors:{' '}
               <span className="font-medium text-warning">

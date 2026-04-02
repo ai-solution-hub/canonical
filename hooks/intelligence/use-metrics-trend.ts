@@ -18,7 +18,11 @@ export function useMetricsTrend(
   period: '30d' | '90d' | '180d' = '90d',
 ) {
   return useQuery({
-    queryKey: queryKeys.intelligence.metrics.trend(workspaceId, granularity, period),
+    queryKey: queryKeys.intelligence.metrics.trend(
+      workspaceId,
+      granularity,
+      period,
+    ),
     queryFn: () =>
       fetchJson<TrendDataPoint[]>(
         `/api/intelligence/workspaces/${workspaceId}/metrics/trend?granularity=${granularity}&period=${period}`,

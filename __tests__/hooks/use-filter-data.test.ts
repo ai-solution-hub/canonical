@@ -61,10 +61,14 @@ const MOCK_AUTHORS = [
   { author_name: 'Bob Jones', count: 5 },
 ];
 
-const MOCK_TAGS = { 'important': 5, 'review-needed': 3 };
+const MOCK_TAGS = { important: 5, 'review-needed': 3 };
 
 const MOCK_ENTITIES = [
-  { canonical_name: 'Acme Corp', entity_type: 'organisation', mention_count: 8 },
+  {
+    canonical_name: 'Acme Corp',
+    entity_type: 'organisation',
+    mention_count: 8,
+  },
   { canonical_name: 'TechCo', entity_type: 'technology', mention_count: 3 },
 ];
 
@@ -88,7 +92,10 @@ function setupDefaultMocks() {
 
   mockFetch = vi.fn(async (url: string) => {
     if (url === '/api/search/suggestions') {
-      return { ok: true, json: async () => ({ keywords: ['ai', 'cloud', 'security'] }) };
+      return {
+        ok: true,
+        json: async () => ({ keywords: ['ai', 'cloud', 'security'] }),
+      };
     }
     if (url === '/api/workspaces') {
       return {
@@ -144,10 +151,16 @@ describe('useFilterData', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.counts.domain).toEqual({ Technology: 10, People: 5 });
+      expect(result.current.counts.domain).toEqual({
+        Technology: 10,
+        People: 5,
+      });
     });
 
-    expect(result.current.counts.content_type).toEqual({ article: 8, report: 7 });
+    expect(result.current.counts.content_type).toEqual({
+      article: 8,
+      report: 7,
+    });
     expect(result.current.counts.platform).toEqual({ web: 12, newsletter: 3 });
   });
 
@@ -172,7 +185,11 @@ describe('useFilterData', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.popularKeywords).toEqual(['ai', 'cloud', 'security']);
+      expect(result.current.popularKeywords).toEqual([
+        'ai',
+        'cloud',
+        'security',
+      ]);
     });
   });
 
@@ -256,7 +273,10 @@ describe('useFilterData', () => {
     );
 
     await waitFor(() => {
-      expect(result.current.counts.domain).toEqual({ Technology: 10, People: 5 });
+      expect(result.current.counts.domain).toEqual({
+        Technology: 10,
+        People: 5,
+      });
     });
 
     const firstCallCount = mockRpc.mock.calls.filter(
@@ -268,7 +288,10 @@ describe('useFilterData', () => {
     rerender({ isOpen: true });
 
     await waitFor(() => {
-      expect(result.current.counts.domain).toEqual({ Technology: 10, People: 5 });
+      expect(result.current.counts.domain).toEqual({
+        Technology: 10,
+        People: 5,
+      });
     });
 
     const secondCallCount = mockRpc.mock.calls.filter(
@@ -362,7 +385,10 @@ describe('useFilterData', () => {
 
     // Wait for counts to load (proves queries ran)
     await waitFor(() => {
-      expect(result.current.counts.domain).toEqual({ Technology: 10, People: 5 });
+      expect(result.current.counts.domain).toEqual({
+        Technology: 10,
+        People: 5,
+      });
     });
 
     // Entities should be empty due to error (queryFn returns [])

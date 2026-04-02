@@ -24,35 +24,35 @@
  *   bun run scripts/backfill-context-snippets.ts --help         # show help
  */
 
-import { createClient } from "@supabase/supabase-js";
-import { parseArgs } from "util";
-import path from "path";
-import fs from "fs";
+import { createClient } from '@supabase/supabase-js';
+import { parseArgs } from 'util';
+import path from 'path';
+import fs from 'fs';
 
 // ── Env loading (handles worktrees) ────────────────────────────────────────
 
 function loadEnv() {
   let dir = process.cwd();
-  while (dir !== "/") {
-    for (const file of [".env.local", ".env"]) {
+  while (dir !== '/') {
+    for (const file of ['.env.local', '.env']) {
       const p = path.join(dir, file);
       if (fs.existsSync(p)) {
-        const content = fs.readFileSync(p, "utf-8");
-        for (const line of content.split("\n")) {
+        const content = fs.readFileSync(p, 'utf-8');
+        for (const line of content.split('\n')) {
           const trimmed = line.trim();
-          if (!trimmed || trimmed.startsWith("#")) continue;
-          const eq = trimmed.indexOf("=");
+          if (!trimmed || trimmed.startsWith('#')) continue;
+          const eq = trimmed.indexOf('=');
           if (eq === -1) continue;
           const key = trimmed.slice(0, eq).trim();
           const val = trimmed
             .slice(eq + 1)
             .trim()
-            .replace(/^["']|["']$/g, "");
+            .replace(/^["']|["']$/g, '');
           if (!process.env[key]) process.env[key] = val;
         }
       }
     }
-    if (fs.existsSync(path.join(dir, "package.json"))) break;
+    if (fs.existsSync(path.join(dir, 'package.json'))) break;
     dir = path.dirname(dir);
   }
 }
@@ -63,9 +63,9 @@ loadEnv();
 
 const { values: args } = parseArgs({
   options: {
-    limit: { type: "string", default: "0" },
-    "dry-run": { type: "boolean", default: false },
-    help: { type: "boolean", default: false },
+    limit: { type: 'string', default: '0' },
+    'dry-run': { type: 'boolean', default: false },
+    help: { type: 'boolean', default: false },
   },
   strict: true,
 });
@@ -83,7 +83,7 @@ Options:
 }
 
 const LIMIT = parseInt(args.limit!, 10) || 0;
-const DRY_RUN = args["dry-run"]!;
+const DRY_RUN = args['dry-run']!;
 
 // ── Supabase client ────────────────────────────────────────────────────────
 
@@ -95,7 +95,7 @@ const supabaseKey =
 
 if (!supabaseUrl || !supabaseKey) {
   console.error(
-    "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY in environment"
+    'Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY in environment',
   );
   process.exit(1);
 }
@@ -134,7 +134,7 @@ interface EntityAlias {
 function extractContextSnippet(
   text: string,
   position: number,
-  matchLength: number
+  matchLength: number,
 ): string {
   const snippetPadding = 40;
   const start = Math.max(0, position - snippetPadding);
@@ -142,9 +142,9 @@ function extractContextSnippet(
 
   let snippet = text.slice(start, end).trim();
   // Replace newlines and multiple spaces with a single space
-  snippet = snippet.replace(/\s+/g, " ");
-  if (start > 0) snippet = "..." + snippet;
-  if (end < text.length) snippet = snippet + "...";
+  snippet = snippet.replace(/\s+/g, ' ');
+  if (start > 0) snippet = '...' + snippet;
+  if (end < text.length) snippet = snippet + '...';
 
   return snippet;
 }
@@ -166,22 +166,24 @@ function findAndExtract(text: string, searchTerm: string): string | null {
 // ── Main ───────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log("=".repeat(60));
-  console.log("Entity Context Snippet Backfill");
-  console.log("=".repeat(60));
-  console.log(`  Limit:    ${LIMIT || "all"}`);
+  console.log('='.repeat(60));
+  console.log('Entity Context Snippet Backfill');
+  console.log('='.repeat(60));
+  console.log(`  Limit:    ${LIMIT || 'all'}`);
   console.log(`  Dry run:  ${DRY_RUN}`);
   console.log();
 
   // ── Step 1: Fetch entity mentions with NULL context_snippet ──
 
-  console.log("Fetching entity mentions with NULL context_snippet...");
+  console.log('Fetching entity mentions with NULL context_snippet...');
 
   let mentionQuery = supabase
-    .from("entity_mentions")
-    .select("id, content_item_id, entity_type, entity_name, canonical_name, context_snippet")
-    .is("context_snippet", null)
-    .order("created_at", { ascending: true });
+    .from('entity_mentions')
+    .select(
+      'id, content_item_id, entity_type, entity_name, canonical_name, context_snippet',
+    )
+    .is('context_snippet', null)
+    .order('created_at', { ascending: true });
 
   if (LIMIT > 0) {
     mentionQuery = mentionQuery.limit(LIMIT);
@@ -192,12 +194,14 @@ async function main() {
   const { data: mentions, error: mentionError } = await mentionQuery;
 
   if (mentionError) {
-    console.error("Failed to fetch entity mentions:", mentionError.message);
+    console.error('Failed to fetch entity mentions:', mentionError.message);
     process.exit(1);
   }
 
   if (!mentions || mentions.length === 0) {
-    console.log("No entity mentions with NULL context_snippet found. Nothing to do.");
+    console.log(
+      'No entity mentions with NULL context_snippet found. Nothing to do.',
+    );
     return;
   }
 
@@ -206,20 +210,24 @@ async function main() {
 
   // ── Step 2: Fetch all content items referenced by the mentions ──
 
-  const contentItemIds = [...new Set((mentions as EntityMention[]).map((m) => m.content_item_id))];
-  console.log(`Fetching content for ${contentItemIds.length} unique content items...`);
+  const contentItemIds = [
+    ...new Set((mentions as EntityMention[]).map((m) => m.content_item_id)),
+  ];
+  console.log(
+    `Fetching content for ${contentItemIds.length} unique content items...`,
+  );
 
   // Fetch in batches of 100 to avoid query size limits
   const contentMap = new Map<string, ContentItem>();
   for (let i = 0; i < contentItemIds.length; i += 100) {
     const batch = contentItemIds.slice(i, i + 100);
     const { data: contentItems, error: contentError } = await supabase
-      .from("content_items")
-      .select("id, content, title")
-      .in("id", batch);
+      .from('content_items')
+      .select('id, content, title')
+      .in('id', batch);
 
     if (contentError) {
-      console.error("Failed to fetch content items:", contentError.message);
+      console.error('Failed to fetch content items:', contentError.message);
       process.exit(1);
     }
 
@@ -235,16 +243,16 @@ async function main() {
 
   // ── Step 3: Fetch all entity aliases ──
 
-  console.log("Fetching entity aliases...");
+  console.log('Fetching entity aliases...');
 
   const { data: aliases, error: aliasError } = await supabase
-    .from("entity_aliases")
-    .select("alias, canonical")
-    .eq("is_active", true)
+    .from('entity_aliases')
+    .select('alias, canonical')
+    .eq('is_active', true)
     .limit(1000);
 
   if (aliasError) {
-    console.error("Failed to fetch entity aliases:", aliasError.message);
+    console.error('Failed to fetch entity aliases:', aliasError.message);
     process.exit(1);
   }
 
@@ -260,12 +268,14 @@ async function main() {
     }
   }
 
-  console.log(`  Loaded ${aliases?.length ?? 0} aliases for ${aliasMap.size} canonical names`);
+  console.log(
+    `  Loaded ${aliases?.length ?? 0} aliases for ${aliasMap.size} canonical names`,
+  );
   console.log();
 
   // ── Step 4: Process each entity mention ──
 
-  console.log("Processing entity mentions...");
+  console.log('Processing entity mentions...');
   console.log();
 
   let pass1Matches = 0;
@@ -285,7 +295,7 @@ async function main() {
 
     if (!contentItem || (!contentItem.content && !contentItem.title)) {
       console.log(
-        `${progress} SKIP (no content) | ${mention.entity_type}: ${mention.canonical_name}`
+        `${progress} SKIP (no content) | ${mention.entity_type}: ${mention.canonical_name}`,
       );
       noContent++;
       continue;
@@ -330,11 +340,11 @@ async function main() {
 
     // ── Log result ──
     if (snippet) {
-      const passLabel = matchPass === 1 ? "Pass 1" : "Pass 2 (alias)";
+      const passLabel = matchPass === 1 ? 'Pass 1' : 'Pass 2 (alias)';
       const truncatedSnippet =
-        snippet.length > 80 ? snippet.slice(0, 77) + "..." : snippet;
+        snippet.length > 80 ? snippet.slice(0, 77) + '...' : snippet;
       console.log(
-        `${progress} ${passLabel} | ${mention.entity_type}: ${mention.canonical_name}`
+        `${progress} ${passLabel} | ${mention.entity_type}: ${mention.canonical_name}`,
       );
       console.log(`         "${truncatedSnippet}"`);
 
@@ -344,9 +354,9 @@ async function main() {
       // ── Update the entity mention ──
       if (!DRY_RUN) {
         const { error: updateError } = await supabase
-          .from("entity_mentions")
+          .from('entity_mentions')
           .update({ context_snippet: snippet })
-          .eq("id", mention.id);
+          .eq('id', mention.id);
 
         if (updateError) {
           console.log(`         ERROR: ${updateError.message}`);
@@ -355,7 +365,7 @@ async function main() {
       }
     } else {
       console.log(
-        `${progress} NO MATCH | ${mention.entity_type}: ${mention.canonical_name}`
+        `${progress} NO MATCH | ${mention.entity_type}: ${mention.canonical_name}`,
       );
       unmatched++;
     }
@@ -369,13 +379,15 @@ async function main() {
   const coveragePercent =
     totalProcessed > 0
       ? ((totalMatched / totalProcessed) * 100).toFixed(1)
-      : "0";
+      : '0';
 
   console.log();
-  console.log("=".repeat(60));
-  console.log("BACKFILL COMPLETE");
-  console.log("=".repeat(60));
-  console.log(`  Total processed:    ${totalProcessed}${DRY_RUN ? " (dry run)" : ""}`);
+  console.log('='.repeat(60));
+  console.log('BACKFILL COMPLETE');
+  console.log('='.repeat(60));
+  console.log(
+    `  Total processed:    ${totalProcessed}${DRY_RUN ? ' (dry run)' : ''}`,
+  );
   console.log(`  Pass 1 matches:     ${pass1Matches} (exact name match)`);
   console.log(`  Pass 2 matches:     ${pass2Matches} (alias match)`);
   console.log(`  Total matched:      ${totalMatched} (${coveragePercent}%)`);
@@ -385,10 +397,10 @@ async function main() {
     console.log(`  Update errors:      ${updateErrors}`);
   }
   console.log(`  Time:               ${elapsed}s`);
-  console.log("=".repeat(60));
+  console.log('='.repeat(60));
 }
 
 main().catch((err) => {
-  console.error("Fatal error:", err);
+  console.error('Fatal error:', err);
   process.exit(1);
 });

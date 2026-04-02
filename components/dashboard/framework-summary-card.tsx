@@ -129,9 +129,13 @@ function FrameworkRow({
   const statusStyle = framework.metadata.status
     ? STATUS_STYLES[framework.metadata.status]
     : undefined;
-  const needsRenewal = framework.expiry_status === 'expiring_soon' || framework.expiry_status === 'expired';
+  const needsRenewal =
+    framework.expiry_status === 'expiring_soon' ||
+    framework.expiry_status === 'expired';
   const renewalItemId = framework.content_items?.[0]?.id;
-  const itemLink = framework.content_items?.[0]?.id ? `/item/${framework.content_items[0].id}` : null;
+  const itemLink = framework.content_items?.[0]?.id
+    ? `/item/${framework.content_items[0].id}`
+    : null;
 
   const cardContent = (
     <>
@@ -178,9 +182,7 @@ function FrameworkRow({
           )}
         </div>
         <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
-          {framework.metadata.round && (
-            <p>Round: {framework.metadata.round}</p>
-          )}
+          {framework.metadata.round && <p>Round: {framework.metadata.round}</p>}
           {framework.metadata.lot && <p>Lot: {framework.metadata.lot}</p>}
           {framework.metadata.date_joined && (
             <p>Joined: {formatDate(framework.metadata.date_joined)}</p>
@@ -194,7 +196,8 @@ function FrameworkRow({
         className="shrink-0 text-xs text-muted-foreground"
         aria-label={`${framework.content_item_count} linked ${framework.content_item_count === 1 ? 'item' : 'items'}`}
       >
-        {framework.content_item_count} linked {framework.content_item_count === 1 ? 'item' : 'items'}
+        {framework.content_item_count} linked{' '}
+        {framework.content_item_count === 1 ? 'item' : 'items'}
       </span>
     </>
   );

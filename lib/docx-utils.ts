@@ -8,7 +8,9 @@
  */
 
 /** OLE2 Compound Document magic bytes (D0 CF 11 E0 A1 B1 1A E1). */
-const OLE2_MAGIC = new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+const OLE2_MAGIC = new Uint8Array([
+  0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1,
+]);
 
 /** ZIP local file header magic bytes (PK\x03\x04). */
 const ZIP_MAGIC = new Uint8Array([0x50, 0x4b, 0x03, 0x04]);
@@ -95,7 +97,9 @@ function zipContainsEncryptedPackage(data: Uint8Array): boolean {
     const filenameEnd = filenameStart + filenameLength;
     if (filenameEnd > data.length) break;
 
-    const filename = new TextDecoder().decode(data.slice(filenameStart, filenameEnd));
+    const filename = new TextDecoder().decode(
+      data.slice(filenameStart, filenameEnd),
+    );
     if (filename === target) return true;
 
     // Check data descriptor flag (bit 3 of general purpose flags at offset 6)

@@ -70,7 +70,11 @@ export function reconcileTemporalReferences(
   if (regexRefs?.length) {
     for (const ref of regexRefs) {
       // Map regex 'type' field to our 'context_type' naming
-      const contextType = ref.type as 'expiry' | 'effective' | 'historical' | 'unknown';
+      const contextType = ref.type as
+        | 'expiry'
+        | 'effective'
+        | 'historical'
+        | 'unknown';
       const key = `${ref.date}|${contextType}`;
 
       if (merged.has(key)) {

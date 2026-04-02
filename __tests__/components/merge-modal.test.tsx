@@ -49,9 +49,21 @@ import type { EntityForMerge } from '@/components/entity-management/merge-modal'
 // ---------------------------------------------------------------------------
 
 const defaultEntities: EntityForMerge[] = [
-  { canonical_name: 'ISO 27001', entity_type: 'certification', mention_count: 12 },
-  { canonical_name: 'ISO27001', entity_type: 'certification', mention_count: 5 },
-  { canonical_name: 'ISO/IEC 27001', entity_type: 'certification', mention_count: 3 },
+  {
+    canonical_name: 'ISO 27001',
+    entity_type: 'certification',
+    mention_count: 12,
+  },
+  {
+    canonical_name: 'ISO27001',
+    entity_type: 'certification',
+    mention_count: 5,
+  },
+  {
+    canonical_name: 'ISO/IEC 27001',
+    entity_type: 'certification',
+    mention_count: 3,
+  },
 ];
 
 function renderModal(
@@ -95,7 +107,9 @@ describe('MergeModal', () => {
   it('shows total mentions across entities', () => {
     renderModal();
 
-    const matches = screen.getAllByText(/update 20 mentions across.*3 entities/);
+    const matches = screen.getAllByText(
+      /update 20 mentions across.*3 entities/,
+    );
     expect(matches.length).toBeGreaterThan(0);
   });
 
@@ -121,7 +135,9 @@ describe('MergeModal', () => {
 
     // The entity type should already be pre-filled with 'certification'
     // Click the merge button
-    const mergeButton = screen.getByRole('button', { name: /merge 3 entities/i });
+    const mergeButton = screen.getByRole('button', {
+      name: /merge 3 entities/i,
+    });
     await user.click(mergeButton);
 
     await waitFor(() => {
@@ -151,7 +167,9 @@ describe('MergeModal', () => {
     renderModal(defaultEntities, true, onOpenChange, onMergeComplete);
 
     const user = userEvent.setup();
-    const mergeButton = screen.getByRole('button', { name: /merge 3 entities/i });
+    const mergeButton = screen.getByRole('button', {
+      name: /merge 3 entities/i,
+    });
     await user.click(mergeButton);
 
     await waitFor(() => {
@@ -172,11 +190,15 @@ describe('MergeModal', () => {
     renderModal();
 
     const user = userEvent.setup();
-    const mergeButton = screen.getByRole('button', { name: /merge 3 entities/i });
+    const mergeButton = screen.getByRole('button', {
+      name: /merge 3 entities/i,
+    });
     await user.click(mergeButton);
 
     await waitFor(() => {
-      expect(mockToast.error).toHaveBeenCalledWith('Merge failed: duplicate target');
+      expect(mockToast.error).toHaveBeenCalledWith(
+        'Merge failed: duplicate target',
+      );
     });
   });
 

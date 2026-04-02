@@ -2,7 +2,15 @@
 
 import { useState, useCallback } from 'react';
 import Link from 'next/link';
-import { CheckCircle, ExternalLink, Plus, AlertTriangle, Layers, Check, ChevronDown } from 'lucide-react';
+import {
+  CheckCircle,
+  ExternalLink,
+  Plus,
+  AlertTriangle,
+  Layers,
+  Check,
+  ChevronDown,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -56,8 +64,12 @@ export function IngestionSuccessCard({
 }: IngestionSuccessCardProps) {
   const { layers, getLayerLabel } = useLayerVocabulary();
 
-  const [layerMode, setLayerMode] = useState<'suggest' | 'change' | 'applied'>('suggest');
-  const [selectedLayer, setSelectedLayer] = useState(suggestedLayer?.suggestedLayer ?? '');
+  const [layerMode, setLayerMode] = useState<'suggest' | 'change' | 'applied'>(
+    'suggest',
+  );
+  const [selectedLayer, setSelectedLayer] = useState(
+    suggestedLayer?.suggestedLayer ?? '',
+  );
   const [isApplyingLayer, setIsApplyingLayer] = useState(false);
   const [appliedLayerLabel, setAppliedLayerLabel] = useState('');
 
@@ -127,15 +139,24 @@ export function IngestionSuccessCard({
 
           {/* Layer suggestion */}
           {suggestedLayer && (
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs" data-testid="layer-suggestion-row">
+            <div
+              className="mt-3 flex flex-wrap items-center gap-2 text-xs"
+              data-testid="layer-suggestion-row"
+            >
               <Layers className="size-3.5 text-primary" aria-hidden="true" />
               {layerMode === 'applied' ? (
                 <span className="text-muted-foreground">
-                  Layer: <span className="font-medium text-foreground">{appliedLayerLabel}</span>
+                  Layer:{' '}
+                  <span className="font-medium text-foreground">
+                    {appliedLayerLabel}
+                  </span>
                 </span>
               ) : layerMode === 'change' ? (
                 <>
-                  <Select value={selectedLayer} onValueChange={setSelectedLayer}>
+                  <Select
+                    value={selectedLayer}
+                    onValueChange={setSelectedLayer}
+                  >
                     <SelectTrigger
                       className="h-7 w-40 text-xs"
                       aria-label="Select a layer"
@@ -229,7 +250,10 @@ export function IngestionSuccessCard({
               </p>
               <ul className="mt-1 space-y-1">
                 {dedupMatches.map((match) => (
-                  <li key={match.id} className="flex items-center gap-1.5 text-xs">
+                  <li
+                    key={match.id}
+                    className="flex items-center gap-1.5 text-xs"
+                  >
                     <Link
                       href={`/item/${match.id}`}
                       className="text-primary hover:underline"

@@ -13,7 +13,9 @@ const emptyFilters: BrowseFilters = {
   page: 1,
 } as BrowseFilters & { page: number };
 
-function defaultParams(overrides: Partial<Parameters<typeof useFilterDraft>[0]> = {}) {
+function defaultParams(
+  overrides: Partial<Parameters<typeof useFilterDraft>[0]> = {},
+) {
   return {
     filters: emptyFilters,
     setFilters: vi.fn(),
@@ -55,7 +57,9 @@ describe('useFilterDraft', () => {
         include_drafts: true,
         include_qa: true,
       };
-      const { result } = renderHook(() => useFilterDraft(defaultParams({ filters })));
+      const { result } = renderHook(() =>
+        useFilterDraft(defaultParams({ filters })),
+      );
 
       expect(result.current.draft.domains).toEqual(['Technical']);
       expect(result.current.draft.subtopic).toBe('APIs');
@@ -208,7 +212,10 @@ describe('useFilterDraft', () => {
     });
 
     it('removes a content type when already selected', () => {
-      const filters: BrowseFilters = { ...emptyFilters, content_type: ['article', 'blog'] };
+      const filters: BrowseFilters = {
+        ...emptyFilters,
+        content_type: ['article', 'blog'],
+      };
       const { result } = renderHook(() =>
         useFilterDraft(defaultParams({ filters })),
       );
@@ -338,7 +345,10 @@ describe('useFilterDraft', () => {
     });
 
     it('removes an author from the draft', () => {
-      const filters: BrowseFilters = { ...emptyFilters, author: ['Alice', 'Bob'] };
+      const filters: BrowseFilters = {
+        ...emptyFilters,
+        author: ['Alice', 'Bob'],
+      };
       const { result } = renderHook(() =>
         useFilterDraft(defaultParams({ filters })),
       );
@@ -531,9 +541,7 @@ describe('useFilterDraft', () => {
     });
 
     it('does not fail when onClearAuthorSearch is not provided', () => {
-      const { result } = renderHook(() =>
-        useFilterDraft(defaultParams()),
-      );
+      const { result } = renderHook(() => useFilterDraft(defaultParams()));
 
       // Should not throw
       act(() => {
@@ -550,22 +558,22 @@ describe('useFilterDraft', () => {
     it('counts active filters correctly', () => {
       const filters: BrowseFilters = {
         ...emptyFilters,
-        domain: ['Technical'],           // 1
-        subtopic: 'APIs',                // 2
-        content_type: ['article'],       // 3
-        platform: ['web'],               // 4
-        author: ['Alice'],               // 5
-        date_from: '2026-01-01',         // 6 (date_from || date_to counts as 1)
-        keywords: ['react'],             // 7
-        starred: true,                   // 8
-        priority: ['high'],              // 9
-        workspace: 'ws-1',               // 10
-        user_tags: ['tag1'],             // 11
-        freshness: ['fresh'],            // 12
-        layer: 'executive',              // 13
-        quality_issues: true,            // 14
-        include_drafts: true,            // 15
-        include_qa: true,                // 16
+        domain: ['Technical'], // 1
+        subtopic: 'APIs', // 2
+        content_type: ['article'], // 3
+        platform: ['web'], // 4
+        author: ['Alice'], // 5
+        date_from: '2026-01-01', // 6 (date_from || date_to counts as 1)
+        keywords: ['react'], // 7
+        starred: true, // 8
+        priority: ['high'], // 9
+        workspace: 'ws-1', // 10
+        user_tags: ['tag1'], // 11
+        freshness: ['fresh'], // 12
+        layer: 'executive', // 13
+        quality_issues: true, // 14
+        include_drafts: true, // 15
+        include_qa: true, // 16
       };
       const { result } = renderHook(() =>
         useFilterDraft(defaultParams({ filters })),
@@ -575,8 +583,14 @@ describe('useFilterDraft', () => {
     });
 
     it('counts date range as a single filter whether date_from or date_to or both', () => {
-      const filtersFrom: BrowseFilters = { ...emptyFilters, date_from: '2026-01-01' };
-      const filtersTo: BrowseFilters = { ...emptyFilters, date_to: '2026-02-01' };
+      const filtersFrom: BrowseFilters = {
+        ...emptyFilters,
+        date_from: '2026-01-01',
+      };
+      const filtersTo: BrowseFilters = {
+        ...emptyFilters,
+        date_to: '2026-02-01',
+      };
       const filtersBoth: BrowseFilters = {
         ...emptyFilters,
         date_from: '2026-01-01',

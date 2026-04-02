@@ -378,7 +378,8 @@ describe('GuideContent', () => {
 
       // router.replace should have been called with q param
       expect(mockReplace).toHaveBeenCalled();
-      const lastCall = mockReplace.mock.calls[mockReplace.mock.calls.length - 1];
+      const lastCall =
+        mockReplace.mock.calls[mockReplace.mock.calls.length - 1];
       expect(lastCall[0]).toContain('q=');
     });
 

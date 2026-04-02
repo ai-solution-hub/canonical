@@ -22,10 +22,30 @@ vi.mock('@/lib/supabase/client', () => ({
 
 vi.mock('@/lib/client-config', () => ({
   FALLBACK_LAYERS: [
-    { key: 'sales_brief', label: 'Sales Brief', description: 'Positioning', order: 1 },
-    { key: 'bid_detail', label: 'Bid Detail', description: 'Factual content', order: 2 },
-    { key: 'company_reference', label: 'Company Reference', description: 'Corporate docs', order: 3 },
-    { key: 'research', label: 'Research', description: 'Background material', order: 4 },
+    {
+      key: 'sales_brief',
+      label: 'Sales Brief',
+      description: 'Positioning',
+      order: 1,
+    },
+    {
+      key: 'bid_detail',
+      label: 'Bid Detail',
+      description: 'Factual content',
+      order: 2,
+    },
+    {
+      key: 'company_reference',
+      label: 'Company Reference',
+      description: 'Corporate docs',
+      order: 3,
+    },
+    {
+      key: 'research',
+      label: 'Research',
+      description: 'Background material',
+      order: 4,
+    },
   ],
 }));
 
@@ -78,10 +98,11 @@ const DB_LAYERS = [
 // Helpers
 // ---------------------------------------------------------------------------
 
-function setupMockSupabase(data: unknown[] | null = DB_LAYERS, error: unknown = null) {
-  mockOrder.mockReturnValue(
-    Promise.resolve({ data, error }),
-  );
+function setupMockSupabase(
+  data: unknown[] | null = DB_LAYERS,
+  error: unknown = null,
+) {
+  mockOrder.mockReturnValue(Promise.resolve({ data, error }));
   mockEq.mockReturnValue({ order: mockOrder });
   mockSelect.mockReturnValue({ eq: mockEq });
   mockFrom.mockReturnValue({ select: mockSelect });
@@ -139,7 +160,12 @@ describe('LayerVocabularyProvider', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     const keys = result.current.getLayerKeys();
-    expect(keys).toEqual(['sales_brief', 'bid_detail', 'company_reference', 'research']);
+    expect(keys).toEqual([
+      'sales_brief',
+      'bid_detail',
+      'company_reference',
+      'research',
+    ]);
   });
 
   it('provides getLayerLabel helper', async () => {
@@ -157,7 +183,9 @@ describe('LayerVocabularyProvider', () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    expect(result.current.getLayerDescription('sales_brief')).toBe('Positioning and messaging');
+    expect(result.current.getLayerDescription('sales_brief')).toBe(
+      'Positioning and messaging',
+    );
     expect(result.current.getLayerDescription('unknown_key')).toBeNull();
   });
 
@@ -201,7 +229,9 @@ describe('useLayerVocabulary', () => {
 
     expect(() => {
       renderHook(() => useLayerVocabulary());
-    }).toThrow('useLayerVocabulary must be used within LayerVocabularyProvider');
+    }).toThrow(
+      'useLayerVocabulary must be used within LayerVocabularyProvider',
+    );
 
     spy.mockRestore();
   });

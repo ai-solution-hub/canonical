@@ -38,33 +38,21 @@ vi.mock('@/lib/rate-limit', () => ({
 }));
 
 // Import routes AFTER mocks are registered
-const { POST: classifyPost } = await import(
-  '@/app/api/items/[id]/classify/route'
-);
-const { GET: historyGet } = await import(
-  '@/app/api/items/[id]/history/route'
-);
-const { GET: historyVersionGet } = await import(
-  '@/app/api/items/[id]/history/[versionId]/route'
-);
-const { POST: rollbackPost } = await import(
-  '@/app/api/items/[id]/rollback/route'
-);
-const { PATCH: priorityPatch } = await import(
-  '@/app/api/items/[id]/priority/route'
-);
-const { PATCH: metadataPatch } = await import(
-  '@/app/api/items/[id]/metadata/route'
-);
-const { GET: layersGet } = await import(
-  '@/app/api/items/[id]/layers/route'
-);
-const { GET: workspacesGet, POST: workspacesPost } = await import(
-  '@/app/api/items/[id]/workspaces/route'
-);
-const { PATCH: ownerPatch } = await import(
-  '@/app/api/items/[id]/owner/route'
-);
+const { POST: classifyPost } =
+  await import('@/app/api/items/[id]/classify/route');
+const { GET: historyGet } = await import('@/app/api/items/[id]/history/route');
+const { GET: historyVersionGet } =
+  await import('@/app/api/items/[id]/history/[versionId]/route');
+const { POST: rollbackPost } =
+  await import('@/app/api/items/[id]/rollback/route');
+const { PATCH: priorityPatch } =
+  await import('@/app/api/items/[id]/priority/route');
+const { PATCH: metadataPatch } =
+  await import('@/app/api/items/[id]/metadata/route');
+const { GET: layersGet } = await import('@/app/api/items/[id]/layers/route');
+const { GET: workspacesGet, POST: workspacesPost } =
+  await import('@/app/api/items/[id]/workspaces/route');
+const { PATCH: ownerPatch } = await import('@/app/api/items/[id]/owner/route');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -90,9 +78,26 @@ beforeEach(() => {
   mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
 
   const chainable = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const m of chainable) {
     mockSupabase._chain[m].mockReturnValue(mockSupabase._chain);
@@ -101,13 +106,15 @@ beforeEach(() => {
   mockSupabase._chain.single.mockReset();
   mockSupabase._chain.single.mockResolvedValue({ data: null, error: null });
   mockSupabase._chain.maybeSingle.mockReset();
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+  });
   mockSupabase._chain.csv.mockReset();
   mockSupabase._chain.csv.mockResolvedValue({ data: null, error: null });
   mockSupabase._chain.then.mockReset();
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 
   mockCheckRateLimit.mockReturnValue({ allowed: true, remaining: 19 });
@@ -574,8 +581,7 @@ describe('POST /api/items/[id]/rollback', () => {
 
     // Snapshot insert (awaited chain, not .single())
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     // Update content item (uses .select().single())
@@ -1139,8 +1145,7 @@ describe('POST /api/items/[id]/workspaces', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest(`/api/items/${VALID_UUID}/workspaces`, {
@@ -1179,8 +1184,7 @@ describe('POST /api/items/[id]/workspaces', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest(`/api/items/${VALID_UUID}/workspaces`, {
@@ -1206,8 +1210,7 @@ describe('POST /api/items/[id]/workspaces', () => {
 
     // Assignment insert (awaited chain, not .single())
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest(`/api/items/${VALID_UUID}/workspaces`, {
@@ -1312,7 +1315,12 @@ describe('PATCH /api/items/[id]/owner', () => {
 
     // First .single() = fetch current item
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, title: 'Test', content: 'body', content_owner_id: null },
+      data: {
+        id: VALID_UUID,
+        title: 'Test',
+        content: 'body',
+        content_owner_id: null,
+      },
       error: null,
     });
     // Second .single() = update
@@ -1339,7 +1347,12 @@ describe('PATCH /api/items/[id]/owner', () => {
 
     // First .single() = fetch current item
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, title: 'Test', content: 'body', content_owner_id: VALID_UUID_2 },
+      data: {
+        id: VALID_UUID,
+        title: 'Test',
+        content: 'body',
+        content_owner_id: VALID_UUID_2,
+      },
       error: null,
     });
     // Second .single() = update

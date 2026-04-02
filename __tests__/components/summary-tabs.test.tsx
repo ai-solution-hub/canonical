@@ -16,7 +16,12 @@ import type { SummaryData } from '@/types/content';
 
 const { mockFetch, mockToast } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
-  mockToast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
+  mockToast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  },
 }));
 
 vi.mock('sonner', () => ({
@@ -42,11 +47,15 @@ vi.mock('@/components/reader/iframe-viewer', () => ({
 }));
 
 vi.mock('@/components/reader-cards/newsletter-reader-card', () => ({
-  NewsletterReaderCard: () => <div data-testid="newsletter-reader-card">Newsletter</div>,
+  NewsletterReaderCard: () => (
+    <div data-testid="newsletter-reader-card">Newsletter</div>
+  ),
 }));
 
 vi.mock('@/components/reader-cards/transcript-reader-card', () => ({
-  TranscriptReaderCard: () => <div data-testid="transcript-reader-card">Transcript</div>,
+  TranscriptReaderCard: () => (
+    <div data-testid="transcript-reader-card">Transcript</div>
+  ),
 }));
 
 vi.mock('@/lib/format', () => ({
@@ -63,7 +72,11 @@ function createSummaryData(overrides: Partial<SummaryData> = {}): SummaryData {
   return {
     executive: overrides.executive ?? 'This is the executive summary.',
     detailed: overrides.detailed ?? '## Detailed\n\nMore detail here.',
-    takeaways: overrides.takeaways ?? ['Takeaway one', 'Takeaway two', 'Takeaway three'],
+    takeaways: overrides.takeaways ?? [
+      'Takeaway one',
+      'Takeaway two',
+      'Takeaway three',
+    ],
     generated_at: overrides.generated_at ?? '2026-03-10T12:00:00Z',
     model: overrides.model ?? 'claude-sonnet-4-6',
     tokens_used: overrides.tokens_used ?? 1300,
@@ -90,16 +103,22 @@ describe('SummaryTabs', () => {
   });
 
   it('renders Quick tab with executive summary when summaryData provided', () => {
-    const summary = createSummaryData({ executive: 'Key findings about compliance.' });
+    const summary = createSummaryData({
+      executive: 'Key findings about compliance.',
+    });
     render(<SummaryTabs {...defaultProps} summaryData={summary} />);
 
     expect(screen.getByRole('tab', { name: 'Quick' })).toBeInTheDocument();
-    expect(screen.getByText('Key findings about compliance.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Key findings about compliance.'),
+    ).toBeInTheDocument();
   });
 
   it('renders Detailed tab with detailed content', async () => {
     const user = userEvent.setup();
-    const summary = createSummaryData({ detailed: '## Deep dive\n\nAnalysis here.' });
+    const summary = createSummaryData({
+      detailed: '## Deep dive\n\nAnalysis here.',
+    });
     render(<SummaryTabs {...defaultProps} summaryData={summary} />);
 
     const detailedTab = screen.getByRole('tab', { name: 'Detailed' });
@@ -126,8 +145,16 @@ describe('SummaryTabs', () => {
     const user = userEvent.setup();
     const summary = createSummaryData();
     // Generate ~200 words of content for 1 min read
-    const longContent = Array.from({ length: 200 }, (_, i) => `word${i}`).join(' ');
-    render(<SummaryTabs {...defaultProps} summaryData={summary} content={longContent} />);
+    const longContent = Array.from({ length: 200 }, (_, i) => `word${i}`).join(
+      ' ',
+    );
+    render(
+      <SummaryTabs
+        {...defaultProps}
+        summaryData={summary}
+        content={longContent}
+      />,
+    );
 
     const fullTextTab = screen.getByRole('tab', { name: 'Full Text' });
     await user.click(fullTextTab);
@@ -138,35 +165,59 @@ describe('SummaryTabs', () => {
   it('hides Full Text tab when hideFullText=true', () => {
     const summary = createSummaryData();
     render(
-      <SummaryTabs {...defaultProps} summaryData={summary} content="Some content" hideFullText={true} />,
+      <SummaryTabs
+        {...defaultProps}
+        summaryData={summary}
+        content="Some content"
+        hideFullText={true}
+      />,
     );
 
-    expect(screen.queryByRole('tab', { name: 'Full Text' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('tab', { name: 'Full Text' }),
+    ).not.toBeInTheDocument();
   });
 
   it('shows "Full Answer" label when qaMode=true', () => {
     const summary = createSummaryData();
     render(
-      <SummaryTabs {...defaultProps} summaryData={summary} content="Answer text" qaMode={true} />,
+      <SummaryTabs
+        {...defaultProps}
+        summaryData={summary}
+        content="Answer text"
+        qaMode={true}
+      />,
     );
 
-    expect(screen.getByRole('tab', { name: 'Full Answer' })).toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Full Text' })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('tab', { name: 'Full Answer' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('tab', { name: 'Full Text' }),
+    ).not.toBeInTheDocument();
   });
 
   it('shows generate summary button when no summaryData but content exists', () => {
     render(
-      <SummaryTabs {...defaultProps} summaryData={null} content="Some content to summarise" />,
+      <SummaryTabs
+        {...defaultProps}
+        summaryData={null}
+        content="Some content to summarise"
+      />,
     );
 
-    expect(screen.getByRole('button', { name: /Generate summary/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Generate summary/ }),
+    ).toBeInTheDocument();
   });
 
   it('shows empty state when no summaryData and no content', () => {
     render(<SummaryTabs {...defaultProps} summaryData={null} content={null} />);
 
     expect(screen.getByText(/No summary generated yet/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Generate summary/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Generate summary/ }),
+    ).toBeInTheDocument();
   });
 
   it('shows ai_summary fallback in Quick tab when no summaryData', () => {
@@ -179,13 +230,19 @@ describe('SummaryTabs', () => {
       />,
     );
 
-    expect(screen.getByText('This is the AI classification summary fallback.')).toBeInTheDocument();
+    expect(
+      screen.getByText('This is the AI classification summary fallback.'),
+    ).toBeInTheDocument();
   });
 
   it('renders Reader tab when readerHtml provided', () => {
     const summary = createSummaryData();
     render(
-      <SummaryTabs {...defaultProps} summaryData={summary} readerHtml="<p>Reader content</p>" />,
+      <SummaryTabs
+        {...defaultProps}
+        summaryData={summary}
+        readerHtml="<p>Reader content</p>"
+      />,
     );
 
     expect(screen.getByRole('tab', { name: 'Reader' })).toBeInTheDocument();
@@ -216,10 +273,16 @@ describe('SummaryTabs', () => {
 
     const user = userEvent.setup();
     render(
-      <SummaryTabs {...defaultProps} summaryData={null} content="Content to summarise" />,
+      <SummaryTabs
+        {...defaultProps}
+        summaryData={null}
+        content="Content to summarise"
+      />,
     );
 
-    const generateBtn = screen.getByRole('button', { name: /Generate summary/ });
+    const generateBtn = screen.getByRole('button', {
+      name: /Generate summary/,
+    });
     await user.click(generateBtn);
 
     await waitFor(() => {

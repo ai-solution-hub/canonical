@@ -21,7 +21,9 @@ vi.mock('@/contexts/taxonomy-context', () => ({
 
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: Record<string, unknown>) => (
-    <a href={href as string} {...props}>{children as React.ReactNode}</a>
+    <a href={href as string} {...props}>
+      {children as React.ReactNode}
+    </a>
   ),
 }));
 
@@ -148,21 +150,21 @@ function makeItem(overrides: Partial<ContentListItem> = {}): ContentListItem {
 describe('ContentRow — Verification Badge', () => {
   it('renders VerificationBadge when verified_at is set for standard rows', () => {
     render(
-      <ContentRow
-        item={makeItem({ verified_at: '2026-03-20T12:00:00Z' })}
-      />,
+      <ContentRow item={makeItem({ verified_at: '2026-03-20T12:00:00Z' })} />,
     );
     const badges = screen.getAllByRole('img');
-    const verifiedBadge = badges.find((el) => el.textContent?.includes('Verified'));
+    const verifiedBadge = badges.find((el) =>
+      el.textContent?.includes('Verified'),
+    );
     expect(verifiedBadge).toBeTruthy();
   });
 
   it('does not render VerificationBadge when verified_at is null', () => {
-    render(
-      <ContentRow item={makeItem({ verified_at: null })} />,
-    );
+    render(<ContentRow item={makeItem({ verified_at: null })} />);
     const badges = screen.queryAllByRole('img');
-    const verifiedBadge = badges.find((el) => el.textContent?.includes('Verified'));
+    const verifiedBadge = badges.find((el) =>
+      el.textContent?.includes('Verified'),
+    );
     expect(verifiedBadge).toBeUndefined();
   });
 
@@ -178,9 +180,13 @@ describe('ContentRow — Verification Badge', () => {
       />,
     );
     const badges = screen.getAllByRole('img');
-    const verifiedBadge = badges.find((el) => el.textContent?.includes('Verified'));
+    const verifiedBadge = badges.find((el) =>
+      el.textContent?.includes('Verified'),
+    );
     expect(verifiedBadge).toBeTruthy();
-    expect(verifiedBadge!.getAttribute('title')).toMatch(/Verified by Jane Smith/);
+    expect(verifiedBadge!.getAttribute('title')).toMatch(
+      /Verified by Jane Smith/,
+    );
   });
 
   it('renders VerificationBadge for Q&A row variant', () => {
@@ -198,9 +204,13 @@ describe('ContentRow — Verification Badge', () => {
       />,
     );
     const badges = screen.getAllByRole('img');
-    const verifiedBadge = badges.find((el) => el.textContent?.includes('Verified'));
+    const verifiedBadge = badges.find((el) =>
+      el.textContent?.includes('Verified'),
+    );
     expect(verifiedBadge).toBeTruthy();
-    expect(verifiedBadge!.getAttribute('title')).toMatch(/Verified by Jane Smith/);
+    expect(verifiedBadge!.getAttribute('title')).toMatch(
+      /Verified by Jane Smith/,
+    );
   });
 
   it('falls back to time-only tooltip when UUID not in verifierNames', () => {
@@ -215,7 +225,9 @@ describe('ContentRow — Verification Badge', () => {
       />,
     );
     const badges = screen.getAllByRole('img');
-    const verifiedBadge = badges.find((el) => el.textContent?.includes('Verified'));
+    const verifiedBadge = badges.find((el) =>
+      el.textContent?.includes('Verified'),
+    );
     expect(verifiedBadge).toBeTruthy();
     // Tooltip shows relative time but no name attribution
     const title = verifiedBadge!.getAttribute('title');
@@ -233,7 +245,9 @@ describe('ContentRow — Verification Badge', () => {
       />,
     );
     const badges = screen.getAllByRole('img');
-    const verifiedBadge = badges.find((el) => el.textContent?.includes('Verified'));
+    const verifiedBadge = badges.find((el) =>
+      el.textContent?.includes('Verified'),
+    );
     expect(verifiedBadge).toBeTruthy();
     // verifiedAt is still passed, so tooltip shows relative time
     const title = verifiedBadge!.getAttribute('title');
@@ -253,11 +267,15 @@ describe('ContentRow — Verification Badge', () => {
       />,
     );
     const badges = screen.getAllByRole('img');
-    const verifiedBadge = badges.find((el) => el.textContent?.includes('Verified'));
+    const verifiedBadge = badges.find((el) =>
+      el.textContent?.includes('Verified'),
+    );
     expect(verifiedBadge).toBeTruthy();
     // The inline text should be just "Verified", not the full attribution
     const inlineSpans = verifiedBadge!.querySelectorAll('span');
-    const textSpan = Array.from(inlineSpans).find((s) => s.textContent === 'Verified');
+    const textSpan = Array.from(inlineSpans).find(
+      (s) => s.textContent === 'Verified',
+    );
     expect(textSpan).toBeTruthy();
   });
 });

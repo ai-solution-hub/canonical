@@ -19,7 +19,9 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from('digests')
-      .select('id, digest_type, period_start, period_end, item_count, domain_summaries, theme_clusters, narrative_summary, generated_at, generated_by, tokens_used, created_at')
+      .select(
+        'id, digest_type, period_start, period_end, item_count, domain_summaries, theme_clusters, narrative_summary, generated_at, generated_by, tokens_used, created_at',
+      )
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();

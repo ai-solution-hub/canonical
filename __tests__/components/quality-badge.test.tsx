@@ -209,9 +209,7 @@ describe('QualityBadge', () => {
       citations: 9,
     });
     render(<QualityBadge score={score} simplified />);
-    const badge = screen.getByLabelText(
-      'Quality score: 72 out of 100 — Good',
-    );
+    const badge = screen.getByLabelText('Quality score: 72 out of 100 — Good');
     expect(badge).toBeInTheDocument();
   });
 
@@ -223,7 +221,9 @@ describe('QualityBadge', () => {
       summary: 15,
       citations: 0,
     });
-    const { container } = render(<QualityBadge score={score} simplified={false} />);
+    const { container } = render(
+      <QualityBadge score={score} simplified={false} />,
+    );
     const badge = container.firstElementChild!;
     expect(badge.getAttribute('title')).toBe(
       'Freshness: 18/30\nConfidence: 10/20\nCompleteness: 7/20\nSummary: 15/15\nCitations: 0/15',

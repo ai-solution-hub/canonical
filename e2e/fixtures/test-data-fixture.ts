@@ -101,9 +101,15 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       // --- Compute timestamps ---
       const now = Date.now();
       const timestamps = {
-        thirtyDaysAgo: new Date(now - FRESHNESS_OFFSETS.THIRTY_DAYS_MS).toISOString(),
-        sixtyDaysAgo: new Date(now - FRESHNESS_OFFSETS.SIXTY_DAYS_MS).toISOString(),
-        ninetyDaysAgo: new Date(now - FRESHNESS_OFFSETS.NINETY_DAYS_MS).toISOString(),
+        thirtyDaysAgo: new Date(
+          now - FRESHNESS_OFFSETS.THIRTY_DAYS_MS,
+        ).toISOString(),
+        sixtyDaysAgo: new Date(
+          now - FRESHNESS_OFFSETS.SIXTY_DAYS_MS,
+        ).toISOString(),
+        ninetyDaysAgo: new Date(
+          now - FRESHNESS_OFFSETS.NINETY_DAYS_MS,
+        ).toISOString(),
         now: new Date(now).toISOString(),
         expiredDate: new Date(now - FRESHNESS_OFFSETS.THIRTY_DAYS_MS)
           .toISOString()
@@ -143,7 +149,9 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       // workspaces_type_name_unique constraint violations
       await supabase.from('workspaces').delete().like('name', `${prefix}%`);
 
-      const bidDeadline = new Date(now + FRESHNESS_OFFSETS.FOURTEEN_DAYS_FUTURE_MS)
+      const bidDeadline = new Date(
+        now + FRESHNESS_OFFSETS.FOURTEEN_DAYS_FUTURE_MS,
+      )
         .toISOString()
         .split('T')[0];
       const workspaceShapes = buildCoreWorkspaces(bidDeadline);
@@ -351,14 +359,8 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         .eq('workspace_id', kbSectionId);
 
       // 5. Content items and workspaces (by prefix)
-      await supabase
-        .from('content_items')
-        .delete()
-        .like('title', `${prefix}%`);
-      await supabase
-        .from('workspaces')
-        .delete()
-        .like('name', `${prefix}%`);
+      await supabase.from('content_items').delete().like('title', `${prefix}%`);
+      await supabase.from('workspaces').delete().like('name', `${prefix}%`);
     },
     { scope: 'worker' },
   ],

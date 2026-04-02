@@ -63,7 +63,14 @@ export function WorkspaceCreationDialog({
         },
       );
     },
-    [name, description, companyProfileId, createMutation, onOpenChange, onCreated],
+    [
+      name,
+      description,
+      companyProfileId,
+      createMutation,
+      onOpenChange,
+      onCreated,
+    ],
   );
 
   const hasProfiles = profiles && profiles.length > 0;
@@ -74,7 +81,8 @@ export function WorkspaceCreationDialog({
         <DialogHeader>
           <DialogTitle>Create Intelligence Workspace</DialogTitle>
           <DialogDescription>
-            Set up a new intelligence stream to monitor sector and competitor news.
+            Set up a new intelligence stream to monitor sector and competitor
+            news.
           </DialogDescription>
         </DialogHeader>
 
@@ -128,7 +136,10 @@ export function WorkspaceCreationDialog({
             {/* Company profile selector */}
             <div className="space-y-2">
               <Label htmlFor="ws-profile">Company Profile *</Label>
-              <Select value={companyProfileId} onValueChange={setCompanyProfileId}>
+              <Select
+                value={companyProfileId}
+                onValueChange={setCompanyProfileId}
+              >
                 <SelectTrigger id="ws-profile" className="w-full">
                   <SelectValue placeholder="Select a company profile" />
                 </SelectTrigger>

@@ -98,8 +98,8 @@ describe('useQuickReview', () => {
     });
 
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() =>
-      useQuickReview({ onOptimisticUpdate }),
+    const { result } = renderHook(
+      () => useQuickReview({ onOptimisticUpdate }),
       { wrapper: Wrapper },
     );
 
@@ -136,8 +136,8 @@ describe('useQuickReview', () => {
     const onOptimisticUpdate = vi.fn();
 
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() =>
-      useQuickReview({ onOptimisticUpdate }),
+    const { result } = renderHook(
+      () => useQuickReview({ onOptimisticUpdate }),
       { wrapper: Wrapper },
     );
 
@@ -212,8 +212,8 @@ describe('useQuickReview', () => {
     const onOptimisticUpdate = vi.fn();
 
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() =>
-      useQuickReview({ onOptimisticUpdate }),
+    const { result } = renderHook(
+      () => useQuickReview({ onOptimisticUpdate }),
       { wrapper: Wrapper },
     );
 
@@ -232,8 +232,8 @@ describe('useQuickReview', () => {
     const onOptimisticUpdate = vi.fn();
 
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(() =>
-      useQuickReview({ onOptimisticUpdate }),
+    const { result } = renderHook(
+      () => useQuickReview({ onOptimisticUpdate }),
       { wrapper: Wrapper },
     );
 

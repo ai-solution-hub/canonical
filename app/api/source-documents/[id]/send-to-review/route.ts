@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  getAuthorisedClient,
-  authFailureResponse,
-} from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { createNotification } from '@/lib/notifications';
 import { parseBody } from '@/lib/validation';
@@ -49,10 +46,7 @@ export async function POST(
     if (fetchErr) {
       return NextResponse.json(
         {
-          error: safeErrorMessage(
-            fetchErr,
-            'Failed to fetch content items',
-          ),
+          error: safeErrorMessage(fetchErr, 'Failed to fetch content items'),
         },
         { status: 500 },
       );

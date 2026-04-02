@@ -49,14 +49,11 @@ export interface BidDetail {
 }
 
 export function formatBidDetail(bid: BidDetail): string {
-  const lines: string[] = [
-    `# ${bid.name}`,
-    '',
-    `**Status:** ${bid.status}`,
-  ];
+  const lines: string[] = [`# ${bid.name}`, '', `**Status:** ${bid.status}`];
 
   if (bid.buyer) lines.push(`**Buyer:** ${bid.buyer}`);
-  if (bid.reference_number) lines.push(`**Reference:** ${bid.reference_number}`);
+  if (bid.reference_number)
+    lines.push(`**Reference:** ${bid.reference_number}`);
   if (bid.deadline) lines.push(`**Deadline:** ${formatDateUK(bid.deadline)}`);
   if (bid.description) lines.push('', bid.description);
 
@@ -67,7 +64,9 @@ export function formatBidDetail(bid: BidDetail): string {
     const answered = qs.drafted_count + qs.complete_count;
     lines.push('', '## Question Progress', '');
     lines.push(`- **Total questions:** ${qs.total_questions}`);
-    lines.push(`- **Answered:** ${answered} (${formatProgress(answered, qs.total_questions)})`);
+    lines.push(
+      `- **Answered:** ${answered} (${formatProgress(answered, qs.total_questions)})`,
+    );
     lines.push(`- **Approved:** ${qs.complete_count}`);
     lines.push(`- **Strong KB match:** ${qs.strong_match_count}`);
     lines.push(`- **Partial match:** ${qs.partial_match_count}`);
@@ -78,16 +77,22 @@ export function formatBidDetail(bid: BidDetail): string {
   if (bid.sections && bid.sections.length > 0) {
     lines.push('', '## Questions by Section', '');
     for (const section of bid.sections) {
-      lines.push(`### ${section.name} (${section.questions.length} questions)`, '');
+      lines.push(
+        `### ${section.name} (${section.questions.length} questions)`,
+        '',
+      );
       for (const q of section.questions) {
         const statusIcon = q.has_response ? '\u2705' : '\u2B1C';
         const confidence = q.confidence_posture
           ? ` [${q.confidence_posture.replace(/_/g, ' ')}]`
           : '';
-        const truncatedText = q.question_text.length > 100
-          ? q.question_text.slice(0, 97) + '...'
-          : q.question_text;
-        lines.push(`- ${statusIcon} ${truncatedText}${confidence} (ID: ${q.id})`);
+        const truncatedText =
+          q.question_text.length > 100
+            ? q.question_text.slice(0, 97) + '...'
+            : q.question_text;
+        lines.push(
+          `- ${statusIcon} ${truncatedText}${confidence} (ID: ${q.id})`,
+        );
       }
       lines.push('');
     }
@@ -100,7 +105,10 @@ export function formatBidDetail(bid: BidDetail): string {
     }
   }
 
-  if (bid.confidence_breakdown && Object.keys(bid.confidence_breakdown).length > 0) {
+  if (
+    bid.confidence_breakdown &&
+    Object.keys(bid.confidence_breakdown).length > 0
+  ) {
     lines.push('', '## Confidence Breakdown', '');
     for (const [posture, count] of Object.entries(bid.confidence_breakdown)) {
       lines.push(`- **${posture.replace(/_/g, ' ')}:** ${count}`);
@@ -134,7 +142,8 @@ export function formatBidQuestion(q: BidQuestionDetail): string {
 
   if (q.section_name) lines.push(`**Section:** ${q.section_name}`);
   if (q.word_limit) lines.push(`**Word limit:** ${q.word_limit}`);
-  if (q.confidence_posture) lines.push(`**Confidence:** ${q.confidence_posture}`);
+  if (q.confidence_posture)
+    lines.push(`**Confidence:** ${q.confidence_posture}`);
   if (q.status) lines.push(`**Status:** ${q.status}`);
   if (q.review_status) lines.push(`**Review status:** ${q.review_status}`);
   lines.push(`**ID:** ${q.id}`);
@@ -208,13 +217,24 @@ export function formatContentEffectiveness(data: ContentEffectiveness): string {
       `**Win rate:** Awaiting outcomes (${data.total_citations} citation${data.total_citations === 1 ? '' : 's'} in bids with no decided outcome yet)`,
     );
   } else {
-    lines.push(`**Win rate:** ${winPct}% (${data.winning_citations} won / ${decidedCount} decided)`);
+    lines.push(
+      `**Win rate:** ${winPct}% (${data.winning_citations} won / ${decidedCount} decided)`,
+    );
     if (data.win_rate >= 0.7) {
-      lines.push('', 'This content is highly effective — it is frequently associated with winning bids.');
+      lines.push(
+        '',
+        'This content is highly effective — it is frequently associated with winning bids.',
+      );
     } else if (data.win_rate >= 0.4) {
-      lines.push('', 'This content has moderate effectiveness in bid outcomes.');
+      lines.push(
+        '',
+        'This content has moderate effectiveness in bid outcomes.',
+      );
     } else {
-      lines.push('', 'This content has a low win rate — consider reviewing or updating it.');
+      lines.push(
+        '',
+        'This content has a low win rate — consider reviewing or updating it.',
+      );
     }
   }
 

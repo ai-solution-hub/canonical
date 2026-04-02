@@ -1,7 +1,15 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { History, ChevronDown, ChevronUp, RotateCcw, Loader2, Eye, FileX } from 'lucide-react';
+import {
+  History,
+  ChevronDown,
+  ChevronUp,
+  RotateCcw,
+  Loader2,
+  Eye,
+  FileX,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { VersionDiff } from '@/components/item-detail/version-diff';
@@ -88,7 +96,9 @@ export function VersionHistory({
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [expandedVersion, setExpandedVersion] = useState<string | null>(null);
-  const [versionDetail, setVersionDetail] = useState<VersionDetail | null>(null);
+  const [versionDetail, setVersionDetail] = useState<VersionDetail | null>(
+    null,
+  );
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [rollingBack, setRollingBack] = useState(false);
 
@@ -163,9 +173,7 @@ export function VersionHistory({
       fetchVersions();
       onRollback?.();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Failed to rollback',
-      );
+      toast.error(err instanceof Error ? err.message : 'Failed to rollback');
     } finally {
       setRollingBack(false);
     }
@@ -204,7 +212,10 @@ export function VersionHistory({
             </div>
           ) : versions.length === 0 ? (
             <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
-              <FileX className="size-8 text-muted-foreground" aria-hidden="true" />
+              <FileX
+                className="size-8 text-muted-foreground"
+                aria-hidden="true"
+              />
               <p className="text-sm text-muted-foreground">
                 No version history yet. Changes will be tracked automatically.
               </p>
@@ -214,7 +225,7 @@ export function VersionHistory({
               {versions.map((version) => {
                 const isExpanded = expandedVersion === version.id;
                 const creatorName = version.created_by
-                  ? displayNames.get(version.created_by) ?? 'Unknown'
+                  ? (displayNames.get(version.created_by) ?? 'Unknown')
                   : 'System';
 
                 return (

@@ -54,16 +54,41 @@ function resetMocks() {
   });
 
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockResolvedValue({ data: null, error: null, count: null });
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null, count: null });
+  mockSupabase._chain.single.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
@@ -80,15 +105,16 @@ describe('POST /api/items/batch-workspaces', () => {
   beforeEach(() => resetMocks());
 
   it('returns grouped assignments for valid item IDs', async () => {
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({
-        data: [
-          { content_item_id: UUID_1, workspace_id: WS_A },
-          { content_item_id: UUID_1, workspace_id: WS_B },
-          { content_item_id: UUID_3, workspace_id: WS_A },
-        ],
-        error: null,
-      }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            { content_item_id: UUID_1, workspace_id: WS_A },
+            { content_item_id: UUID_1, workspace_id: WS_B },
+            { content_item_id: UUID_3, workspace_id: WS_A },
+          ],
+          error: null,
+        }),
     );
 
     const req = createTestRequest('/api/items/batch-workspaces', {
@@ -108,8 +134,8 @@ describe('POST /api/items/batch-workspaces', () => {
   });
 
   it('returns empty assignments when no items are assigned', async () => {
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const req = createTestRequest('/api/items/batch-workspaces', {
@@ -145,8 +171,9 @@ describe('POST /api/items/batch-workspaces', () => {
   });
 
   it('returns 400 when item_ids exceeds 100', async () => {
-    const tooMany = Array.from({ length: 101 }, (_, i) =>
-      `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
+    const tooMany = Array.from(
+      { length: 101 },
+      (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
     );
 
     const req = createTestRequest('/api/items/batch-workspaces', {
@@ -171,8 +198,9 @@ describe('POST /api/items/batch-workspaces', () => {
   });
 
   it('returns 500 when Supabase query fails', async () => {
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { message: 'DB error' } }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: { message: 'DB error' } }),
     );
 
     const req = createTestRequest('/api/items/batch-workspaces', {
@@ -185,8 +213,8 @@ describe('POST /api/items/batch-workspaces', () => {
   });
 
   it('queries the content_item_workspaces table with the correct item IDs', async () => {
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const req = createTestRequest('/api/items/batch-workspaces', {
@@ -197,7 +225,12 @@ describe('POST /api/items/batch-workspaces', () => {
     await POST(req);
 
     expect(mockSupabase.from).toHaveBeenCalledWith('content_item_workspaces');
-    expect(mockSupabase._chain.select).toHaveBeenCalledWith('content_item_id, workspace_id');
-    expect(mockSupabase._chain.in).toHaveBeenCalledWith('content_item_id', [UUID_1, UUID_2]);
+    expect(mockSupabase._chain.select).toHaveBeenCalledWith(
+      'content_item_id, workspace_id',
+    );
+    expect(mockSupabase._chain.in).toHaveBeenCalledWith('content_item_id', [
+      UUID_1,
+      UUID_2,
+    ]);
   });
 });

@@ -34,14 +34,18 @@ export default function TemplateCompletionPage() {
   const bidId = params.id;
 
   const [templates, setTemplates] = useState<Template[]>([]);
-  const [selectedTemplate, setSelectedTemplate] = useState<TemplateWithDetail | null>(null);
+  const [selectedTemplate, setSelectedTemplate] =
+    useState<TemplateWithDetail | null>(null);
   const [bidQuestions, setBidQuestions] = useState<BidQuestion[]>([]);
   const [step, setStep] = useState<WorkflowStep>('upload');
   const [loading, setLoading] = useState(true);
   const [fillJobId, setFillJobId] = useState<string | null>(null);
-  const [latestCompletion, setLatestCompletion] = useState<TemplateCompletion | null>(null);
+  const [latestCompletion, setLatestCompletion] =
+    useState<TemplateCompletion | null>(null);
   const [fillResult, setFillResult] = useState<FillResult | null>(null);
-  const [loadingTemplateId, setLoadingTemplateId] = useState<string | null>(null);
+  const [loadingTemplateId, setLoadingTemplateId] = useState<string | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollRetryCountRef = useRef(0);
@@ -102,7 +106,10 @@ export default function TemplateCompletionPage() {
           if (detail.completions.length > 0) {
             setLatestCompletion(detail.completions[0]);
           }
-        } else if (detail.status === 'analysis_failed' || detail.status === 'fill_failed') {
+        } else if (
+          detail.status === 'analysis_failed' ||
+          detail.status === 'fill_failed'
+        ) {
           setStep('review');
         } else {
           setStep('review');
@@ -217,7 +224,10 @@ export default function TemplateCompletionPage() {
           {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ question_id: questionId, mapping_status: status }),
+            body: JSON.stringify({
+              question_id: questionId,
+              mapping_status: status,
+            }),
           },
         );
         if (!res.ok) throw new Error('Update failed');
@@ -259,31 +269,34 @@ export default function TemplateCompletionPage() {
     }
   }, [bidId, selectedTemplate, loadTemplateDetail]);
 
-  const handleBulkReject = useCallback(async (fieldIds: string[]) => {
-    if (!selectedTemplate || fieldIds.length === 0) return;
+  const handleBulkReject = useCallback(
+    async (fieldIds: string[]) => {
+      if (!selectedTemplate || fieldIds.length === 0) return;
 
-    const mappings = fieldIds.map((id) => ({
-      field_id: id,
-      question_id: null,
-      mapping_status: 'rejected' as const,
-    }));
+      const mappings = fieldIds.map((id) => ({
+        field_id: id,
+        question_id: null,
+        mapping_status: 'rejected' as const,
+      }));
 
-    try {
-      const res = await fetch(
-        `/api/bids/${bidId}/templates/${selectedTemplate.id}/fields/bulk-update`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mappings }),
-        },
-      );
-      if (!res.ok) throw new Error('Bulk reject failed');
-      await loadTemplateDetail(selectedTemplate.id);
-    } catch (err) {
-      console.error('Failed to bulk reject mappings:', err);
-      toast.error('Failed to bulk reject mappings');
-    }
-  }, [bidId, selectedTemplate, loadTemplateDetail]);
+      try {
+        const res = await fetch(
+          `/api/bids/${bidId}/templates/${selectedTemplate.id}/fields/bulk-update`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mappings }),
+          },
+        );
+        if (!res.ok) throw new Error('Bulk reject failed');
+        await loadTemplateDetail(selectedTemplate.id);
+      } catch (err) {
+        console.error('Failed to bulk reject mappings:', err);
+        toast.error('Failed to bulk reject mappings');
+      }
+    },
+    [bidId, selectedTemplate, loadTemplateDetail],
+  );
 
   const handleFill = useCallback(async () => {
     if (!selectedTemplate) return;
@@ -369,7 +382,10 @@ export default function TemplateCompletionPage() {
     return (
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
         <div className="flex items-center justify-center p-12">
-          <Loader2 className="size-8 animate-spin text-muted-foreground" aria-hidden="true" />
+          <Loader2
+            className="size-8 animate-spin text-muted-foreground"
+            aria-hidden="true"
+          />
           <span className="sr-only">Loading template data</span>
         </div>
       </div>
@@ -378,146 +394,165 @@ export default function TemplateCompletionPage() {
 
   return (
     <ErrorBoundary label="Error loading templates">
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link href={`/bid/${bidId}`}>
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="mr-1 size-4" aria-hidden="true" />
-              Back to Bid
-            </Button>
-          </Link>
-          <h1 className="text-lg font-semibold">Template Completion</h1>
-        </div>
-      </div>
-
-      {/* Template selector (if templates exist and none selected) */}
-      {templates.length > 0 && !selectedTemplate && (
-        <div className="space-y-3">
-          <h2 className="text-sm font-medium">Existing Templates</h2>
-          <div className="grid gap-2">
-            {templates.map((t) => (
-              <button
-                key={t.id}
-                className="flex items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-muted/50 disabled:opacity-60"
-                onClick={() => loadTemplateDetail(t.id)}
-                aria-label={`Select template: ${t.name}`}
-                disabled={loadingTemplateId === t.id}
-              >
-                {loadingTemplateId === t.id ? (
-                  <Loader2 className="size-5 shrink-0 animate-spin text-muted-foreground" aria-hidden="true" />
-                ) : (
-                  <FileText className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{t.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {t.status} · {t.field_count ?? 0} fields · {t.mapped_count} mapped
-                  </p>
-                </div>
-              </button>
-            ))}
-          </div>
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">
-                or upload a new template
-              </span>
-            </div>
+      <div className="mx-auto max-w-5xl space-y-6 p-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link href={`/bid/${bidId}`}>
+              <Button variant="ghost" size="sm">
+                <ArrowLeft className="mr-1 size-4" aria-hidden="true" />
+                Back to Bid
+              </Button>
+            </Link>
+            <h1 className="text-lg font-semibold">Template Completion</h1>
           </div>
         </div>
-      )}
 
-      {/* Error banner — shown when polling times out */}
-      {error && (
-        <div className="flex items-center gap-3 rounded-lg border border-destructive/50 bg-destructive/10 p-4" role="alert">
-          <p className="flex-1 text-sm text-destructive">{error}</p>
-          <Button variant="outline" size="sm" onClick={handleRetry}>
-            <RefreshCw className="mr-1.5 size-3.5" aria-hidden="true" />
-            Retry
-          </Button>
-        </div>
-      )}
-
-      {/* Upload step */}
-      {(!selectedTemplate || step === 'upload') && (
-        <TemplateUpload bidId={bidId} onUploadComplete={handleUploadComplete} />
-      )}
-
-      {/* Analyse step — spinner while analysis runs */}
-      {selectedTemplate && step === 'analyse' && (
-        <div className="flex flex-col items-center gap-3 rounded-lg border p-6 text-center">
-          <Loader2 className="size-8 animate-spin text-primary" aria-hidden="true" />
-          <p className="text-sm font-medium">Analysing template...</p>
-          <p className="text-xs text-muted-foreground">
-            Identifying fields that need completing.
-          </p>
-        </div>
-      )}
-
-      {/* Template uploaded but not yet analysed — show analyse button */}
-      {selectedTemplate &&
-        selectedTemplate.status === 'uploaded' &&
-        step !== 'analyse' && (
-          <div className="flex flex-col items-center gap-3 rounded-lg border p-6 text-center">
-            <FileText className="size-8 text-muted-foreground" aria-hidden="true" />
-            <div>
-              <p className="text-sm font-medium">{selectedTemplate.name}</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Template uploaded. Ready for analysis.
-              </p>
+        {/* Template selector (if templates exist and none selected) */}
+        {templates.length > 0 && !selectedTemplate && (
+          <div className="space-y-3">
+            <h2 className="text-sm font-medium">Existing Templates</h2>
+            <div className="grid gap-2">
+              {templates.map((t) => (
+                <button
+                  key={t.id}
+                  className="flex items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-muted/50 disabled:opacity-60"
+                  onClick={() => loadTemplateDetail(t.id)}
+                  aria-label={`Select template: ${t.name}`}
+                  disabled={loadingTemplateId === t.id}
+                >
+                  {loadingTemplateId === t.id ? (
+                    <Loader2
+                      className="size-5 shrink-0 animate-spin text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <FileText
+                      className="size-5 shrink-0 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{t.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {t.status} · {t.field_count ?? 0} fields ·{' '}
+                      {t.mapped_count} mapped
+                    </p>
+                  </div>
+                </button>
+              ))}
             </div>
-            <Button onClick={handleAnalyse}>Analyse Template</Button>
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  or upload a new template
+                </span>
+              </div>
+            </div>
           </div>
         )}
 
-      {/* Field review step */}
-      {selectedTemplate && step === 'review' && selectedTemplate.fields && (
-        <TemplateFieldReview
-          templateId={selectedTemplate.id}
-          bidId={bidId}
-          fields={selectedTemplate.fields}
-          bidQuestions={bidQuestions}
-          summary={selectedTemplate.summary}
-          onMappingUpdate={handleMappingUpdate}
-          onAutoMap={handleAutoMap}
-          onFill={handleFill}
-          onBulkAccept={handleBulkAccept}
-          onBulkReject={handleBulkReject}
-        />
-      )}
+        {/* Error banner — shown when polling times out */}
+        {error && (
+          <div
+            className="flex items-center gap-3 rounded-lg border border-destructive/50 bg-destructive/10 p-4"
+            role="alert"
+          >
+            <p className="flex-1 text-sm text-destructive">{error}</p>
+            <Button variant="outline" size="sm" onClick={handleRetry}>
+              <RefreshCw className="mr-1.5 size-3.5" aria-hidden="true" />
+              Retry
+            </Button>
+          </div>
+        )}
 
-      {/* Fill step — progress tracker */}
-      {step === 'fill' && fillJobId && (
-        <TemplateFillProgress
-          jobId={fillJobId}
-          onComplete={handleFillComplete}
-          onError={(err) => {
-            toast.error(err);
-            setStep('review');
-          }}
-          onRetry={handleFill}
-        />
-      )}
+        {/* Upload step */}
+        {(!selectedTemplate || step === 'upload') && (
+          <TemplateUpload
+            bidId={bidId}
+            onUploadComplete={handleUploadComplete}
+          />
+        )}
 
-      {/* Complete step — summary + download */}
-      {step === 'complete' && selectedTemplate && latestCompletion && (
-        <TemplateCompletionSummary
-          completion={latestCompletion}
-          templateName={selectedTemplate.name}
-          onDownload={handleDownload}
-          onRefill={() => setStep('review')}
-          truncatedCount={fillResult?.truncated?.length}
-          errors={fillResult?.errors}
-          originalStoragePath={selectedTemplate.storage_path}
-          onDownloadOriginal={handleDownloadOriginal}
-        />
-      )}
-    </div>
+        {/* Analyse step — spinner while analysis runs */}
+        {selectedTemplate && step === 'analyse' && (
+          <div className="flex flex-col items-center gap-3 rounded-lg border p-6 text-center">
+            <Loader2
+              className="size-8 animate-spin text-primary"
+              aria-hidden="true"
+            />
+            <p className="text-sm font-medium">Analysing template...</p>
+            <p className="text-xs text-muted-foreground">
+              Identifying fields that need completing.
+            </p>
+          </div>
+        )}
+
+        {/* Template uploaded but not yet analysed — show analyse button */}
+        {selectedTemplate &&
+          selectedTemplate.status === 'uploaded' &&
+          step !== 'analyse' && (
+            <div className="flex flex-col items-center gap-3 rounded-lg border p-6 text-center">
+              <FileText
+                className="size-8 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <div>
+                <p className="text-sm font-medium">{selectedTemplate.name}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Template uploaded. Ready for analysis.
+                </p>
+              </div>
+              <Button onClick={handleAnalyse}>Analyse Template</Button>
+            </div>
+          )}
+
+        {/* Field review step */}
+        {selectedTemplate && step === 'review' && selectedTemplate.fields && (
+          <TemplateFieldReview
+            templateId={selectedTemplate.id}
+            bidId={bidId}
+            fields={selectedTemplate.fields}
+            bidQuestions={bidQuestions}
+            summary={selectedTemplate.summary}
+            onMappingUpdate={handleMappingUpdate}
+            onAutoMap={handleAutoMap}
+            onFill={handleFill}
+            onBulkAccept={handleBulkAccept}
+            onBulkReject={handleBulkReject}
+          />
+        )}
+
+        {/* Fill step — progress tracker */}
+        {step === 'fill' && fillJobId && (
+          <TemplateFillProgress
+            jobId={fillJobId}
+            onComplete={handleFillComplete}
+            onError={(err) => {
+              toast.error(err);
+              setStep('review');
+            }}
+            onRetry={handleFill}
+          />
+        )}
+
+        {/* Complete step — summary + download */}
+        {step === 'complete' && selectedTemplate && latestCompletion && (
+          <TemplateCompletionSummary
+            completion={latestCompletion}
+            templateName={selectedTemplate.name}
+            onDownload={handleDownload}
+            onRefill={() => setStep('review')}
+            truncatedCount={fillResult?.truncated?.length}
+            errors={fillResult?.errors}
+            originalStoragePath={selectedTemplate.storage_path}
+            onDownloadOriginal={handleDownloadOriginal}
+          />
+        )}
+      </div>
     </ErrorBoundary>
   );
 }

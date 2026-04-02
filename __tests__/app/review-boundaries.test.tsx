@@ -21,7 +21,7 @@ describe('Review Error Boundary', () => {
   it('renders the heading text', () => {
     render(<ReviewError error={error} reset={reset} />);
     expect(
-      screen.getByText(/couldn.*t load the review queue/i)
+      screen.getByText(/couldn.*t load the review queue/i),
     ).toBeInTheDocument();
   });
 
@@ -55,7 +55,7 @@ describe('Review Loading Skeleton', () => {
     render(<ReviewLoading />);
     expect(screen.getByRole('status')).toHaveAttribute(
       'aria-label',
-      'Loading review queue'
+      'Loading review queue',
     );
   });
 

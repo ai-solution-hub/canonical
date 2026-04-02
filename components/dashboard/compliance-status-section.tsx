@@ -64,7 +64,9 @@ export function ComplianceStatusSection() {
       } catch (err) {
         if (!cancelled) {
           setError(
-            err instanceof Error ? err.message : 'Failed to load certification data',
+            err instanceof Error
+              ? err.message
+              : 'Failed to load certification data',
           );
         }
       } finally {
@@ -79,7 +81,6 @@ export function ComplianceStatusSection() {
     return () => {
       cancelled = true;
     };
-     
   }, []);
 
   // -------------------------------------------------------------------------
@@ -150,14 +151,20 @@ export function ComplianceStatusSection() {
   // -------------------------------------------------------------------------
 
   const selfCerts = data.certifications.filter((c) => c.holder === 'self');
-  const supplierCerts = data.certifications.filter((c) => c.holder === 'supplier');
+  const supplierCerts = data.certifications.filter(
+    (c) => c.holder === 'supplier',
+  );
 
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
 
   return (
-    <section aria-label="Compliance status" id="compliance-status" className="rounded-lg border bg-card p-4 shadow-sm">
+    <section
+      aria-label="Compliance status"
+      id="compliance-status"
+      className="rounded-lg border bg-card p-4 shadow-sm"
+    >
       <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
         <ShieldCheck className="size-4" aria-hidden="true" />
         Compliance Status

@@ -27,8 +27,12 @@ beforeEach(() => {
   // Mock localStorage
   vi.stubGlobal('localStorage', {
     getItem: vi.fn((key: string) => localStorageStore[key] ?? null),
-    setItem: vi.fn((key: string, value: string) => { localStorageStore[key] = value; }),
-    removeItem: vi.fn((key: string) => { delete localStorageStore[key]; }),
+    setItem: vi.fn((key: string, value: string) => {
+      localStorageStore[key] = value;
+    }),
+    removeItem: vi.fn((key: string) => {
+      delete localStorageStore[key];
+    }),
     clear: vi.fn(),
     length: 0,
     key: vi.fn(),
@@ -82,8 +86,13 @@ describe('useAccessibility', () => {
     });
 
     expect(result.current.a11yMode).toBe('large-text');
-    expect(localStorage.setItem).toHaveBeenCalledWith('kh-a11y-mode', 'large-text');
-    expect(document.documentElement.getAttribute('data-a11y-mode')).toBe('large-text');
+    expect(localStorage.setItem).toHaveBeenCalledWith(
+      'kh-a11y-mode',
+      'large-text',
+    );
+    expect(document.documentElement.getAttribute('data-a11y-mode')).toBe(
+      'large-text',
+    );
   });
 
   it('clearing mode removes localStorage, DOM attribute, and also clears font', () => {
@@ -112,8 +121,13 @@ describe('useAccessibility', () => {
     });
 
     expect(result.current.a11yFont).toBe('atkinson');
-    expect(localStorage.setItem).toHaveBeenCalledWith('kh-a11y-font', 'atkinson');
-    expect(document.documentElement.getAttribute('data-a11y-font')).toBe('atkinson');
+    expect(localStorage.setItem).toHaveBeenCalledWith(
+      'kh-a11y-font',
+      'atkinson',
+    );
+    expect(document.documentElement.getAttribute('data-a11y-font')).toBe(
+      'atkinson',
+    );
   });
 
   it('clearing font removes localStorage and DOM attribute', () => {
@@ -154,11 +168,13 @@ describe('useAccessibility', () => {
     mockMatchMedia.mockImplementation((query: string) => ({
       matches: false,
       media: query,
-      addEventListener: vi.fn((_event: string, handler: (e: { matches: boolean }) => void) => {
-        if (query === '(prefers-contrast: more)') {
-          changeHandler = handler;
-        }
-      }),
+      addEventListener: vi.fn(
+        (_event: string, handler: (e: { matches: boolean }) => void) => {
+          if (query === '(prefers-contrast: more)') {
+            changeHandler = handler;
+          }
+        },
+      ),
       removeEventListener: vi.fn(),
       addListener: vi.fn(),
       removeListener: vi.fn(),

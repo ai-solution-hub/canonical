@@ -62,7 +62,7 @@ describe('Item Detail Error Boundary', () => {
   it('has a navigation link to /browse', () => {
     render(<ItemError error={error} reset={reset} />);
     expect(
-      screen.getByRole('link', { name: /back to browse/i })
+      screen.getByRole('link', { name: /back to browse/i }),
     ).toHaveAttribute('href', '/browse');
   });
 
@@ -83,7 +83,7 @@ describe('Item Detail Loading Skeleton', () => {
     render(<ItemDetailLoading />);
     expect(screen.getByRole('status')).toHaveAttribute(
       'aria-label',
-      'Loading item'
+      'Loading item',
     );
   });
 
@@ -110,9 +110,7 @@ describe('Item New Error Boundary', () => {
 
   it('renders the heading text', () => {
     render(<ItemNewError error={error} reset={reset} />);
-    expect(
-      screen.getByText(/couldn.*t load this page/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/couldn.*t load this page/i)).toBeInTheDocument();
   });
 
   it('renders a contextual icon with aria-hidden', () => {
@@ -146,7 +144,7 @@ describe('Item New Loading Skeleton', () => {
     render(<NewItemLoading />);
     expect(screen.getByRole('status')).toHaveAttribute(
       'aria-label',
-      'Loading content creation'
+      'Loading content creation',
     );
   });
 
@@ -174,7 +172,7 @@ describe('Batch Create Error Boundary', () => {
   it('renders the heading text', () => {
     render(<BatchCreateError error={error} reset={reset} />);
     expect(
-      screen.getByText(/couldn.*t load batch creation/i)
+      screen.getByText(/couldn.*t load batch creation/i),
     ).toBeInTheDocument();
   });
 
@@ -195,16 +193,13 @@ describe('Batch Create Error Boundary', () => {
   it('has a navigation link to /item/new', () => {
     render(<BatchCreateError error={error} reset={reset} />);
     expect(
-      screen.getByRole('link', { name: /back to create/i })
+      screen.getByRole('link', { name: /back to create/i }),
     ).toHaveAttribute('href', '/item/new');
   });
 
   it('calls console.error with the error via useEffect', () => {
     render(<BatchCreateError error={error} reset={reset} />);
-    expect(console.error).toHaveBeenCalledWith(
-      'Batch creation error:',
-      error
-    );
+    expect(console.error).toHaveBeenCalledWith('Batch creation error:', error);
   });
 });
 
@@ -219,7 +214,7 @@ describe('Batch Create Loading Skeleton', () => {
     render(<BatchCreateLoading />);
     expect(screen.getByRole('status')).toHaveAttribute(
       'aria-label',
-      'Loading batch creation'
+      'Loading batch creation',
     );
   });
 

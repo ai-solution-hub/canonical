@@ -25,7 +25,9 @@ function findProjectRoot(): string {
     try {
       const result = config({ path: resolve(dir, '.env') });
       if (!result.error) return dir;
-    } catch { /* continue searching */ }
+    } catch {
+      /* continue searching */
+    }
     dir = resolve(dir, '..');
   }
   return process.cwd();
@@ -49,4 +51,7 @@ if (!url || !key) {
  * Service-role Supabase client for integration tests.
  * Bypasses RLS — all test data must be cleaned up in afterAll.
  */
-export const serviceClient: SupabaseClient<Database> = createClient<Database>(url, key);
+export const serviceClient: SupabaseClient<Database> = createClient<Database>(
+  url,
+  key,
+);

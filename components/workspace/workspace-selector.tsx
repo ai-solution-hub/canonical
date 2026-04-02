@@ -18,7 +18,10 @@ interface WorkspaceSelectorProps {
   className?: string;
 }
 
-export function WorkspaceSelector({ itemId, className }: WorkspaceSelectorProps) {
+export function WorkspaceSelector({
+  itemId,
+  className,
+}: WorkspaceSelectorProps) {
   const [open, setOpen] = useState(false);
   const [allWorkspaces, setAllWorkspaces] = useState<Workspace[]>([]);
   const [itemWorkspaces, setItemWorkspaces] = useState<Workspace[]>([]);
@@ -73,16 +76,23 @@ export function WorkspaceSelector({ itemId, className }: WorkspaceSelectorProps)
           body: JSON.stringify({ workspace_id: workspace.id, action }),
         });
         if (!res.ok) throw new Error();
-        toast(assigned ? `Removed from ${workspace.name}` : `Added to ${workspace.name}`, {
-          duration: 1500,
-        });
+        toast(
+          assigned
+            ? `Removed from ${workspace.name}`
+            : `Added to ${workspace.name}`,
+          {
+            duration: 1500,
+          },
+        );
       } catch (err) {
         console.error(`Failed to ${action} workspace:`, err);
         // Rollback
         if (assigned) {
           setItemWorkspaces((prev) => [...prev, workspace]);
         } else {
-          setItemWorkspaces((prev) => prev.filter((p) => p.id !== workspace.id));
+          setItemWorkspaces((prev) =>
+            prev.filter((p) => p.id !== workspace.id),
+          );
         }
         toast.error(`Failed to ${action} item`);
       }
@@ -104,7 +114,9 @@ export function WorkspaceSelector({ itemId, className }: WorkspaceSelectorProps)
         throw new Error(data.error || 'Failed to create');
       }
       const newWorkspace: Workspace = await res.json();
-      setAllWorkspaces((prev) => [...prev, newWorkspace].sort((a, b) => a.name.localeCompare(b.name)));
+      setAllWorkspaces((prev) =>
+        [...prev, newWorkspace].sort((a, b) => a.name.localeCompare(b.name)),
+      );
       setItemWorkspaces((prev) => [...prev, newWorkspace]);
       setSearch('');
       toast(`Created and assigned "${newWorkspace.name}"`, { duration: 2000 });
@@ -163,7 +175,9 @@ export function WorkspaceSelector({ itemId, className }: WorkspaceSelectorProps)
             className="h-7 w-fit gap-1.5 border-dashed text-xs text-muted-foreground"
           >
             <FolderOpen className="size-3.5" />
-            {itemWorkspaces.length === 0 ? 'Assign to...' : 'Manage assignments'}
+            {itemWorkspaces.length === 0
+              ? 'Assign to...'
+              : 'Manage assignments'}
             <ChevronsUpDown className="size-3 opacity-50" />
           </Button>
         </PopoverTrigger>

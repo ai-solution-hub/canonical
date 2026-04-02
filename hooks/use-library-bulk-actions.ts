@@ -77,7 +77,11 @@ export function useLibraryBulkActions({
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkOperating, setBulkOperating] = useState(false);
-  const [bulkProgress, setBulkProgress] = useState<BulkProgress>({ current: 0, total: 0, label: '' });
+  const [bulkProgress, setBulkProgress] = useState<BulkProgress>({
+    current: 0,
+    total: 0,
+    label: '',
+  });
 
   // Tag dialog state
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
@@ -118,7 +122,7 @@ export function useLibraryBulkActions({
   // Clear selection when filters change
   useEffect(() => {
     setSelectedIds(new Set());
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- filterDeps is a dynamic array from the parent
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- filterDeps is a dynamic array from the parent
   }, filterDeps);
 
   // Bulk operation runner
@@ -143,7 +147,10 @@ export function useLibraryBulkActions({
           else errorCount++;
         } catch (err) {
           errorCount++;
-          console.error(`Bulk operation "${label}" failed for item ${ids[i]}:`, err);
+          console.error(
+            `Bulk operation "${label}" failed for item ${ids[i]}:`,
+            err,
+          );
         }
 
         setBulkProgress({ current: i + 1, total: ids.length, label });
@@ -154,10 +161,14 @@ export function useLibraryBulkActions({
       setSelectedIds(new Set());
 
       // Invalidate library queries so TanStack Query refetches automatically
-      await queryClient.invalidateQueries({ queryKey: queryKeys.contentItems.all });
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.contentItems.all,
+      });
 
       if (errorCount > 0) {
-        toast.error(`${errorCount} item${errorCount !== 1 ? 's' : ''} failed during ${label.toLowerCase()}`);
+        toast.error(
+          `${errorCount} item${errorCount !== 1 ? 's' : ''} failed during ${label.toLowerCase()}`,
+        );
       }
 
       return successCount;
@@ -205,7 +216,9 @@ export function useLibraryBulkActions({
       });
       return res.ok;
     });
-    toast.success(`Tagged ${count} item${count !== 1 ? 's' : ''} with: ${newTags.join(', ')}`);
+    toast.success(
+      `Tagged ${count} item${count !== 1 ? 's' : ''} with: ${newTags.join(', ')}`,
+    );
   }, [tagInput, runBulkOperation]);
 
   // Bulk assign — opens dialog
@@ -218,7 +231,7 @@ export function useLibraryBulkActions({
       const res = await fetch('/api/workspaces');
       if (res.ok) {
         const data = await res.json();
-        const ws = Array.isArray(data) ? data : data.workspaces ?? [];
+        const ws = Array.isArray(data) ? data : (data.workspaces ?? []);
         setWorkspaces(
           ws.map((w: { id: string; name: string; type?: string }) => ({
             id: w.id,
@@ -245,12 +258,17 @@ export function useLibraryBulkActions({
       const res = await fetch(`/api/items/${id}/workspaces`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspace_id: selectedWorkspaceId, action: 'assign' }),
+        body: JSON.stringify({
+          workspace_id: selectedWorkspaceId,
+          action: 'assign',
+        }),
       });
       return res.ok;
     });
     const ws = workspaces.find((w) => w.id === selectedWorkspaceId);
-    toast.success(`Assigned ${count} item${count !== 1 ? 's' : ''} to "${ws?.name ?? 'workspace'}"`);
+    toast.success(
+      `Assigned ${count} item${count !== 1 ? 's' : ''} to "${ws?.name ?? 'workspace'}"`,
+    );
   }, [selectedWorkspaceId, workspaces, runBulkOperation]);
 
   // Bulk verify

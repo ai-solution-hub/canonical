@@ -4,7 +4,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createMockSupabaseClient, type MockSupabaseClient } from '../helpers/mock-supabase';
+import {
+  createMockSupabaseClient,
+  type MockSupabaseClient,
+} from '../helpers/mock-supabase';
 
 // Mock the temporal reconciliation module
 vi.mock('@/lib/entities/temporal-reconciliation', () => ({
@@ -50,7 +53,8 @@ describe('bridgeTemporalReferencesToEntities', () => {
       };
 
       // Store the chain so tests can configure per-table responses
-      (mockClient as Record<string, unknown>)[`_${table}_chain_${callIndex}`] = chain;
+      (mockClient as Record<string, unknown>)[`_${table}_chain_${callIndex}`] =
+        chain;
       return chain;
     });
   });
@@ -70,12 +74,14 @@ describe('bridgeTemporalReferencesToEntities', () => {
     });
   }
 
-  function setupEntityMentions(mentions: Array<{
-    id: string;
-    canonical_name: string;
-    entity_type: string;
-    metadata: Record<string, unknown> | null;
-  }>) {
+  function setupEntityMentions(
+    mentions: Array<{
+      id: string;
+      canonical_name: string;
+      entity_type: string;
+      metadata: Record<string, unknown> | null;
+    }>,
+  ) {
     // Second .from('entity_mentions') call returns mentions
     mockClient.from.mockImplementationOnce(() => {
       const chain = {
@@ -104,16 +110,30 @@ describe('bridgeTemporalReferencesToEntities', () => {
 
   it('T1.1: bridges single certification with expiry date', async () => {
     const aiRefs = [
-      { date: '2025-06-30', context: 'ISO 27001 certification expiry', context_type: 'expiry' as const },
+      {
+        date: '2025-06-30',
+        context: 'ISO 27001 certification expiry',
+        context_type: 'expiry' as const,
+      },
     ];
 
     setupContentItem({ ai_temporal_references: aiRefs });
     mockReconcile.mockReturnValue([
-      { date: '2025-06-30', context: 'ISO 27001 certification expiry', context_type: 'expiry', source: 'ai' },
+      {
+        date: '2025-06-30',
+        context: 'ISO 27001 certification expiry',
+        context_type: 'expiry',
+        source: 'ai',
+      },
     ]);
 
     setupEntityMentions([
-      { id: 'em-1', canonical_name: 'ISO 27001', entity_type: 'certification', metadata: null },
+      {
+        id: 'em-1',
+        canonical_name: 'ISO 27001',
+        entity_type: 'certification',
+        metadata: null,
+      },
     ]);
 
     const updateChain = setupUpdateCall();
@@ -130,19 +150,47 @@ describe('bridgeTemporalReferencesToEntities', () => {
 
   it('T1.2: bridges multiple certifications with distinct dates', async () => {
     const aiRefs = [
-      { date: '2025-06-30', context: 'ISO 27001 expiry', context_type: 'expiry' as const },
-      { date: '2025-12-01', context: 'Cyber Essentials renewal', context_type: 'expiry' as const },
+      {
+        date: '2025-06-30',
+        context: 'ISO 27001 expiry',
+        context_type: 'expiry' as const,
+      },
+      {
+        date: '2025-12-01',
+        context: 'Cyber Essentials renewal',
+        context_type: 'expiry' as const,
+      },
     ];
 
     setupContentItem({ ai_temporal_references: aiRefs });
     mockReconcile.mockReturnValue([
-      { date: '2025-06-30', context: 'ISO 27001 expiry', context_type: 'expiry', source: 'ai' },
-      { date: '2025-12-01', context: 'Cyber Essentials renewal', context_type: 'expiry', source: 'ai' },
+      {
+        date: '2025-06-30',
+        context: 'ISO 27001 expiry',
+        context_type: 'expiry',
+        source: 'ai',
+      },
+      {
+        date: '2025-12-01',
+        context: 'Cyber Essentials renewal',
+        context_type: 'expiry',
+        source: 'ai',
+      },
     ]);
 
     setupEntityMentions([
-      { id: 'em-1', canonical_name: 'ISO 27001', entity_type: 'certification', metadata: null },
-      { id: 'em-2', canonical_name: 'Cyber Essentials', entity_type: 'certification', metadata: null },
+      {
+        id: 'em-1',
+        canonical_name: 'ISO 27001',
+        entity_type: 'certification',
+        metadata: null,
+      },
+      {
+        id: 'em-2',
+        canonical_name: 'Cyber Essentials',
+        entity_type: 'certification',
+        metadata: null,
+      },
     ]);
 
     // Two update calls expected
@@ -164,18 +212,41 @@ describe('bridgeTemporalReferencesToEntities', () => {
 
   it('T1.3: bridges effective date alongside expiry date', async () => {
     const aiRefs = [
-      { date: '2024-01-15', context: 'ISO 27001 awarded', context_type: 'effective' as const },
-      { date: '2025-06-30', context: 'ISO 27001 expiry', context_type: 'expiry' as const },
+      {
+        date: '2024-01-15',
+        context: 'ISO 27001 awarded',
+        context_type: 'effective' as const,
+      },
+      {
+        date: '2025-06-30',
+        context: 'ISO 27001 expiry',
+        context_type: 'expiry' as const,
+      },
     ];
 
     setupContentItem({ ai_temporal_references: aiRefs });
     mockReconcile.mockReturnValue([
-      { date: '2024-01-15', context: 'ISO 27001 awarded', context_type: 'effective', source: 'ai' },
-      { date: '2025-06-30', context: 'ISO 27001 expiry', context_type: 'expiry', source: 'ai' },
+      {
+        date: '2024-01-15',
+        context: 'ISO 27001 awarded',
+        context_type: 'effective',
+        source: 'ai',
+      },
+      {
+        date: '2025-06-30',
+        context: 'ISO 27001 expiry',
+        context_type: 'expiry',
+        source: 'ai',
+      },
     ]);
 
     setupEntityMentions([
-      { id: 'em-1', canonical_name: 'ISO 27001', entity_type: 'certification', metadata: null },
+      {
+        id: 'em-1',
+        canonical_name: 'ISO 27001',
+        entity_type: 'certification',
+        metadata: null,
+      },
     ]);
 
     const updateChain = setupUpdateCall();
@@ -196,11 +267,20 @@ describe('bridgeTemporalReferencesToEntities', () => {
   it('T1.4: preserves existing manual metadata (merge semantics)', async () => {
     setupContentItem({
       ai_temporal_references: [
-        { date: '2025-06-30', context: 'ISO 27001 expiry', context_type: 'expiry' },
+        {
+          date: '2025-06-30',
+          context: 'ISO 27001 expiry',
+          context_type: 'expiry',
+        },
       ],
     });
     mockReconcile.mockReturnValue([
-      { date: '2025-06-30', context: 'ISO 27001 expiry', context_type: 'expiry', source: 'ai' },
+      {
+        date: '2025-06-30',
+        context: 'ISO 27001 expiry',
+        context_type: 'expiry',
+        source: 'ai',
+      },
     ]);
 
     setupEntityMentions([
@@ -208,7 +288,10 @@ describe('bridgeTemporalReferencesToEntities', () => {
         id: 'em-1',
         canonical_name: 'ISO 27001',
         entity_type: 'certification',
-        metadata: { manual_note: 'Reviewed by compliance team', scope: 'UK operations' },
+        metadata: {
+          manual_note: 'Reviewed by compliance team',
+          scope: 'UK operations',
+        },
       },
     ]);
 
@@ -231,16 +314,30 @@ describe('bridgeTemporalReferencesToEntities', () => {
   it('T1.5: no matching temporal reference — metadata unchanged', async () => {
     setupContentItem({
       ai_temporal_references: [
-        { date: '2025-06-30', context: 'GDPR compliance review date', context_type: 'expiry' },
+        {
+          date: '2025-06-30',
+          context: 'GDPR compliance review date',
+          context_type: 'expiry',
+        },
       ],
     });
     mockReconcile.mockReturnValue([
-      { date: '2025-06-30', context: 'GDPR compliance review date', context_type: 'expiry', source: 'ai' },
+      {
+        date: '2025-06-30',
+        context: 'GDPR compliance review date',
+        context_type: 'expiry',
+        source: 'ai',
+      },
     ]);
 
     // Entity is ISO 27001 but temporal reference mentions GDPR — no match
     setupEntityMentions([
-      { id: 'em-1', canonical_name: 'ISO 27001', entity_type: 'certification', metadata: null },
+      {
+        id: 'em-1',
+        canonical_name: 'ISO 27001',
+        entity_type: 'certification',
+        metadata: null,
+      },
     ]);
 
     await bridgeTemporalReferencesToEntities(
@@ -256,20 +353,44 @@ describe('bridgeTemporalReferencesToEntities', () => {
   it('T1.6: both AI and regex temporal references are merged', async () => {
     setupContentItem({
       ai_temporal_references: [
-        { date: '2025-06-30', context: 'ISO 27001 expiry', context_type: 'expiry' },
+        {
+          date: '2025-06-30',
+          context: 'ISO 27001 expiry',
+          context_type: 'expiry',
+        },
       ],
       temporal_references: [
-        { date: '2024-01-15', type: 'effective', confidence: 'high', context: 'ISO 27001 awarded' },
+        {
+          date: '2024-01-15',
+          type: 'effective',
+          confidence: 'high',
+          context: 'ISO 27001 awarded',
+        },
       ],
     });
 
     mockReconcile.mockReturnValue([
-      { date: '2025-06-30', context: 'ISO 27001 expiry', context_type: 'expiry', source: 'ai' },
-      { date: '2024-01-15', context: 'ISO 27001 awarded', context_type: 'effective', source: 'regex' },
+      {
+        date: '2025-06-30',
+        context: 'ISO 27001 expiry',
+        context_type: 'expiry',
+        source: 'ai',
+      },
+      {
+        date: '2024-01-15',
+        context: 'ISO 27001 awarded',
+        context_type: 'effective',
+        source: 'regex',
+      },
     ]);
 
     setupEntityMentions([
-      { id: 'em-1', canonical_name: 'ISO 27001', entity_type: 'certification', metadata: null },
+      {
+        id: 'em-1',
+        canonical_name: 'ISO 27001',
+        entity_type: 'certification',
+        metadata: null,
+      },
     ]);
 
     const updateChain = setupUpdateCall();
@@ -281,12 +402,8 @@ describe('bridgeTemporalReferencesToEntities', () => {
 
     // Both reconcile inputs should have been passed
     expect(mockReconcile).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({ date: '2025-06-30' }),
-      ]),
-      expect.arrayContaining([
-        expect.objectContaining({ date: '2024-01-15' }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ date: '2025-06-30' })]),
+      expect.arrayContaining([expect.objectContaining({ date: '2024-01-15' })]),
     );
 
     expect(updateChain.update).toHaveBeenCalledWith({
@@ -300,11 +417,20 @@ describe('bridgeTemporalReferencesToEntities', () => {
   it('T1.7: non-certification entities are skipped', async () => {
     setupContentItem({
       ai_temporal_references: [
-        { date: '2025-06-30', context: 'Acme Corp founded', context_type: 'historical' },
+        {
+          date: '2025-06-30',
+          context: 'Acme Corp founded',
+          context_type: 'historical',
+        },
       ],
     });
     mockReconcile.mockReturnValue([
-      { date: '2025-06-30', context: 'Acme Corp founded', context_type: 'historical', source: 'ai' },
+      {
+        date: '2025-06-30',
+        context: 'Acme Corp founded',
+        context_type: 'historical',
+        source: 'ai',
+      },
     ]);
 
     // Entity mentions query returns empty because the IN filter excludes non-cert types
@@ -338,16 +464,30 @@ describe('bridgeTemporalReferencesToEntities', () => {
   it('T1.9: token matching — "ISO 27001 cert renewal" matches "ISO 27001 Certification"', async () => {
     setupContentItem({
       ai_temporal_references: [
-        { date: '2025-06-30', context: 'ISO 27001 cert renewal due', context_type: 'expiry' },
+        {
+          date: '2025-06-30',
+          context: 'ISO 27001 cert renewal due',
+          context_type: 'expiry',
+        },
       ],
     });
     mockReconcile.mockReturnValue([
-      { date: '2025-06-30', context: 'ISO 27001 cert renewal due', context_type: 'expiry', source: 'ai' },
+      {
+        date: '2025-06-30',
+        context: 'ISO 27001 cert renewal due',
+        context_type: 'expiry',
+        source: 'ai',
+      },
     ]);
 
     // Canonical name is longer than the mention in context — old substring matching would fail
     setupEntityMentions([
-      { id: 'em-1', canonical_name: 'ISO 27001', entity_type: 'certification', metadata: null },
+      {
+        id: 'em-1',
+        canonical_name: 'ISO 27001',
+        entity_type: 'certification',
+        metadata: null,
+      },
     ]);
 
     const updateChain = setupUpdateCall();
@@ -365,16 +505,30 @@ describe('bridgeTemporalReferencesToEntities', () => {
   it('T1.10: token matching — partial name match with short entity name', async () => {
     setupContentItem({
       ai_temporal_references: [
-        { date: '2025-12-01', context: '27001 certification expires 2025', context_type: 'expiry' },
+        {
+          date: '2025-12-01',
+          context: '27001 certification expires 2025',
+          context_type: 'expiry',
+        },
       ],
     });
     mockReconcile.mockReturnValue([
-      { date: '2025-12-01', context: '27001 certification expires 2025', context_type: 'expiry', source: 'ai' },
+      {
+        date: '2025-12-01',
+        context: '27001 certification expires 2025',
+        context_type: 'expiry',
+        source: 'ai',
+      },
     ]);
 
     // Context omits "ISO" prefix — old substring matching would fail
     setupEntityMentions([
-      { id: 'em-1', canonical_name: 'ISO 27001', entity_type: 'certification', metadata: null },
+      {
+        id: 'em-1',
+        canonical_name: 'ISO 27001',
+        entity_type: 'certification',
+        metadata: null,
+      },
     ]);
 
     const updateChain = setupUpdateCall();
@@ -395,18 +549,41 @@ describe('bridgeTemporalReferencesToEntities', () => {
   it('T1.11: duration P3Y with date_obtained computes expiry_date', async () => {
     setupContentItem({
       ai_temporal_references: [
-        { date: '2024-06-15', context: 'ISO 27001 awarded', context_type: 'effective' },
-        { date: 'P3Y', context: 'ISO 27001 certification valid for 3 years', context_type: 'expiry' },
+        {
+          date: '2024-06-15',
+          context: 'ISO 27001 awarded',
+          context_type: 'effective',
+        },
+        {
+          date: 'P3Y',
+          context: 'ISO 27001 certification valid for 3 years',
+          context_type: 'expiry',
+        },
       ],
     });
     // Effective refs sorted before expiry by bridge logic
     mockReconcile.mockReturnValue([
-      { date: '2024-06-15', context: 'ISO 27001 awarded', context_type: 'effective', source: 'ai' },
-      { date: 'P3Y', context: 'ISO 27001 certification valid for 3 years', context_type: 'expiry', source: 'ai' },
+      {
+        date: '2024-06-15',
+        context: 'ISO 27001 awarded',
+        context_type: 'effective',
+        source: 'ai',
+      },
+      {
+        date: 'P3Y',
+        context: 'ISO 27001 certification valid for 3 years',
+        context_type: 'expiry',
+        source: 'ai',
+      },
     ]);
 
     setupEntityMentions([
-      { id: 'em-1', canonical_name: 'ISO 27001', entity_type: 'certification', metadata: null },
+      {
+        id: 'em-1',
+        canonical_name: 'ISO 27001',
+        entity_type: 'certification',
+        metadata: null,
+      },
     ]);
 
     const updateChain = setupUpdateCall();
@@ -427,15 +604,29 @@ describe('bridgeTemporalReferencesToEntities', () => {
   it('T1.12: duration P3Y without date_obtained — no expiry computed', async () => {
     setupContentItem({
       ai_temporal_references: [
-        { date: 'P3Y', context: 'ISO 27001 certification valid for 3 years', context_type: 'expiry' },
+        {
+          date: 'P3Y',
+          context: 'ISO 27001 certification valid for 3 years',
+          context_type: 'expiry',
+        },
       ],
     });
     mockReconcile.mockReturnValue([
-      { date: 'P3Y', context: 'ISO 27001 certification valid for 3 years', context_type: 'expiry', source: 'ai' },
+      {
+        date: 'P3Y',
+        context: 'ISO 27001 certification valid for 3 years',
+        context_type: 'expiry',
+        source: 'ai',
+      },
     ]);
 
     setupEntityMentions([
-      { id: 'em-1', canonical_name: 'ISO 27001', entity_type: 'certification', metadata: null },
+      {
+        id: 'em-1',
+        canonical_name: 'ISO 27001',
+        entity_type: 'certification',
+        metadata: null,
+      },
     ]);
 
     await bridgeTemporalReferencesToEntities(
@@ -451,17 +642,40 @@ describe('bridgeTemporalReferencesToEntities', () => {
     // Reconcile returns expiry BEFORE effective — bridge should sort them
     setupContentItem({
       ai_temporal_references: [
-        { date: 'P3Y', context: 'ISO 27001 valid for 3 years', context_type: 'expiry' },
-        { date: '2024-06-15', context: 'ISO 27001 granted', context_type: 'effective' },
+        {
+          date: 'P3Y',
+          context: 'ISO 27001 valid for 3 years',
+          context_type: 'expiry',
+        },
+        {
+          date: '2024-06-15',
+          context: 'ISO 27001 granted',
+          context_type: 'effective',
+        },
       ],
     });
     mockReconcile.mockReturnValue([
-      { date: 'P3Y', context: 'ISO 27001 valid for 3 years', context_type: 'expiry', source: 'ai' },
-      { date: '2024-06-15', context: 'ISO 27001 granted', context_type: 'effective', source: 'ai' },
+      {
+        date: 'P3Y',
+        context: 'ISO 27001 valid for 3 years',
+        context_type: 'expiry',
+        source: 'ai',
+      },
+      {
+        date: '2024-06-15',
+        context: 'ISO 27001 granted',
+        context_type: 'effective',
+        source: 'ai',
+      },
     ]);
 
     setupEntityMentions([
-      { id: 'em-1', canonical_name: 'ISO 27001', entity_type: 'certification', metadata: null },
+      {
+        id: 'em-1',
+        canonical_name: 'ISO 27001',
+        entity_type: 'certification',
+        metadata: null,
+      },
     ]);
 
     const updateChain = setupUpdateCall();
@@ -483,11 +697,20 @@ describe('bridgeTemporalReferencesToEntities', () => {
   it('T1.14: duration with existing date_obtained in metadata', async () => {
     setupContentItem({
       ai_temporal_references: [
-        { date: 'P3Y', context: 'ISO 27001 valid for 3 years', context_type: 'expiry' },
+        {
+          date: 'P3Y',
+          context: 'ISO 27001 valid for 3 years',
+          context_type: 'expiry',
+        },
       ],
     });
     mockReconcile.mockReturnValue([
-      { date: 'P3Y', context: 'ISO 27001 valid for 3 years', context_type: 'expiry', source: 'ai' },
+      {
+        date: 'P3Y',
+        context: 'ISO 27001 valid for 3 years',
+        context_type: 'expiry',
+        source: 'ai',
+      },
     ]);
 
     // Entity already has date_obtained from a previous bridge run

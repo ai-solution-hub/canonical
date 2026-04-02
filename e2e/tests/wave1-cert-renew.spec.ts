@@ -23,13 +23,21 @@ test.describe('Certification renewal button', { tag: '@wave1' }, () => {
     ).toBeVisible({ timeout: 10000 });
   });
 
-  test('certification cards render with entity names', async ({ authenticatedPage: page }) => {
+  test('certification cards render with entity names', async ({
+    authenticatedPage: page,
+  }) => {
     // The compliance status section contains certification cards
-    const complianceSection = page.locator('section[aria-label="Compliance status"]');
+    const complianceSection = page.locator(
+      'section[aria-label="Compliance status"]',
+    );
 
-    if (await complianceSection.isVisible({ timeout: 10000 }).catch(() => false)) {
+    if (
+      await complianceSection.isVisible({ timeout: 10000 }).catch(() => false)
+    ) {
       // The CertificationSummaryCard has aria-label="Certifications we hold"
-      const certCard = complianceSection.locator('section[aria-label="Certifications we hold"]');
+      const certCard = complianceSection.locator(
+        'section[aria-label="Certifications we hold"]',
+      );
 
       if (await certCard.isVisible({ timeout: 5000 }).catch(() => false)) {
         // Certification rows are rendered as role="listitem" elements
@@ -47,18 +55,28 @@ test.describe('Certification renewal button', { tag: '@wave1' }, () => {
     }
   });
 
-  test('certification cards show expiry status badges', async ({ authenticatedPage: page }) => {
-    const complianceSection = page.locator('section[aria-label="Compliance status"]');
+  test('certification cards show expiry status badges', async ({
+    authenticatedPage: page,
+  }) => {
+    const complianceSection = page.locator(
+      'section[aria-label="Compliance status"]',
+    );
 
-    if (await complianceSection.isVisible({ timeout: 10000 }).catch(() => false)) {
+    if (
+      await complianceSection.isVisible({ timeout: 10000 }).catch(() => false)
+    ) {
       // ExpiryBadge elements have aria-label="Expiry status: {label}"
-      const expiryBadges = complianceSection.locator('span[aria-label^="Expiry status:"]');
+      const expiryBadges = complianceSection.locator(
+        'span[aria-label^="Expiry status:"]',
+      );
       const badgeCount = await expiryBadges.count();
 
       if (badgeCount > 0) {
         // Verify badge labels are valid statuses
         for (let i = 0; i < Math.min(badgeCount, 5); i++) {
-          const ariaLabel = await expiryBadges.nth(i).getAttribute('aria-label');
+          const ariaLabel = await expiryBadges
+            .nth(i)
+            .getAttribute('aria-label');
           expect(ariaLabel).toMatch(
             /Expiry status: (Valid|Expiring Soon|Expired|Unknown)/,
           );
@@ -72,12 +90,20 @@ test.describe('Certification renewal button', { tag: '@wave1' }, () => {
     }
   });
 
-  test('Renew button appears for expiring or expired certifications', async ({ authenticatedPage: page }) => {
-    const complianceSection = page.locator('section[aria-label="Compliance status"]');
+  test('Renew button appears for expiring or expired certifications', async ({
+    authenticatedPage: page,
+  }) => {
+    const complianceSection = page.locator(
+      'section[aria-label="Compliance status"]',
+    );
 
-    if (await complianceSection.isVisible({ timeout: 10000 }).catch(() => false)) {
+    if (
+      await complianceSection.isVisible({ timeout: 10000 }).catch(() => false)
+    ) {
       // Renew buttons are <a> elements with aria-label matching "Upload renewed {name} document"
-      const renewButtons = complianceSection.locator('a[aria-label*="Upload renewed"]');
+      const renewButtons = complianceSection.locator(
+        'a[aria-label*="Upload renewed"]',
+      );
       const renewCount = await renewButtons.count();
 
       // Renew buttons should only appear next to expiring/expired badges
@@ -93,9 +119,15 @@ test.describe('Certification renewal button', { tag: '@wave1' }, () => {
           expect(href).toMatch(/^\/item\/[a-f0-9-]+\?renewal_entity=.+$/);
 
           // The parent listitem should also have an expiry badge showing Expiring Soon or Expired
-          const parentRow = renewLink.locator('xpath=ancestor::div[@role="listitem"]');
-          const expiryBadge = parentRow.locator('span[aria-label^="Expiry status:"]');
-          if (await expiryBadge.isVisible({ timeout: 2000 }).catch(() => false)) {
+          const parentRow = renewLink.locator(
+            'xpath=ancestor::div[@role="listitem"]',
+          );
+          const expiryBadge = parentRow.locator(
+            'span[aria-label^="Expiry status:"]',
+          );
+          if (
+            await expiryBadge.isVisible({ timeout: 2000 }).catch(() => false)
+          ) {
             const status = await expiryBadge.getAttribute('aria-label');
             expect(status).toMatch(/Expiry status: (Expiring Soon|Expired)/);
           }
@@ -104,33 +136,55 @@ test.describe('Certification renewal button', { tag: '@wave1' }, () => {
     }
   });
 
-  test('Renew button does not appear for valid certifications', async ({ authenticatedPage: page }) => {
-    const complianceSection = page.locator('section[aria-label="Compliance status"]');
+  test('Renew button does not appear for valid certifications', async ({
+    authenticatedPage: page,
+  }) => {
+    const complianceSection = page.locator(
+      'section[aria-label="Compliance status"]',
+    );
 
-    if (await complianceSection.isVisible({ timeout: 10000 }).catch(() => false)) {
+    if (
+      await complianceSection.isVisible({ timeout: 10000 }).catch(() => false)
+    ) {
       // Find rows with "Valid" status badges
-      const certCard = complianceSection.locator('section[aria-label="Certifications we hold"]');
+      const certCard = complianceSection.locator(
+        'section[aria-label="Certifications we hold"]',
+      );
 
       if (await certCard.isVisible({ timeout: 5000 }).catch(() => false)) {
-        const validBadges = certCard.locator('span[aria-label="Expiry status: Valid"]');
+        const validBadges = certCard.locator(
+          'span[aria-label="Expiry status: Valid"]',
+        );
         const validCount = await validBadges.count();
 
         // For each valid certification, verify no Renew button exists in that row
         for (let i = 0; i < Math.min(validCount, 3); i++) {
-          const parentRow = validBadges.nth(i).locator('xpath=ancestor::div[@role="listitem"]');
-          const renewLink = parentRow.locator('a[aria-label*="Upload renewed"]');
+          const parentRow = validBadges
+            .nth(i)
+            .locator('xpath=ancestor::div[@role="listitem"]');
+          const renewLink = parentRow.locator(
+            'a[aria-label*="Upload renewed"]',
+          );
           await expect(renewLink).not.toBeVisible();
         }
       }
     }
   });
 
-  test('framework cards show Renew button for expiring frameworks', async ({ authenticatedPage: page }) => {
-    const complianceSection = page.locator('section[aria-label="Compliance status"]');
+  test('framework cards show Renew button for expiring frameworks', async ({
+    authenticatedPage: page,
+  }) => {
+    const complianceSection = page.locator(
+      'section[aria-label="Compliance status"]',
+    );
 
-    if (await complianceSection.isVisible({ timeout: 10000 }).catch(() => false)) {
+    if (
+      await complianceSection.isVisible({ timeout: 10000 }).catch(() => false)
+    ) {
       // FrameworkSummaryCard has aria-label="Framework memberships"
-      const frameworkCard = complianceSection.locator('section[aria-label="Framework memberships"]');
+      const frameworkCard = complianceSection.locator(
+        'section[aria-label="Framework memberships"]',
+      );
 
       if (await frameworkCard.isVisible({ timeout: 5000 }).catch(() => false)) {
         // Framework rows are also role="listitem" with the same Renew button pattern
@@ -141,12 +195,18 @@ test.describe('Certification renewal button', { tag: '@wave1' }, () => {
           // Check each row for appropriate Renew button visibility
           for (let i = 0; i < Math.min(rowCount, 3); i++) {
             const row = frameworkRows.nth(i);
-            const expiryBadge = row.locator('span[aria-label^="Expiry status:"]');
+            const expiryBadge = row.locator(
+              'span[aria-label^="Expiry status:"]',
+            );
             const renewLink = row.locator('a[aria-label*="Upload renewed"]');
 
-            if (await expiryBadge.isVisible({ timeout: 2000 }).catch(() => false)) {
+            if (
+              await expiryBadge.isVisible({ timeout: 2000 }).catch(() => false)
+            ) {
               const status = await expiryBadge.getAttribute('aria-label');
-              const isExpiring = status?.includes('Expiring Soon') || status?.includes('Expired');
+              const isExpiring =
+                status?.includes('Expiring Soon') ||
+                status?.includes('Expired');
 
               if (isExpiring) {
                 // Renew button should be present
@@ -164,11 +224,19 @@ test.describe('Certification renewal button', { tag: '@wave1' }, () => {
     }
   });
 
-  test('certification card shows evidence count per entity', async ({ authenticatedPage: page }) => {
-    const complianceSection = page.locator('section[aria-label="Compliance status"]');
+  test('certification card shows evidence count per entity', async ({
+    authenticatedPage: page,
+  }) => {
+    const complianceSection = page.locator(
+      'section[aria-label="Compliance status"]',
+    );
 
-    if (await complianceSection.isVisible({ timeout: 10000 }).catch(() => false)) {
-      const certCard = complianceSection.locator('section[aria-label="Certifications we hold"]');
+    if (
+      await complianceSection.isVisible({ timeout: 10000 }).catch(() => false)
+    ) {
+      const certCard = complianceSection.locator(
+        'section[aria-label="Certifications we hold"]',
+      );
 
       if (await certCard.isVisible({ timeout: 5000 }).catch(() => false)) {
         // Each row shows "N evidence" count with an aria-label
@@ -176,7 +244,9 @@ test.describe('Certification renewal button', { tag: '@wave1' }, () => {
         const countNum = await evidenceCounts.count();
 
         if (countNum > 0) {
-          const ariaLabel = await evidenceCounts.first().getAttribute('aria-label');
+          const ariaLabel = await evidenceCounts
+            .first()
+            .getAttribute('aria-label');
           // Format: "N evidence item" or "N evidence items"
           expect(ariaLabel).toMatch(/^\d+ evidence items?$/);
         }
@@ -184,11 +254,19 @@ test.describe('Certification renewal button', { tag: '@wave1' }, () => {
     }
   });
 
-  test('certification card shows copy and review buttons in header', async ({ authenticatedPage: page }) => {
-    const complianceSection = page.locator('section[aria-label="Compliance status"]');
+  test('certification card shows copy and review buttons in header', async ({
+    authenticatedPage: page,
+  }) => {
+    const complianceSection = page.locator(
+      'section[aria-label="Compliance status"]',
+    );
 
-    if (await complianceSection.isVisible({ timeout: 10000 }).catch(() => false)) {
-      const certCard = complianceSection.locator('section[aria-label="Certifications we hold"]');
+    if (
+      await complianceSection.isVisible({ timeout: 10000 }).catch(() => false)
+    ) {
+      const certCard = complianceSection.locator(
+        'section[aria-label="Certifications we hold"]',
+      );
 
       if (await certCard.isVisible({ timeout: 5000 }).catch(() => false)) {
         // Copy button with aria-label
@@ -204,16 +282,26 @@ test.describe('Certification renewal button', { tag: '@wave1' }, () => {
     }
   });
 
-  test('supplier certifications section is collapsible', async ({ authenticatedPage: page }) => {
-    const complianceSection = page.locator('section[aria-label="Compliance status"]');
+  test('supplier certifications section is collapsible', async ({
+    authenticatedPage: page,
+  }) => {
+    const complianceSection = page.locator(
+      'section[aria-label="Compliance status"]',
+    );
 
-    if (await complianceSection.isVisible({ timeout: 10000 }).catch(() => false)) {
+    if (
+      await complianceSection.isVisible({ timeout: 10000 }).catch(() => false)
+    ) {
       // Supplier section has a toggle button with "Supplier Certifications (N)" text
-      const supplierToggle = complianceSection.locator('button[aria-expanded]').filter({
-        hasText: /Supplier Certifications/,
-      });
+      const supplierToggle = complianceSection
+        .locator('button[aria-expanded]')
+        .filter({
+          hasText: /Supplier Certifications/,
+        });
 
-      if (await supplierToggle.isVisible({ timeout: 5000 }).catch(() => false)) {
+      if (
+        await supplierToggle.isVisible({ timeout: 5000 }).catch(() => false)
+      ) {
         // Initially collapsed
         await expect(supplierToggle).toHaveAttribute('aria-expanded', 'false');
 

@@ -10,7 +10,10 @@ import {
   useUpdateCompanyProfile,
   useDeleteCompanyProfile,
 } from '@/hooks/intelligence/use-company-profiles';
-import type { CompanyProfile, CompanyProfileInput } from '@/hooks/intelligence/use-company-profiles';
+import type {
+  CompanyProfile,
+  CompanyProfileInput,
+} from '@/hooks/intelligence/use-company-profiles';
 import { CompanyProfileForm } from '@/components/intelligence/company-profile-form';
 import { CompanyProfileCard } from '@/components/intelligence/company-profile-card';
 
@@ -22,7 +25,9 @@ export default function CompanyProfilesPage() {
   const deleteMutation = useDeleteCompanyProfile();
 
   const [showForm, setShowForm] = useState(false);
-  const [editingProfile, setEditingProfile] = useState<CompanyProfile | null>(null);
+  const [editingProfile, setEditingProfile] = useState<CompanyProfile | null>(
+    null,
+  );
 
   const handleCreate = useCallback(
     (data: CompanyProfileInput) => {
@@ -54,8 +59,13 @@ export default function CompanyProfilesPage() {
   if (!roleLoading && !canEdit) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-24 text-center sm:px-6">
-        <Building2 className="mx-auto mb-4 size-10 text-muted-foreground/50" aria-hidden="true" />
-        <h2 className="text-lg font-semibold text-foreground">Access restricted</h2>
+        <Building2
+          className="mx-auto mb-4 size-10 text-muted-foreground/50"
+          aria-hidden="true"
+        />
+        <h2 className="text-lg font-semibold text-foreground">
+          Access restricted
+        </h2>
         <p className="mt-1 text-sm text-muted-foreground">
           You need editor or admin permissions to manage company profiles.
         </p>
@@ -64,7 +74,10 @@ export default function CompanyProfilesPage() {
   }
 
   return (
-    <section aria-label="Company Profiles" className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+    <section
+      aria-label="Company Profiles"
+      className="mx-auto max-w-7xl px-4 py-8 sm:px-6"
+    >
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
@@ -72,7 +85,8 @@ export default function CompanyProfilesPage() {
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Configure company context for intelligence scoring. Each profile
-            defines sectors, services, and topics that determine article relevance.
+            defines sectors, services, and topics that determine article
+            relevance.
           </p>
         </div>
         {canEdit && !showForm && (
@@ -119,8 +133,13 @@ export default function CompanyProfilesPage() {
 
       {/* Error state */}
       {error && (
-        <div className="mt-6 rounded-lg border border-destructive/50 bg-destructive/10 p-4" role="alert">
-          <p className="text-sm text-destructive">Failed to load company profiles. Please try refreshing.</p>
+        <div
+          className="mt-6 rounded-lg border border-destructive/50 bg-destructive/10 p-4"
+          role="alert"
+        >
+          <p className="text-sm text-destructive">
+            Failed to load company profiles. Please try refreshing.
+          </p>
         </div>
       )}
 
@@ -129,8 +148,13 @@ export default function CompanyProfilesPage() {
         <>
           {profiles.length === 0 && !showForm ? (
             <div className="mt-12 text-center">
-              <Building2 className="mx-auto mb-4 size-10 text-muted-foreground/50" aria-hidden="true" />
-              <h2 className="text-base font-medium text-foreground">No company profiles yet</h2>
+              <Building2
+                className="mx-auto mb-4 size-10 text-muted-foreground/50"
+                aria-hidden="true"
+              />
+              <h2 className="text-base font-medium text-foreground">
+                No company profiles yet
+              </h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 Create one to configure intelligence scoring.
               </p>

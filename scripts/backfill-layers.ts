@@ -113,7 +113,9 @@ async function main() {
   console.log('='.repeat(60));
   console.log('Layer Backfill');
   console.log('='.repeat(60));
-  console.log(`  Mode:   ${DRY_RUN ? 'DRY RUN (use --apply to write)' : 'APPLY'}`);
+  console.log(
+    `  Mode:   ${DRY_RUN ? 'DRY RUN (use --apply to write)' : 'APPLY'}`,
+  );
   console.log(`  Limit:  ${LIMIT || 'all'}`);
   console.log();
 
@@ -133,9 +135,7 @@ async function main() {
     if (error) {
       // Fallback: if RPC doesn't exist, query directly
       // We fetch content_length via a separate approach
-      console.log(
-        'RPC not available, falling back to direct query...',
-      );
+      console.log('RPC not available, falling back to direct query...');
       break;
     }
 
@@ -248,7 +248,7 @@ async function main() {
     }
 
     if (DRY_RUN) {
-      if ((i < 10) || (i % 100 === 0)) {
+      if (i < 10 || i % 100 === 0) {
         console.log(
           `  [${i + 1}/${allItems.length}] ${item.id.slice(0, 8)}... → ${layer} (${source})`,
         );
@@ -263,11 +263,9 @@ async function main() {
       .eq('id', item.id);
 
     if (updateError) {
-      console.error(
-        `  ERROR updating ${item.id}: ${updateError.message}`,
-      );
+      console.error(`  ERROR updating ${item.id}: ${updateError.message}`);
       errors++;
-    } else if ((i < 10) || (i % 100 === 0)) {
+    } else if (i < 10 || i % 100 === 0) {
       console.log(
         `  [${i + 1}/${allItems.length}] ${item.id.slice(0, 8)}... → ${layer} (${source})`,
       );

@@ -76,9 +76,7 @@ export async function POST(
     // Fetch item
     const { data: item, error: fetchError } = await supabase
       .from('content_items')
-      .select(
-        'id, content_type, file_path, source_url, metadata',
-      )
+      .select('id, content_type, file_path, source_url, metadata')
       .eq('id', id)
       .single();
 
@@ -112,8 +110,7 @@ export async function POST(
     } else if (item.source_url) {
       const response = await fetch(item.source_url, {
         headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
         },
         signal: AbortSignal.timeout(30_000),
       });
@@ -247,8 +244,7 @@ export async function POST(
     for (const img of extractedImages) {
       const ext = img.format === 'png' ? 'png' : 'jpg';
       const storagePath = `${id}/images/page${img.page}_img${img.index}.${ext}`;
-      const mimeType =
-        img.format === 'png' ? 'image/png' : 'image/jpeg';
+      const mimeType = img.format === 'png' ? 'image/png' : 'image/jpeg';
 
       const imgBuffer = Buffer.from(img.data_base64, 'base64');
 
@@ -277,38 +273,29 @@ export async function POST(
     }
 
     // Store metadata via merge_item_metadata RPC
-    const { error: mergeError } = await supabase.rpc(
-      'merge_item_metadata',
-      {
-        p_item_id: id,
-        p_new_data: toJson({
-          extracted_images: imageMetas,
-          images_extracted_at: new Date().toISOString(),
-        }),
-      },
-    );
+    const { error: mergeError } = await supabase.rpc('merge_item_metadata', {
+      p_item_id: id,
+      p_new_data: toJson({
+        extracted_images: imageMetas,
+        images_extracted_at: new Date().toISOString(),
+      }),
+    });
 
     return NextResponse.json({
       images: imageMetas,
       total_found: extractedImages.length,
       total_uploaded: imageMetas.length,
-      ...(uploadErrors.length > 0
-        ? { upload_warnings: uploadErrors }
-        : {}),
+      ...(uploadErrors.length > 0 ? { upload_warnings: uploadErrors } : {}),
       ...(mergeError
         ? {
-            warning:
-              'Images uploaded but failed to persist metadata',
+            warning: 'Images uploaded but failed to persist metadata',
           }
         : {}),
     });
   } catch (err) {
     return NextResponse.json(
       {
-        error: safeErrorMessage(
-          err,
-          'Failed to extract images from PDF',
-        ),
+        error: safeErrorMessage(err, 'Failed to extract images from PDF'),
       },
       { status: 500 },
     );
@@ -387,10 +374,7 @@ export async function GET(
   } catch (err) {
     return NextResponse.json(
       {
-        error: safeErrorMessage(
-          err,
-          'Failed to retrieve PDF images',
-        ),
+        error: safeErrorMessage(err, 'Failed to retrieve PDF images'),
       },
       { status: 500 },
     );

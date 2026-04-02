@@ -76,7 +76,11 @@ export function ProgressiveDepthFieldset({
           className={detailError ? 'border-destructive' : ''}
         />
         {detailError && (
-          <p id="detail-error" className="text-destructive text-sm" role="alert">
+          <p
+            id="detail-error"
+            className="text-destructive text-sm"
+            role="alert"
+          >
             {detailError}
           </p>
         )}
@@ -101,7 +105,11 @@ export function ProgressiveDepthFieldset({
           className={referenceError ? 'border-destructive' : ''}
         />
         {referenceError && (
-          <p id="reference-error" className="text-destructive text-sm" role="alert">
+          <p
+            id="reference-error"
+            className="text-destructive text-sm"
+            role="alert"
+          >
             {referenceError}
           </p>
         )}

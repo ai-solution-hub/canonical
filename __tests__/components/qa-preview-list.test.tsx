@@ -20,7 +20,8 @@ import type { QACreateInput } from '@/lib/quality/qa-detection';
 function makePair(overrides: Partial<QACreateInput> = {}): QACreateInput {
   return {
     title: 'What is your approach to data security?',
-    content: 'Q: What is your approach to data security?\n\nA: We implement ISO 27001 controls across all systems.',
+    content:
+      'Q: What is your approach to data security?\n\nA: We implement ISO 27001 controls across all systems.',
     contentType: 'q_a_pair',
     sectionName: 'Security',
     answerAdvanced: '',
@@ -34,14 +35,16 @@ const defaultPairs: QACreateInput[] = [
   makePair(),
   makePair({
     title: 'How do you handle data breaches?',
-    content: 'Q: How do you handle data breaches?\n\nA: We follow our incident response plan which includes immediate containment, investigation, notification within 72 hours, and remediation steps.',
+    content:
+      'Q: How do you handle data breaches?\n\nA: We follow our incident response plan which includes immediate containment, investigation, notification within 72 hours, and remediation steps.',
     sectionName: 'Incident Response',
     source: 'list',
     confidence: 'medium',
   }),
   makePair({
     title: 'Describe your backup strategy',
-    content: 'Q: Describe your backup strategy\n\nA: Daily incremental backups with weekly full backups. RPO of 4 hours, RTO of 2 hours.',
+    content:
+      'Q: Describe your backup strategy\n\nA: Daily incremental backups with weekly full backups. RPO of 4 hours, RTO of 2 hours.',
     sectionName: '',
     source: 'heading',
     confidence: 'medium',
@@ -113,7 +116,9 @@ describe('QAPreviewList', () => {
       renderPreviewList();
 
       expect(screen.getByTestId('qa-section-0')).toHaveTextContent('Security');
-      expect(screen.getByTestId('qa-section-1')).toHaveTextContent('Incident Response');
+      expect(screen.getByTestId('qa-section-1')).toHaveTextContent(
+        'Incident Response',
+      );
       // Pair 2 has no section name — badge should not exist
       expect(screen.queryByTestId('qa-section-2')).not.toBeInTheDocument();
     });
@@ -121,7 +126,9 @@ describe('QAPreviewList', () => {
     it('shows count badge with all pairs selected initially', () => {
       renderPreviewList();
 
-      expect(screen.getByTestId('qa-count-badge')).toHaveTextContent('3 of 3 selected');
+      expect(screen.getByTestId('qa-count-badge')).toHaveTextContent(
+        '3 of 3 selected',
+      );
     });
   });
 
@@ -141,7 +148,9 @@ describe('QAPreviewList', () => {
       const checkbox = screen.getByTestId('qa-checkbox-1');
       fireEvent.click(checkbox);
 
-      expect(screen.getByTestId('qa-count-badge')).toHaveTextContent('2 of 3 selected');
+      expect(screen.getByTestId('qa-count-badge')).toHaveTextContent(
+        '2 of 3 selected',
+      );
     });
 
     it('deselect all works', () => {
@@ -152,7 +161,9 @@ describe('QAPreviewList', () => {
 
       fireEvent.click(toggleAll);
 
-      expect(screen.getByTestId('qa-count-badge')).toHaveTextContent('0 of 3 selected');
+      expect(screen.getByTestId('qa-count-badge')).toHaveTextContent(
+        '0 of 3 selected',
+      );
     });
 
     it('select all works after deselecting', () => {
@@ -160,17 +171,23 @@ describe('QAPreviewList', () => {
 
       // Deselect all first
       fireEvent.click(screen.getByTestId('qa-toggle-all'));
-      expect(screen.getByTestId('qa-count-badge')).toHaveTextContent('0 of 3 selected');
+      expect(screen.getByTestId('qa-count-badge')).toHaveTextContent(
+        '0 of 3 selected',
+      );
 
       // Now select all
       fireEvent.click(screen.getByTestId('qa-toggle-all'));
-      expect(screen.getByTestId('qa-count-badge')).toHaveTextContent('3 of 3 selected');
+      expect(screen.getByTestId('qa-count-badge')).toHaveTextContent(
+        '3 of 3 selected',
+      );
     });
 
     it('confirm button shows correct count', () => {
       renderPreviewList();
 
-      expect(screen.getByTestId('qa-confirm-button')).toHaveTextContent('Create 3 items');
+      expect(screen.getByTestId('qa-confirm-button')).toHaveTextContent(
+        'Create 3 items',
+      );
     });
 
     it('confirm button is disabled when none selected', () => {
@@ -187,7 +204,9 @@ describe('QAPreviewList', () => {
       fireEvent.click(screen.getByTestId('qa-toggle-all'));
       fireEvent.click(screen.getByTestId('qa-checkbox-0'));
 
-      expect(screen.getByTestId('qa-confirm-button')).toHaveTextContent('Create 1 item');
+      expect(screen.getByTestId('qa-confirm-button')).toHaveTextContent(
+        'Create 1 item',
+      );
     });
   });
 
@@ -199,7 +218,9 @@ describe('QAPreviewList', () => {
 
       // Pair 1 should no longer be visible
       expect(screen.queryByTestId('qa-pair-1')).not.toBeInTheDocument();
-      expect(screen.getByTestId('qa-count-badge')).toHaveTextContent('2 of 2 selected');
+      expect(screen.getByTestId('qa-count-badge')).toHaveTextContent(
+        '2 of 2 selected',
+      );
     });
 
     it('removing all pairs shows empty state', () => {
@@ -241,7 +262,9 @@ describe('QAPreviewList', () => {
       fireEvent.click(screen.getByTestId('qa-done-editing-0'));
 
       // Verify updated text is displayed
-      expect(screen.getByTestId('qa-question-0')).toHaveTextContent('Updated question text?');
+      expect(screen.getByTestId('qa-question-0')).toHaveTextContent(
+        'Updated question text?',
+      );
     });
 
     it('editing answer updates the pair data', () => {
@@ -261,7 +284,9 @@ describe('QAPreviewList', () => {
       fireEvent.click(screen.getByTestId('qa-done-editing-0'));
 
       // Verify updated text is displayed
-      expect(screen.getByTestId('qa-answer-0')).toHaveTextContent('Brand new answer text.');
+      expect(screen.getByTestId('qa-answer-0')).toHaveTextContent(
+        'Brand new answer text.',
+      );
     });
 
     it('done editing button exits edit mode', () => {
@@ -271,7 +296,9 @@ describe('QAPreviewList', () => {
       expect(screen.getByTestId('qa-question-input-0')).toBeInTheDocument();
 
       fireEvent.click(screen.getByTestId('qa-done-editing-0'));
-      expect(screen.queryByTestId('qa-question-input-0')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('qa-question-input-0'),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -289,7 +316,9 @@ describe('QAPreviewList', () => {
       expect(onConfirm).toHaveBeenCalledOnce();
       const confirmedPairs = onConfirm.mock.calls[0][0];
       expect(confirmedPairs).toHaveLength(2);
-      expect(confirmedPairs[0].title).toBe('What is your approach to data security?');
+      expect(confirmedPairs[0].title).toBe(
+        'What is your approach to data security?',
+      );
       expect(confirmedPairs[1].title).toBe('Describe your backup strategy');
     });
 
@@ -312,15 +341,19 @@ describe('QAPreviewList', () => {
       renderPreviewList({ onDedupCheck });
 
       await waitFor(() => {
-        expect(screen.getAllByTestId('dedup-checking').length).toBeGreaterThan(0);
+        expect(screen.getAllByTestId('dedup-checking').length).toBeGreaterThan(
+          0,
+        );
       });
     });
 
     it('shows clear state when no duplicates found', async () => {
-      const onDedupCheck = vi.fn(async (): Promise<DedupCheckResult> => ({
-        isDuplicate: false,
-        matches: [],
-      }));
+      const onDedupCheck = vi.fn(
+        async (): Promise<DedupCheckResult> => ({
+          isDuplicate: false,
+          matches: [],
+        }),
+      );
 
       renderPreviewList({ onDedupCheck });
 
@@ -330,12 +363,18 @@ describe('QAPreviewList', () => {
     });
 
     it('shows duplicate state with match details', async () => {
-      const onDedupCheck = vi.fn(async (): Promise<DedupCheckResult> => ({
-        isDuplicate: true,
-        matches: [
-          { id: 'existing-1', title: 'Existing security policy', similarity: 0.95 },
-        ],
-      }));
+      const onDedupCheck = vi.fn(
+        async (): Promise<DedupCheckResult> => ({
+          isDuplicate: true,
+          matches: [
+            {
+              id: 'existing-1',
+              title: 'Existing security policy',
+              similarity: 0.95,
+            },
+          ],
+        }),
+      );
 
       renderPreviewList({ onDedupCheck });
 
@@ -344,7 +383,9 @@ describe('QAPreviewList', () => {
       });
 
       // Check that match details are rendered
-      expect(screen.getAllByText(/Existing security policy/).length).toBeGreaterThan(0);
+      expect(
+        screen.getAllByText(/Existing security policy/).length,
+      ).toBeGreaterThan(0);
       expect(screen.getAllByText(/95% similar/).length).toBeGreaterThan(0);
     });
 
@@ -422,7 +463,9 @@ describe('QAPreviewList', () => {
     it('has region role with descriptive label', () => {
       renderPreviewList();
 
-      expect(screen.getByRole('region', { name: 'Q&A pair preview' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('region', { name: 'Q&A pair preview' }),
+      ).toBeInTheDocument();
     });
 
     it('each pair card has article role with label', () => {
@@ -440,7 +483,9 @@ describe('QAPreviewList', () => {
       renderPreviewList();
 
       for (let i = 0; i < 3; i++) {
-        expect(screen.getByLabelText(`Include pair ${i + 1}`)).toBeInTheDocument();
+        expect(
+          screen.getByLabelText(`Include pair ${i + 1}`),
+        ).toBeInTheDocument();
       }
     });
 
@@ -448,7 +493,9 @@ describe('QAPreviewList', () => {
       renderPreviewList();
 
       for (let i = 0; i < 3; i++) {
-        expect(screen.getByLabelText(`Remove pair ${i + 1}`)).toBeInTheDocument();
+        expect(
+          screen.getByLabelText(`Remove pair ${i + 1}`),
+        ).toBeInTheDocument();
       }
     });
 
@@ -465,8 +512,12 @@ describe('QAPreviewList', () => {
 
       fireEvent.click(screen.getByTestId('qa-edit-0'));
 
-      expect(screen.getByLabelText('Edit question for pair 1')).toBeInTheDocument();
-      expect(screen.getByLabelText('Edit answer for pair 1')).toBeInTheDocument();
+      expect(
+        screen.getByLabelText('Edit question for pair 1'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByLabelText('Edit answer for pair 1'),
+      ).toBeInTheDocument();
     });
 
     it('pair list has list/listitem roles', () => {
@@ -479,7 +530,9 @@ describe('QAPreviewList', () => {
     it('empty state has region role with label', () => {
       renderPreviewList({ pairs: [] });
 
-      expect(screen.getByRole('region', { name: 'No Q&A pairs' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('region', { name: 'No Q&A pairs' }),
+      ).toBeInTheDocument();
     });
   });
 });

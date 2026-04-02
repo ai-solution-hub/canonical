@@ -3,7 +3,16 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, Briefcase, LayoutGrid, List, Calendar, Building2, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  Plus,
+  Briefcase,
+  LayoutGrid,
+  List,
+  Calendar,
+  Building2,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -88,7 +97,9 @@ export default function BidsPage() {
     result.sort((a, b) => {
       switch (sortBy) {
         case 'newest':
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+          return (
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          );
         case 'deadline': {
           const deadlineA = (a.domain_metadata as BidMetadata).deadline;
           const deadlineB = (b.domain_metadata as BidMetadata).deadline;
@@ -109,7 +120,10 @@ export default function BidsPage() {
   }, [bids, statusFilter, sortBy]);
 
   // Pagination
-  const totalPages = Math.max(1, Math.ceil(filteredBids.length / BIDS_PER_PAGE));
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredBids.length / BIDS_PER_PAGE),
+  );
   const paginatedBids = filteredBids.slice(
     (currentPage - 1) * BIDS_PER_PAGE,
     currentPage * BIDS_PER_PAGE,
@@ -127,155 +141,181 @@ export default function BidsPage() {
 
   return (
     <ErrorBoundary label="Error loading bids">
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">Bids</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Manage bid submissions and tender responses
-          </p>
-        </div>
-        {canEdit && (
-          <Button onClick={() => setShowCreate(true)} className="gap-1.5">
-            <Plus className="size-4" aria-hidden="true" />
-            New Bid
-          </Button>
-        )}
-      </div>
-
-      {/* Status filter and sort */}
-      {!loading && bids.length > 0 && (
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <div
-            className="flex flex-wrap gap-2"
-            role="group"
-            aria-label="Filter by status"
-          >
-            {STATUS_FILTERS.map((filter) => (
-              <button
-                key={filter.id}
-                type="button"
-                aria-pressed={statusFilter === filter.id}
-                onClick={() => setStatusFilter(filter.id)}
-                className={cn(
-                  'rounded-full px-3 py-1 text-sm font-medium transition-colors',
-                  statusFilter === filter.id
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-                )}
-              >
-                {filter.label}
-              </button>
-            ))}
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold text-foreground">Bids</h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Manage bid submissions and tender responses
+            </p>
           </div>
-          <div className="ml-auto flex items-center gap-2">
-            <div className="inline-flex rounded-md border" role="group" aria-label="View mode">
-              <Button
-                variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
-                size="icon-sm"
-                onClick={() => setViewMode('grid')}
-                aria-pressed={viewMode === 'grid'}
-                aria-label="Grid view"
-                className="rounded-r-none border-r border-border"
-              >
-                <LayoutGrid className="size-4" />
-              </Button>
-              <Button
-                variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-                size="icon-sm"
-                onClick={() => setViewMode('list')}
-                aria-pressed={viewMode === 'list'}
-                aria-label="List view"
-                className="rounded-l-none"
-              >
-                <List className="size-4" />
-              </Button>
+          {canEdit && (
+            <Button onClick={() => setShowCreate(true)} className="gap-1.5">
+              <Plus className="size-4" aria-hidden="true" />
+              New Bid
+            </Button>
+          )}
+        </div>
+
+        {/* Status filter and sort */}
+        {!loading && bids.length > 0 && (
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <div
+              className="flex flex-wrap gap-2"
+              role="group"
+              aria-label="Filter by status"
+            >
+              {STATUS_FILTERS.map((filter) => (
+                <button
+                  key={filter.id}
+                  type="button"
+                  aria-pressed={statusFilter === filter.id}
+                  onClick={() => setStatusFilter(filter.id)}
+                  className={cn(
+                    'rounded-full px-3 py-1 text-sm font-medium transition-colors',
+                    statusFilter === filter.id
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                  )}
+                >
+                  {filter.label}
+                </button>
+              ))}
             </div>
-            <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-              <SelectTrigger className="h-8 w-[160px] text-xs" aria-label="Sort bids by">
-                <SelectValue placeholder="Sort by..." />
-              </SelectTrigger>
-              <SelectContent position="popper">
-                <SelectItem value="newest">Newest first</SelectItem>
-                <SelectItem value="deadline">Deadline soonest</SelectItem>
-                <SelectItem value="alphabetical">Alphabetical</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      )}
-
-      {/* Content */}
-      <div className="mt-6">
-        {loading ? (
-          <BidListSkeleton viewMode={viewMode} />
-        ) : bids.length === 0 ? (
-          <EmptyState
-            canEdit={canEdit}
-            onCreateClick={() => setShowCreate(true)}
-          />
-        ) : filteredBids.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground" role="status">
-            No bids match the selected filter.
-          </p>
-        ) : viewMode === 'grid' ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {paginatedBids.map((bid) => (
-              <BidListCard key={bid.id} bid={bid} />
-            ))}
-          </div>
-        ) : (
-          <div className="divide-y rounded-lg border">
-            {paginatedBids.map((bid) => (
-              <BidListRow key={bid.id} bid={bid} />
-            ))}
+            <div className="ml-auto flex items-center gap-2">
+              <div
+                className="inline-flex rounded-md border"
+                role="group"
+                aria-label="View mode"
+              >
+                <Button
+                  variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+                  size="icon-sm"
+                  onClick={() => setViewMode('grid')}
+                  aria-pressed={viewMode === 'grid'}
+                  aria-label="Grid view"
+                  className="rounded-r-none border-r border-border"
+                >
+                  <LayoutGrid className="size-4" />
+                </Button>
+                <Button
+                  variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                  size="icon-sm"
+                  onClick={() => setViewMode('list')}
+                  aria-pressed={viewMode === 'list'}
+                  aria-label="List view"
+                  className="rounded-l-none"
+                >
+                  <List className="size-4" />
+                </Button>
+              </div>
+              <Select
+                value={sortBy}
+                onValueChange={(v) => setSortBy(v as SortOption)}
+              >
+                <SelectTrigger
+                  className="h-8 w-[160px] text-xs"
+                  aria-label="Sort bids by"
+                >
+                  <SelectValue placeholder="Sort by..." />
+                </SelectTrigger>
+                <SelectContent position="popper">
+                  <SelectItem value="newest">Newest first</SelectItem>
+                  <SelectItem value="deadline">Deadline soonest</SelectItem>
+                  <SelectItem value="alphabetical">Alphabetical</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         )}
-      </div>
 
-      {/* Pagination */}
-      {!loading && filteredBids.length > BIDS_PER_PAGE && (
-        <div className="mt-6 flex items-center justify-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={currentPage <= 1}
-            onClick={() => setCurrentPage((p) => p - 1)}
-            aria-label="Previous page"
-          >
-            <ChevronLeft className="size-4" />
-          </Button>
-          <span className="text-sm text-muted-foreground" role="status" aria-live="polite">
-            Page {currentPage} of {totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={currentPage >= totalPages}
-            onClick={() => setCurrentPage((p) => p + 1)}
-            aria-label="Next page"
-          >
-            <ChevronRight className="size-4" />
-          </Button>
+        {/* Content */}
+        <div className="mt-6">
+          {loading ? (
+            <BidListSkeleton viewMode={viewMode} />
+          ) : bids.length === 0 ? (
+            <EmptyState
+              canEdit={canEdit}
+              onCreateClick={() => setShowCreate(true)}
+            />
+          ) : filteredBids.length === 0 ? (
+            <p
+              className="py-8 text-center text-sm text-muted-foreground"
+              role="status"
+            >
+              No bids match the selected filter.
+            </p>
+          ) : viewMode === 'grid' ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {paginatedBids.map((bid) => (
+                <BidListCard key={bid.id} bid={bid} />
+              ))}
+            </div>
+          ) : (
+            <div className="divide-y rounded-lg border">
+              {paginatedBids.map((bid) => (
+                <BidListRow key={bid.id} bid={bid} />
+              ))}
+            </div>
+          )}
         </div>
-      )}
 
-      {/* Create wizard */}
-      <BidCreationWizard
-        open={showCreate}
-        onOpenChange={setShowCreate}
-        onCreated={handleBidCreated}
-      />
-    </div>
+        {/* Pagination */}
+        {!loading && filteredBids.length > BIDS_PER_PAGE && (
+          <div className="mt-6 flex items-center justify-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage((p) => p - 1)}
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="size-4" />
+            </Button>
+            <span
+              className="text-sm text-muted-foreground"
+              role="status"
+              aria-live="polite"
+            >
+              Page {currentPage} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage((p) => p + 1)}
+              aria-label="Next page"
+            >
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
+        )}
+
+        {/* Create wizard */}
+        <BidCreationWizard
+          open={showCreate}
+          onOpenChange={setShowCreate}
+          onCreated={handleBidCreated}
+        />
+      </div>
     </ErrorBoundary>
   );
 }
 
-function EmptyState({ canEdit, onCreateClick }: { canEdit: boolean; onCreateClick: () => void }) {
+function EmptyState({
+  canEdit,
+  onCreateClick,
+}: {
+  canEdit: boolean;
+  onCreateClick: () => void;
+}) {
   return (
     <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center">
-      <Briefcase className="size-10 text-muted-foreground/50" aria-hidden="true" />
+      <Briefcase
+        className="size-10 text-muted-foreground/50"
+        aria-hidden="true"
+      />
       <h2 className="mt-4 text-lg font-medium text-foreground">No bids yet</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         Create your first bid to start managing tender responses.
@@ -301,7 +341,9 @@ function BidListRow({ bid }: { bid: Bid }) {
       className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-accent/50"
     >
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-foreground">{bid.name}</p>
+        <p className="truncate text-sm font-medium text-foreground">
+          {bid.name}
+        </p>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
           {metadata.buyer && (
             <span className="inline-flex items-center gap-1">
@@ -339,7 +381,10 @@ function BidListSkeleton({ viewMode }: { viewMode: 'grid' | 'list' }) {
     return (
       <div className="divide-y rounded-lg border">
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="flex animate-pulse items-center gap-4 px-4 py-3">
+          <div
+            key={i}
+            className="flex animate-pulse items-center gap-4 px-4 py-3"
+          >
             <div className="min-w-0 flex-1 space-y-2">
               <div className="h-4 w-48 rounded bg-muted" />
               <div className="flex gap-3">

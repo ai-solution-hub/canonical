@@ -71,7 +71,9 @@ export function QuestionReview({
 
     setConfirming(true);
     try {
-      const selectedQuestions = questions.filter((_, i) => selectedIndices.has(i));
+      const selectedQuestions = questions.filter((_, i) =>
+        selectedIndices.has(i),
+      );
 
       const res = await fetch(`/api/bids/${bidId}/questions`, {
         method: 'POST',
@@ -81,13 +83,16 @@ export function QuestionReview({
 
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(body?.error ?? `Failed to save questions (${res.status})`);
+        throw new Error(
+          body?.error ?? `Failed to save questions (${res.status})`,
+        );
       }
 
       toast.success(`${selectedCount} questions confirmed and saved`);
       onConfirmed();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to save questions';
+      const message =
+        err instanceof Error ? err.message : 'Failed to save questions';
       toast.error(message);
     } finally {
       setConfirming(false);
@@ -98,7 +103,14 @@ export function QuestionReview({
   const sections = useMemo(() => {
     const sectionMap = new Map<
       string,
-      { sectionName: string; sectionSequence: number; entries: Array<{ question: ExtractedQuestionEntry; originalIndex: number }> }
+      {
+        sectionName: string;
+        sectionSequence: number;
+        entries: Array<{
+          question: ExtractedQuestionEntry;
+          originalIndex: number;
+        }>;
+      }
     >();
 
     questions.forEach((question, index) => {
@@ -119,7 +131,9 @@ export function QuestionReview({
     result.sort((a, b) => a.sectionSequence - b.sectionSequence);
 
     for (const section of result) {
-      section.entries.sort((a, b) => a.question.question_sequence - b.question.question_sequence);
+      section.entries.sort(
+        (a, b) => a.question.question_sequence - b.question.question_sequence,
+      );
     }
 
     return result;
@@ -130,12 +144,10 @@ export function QuestionReview({
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="text-sm font-medium">
-            Review Extracted Questions
-          </h3>
+          <h3 className="text-sm font-medium">Review Extracted Questions</h3>
           <p className="text-xs text-muted-foreground">
-            {questions.length} questions found across {sections.length} sections.
-            Deselect any that should not be imported.
+            {questions.length} questions found across {sections.length}{' '}
+            sections. Deselect any that should not be imported.
           </p>
         </div>
         <div className="flex gap-2">
@@ -166,11 +178,15 @@ export function QuestionReview({
           className="flex items-start gap-2 rounded-md border border-status-warning bg-quality-moderate-bg p-3"
           role="alert"
         >
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-status-warning" aria-hidden="true" />
+          <AlertTriangle
+            className="mt-0.5 size-4 shrink-0 text-status-warning"
+            aria-hidden="true"
+          />
           <p className="text-xs text-status-warning">
-            {informationalCount} {informationalCount === 1 ? 'question is' : 'questions are'}{' '}
-            categorised as informational (administrative). These are marked with a warning
-            icon and may not require a bid response.
+            {informationalCount}{' '}
+            {informationalCount === 1 ? 'question is' : 'questions are'}{' '}
+            categorised as informational (administrative). These are marked with
+            a warning icon and may not require a bid response.
           </p>
         </div>
       )}
@@ -185,7 +201,8 @@ export function QuestionReview({
                 {section.sectionName}
               </span>
               <span className="text-xs text-muted-foreground">
-                ({section.entries.length} {section.entries.length === 1 ? 'question' : 'questions'})
+                ({section.entries.length}{' '}
+                {section.entries.length === 1 ? 'question' : 'questions'})
               </span>
             </div>
 
@@ -234,8 +251,14 @@ export function QuestionReview({
                           </span>
                         )}
                         {isInformational && (
-                          <Badge variant="outline" className="gap-1 text-status-warning border-status-warning">
-                            <AlertTriangle className="size-3" aria-hidden="true" />
+                          <Badge
+                            variant="outline"
+                            className="gap-1 text-status-warning border-status-warning"
+                          >
+                            <AlertTriangle
+                              className="size-3"
+                              aria-hidden="true"
+                            />
                             Informational
                           </Badge>
                         )}

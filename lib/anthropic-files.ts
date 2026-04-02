@@ -54,4 +54,3 @@ export async function deleteAnthropicFile(fileId: string): Promise<void> {
     betas: [FILES_BETA],
   });
 }
-

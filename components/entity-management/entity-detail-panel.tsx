@@ -72,10 +72,7 @@ const TYPE_COLOURS: Record<string, string> = {
 
 function TypeBadge({ type }: { type: string }) {
   return (
-    <Badge
-      variant="outline"
-      className={cn('text-xs', TYPE_COLOURS[type])}
-    >
+    <Badge variant="outline" className={cn('text-xs', TYPE_COLOURS[type])}>
       {type}
     </Badge>
   );
@@ -158,7 +155,9 @@ function CertificationMetadataForm({
             id="cert-issuing-body"
             placeholder="e.g. BSI"
             value={metadata.issuing_body ?? ''}
-            onChange={(e) => onChange({ issuing_body: e.target.value || undefined })}
+            onChange={(e) =>
+              onChange({ issuing_body: e.target.value || undefined })
+            }
             className="h-8 text-sm"
           />
         </div>
@@ -173,7 +172,9 @@ function CertificationMetadataForm({
             id="cert-date-obtained"
             type="date"
             value={metadata.date_obtained ?? ''}
-            onChange={(e) => onChange({ date_obtained: e.target.value || undefined })}
+            onChange={(e) =>
+              onChange({ date_obtained: e.target.value || undefined })
+            }
             className="h-8 text-sm"
           />
         </div>
@@ -185,7 +186,9 @@ function CertificationMetadataForm({
             id="cert-expiry-date"
             type="date"
             value={metadata.expiry_date ?? ''}
-            onChange={(e) => onChange({ expiry_date: e.target.value || undefined })}
+            onChange={(e) =>
+              onChange({ expiry_date: e.target.value || undefined })
+            }
             className="h-8 text-sm"
           />
         </div>
@@ -212,7 +215,9 @@ function CertificationMetadataForm({
           id="cert-number"
           placeholder="Certificate or registration number"
           value={metadata.certificate_number ?? ''}
-          onChange={(e) => onChange({ certificate_number: e.target.value || undefined })}
+          onChange={(e) =>
+            onChange({ certificate_number: e.target.value || undefined })
+          }
           className="h-8 text-sm"
         />
       </div>
@@ -246,7 +251,9 @@ function CertificationMetadataForm({
               id="cert-supplier"
               placeholder="e.g. example-datacentre"
               value={metadata.supplier_name ?? ''}
-              onChange={(e) => onChange({ supplier_name: e.target.value || undefined })}
+              onChange={(e) =>
+                onChange({ supplier_name: e.target.value || undefined })
+              }
               className="h-8 text-sm"
             />
           </div>
@@ -328,7 +335,9 @@ function FrameworkMetadataForm({
             id="fw-date-joined"
             type="date"
             value={metadata.date_joined ?? ''}
-            onChange={(e) => onChange({ date_joined: e.target.value || undefined })}
+            onChange={(e) =>
+              onChange({ date_joined: e.target.value || undefined })
+            }
             className="h-8 text-sm"
           />
         </div>
@@ -340,7 +349,9 @@ function FrameworkMetadataForm({
             id="fw-expiry-date"
             type="date"
             value={metadata.expiry_date ?? ''}
-            onChange={(e) => onChange({ expiry_date: e.target.value || undefined })}
+            onChange={(e) =>
+              onChange({ expiry_date: e.target.value || undefined })
+            }
             className="h-8 text-sm"
           />
         </div>
@@ -367,7 +378,9 @@ function FrameworkMetadataForm({
             id="fw-supplier-id"
             placeholder="Registration/supplier ID"
             value={metadata.supplier_id ?? ''}
-            onChange={(e) => onChange({ supplier_id: e.target.value || undefined })}
+            onChange={(e) =>
+              onChange({ supplier_id: e.target.value || undefined })
+            }
             className="h-8 text-sm"
           />
         </div>
@@ -407,7 +420,9 @@ function RegistrationMetadataForm({
             id="reg-number"
             placeholder="e.g. ZA123456"
             value={metadata.registration_number ?? ''}
-            onChange={(e) => onChange({ registration_number: e.target.value || undefined })}
+            onChange={(e) =>
+              onChange({ registration_number: e.target.value || undefined })
+            }
             className="h-8 text-sm"
           />
         </div>
@@ -419,7 +434,9 @@ function RegistrationMetadataForm({
             id="reg-body"
             placeholder="e.g. ICO"
             value={metadata.registering_body ?? ''}
-            onChange={(e) => onChange({ registering_body: e.target.value || undefined })}
+            onChange={(e) =>
+              onChange({ registering_body: e.target.value || undefined })
+            }
             className="h-8 text-sm"
           />
         </div>
@@ -434,7 +451,9 @@ function RegistrationMetadataForm({
             id="reg-date"
             type="date"
             value={metadata.date_registered ?? ''}
-            onChange={(e) => onChange({ date_registered: e.target.value || undefined })}
+            onChange={(e) =>
+              onChange({ date_registered: e.target.value || undefined })
+            }
             className="h-8 text-sm"
           />
         </div>
@@ -446,7 +465,9 @@ function RegistrationMetadataForm({
             id="reg-expiry"
             type="date"
             value={metadata.expiry_date ?? ''}
-            onChange={(e) => onChange({ expiry_date: e.target.value || undefined })}
+            onChange={(e) =>
+              onChange({ expiry_date: e.target.value || undefined })
+            }
             className="h-8 text-sm"
           />
         </div>
@@ -602,15 +623,14 @@ export function EntityDetailPanel({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="w-full overflow-y-auto sm:max-w-lg"
-      >
+      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-lg">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <Network className="size-5 shrink-0" aria-hidden="true" />
             <span className="truncate">
-              {canonicalName ? formatEntityDisplayName(canonicalName) : 'Entity Detail'}
+              {canonicalName
+                ? formatEntityDisplayName(canonicalName)
+                : 'Entity Detail'}
             </span>
           </SheetTitle>
           <SheetDescription className="sr-only">
@@ -774,8 +794,11 @@ export function EntityDetailPanel({
                   </h4>
                   <ul className="space-y-1.5" role="list">
                     {detail.relationships.map((rel, idx) => {
-                      const isSource = rel.source_entity === detail.canonical_name;
-                      const otherEntity = isSource ? rel.target_entity : rel.source_entity;
+                      const isSource =
+                        rel.source_entity === detail.canonical_name;
+                      const otherEntity = isSource
+                        ? rel.target_entity
+                        : rel.source_entity;
 
                       return (
                         <li

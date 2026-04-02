@@ -10,7 +10,10 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import type { ReviewFilters as ReviewFiltersType, ReviewStatsResponse } from '@/types/review';
+import type {
+  ReviewFilters as ReviewFiltersType,
+  ReviewStatsResponse,
+} from '@/types/review';
 
 interface ReviewFiltersProps {
   filters: ReviewFiltersType;
@@ -19,7 +22,10 @@ interface ReviewFiltersProps {
   className?: string;
 }
 
-const STATUS_OPTIONS: Array<{ value: ReviewFiltersType['status']; label: string }> = [
+const STATUS_OPTIONS: Array<{
+  value: ReviewFiltersType['status'];
+  label: string;
+}> = [
   { value: 'unverified', label: 'Unverified' },
   { value: 'verified', label: 'Verified' },
   { value: 'flagged', label: 'Flagged' },
@@ -97,7 +103,10 @@ export function ReviewFilters({
     const updated = current.includes(domain)
       ? current.filter((d) => d !== domain)
       : [...current, domain];
-    onFiltersChange({ ...filters, domain: updated.length > 0 ? updated : undefined });
+    onFiltersChange({
+      ...filters,
+      domain: updated.length > 0 ? updated : undefined,
+    });
   };
 
   const handleContentTypeToggle = (contentType: string) => {
@@ -105,7 +114,10 @@ export function ReviewFilters({
     const updated = current.includes(contentType)
       ? current.filter((ct) => ct !== contentType)
       : [...current, contentType];
-    onFiltersChange({ ...filters, content_type: updated.length > 0 ? updated : undefined });
+    onFiltersChange({
+      ...filters,
+      content_type: updated.length > 0 ? updated : undefined,
+    });
   };
 
   const handleSourceFileChange = (file: string | undefined) => {
@@ -128,7 +140,10 @@ export function ReviewFilters({
             <Filter className="size-3.5" />
             Filters
             {activeFilterCount > 0 && (
-              <Badge variant="secondary" className="ml-0.5 h-5 min-w-5 px-1 text-[10px]">
+              <Badge
+                variant="secondary"
+                className="ml-0.5 h-5 min-w-5 px-1 text-[10px]"
+              >
                 {activeFilterCount}
               </Badge>
             )}
@@ -145,7 +160,11 @@ export function ReviewFilters({
                 {STATUS_OPTIONS.map(({ value, label }) => (
                   <Button
                     key={value}
-                    variant={(filters.status ?? 'unverified') === value ? 'default' : 'outline'}
+                    variant={
+                      (filters.status ?? 'unverified') === value
+                        ? 'default'
+                        : 'outline'
+                    }
                     size="sm"
                     className="h-7 text-xs"
                     onClick={() => handleStatusChange(value)}
@@ -170,7 +189,10 @@ export function ReviewFilters({
                         key={value}
                         onClick={() => handleDomainToggle(value)}
                         aria-pressed={isSelected}
-                        className={cn('flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1', isSelected && 'bg-accent font-medium')}
+                        className={cn(
+                          'flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+                          isSelected && 'bg-accent font-medium',
+                        )}
                       >
                         <span className="truncate">{label}</span>
                         <span className="ml-2 shrink-0 text-xs tabular-nums text-muted-foreground">
@@ -191,13 +213,17 @@ export function ReviewFilters({
                 </h4>
                 <div className="flex flex-col gap-1">
                   {contentTypeOptions.map(({ value, label, count }) => {
-                    const isSelected = filters.content_type?.includes(value) ?? false;
+                    const isSelected =
+                      filters.content_type?.includes(value) ?? false;
                     return (
                       <button
                         key={value}
                         onClick={() => handleContentTypeToggle(value)}
                         aria-pressed={isSelected}
-                        className={cn('flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1', isSelected && 'bg-accent font-medium')}
+                        className={cn(
+                          'flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+                          isSelected && 'bg-accent font-medium',
+                        )}
                       >
                         <span className="truncate">{label}</span>
                         <span className="ml-2 shrink-0 text-xs tabular-nums text-muted-foreground">
@@ -219,7 +245,10 @@ export function ReviewFilters({
                 <div className="flex flex-col gap-1">
                   <button
                     onClick={() => handleSourceFileChange(undefined)}
-                    className={cn('flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1', !filters.source_file && 'bg-accent font-medium')}
+                    className={cn(
+                      'flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+                      !filters.source_file && 'bg-accent font-medium',
+                    )}
                   >
                     <span>All files</span>
                     <span className="ml-2 shrink-0 text-xs tabular-nums text-muted-foreground">
@@ -230,7 +259,11 @@ export function ReviewFilters({
                     <button
                       key={value}
                       onClick={() => handleSourceFileChange(value)}
-                      className={cn('flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1', filters.source_file === value && 'bg-accent font-medium')}
+                      className={cn(
+                        'flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+                        filters.source_file === value &&
+                          'bg-accent font-medium',
+                      )}
                     >
                       <span className="truncate">{label}</span>
                       <span className="ml-2 shrink-0 text-xs tabular-nums text-muted-foreground">
@@ -251,25 +284,34 @@ export function ReviewFilters({
                 <div className="flex flex-col gap-1">
                   <button
                     onClick={() => handleSourceDocumentChange(undefined)}
-                    className={cn('flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1', !filters.source_document_id && 'bg-accent font-medium')}
+                    className={cn(
+                      'flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+                      !filters.source_document_id && 'bg-accent font-medium',
+                    )}
                   >
                     <span>All documents</span>
                     <span className="ml-2 shrink-0 text-xs tabular-nums text-muted-foreground">
                       {stats?.total ?? 0}
                     </span>
                   </button>
-                  {sourceDocumentOptions.map(({ value, label, count, verified }) => (
-                    <button
-                      key={value}
-                      onClick={() => handleSourceDocumentChange(value)}
-                      className={cn('flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1', filters.source_document_id === value && 'bg-accent font-medium')}
-                    >
-                      <span className="truncate">{label}</span>
-                      <span className="ml-2 shrink-0 text-xs tabular-nums text-muted-foreground">
-                        {verified}/{count}
-                      </span>
-                    </button>
-                  ))}
+                  {sourceDocumentOptions.map(
+                    ({ value, label, count, verified }) => (
+                      <button
+                        key={value}
+                        onClick={() => handleSourceDocumentChange(value)}
+                        className={cn(
+                          'flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+                          filters.source_document_id === value &&
+                            'bg-accent font-medium',
+                        )}
+                      >
+                        <span className="truncate">{label}</span>
+                        <span className="ml-2 shrink-0 text-xs tabular-nums text-muted-foreground">
+                          {verified}/{count}
+                        </span>
+                      </button>
+                    ),
+                  )}
                 </div>
               </div>
             )}

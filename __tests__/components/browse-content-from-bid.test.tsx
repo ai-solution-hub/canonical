@@ -78,12 +78,17 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: Record<string, unknown>) => (
-    <a href={href as string} {...props}>{children as React.ReactNode}</a>
+    <a href={href as string} {...props}>
+      {children as React.ReactNode}
+    </a>
   ),
 }));
 
 vi.mock('next/dynamic', () => ({
-  default: () => function DynamicComponent() { return null; },
+  default: () =>
+    function DynamicComponent() {
+      return null;
+    },
 }));
 
 vi.mock('sonner', () => ({
@@ -147,14 +152,24 @@ vi.mock('@/lib/claude-prompts', () => ({
 vi.mock('@/components/content/content-grid', () => ({
   ContentGrid: (props: Record<string, unknown>) => {
     capturedGridProps.fromBidId = props.fromBidId as string | undefined;
-    return <div data-testid="content-grid" data-from-bid-id={props.fromBidId ?? ''} />;
+    return (
+      <div
+        data-testid="content-grid"
+        data-from-bid-id={props.fromBidId ?? ''}
+      />
+    );
   },
 }));
 
 vi.mock('@/components/content/content-list', () => ({
   ContentList: (props: Record<string, unknown>) => {
     capturedListProps.fromBidId = props.fromBidId as string | undefined;
-    return <div data-testid="content-list" data-from-bid-id={props.fromBidId ?? ''} />;
+    return (
+      <div
+        data-testid="content-list"
+        data-from-bid-id={props.fromBidId ?? ''}
+      />
+    );
   },
 }));
 
@@ -205,7 +220,9 @@ import { BrowseContent } from '@/app/browse/browse-content';
 describe('BrowseContent — from_bid URL parameter', () => {
   beforeEach(() => {
     mockSearchParams.current = new URLSearchParams();
-    mockBrowseData.items = [{ id: 'item-1' }, { id: 'item-2' }] as Array<{ id: string }>;
+    mockBrowseData.items = [{ id: 'item-1' }, { id: 'item-2' }] as Array<{
+      id: string;
+    }>;
     mockBrowseData.totalCount = 2;
     mockBrowseData.isLoading = false;
     mockBrowseData.isSearchMode = false;
@@ -234,7 +251,9 @@ describe('BrowseContent — from_bid URL parameter', () => {
   });
 
   it('handles from_bid with other URL params without conflict', () => {
-    mockSearchParams.current = new URLSearchParams('from_bid=ws-2&domain=security');
+    mockSearchParams.current = new URLSearchParams(
+      'from_bid=ws-2&domain=security',
+    );
 
     render(<BrowseContent />);
 

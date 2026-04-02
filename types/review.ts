@@ -9,7 +9,12 @@ export type ReviewActionType =
   | 'unverify'
   | 'unflag';
 
-export type ReviewStatus = 'unverified' | 'verified' | 'flagged' | 'draft' | 'all';
+export type ReviewStatus =
+  | 'unverified'
+  | 'verified'
+  | 'flagged'
+  | 'draft'
+  | 'all';
 
 // -- Filter types --
 
@@ -51,7 +56,10 @@ export interface ReviewSession {
 
 // -- Queue item (extended for review display) --
 
-export type ReviewQueueSortField = 'created_at' | 'confidence_asc' | 'quality_score_asc';
+export type ReviewQueueSortField =
+  | 'created_at'
+  | 'confidence_asc'
+  | 'quality_score_asc';
 
 export interface ReviewQueueItem extends ContentListItem {
   content: string | null;
@@ -84,5 +92,8 @@ export interface ReviewStatsResponse {
   by_domain: Record<string, { total: number; verified: number }>;
   by_content_type: Record<string, { total: number; verified: number }>;
   by_source_file: Record<string, { total: number; verified: number }>;
-  by_source_document: Record<string, { total: number; verified: number; name: string }>;
+  by_source_document: Record<
+    string,
+    { total: number; verified: number; name: string }
+  >;
 }

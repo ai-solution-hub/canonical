@@ -26,11 +26,7 @@ vi.mock('next/headers', () => ({
 
 // Import AFTER mocks
 import { GET, POST } from '@/app/api/bids/route';
-import {
-  GET as getBid,
-  PATCH,
-  DELETE,
-} from '@/app/api/bids/[id]/route';
+import { GET as getBid, PATCH, DELETE } from '@/app/api/bids/[id]/route';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -78,9 +74,26 @@ function resetMocks() {
 
   const chain = mockSupabase._chain;
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     chain[method].mockReturnValue(chain);
@@ -99,11 +112,15 @@ function resetMocks() {
   mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
 
   const storageBucket = {
-    upload: vi.fn().mockResolvedValue({ data: { path: 'test-path' }, error: null }),
+    upload: vi
+      .fn()
+      .mockResolvedValue({ data: { path: 'test-path' }, error: null }),
     download: vi.fn().mockResolvedValue({ data: new Blob(), error: null }),
     remove: vi.fn().mockResolvedValue({ data: [], error: null }),
     list: vi.fn().mockResolvedValue({ data: [], error: null }),
-    getPublicUrl: vi.fn().mockReturnValue({ data: { publicUrl: 'https://example.com/file' } }),
+    getPublicUrl: vi
+      .fn()
+      .mockReturnValue({ data: { publicUrl: 'https://example.com/file' } }),
   };
   mockSupabase.storage.from.mockReturnValue(storageBucket);
 }
@@ -126,8 +143,9 @@ describe('GET /api/bids', () => {
   });
 
   it('returns 200 with bids array on success', async () => {
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: [MOCK_BID], error: null, count: 1 }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [MOCK_BID], error: null, count: 1 }),
     );
 
     mockSupabase.rpc.mockResolvedValueOnce({
@@ -142,7 +160,11 @@ describe('GET /api/bids', () => {
     const body = await res.json();
     expect(body.bids).toHaveLength(1);
     expect(body.bids[0].id).toBe(VALID_UUID);
-    expect(body.bids[0].question_stats).toEqual({ project_id: VALID_UUID, total: 5, answered: 3 });
+    expect(body.bids[0].question_stats).toEqual({
+      project_id: VALID_UUID,
+      total: 5,
+      answered: 3,
+    });
     expect(body.total).toBe(1);
     expect(body.limit).toBe(50);
     expect(body.offset).toBe(0);
@@ -187,9 +209,7 @@ describe('POST /api/bids', () => {
     const body = await res.json();
     expect(body.error).toBe('Validation failed');
     expect(body.details).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ field: 'name' }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ field: 'name' })]),
     );
   });
 
@@ -205,9 +225,7 @@ describe('POST /api/bids', () => {
     const body = await res.json();
     expect(body.error).toBe('Validation failed');
     expect(body.details).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ field: 'buyer' }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ field: 'buyer' })]),
     );
   });
 
@@ -270,14 +288,18 @@ describe('GET /api/bids/[id]', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
     const req = createTestRequest(`/api/bids/${VALID_UUID}`);
-    const res = await getBid(req, { params: createTestParams({ id: VALID_UUID }) });
+    const res = await getBid(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
 
     expect(res.status).toBe(401);
   });
 
   it('returns 400 for invalid UUID', async () => {
     const req = createTestRequest(`/api/bids/${INVALID_UUID}`);
-    const res = await getBid(req, { params: createTestParams({ id: INVALID_UUID }) });
+    const res = await getBid(req, {
+      params: createTestParams({ id: INVALID_UUID }),
+    });
 
     expect(res.status).toBe(400);
     const body = await res.json();
@@ -291,7 +313,9 @@ describe('GET /api/bids/[id]', () => {
     });
 
     const req = createTestRequest(`/api/bids/${VALID_UUID}`);
-    const res = await getBid(req, { params: createTestParams({ id: VALID_UUID }) });
+    const res = await getBid(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
 
     expect(res.status).toBe(404);
     const body = await res.json();
@@ -328,13 +352,19 @@ describe('GET /api/bids/[id]', () => {
     mockSupabase.storage.from.mockReturnValue(storageBucket);
 
     const req = createTestRequest(`/api/bids/${VALID_UUID}`);
-    const res = await getBid(req, { params: createTestParams({ id: VALID_UUID }) });
+    const res = await getBid(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
 
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.id).toBe(VALID_UUID);
     expect(body.name).toBe('Test Bid');
-    expect(body.question_stats).toEqual({ total: 10, answered: 7, approved: 3 });
+    expect(body.question_stats).toEqual({
+      total: 10,
+      answered: 7,
+      approved: 3,
+    });
     expect(body.tender_documents).toHaveLength(1);
     expect(body.tender_documents[0].filename).toBe('tender.pdf');
     expect(body.tender_documents[0].path).toBe(`${VALID_UUID}/tender.pdf`);
@@ -350,7 +380,9 @@ describe('PATCH /api/bids/[id]', () => {
       method: 'PATCH',
       body: { name: 'Updated' },
     });
-    const res = await PATCH(req, { params: createTestParams({ id: VALID_UUID }) });
+    const res = await PATCH(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     expect(res.status).toBe(401);
   });
 
@@ -360,7 +392,9 @@ describe('PATCH /api/bids/[id]', () => {
       method: 'PATCH',
       body: { name: 'Updated' },
     });
-    const res = await PATCH(req, { params: createTestParams({ id: VALID_UUID }) });
+    const res = await PATCH(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     expect(res.status).toBe(403);
   });
 
@@ -370,7 +404,9 @@ describe('PATCH /api/bids/[id]', () => {
       method: 'PATCH',
       body: { name: 'Updated' },
     });
-    const res = await PATCH(req, { params: createTestParams({ id: INVALID_UUID }) });
+    const res = await PATCH(req, {
+      params: createTestParams({ id: INVALID_UUID }),
+    });
 
     expect(res.status).toBe(400);
     const body = await res.json();
@@ -389,7 +425,9 @@ describe('PATCH /api/bids/[id]', () => {
       method: 'PATCH',
       body: { name: 'Updated' },
     });
-    const res = await PATCH(req, { params: createTestParams({ id: VALID_UUID }) });
+    const res = await PATCH(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     expect(res.status).toBe(404);
   });
 
@@ -416,7 +454,9 @@ describe('PATCH /api/bids/[id]', () => {
       method: 'PATCH',
       body: { name: 'Updated Bid', buyer: 'Updated Buyer' },
     });
-    const res = await PATCH(req, { params: createTestParams({ id: VALID_UUID }) });
+    const res = await PATCH(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -445,7 +485,9 @@ describe('PATCH /api/bids/[id]', () => {
       method: 'PATCH',
       body: { status: 'submitted' },
     });
-    const res = await PATCH(req, { params: createTestParams({ id: VALID_UUID }) });
+    const res = await PATCH(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
 
     expect(res.status).toBe(400);
     const body = await res.json();
@@ -459,7 +501,10 @@ describe('PATCH /api/bids/[id]', () => {
 
     const transitionedBid = {
       ...MOCK_BID,
-      domain_metadata: { ...MOCK_BID.domain_metadata, status: 'questions_extracted' },
+      domain_metadata: {
+        ...MOCK_BID.domain_metadata,
+        status: 'questions_extracted',
+      },
     };
 
     mockSupabase._chain.single.mockResolvedValueOnce({
@@ -476,7 +521,9 @@ describe('PATCH /api/bids/[id]', () => {
       method: 'PATCH',
       body: { status: 'questions_extracted' },
     });
-    const res = await PATCH(req, { params: createTestParams({ id: VALID_UUID }) });
+    const res = await PATCH(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -489,29 +536,45 @@ describe('DELETE /api/bids/[id]', () => {
 
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
-    const req = createTestRequest(`/api/bids/${VALID_UUID}`, { method: 'DELETE' });
-    const res = await DELETE(req, { params: createTestParams({ id: VALID_UUID }) });
+    const req = createTestRequest(`/api/bids/${VALID_UUID}`, {
+      method: 'DELETE',
+    });
+    const res = await DELETE(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     expect(res.status).toBe(401);
   });
 
   it('returns 403 for editor role (admin only)', async () => {
     configureRole(mockSupabase, 'editor');
-    const req = createTestRequest(`/api/bids/${VALID_UUID}`, { method: 'DELETE' });
-    const res = await DELETE(req, { params: createTestParams({ id: VALID_UUID }) });
+    const req = createTestRequest(`/api/bids/${VALID_UUID}`, {
+      method: 'DELETE',
+    });
+    const res = await DELETE(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     expect(res.status).toBe(403);
   });
 
   it('returns 403 for viewer role (admin only)', async () => {
     configureRole(mockSupabase, 'viewer');
-    const req = createTestRequest(`/api/bids/${VALID_UUID}`, { method: 'DELETE' });
-    const res = await DELETE(req, { params: createTestParams({ id: VALID_UUID }) });
+    const req = createTestRequest(`/api/bids/${VALID_UUID}`, {
+      method: 'DELETE',
+    });
+    const res = await DELETE(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     expect(res.status).toBe(403);
   });
 
   it('returns 400 for invalid UUID', async () => {
     configureRole(mockSupabase, 'admin');
-    const req = createTestRequest(`/api/bids/${INVALID_UUID}`, { method: 'DELETE' });
-    const res = await DELETE(req, { params: createTestParams({ id: INVALID_UUID }) });
+    const req = createTestRequest(`/api/bids/${INVALID_UUID}`, {
+      method: 'DELETE',
+    });
+    const res = await DELETE(req, {
+      params: createTestParams({ id: INVALID_UUID }),
+    });
     expect(res.status).toBe(400);
   });
 
@@ -523,8 +586,12 @@ describe('DELETE /api/bids/[id]', () => {
       error: { code: 'PGRST116', message: 'No rows found' },
     });
 
-    const req = createTestRequest(`/api/bids/${VALID_UUID}`, { method: 'DELETE' });
-    const res = await DELETE(req, { params: createTestParams({ id: VALID_UUID }) });
+    const req = createTestRequest(`/api/bids/${VALID_UUID}`, {
+      method: 'DELETE',
+    });
+    const res = await DELETE(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     expect(res.status).toBe(404);
   });
 
@@ -545,16 +612,20 @@ describe('DELETE /api/bids/[id]', () => {
     };
     mockSupabase.storage.from.mockReturnValue(storageBucket);
 
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
-    const req = createTestRequest(`/api/bids/${VALID_UUID}`, { method: 'DELETE' });
-    const res = await DELETE(req, { params: createTestParams({ id: VALID_UUID }) });
+    const req = createTestRequest(`/api/bids/${VALID_UUID}`, {
+      method: 'DELETE',
+    });
+    const res = await DELETE(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
 
     expect(res.status).toBe(204);
 

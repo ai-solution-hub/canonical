@@ -24,7 +24,9 @@ describe('TemplateUploadBodySchema', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.name).toBe('LA Tender Response Template');
-      expect(result.data.workspace_id).toBe('550e8400-e29b-41d4-a716-446655440000');
+      expect(result.data.workspace_id).toBe(
+        '550e8400-e29b-41d4-a716-446655440000',
+      );
     }
   });
 
@@ -36,7 +38,9 @@ describe('TemplateUploadBodySchema', () => {
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.description).toBe('A test template for the LA tender questionnaire.');
+      expect(result.data.description).toBe(
+        'A test template for the LA tender questionnaire.',
+      );
     }
   });
 
@@ -292,8 +296,13 @@ describe('AutoMapBodySchema', () => {
 describe('Template constants', () => {
   it('TEMPLATE_STATUSES contains all expected values', () => {
     expect(TEMPLATE_STATUSES).toEqual([
-      'uploaded', 'analysing', 'analysed', 'analysis_failed',
-      'filling', 'completed', 'fill_failed',
+      'uploaded',
+      'analysing',
+      'analysed',
+      'analysis_failed',
+      'filling',
+      'completed',
+      'fill_failed',
     ]);
   });
 
@@ -303,7 +312,11 @@ describe('Template constants', () => {
 
   it('MAPPING_STATUSES contains all expected values', () => {
     expect(MAPPING_STATUSES).toEqual([
-      'unreviewed', 'confirmed', 'rejected', 'manual', 'unmapped',
+      'unreviewed',
+      'confirmed',
+      'rejected',
+      'manual',
+      'unmapped',
     ]);
   });
 

@@ -79,7 +79,10 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
   const [readItemIds, setReadItemIds] = useState<Set<string>>(new Set());
   const readItemIdsRef = useRef<Set<string>>(readItemIds);
   // Local count overrides — used for optimistic updates between query refreshes
-  const [countAdjustment, setCountAdjustment] = useState<{ read: number; total: number } | null>(null);
+  const [countAdjustment, setCountAdjustment] = useState<{
+    read: number;
+    total: number;
+  } | null>(null);
   /** Track which item IDs have already been checked to avoid redundant requests */
   const checkedIdsRef = useRef<Set<string>>(new Set());
   /** Track loaded state via ref so checkReadStatus can read it without dependency */
@@ -101,10 +104,7 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
 
   // ─── Counts query (lazy, enabled by loadReadMarks) ───
 
-  const {
-    data: countsData,
-    isSuccess: countsLoaded,
-  } = useQuery({
+  const { data: countsData, isSuccess: countsLoaded } = useQuery({
     queryKey: queryKeys.readMarks.counts,
     queryFn: fetchReadMarkCounts,
     enabled: countsEnabled,
@@ -115,8 +115,10 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
   // Derive counts: use adjustment if set (optimistic), otherwise use query data
   const serverReadCount = countsData?.read_count ?? 0;
   const serverTotalCount = countsData?.total_count ?? 0;
-  const readCount = countAdjustment != null ? countAdjustment.read : serverReadCount;
-  const totalCount = countAdjustment != null ? countAdjustment.total : serverTotalCount;
+  const readCount =
+    countAdjustment != null ? countAdjustment.read : serverReadCount;
+  const totalCount =
+    countAdjustment != null ? countAdjustment.total : serverTotalCount;
 
   // Clear adjustment when query data updates (server caught up)
   useEffect(() => {
@@ -141,66 +143,71 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
    * Check read status for a batch of item IDs.
    * Only fetches IDs not already checked. Merges results into the readItemIds set.
    */
-  const checkReadStatus = useCallback(async (itemIds: string[]) => {
-    // Filter out IDs we've already checked
-    const uncheckedIds = itemIds.filter((id) => !checkedIdsRef.current.has(id));
-    if (uncheckedIds.length === 0) return;
-
-    // Mark these as checked immediately to prevent duplicate requests
-    for (const id of uncheckedIds) {
-      checkedIdsRef.current.add(id);
-    }
-
-    try {
-      const res = await fetch(
-        `/api/read-marks?item_ids=${uncheckedIds.join(',')}`,
+  const checkReadStatus = useCallback(
+    async (itemIds: string[]) => {
+      // Filter out IDs we've already checked
+      const uncheckedIds = itemIds.filter(
+        (id) => !checkedIdsRef.current.has(id),
       );
-      if (!res.ok) {
-        // Suppress ALL non-ok responses during auth establishment.
-        // Remove from checked so they can be retried once auth settles.
+      if (uncheckedIds.length === 0) return;
+
+      // Mark these as checked immediately to prevent duplicate requests
+      for (const id of uncheckedIds) {
+        checkedIdsRef.current.add(id);
+      }
+
+      try {
+        const res = await fetch(
+          `/api/read-marks?item_ids=${uncheckedIds.join(',')}`,
+        );
+        if (!res.ok) {
+          // Suppress ALL non-ok responses during auth establishment.
+          // Remove from checked so they can be retried once auth settles.
+          for (const id of uncheckedIds) {
+            checkedIdsRef.current.delete(id);
+          }
+          // Only log if we've previously loaded successfully (auth is established)
+          if (isLoadedRef.current) {
+            console.error(`Failed to check read status (${res.status})`);
+          }
+          return;
+        }
+        const data = await res.json();
+
+        if (!isMountedRef.current) return;
+
+        const readIds: string[] = data.read_item_ids ?? [];
+        if (readIds.length > 0) {
+          setReadItemIds((prev) => {
+            const next = new Set(prev);
+            for (const id of readIds) {
+              next.add(id);
+            }
+            return next;
+          });
+        }
+
+        // Update counts if returned — apply as adjustment so they take effect immediately
+        if (data.read_count != null || data.total_count != null) {
+          setCountAdjustment((prev) => ({
+            read: data.read_count ?? prev?.read ?? serverReadCount,
+            total: data.total_count ?? prev?.total ?? serverTotalCount,
+          }));
+        }
+      } catch (error) {
+        // Only log network errors if auth has been established (isLoaded).
+        // During auth establishment, network errors are expected and silent.
+        if (isLoadedRef.current) {
+          console.error('Failed to check read status:', error);
+        }
+        // Remove from checked so they can be retried
         for (const id of uncheckedIds) {
           checkedIdsRef.current.delete(id);
         }
-        // Only log if we've previously loaded successfully (auth is established)
-        if (isLoadedRef.current) {
-          console.error(`Failed to check read status (${res.status})`);
-        }
-        return;
       }
-      const data = await res.json();
-
-      if (!isMountedRef.current) return;
-
-      const readIds: string[] = data.read_item_ids ?? [];
-      if (readIds.length > 0) {
-        setReadItemIds((prev) => {
-          const next = new Set(prev);
-          for (const id of readIds) {
-            next.add(id);
-          }
-          return next;
-        });
-      }
-
-      // Update counts if returned — apply as adjustment so they take effect immediately
-      if (data.read_count != null || data.total_count != null) {
-        setCountAdjustment((prev) => ({
-          read: data.read_count ?? prev?.read ?? serverReadCount,
-          total: data.total_count ?? prev?.total ?? serverTotalCount,
-        }));
-      }
-    } catch (error) {
-      // Only log network errors if auth has been established (isLoaded).
-      // During auth establishment, network errors are expected and silent.
-      if (isLoadedRef.current) {
-        console.error('Failed to check read status:', error);
-      }
-      // Remove from checked so they can be retried
-      for (const id of uncheckedIds) {
-        checkedIdsRef.current.delete(id);
-      }
-    }
-  }, [serverReadCount, serverTotalCount]);
+    },
+    [serverReadCount, serverTotalCount],
+  );
 
   const unreadCount = totalCount - readCount;
 
@@ -260,47 +267,50 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
     [serverReadCount, serverTotalCount, queryClient],
   );
 
-  const markUnread = useCallback(async (itemId: string) => {
-    // Optimistic update — derive wasRead inside the updater to avoid stale closure
-    let wasRead = false;
-    setReadItemIds((prev) => {
-      if (!prev.has(itemId)) return prev; // wasn't read, no-op
-      wasRead = true;
-      const next = new Set(prev);
-      next.delete(itemId);
-      return next;
-    });
-    if (wasRead) {
-      setCountAdjustment((prev) => ({
-        read: Math.max(0, (prev?.read ?? serverReadCount) - 1),
-        total: prev?.total ?? serverTotalCount,
-      }));
-    }
-
-    try {
-      const res = await fetch('/api/read-marks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'mark_unread', item_id: itemId }),
+  const markUnread = useCallback(
+    async (itemId: string) => {
+      // Optimistic update — derive wasRead inside the updater to avoid stale closure
+      let wasRead = false;
+      setReadItemIds((prev) => {
+        if (!prev.has(itemId)) return prev; // wasn't read, no-op
+        wasRead = true;
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
       });
-      if (!res.ok) throw new Error('Failed to mark as unread');
-      queryClient.invalidateQueries({ queryKey: queryKeys.readMarks.counts });
-    } catch (error) {
-      console.error('Failed to mark as unread:', error);
-      // Rollback
       if (wasRead) {
-        setReadItemIds((prev) => {
-          const next = new Set(prev);
-          next.add(itemId);
-          return next;
-        });
         setCountAdjustment((prev) => ({
-          read: (prev?.read ?? serverReadCount) + 1,
+          read: Math.max(0, (prev?.read ?? serverReadCount) - 1),
           total: prev?.total ?? serverTotalCount,
         }));
       }
-    }
-  }, [serverReadCount, serverTotalCount, queryClient]);
+
+      try {
+        const res = await fetch('/api/read-marks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'mark_unread', item_id: itemId }),
+        });
+        if (!res.ok) throw new Error('Failed to mark as unread');
+        queryClient.invalidateQueries({ queryKey: queryKeys.readMarks.counts });
+      } catch (error) {
+        console.error('Failed to mark as unread:', error);
+        // Rollback
+        if (wasRead) {
+          setReadItemIds((prev) => {
+            const next = new Set(prev);
+            next.add(itemId);
+            return next;
+          });
+          setCountAdjustment((prev) => ({
+            read: (prev?.read ?? serverReadCount) + 1,
+            total: prev?.total ?? serverTotalCount,
+          }));
+        }
+      }
+    },
+    [serverReadCount, serverTotalCount, queryClient],
+  );
 
   const toggleRead = useCallback(
     async (itemId: string, source: ReadSource = 'manual') => {
@@ -367,33 +377,36 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
     [serverReadCount, serverTotalCount, queryClient],
   );
 
-  const contextValue: ReadMarksContextValue = useMemo(() => ({
-    readItemIds,
-    readCount,
-    unreadCount,
-    totalCount,
-    isLoaded,
-    isRead,
-    toggleRead,
-    markRead,
-    markUnread,
-    markBulkRead,
-    loadReadMarks,
-    checkReadStatus,
-  }), [
-    readItemIds,
-    readCount,
-    unreadCount,
-    totalCount,
-    isLoaded,
-    isRead,
-    toggleRead,
-    markRead,
-    markUnread,
-    markBulkRead,
-    loadReadMarks,
-    checkReadStatus,
-  ]);
+  const contextValue: ReadMarksContextValue = useMemo(
+    () => ({
+      readItemIds,
+      readCount,
+      unreadCount,
+      totalCount,
+      isLoaded,
+      isRead,
+      toggleRead,
+      markRead,
+      markUnread,
+      markBulkRead,
+      loadReadMarks,
+      checkReadStatus,
+    }),
+    [
+      readItemIds,
+      readCount,
+      unreadCount,
+      totalCount,
+      isLoaded,
+      isRead,
+      toggleRead,
+      markRead,
+      markUnread,
+      markBulkRead,
+      loadReadMarks,
+      checkReadStatus,
+    ],
+  );
 
   return (
     <ReadMarksContext.Provider value={contextValue}>

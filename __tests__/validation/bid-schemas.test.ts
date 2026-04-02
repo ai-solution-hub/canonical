@@ -112,14 +112,24 @@ describe('bid validation schemas', () => {
     });
 
     it('rejects invalid status', () => {
-      const result = BidUpdateBodySchema.safeParse({ status: 'invalid_status' });
+      const result = BidUpdateBodySchema.safeParse({
+        status: 'invalid_status',
+      });
       expect(result.success).toBe(false);
     });
 
     it('accepts all valid status values', () => {
       const validStatuses = [
-        'draft', 'questions_extracted', 'matching', 'drafting',
-        'in_review', 'ready_for_export', 'submitted', 'won', 'lost', 'withdrawn',
+        'draft',
+        'questions_extracted',
+        'matching',
+        'drafting',
+        'in_review',
+        'ready_for_export',
+        'submitted',
+        'won',
+        'lost',
+        'withdrawn',
       ];
       for (const status of validStatuses) {
         const result = BidUpdateBodySchema.safeParse({ status });
@@ -246,8 +256,18 @@ describe('bid validation schemas', () => {
     });
 
     it('accepts evaluation_weight at boundaries', () => {
-      expect(QuestionCreateBodySchema.safeParse({ question_text: 'T', evaluation_weight: 0 }).success).toBe(true);
-      expect(QuestionCreateBodySchema.safeParse({ question_text: 'T', evaluation_weight: 100 }).success).toBe(true);
+      expect(
+        QuestionCreateBodySchema.safeParse({
+          question_text: 'T',
+          evaluation_weight: 0,
+        }).success,
+      ).toBe(true);
+      expect(
+        QuestionCreateBodySchema.safeParse({
+          question_text: 'T',
+          evaluation_weight: 100,
+        }).success,
+      ).toBe(true);
     });
   });
 

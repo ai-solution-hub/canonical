@@ -13,11 +13,14 @@ interface ConfidenceBadgeProps {
 const ICON_MAP = {
   'check-circle': CheckCircle,
   'alert-circle': AlertCircle,
-  'user': User,
+  user: User,
   'file-question': FileQuestion,
 } as const;
 
-const COLOUR_CLASSES: Record<ConfidencePosture, { bg: string; text: string; border: string; dot: string }> = {
+const COLOUR_CLASSES: Record<
+  ConfidencePosture,
+  { bg: string; text: string; border: string; dot: string }
+> = {
   strong_match: {
     bg: 'bg-confidence-strong-bg',
     text: 'text-confidence-strong',
@@ -55,7 +58,11 @@ const SHORT_LABELS: Record<ConfidencePosture, string> = {
 /**
  * Confidence posture badge using colour + icon + text (WCAG 2.1 AA -- never colour alone).
  */
-export function ConfidenceBadge({ posture, compact = false, className }: ConfidenceBadgeProps) {
+export function ConfidenceBadge({
+  posture,
+  compact = false,
+  className,
+}: ConfidenceBadgeProps) {
   const config = CONFIDENCE_POSTURE_CONFIG[posture];
   const colours = COLOUR_CLASSES[posture];
   const Icon = ICON_MAP[config.icon as keyof typeof ICON_MAP] ?? FileQuestion;
@@ -110,7 +117,10 @@ export function ConfidenceDot({
 
   return (
     <span className={cn('inline-flex items-center gap-1 text-xs', className)}>
-      <span className={cn('size-2 rounded-full', colours.dot)} aria-hidden="true" />
+      <span
+        className={cn('size-2 rounded-full', colours.dot)}
+        aria-hidden="true"
+      />
       <span className="text-muted-foreground">
         {config.label}: {count}
       </span>

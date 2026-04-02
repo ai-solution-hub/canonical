@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  getAuthorisedClient,
-  authFailureResponse,
-} from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { EntityMetadataUpdateSchema } from '@/lib/validation/schemas';
@@ -44,10 +41,7 @@ export async function PATCH(
     try {
       raw = await request.json();
     } catch {
-      return NextResponse.json(
-        { error: 'Invalid JSON body' },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
     const parsed = parseBody(EntityMetadataUpdateSchema, raw);
@@ -63,14 +57,12 @@ export async function PATCH(
       .single();
 
     if (findError || !existing) {
-      return NextResponse.json(
-        { error: 'Entity not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Entity not found' }, { status: 404 });
     }
 
     // Merge new metadata with existing (shallow merge — new keys override)
-    const currentMetadata = (existing.metadata as Record<string, unknown>) ?? {};
+    const currentMetadata =
+      (existing.metadata as Record<string, unknown>) ?? {};
     const mergedMetadata = { ...currentMetadata, ...metadata };
 
     // Update the row
@@ -103,9 +95,13 @@ export async function PATCH(
           const propagateTypes = ['certification', 'regulation', 'standard'];
 
           if (propagateTypes.includes(entityType)) {
-            const contentIds = [...new Set(
-              entityInfo.map((e) => e.content_item_id).filter(Boolean) as string[]
-            )];
+            const contentIds = [
+              ...new Set(
+                entityInfo
+                  .map((e) => e.content_item_id)
+                  .filter(Boolean) as string[],
+              ),
+            ];
 
             if (contentIds.length > 0) {
               const updatePayload: Record<string, unknown> = {

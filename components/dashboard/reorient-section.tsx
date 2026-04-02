@@ -22,7 +22,12 @@ import { useDisplayNames } from '@/hooks/use-display-names';
 import { useHydrated } from '@/hooks/use-hydrated';
 import { ClaudePromptButton } from '@/components/content/claude-prompt-button';
 import { cn } from '@/lib/utils';
-import type { ReorientData, UrgentItem, TeamChange, RecentWorkItem } from '@/types/reorient';
+import type {
+  ReorientData,
+  UrgentItem,
+  TeamChange,
+  RecentWorkItem,
+} from '@/types/reorient';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -107,22 +112,26 @@ function UrgentItems({ items }: { items: UrgentItem[] }) {
         <AlertTriangle className="size-3" aria-hidden="true" />
         Needs your attention
       </h3>
-      <div className={
-        items.length <= 3
-          ? cn(
-              'grid grid-cols-1 gap-2',
-              items.length === 1 && 'lg:grid-cols-1',
-              items.length === 2 && 'lg:grid-cols-2',
-              items.length === 3 && 'lg:grid-cols-3',
-            )
-          : 'space-y-2'
-      }>
+      <div
+        className={
+          items.length <= 3
+            ? cn(
+                'grid grid-cols-1 gap-2',
+                items.length === 1 && 'lg:grid-cols-1',
+                items.length === 2 && 'lg:grid-cols-2',
+                items.length === 3 && 'lg:grid-cols-3',
+              )
+            : 'space-y-2'
+        }
+      >
         {items.map((item) => {
           const Icon = urgentIcon(item.type);
           const claudePrompt = getUrgentClaudePrompt(item);
           // Use text-bid-overdue for overdue bids, text-status-warning for everything else
           const iconColour =
-            item.type === 'bid_deadline' && item.deadline && new Date(item.deadline) < new Date()
+            item.type === 'bid_deadline' &&
+            item.deadline &&
+            new Date(item.deadline) < new Date()
               ? 'text-bid-overdue'
               : 'text-status-warning';
           return (
@@ -203,19 +212,23 @@ function TeamChanges({ changes }: { changes: TeamChange[] }) {
   if (changes.length === 0) return null;
 
   // Group changes by user + action + entity type for compact display
-  const grouped = new Map<string, {
-    name: string;
-    action: string;
-    count: number;
-    domain?: string;
-    entityType: TeamChange['entity_type'];
-  }>();
+  const grouped = new Map<
+    string,
+    {
+      name: string;
+      action: string;
+      count: number;
+      domain?: string;
+      entityType: TeamChange['entity_type'];
+    }
+  >();
   for (const change of changes) {
     const name = displayNames.get(change.user_id) ?? 'A team member';
     // For bid responses, use entity_title (bid name) as grouping context instead of domain
-    const context = change.entity_type === 'bid_response'
-      ? change.entity_title
-      : (change.domain ?? 'general');
+    const context =
+      change.entity_type === 'bid_response'
+        ? change.entity_title
+        : (change.domain ?? 'general');
     const key = `${change.user_id}::${change.action}::${change.entity_type}::${context}`;
     const existing = grouped.get(key);
     if (existing) {
@@ -225,7 +238,10 @@ function TeamChanges({ changes }: { changes: TeamChange[] }) {
         name,
         action: change.action,
         count: 1,
-        domain: change.entity_type === 'bid_response' ? change.entity_title : change.domain,
+        domain:
+          change.entity_type === 'bid_response'
+            ? change.entity_title
+            : change.domain,
         entityType: change.entity_type,
       });
     }
@@ -239,19 +255,32 @@ function TeamChanges({ changes }: { changes: TeamChange[] }) {
       </h3>
       <ul className="space-y-1">
         {Array.from(grouped.values()).map((group, i) => {
-          const domainColourClass =
-            group.domain
-              ? DOMAIN_COLOUR_CLASS[group.domain.toLowerCase()] ?? 'text-foreground'
-              : undefined;
+          const domainColourClass = group.domain
+            ? (DOMAIN_COLOUR_CLASS[group.domain.toLowerCase()] ??
+              'text-foreground')
+            : undefined;
 
-          const noun = group.entityType === 'bid_response' ? 'response' : 'item';
+          const noun =
+            group.entityType === 'bid_response' ? 'response' : 'item';
 
           return (
             <li key={i} className="text-sm text-muted-foreground">
               <span className="font-medium text-foreground">{group.name}</span>{' '}
-              {group.action} {group.count} {noun}{group.count === 1 ? '' : 's'}
+              {group.action} {group.count} {noun}
+              {group.count === 1 ? '' : 's'}
               {group.domain && (
-                <> in <span className={cn('font-medium', domainColourClass ?? 'text-foreground')}>{group.domain}</span></>
+                <>
+                  {' '}
+                  in{' '}
+                  <span
+                    className={cn(
+                      'font-medium',
+                      domainColourClass ?? 'text-foreground',
+                    )}
+                  >
+                    {group.domain}
+                  </span>
+                </>
               )}
             </li>
           );
@@ -277,7 +306,10 @@ function RecentWork({ items }: { items: RecentWorkItem[] }) {
               href={item.href}
               className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <Clock className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <Clock
+                className="size-3.5 shrink-0 text-muted-foreground"
+                aria-hidden="true"
+              />
               <span className="min-w-0 flex-1 truncate text-foreground group-hover:underline">
                 {item.entity_title}
               </span>
@@ -302,7 +334,10 @@ function DisplayNameNudge() {
 
   return (
     <div className="flex items-start gap-3 rounded-lg border bg-muted/50 p-3">
-      <UserCircle className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+      <UserCircle
+        className="mt-0.5 size-4 shrink-0 text-primary"
+        aria-hidden="true"
+      />
       <div className="min-w-0 flex-1">
         <p className="text-sm text-foreground">
           Set your display name in{' '}
@@ -319,7 +354,10 @@ function DisplayNameNudge() {
         type="button"
         className="shrink-0 rounded-md p-0.5 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
         onClick={() => {
-          localStorage.setItem(NAME_NUDGE_DISMISS_KEY, new Date().toISOString());
+          localStorage.setItem(
+            NAME_NUDGE_DISMISS_KEY,
+            new Date().toISOString(),
+          );
           setNudgeDismissed(true);
         }}
         aria-label="Dismiss display name suggestion"
@@ -371,7 +409,10 @@ export function ReorientSection({ data }: ReorientSectionProps) {
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-2">
-          <Compass className="size-4 text-muted-foreground" aria-hidden="true" />
+          <Compass
+            className="size-4 text-muted-foreground"
+            aria-hidden="true"
+          />
           <WelcomeBack
             displayName={data.user_display_name}
             lastActiveRelative={data.last_active_relative}

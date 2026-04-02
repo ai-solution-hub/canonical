@@ -10,7 +10,10 @@ process.env.NEXT_PUBLIC_E2E = 'true';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-require('dotenv').config({ path: path.resolve(__dirname, '.env.local'), override: true });
+require('dotenv').config({
+  path: path.resolve(__dirname, '.env.local'),
+  override: true,
+});
 
 const authFile = 'e2e/.auth/admin.json';
 

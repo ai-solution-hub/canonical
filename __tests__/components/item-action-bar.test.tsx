@@ -27,19 +27,25 @@ vi.mock('sonner', () => ({ toast: mockToast }));
 // Stub heavy child components
 vi.mock('@/components/shared/read-toggle-button', () => ({
   ReadToggleButton: ({ itemId }: { itemId: string }) => (
-    <button data-testid="read-toggle" data-item-id={itemId}>Read</button>
+    <button data-testid="read-toggle" data-item-id={itemId}>
+      Read
+    </button>
   ),
 }));
 
 vi.mock('@/components/shared/star-button', () => ({
   StarButton: ({ itemId }: { itemId: string }) => (
-    <button data-testid="star-button" data-item-id={itemId}>Star</button>
+    <button data-testid="star-button" data-item-id={itemId}>
+      Star
+    </button>
   ),
 }));
 
 vi.mock('@/components/shared/priority-selector', () => ({
   PrioritySelector: ({ itemId }: { itemId: string }) => (
-    <button data-testid="priority-selector" data-item-id={itemId}>Priority</button>
+    <button data-testid="priority-selector" data-item-id={itemId}>
+      Priority
+    </button>
   ),
 }));
 
@@ -57,7 +63,10 @@ vi.mock('next/dynamic', () => ({
   },
 }));
 
-import { ItemActionBar, type ItemActionBarProps } from '@/components/item-detail/item-action-bar';
+import {
+  ItemActionBar,
+  type ItemActionBarProps,
+} from '@/components/item-detail/item-action-bar';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -95,7 +104,9 @@ function createDefaultItem(): ItemActionBarProps['item'] {
   };
 }
 
-function createProps(overrides: Partial<ItemActionBarProps> = {}): ItemActionBarProps {
+function createProps(
+  overrides: Partial<ItemActionBarProps> = {},
+): ItemActionBarProps {
   return {
     item: createDefaultItem(),
     canEdit: true,
@@ -154,12 +165,16 @@ describe('ItemActionBar', () => {
 
     it('renders Copy content button', () => {
       render(<ItemActionBar {...createProps({ canEdit: true })} />);
-      expect(screen.getByRole('button', { name: /copy content/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /copy content/i }),
+      ).toBeInTheDocument();
     });
 
     it('renders overflow menu', () => {
       render(<ItemActionBar {...createProps({ canEdit: true })} />);
-      expect(screen.getByRole('button', { name: /more actions/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /more actions/i }),
+      ).toBeInTheDocument();
     });
   });
 
@@ -175,7 +190,9 @@ describe('ItemActionBar', () => {
 
     it('does not render Edit button for viewers', () => {
       render(<ItemActionBar {...createProps({ canEdit: false })} />);
-      expect(screen.queryByRole('button', { name: /^edit$/i })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: /^edit$/i }),
+      ).not.toBeInTheDocument();
     });
 
     it('does not render Star button for viewers', () => {
@@ -190,12 +207,16 @@ describe('ItemActionBar', () => {
 
     it('renders Copy content button for viewers', () => {
       render(<ItemActionBar {...createProps({ canEdit: false })} />);
-      expect(screen.getByRole('button', { name: /copy content/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /copy content/i }),
+      ).toBeInTheDocument();
     });
 
     it('renders overflow menu for viewers', () => {
       render(<ItemActionBar {...createProps({ canEdit: false })} />);
-      expect(screen.getByRole('button', { name: /more actions/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /more actions/i }),
+      ).toBeInTheDocument();
     });
   });
 
@@ -205,12 +226,16 @@ describe('ItemActionBar', () => {
 
   describe('admin role (canAdmin=true)', () => {
     it('renders hidden delete dialog for admins', () => {
-      render(<ItemActionBar {...createProps({ canEdit: true, canAdmin: true })} />);
+      render(
+        <ItemActionBar {...createProps({ canEdit: true, canAdmin: true })} />,
+      );
       expect(screen.getByTestId('delete-dialog')).toBeInTheDocument();
     });
 
     it('does not render delete dialog for non-admins', () => {
-      render(<ItemActionBar {...createProps({ canEdit: true, canAdmin: false })} />);
+      render(
+        <ItemActionBar {...createProps({ canEdit: true, canAdmin: false })} />,
+      );
       expect(screen.queryByTestId('delete-dialog')).not.toBeInTheDocument();
     });
   });
@@ -222,12 +247,16 @@ describe('ItemActionBar', () => {
   describe('Q&A pair variant', () => {
     it('renders copy answer dropdown for Q&A pairs', () => {
       render(<ItemActionBar {...createProps({ isQAPair: true })} />);
-      expect(screen.getByRole('button', { name: /copy answer/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /copy answer/i }),
+      ).toBeInTheDocument();
     });
 
     it('renders copy content button for non-Q&A items', () => {
       render(<ItemActionBar {...createProps({ isQAPair: false })} />);
-      expect(screen.getByRole('button', { name: /copy content/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /copy content/i }),
+      ).toBeInTheDocument();
     });
   });
 
@@ -258,33 +287,63 @@ describe('ItemActionBar', () => {
 
   describe('isReaderMode prop', () => {
     it('hides Edit button when isReaderMode=true even for editors', () => {
-      render(<ItemActionBar {...createProps({ canEdit: true, isReaderMode: true })} />);
-      expect(screen.queryByRole('button', { name: /^edit$/i })).not.toBeInTheDocument();
+      render(
+        <ItemActionBar
+          {...createProps({ canEdit: true, isReaderMode: true })}
+        />,
+      );
+      expect(
+        screen.queryByRole('button', { name: /^edit$/i }),
+      ).not.toBeInTheDocument();
     });
 
     it('hides Star button when isReaderMode=true', () => {
-      render(<ItemActionBar {...createProps({ canEdit: true, isReaderMode: true })} />);
+      render(
+        <ItemActionBar
+          {...createProps({ canEdit: true, isReaderMode: true })}
+        />,
+      );
       expect(screen.queryByTestId('star-button')).not.toBeInTheDocument();
     });
 
     it('hides Priority selector when isReaderMode=true', () => {
-      render(<ItemActionBar {...createProps({ canEdit: true, isReaderMode: true })} />);
+      render(
+        <ItemActionBar
+          {...createProps({ canEdit: true, isReaderMode: true })}
+        />,
+      );
       expect(screen.queryByTestId('priority-selector')).not.toBeInTheDocument();
     });
 
     it('still shows ReadToggle when isReaderMode=true', () => {
-      render(<ItemActionBar {...createProps({ canEdit: true, isReaderMode: true })} />);
+      render(
+        <ItemActionBar
+          {...createProps({ canEdit: true, isReaderMode: true })}
+        />,
+      );
       expect(screen.getByTestId('read-toggle')).toBeInTheDocument();
     });
 
     it('still shows Copy content button when isReaderMode=true', () => {
-      render(<ItemActionBar {...createProps({ canEdit: true, isReaderMode: true })} />);
-      expect(screen.getByRole('button', { name: /copy content/i })).toBeInTheDocument();
+      render(
+        <ItemActionBar
+          {...createProps({ canEdit: true, isReaderMode: true })}
+        />,
+      );
+      expect(
+        screen.getByRole('button', { name: /copy content/i }),
+      ).toBeInTheDocument();
     });
 
     it('still shows overflow menu when isReaderMode=true', () => {
-      render(<ItemActionBar {...createProps({ canEdit: true, isReaderMode: true })} />);
-      expect(screen.getByRole('button', { name: /more actions/i })).toBeInTheDocument();
+      render(
+        <ItemActionBar
+          {...createProps({ canEdit: true, isReaderMode: true })}
+        />,
+      );
+      expect(
+        screen.getByRole('button', { name: /more actions/i }),
+      ).toBeInTheDocument();
     });
 
     it('hides Visual Analysis in overflow when isReaderMode=true', async () => {
@@ -293,7 +352,11 @@ describe('ItemActionBar', () => {
       item.content_type = 'pdf';
       item.source_url = 'https://example.com/test.pdf';
 
-      render(<ItemActionBar {...createProps({ canEdit: true, isReaderMode: true, item })} />);
+      render(
+        <ItemActionBar
+          {...createProps({ canEdit: true, isReaderMode: true, item })}
+        />,
+      );
 
       await user.click(screen.getByRole('button', { name: /more actions/i }));
 
@@ -301,12 +364,24 @@ describe('ItemActionBar', () => {
     });
 
     it('hides Delete in overflow for admin when isReaderMode=true', () => {
-      render(<ItemActionBar {...createProps({ canEdit: true, canAdmin: true, isReaderMode: true })} />);
+      render(
+        <ItemActionBar
+          {...createProps({
+            canEdit: true,
+            canAdmin: true,
+            isReaderMode: true,
+          })}
+        />,
+      );
       expect(screen.queryByTestId('delete-dialog')).not.toBeInTheDocument();
     });
 
     it('shows all editing actions when isReaderMode=false (default)', () => {
-      render(<ItemActionBar {...createProps({ canEdit: true, isReaderMode: false })} />);
+      render(
+        <ItemActionBar
+          {...createProps({ canEdit: true, isReaderMode: false })}
+        />,
+      );
       expect(screen.getByRole('button', { name: /edit/i })).toBeInTheDocument();
       expect(screen.getByTestId('star-button')).toBeInTheDocument();
       expect(screen.getByTestId('priority-selector')).toBeInTheDocument();
@@ -325,7 +400,9 @@ describe('ItemActionBar', () => {
     });
 
     it('does not render detailModeToggle when not provided', () => {
-      render(<ItemActionBar {...createProps({ detailModeToggle: undefined })} />);
+      render(
+        <ItemActionBar {...createProps({ detailModeToggle: undefined })} />,
+      );
       expect(screen.queryByTestId('mode-toggle')).not.toBeInTheDocument();
     });
   });

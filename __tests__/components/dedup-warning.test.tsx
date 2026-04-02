@@ -5,7 +5,10 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { DedupWarning, type DedupMatch } from '@/components/shared/dedup-warning';
+import {
+  DedupWarning,
+  type DedupMatch,
+} from '@/components/shared/dedup-warning';
 
 const defaultMatches: DedupMatch[] = [
   {
@@ -97,11 +100,7 @@ describe('DedupWarning', () => {
 
   it('renders nothing when matches array is empty', () => {
     const { container } = render(
-      <DedupWarning
-        matches={[]}
-        onViewMatch={vi.fn()}
-        onDismiss={vi.fn()}
-      />,
+      <DedupWarning matches={[]} onViewMatch={vi.fn()} onDismiss={vi.fn()} />,
     );
 
     expect(container.firstChild).toBeNull();

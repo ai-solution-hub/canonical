@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse, rateLimitResponse } from '@/lib/auth';
+import {
+  getAuthorisedClient,
+  authFailureResponse,
+  rateLimitResponse,
+} from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody, parseSearchParams } from '@/lib/validation';
@@ -13,7 +17,8 @@ import type { Database } from '@/supabase/types/database.types';
 
 export const maxDuration = 30;
 
-type ReviewAssignmentUpdate = Database['public']['Tables']['review_assignments']['Update'];
+type ReviewAssignmentUpdate =
+  Database['public']['Tables']['review_assignments']['Update'];
 
 /**
  * GET /api/review/assignments
@@ -27,10 +32,17 @@ export async function GET(request: NextRequest) {
     if (!auth.success) return authFailureResponse(auth);
     const { user, supabase, role } = auth;
 
-    const { allowed } = checkRateLimit(`review-assignments:${user.id}`, 30, 60_000);
+    const { allowed } = checkRateLimit(
+      `review-assignments:${user.id}`,
+      30,
+      60_000,
+    );
     if (!allowed) return rateLimitResponse();
 
-    const parsed = parseSearchParams(ReviewAssignmentsParamsSchema, request.nextUrl.searchParams);
+    const parsed = parseSearchParams(
+      ReviewAssignmentsParamsSchema,
+      request.nextUrl.searchParams,
+    );
     if (!parsed.success) return parsed.response;
     const statusFilter = parsed.data.status;
 
@@ -80,7 +92,11 @@ export async function POST(request: NextRequest) {
     if (!auth.success) return authFailureResponse(auth);
     const { user, supabase } = auth;
 
-    const { allowed } = checkRateLimit(`review-assignments-create:${user.id}`, 10, 60_000);
+    const { allowed } = checkRateLimit(
+      `review-assignments-create:${user.id}`,
+      10,
+      60_000,
+    );
     if (!allowed) return rateLimitResponse();
 
     const raw = await request.json();
@@ -194,7 +210,11 @@ export async function PATCH(request: NextRequest) {
     if (!auth.success) return authFailureResponse(auth);
     const { user, supabase } = auth;
 
-    const { allowed } = checkRateLimit(`review-assignments-update:${user.id}`, 20, 60_000);
+    const { allowed } = checkRateLimit(
+      `review-assignments-update:${user.id}`,
+      20,
+      60_000,
+    );
     if (!allowed) return rateLimitResponse();
 
     const raw = await request.json();

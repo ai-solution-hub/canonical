@@ -2,7 +2,10 @@
 import { getAnthropicClient, getModelForTier } from '@/lib/anthropic';
 import { generateEmbedding } from '@/lib/ai/embed';
 import type { CompanyContext, RelevanceResult, PreFilterResult } from './types';
-import { EMBEDDING_PRE_FILTER_THRESHOLD, DEFAULT_RELEVANCE_THRESHOLD } from './types';
+import {
+  EMBEDDING_PRE_FILTER_THRESHOLD,
+  DEFAULT_RELEVANCE_THRESHOLD,
+} from './types';
 
 /** Cosine similarity between two vectors */
 function cosineSimilarity(a: number[], b: number[]): number {
@@ -98,7 +101,8 @@ export async function scoreRelevance(
     ],
   });
 
-  const text = response.content[0].type === 'text' ? response.content[0].text : '';
+  const text =
+    response.content[0].type === 'text' ? response.content[0].text : '';
 
   try {
     const parsed = JSON.parse(text);
@@ -106,9 +110,13 @@ export async function scoreRelevance(
     const category = parsed.category as RelevanceResult['category'];
     return {
       score: isNaN(score) ? 0 : score,
-      category: ['high', 'medium', 'low', 'irrelevant'].includes(category) ? category : 'irrelevant',
+      category: ['high', 'medium', 'low', 'irrelevant'].includes(category)
+        ? category
+        : 'irrelevant',
       reasoning: parsed.reasoning ?? '',
-      matchedCategories: Array.isArray(parsed.matched_categories) ? parsed.matched_categories : [],
+      matchedCategories: Array.isArray(parsed.matched_categories)
+        ? parsed.matched_categories
+        : [],
       passed: score >= threshold,
     };
   } catch {

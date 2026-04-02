@@ -32,8 +32,15 @@ vi.mock('@/lib/rate-limit', () => ({
 
 // Import routes AFTER mocks are registered
 import { GET as listGuides, POST as createGuide } from '@/app/api/guides/route';
-import { GET as getGuide, PATCH as updateGuide, DELETE as deleteGuide } from '@/app/api/guides/[slug]/route';
-import { GET as listSections, POST as createSection } from '@/app/api/guides/[slug]/sections/route';
+import {
+  GET as getGuide,
+  PATCH as updateGuide,
+  DELETE as deleteGuide,
+} from '@/app/api/guides/[slug]/route';
+import {
+  GET as listSections,
+  POST as createSection,
+} from '@/app/api/guides/[slug]/sections/route';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -75,9 +82,26 @@ beforeEach(() => {
   mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
 
   const chainable = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const m of chainable) {
     mockSupabase._chain[m].mockReturnValue(mockSupabase._chain);
@@ -86,11 +110,13 @@ beforeEach(() => {
   mockSupabase._chain.single.mockReset();
   mockSupabase._chain.single.mockResolvedValue({ data: null, error: null });
   mockSupabase._chain.maybeSingle.mockReset();
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+  });
   mockSupabase._chain.then.mockReset();
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 
   mockCheckRateLimit.mockReturnValue({ allowed: true, remaining: 19 });
@@ -111,13 +137,22 @@ describe('GET /api/guides', () => {
 
   it('returns list of guides on success', async () => {
     const guides = [
-      { id: '1', slug: 'scp-sector', name: 'SCP Sector Guide', guide_type: 'sector' },
-      { id: '2', slug: 'lms-product', name: 'LMS Product Guide', guide_type: 'product' },
+      {
+        id: '1',
+        slug: 'scp-sector',
+        name: 'SCP Sector Guide',
+        guide_type: 'sector',
+      },
+      {
+        id: '2',
+        slug: 'lms-product',
+        name: 'LMS Product Guide',
+        guide_type: 'product',
+      },
     ];
 
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: guides, error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: guides, error: null }),
     );
 
     const req = createTestRequest('/api/guides');
@@ -131,8 +166,7 @@ describe('GET /api/guides', () => {
 
   it('filters by guide type when type param is provided', async () => {
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const req = createTestRequest('/api/guides', {
@@ -248,13 +282,17 @@ describe('GET /api/guides/[slug]', () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest('/api/guides/scp-sector');
-    const res = await getGuide(req, { params: createTestParams({ slug: 'scp-sector' }) });
+    const res = await getGuide(req, {
+      params: createTestParams({ slug: 'scp-sector' }),
+    });
     expect(res.status).toBe(401);
   });
 
   it('returns 400 for invalid slug format', async () => {
     const req = createTestRequest('/api/guides/Invalid Slug!');
-    const res = await getGuide(req, { params: createTestParams({ slug: 'Invalid Slug!' }) });
+    const res = await getGuide(req, {
+      params: createTestParams({ slug: 'Invalid Slug!' }),
+    });
     expect(res.status).toBe(400);
   });
 
@@ -265,7 +303,9 @@ describe('GET /api/guides/[slug]', () => {
     });
 
     const req = createTestRequest('/api/guides/nonexistent');
-    const res = await getGuide(req, { params: createTestParams({ slug: 'nonexistent' }) });
+    const res = await getGuide(req, {
+      params: createTestParams({ slug: 'nonexistent' }),
+    });
     expect(res.status).toBe(404);
   });
 
@@ -325,7 +365,9 @@ describe('GET /api/guides/[slug]', () => {
     });
 
     const req = createTestRequest('/api/guides/scp-sector');
-    const res = await getGuide(req, { params: createTestParams({ slug: 'scp-sector' }) });
+    const res = await getGuide(req, {
+      params: createTestParams({ slug: 'scp-sector' }),
+    });
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -350,7 +392,9 @@ describe('PATCH /api/guides/[slug]', () => {
       method: 'PATCH',
       body: { name: 'Updated' },
     });
-    const res = await updateGuide(req, { params: createTestParams({ slug: 'scp-sector' }) });
+    const res = await updateGuide(req, {
+      params: createTestParams({ slug: 'scp-sector' }),
+    });
     expect(res.status).toBe(401);
   });
 
@@ -361,7 +405,9 @@ describe('PATCH /api/guides/[slug]', () => {
       method: 'PATCH',
       body: { name: 'Updated' },
     });
-    const res = await updateGuide(req, { params: createTestParams({ slug: 'scp-sector' }) });
+    const res = await updateGuide(req, {
+      params: createTestParams({ slug: 'scp-sector' }),
+    });
     expect(res.status).toBe(403);
   });
 
@@ -384,7 +430,9 @@ describe('PATCH /api/guides/[slug]', () => {
       method: 'PATCH',
       body: { name: 'Updated SCP Guide' },
     });
-    const res = await updateGuide(req, { params: createTestParams({ slug: 'scp-sector' }) });
+    const res = await updateGuide(req, {
+      params: createTestParams({ slug: 'scp-sector' }),
+    });
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -400,16 +448,24 @@ describe('DELETE /api/guides/[slug]', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest('/api/guides/scp-sector', { method: 'DELETE' });
-    const res = await deleteGuide(req, { params: createTestParams({ slug: 'scp-sector' }) });
+    const req = createTestRequest('/api/guides/scp-sector', {
+      method: 'DELETE',
+    });
+    const res = await deleteGuide(req, {
+      params: createTestParams({ slug: 'scp-sector' }),
+    });
     expect(res.status).toBe(401);
   });
 
   it('returns 403 when user has editor role (admin only)', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const req = createTestRequest('/api/guides/scp-sector', { method: 'DELETE' });
-    const res = await deleteGuide(req, { params: createTestParams({ slug: 'scp-sector' }) });
+    const req = createTestRequest('/api/guides/scp-sector', {
+      method: 'DELETE',
+    });
+    const res = await deleteGuide(req, {
+      params: createTestParams({ slug: 'scp-sector' }),
+    });
     expect(res.status).toBe(403);
   });
 
@@ -417,12 +473,15 @@ describe('DELETE /api/guides/[slug]', () => {
     configureRole(mockSupabase, 'admin');
 
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
-    const req = createTestRequest('/api/guides/scp-sector', { method: 'DELETE' });
-    const res = await deleteGuide(req, { params: createTestParams({ slug: 'scp-sector' }) });
+    const req = createTestRequest('/api/guides/scp-sector', {
+      method: 'DELETE',
+    });
+    const res = await deleteGuide(req, {
+      params: createTestParams({ slug: 'scp-sector' }),
+    });
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -439,7 +498,9 @@ describe('GET /api/guides/[slug]/sections', () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest('/api/guides/scp-sector/sections');
-    const res = await listSections(req, { params: createTestParams({ slug: 'scp-sector' }) });
+    const res = await listSections(req, {
+      params: createTestParams({ slug: 'scp-sector' }),
+    });
     expect(res.status).toBe(401);
   });
 
@@ -451,7 +512,9 @@ describe('GET /api/guides/[slug]/sections', () => {
     });
 
     const req = createTestRequest('/api/guides/nonexistent/sections');
-    const res = await listSections(req, { params: createTestParams({ slug: 'nonexistent' }) });
+    const res = await listSections(req, {
+      params: createTestParams({ slug: 'nonexistent' }),
+    });
     expect(res.status).toBe(404);
   });
 
@@ -473,7 +536,9 @@ describe('GET /api/guides/[slug]/sections', () => {
     );
 
     const req = createTestRequest('/api/guides/scp-sector/sections');
-    const res = await listSections(req, { params: createTestParams({ slug: 'scp-sector' }) });
+    const res = await listSections(req, {
+      params: createTestParams({ slug: 'scp-sector' }),
+    });
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -493,7 +558,9 @@ describe('POST /api/guides/[slug]/sections', () => {
       method: 'POST',
       body: validSectionBody(),
     });
-    const res = await createSection(req, { params: createTestParams({ slug: 'scp-sector' }) });
+    const res = await createSection(req, {
+      params: createTestParams({ slug: 'scp-sector' }),
+    });
     expect(res.status).toBe(401);
   });
 
@@ -504,7 +571,9 @@ describe('POST /api/guides/[slug]/sections', () => {
       method: 'POST',
       body: validSectionBody(),
     });
-    const res = await createSection(req, { params: createTestParams({ slug: 'scp-sector' }) });
+    const res = await createSection(req, {
+      params: createTestParams({ slug: 'scp-sector' }),
+    });
     expect(res.status).toBe(403);
   });
 
@@ -520,7 +589,9 @@ describe('POST /api/guides/[slug]/sections', () => {
       method: 'POST',
       body: validSectionBody(),
     });
-    const res = await createSection(req, { params: createTestParams({ slug: 'nonexistent' }) });
+    const res = await createSection(req, {
+      params: createTestParams({ slug: 'nonexistent' }),
+    });
     expect(res.status).toBe(404);
   });
 
@@ -537,7 +608,9 @@ describe('POST /api/guides/[slug]/sections', () => {
       method: 'POST',
       body: { expected_layer: 'invalid_layer' },
     });
-    const res = await createSection(req, { params: createTestParams({ slug: 'scp-sector' }) });
+    const res = await createSection(req, {
+      params: createTestParams({ slug: 'scp-sector' }),
+    });
     expect(res.status).toBe(400);
   });
 
@@ -568,7 +641,9 @@ describe('POST /api/guides/[slug]/sections', () => {
       method: 'POST',
       body: validSectionBody(),
     });
-    const res = await createSection(req, { params: createTestParams({ slug: 'scp-sector' }) });
+    const res = await createSection(req, {
+      params: createTestParams({ slug: 'scp-sector' }),
+    });
     expect(res.status).toBe(201);
 
     const body = await res.json();

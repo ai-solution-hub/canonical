@@ -66,13 +66,14 @@ export function useNotifications() {
 
   const markAsReadMutation = useMutation({
     mutationFn: (notificationIds: string[]) =>
-      mutationFetchJson<Record<string, unknown>>(
-        '/api/notifications/read',
-        { notification_ids: notificationIds },
-      ),
+      mutationFetchJson<Record<string, unknown>>('/api/notifications/read', {
+        notification_ids: notificationIds,
+      }),
     onMutate: async (notificationIds: string[]) => {
       // Cancel outgoing refetches so they don't overwrite our optimistic update
-      await queryClient.cancelQueries({ queryKey: queryKeys.notifications.list });
+      await queryClient.cancelQueries({
+        queryKey: queryKeys.notifications.list,
+      });
 
       // Snapshot the previous value for rollback
       const previous = queryClient.getQueryData<NotificationsResponse>(
@@ -130,9 +131,7 @@ export function useNotifications() {
   );
 
   const markAllAsRead = useCallback(async () => {
-    const unreadIds = notifications
-      .filter((n) => !n.read_at)
-      .map((n) => n.id);
+    const unreadIds = notifications.filter((n) => !n.read_at).map((n) => n.id);
     if (unreadIds.length === 0) return;
     markAsReadMutate(unreadIds);
   }, [notifications, markAsReadMutate]);

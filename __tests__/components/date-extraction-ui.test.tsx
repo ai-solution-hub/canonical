@@ -499,9 +499,7 @@ describe('TemporalReferencesSection', () => {
     const user = userEvent.setup();
     render(<TemporalReferencesSection temporalReferences={sampleRefs} />);
 
-    await user.click(
-      screen.getByRole('button', { name: /extracted dates/i }),
-    );
+    await user.click(screen.getByRole('button', { name: /extracted dates/i }));
 
     expect(screen.getByText('Expiry')).toBeInTheDocument();
     expect(screen.getByText('Effective')).toBeInTheDocument();
@@ -512,9 +510,7 @@ describe('TemporalReferencesSection', () => {
     const user = userEvent.setup();
     render(<TemporalReferencesSection temporalReferences={sampleRefs} />);
 
-    await user.click(
-      screen.getByRole('button', { name: /extracted dates/i }),
-    );
+    await user.click(screen.getByRole('button', { name: /extracted dates/i }));
 
     expect(screen.getByText('high')).toBeInTheDocument();
     expect(screen.getByText('medium')).toBeInTheDocument();
@@ -525,9 +521,7 @@ describe('TemporalReferencesSection', () => {
     const user = userEvent.setup();
     render(<TemporalReferencesSection temporalReferences={sampleRefs} />);
 
-    await user.click(
-      screen.getByRole('button', { name: /extracted dates/i }),
-    );
+    await user.click(screen.getByRole('button', { name: /extracted dates/i }));
 
     expect(
       screen.getByText(/ISO 27001 certificate expires/),
@@ -556,20 +550,16 @@ describe('TemporalReferencesSection', () => {
     expect(toggle).toHaveAttribute('aria-controls', 'temporal-references-list');
 
     await user.click(toggle);
-    expect(document.getElementById('temporal-references-list')).toBeInTheDocument();
+    expect(
+      document.getElementById('temporal-references-list'),
+    ).toBeInTheDocument();
   });
 
   it('uses semantic tokens for context type styling (no raw Tailwind)', async () => {
     const user = userEvent.setup();
-    render(
-      <TemporalReferencesSection
-        temporalReferences={[sampleRefs[0]]}
-      />,
-    );
+    render(<TemporalReferencesSection temporalReferences={[sampleRefs[0]]} />);
 
-    await user.click(
-      screen.getByRole('button', { name: /extracted dates/i }),
-    );
+    await user.click(screen.getByRole('button', { name: /extracted dates/i }));
 
     const expiryBadge = screen.getByText('Expiry');
     // Should use freshness-stale tokens for expiry type, not raw colours

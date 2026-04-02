@@ -6,7 +6,13 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 // ---------------------------------------------------------------------------
@@ -65,7 +71,9 @@ vi.mock('@/components/ui/input', () => ({
     <input
       {...props}
       onChange={props.onChange as React.ChangeEventHandler<HTMLInputElement>}
-      onKeyDown={props.onKeyDown as React.KeyboardEventHandler<HTMLInputElement>}
+      onKeyDown={
+        props.onKeyDown as React.KeyboardEventHandler<HTMLInputElement>
+      }
     />
   ),
 }));
@@ -78,37 +86,67 @@ vi.mock('@/components/ui/label', () => ({
 
 vi.mock('lucide-react', () => ({
   Globe: (props: Record<string, unknown>) => (
-    <span data-testid="globe-icon" aria-hidden={props['aria-hidden'] as string} />
+    <span
+      data-testid="globe-icon"
+      aria-hidden={props['aria-hidden'] as string}
+    />
   ),
   Loader2: (props: Record<string, unknown>) => (
-    <span data-testid="loader-icon" aria-hidden={props['aria-hidden'] as string} />
+    <span
+      data-testid="loader-icon"
+      aria-hidden={props['aria-hidden'] as string}
+    />
   ),
   AlertCircle: (props: Record<string, unknown>) => (
-    <span data-testid="alert-icon" aria-hidden={props['aria-hidden'] as string} />
+    <span
+      data-testid="alert-icon"
+      aria-hidden={props['aria-hidden'] as string}
+    />
   ),
   Link2: (props: Record<string, unknown>) => (
-    <span data-testid="link-icon" aria-hidden={props['aria-hidden'] as string} />
+    <span
+      data-testid="link-icon"
+      aria-hidden={props['aria-hidden'] as string}
+    />
   ),
   Copy: (props: Record<string, unknown>) => (
-    <span data-testid="copy-icon" aria-hidden={props['aria-hidden'] as string} />
+    <span
+      data-testid="copy-icon"
+      aria-hidden={props['aria-hidden'] as string}
+    />
   ),
   ExternalLink: (props: Record<string, unknown>) => (
-    <span data-testid="external-link-icon" aria-hidden={props['aria-hidden'] as string} />
+    <span
+      data-testid="external-link-icon"
+      aria-hidden={props['aria-hidden'] as string}
+    />
   ),
   AlertTriangle: (props: Record<string, unknown>) => (
-    <span data-testid="alert-triangle-icon" aria-hidden={props['aria-hidden'] as string} />
+    <span
+      data-testid="alert-triangle-icon"
+      aria-hidden={props['aria-hidden'] as string}
+    />
   ),
   X: (props: Record<string, unknown>) => (
     <span data-testid="x-icon" aria-hidden={props['aria-hidden'] as string} />
   ),
   Check: (props: Record<string, unknown>) => (
-    <span data-testid="check-icon" aria-hidden={props['aria-hidden'] as string} />
+    <span
+      data-testid="check-icon"
+      aria-hidden={props['aria-hidden'] as string}
+    />
   ),
   Minus: (props: Record<string, unknown>) => (
-    <span data-testid="minus-icon" aria-hidden={props['aria-hidden'] as string} />
+    <span
+      data-testid="minus-icon"
+      aria-hidden={props['aria-hidden'] as string}
+    />
   ),
   SkipForward: (props: Record<string, unknown>) => (
-    <span data-testid="skip-icon" aria-hidden={props['aria-hidden'] as string} />
+    <span
+      data-testid="skip-icon"
+      aria-hidden={props['aria-hidden'] as string}
+    />
   ),
 }));
 
@@ -128,7 +166,11 @@ vi.mock('@/lib/claude-prompts', () => ({
 }));
 
 vi.mock('@/components/create-content/ingestion-progress', () => ({
-  IngestionProgress: ({ steps }: { steps: Array<{ label: string; status: string }> }) => (
+  IngestionProgress: ({
+    steps,
+  }: {
+    steps: Array<{ label: string; status: string }>;
+  }) => (
     <div data-testid="ingestion-progress">
       {steps.map((s, i) => (
         <span key={i} data-status={s.status}>
@@ -140,7 +182,13 @@ vi.mock('@/components/create-content/ingestion-progress', () => ({
 }));
 
 vi.mock('@/components/create-content/ingestion-success-card', () => ({
-  IngestionSuccessCard: ({ itemId, title }: { itemId: string; title: string }) => (
+  IngestionSuccessCard: ({
+    itemId,
+    title,
+  }: {
+    itemId: string;
+    title: string;
+  }) => (
     <div data-testid="success-card" data-item-id={itemId}>
       {title}
     </div>
@@ -218,7 +266,9 @@ describe('UrlIngestForm', () => {
     const input = screen.getByLabelText(/web page url/i);
 
     await act(async () => {
-      fireEvent.change(input, { target: { value: 'https://example.com/article' } });
+      fireEvent.change(input, {
+        target: { value: 'https://example.com/article' },
+      });
     });
 
     const button = screen.getByRole('button', { name: /import/i });
@@ -253,7 +303,9 @@ describe('UrlIngestForm', () => {
     const input = screen.getByLabelText(/web page url/i);
 
     await act(async () => {
-      fireEvent.change(input, { target: { value: 'https://example.com/article' } });
+      fireEvent.change(input, {
+        target: { value: 'https://example.com/article' },
+      });
     });
 
     const button = screen.getByRole('button', { name: /import/i });
@@ -280,7 +332,9 @@ describe('UrlIngestForm', () => {
     const input = screen.getByLabelText(/web page url/i);
 
     await act(async () => {
-      fireEvent.change(input, { target: { value: 'https://example.com/article' } });
+      fireEvent.change(input, {
+        target: { value: 'https://example.com/article' },
+      });
     });
 
     const button = screen.getByRole('button', { name: /import/i });
@@ -311,7 +365,9 @@ describe('UrlIngestForm', () => {
     const input = screen.getByLabelText(/web page url/i);
 
     await act(async () => {
-      fireEvent.change(input, { target: { value: 'https://example.com/article' } });
+      fireEvent.change(input, {
+        target: { value: 'https://example.com/article' },
+      });
     });
 
     await act(async () => {
@@ -319,7 +375,9 @@ describe('UrlIngestForm', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /import another url/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /import another url/i }),
+      ).toBeInTheDocument();
     });
   });
 
@@ -354,7 +412,9 @@ describe('UrlIngestForm', () => {
       const input = screen.getByLabelText(/web page url/i);
 
       await act(async () => {
-        fireEvent.change(input, { target: { value: 'https://example.com/brief' } });
+        fireEvent.change(input, {
+          target: { value: 'https://example.com/brief' },
+        });
       });
 
       await act(async () => {
@@ -366,7 +426,9 @@ describe('UrlIngestForm', () => {
       });
 
       // The manual suggestion link should be present
-      const manualButton = screen.getByRole('button', { name: /pasting the content manually/i });
+      const manualButton = screen.getByRole('button', {
+        name: /pasting the content manually/i,
+      });
       expect(manualButton).toBeInTheDocument();
 
       await act(async () => {
@@ -397,7 +459,9 @@ describe('UrlIngestForm', () => {
       const input = screen.getByLabelText(/web page url/i);
 
       await act(async () => {
-        fireEvent.change(input, { target: { value: 'https://example.com/long' } });
+        fireEvent.change(input, {
+          target: { value: 'https://example.com/long' },
+        });
       });
 
       await act(async () => {
@@ -408,7 +472,9 @@ describe('UrlIngestForm', () => {
         expect(screen.getByTestId('success-card')).toBeInTheDocument();
       });
 
-      expect(screen.queryByRole('button', { name: /pasting the content manually/i })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: /pasting the content manually/i }),
+      ).not.toBeInTheDocument();
     });
 
     it('does not show manual suggestion when onSuggestManual not provided', async () => {
@@ -430,7 +496,9 @@ describe('UrlIngestForm', () => {
       const input = screen.getByLabelText(/web page url/i);
 
       await act(async () => {
-        fireEvent.change(input, { target: { value: 'https://example.com/short' } });
+        fireEvent.change(input, {
+          target: { value: 'https://example.com/short' },
+        });
       });
 
       await act(async () => {
@@ -441,7 +509,9 @@ describe('UrlIngestForm', () => {
         expect(screen.getByTestId('success-card')).toBeInTheDocument();
       });
 
-      expect(screen.queryByRole('button', { name: /pasting the content manually/i })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: /pasting the content manually/i }),
+      ).not.toBeInTheDocument();
     });
   });
 });

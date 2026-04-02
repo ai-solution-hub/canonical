@@ -1,7 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertTriangle, ChevronDown, ChevronUp, ExternalLink, FileText, FileX } from 'lucide-react';
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  FileText,
+  FileX,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -33,11 +40,18 @@ export function CitationPanel({
   className,
 }: CitationPanelProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [expandedCitationIndex, setExpandedCitationIndex] = useState<number | null>(null);
+  const [expandedCitationIndex, setExpandedCitationIndex] = useState<
+    number | null
+  >(null);
 
   if (citations.length === 0) {
     return (
-      <div className={cn('flex flex-col items-center gap-2 rounded-md border bg-muted/30 px-4 py-6 text-center', className)}>
+      <div
+        className={cn(
+          'flex flex-col items-center gap-2 rounded-md border bg-muted/30 px-4 py-6 text-center',
+          className,
+        )}
+      >
         <FileX className="size-8 text-muted-foreground" aria-hidden="true" />
         <p className="text-sm text-muted-foreground">
           No citations — this response was not sourced from KB content.
@@ -47,7 +61,10 @@ export function CitationPanel({
   }
 
   // Deduplicate citations by source_id for the summary
-  const uniqueSources = new Map<string, { citation: CitationEntry; source?: SourceContent; count: number }>();
+  const uniqueSources = new Map<
+    string,
+    { citation: CitationEntry; source?: SourceContent; count: number }
+  >();
   for (const citation of citations) {
     const existing = uniqueSources.get(citation.source_id);
     if (existing) {
@@ -84,12 +101,18 @@ export function CitationPanel({
       {isExpanded && (
         <div id="citation-panel-content" className="border-t divide-y">
           {citations.map((citation, index) => {
-            const source = sourceContent.find((s) => s.id === citation.source_id);
+            const source = sourceContent.find(
+              (s) => s.id === citation.source_id,
+            );
             const isExpandedCitation = expandedCitationIndex === index;
-            const isOrphaned = orphanedSourceIds?.has(citation.source_id) ?? false;
+            const isOrphaned =
+              orphanedSourceIds?.has(citation.source_id) ?? false;
 
             return (
-              <div key={`${citation.source_id}-${index}`} className="px-4 py-2.5">
+              <div
+                key={`${citation.source_id}-${index}`}
+                className="px-4 py-2.5"
+              >
                 <div className="flex items-start gap-2">
                   <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
                     {index + 1}
@@ -117,17 +140,26 @@ export function CitationPanel({
                           variant="outline"
                           className="text-[10px] px-1.5 py-0 border-status-warning bg-quality-moderate-bg text-status-warning"
                         >
-                          <AlertTriangle className="size-2.5 mr-0.5" aria-hidden="true" />
+                          <AlertTriangle
+                            className="size-2.5 mr-0.5"
+                            aria-hidden="true"
+                          />
                           Source removed
                         </Badge>
                       )}
                       {source?.content_type && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1.5 py-0"
+                        >
                           {source.content_type.replace(/_/g, ' ')}
                         </Badge>
                       )}
                       {source?.primary_domain && (
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                        <Badge
+                          variant="secondary"
+                          className="text-[10px] px-1.5 py-0"
+                        >
                           {source.primary_domain}
                         </Badge>
                       )}
@@ -149,8 +181,16 @@ export function CitationPanel({
                     variant="ghost"
                     size="icon-sm"
                     className="min-h-[44px] min-w-[44px]"
-                    onClick={() => setExpandedCitationIndex(isExpandedCitation ? null : index)}
-                    aria-label={isExpandedCitation ? 'Collapse source detail' : 'Expand source detail'}
+                    onClick={() =>
+                      setExpandedCitationIndex(
+                        isExpandedCitation ? null : index,
+                      )
+                    }
+                    aria-label={
+                      isExpandedCitation
+                        ? 'Collapse source detail'
+                        : 'Expand source detail'
+                    }
                     type="button"
                   >
                     {isExpandedCitation ? (

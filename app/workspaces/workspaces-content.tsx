@@ -1,10 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import {
-  getLauncherTypes,
-  formatTypeCount,
-} from '@/lib/workspace-types';
+import { getLauncherTypes, formatTypeCount } from '@/lib/workspace-types';
 
 interface WorkspacesContentProps {
   counts: Record<string, number>;
@@ -40,10 +37,7 @@ export function WorkspacesContent({ counts }: WorkspacesContentProps) {
               >
                 <div className="flex items-start gap-4">
                   <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary/10">
-                    <Icon
-                      className="size-5 text-primary"
-                      aria-hidden="true"
-                    />
+                    <Icon className="size-5 text-primary" aria-hidden="true" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <h2 className="text-lg font-semibold">{wt.labelPlural}</h2>

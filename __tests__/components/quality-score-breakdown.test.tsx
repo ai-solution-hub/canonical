@@ -115,9 +115,7 @@ describe('QualityScoreBreakdown', () => {
   });
 
   it('applies destructive colour classes for Poor label', () => {
-    const { container } = render(
-      <QualityScoreBreakdown item={poorItem} />,
-    );
+    const { container } = render(<QualityScoreBreakdown item={poorItem} />);
     const badge = container.querySelector('.rounded-full');
     expect(badge?.className).toContain('text-destructive');
     expect(badge?.className).toContain('bg-destructive/10');
@@ -130,7 +128,9 @@ describe('QualityScoreBreakdown', () => {
   it('does not show component breakdown initially', () => {
     render(<QualityScoreBreakdown item={excellentItem} />);
     expect(
-      screen.queryByRole('region', { name: /quality score component breakdown/i }),
+      screen.queryByRole('region', {
+        name: /quality score component breakdown/i,
+      }),
     ).not.toBeInTheDocument();
   });
 
@@ -138,7 +138,9 @@ describe('QualityScoreBreakdown', () => {
     render(<QualityScoreBreakdown item={excellentItem} />);
     fireEvent.click(screen.getByRole('button'));
     expect(
-      screen.getByRole('region', { name: /quality score component breakdown/i }),
+      screen.getByRole('region', {
+        name: /quality score component breakdown/i,
+      }),
     ).toBeInTheDocument();
   });
 
@@ -147,11 +149,15 @@ describe('QualityScoreBreakdown', () => {
     const button = screen.getByRole('button');
     fireEvent.click(button);
     expect(
-      screen.getByRole('region', { name: /quality score component breakdown/i }),
+      screen.getByRole('region', {
+        name: /quality score component breakdown/i,
+      }),
     ).toBeInTheDocument();
     fireEvent.click(button);
     expect(
-      screen.queryByRole('region', { name: /quality score component breakdown/i }),
+      screen.queryByRole('region', {
+        name: /quality score component breakdown/i,
+      }),
     ).not.toBeInTheDocument();
   });
 
@@ -244,7 +250,9 @@ describe('QualityScoreBreakdown', () => {
   // -------------------------------------------------------------------------
 
   it('handles all-null item gracefully without errors', () => {
-    expect(() => render(<QualityScoreBreakdown item={emptyItem} />)).not.toThrow();
+    expect(() =>
+      render(<QualityScoreBreakdown item={emptyItem} />),
+    ).not.toThrow();
   });
 
   it('handles empty object gracefully', () => {

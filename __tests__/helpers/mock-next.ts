@@ -90,4 +90,3 @@ export function mockCookies() {
     has: vi.fn().mockReturnValue(false),
   };
 }
-

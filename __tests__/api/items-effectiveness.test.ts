@@ -48,16 +48,41 @@ function resetMocks() {
   });
 
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockResolvedValue({ data: null, error: null, count: null });
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null, count: null });
+  mockSupabase._chain.single.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
@@ -137,8 +162,8 @@ describe('GET /api/items/[id]/effectiveness', () => {
     });
 
     // Citations query returns empty
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const req = createTestRequest(`/api/items/${CONTENT_ID}/effectiveness`);
@@ -175,8 +200,8 @@ describe('GET /api/items/[id]/effectiveness', () => {
     });
 
     // Citations query returns empty (bid list tested separately)
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const req = createTestRequest(`/api/items/${CONTENT_ID}/effectiveness`);
@@ -214,40 +239,41 @@ describe('GET /api/items/[id]/effectiveness', () => {
     });
 
     // Citations query returns bid data
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({
-        data: [
-          {
-            created_at: '2026-01-15T10:00:00Z',
-            bid_responses: {
-              id: 'resp-1',
-              question: {
-                project_id: WORKSPACE_ID,
-                workspace: {
-                  id: WORKSPACE_ID,
-                  name: 'NHS Digital Redesign',
-                  domain_metadata: { outcome: 'won', buyer: 'NHS England' },
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              created_at: '2026-01-15T10:00:00Z',
+              bid_responses: {
+                id: 'resp-1',
+                question: {
+                  project_id: WORKSPACE_ID,
+                  workspace: {
+                    id: WORKSPACE_ID,
+                    name: 'NHS Digital Redesign',
+                    domain_metadata: { outcome: 'won', buyer: 'NHS England' },
+                  },
                 },
               },
             },
-          },
-          {
-            created_at: '2026-02-20T14:00:00Z',
-            bid_responses: {
-              id: 'resp-2',
-              question: {
-                project_id: '00000000-0000-4000-8000-000000000011',
-                workspace: {
-                  id: '00000000-0000-4000-8000-000000000011',
-                  name: 'Council Portal',
-                  domain_metadata: { outcome: 'lost' },
+            {
+              created_at: '2026-02-20T14:00:00Z',
+              bid_responses: {
+                id: 'resp-2',
+                question: {
+                  project_id: '00000000-0000-4000-8000-000000000011',
+                  workspace: {
+                    id: '00000000-0000-4000-8000-000000000011',
+                    name: 'Council Portal',
+                    domain_metadata: { outcome: 'lost' },
+                  },
                 },
               },
             },
-          },
-        ],
-        error: null,
-      }),
+          ],
+          error: null,
+        }),
     );
 
     const req = createTestRequest(`/api/items/${CONTENT_ID}/effectiveness`);

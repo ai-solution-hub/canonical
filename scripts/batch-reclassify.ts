@@ -266,7 +266,9 @@ function hasEditorialNotes(content: string): boolean {
 
 // ── Taxonomy loader ──
 
-async function loadTaxonomy(supabase: SupabaseClient<Database>): Promise<{ taxonomyStr: string; validDomainSlugs: string[] }> {
+async function loadTaxonomy(
+  supabase: SupabaseClient<Database>,
+): Promise<{ taxonomyStr: string; validDomainSlugs: string[] }> {
   const { data: domains, error: dErr } = await supabase
     .from('taxonomy_domains')
     .select('id, name')
@@ -275,7 +277,9 @@ async function loadTaxonomy(supabase: SupabaseClient<Database>): Promise<{ taxon
 
   if (dErr) {
     console.error(`Failed to fetch taxonomy domains: ${dErr.message}`);
-    console.error('Ensure SUPABASE_SECRET_KEY is set (service role key bypasses RLS).');
+    console.error(
+      'Ensure SUPABASE_SECRET_KEY is set (service role key bypasses RLS).',
+    );
     process.exit(1);
   }
 
@@ -291,7 +295,9 @@ async function loadTaxonomy(supabase: SupabaseClient<Database>): Promise<{ taxon
   }
 
   if (!domains?.length) {
-    console.error('Taxonomy query returned empty. Check SUPABASE_SECRET_KEY is set.');
+    console.error(
+      'Taxonomy query returned empty. Check SUPABASE_SECRET_KEY is set.',
+    );
     process.exit(1);
   }
 
@@ -301,7 +307,7 @@ async function loadTaxonomy(supabase: SupabaseClient<Database>): Promise<{ taxon
     .map((d) => {
       const subs = (subtopics ?? [])
         .filter((s) => s.domain_id === d.id)
-        .map((s) => s.description ? `${s.name} (${s.description})` : s.name);
+        .map((s) => (s.description ? `${s.name} (${s.description})` : s.name));
       return `- ${d.name}: ${subs.join(', ')}`;
     })
     .join('\n');
@@ -467,7 +473,8 @@ const CLASSIFICATION_TOOL: Anthropic.Tool = {
 // ── Main ──
 
 async function main(): Promise<void> {
-  const { limit, execute, batchSize, force, entitiesOnly, domain } = parseArgs();
+  const { limit, execute, batchSize, force, entitiesOnly, domain } =
+    parseArgs();
   const dryRun = !execute;
 
   // Validate env
@@ -619,7 +626,8 @@ async function main(): Promise<void> {
           contentTypeSortKey(b.content_type),
       );
 
-    candidates = limit > 0 ? entitiesFiltered.slice(0, limit) : entitiesFiltered;
+    candidates =
+      limit > 0 ? entitiesFiltered.slice(0, limit) : entitiesFiltered;
   } else {
     // Normal reclassification mode: fetch active (non-archived) items
     let reclassQuery = supabase
@@ -697,11 +705,9 @@ async function main(): Promise<void> {
     // Check for duplicate titles/questions
     const titleMap = new Map<string, { id: string; title: string }[]>();
     for (const item of allItems) {
-      const displayTitle = (
-        item.suggested_title ||
-        item.title ||
-        ''
-      ).toLowerCase().trim();
+      const displayTitle = (item.suggested_title || item.title || '')
+        .toLowerCase()
+        .trim();
       if (!displayTitle) continue;
       const existing = titleMap.get(displayTitle) || [];
       existing.push({ id: item.id, title: displayTitle });
@@ -726,10 +732,7 @@ async function main(): Promise<void> {
       if (plainText.length < 20 && plainText.length > 0) {
         qualityFlags.push({
           itemId: item.id,
-          title: truncate(
-            item.suggested_title || item.title || 'Untitled',
-            60,
-          ),
+          title: truncate(item.suggested_title || item.title || 'Untitled', 60),
           issue: 'FRAGMENT',
           detail: `Content is ${plainText.length} chars — needs expansion`,
         });
@@ -742,10 +745,7 @@ async function main(): Promise<void> {
       if (hasEditorialNotes(plainText)) {
         qualityFlags.push({
           itemId: item.id,
-          title: truncate(
-            item.suggested_title || item.title || 'Untitled',
-            60,
-          ),
+          title: truncate(item.suggested_title || item.title || 'Untitled', 60),
           issue: 'EDITORIAL_NOTE',
           detail: `Content starts with editorial guidance text`,
         });
@@ -761,7 +761,8 @@ async function main(): Promise<void> {
   }, 0);
   // Rough token estimate: ~4 chars per token for English text
   // Add ~300 tokens per item for system prompt + taxonomy (amortised with caching)
-  const estimatedInputTokens = Math.ceil(totalChars / 4) + candidates.length * 300;
+  const estimatedInputTokens =
+    Math.ceil(totalChars / 4) + candidates.length * 300;
   // Assume ~800 output tokens per item (classification + entities + relationships)
   const estimatedOutputTokens = candidates.length * 800;
   const estimatedCost =
@@ -798,16 +799,24 @@ async function main(): Promise<void> {
   }
 
   console.log('='.repeat(60));
-  console.log(`  Mode:                 ${dryRun ? 'DRY RUN' : 'EXECUTE'} — ${modeLabel}`);
+  console.log(
+    `  Mode:                 ${dryRun ? 'DRY RUN' : 'EXECUTE'} — ${modeLabel}`,
+  );
   console.log(`  Items to process:     ${candidates.length}`);
   if (domain) {
     console.log(`  Domain filter:        ${domain}`);
   }
   console.log(`  Model:                ${model}`);
   console.log(`  Batch size:           ${batchSize} concurrent`);
-  console.log(`  Service role:         ${usingServiceRole ? 'yes' : 'no (using anon key)'}`);
-  console.log(`  Est. input tokens:    ${estimatedInputTokens.toLocaleString()}`);
-  console.log(`  Est. output tokens:   ${estimatedOutputTokens.toLocaleString()}`);
+  console.log(
+    `  Service role:         ${usingServiceRole ? 'yes' : 'no (using anon key)'}`,
+  );
+  console.log(
+    `  Est. input tokens:    ${estimatedInputTokens.toLocaleString()}`,
+  );
+  console.log(
+    `  Est. output tokens:   ${estimatedOutputTokens.toLocaleString()}`,
+  );
   console.log(`  Est. cost:            ${formatCost(estimatedCost)}`);
   console.log('');
   if (!entitiesOnly) {
@@ -868,7 +877,9 @@ async function main(): Promise<void> {
   }
   console.log('');
   console.log('  Current domain distribution:');
-  for (const [d, count] of Object.entries(domainCounts).sort((a, b) => b[1] - a[1])) {
+  for (const [d, count] of Object.entries(domainCounts).sort(
+    (a, b) => b[1] - a[1],
+  )) {
     console.log(`    ${d.padEnd(30)} ${count}`);
   }
   console.log('='.repeat(60));
@@ -921,8 +932,7 @@ async function main(): Promise<void> {
     const results = await Promise.allSettled(
       batch.map(async (item, batchIndex) => {
         const index = batchStart + batchIndex + 1;
-        const displayTitle =
-          item.suggested_title || item.title || 'Untitled';
+        const displayTitle = item.suggested_title || item.title || 'Untitled';
 
         try {
           // Prepare content for classification (truncate at 5000 chars)
@@ -965,9 +975,7 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
 
           // Extract tool result
           const toolBlock = response.content.find(
-            (
-              block,
-            ): block is Anthropic.Messages.ToolUseBlock =>
+            (block): block is Anthropic.Messages.ToolUseBlock =>
               block.type === 'tool_use' &&
               block.name === 'return_classification_with_entities',
           );
@@ -978,8 +986,7 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
             );
           }
 
-          const result =
-            toolBlock.input as ClassificationWithEntities;
+          const result = toolBlock.input as ClassificationWithEntities;
 
           // Track token usage
           const inputTokens = response.usage.input_tokens;
@@ -989,36 +996,56 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
 
           // ── Validate domains against taxonomy slugs (3.10) ──
           if (validDomainSlugs.length > 0) {
-            result.primary_domain = validateDomain(result.primary_domain, validDomainSlugs);
+            result.primary_domain = validateDomain(
+              result.primary_domain,
+              validDomainSlugs,
+            );
             if (result.secondary_domain) {
-              result.secondary_domain = validateDomain(result.secondary_domain, validDomainSlugs);
+              result.secondary_domain = validateDomain(
+                result.secondary_domain,
+                validDomainSlugs,
+              );
             }
           }
 
           // ── Normalise keywords (3.9) ──
-          const normalisedKeywords = (Array.isArray(result.ai_keywords) ? result.ai_keywords : []).map(normaliseTag).filter((k) => k.length > 0);
+          const normalisedKeywords = (
+            Array.isArray(result.ai_keywords) ? result.ai_keywords : []
+          )
+            .map(normaliseTag)
+            .filter((k) => k.length > 0);
           const uniqueKeywords = [...new Set(normalisedKeywords)];
 
           // ── Apply canonicalisation + alias resolution to entity names (3.6) ──
-          const entities = (Array.isArray(result.entities) ? result.entities : [])
-            .filter((e) => !isExcludedEntity(e.name) && !isExcludedEntity(e.canonical_name))
+          const entities = (
+            Array.isArray(result.entities) ? result.entities : []
+          )
+            .filter(
+              (e) =>
+                !isExcludedEntity(e.name) &&
+                !isExcludedEntity(e.canonical_name),
+            )
             .map((e) => ({
               ...e,
-              canonical_name: resolveAlias(canonicalise(e.canonical_name, e.type)).toLowerCase(),
+              canonical_name: resolveAlias(
+                canonicalise(e.canonical_name, e.type),
+              ).toLowerCase(),
             }));
 
-          const relationships = (Array.isArray(result.relationships) ? result.relationships : []).map(
-            (r) => ({
-              ...r,
-              source: resolveAlias(canonicalise(r.source)).toLowerCase(),
-              target: resolveAlias(canonicalise(r.target)).toLowerCase(),
-            }),
-          );
+          const relationships = (
+            Array.isArray(result.relationships) ? result.relationships : []
+          ).map((r) => ({
+            ...r,
+            source: resolveAlias(canonicalise(r.source)).toLowerCase(),
+            target: resolveAlias(canonicalise(r.target)).toLowerCase(),
+          }));
 
           // ── Update content_items with classification results ──
           if (!entitiesOnly) {
             // Infer layer from content metadata (3.5)
-            const platformToSource = (p: string | null): 'bid_library' | 'url_import' | 'upload' | 'manual' => {
+            const platformToSource = (
+              p: string | null,
+            ): 'bid_library' | 'url_import' | 'upload' | 'manual' => {
               if (p === 'extraction') return 'bid_library';
               if (p === 'web') return 'url_import';
               if (p === 'upload') return 'upload';
@@ -1044,17 +1071,16 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
               ai_keywords: uniqueKeywords,
               ai_summary: result.ai_summary,
               suggested_title: result.suggested_title,
-              classification_confidence:
-                result.classification_confidence,
-              classification_reasoning:
-                result.classification_reasoning,
+              classification_confidence: result.classification_confidence,
+              classification_reasoning: result.classification_reasoning,
               classified_at: new Date().toISOString(),
               layer: layerSuggestion.suggestedLayer,
             };
 
             // Store temporal references in metadata (3.3)
             if (result.temporal_references?.length) {
-              const existingMetadata = (item.metadata as Record<string, unknown>) ?? {};
+              const existingMetadata =
+                (item.metadata as Record<string, unknown>) ?? {};
               updateData.metadata = {
                 ...existingMetadata,
                 ai_temporal_references: result.temporal_references,
@@ -1064,8 +1090,7 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
             // Regenerate embedding with updated title + content
             try {
               const embeddingText = `${result.suggested_title}\n\n${plainText}`;
-              const embedding =
-                await generateEmbedding(embeddingText);
+              const embedding = await generateEmbedding(embeddingText);
               updateData.embedding = JSON.stringify(embedding);
             } catch (embedErr) {
               embeddingErrors++;
@@ -1080,9 +1105,7 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
               .eq('id', item.id);
 
             if (updateError) {
-              throw new Error(
-                `Supabase update failed: ${updateError.message}`,
-              );
+              throw new Error(`Supabase update failed: ${updateError.message}`);
             }
           }
 
@@ -1150,7 +1173,9 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
           try {
             await bridgeTemporalReferencesToEntities(supabase, item.id);
           } catch (bridgeErr) {
-            console.error(`    Warning: temporal reference bridging failed: ${bridgeErr instanceof Error ? bridgeErr.message : String(bridgeErr)}`);
+            console.error(
+              `    Warning: temporal reference bridging failed: ${bridgeErr instanceof Error ? bridgeErr.message : String(bridgeErr)}`,
+            );
           }
 
           successCount++;
@@ -1162,20 +1187,22 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
           if (changed) {
             domainChanges++;
             const migrationKey = `${oldDomain} -> ${newDomain}`;
-            domainMigrations[migrationKey] = (domainMigrations[migrationKey] || 0) + 1;
+            domainMigrations[migrationKey] =
+              (domainMigrations[migrationKey] || 0) + 1;
           }
 
           const tokensUsed = inputTokens + outputTokens;
           const entityCount = entities.length;
           const relCount = relationships.length;
-          const changeMarker = changed ? ` [CHANGED: ${oldDomain} -> ${newDomain}]` : '';
+          const changeMarker = changed
+            ? ` [CHANGED: ${oldDomain} -> ${newDomain}]`
+            : '';
           console.log(
             `  [${String(index).padStart(String(candidates.length).length)}/${candidates.length}] ${truncate(displayTitle, 40)} — ${newDomain}/${result.primary_subtopic} (${result.classification_confidence.toFixed(2)}) ${entityCount}E ${relCount}R (${tokensUsed.toLocaleString()} tok)${changeMarker}`,
           );
         } catch (err) {
           errorCount++;
-          const message =
-            err instanceof Error ? err.message : String(err);
+          const message = err instanceof Error ? err.message : String(err);
           console.error(
             `  [${String(index).padStart(String(candidates.length).length)}/${candidates.length}] ERROR for "${truncate(displayTitle, 45)}": ${message}`,
           );
@@ -1186,10 +1213,7 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
     // Check for unexpected rejections
     for (const result of results) {
       if (result.status === 'rejected') {
-        console.error(
-          '  Unexpected batch rejection:',
-          result.reason,
-        );
+        console.error('  Unexpected batch rejection:', result.reason);
       }
     }
   }
@@ -1221,11 +1245,15 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
   console.log('');
   console.log(`  Entities extracted: ${totalEntities}`);
   console.log(`  Relationships:      ${totalRelationships}`);
-  console.log(`  Domain changes:     ${domainChanges} of ${successCount} items`);
+  console.log(
+    `  Domain changes:     ${domainChanges} of ${successCount} items`,
+  );
   if (Object.keys(domainMigrations).length > 0) {
     console.log('');
     console.log('  Domain migrations:');
-    for (const [migration, count] of Object.entries(domainMigrations).sort((a, b) => b[1] - a[1])) {
+    for (const [migration, count] of Object.entries(domainMigrations).sort(
+      (a, b) => b[1] - a[1],
+    )) {
       console.log(`    ${migration.padEnd(50)} ${count}`);
     }
   }

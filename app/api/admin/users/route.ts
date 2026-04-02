@@ -57,8 +57,7 @@ export async function GET() {
     const users: UserWithRole[] = (authData.users ?? []).map((u) => ({
       id: u.id,
       email: u.email ?? '',
-      display_name:
-        (u.user_metadata?.display_name as string) ?? null,
+      display_name: (u.user_metadata?.display_name as string) ?? null,
       role: (roleMap.get(u.id) as string) ?? 'viewer',
       created_at: u.created_at,
       last_sign_in_at: u.last_sign_in_at ?? null,

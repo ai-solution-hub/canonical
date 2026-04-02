@@ -149,7 +149,10 @@ export function QualityScoreBreakdown({ item }: QualityScoreBreakdownProps) {
                     aria-label={`${label}: ${value} out of ${max}`}
                   >
                     <div
-                      className={cn('h-full rounded-full transition-all', barFill)}
+                      className={cn(
+                        'h-full rounded-full transition-all',
+                        barFill,
+                      )}
                       style={{ width: `${percentage}%` }}
                     />
                   </div>

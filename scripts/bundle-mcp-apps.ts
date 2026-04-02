@@ -24,12 +24,24 @@ const APPS: AppConfig[] = [
   {
     name: 'coverage-matrix',
     constName: 'COVERAGE_MATRIX_HTML',
-    htmlPath: join(PROJECT_ROOT, 'mcp-apps', 'coverage-matrix', 'dist', 'app.html'),
+    htmlPath: join(
+      PROJECT_ROOT,
+      'mcp-apps',
+      'coverage-matrix',
+      'dist',
+      'app.html',
+    ),
   },
   {
     name: 'bid-dashboard',
     constName: 'BID_DASHBOARD_HTML',
-    htmlPath: join(PROJECT_ROOT, 'mcp-apps', 'bid-dashboard', 'dist', 'app.html'),
+    htmlPath: join(
+      PROJECT_ROOT,
+      'mcp-apps',
+      'bid-dashboard',
+      'dist',
+      'app.html',
+    ),
   },
   {
     name: 'reorient-me',

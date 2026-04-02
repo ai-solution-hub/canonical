@@ -12,22 +12,26 @@ import { render, screen, waitFor } from '@testing-library/react';
 // vi.hoisted() — mocks referenced in vi.mock() factories
 // ---------------------------------------------------------------------------
 
-const { mockSearch, mockSearchResults, mockIsLoading, mockError } = vi.hoisted(() => ({
-  mockSearch: vi.fn(),
-  mockSearchResults: { value: [] as Array<{
-    id: string;
-    title: string;
-    content_type: string;
-    primary_domain: string | null;
-    similarity: number;
-    ai_summary: string | null;
-    metadata: Record<string, unknown> | null;
-    source_document: string | null;
-    [key: string]: unknown;
-  }> },
-  mockIsLoading: { value: false },
-  mockError: { value: null as string | null },
-}));
+const { mockSearch, mockSearchResults, mockIsLoading, mockError } = vi.hoisted(
+  () => ({
+    mockSearch: vi.fn(),
+    mockSearchResults: {
+      value: [] as Array<{
+        id: string;
+        title: string;
+        content_type: string;
+        primary_domain: string | null;
+        similarity: number;
+        ai_summary: string | null;
+        metadata: Record<string, unknown> | null;
+        source_document: string | null;
+        [key: string]: unknown;
+      }>,
+    },
+    mockIsLoading: { value: false },
+    mockError: { value: null as string | null },
+  }),
+);
 
 vi.mock('@/hooks/use-search', () => ({
   useSearch: () => ({
@@ -43,9 +47,11 @@ vi.mock('@/hooks/ui/use-modifier-key', () => ({
 }));
 
 vi.mock('@/components/content/content-library-result', () => ({
-  ContentLibraryResult: ({ result }: { result: { id: string; title: string } }) => (
-    <div data-testid={`result-${result.id}`}>{result.title}</div>
-  ),
+  ContentLibraryResult: ({
+    result,
+  }: {
+    result: { id: string; title: string };
+  }) => <div data-testid={`result-${result.id}`}>{result.title}</div>,
 }));
 
 vi.mock('sonner', () => ({
@@ -58,13 +64,15 @@ import { ContentLibraryDrawer } from '@/components/content/content-library-drawe
 // Helpers
 // ---------------------------------------------------------------------------
 
-function createSearchResult(overrides: Partial<{
-  id: string;
-  title: string;
-  content_type: string;
-  primary_domain: string | null;
-  similarity: number;
-}> = {}) {
+function createSearchResult(
+  overrides: Partial<{
+    id: string;
+    title: string;
+    content_type: string;
+    primary_domain: string | null;
+    similarity: number;
+  }> = {},
+) {
   return {
     id: overrides.id ?? 'res-1',
     title: overrides.title ?? 'Test result',
@@ -125,7 +133,10 @@ describe('ContentLibraryDrawer', () => {
 
   it('pre-populates search input with questionText on open', async () => {
     render(
-      <ContentLibraryDrawer {...defaultProps} questionText="What is our approach to data security?" />,
+      <ContentLibraryDrawer
+        {...defaultProps}
+        questionText="What is our approach to data security?"
+      />,
     );
 
     await waitFor(() => {
@@ -162,7 +173,10 @@ describe('ContentLibraryDrawer', () => {
 
     // We need hasSearched = true. Trigger by opening with questionText.
     render(
-      <ContentLibraryDrawer {...defaultProps} questionText="nonexistent query" />,
+      <ContentLibraryDrawer
+        {...defaultProps}
+        questionText="nonexistent query"
+      />,
     );
 
     await waitFor(() => {
@@ -208,9 +222,7 @@ describe('ContentLibraryDrawer', () => {
       createSearchResult({ id: 'r-2', primary_domain: 'Technical' }),
     ];
 
-    render(
-      <ContentLibraryDrawer {...defaultProps} questionText="test" />,
-    );
+    render(<ContentLibraryDrawer {...defaultProps} questionText="test" />);
 
     await waitFor(() => {
       // Domain filter select trigger should appear

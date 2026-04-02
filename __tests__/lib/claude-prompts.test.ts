@@ -80,5 +80,4 @@ describe('ingestion prompts', () => {
       expect(result.prompt).toContain('From the Q3 review meeting');
     });
   });
-
 });

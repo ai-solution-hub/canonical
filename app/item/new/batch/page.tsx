@@ -4,7 +4,8 @@ import { BatchCreateClient } from './batch-create-client';
 
 export const metadata = {
   title: 'Batch Create Q&A Pairs | Knowledge Hub',
-  description: 'Create multiple Q&A pairs at once by pasting from a spreadsheet.',
+  description:
+    'Create multiple Q&A pairs at once by pasting from a spreadsheet.',
 };
 
 export default async function BatchCreatePage() {

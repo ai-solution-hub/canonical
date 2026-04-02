@@ -14,7 +14,9 @@ import { test, expect } from '../fixtures';
  */
 
 test.describe('Layer suggestion banner on create page', () => {
-  test('create page loads with expected form fields', async ({ authenticatedPage: page }) => {
+  test('create page loads with expected form fields', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/item/new');
 
     // Verify the create page loaded
@@ -34,14 +36,18 @@ test.describe('Layer suggestion banner on create page', () => {
     ).toBeVisible();
   });
 
-  test('creating an item shows the layer suggestion banner', async ({ authenticatedPage: page }) => {
+  test('creating an item shows the layer suggestion banner', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/item/new');
     await expect(
       page.getByRole('heading', { name: 'Create New Content' }),
     ).toBeVisible({ timeout: 10000 });
 
     // Fill in the title
-    await page.getByLabel(/Title/).fill('E2E Layer Test: IT Service Desk Procedures');
+    await page
+      .getByLabel(/Title/)
+      .fill('E2E Layer Test: IT Service Desk Procedures');
 
     // Select content type — click the trigger then choose a type
     await page.getByLabel('Content Type').click();
@@ -104,20 +110,22 @@ test.describe('Layer suggestion banner on create page', () => {
       ).toBeVisible();
 
       // Confidence label should be shown (High/Medium/Low)
-      await expect(
-        layerBanner.getByText(/confidence/i),
-      ).toBeVisible();
+      await expect(layerBanner.getByText(/confidence/i)).toBeVisible();
     }
   });
 
-  test('layer suggestion banner dismiss hides the banner', async ({ authenticatedPage: page }) => {
+  test('layer suggestion banner dismiss hides the banner', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/item/new');
     await expect(
       page.getByRole('heading', { name: 'Create New Content' }),
     ).toBeVisible({ timeout: 10000 });
 
     // Create an item to trigger the banner
-    await page.getByLabel(/Title/).fill('E2E Layer Dismiss Test: Cloud Migration Guide');
+    await page
+      .getByLabel(/Title/)
+      .fill('E2E Layer Dismiss Test: Cloud Migration Guide');
 
     await page.getByLabel('Content Type').click();
     await page.getByRole('option', { name: 'Methodology' }).click();
@@ -151,7 +159,9 @@ test.describe('Layer suggestion banner on create page', () => {
 
     if (await layerBanner.isVisible({ timeout: 2000 }).catch(() => false)) {
       // Click dismiss (the X button with aria-label or the text Dismiss button)
-      const dismissButton = layerBanner.getByRole('button', { name: /Dismiss/ }).first();
+      const dismissButton = layerBanner
+        .getByRole('button', { name: /Dismiss/ })
+        .first();
       await dismissButton.click();
 
       // Banner should disappear
@@ -159,14 +169,18 @@ test.describe('Layer suggestion banner on create page', () => {
     }
   });
 
-  test('layer suggestion banner change mode shows layer dropdown', async ({ authenticatedPage: page }) => {
+  test('layer suggestion banner change mode shows layer dropdown', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/item/new');
     await expect(
       page.getByRole('heading', { name: 'Create New Content' }),
     ).toBeVisible({ timeout: 10000 });
 
     // Create an item to trigger the banner
-    await page.getByLabel(/Title/).fill('E2E Layer Change Test: Security Incident Response');
+    await page
+      .getByLabel(/Title/)
+      .fill('E2E Layer Change Test: Security Incident Response');
 
     await page.getByLabel('Content Type').click();
     await page.getByRole('option', { name: 'Policy' }).click();
@@ -200,11 +214,15 @@ test.describe('Layer suggestion banner on create page', () => {
 
     if (await layerBanner.isVisible({ timeout: 2000 }).catch(() => false)) {
       // Click Change to switch to change mode
-      const changeButton = layerBanner.getByRole('button', { name: 'Change suggested layer' });
+      const changeButton = layerBanner.getByRole('button', {
+        name: 'Change suggested layer',
+      });
       await changeButton.click();
 
       // The layer select dropdown should appear
-      const layerSelect = layerBanner.getByRole('combobox', { name: 'Select a layer' });
+      const layerSelect = layerBanner.getByRole('combobox', {
+        name: 'Select a layer',
+      });
       await expect(layerSelect).toBeVisible({ timeout: 5000 });
 
       // Apply and Cancel buttons should be visible
@@ -227,9 +245,13 @@ test.describe('Layer suggestion banner on create page', () => {
 });
 
 test.describe('Browse page layer filter', () => {
-  test('filter panel contains Content Layer section', async ({ authenticatedPage: page }) => {
+  test('filter panel contains Content Layer section', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/browse');
-    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({
+      timeout: 10000,
+    });
 
     // Open the filter panel
     const filtersButton = page.getByRole('button', { name: /filter/i });
@@ -242,14 +264,18 @@ test.describe('Browse page layer filter', () => {
 
     // Look for the "Content Layer" filter section heading
     // The section may be collapsed by default (defaultOpen={false})
-    await expect(
-      sheet.getByText('Content Layer'),
-    ).toBeVisible({ timeout: 5000 });
+    await expect(sheet.getByText('Content Layer')).toBeVisible({
+      timeout: 5000,
+    });
   });
 
-  test('layer filter shows layer options when expanded', async ({ authenticatedPage: page }) => {
+  test('layer filter shows layer options when expanded', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/browse');
-    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({
+      timeout: 10000,
+    });
 
     // Open the filter panel
     const filtersButton = page.getByRole('button', { name: /filter/i });
@@ -266,16 +292,20 @@ test.describe('Browse page layer filter', () => {
     // After expanding, layer option buttons should be visible.
     // The filter panel renders layer vocabulary items as toggle buttons.
     // Check for the helper text that identifies this filter section.
-    await expect(
-      sheet.getByText('Filter by content depth layer'),
-    ).toBeVisible({ timeout: 5000 });
+    await expect(sheet.getByText('Filter by content depth layer')).toBeVisible({
+      timeout: 5000,
+    });
   });
 });
 
 test.describe('Layer badge on content cards', () => {
-  test('browse page content cards display layer badges when assigned', async ({ authenticatedPage: page }) => {
+  test('browse page content cards display layer badges when assigned', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/browse');
-    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({
+      timeout: 10000,
+    });
 
     // Content cards with an assigned layer show a layer badge (Badge component
     // with variant="outline"). The badge text comes from the layer vocabulary
@@ -306,7 +336,10 @@ test.describe('Layer badge on content cards', () => {
 
     // Check if at least one layer badge exists anywhere on the page.
     // Layer badges have a specific visual style but we match by text content.
-    const layerBadge = page.locator('span').filter({ hasText: layerRegex }).first();
+    const layerBadge = page
+      .locator('span')
+      .filter({ hasText: layerRegex })
+      .first();
 
     // This is a soft assertion — not all items may have layers assigned.
     // We verify the badge renders correctly if any items have layers.

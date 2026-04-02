@@ -18,7 +18,10 @@
 import { describe, it, expect, afterAll, beforeAll, vi } from 'vitest';
 import { serviceClient } from './helpers/service-client';
 import { bridgeTemporalReferencesToEntities } from '@/lib/entities/entity-metadata-bridge';
-import { deriveExpiryStatus, type ExpiryStatus } from '@/lib/certification-status';
+import {
+  deriveExpiryStatus,
+  type ExpiryStatus,
+} from '@/lib/certification-status';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -60,10 +63,7 @@ afterAll(async () => {
         .delete()
         .eq('content_item_id', itemId);
 
-      await serviceClient
-        .from('content_items')
-        .delete()
-        .eq('id', itemId);
+      await serviceClient.from('content_items').delete().eq('id', itemId);
     }
   } catch (err) {
     console.error('Cleanup failed:', err);
@@ -121,7 +121,8 @@ async function createEntityMention(
     .select('id')
     .single();
 
-  if (error) throw new Error(`Failed to create entity mention: ${error.message}`);
+  if (error)
+    throw new Error(`Failed to create entity mention: ${error.message}`);
   createdEntityMentionIds.push(data!.id);
   return data!.id;
 }
@@ -135,7 +136,9 @@ describe('Certification Bridge Flow — Real DB Integration', () => {
   // test expiry dates (2023, 2024, 2025, 2027, 2029). Prevents boundary
   // flakiness if tests run near year-end or month-end.
   beforeAll(() => {
-    vi.spyOn(Date, 'now').mockReturnValue(new Date('2026-06-15T12:00:00Z').getTime());
+    vi.spyOn(Date, 'now').mockReturnValue(
+      new Date('2026-06-15T12:00:00Z').getTime(),
+    );
   });
 
   afterAll(() => {
@@ -194,7 +197,9 @@ describe('Certification Bridge Flow — Real DB Integration', () => {
     expect(metadata.expiry_date).toBe(FUTURE_EXPIRY_DATE);
 
     // 5. Derive expiry status — should be "valid" (well in the future)
-    const status: ExpiryStatus = deriveExpiryStatus(metadata.expiry_date as string);
+    const status: ExpiryStatus = deriveExpiryStatus(
+      metadata.expiry_date as string,
+    );
     expect(status).toBe('valid');
     expect(status).not.toBe('unknown');
 
@@ -214,7 +219,9 @@ describe('Certification Bridge Flow — Real DB Integration', () => {
     for (const mention of dbMentions!) {
       const mentionMeta = mention.metadata as Record<string, unknown>;
       if (mentionMeta.expiry_date) {
-        const derivedStatus = deriveExpiryStatus(mentionMeta.expiry_date as string);
+        const derivedStatus = deriveExpiryStatus(
+          mentionMeta.expiry_date as string,
+        );
         expect(['valid', 'expiring_soon', 'expired']).toContain(derivedStatus);
         expect(derivedStatus).not.toBe('unknown');
       }
@@ -286,10 +293,14 @@ describe('Certification Bridge Flow — Real DB Integration', () => {
     expect(iso27001).toBeTruthy();
     const iso27001Meta = iso27001!.metadata as Record<string, unknown>;
     expect(iso27001Meta.expiry_date).toBe(FUTURE_EXPIRY_DATE);
-    expect(deriveExpiryStatus(iso27001Meta.expiry_date as string)).toBe('valid');
+    expect(deriveExpiryStatus(iso27001Meta.expiry_date as string)).toBe(
+      'valid',
+    );
 
     // 6. Verify Cyber Essentials Plus — should have expiry_date = PAST_EXPIRY_DATE, status = "expired"
-    const cyberEssentials = mentions!.find((m) => m.canonical_name === 'cyber essentials plus');
+    const cyberEssentials = mentions!.find(
+      (m) => m.canonical_name === 'cyber essentials plus',
+    );
     expect(cyberEssentials).toBeTruthy();
     const cyberMeta = cyberEssentials!.metadata as Record<string, unknown>;
     expect(cyberMeta.expiry_date).toBe(PAST_EXPIRY_DATE);
@@ -301,7 +312,9 @@ describe('Certification Bridge Flow — Real DB Integration', () => {
     const iso9001Meta = iso9001!.metadata as Record<string, unknown>;
     expect(iso9001Meta.date_obtained).toBe('2024-06-01');
     // No expiry date set, so status should be "unknown"
-    expect(deriveExpiryStatus(iso9001Meta.expiry_date as string | undefined)).toBe('unknown');
+    expect(
+      deriveExpiryStatus(iso9001Meta.expiry_date as string | undefined),
+    ).toBe('unknown');
   });
 
   // T2.5b: Create item with temporal references, bridge them, then update

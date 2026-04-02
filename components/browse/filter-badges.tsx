@@ -35,7 +35,10 @@ export function FilterBadges() {
     badges.push({
       id: 'search-query',
       label: 'Search',
-      value: searchQuery.length > 40 ? searchQuery.slice(0, 37) + '\u2026' : searchQuery,
+      value:
+        searchQuery.length > 40
+          ? searchQuery.slice(0, 37) + '\u2026'
+          : searchQuery,
       onRemove: clearSearchQuery,
     });
   }
@@ -170,7 +173,9 @@ export function FilterBadges() {
     badges.push({
       id: 'entity-type',
       label: 'Entity Type',
-      value: filters.entity_type.charAt(0).toUpperCase() + filters.entity_type.slice(1),
+      value:
+        filters.entity_type.charAt(0).toUpperCase() +
+        filters.entity_type.slice(1),
       onRemove: () => removeFilter('entity_type'),
     });
   }

@@ -70,13 +70,7 @@ const TYPE_COLOURS: Record<string, string> = {
   product: 'bg-entity-product-bg text-entity-product-text',
 };
 
-function TypeBadge({
-  type,
-  onClick,
-}: {
-  type: string;
-  onClick?: () => void;
-}) {
+function TypeBadge({ type, onClick }: { type: string; onClick?: () => void }) {
   return (
     <Badge
       variant="outline"
@@ -275,7 +269,8 @@ function TypeEditDialog({
       <DialogContent className="max-w-sm" showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>
-            Change type for &ldquo;{formatEntityDisplayName(entity.canonical_name)}&rdquo;
+            Change type for &ldquo;
+            {formatEntityDisplayName(entity.canonical_name)}&rdquo;
           </DialogTitle>
         </DialogHeader>
         <Select value={selectedType} onValueChange={setSelectedType}>
@@ -409,7 +404,10 @@ export function EntityList() {
       {/* Summary */}
       <div className="space-y-3">
         <div className="flex items-center gap-3">
-          <Network className="size-5 text-muted-foreground" aria-hidden="true" />
+          <Network
+            className="size-5 text-muted-foreground"
+            aria-hidden="true"
+          />
           <h3 className="text-lg font-semibold">Entity Management</h3>
         </div>
 
@@ -418,9 +416,7 @@ export function EntityList() {
             <div className="text-2xl font-semibold tabular-nums">
               {stats.total.toLocaleString()}
             </div>
-            <div className="text-xs text-muted-foreground">
-              Unique entities
-            </div>
+            <div className="text-xs text-muted-foreground">Unique entities</div>
           </div>
           <div className="rounded-md border bg-muted/30 px-4 py-3">
             <div className="flex items-baseline gap-2">
@@ -444,9 +440,7 @@ export function EntityList() {
                 {stats.withConflicts}
               </span>
             </div>
-            <div className="text-xs text-muted-foreground">
-              Type conflicts
-            </div>
+            <div className="text-xs text-muted-foreground">Type conflicts</div>
           </div>
         </div>
       </div>
@@ -464,10 +458,7 @@ export function EntityList() {
               aria-label="Search entities"
             />
           </div>
-          <Select
-            value={typeFilter}
-            onValueChange={setTypeFilter}
-          >
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
             <SelectTrigger className="w-40">
               <SelectValue placeholder="All types" />
             </SelectTrigger>
@@ -502,7 +493,8 @@ export function EntityList() {
             Show type conflicts
           </label>
           <span className="text-xs text-muted-foreground">
-            {entities.length.toLocaleString()} entit{entities.length !== 1 ? 'ies' : 'y'} shown
+            {entities.length.toLocaleString()} entit
+            {entities.length !== 1 ? 'ies' : 'y'} shown
           </span>
         </div>
 
@@ -522,11 +514,7 @@ export function EntityList() {
               <Merge className="size-3.5" />
               Merge
             </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={clearSelection}
-            >
+            <Button size="sm" variant="ghost" onClick={clearSelection}>
               Clear
             </Button>
           </div>
@@ -540,7 +528,10 @@ export function EntityList() {
         </div>
       ) : entities.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-          <Network className="size-8 text-muted-foreground/50" aria-hidden="true" />
+          <Network
+            className="size-8 text-muted-foreground/50"
+            aria-hidden="true"
+          />
           <p className="text-sm text-muted-foreground">
             {searchQuery
               ? 'No entities matching your search.'
@@ -601,7 +592,9 @@ export function EntityList() {
       <EntityDetailPanel
         canonicalName={detailEntity}
         open={!!detailEntity}
-        onOpenChange={(open) => { if (!open) setDetailEntity(null); }}
+        onOpenChange={(open) => {
+          if (!open) setDetailEntity(null);
+        }}
       />
     </div>
   );

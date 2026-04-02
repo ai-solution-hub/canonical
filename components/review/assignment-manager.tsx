@@ -68,7 +68,9 @@ export function AssignmentManager({ className }: AssignmentManagerProps) {
   // Form state
   const [selectedReviewer, setSelectedReviewer] = useState('');
   const [selectedDomains, setSelectedDomains] = useState<string[]>([]);
-  const [selectedContentTypes, setSelectedContentTypes] = useState<string[]>([]);
+  const [selectedContentTypes, setSelectedContentTypes] = useState<string[]>(
+    [],
+  );
   const [selectedFreshness, setSelectedFreshness] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
@@ -88,11 +90,13 @@ export function AssignmentManager({ className }: AssignmentManagerProps) {
         if (!res.ok) throw new Error('Failed to fetch team members');
         const data = await res.json();
         setTeamMembers(
-          (data ?? []).map((u: { id: string; email: string; display_name?: string }) => ({
-            id: u.id,
-            email: u.email,
-            display_name: u.display_name,
-          })),
+          (data ?? []).map(
+            (u: { id: string; email: string; display_name?: string }) => ({
+              id: u.id,
+              email: u.email,
+              display_name: u.display_name,
+            }),
+          ),
         );
       } catch (err) {
         console.error('Failed to load team members:', err);
@@ -154,7 +158,9 @@ export function AssignmentManager({ className }: AssignmentManagerProps) {
   // Toggle helpers for multi-select
   function toggleDomain(domain: string) {
     setSelectedDomains((prev) =>
-      prev.includes(domain) ? prev.filter((d) => d !== domain) : [...prev, domain],
+      prev.includes(domain)
+        ? prev.filter((d) => d !== domain)
+        : [...prev, domain],
     );
   }
 
@@ -219,14 +225,19 @@ export function AssignmentManager({ className }: AssignmentManagerProps) {
       loadAssignments();
     } catch (err) {
       console.error('Failed to create assignment:', err);
-      toast.error(err instanceof Error ? err.message : 'Failed to create assignment');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to create assignment',
+      );
     } finally {
       setIsSubmitting(false);
     }
   }
 
   // Update assignment status
-  async function handleUpdateStatus(assignmentId: string, status: 'completed' | 'cancelled') {
+  async function handleUpdateStatus(
+    assignmentId: string,
+    status: 'completed' | 'cancelled',
+  ) {
     try {
       const res = await fetch('/api/review/assignments', {
         method: 'PATCH',
@@ -265,9 +276,14 @@ export function AssignmentManager({ className }: AssignmentManagerProps) {
           <div className="space-y-2">
             <Label htmlFor="reviewer-select">Reviewer</Label>
             {isLoadingMembers ? (
-              <p className="text-sm text-muted-foreground">Loading team members...</p>
+              <p className="text-sm text-muted-foreground">
+                Loading team members...
+              </p>
             ) : (
-              <Select value={selectedReviewer} onValueChange={setSelectedReviewer}>
+              <Select
+                value={selectedReviewer}
+                onValueChange={setSelectedReviewer}
+              >
                 <SelectTrigger id="reviewer-select" className="w-full">
                   <SelectValue placeholder="Select a reviewer" />
                 </SelectTrigger>
@@ -421,24 +437,34 @@ export function AssignmentManager({ className }: AssignmentManagerProps) {
                     )}
                     <div className="flex flex-wrap gap-1.5 mt-1.5">
                       {a.filter_domains?.map((d: string) => (
-                        <span key={d} className="inline-block rounded bg-muted px-1.5 py-0.5 text-xs">
+                        <span
+                          key={d}
+                          className="inline-block rounded bg-muted px-1.5 py-0.5 text-xs"
+                        >
                           {d}
                         </span>
                       ))}
                       {a.filter_content_types?.map((ct: string) => (
-                        <span key={ct} className="inline-block rounded bg-muted px-1.5 py-0.5 text-xs">
+                        <span
+                          key={ct}
+                          className="inline-block rounded bg-muted px-1.5 py-0.5 text-xs"
+                        >
                           {ct.replace(/_/g, ' ')}
                         </span>
                       ))}
                       {a.filter_freshness?.map((f: string) => (
-                        <span key={f} className="inline-block rounded bg-muted px-1.5 py-0.5 text-xs capitalize">
+                        <span
+                          key={f}
+                          className="inline-block rounded bg-muted px-1.5 py-0.5 text-xs capitalize"
+                        >
                           {f}
                         </span>
                       ))}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       {a.item_count ?? 0} items
-                      {a.due_date && ` · Due ${new Date(a.due_date).toLocaleDateString('en-GB')}`}
+                      {a.due_date &&
+                        ` · Due ${new Date(a.due_date).toLocaleDateString('en-GB')}`}
                     </p>
                   </div>
                   <div className="flex gap-2 shrink-0">
@@ -491,7 +517,8 @@ export function AssignmentManager({ className }: AssignmentManagerProps) {
                     )}
                     <p className="text-xs text-muted-foreground mt-1">
                       {a.item_count ?? 0} items
-                      {a.completed_at && ` · Completed ${new Date(a.completed_at).toLocaleDateString('en-GB')}`}
+                      {a.completed_at &&
+                        ` · Completed ${new Date(a.completed_at).toLocaleDateString('en-GB')}`}
                     </p>
                   </div>
                 </div>

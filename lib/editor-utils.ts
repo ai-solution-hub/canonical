@@ -15,7 +15,10 @@ export function htmlToPlainText(html: string): string {
   // Server-side fallback: strip tags and decode common entities
   return html
     .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(p|div|h[1-6]|li|tr|blockquote|section|article|header|footer)>/gi, '\n')
+    .replace(
+      /<\/(p|div|h[1-6]|li|tr|blockquote|section|article|header|footer)>/gi,
+      '\n',
+    )
     .replace(/<[^>]*>/g, '')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
@@ -39,7 +42,10 @@ export function countWordsFromHtml(html: string): number {
 }
 
 /** Calculate word count compliance percentage */
-export function wordCountPercentage(wordCount: number, wordLimit: number): number {
+export function wordCountPercentage(
+  wordCount: number,
+  wordLimit: number,
+): number {
   if (wordLimit <= 0) return 100;
   return Math.round((wordCount / wordLimit) * 100);
 }

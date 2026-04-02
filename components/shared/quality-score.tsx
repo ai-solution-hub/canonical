@@ -1,7 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { CheckCircle2, AlertTriangle, XCircle, ChevronDown, ChevronUp, Lightbulb } from 'lucide-react';
+import {
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  ChevronDown,
+  ChevronUp,
+  Lightbulb,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { QualityData, QualityIssueEntry } from '@/types/bid-metadata';
@@ -28,7 +35,9 @@ function getSeverityIcon(severity: QualityIssueEntry['severity']) {
     case 'error':
       return <XCircle className="size-3.5 text-destructive" />;
     case 'warning':
-      return <AlertTriangle className="size-3.5 text-quality-severity-warning" />;
+      return (
+        <AlertTriangle className="size-3.5 text-quality-severity-warning" />
+      );
     case 'info':
       return <Lightbulb className="size-3.5 text-quality-severity-info" />;
   }
@@ -37,8 +46,12 @@ function getSeverityIcon(severity: QualityIssueEntry['severity']) {
 export function QualityScore({ quality, className }: QualityScoreProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const errorCount = quality.issues.filter((i) => i.severity === 'error').length;
-  const warningCount = quality.issues.filter((i) => i.severity === 'warning').length;
+  const errorCount = quality.issues.filter(
+    (i) => i.severity === 'error',
+  ).length;
+  const warningCount = quality.issues.filter(
+    (i) => i.severity === 'warning',
+  ).length;
 
   return (
     <div className={cn('rounded-md border', className)}>
@@ -53,7 +66,12 @@ export function QualityScore({ quality, className }: QualityScoreProps) {
         type="button"
       >
         <div className="flex items-center gap-3 flex-wrap">
-          <span className={cn('font-semibold tabular-nums', getScoreColour(quality.overall_score))}>
+          <span
+            className={cn(
+              'font-semibold tabular-nums',
+              getScoreColour(quality.overall_score),
+            )}
+          >
             Quality: {quality.overall_score}/100
           </span>
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -66,7 +84,8 @@ export function QualityScore({ quality, className }: QualityScoreProps) {
           </span>
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <CheckCircle2 className="size-3 text-quality-good" />
-            {quality.citation_count} citation{quality.citation_count !== 1 ? 's' : ''}
+            {quality.citation_count} citation
+            {quality.citation_count !== 1 ? 's' : ''}
           </span>
           {errorCount > 0 && (
             <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
@@ -74,7 +93,10 @@ export function QualityScore({ quality, className }: QualityScoreProps) {
             </Badge>
           )}
           {warningCount > 0 && (
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-quality-severity-warning text-quality-severity-warning">
+            <Badge
+              variant="outline"
+              className="text-[10px] px-1.5 py-0 border-quality-severity-warning text-quality-severity-warning"
+            >
               {warningCount} warning{warningCount !== 1 ? 's' : ''}
             </Badge>
           )}

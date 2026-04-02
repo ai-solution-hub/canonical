@@ -41,7 +41,11 @@ export function ReviewCadenceCard({ className }: ReviewCadenceCardProps) {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to load review cadence');
+          setError(
+            err instanceof Error
+              ? err.message
+              : 'Failed to load review cadence',
+          );
         }
       } finally {
         if (!cancelled) {
@@ -51,7 +55,9 @@ export function ReviewCadenceCard({ className }: ReviewCadenceCardProps) {
     }
 
     fetchCadence();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (isLoading) {
@@ -64,7 +70,11 @@ export function ReviewCadenceCard({ className }: ReviewCadenceCardProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div role="status" aria-label="Loading review health" className="space-y-3">
+          <div
+            role="status"
+            aria-label="Loading review health"
+            className="space-y-3"
+          >
             <div className="h-4 w-48 animate-pulse rounded bg-accent" />
             <div className="h-4 w-32 animate-pulse rounded bg-accent" />
             <div className="h-4 w-40 animate-pulse rounded bg-accent" />
@@ -98,9 +108,10 @@ export function ReviewCadenceCard({ className }: ReviewCadenceCardProps) {
     ([, a], [, b]) => b.overdue - a.overdue || b.total - a.total,
   );
 
-  const overduePercentage = summary.total_items > 0
-    ? Math.round((summary.overdue / summary.total_items) * 100)
-    : 0;
+  const overduePercentage =
+    summary.total_items > 0
+      ? Math.round((summary.overdue / summary.total_items) * 100)
+      : 0;
 
   return (
     <Card className={cn('', className)}>
@@ -121,7 +132,11 @@ export function ReviewCadenceCard({ className }: ReviewCadenceCardProps) {
 
       <CardContent className="space-y-4">
         {/* Key metrics */}
-        <div className="grid grid-cols-3 gap-3" role="list" aria-label="Review health metrics">
+        <div
+          className="grid grid-cols-3 gap-3"
+          role="list"
+          aria-label="Review health metrics"
+        >
           <MetricCell
             label="Never reviewed"
             value={summary.never_reviewed}
@@ -132,7 +147,9 @@ export function ReviewCadenceCard({ className }: ReviewCadenceCardProps) {
             label="Avg. days since review"
             value={summary.average_days_since_review}
             suffix="days"
-            highlight={summary.average_days_since_review > 90 ? 'warning' : 'default'}
+            highlight={
+              summary.average_days_since_review > 90 ? 'warning' : 'default'
+            }
           />
           <MetricCell
             label="Overdue"
@@ -144,7 +161,9 @@ export function ReviewCadenceCard({ className }: ReviewCadenceCardProps) {
 
         {/* Review recency breakdown */}
         <div className="space-y-1.5">
-          <h4 className="text-xs font-medium text-muted-foreground">Review recency</h4>
+          <h4 className="text-xs font-medium text-muted-foreground">
+            Review recency
+          </h4>
           <div className="flex gap-2 text-xs">
             <span className="rounded-md bg-muted px-2 py-1">
               Last 7d: <strong>{summary.reviewed_last_7_days}</strong>
@@ -161,25 +180,48 @@ export function ReviewCadenceCard({ className }: ReviewCadenceCardProps) {
         {/* Domain breakdown table */}
         {domainEntries.length > 0 && (
           <div className="space-y-1.5">
-            <h4 className="text-xs font-medium text-muted-foreground">By domain</h4>
+            <h4 className="text-xs font-medium text-muted-foreground">
+              By domain
+            </h4>
             <div className="overflow-x-auto">
-              <table className="w-full text-xs" role="table" aria-label="Review cadence by domain">
+              <table
+                className="w-full text-xs"
+                role="table"
+                aria-label="Review cadence by domain"
+              >
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
                     <th className="pb-1.5 pr-3 font-medium">Domain</th>
-                    <th className="pb-1.5 pr-3 text-right font-medium">Total</th>
-                    <th className="pb-1.5 pr-3 text-right font-medium">Unreviewed</th>
-                    <th className="pb-1.5 pr-3 text-right font-medium">Avg. days</th>
+                    <th className="pb-1.5 pr-3 text-right font-medium">
+                      Total
+                    </th>
+                    <th className="pb-1.5 pr-3 text-right font-medium">
+                      Unreviewed
+                    </th>
+                    <th className="pb-1.5 pr-3 text-right font-medium">
+                      Avg. days
+                    </th>
                     <th className="pb-1.5 text-right font-medium">Overdue</th>
                   </tr>
                 </thead>
                 <tbody>
                   {domainEntries.map(([domain, stats]) => (
-                    <tr key={domain} className="border-b border-border/50 last:border-0">
+                    <tr
+                      key={domain}
+                      className="border-b border-border/50 last:border-0"
+                    >
                       <td className="py-1.5 pr-3 font-medium">{domain}</td>
-                      <td className="py-1.5 pr-3 text-right tabular-nums">{stats.total}</td>
                       <td className="py-1.5 pr-3 text-right tabular-nums">
-                        <span className={stats.never_reviewed > 0 ? 'text-freshness-stale' : ''}>
+                        {stats.total}
+                      </td>
+                      <td className="py-1.5 pr-3 text-right tabular-nums">
+                        <span
+                          className={
+                            stats.never_reviewed > 0
+                              ? 'text-freshness-stale'
+                              : ''
+                          }
+                        >
                           {stats.never_reviewed}
                         </span>
                       </td>
@@ -187,7 +229,13 @@ export function ReviewCadenceCard({ className }: ReviewCadenceCardProps) {
                         {stats.average_days > 0 ? stats.average_days : '\u2014'}
                       </td>
                       <td className="py-1.5 text-right tabular-nums">
-                        <span className={stats.overdue > 0 ? 'font-semibold text-bid-overdue' : ''}>
+                        <span
+                          className={
+                            stats.overdue > 0
+                              ? 'font-semibold text-bid-overdue'
+                              : ''
+                          }
+                        >
                           {stats.overdue}
                         </span>
                       </td>
@@ -215,9 +263,12 @@ export function ReviewCadenceCard({ className }: ReviewCadenceCardProps) {
               ) : (
                 <ChevronDown className="size-3.5" aria-hidden="true" />
               )}
-              {overdue_items.length} overdue {overdue_items.length === 1 ? 'item' : 'items'}
+              {overdue_items.length} overdue{' '}
+              {overdue_items.length === 1 ? 'item' : 'items'}
               {overduePercentage > 0 && (
-                <span className="ml-1 text-bid-overdue">({overduePercentage}%)</span>
+                <span className="ml-1 text-bid-overdue">
+                  ({overduePercentage}%)
+                </span>
               )}
             </Button>
 
@@ -229,7 +280,10 @@ export function ReviewCadenceCard({ className }: ReviewCadenceCardProps) {
                 aria-label="Overdue review items"
               >
                 {overdue_items.map((item) => (
-                  <li key={item.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-muted/50">
+                  <li
+                    key={item.id}
+                    className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-muted/50"
+                  >
                     <AlertTriangle
                       className="size-3 shrink-0 text-bid-overdue"
                       aria-hidden="true"
@@ -242,9 +296,13 @@ export function ReviewCadenceCard({ className }: ReviewCadenceCardProps) {
                     </Link>
                     <span className="shrink-0 text-muted-foreground">
                       {item.days_since_review === -1 ? (
-                        <span className="text-freshness-stale">Never reviewed</span>
+                        <span className="text-freshness-stale">
+                          Never reviewed
+                        </span>
                       ) : (
-                        <span className="text-bid-overdue">{item.days_since_review}d ago</span>
+                        <span className="text-bid-overdue">
+                          {item.days_since_review}d ago
+                        </span>
                       )}
                     </span>
                   </li>
@@ -270,7 +328,13 @@ interface MetricCellProps {
   highlight?: 'default' | 'warning' | 'danger';
 }
 
-function MetricCell({ label, value, total, suffix, highlight = 'default' }: MetricCellProps) {
+function MetricCell({
+  label,
+  value,
+  total,
+  suffix,
+  highlight = 'default',
+}: MetricCellProps) {
   const valueClasses = cn(
     'text-lg font-semibold tabular-nums',
     highlight === 'warning' && 'text-freshness-stale',
@@ -290,7 +354,9 @@ function MetricCell({ label, value, total, suffix, highlight = 'default' }: Metr
           </span>
         )}
         {suffix && (
-          <span className="ml-0.5 text-xs font-normal text-muted-foreground">{suffix}</span>
+          <span className="ml-0.5 text-xs font-normal text-muted-foreground">
+            {suffix}
+          </span>
         )}
       </div>
     </div>

@@ -67,7 +67,11 @@ export const VALID_DIGEST_TYPES = ['weekly', 'daily', 'custom'] as const;
 export const SearchBodySchema = z.object({
   query: z.string().trim().min(1, 'Query is required').max(2000),
   threshold: z.number().min(0).max(1).default(0.35),
-  limit: z.number().int().default(20).transform(v => Math.max(1, Math.min(100, v))),
+  limit: z
+    .number()
+    .int()
+    .default(20)
+    .transform((v) => Math.max(1, Math.min(100, v))),
   layer: z.string().max(50).optional(),
 });
 
@@ -95,8 +99,16 @@ export const VALID_REVIEW_QUEUE_SORTS = [
 
 export const ReviewQueueParamsSchema = z.object({
   status: z.enum(VALID_REVIEW_STATUSES).default('unverified'),
-  limit: z.number().int().default(20).transform(v => Math.max(1, Math.min(100, v))),
-  offset: z.number().int().default(0).transform(v => Math.max(0, v)),
+  limit: z
+    .number()
+    .int()
+    .default(20)
+    .transform((v) => Math.max(1, Math.min(100, v))),
+  offset: z
+    .number()
+    .int()
+    .default(0)
+    .transform((v) => Math.max(0, v)),
   sort: z.enum(VALID_REVIEW_QUEUE_SORTS).default('created_at').optional(),
 });
 
@@ -105,7 +117,6 @@ export const SummaryGenerateBodySchema = z.object({
   item_id: z.string().uuid('item_id must be a valid UUID'),
   force: z.boolean().optional(),
 });
-
 
 /** POST /api/digest/generate */
 export const DigestGenerateBodySchema = z.object({
@@ -119,8 +130,16 @@ export const DigestGenerateBodySchema = z.object({
 
 /** GET /api/digest/list */
 export const DigestListParamsSchema = z.object({
-  limit: z.number().int().default(10).transform(v => Math.max(1, Math.min(50, v))),
-  offset: z.number().int().default(0).transform(v => Math.max(0, v)),
+  limit: z
+    .number()
+    .int()
+    .default(10)
+    .transform((v) => Math.max(1, Math.min(50, v))),
+  offset: z
+    .number()
+    .int()
+    .default(0)
+    .transform((v) => Math.max(0, v)),
 });
 
 /** GET /api/read-marks?item_ids=uuid1,uuid2,...
@@ -178,10 +197,15 @@ export const ItemCreateBodySchema = z.object({
   governance_review_status: z.enum(['draft']).optional(),
 
   // Ingestion source tracking
-  ingestion_source: z.enum(['manual', 'upload', 'url_import', 'upload_autosplit']).optional(),
+  ingestion_source: z
+    .enum(['manual', 'upload', 'url_import', 'upload_autosplit'])
+    .optional(),
 
   // Source document linkage (for batch creation and lineage tracking)
-  source_document_id: z.string().uuid('source_document_id must be a valid UUID').optional(),
+  source_document_id: z
+    .string()
+    .uuid('source_document_id must be a valid UUID')
+    .optional(),
 });
 
 /** POST /api/items/:id/classify -- on-demand classification */
@@ -190,60 +214,72 @@ export const ClassifyBodySchema = z.object({
 });
 
 /** PATCH /api/items/:id */
-export const ItemUpdateBodySchema = z.object({
-  field: z.enum([
-    'suggested_title',
-    'ai_keywords',
-    'primary_domain',
-    'primary_subtopic',
-    'secondary_domain',
-    'secondary_subtopic',
-    'ai_summary',
-    'author_name',
-    'content_type',
-    'platform',
-    'priority',
-    'user_tags',
-    'content',
-    'brief',
-    'detail',
-    'reference',
-    'answer_standard',
-    'answer_advanced',
-    'governance_review_status',
-    'expiry_date',
-    'lifecycle_type',
-  ]),
-  value: z.union([
-    z.string().max(500_000),
-    z.array(z.string().max(100)),
-    z.null(),
-  ]),
-  // Optional flags for content updates
-  regenerate_embedding: z.boolean().optional(),
-  reclassify: z.boolean().optional(),
-}).superRefine((data, ctx) => {
-  // Reject null for NOT NULL columns
-  const NOT_NULL_FIELDS = ['content', 'suggested_title'];
-  if (data.value === null && NOT_NULL_FIELDS.includes(data.field)) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: `Field '${data.field}' cannot be null`,
-      path: ['value'],
-    });
-  }
-  // Enforce field-specific max lengths
-  const LONG_TEXT_FIELDS = ['content', 'brief', 'detail', 'reference', 'answer_standard', 'answer_advanced'];
-  if (typeof data.value === 'string' && !LONG_TEXT_FIELDS.includes(data.field)) {
-    if (data.value.length > 5_000) {
+export const ItemUpdateBodySchema = z
+  .object({
+    field: z.enum([
+      'suggested_title',
+      'ai_keywords',
+      'primary_domain',
+      'primary_subtopic',
+      'secondary_domain',
+      'secondary_subtopic',
+      'ai_summary',
+      'author_name',
+      'content_type',
+      'platform',
+      'priority',
+      'user_tags',
+      'content',
+      'brief',
+      'detail',
+      'reference',
+      'answer_standard',
+      'answer_advanced',
+      'governance_review_status',
+      'expiry_date',
+      'lifecycle_type',
+    ]),
+    value: z.union([
+      z.string().max(500_000),
+      z.array(z.string().max(100)),
+      z.null(),
+    ]),
+    // Optional flags for content updates
+    regenerate_embedding: z.boolean().optional(),
+    reclassify: z.boolean().optional(),
+  })
+  .superRefine((data, ctx) => {
+    // Reject null for NOT NULL columns
+    const NOT_NULL_FIELDS = ['content', 'suggested_title'];
+    if (data.value === null && NOT_NULL_FIELDS.includes(data.field)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: `Value for field '${data.field}' must be at most 5,000 characters`,
+        message: `Field '${data.field}' cannot be null`,
         path: ['value'],
       });
     }
-  }
-});
+    // Enforce field-specific max lengths
+    const LONG_TEXT_FIELDS = [
+      'content',
+      'brief',
+      'detail',
+      'reference',
+      'answer_standard',
+      'answer_advanced',
+    ];
+    if (
+      typeof data.value === 'string' &&
+      !LONG_TEXT_FIELDS.includes(data.field)
+    ) {
+      if (data.value.length > 5_000) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Value for field '${data.field}' must be at most 5,000 characters`,
+          path: ['value'],
+        });
+      }
+    }
+  });
 
 /** POST /api/workspaces */
 export const WorkspaceCreateBodySchema = z.object({
@@ -274,7 +310,6 @@ export const ItemWorkspaceBodySchema = z.object({
   workspace_id: z.string().uuid('workspace_id must be a valid UUID'),
   action: z.enum(['assign', 'unassign']),
 });
-
 
 // ──────────────────────────────────────────
 // Admin User Management Schemas
@@ -402,9 +437,19 @@ export const RollbackBodySchema = z.object({
 export const GovernanceConfigBodySchema = z.object({
   domain: z.string().trim().min(1, 'Domain is required').max(200),
   posture: z.enum(['open', 'review_on_change']),
-  reviewer_id: z.string().uuid('reviewer_id must be a valid UUID').nullable().optional(),
+  reviewer_id: z
+    .string()
+    .uuid('reviewer_id must be a valid UUID')
+    .nullable()
+    .optional(),
   timeout_days: z.number().int().min(1).max(365).nullable().optional(),
-  quality_score_threshold: z.number().int().min(0).max(100).nullable().optional(),
+  quality_score_threshold: z
+    .number()
+    .int()
+    .min(0)
+    .max(100)
+    .nullable()
+    .optional(),
   auto_flag_on_quality_drop: z.boolean().optional(),
   auto_flag_on_freshness_transition: z.boolean().optional(),
   auto_flag_cooldown_days: z.number().int().min(1).max(90).optional(),
@@ -476,10 +521,20 @@ export const BidUpdateBodySchema = z.object({
   reference_number: z.string().max(100).nullable().optional(),
   estimated_value: z.string().max(100).nullable().optional(),
   notes: z.string().max(5000).nullable().optional(),
-  status: z.enum([
-    'draft', 'questions_extracted', 'matching', 'drafting',
-    'in_review', 'ready_for_export', 'submitted', 'won', 'lost', 'withdrawn',
-  ]).optional(),
+  status: z
+    .enum([
+      'draft',
+      'questions_extracted',
+      'matching',
+      'drafting',
+      'in_review',
+      'ready_for_export',
+      'submitted',
+      'won',
+      'lost',
+      'withdrawn',
+    ])
+    .optional(),
   submission_date: z.string().datetime({ offset: true }).optional(),
   outcome: z.enum(['won', 'lost', 'withdrawn']).optional(),
   outcome_notes: z.string().max(5000).optional(),
@@ -496,7 +551,11 @@ export const QuestionExtractBodySchema = z.object({
 // which is intentionally stricter than the DB column NUMERIC(5,2) max of 999.99.
 export const QuestionCreateBodySchema = z.object({
   section_name: z.string().max(200).optional(),
-  question_text: z.string().trim().min(1, 'Question text is required').max(5000),
+  question_text: z
+    .string()
+    .trim()
+    .min(1, 'Question text is required')
+    .max(5000),
   word_limit: z.number().int().min(1).max(100000).optional(),
   evaluation_weight: z.number().min(0).max(100).optional(),
 });
@@ -550,7 +609,9 @@ export const CostEstimateBodySchema = z.object({
 export const ResponseUpdateBodySchema = z.object({
   response_text: z.string().max(100000).optional(),
   response_text_advanced: z.string().max(100000).nullable().optional(),
-  review_status: z.enum(['draft', 'ai_drafted', 'edited', 'approved', 'needs_review']).optional(),
+  review_status: z
+    .enum(['draft', 'ai_drafted', 'edited', 'approved', 'needs_review'])
+    .optional(),
   change_reason: z.string().max(500).optional(),
   source_content_ids: z.array(z.string().uuid()).max(100).optional(),
 });
@@ -558,11 +619,7 @@ export const ResponseUpdateBodySchema = z.object({
 /** Zod schema for AI-extracted tender metadata (runtime validation) */
 export const TenderExtractedMetadataSchema = z.object({
   buyer_name: z.string().nullable(),
-  deadline: z
-    .string()
-    .datetime({ offset: true })
-    .nullable()
-    .catch(null),
+  deadline: z.string().datetime({ offset: true }).nullable().catch(null),
   reference_number: z.string().nullable(),
   estimated_value: z.string().nullable(),
   title: z.string().nullable(),
@@ -589,37 +646,53 @@ export const BidOutcomeBodySchema = z.object({
 
 /** POST /api/bids/:id/outcome/integrate */
 export const KBIntegrationBodySchema = z.object({
-  integrations: z.array(z.object({
-    question_id: z.string().uuid(),
-    action: z.enum(['new_entry', 'update_existing', 'skip']),
-    target_content_id: z.string().uuid().nullable().optional(),
-    title: z.string().max(500).optional(),
-    content_type: z.enum(['q_a_pair', 'case_study', 'policy', 'methodology', 'capability']).optional(),
-  })),
+  integrations: z.array(
+    z.object({
+      question_id: z.string().uuid(),
+      action: z.enum(['new_entry', 'update_existing', 'skip']),
+      target_content_id: z.string().uuid().nullable().optional(),
+      title: z.string().max(500).optional(),
+      content_type: z
+        .enum(['q_a_pair', 'case_study', 'policy', 'methodology', 'capability'])
+        .optional(),
+    }),
+  ),
 });
 
 /** Runtime validation for workspaces.domain_metadata when type='bid' */
-export const BidMetadataSchema = z.object({
-  buyer: z.string(),
-  status: z.enum([
-    'draft', 'questions_extracted', 'matching', 'drafting',
-    'in_review', 'ready_for_export', 'submitted', 'won', 'lost', 'withdrawn',
-  ]),
-  deadline: z.string().datetime({ offset: true }).nullable(),
-  reference_number: z.string().max(100).nullable(),
-  estimated_value: z.string().max(100).nullable(),
-  tender_source: z.enum(['upload', 'manual']).nullable(),
-  tender_document_ids: z.array(z.string()),
-  submission_date: z.string().datetime({ offset: true }).nullable(),
-  outcome: z.enum(['won', 'lost', 'withdrawn']).nullable(),
-  outcome_notes: z.string().max(5000).nullable(),
-  notes: z.string().max(5000).nullable(),
-  outcome_recorded_at: z.string().datetime({ offset: true }).optional(),
-  outcome_recorded_by: z.string().uuid().optional(),
-}).passthrough();
+export const BidMetadataSchema = z
+  .object({
+    buyer: z.string(),
+    status: z.enum([
+      'draft',
+      'questions_extracted',
+      'matching',
+      'drafting',
+      'in_review',
+      'ready_for_export',
+      'submitted',
+      'won',
+      'lost',
+      'withdrawn',
+    ]),
+    deadline: z.string().datetime({ offset: true }).nullable(),
+    reference_number: z.string().max(100).nullable(),
+    estimated_value: z.string().max(100).nullable(),
+    tender_source: z.enum(['upload', 'manual']).nullable(),
+    tender_document_ids: z.array(z.string()),
+    submission_date: z.string().datetime({ offset: true }).nullable(),
+    outcome: z.enum(['won', 'lost', 'withdrawn']).nullable(),
+    outcome_notes: z.string().max(5000).nullable(),
+    notes: z.string().max(5000).nullable(),
+    outcome_recorded_at: z.string().datetime({ offset: true }).optional(),
+    outcome_recorded_by: z.string().uuid().optional(),
+  })
+  .passthrough();
 
 /** Parse and validate domain_metadata for bid workspaces */
-export function parseBidMetadata(raw: unknown): z.infer<typeof BidMetadataSchema> | null {
+export function parseBidMetadata(
+  raw: unknown,
+): z.infer<typeof BidMetadataSchema> | null {
   const result = BidMetadataSchema.safeParse(raw);
   if (!result.success) {
     console.warn('Invalid bid metadata:', result.error.format());
@@ -656,18 +729,26 @@ export const XlsxExportBodySchema = z.object({
 /** POST /api/intelligence/profiles */
 export const CompanyProfileCreateSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200),
-  slug: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/, 'Slug must be lowercase with hyphens only'),
+  slug: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[a-z0-9-]+$/, 'Slug must be lowercase with hyphens only'),
   description: z.string().max(2000).optional(),
   website_url: z.string().url().optional().or(z.literal('')),
   sectors: z.array(z.string()).min(1, 'At least one sector is required'),
   services: z.array(z.string()).default([]),
   certifications: z.array(z.string()).default([]),
   geographic_scope: z.array(z.string()).default([]),
-  competitors: z.array(z.object({
-    name: z.string(),
-    website: z.string().optional(),
-    notes: z.string().optional(),
-  })).default([]),
+  competitors: z
+    .array(
+      z.object({
+        name: z.string(),
+        website: z.string().optional(),
+        notes: z.string().optional(),
+      }),
+    )
+    .default([]),
   target_customers: z.string().max(1000).optional(),
   value_proposition: z.string().max(2000).optional(),
   key_topics: z.array(z.string()).min(1, 'At least one key topic is required'),
@@ -704,7 +785,10 @@ export const FeedFlagCreateSchema = z.object({
 
 /** POST /api/intelligence/workspaces/:id/prompts */
 export const FeedPromptCreateSchema = z.object({
-  prompt_text: z.string().min(10, 'Prompt must be at least 10 characters').max(10000),
+  prompt_text: z
+    .string()
+    .min(10, 'Prompt must be at least 10 characters')
+    .max(10000),
   change_notes: z.string().max(1000).optional(),
 });
 
@@ -796,14 +880,24 @@ export const TagDeleteBodySchema = z.object({
 /** POST /api/tags/rename */
 export const TagRenameBodySchema = z.object({
   old: z.string().trim().min(1, 'Old tag name is required').max(100),
-  new: z.string().trim().min(1, 'New tag name is required').max(100).transform(normaliseTag),
+  new: z
+    .string()
+    .trim()
+    .min(1, 'New tag name is required')
+    .max(100)
+    .transform(normaliseTag),
   type: z.enum(VALID_TAG_TYPES),
 });
 
 /** POST /api/tags/merge */
 export const TagMergeBodySchema = z.object({
   source: z.string().trim().min(1, 'Source tag is required').max(100),
-  target: z.string().trim().min(1, 'Target tag is required').max(100).transform(normaliseTag),
+  target: z
+    .string()
+    .trim()
+    .min(1, 'Target tag is required')
+    .max(100)
+    .transform(normaliseTag),
   type: z.enum(VALID_TAG_TYPES),
 });
 
@@ -828,20 +922,39 @@ export const TagFilteredParamsSchema = z.object({
   type: z.enum(VALID_TAG_TYPES).optional(),
   min_count: z.coerce.number().int().min(1).optional(),
   search: z.string().trim().max(100).optional(),
-  limit: z.coerce.number().int().optional().transform(v => v != null ? Math.max(1, Math.min(500, v)) : v),
-  offset: z.coerce.number().int().optional().transform(v => v != null ? Math.max(0, v) : v),
+  limit: z.coerce
+    .number()
+    .int()
+    .optional()
+    .transform((v) => (v != null ? Math.max(1, Math.min(500, v)) : v)),
+  offset: z.coerce
+    .number()
+    .int()
+    .optional()
+    .transform((v) => (v != null ? Math.max(0, v) : v)),
 });
 
 /** POST /api/tags/bulk-delete */
 export const TagBulkDeleteBodySchema = z.object({
-  tags: z.array(z.string().trim().min(1).max(100)).min(1, 'At least one tag is required').max(200),
+  tags: z
+    .array(z.string().trim().min(1).max(100))
+    .min(1, 'At least one tag is required')
+    .max(200),
   type: z.enum(VALID_TAG_TYPES),
 });
 
 /** POST /api/tags/bulk-merge */
 export const TagBulkMergeBodySchema = z.object({
-  sources: z.array(z.string().trim().min(1).max(100)).min(1, 'At least one source tag is required').max(200),
-  target: z.string().trim().min(1, 'Target tag is required').max(100).transform(normaliseTag),
+  sources: z
+    .array(z.string().trim().min(1).max(100))
+    .min(1, 'At least one source tag is required')
+    .max(200),
+  target: z
+    .string()
+    .trim()
+    .min(1, 'Target tag is required')
+    .max(100)
+    .transform(normaliseTag),
   type: z.enum(VALID_TAG_TYPES),
 });
 
@@ -883,51 +996,97 @@ export const TaxonomySubtopicUpdateSchema = z.object({
 });
 
 /** POST /api/taxonomy/reorder */
-export const TaxonomyReorderSchema = z.object({
-  type: z.enum(['domain', 'subtopic']),
-  /** Required when type === 'subtopic'. Scopes reordering to a single domain. */
-  domain_id: z.string().uuid().optional(),
-  items: z.array(z.object({
-    id: z.string().uuid(),
-    display_order: z.number().int().min(0).max(999),
-  })).min(1).max(100)
-}).refine(
-  (data) => data.type === 'domain' || !!data.domain_id,
-  { message: 'domain_id is required when reordering subtopics', path: ['domain_id'] },
-);
+export const TaxonomyReorderSchema = z
+  .object({
+    type: z.enum(['domain', 'subtopic']),
+    /** Required when type === 'subtopic'. Scopes reordering to a single domain. */
+    domain_id: z.string().uuid().optional(),
+    items: z
+      .array(
+        z.object({
+          id: z.string().uuid(),
+          display_order: z.number().int().min(0).max(999),
+        }),
+      )
+      .min(1)
+      .max(100),
+  })
+  .refine((data) => data.type === 'domain' || !!data.domain_id, {
+    message: 'domain_id is required when reordering subtopics',
+    path: ['domain_id'],
+  });
 
 // ──────────────────────────────────────────
 // Entity Management Schemas (Phase 4)
 // ──────────────────────────────────────────
 
 export const VALID_ENTITY_TYPES = [
-  'organisation', 'certification', 'regulation', 'framework',
-  'capability', 'person', 'technology', 'project', 'sector', 'product',
-  'standard', 'methodology',
+  'organisation',
+  'certification',
+  'regulation',
+  'framework',
+  'capability',
+  'person',
+  'technology',
+  'project',
+  'sector',
+  'product',
+  'standard',
+  'methodology',
 ] as const;
 
 /** GET /api/entities — query params */
 export const EntityListParamsSchema = z.object({
   type: z.enum(VALID_ENTITY_TYPES).optional(),
   search: z.string().trim().max(200).optional(),
-  variants_only: z.preprocess((v) => v === 'true' || v === true, z.boolean()).optional(),
-  type_conflicts: z.preprocess((v) => v === 'true' || v === true, z.boolean()).optional(),
-  limit: z.coerce.number().int().default(100).transform(v => Math.max(1, Math.min(500, v))),
-  offset: z.coerce.number().int().default(0).transform(v => Math.max(0, v)),
+  variants_only: z
+    .preprocess((v) => v === 'true' || v === true, z.boolean())
+    .optional(),
+  type_conflicts: z
+    .preprocess((v) => v === 'true' || v === true, z.boolean())
+    .optional(),
+  limit: z.coerce
+    .number()
+    .int()
+    .default(100)
+    .transform((v) => Math.max(1, Math.min(500, v))),
+  offset: z.coerce
+    .number()
+    .int()
+    .default(0)
+    .transform((v) => Math.max(0, v)),
 });
 
 /** POST /api/entities/merge */
 export const EntityMergeBodySchema = z.object({
-  sources: z.array(z.string().trim().min(1).max(500)).min(1, 'At least one source entity is required').max(50),
-  target: z.string().trim().min(1, 'Target canonical name is required').max(500),
+  sources: z
+    .array(z.string().trim().min(1).max(500))
+    .min(1, 'At least one source entity is required')
+    .max(50),
+  target: z
+    .string()
+    .trim()
+    .min(1, 'Target canonical name is required')
+    .max(500),
   entity_type: z.enum(VALID_ENTITY_TYPES),
 });
 
 /** POST /api/entities/split */
 export const EntitySplitBodySchema = z.object({
-  canonical_name: z.string().trim().min(1, 'Canonical name is required').max(500),
-  variant_names: z.array(z.string().trim().min(1).max(500)).min(1, 'At least one variant is required').max(200),
-  new_canonical_name: z.string().trim().min(1, 'New canonical name is required').max(500),
+  canonical_name: z
+    .string()
+    .trim()
+    .min(1, 'Canonical name is required')
+    .max(500),
+  variant_names: z
+    .array(z.string().trim().min(1).max(500))
+    .min(1, 'At least one variant is required')
+    .max(200),
+  new_canonical_name: z
+    .string()
+    .trim()
+    .min(1, 'New canonical name is required')
+    .max(500),
 });
 
 /** PATCH /api/entities/[canonical_name]/type */
@@ -951,65 +1110,67 @@ export const EntityTypeOverrideBodySchema = z.object({
 //   4. Import-specific context — particular to ingestion paths
 
 /** Read-side schema for content_items.metadata JSONB */
-export const ContentMetadataSchema = z.object({
-  // ── 1. Source provenance ──────────────────
-  /** File path of the ingested source (markdown pipeline, bid library) */
-  source_file: z.string().optional(),
-  /** Folder within the source directory (markdown pipeline) */
-  source_folder: z.string().optional(),
-  /** Pipeline identifier (e.g. 'markdown_pipeline', 'upload') */
-  ingestion_source: z.string().optional(),
-  /** Original format before conversion (e.g. 'markdown', 'docx') */
-  original_format: z.string().optional(),
-  /** Batch identifier grouping related imports (bid library) */
-  import_batch: z.string().optional(),
-  /** Original filename as uploaded by user */
-  original_filename: z.string().optional(),
-  /** File size in bytes */
-  file_size: z.number().nonnegative().optional(),
-  /** MIME type of the original file */
-  mime_type: z.string().optional(),
-  /** Batch tag applied during MCP or CLI import */
-  batch_tag: z.string().optional(),
-  /** Source document name (MCP create_content_item) */
-  source_document: z.string().optional(),
+export const ContentMetadataSchema = z
+  .object({
+    // ── 1. Source provenance ──────────────────
+    /** File path of the ingested source (markdown pipeline, bid library) */
+    source_file: z.string().optional(),
+    /** Folder within the source directory (markdown pipeline) */
+    source_folder: z.string().optional(),
+    /** Pipeline identifier (e.g. 'markdown_pipeline', 'upload') */
+    ingestion_source: z.string().optional(),
+    /** Original format before conversion (e.g. 'markdown', 'docx') */
+    original_format: z.string().optional(),
+    /** Batch identifier grouping related imports (bid library) */
+    import_batch: z.string().optional(),
+    /** Original filename as uploaded by user */
+    original_filename: z.string().optional(),
+    /** File size in bytes */
+    file_size: z.number().nonnegative().optional(),
+    /** MIME type of the original file */
+    mime_type: z.string().optional(),
+    /** Batch tag applied during MCP or CLI import */
+    batch_tag: z.string().optional(),
+    /** Source document name (MCP create_content_item) */
+    source_document: z.string().optional(),
 
-  // ── 2. Content enrichment ─────────────────
-  /** Reader-friendly HTML rendering */
-  reader_html: z.string().optional(),
-  /** Extracted images from the content item */
-  extracted_images: z.array(z.record(z.string(), z.unknown())).optional(),
-  /** Timestamp when images were extracted */
-  images_extracted_at: z.string().optional(),
-  /** Chapter/segment markers (video/podcast content) */
-  chapters: z.array(z.record(z.string(), z.unknown())).optional(),
-  /** Extracted tables from PDF/DOCX content */
-  tables: z.array(z.record(z.string(), z.unknown())).optional(),
-  /** Number of tables extracted */
-  table_count: z.number().int().nonnegative().optional(),
-  /** Number of pages in PDF/DOCX */
-  page_count: z.number().int().nonnegative().optional(),
+    // ── 2. Content enrichment ─────────────────
+    /** Reader-friendly HTML rendering */
+    reader_html: z.string().optional(),
+    /** Extracted images from the content item */
+    extracted_images: z.array(z.record(z.string(), z.unknown())).optional(),
+    /** Timestamp when images were extracted */
+    images_extracted_at: z.string().optional(),
+    /** Chapter/segment markers (video/podcast content) */
+    chapters: z.array(z.record(z.string(), z.unknown())).optional(),
+    /** Extracted tables from PDF/DOCX content */
+    tables: z.array(z.record(z.string(), z.unknown())).optional(),
+    /** Number of tables extracted */
+    table_count: z.number().int().nonnegative().optional(),
+    /** Number of pages in PDF/DOCX */
+    page_count: z.number().int().nonnegative().optional(),
 
-  // ── 3. User-facing state ──────────────────
-  // Note: `layer` and `starred` were promoted to proper columns on
-  // content_items in S117 and are no longer stored in metadata JSONB.
-  /** Topic group identifier for layer switcher navigation */
-  topic_id: z.string().optional(),
+    // ── 3. User-facing state ──────────────────
+    // Note: `layer` and `starred` were promoted to proper columns on
+    // content_items in S117 and are no longer stored in metadata JSONB.
+    /** Topic group identifier for layer switcher navigation */
+    topic_id: z.string().optional(),
 
-  // ── 4. Import-specific context ────────────
-  /** Section name within the source document (bid library) */
-  section_name: z.string().optional(),
-  /** Table index within the source document (bid library) */
-  table_index: z.number().int().nonnegative().optional(),
-  /** Row index within a table (bid library) */
-  row_index: z.number().int().nonnegative().optional(),
-  /** Whether the item has a standard answer variant (bid library) */
-  has_standard: z.boolean().optional(),
-  /** Whether the item has an advanced answer variant (bid library) */
-  has_advanced: z.boolean().optional(),
-  /** Whether text extraction failed during upload */
-  extraction_failed: z.boolean().optional(),
-}).passthrough();
+    // ── 4. Import-specific context ────────────
+    /** Section name within the source document (bid library) */
+    section_name: z.string().optional(),
+    /** Table index within the source document (bid library) */
+    table_index: z.number().int().nonnegative().optional(),
+    /** Row index within a table (bid library) */
+    row_index: z.number().int().nonnegative().optional(),
+    /** Whether the item has a standard answer variant (bid library) */
+    has_standard: z.boolean().optional(),
+    /** Whether the item has an advanced answer variant (bid library) */
+    has_advanced: z.boolean().optional(),
+    /** Whether text extraction failed during upload */
+    extraction_failed: z.boolean().optional(),
+  })
+  .passthrough();
 
 /** TypeScript type for content_items.metadata */
 export type ContentMetadata = z.infer<typeof ContentMetadataSchema>;
@@ -1035,21 +1196,26 @@ export const LayerCreateSchema = z.object({
     .trim()
     .min(1, 'Key is required')
     .max(100)
-    .regex(/^[a-z][a-z0-9_]*$/, 'Key must be lowercase alphanumeric with underscores'),
+    .regex(
+      /^[a-z][a-z0-9_]*$/,
+      'Key must be lowercase alphanumeric with underscores',
+    ),
   label: z.string().trim().min(1, 'Label is required').max(200),
   description: z.string().trim().max(500).optional(),
   display_order: z.number().int().min(0).optional(),
 });
 
 /** PATCH /api/layers/:id — update an existing layer */
-export const LayerUpdateSchema = z.object({
-  label: z.string().trim().min(1).max(200).optional(),
-  description: z.string().trim().max(500).nullable().optional(),
-  display_order: z.number().int().min(0).optional(),
-  is_active: z.boolean().optional(),
-}).refine((data) => Object.keys(data).length > 0, {
-  message: 'At least one field must be provided',
-});
+export const LayerUpdateSchema = z
+  .object({
+    label: z.string().trim().min(1).max(200).optional(),
+    description: z.string().trim().max(500).nullable().optional(),
+    display_order: z.number().int().min(0).optional(),
+    is_active: z.boolean().optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'At least one field must be provided',
+  });
 
 /** PUT /api/layers/reorder — bulk update display_order */
 export const LayerReorderSchema = z.object({
@@ -1073,19 +1239,22 @@ export const OwnerAssignSchema = z.object({
 });
 
 /** POST /api/content-owners/bulk-assign — bulk assign content owner */
-export const BulkOwnerAssignSchema = z.object({
-  item_ids: z.array(z.string().uuid()).min(1).max(500).optional(),
-  filter: z.object({
-    domain: z.string().optional(),
-    subtopic: z.string().optional(),
-    content_type: z.string().optional(),
-    unowned_only: z.boolean().default(true),
-  }).optional(),
-  owner_id: z.string().uuid('owner_id must be a valid UUID'),
-}).refine(
-  (data) => data.item_ids || data.filter,
-  { message: 'Either item_ids or filter must be provided' },
-);
+export const BulkOwnerAssignSchema = z
+  .object({
+    item_ids: z.array(z.string().uuid()).min(1).max(500).optional(),
+    filter: z
+      .object({
+        domain: z.string().optional(),
+        subtopic: z.string().optional(),
+        content_type: z.string().optional(),
+        unowned_only: z.boolean().default(true),
+      })
+      .optional(),
+    owner_id: z.string().uuid('owner_id must be a valid UUID'),
+  })
+  .refine((data) => data.item_ids || data.filter, {
+    message: 'Either item_ids or filter must be provided',
+  });
 
 // ──────────────────────────────────────────
 // Shared Query Parameter Building Blocks
@@ -1093,17 +1262,36 @@ export const BulkOwnerAssignSchema = z.object({
 
 /** Reusable pagination params: limit + offset */
 export const PaginationParamsSchema = z.object({
-  limit: z.number().int().default(20).transform(v => Math.max(1, Math.min(100, v))),
-  offset: z.number().int().default(0).transform(v => Math.max(0, v)),
+  limit: z
+    .number()
+    .int()
+    .default(20)
+    .transform((v) => Math.max(1, Math.min(100, v))),
+  offset: z
+    .number()
+    .int()
+    .default(0)
+    .transform((v) => Math.max(0, v)),
 });
 
 /** Pagination with a configurable default limit (for routes that default to 50) */
-export function paginationParams(defaults?: { limit?: number; maxLimit?: number }) {
+export function paginationParams(defaults?: {
+  limit?: number;
+  maxLimit?: number;
+}) {
   const defaultLimit = defaults?.limit ?? 20;
   const maxLimit = defaults?.maxLimit ?? 100;
   return z.object({
-    limit: z.number().int().default(defaultLimit).transform(v => Math.min(Math.max(v, 1), maxLimit)),
-    offset: z.number().int().default(0).transform(v => Math.max(0, v)),
+    limit: z
+      .number()
+      .int()
+      .default(defaultLimit)
+      .transform((v) => Math.min(Math.max(v, 1), maxLimit)),
+    offset: z
+      .number()
+      .int()
+      .default(0)
+      .transform((v) => Math.max(0, v)),
   });
 }
 
@@ -1160,7 +1348,11 @@ export const ItemMetadataUpdateSchema = z
 
 /** GET /api/activity */
 export const ActivityParamsSchema = z.object({
-  limit: z.number().int().default(20).transform(v => Math.min(Math.max(v, 1), 100)),
+  limit: z
+    .number()
+    .int()
+    .default(20)
+    .transform((v) => Math.min(Math.max(v, 1), 100)),
   before: z.string().optional(), // ISO timestamp cursor
 });
 
@@ -1169,16 +1361,28 @@ export const QualityFlagsParamsSchema = z.object({
   item_id: z.string().uuid().optional(),
   flag_type: z.string().max(50).optional(),
   resolved: z.preprocess(
-    (v) => v === 'true' ? true : v === 'false' ? false : undefined,
+    (v) => (v === 'true' ? true : v === 'false' ? false : undefined),
     z.boolean().optional(),
   ),
-  limit: z.number().int().default(50).transform(v => Math.max(1, Math.min(200, v))),
-  offset: z.number().int().default(0).transform(v => Math.max(0, v)),
+  limit: z
+    .number()
+    .int()
+    .default(50)
+    .transform((v) => Math.max(1, Math.min(200, v))),
+  offset: z
+    .number()
+    .int()
+    .default(0)
+    .transform((v) => Math.max(0, v)),
 });
 
 /** GET /api/pipeline-runs */
 export const PipelineRunsParamsSchema = z.object({
-  limit: z.number().int().default(20).transform(v => Math.min(Math.max(v, 1), 100)),
+  limit: z
+    .number()
+    .int()
+    .default(20)
+    .transform((v) => Math.min(Math.max(v, 1), 100)),
   pipeline_name: z.string().max(100).optional(),
   status: z.enum(['running', 'completed', 'failed', 'cancelled']).optional(),
   all: booleanParam.optional(),
@@ -1190,7 +1394,13 @@ export const PipelineRunsParamsSchema = z.object({
  * These cross-field constraints are enforced in the route handler's
  * switch-case, not in this schema. See B4 special case notes.
  */
-const VALID_INSIGHT_TYPES = ['trends', 'topic', 'author', 'gaps', 'reading'] as const;
+const VALID_INSIGHT_TYPES = [
+  'trends',
+  'topic',
+  'author',
+  'gaps',
+  'reading',
+] as const;
 
 export const InsightsParamsSchema = z.object({
   type: z.enum(VALID_INSIGHT_TYPES).default('trends'),
@@ -1202,21 +1412,45 @@ export const InsightsParamsSchema = z.object({
 
 /** GET /api/bids */
 const VALID_BID_STATUSES = [
-  'draft', 'questions_extracted', 'matching', 'drafting',
-  'in_review', 'ready_for_export', 'submitted', 'won', 'lost', 'withdrawn',
+  'draft',
+  'questions_extracted',
+  'matching',
+  'drafting',
+  'in_review',
+  'ready_for_export',
+  'submitted',
+  'won',
+  'lost',
+  'withdrawn',
 ] as const;
 
 export const BidListParamsSchema = z.object({
   status: z.enum(VALID_BID_STATUSES).optional(),
-  limit: z.number().int().default(50).transform(v => Math.max(1, Math.min(100, v))),
-  offset: z.number().int().default(0).transform(v => Math.max(0, v)),
+  limit: z
+    .number()
+    .int()
+    .default(50)
+    .transform((v) => Math.max(1, Math.min(100, v))),
+  offset: z
+    .number()
+    .int()
+    .default(0)
+    .transform((v) => Math.max(0, v)),
 });
 
 /** GET /api/governance/review */
 export const GovernanceReviewParamsSchema = z.object({
   count_only: booleanParam.optional(),
-  limit: z.number().int().default(20).transform(v => Math.max(1, Math.min(100, v))),
-  offset: z.number().int().default(0).transform(v => Math.max(0, v)),
+  limit: z
+    .number()
+    .int()
+    .default(20)
+    .transform((v) => Math.max(1, Math.min(100, v))),
+  offset: z
+    .number()
+    .int()
+    .default(0)
+    .transform((v) => Math.max(0, v)),
 });
 
 /** GET /api/coverage/gaps */
@@ -1227,18 +1461,36 @@ export const CoverageGapsParamsSchema = z.object({
   source: z.enum(VALID_GAP_SOURCES).optional(),
   priority: z.enum(VALID_PRIORITY_TIERS).optional(),
   domain: z.string().max(200).optional(),
-  limit: z.number().int().default(25).transform(v => Math.min(Math.max(v, 1), 100)),
-  offset: z.number().int().default(0).transform(v => Math.max(0, v)),
+  limit: z
+    .number()
+    .int()
+    .default(25)
+    .transform((v) => Math.min(Math.max(v, 1), 100)),
+  offset: z
+    .number()
+    .int()
+    .default(0)
+    .transform((v) => Math.max(0, v)),
 });
 
 /** GET /api/content-suggestions */
 export const ContentSuggestionsParamsSchema = z.object({
-  limit: z.number().int().default(5).transform(v => Math.min(Math.max(v, 1), 20)),
+  limit: z
+    .number()
+    .int()
+    .default(5)
+    .transform((v) => Math.min(Math.max(v, 1), 20)),
   domain: z.string().max(200).optional(),
 });
 
 /** GET /api/guides */
-const VALID_GUIDE_TYPES = ['sector', 'product', 'company', 'research', 'custom'] as const;
+const VALID_GUIDE_TYPES = [
+  'sector',
+  'product',
+  'company',
+  'research',
+  'custom',
+] as const;
 
 export const GuideListParamsSchema = z.object({
   type: z.enum(VALID_GUIDE_TYPES).optional(),
@@ -1248,7 +1500,11 @@ export const GuideListParamsSchema = z.object({
 
 /** GET /api/workspaces/[id]/items */
 export const WorkspaceItemsParamsSchema = z.object({
-  limit: z.number().int().default(10).transform(v => Math.max(1, Math.min(50, v))),
+  limit: z
+    .number()
+    .int()
+    .default(10)
+    .transform((v) => Math.max(1, Math.min(50, v))),
 });
 
 /** GET /api/workspaces */
@@ -1279,12 +1535,26 @@ export const ReviewAssignmentsParamsSchema = z.object({
 
 /** GET /api/entities/co-occurrence */
 export const EntityCoOccurrenceParamsSchema = z.object({
-  limit: z.number().int().default(20).transform(v => Math.max(1, Math.min(50, v))),
+  limit: z
+    .number()
+    .int()
+    .default(20)
+    .transform((v) => Math.max(1, Math.min(50, v))),
   min: z.number().int().min(1).default(2),
-  type: z.enum([
-    'organisation', 'certification', 'regulation', 'framework',
-    'capability', 'person', 'technology', 'project', 'sector', 'product',
-  ]).optional(),
+  type: z
+    .enum([
+      'organisation',
+      'certification',
+      'regulation',
+      'framework',
+      'capability',
+      'person',
+      'technology',
+      'project',
+      'sector',
+      'product',
+    ])
+    .optional(),
 });
 
 /** DELETE /api/workspaces/[id] — query param for permanent delete */
@@ -1307,7 +1577,8 @@ export const DisplayNamesBodySchema = z.object({
 });
 
 /** PATCH /api/entities/[canonical_name]/metadata */
-export const EntityMetadataUpdateSchema = z.record(z.string(), z.unknown())
+export const EntityMetadataUpdateSchema = z
+  .record(z.string(), z.unknown())
   .refine((obj) => Object.keys(obj).length > 0, {
     message: 'At least one metadata field required',
   });
@@ -1324,21 +1595,35 @@ export const VisionBodySchema = z.object({
 
 /** POST /api/source-documents/[id]/send-to-review */
 export const SendToReviewBodySchema = z.object({
-  item_ids: z.array(z.string().uuid()).min(1, 'At least one item ID required').max(200),
+  item_ids: z
+    .array(z.string().uuid())
+    .min(1, 'At least one item ID required')
+    .max(200),
 });
 
 /** POST /api/source-documents/[id]/diff — compute diff */
 export const DiffRequestBodySchema = z.object({
-  new_document_id: z.string().uuid('new_document_id is required and must be a valid UUID'),
+  new_document_id: z
+    .string()
+    .uuid('new_document_id is required and must be a valid UUID'),
 });
 
 /** PATCH /api/source-documents/[id]/diff — review status updates */
-const VALID_DIFF_REVIEW_STATUSES = ['applied', 'dismissed', 'pending_review'] as const;
+const VALID_DIFF_REVIEW_STATUSES = [
+  'applied',
+  'dismissed',
+  'pending_review',
+] as const;
 
 export const DiffReviewUpdateBodySchema = z.object({
-  entries: z.array(z.object({
-    id: z.string().uuid(),
-    status: z.enum(VALID_DIFF_REVIEW_STATUSES),
-    note: z.string().max(500).optional(),
-  })).min(1, 'entries must be a non-empty array').max(500),
+  entries: z
+    .array(
+      z.object({
+        id: z.string().uuid(),
+        status: z.enum(VALID_DIFF_REVIEW_STATUSES),
+        note: z.string().max(500).optional(),
+      }),
+    )
+    .min(1, 'entries must be a non-empty array')
+    .max(500),
 });

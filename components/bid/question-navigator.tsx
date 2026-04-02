@@ -57,7 +57,9 @@ const POSTURE_CONFIG: Record<
 };
 
 function getPostureConfig(posture: string | null) {
-  return POSTURE_CONFIG[posture as ConfidencePosture] ?? POSTURE_CONFIG.no_content;
+  return (
+    POSTURE_CONFIG[posture as ConfidencePosture] ?? POSTURE_CONFIG.no_content
+  );
 }
 
 export function QuestionNavigator({
@@ -67,7 +69,8 @@ export function QuestionNavigator({
   className,
 }: QuestionNavigatorProps) {
   const prev = currentIndex > 0 ? questions[currentIndex - 1] : null;
-  const next = currentIndex < questions.length - 1 ? questions[currentIndex + 1] : null;
+  const next =
+    currentIndex < questions.length - 1 ? questions[currentIndex + 1] : null;
 
   // Count by posture for the jump-to section
   const postureCounts = questions.reduce<Record<string, number>>((acc, q) => {
@@ -120,7 +123,9 @@ export function QuestionNavigator({
         >
           <ChevronLeft className="size-4" />
           <span className="truncate text-xs">
-            {prev ? `Q${currentIndex}: ${prev.section_name ?? prev.question_text.slice(0, 30)}` : 'Previous'}
+            {prev
+              ? `Q${currentIndex}: ${prev.section_name ?? prev.question_text.slice(0, 30)}`
+              : 'Previous'}
           </span>
         </Button>
         <Button
@@ -132,7 +137,9 @@ export function QuestionNavigator({
           type="button"
         >
           <span className="truncate text-xs">
-            {next ? `Q${currentIndex + 2}: ${next.section_name ?? next.question_text.slice(0, 30)}` : 'Next'}
+            {next
+              ? `Q${currentIndex + 2}: ${next.section_name ?? next.question_text.slice(0, 30)}`
+              : 'Next'}
           </span>
           <ChevronRight className="size-4" />
         </Button>
@@ -144,7 +151,12 @@ export function QuestionNavigator({
           Jump to
         </h4>
         <div className="flex flex-wrap gap-1.5">
-          {(Object.entries(POSTURE_CONFIG) as [ConfidencePosture, typeof POSTURE_CONFIG[ConfidencePosture]][])
+          {(
+            Object.entries(POSTURE_CONFIG) as [
+              ConfidencePosture,
+              (typeof POSTURE_CONFIG)[ConfidencePosture],
+            ][]
+          )
             .sort(([, a], [, b]) => a.sortOrder - b.sortOrder)
             .map(([posture, config]) => {
               const count = postureCounts[posture] ?? 0;
@@ -167,9 +179,14 @@ export function QuestionNavigator({
                   )}
                   type="button"
                 >
-                  <span className={cn('size-2 rounded-full', config.bgColour)} />
+                  <span
+                    className={cn('size-2 rounded-full', config.bgColour)}
+                  />
                   <span className={config.colour}>{config.label}</span>
-                  <Badge variant="secondary" className="text-[10px] px-1 py-0 ml-0.5">
+                  <Badge
+                    variant="secondary"
+                    className="text-[10px] px-1 py-0 ml-0.5"
+                  >
                     {count}
                   </Badge>
                 </Button>
@@ -179,7 +196,11 @@ export function QuestionNavigator({
       </div>
 
       {/* Question dot navigator */}
-      <div className="flex flex-wrap gap-1" role="toolbar" aria-label="Question navigator">
+      <div
+        className="flex flex-wrap gap-1"
+        role="toolbar"
+        aria-label="Question navigator"
+      >
         {questions.map((q, i) => {
           const config = getPostureConfig(q.confidence_posture);
           const isComplete = q.status === 'complete' || q.status === 'approved';
@@ -194,7 +215,9 @@ export function QuestionNavigator({
               className={cn(
                 'size-3 rounded-full border transition-all',
                 isCurrent && 'ring-2 ring-ring ring-offset-1',
-                isComplete ? 'bg-confidence-strong border-confidence-strong-border' : config.bgColour + ' border-border',
+                isComplete
+                  ? 'bg-confidence-strong border-confidence-strong-border'
+                  : config.bgColour + ' border-border',
               )}
               role="button"
               aria-current={isCurrent ? 'true' : undefined}

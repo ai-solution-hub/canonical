@@ -1,8 +1,6 @@
 import { test, expect } from '../fixtures';
 import { isMobileViewport } from '../helpers/responsive';
-import {
-  createTestBid,
-} from '../helpers/data-factory';
+import { createTestBid } from '../helpers/data-factory';
 import { createServiceClient } from '../fixtures/supabase';
 
 /**
@@ -21,12 +19,14 @@ import { createServiceClient } from '../fixtures/supabase';
 // ---------------------------------------------------------------------------
 
 test.describe('Bid list page', () => {
-  test('bid list page loads with heading', async ({ authenticatedPage: page }) => {
+  test('bid list page loads with heading', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/bid');
 
-    await expect(
-      page.getByRole('heading', { name: 'Bids' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
+      timeout: 10000,
+    });
 
     await expect(
       page.getByText('Manage bid submissions and tender responses'),
@@ -59,9 +59,9 @@ test.describe('Bid list page', () => {
     await page.goto('/bid');
 
     // Wait for content to load
-    await expect(
-      page.getByRole('heading', { name: 'Bids' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
+      timeout: 10000,
+    });
 
     // Filter group
     const filterGroup = page.getByRole('group', { name: 'Filter by status' });
@@ -148,9 +148,9 @@ test.describe('Bid creation form', () => {
     authenticatedPage: page,
   }) => {
     await page.goto('/bid');
-    await expect(
-      page.getByRole('heading', { name: 'Bids' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
+      timeout: 10000,
+    });
 
     await page.getByRole('button', { name: 'New Bid' }).click();
 
@@ -165,9 +165,9 @@ test.describe('Bid creation form', () => {
     authenticatedPage: page,
   }) => {
     await page.goto('/bid');
-    await expect(
-      page.getByRole('heading', { name: 'Bids' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
+      timeout: 10000,
+    });
 
     await page.getByRole('button', { name: 'New Bid' }).click();
 
@@ -189,9 +189,9 @@ test.describe('Bid creation form', () => {
     authenticatedPage: page,
   }) => {
     await page.goto('/bid');
-    await expect(
-      page.getByRole('heading', { name: 'Bids' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
+      timeout: 10000,
+    });
 
     await page.getByRole('button', { name: 'New Bid' }).click();
 
@@ -248,7 +248,9 @@ test.describe('Bid detail page', () => {
     // Deadline — formatted in UK date format (DD/MM/YYYY)
     // The deadline is 14 days from fixture seeding time; just verify
     // a date-like string is present near the calendar icon
-    const deadlineSpan = page.locator('span').filter({ hasText: /\d{2}\/\d{2}\/\d{4}/ });
+    const deadlineSpan = page
+      .locator('span')
+      .filter({ hasText: /\d{2}\/\d{2}\/\d{4}/ });
     await expect(deadlineSpan.first()).toBeVisible();
   });
 
@@ -287,9 +289,7 @@ test.describe('Bid detail page', () => {
 
     // Tab buttons
     for (const tabName of ['Overview', 'Questions', 'Responses', 'Documents']) {
-      await expect(
-        tabNav.getByRole('button', { name: tabName }),
-      ).toBeVisible();
+      await expect(tabNav.getByRole('button', { name: tabName })).toBeVisible();
     }
   });
 
@@ -304,14 +304,10 @@ test.describe('Bid detail page', () => {
     ).toBeVisible({ timeout: 10000 });
 
     // Overview is the default tab — "Progress" heading should be visible
-    await expect(
-      page.getByRole('heading', { name: 'Progress' }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Progress' })).toBeVisible();
 
     // Should show question progress text (bid has 4 questions)
-    await expect(
-      page.getByText(/of \d+ questions drafted/),
-    ).toBeVisible();
+    await expect(page.getByText(/of \d+ questions drafted/)).toBeVisible();
   });
 
   test('questions tab shows question list', async ({
@@ -330,7 +326,9 @@ test.describe('Bid detail page', () => {
 
     // Verify one of the seeded questions is visible
     await expect(
-      page.getByText('Describe your approach to providing IT support services.'),
+      page.getByText(
+        'Describe your approach to providing IT support services.',
+      ),
     ).toBeVisible({ timeout: 10000 });
   });
 
@@ -363,31 +361,27 @@ test.describe('Bid role gating', () => {
     authenticatedPage: page,
   }) => {
     await page.goto('/bid');
-    await expect(
-      page.getByRole('heading', { name: 'Bids' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
+      timeout: 10000,
+    });
 
-    await expect(
-      page.getByRole('button', { name: 'New Bid' }),
-    ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'New Bid' })).toBeVisible();
   });
 
   test('New Bid button visible for editor', async ({ editorPage: page }) => {
     await page.goto('/bid');
-    await expect(
-      page.getByRole('heading', { name: 'Bids' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
+      timeout: 10000,
+    });
 
-    await expect(
-      page.getByRole('button', { name: 'New Bid' }),
-    ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'New Bid' })).toBeVisible();
   });
 
   test('New Bid button hidden for viewer', async ({ viewerPage: page }) => {
     await page.goto('/bid');
-    await expect(
-      page.getByRole('heading', { name: 'Bids' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Bids' })).toBeVisible({
+      timeout: 10000,
+    });
 
     await expect(
       page.getByRole('button', { name: 'New Bid' }),

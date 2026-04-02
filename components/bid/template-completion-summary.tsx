@@ -51,8 +51,12 @@ export function TemplateCompletionSummary({
   const [errorsExpanded, setErrorsExpanded] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
 
-  const total = completion.fields_filled + completion.fields_skipped + completion.fields_failed;
-  const successRate = total > 0 ? Math.round((completion.fields_filled / total) * 100) : 0;
+  const total =
+    completion.fields_filled +
+    completion.fields_skipped +
+    completion.fields_failed;
+  const successRate =
+    total > 0 ? Math.round((completion.fields_filled / total) * 100) : 0;
   const hasErrors = errors && errors.length > 0;
 
   return (
@@ -92,8 +96,14 @@ export function TemplateCompletionSummary({
 
       {/* Word limit truncation warning */}
       {truncatedCount != null && truncatedCount > 0 && (
-        <div className="flex items-center gap-2 rounded-md bg-template-manual-bg px-3 py-2" role="status">
-          <Scissors className="size-4 text-template-manual" aria-hidden="true" />
+        <div
+          className="flex items-center gap-2 rounded-md bg-template-manual-bg px-3 py-2"
+          role="status"
+        >
+          <Scissors
+            className="size-4 text-template-manual"
+            aria-hidden="true"
+          />
           <span className="text-xs text-template-manual">
             {truncatedCount} field(s) were truncated to fit their word limits.
             Review the completed document to ensure key content was preserved.
@@ -102,11 +112,17 @@ export function TemplateCompletionSummary({
       )}
 
       {completion.fields_failed > 0 && (
-        <div className="flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2" role="alert">
-          <AlertTriangle className="size-4 text-destructive" aria-hidden="true" />
+        <div
+          className="flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2"
+          role="alert"
+        >
+          <AlertTriangle
+            className="size-4 text-destructive"
+            aria-hidden="true"
+          />
           <span className="text-xs text-destructive">
-            {completion.fields_failed} field(s) could not be filled. Re-analyse the
-            template if the document structure has changed.
+            {completion.fields_failed} field(s) could not be filled. Re-analyse
+            the template if the document structure has changed.
           </span>
         </div>
       )}
@@ -119,10 +135,13 @@ export function TemplateCompletionSummary({
             onClick={() => setErrorsExpanded((prev) => !prev)}
             aria-expanded={errorsExpanded}
           >
-            {errorsExpanded
-              ? <ChevronDown className="size-3.5" aria-hidden="true" />
-              : <ChevronRight className="size-3.5" aria-hidden="true" />}
-            Error details ({errors.length} field{errors.length !== 1 ? 's' : ''})
+            {errorsExpanded ? (
+              <ChevronDown className="size-3.5" aria-hidden="true" />
+            ) : (
+              <ChevronRight className="size-3.5" aria-hidden="true" />
+            )}
+            Error details ({errors.length} field{errors.length !== 1 ? 's' : ''}
+            )
           </button>
           {errorsExpanded && (
             <ul className="border-t border-destructive/20 px-3 py-2 space-y-1">

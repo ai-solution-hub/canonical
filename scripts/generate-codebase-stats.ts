@@ -16,19 +16,19 @@
  *   --check       Compare against existing stats file, exit 1 if changed
  */
 
-import { globSync } from "glob";
-import * as fs from "node:fs";
-import * as path from "node:path";
-import { execFileSync } from "node:child_process";
+import { globSync } from 'glob';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
 
-const ROOT = path.resolve(import.meta.dirname, "..");
-const OUTPUT_DIR = path.join(ROOT, "docs", "generated");
-const JSON_OUTPUT = path.join(OUTPUT_DIR, "codebase-stats.json");
-const MD_OUTPUT = path.join(OUTPUT_DIR, "codebase-stats.md");
+const ROOT = path.resolve(import.meta.dirname, '..');
+const OUTPUT_DIR = path.join(ROOT, 'docs', 'generated');
+const JSON_OUTPUT = path.join(OUTPUT_DIR, 'codebase-stats.json');
+const MD_OUTPUT = path.join(OUTPUT_DIR, 'codebase-stats.md');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -45,19 +45,15 @@ export function countTopLevelDirs(dir: string): number {
   if (!fs.existsSync(abs)) return 0;
   return fs
     .readdirSync(abs, { withFileTypes: true })
-    .filter((d) => d.isDirectory())
-    .length;
+    .filter((d) => d.isDirectory()).length;
 }
 
 /** Read a file and count occurrences of patterns (simple string match). */
-function countPatternsInFiles(
-  filePattern: string,
-  patterns: string[]
-): number {
+function countPatternsInFiles(filePattern: string, patterns: string[]): number {
   const files = globSync(filePattern, { cwd: ROOT });
   let total = 0;
   for (const file of files) {
-    const content = fs.readFileSync(path.join(ROOT, file), "utf-8");
+    const content = fs.readFileSync(path.join(ROOT, file), 'utf-8');
     for (const pat of patterns) {
       let idx = 0;
       while (true) {
@@ -72,24 +68,21 @@ function countPatternsInFiles(
 }
 
 /** Count entries in a JS/TS array literal by extracting quoted strings. */
-function countArrayEntries(
-  filePath: string,
-  arrayName: string
-): number {
+function countArrayEntries(filePath: string, arrayName: string): number {
   const abs = path.join(ROOT, filePath);
   if (!fs.existsSync(abs)) return 0;
-  const content = fs.readFileSync(abs, "utf-8");
+  const content = fs.readFileSync(abs, 'utf-8');
 
   const startMarker = `${arrayName} = [`;
   const startIdx = content.indexOf(startMarker);
   if (startIdx === -1) return 0;
 
-  const bracketStart = content.indexOf("[", startIdx);
+  const bracketStart = content.indexOf('[', startIdx);
   let depth = 0;
   let bracketEnd = -1;
   for (let i = bracketStart; i < content.length; i++) {
-    if (content[i] === "[") depth++;
-    if (content[i] === "]") {
+    if (content[i] === '[') depth++;
+    if (content[i] === ']') {
       depth--;
       if (depth === 0) {
         bracketEnd = i;
@@ -106,11 +99,11 @@ function countArrayEntries(
 
 /** Format a date in UK English format (DD/MM/YYYY HH:mm). */
 function formatUKDate(date: Date): string {
-  const dd = String(date.getDate()).padStart(2, "0");
-  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, '0');
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
   const yyyy = date.getFullYear();
-  const hh = String(date.getHours()).padStart(2, "0");
-  const min = String(date.getMinutes()).padStart(2, "0");
+  const hh = String(date.getHours()).padStart(2, '0');
+  const min = String(date.getMinutes()).padStart(2, '0');
   return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
 }
 
@@ -119,40 +112,42 @@ function formatUKDate(date: Date): string {
 // ---------------------------------------------------------------------------
 
 export function collectFileStats(): Record<string, number> {
-  const componentsTotal = countFiles("components/**/*.tsx");
-  const componentsShadcn = countFiles("components/ui/*.tsx");
+  const componentsTotal = countFiles('components/**/*.tsx');
+  const componentsShadcn = countFiles('components/ui/*.tsx');
 
-  const libTotal = countFiles("lib/**/*.ts");
-  const libGenerated = countFiles("lib/mcp/app-bundles.ts") + countFiles("lib/mcp/plugin-bundle.ts");
+  const libTotal = countFiles('lib/**/*.ts');
+  const libGenerated =
+    countFiles('lib/mcp/app-bundles.ts') +
+    countFiles('lib/mcp/plugin-bundle.ts');
 
   return {
-    vitest_test_files: countFiles("__tests__/**/*.test.*"),
-    e2e_spec_files: countFiles("e2e/tests/*.spec.ts"),
-    python_test_files: countFiles("scripts/tests/test_*.py"),
-    migrations: countFiles("supabase/migrations/*.sql"),
-    api_route_files: countFiles("app/api/**/route.ts"),
-    api_route_groups: countTopLevelDirs("app/api"),
-    page_routes: countFiles("app/**/page.tsx"),
+    vitest_test_files: countFiles('__tests__/**/*.test.*'),
+    e2e_spec_files: countFiles('e2e/tests/*.spec.ts'),
+    python_test_files: countFiles('scripts/tests/test_*.py'),
+    migrations: countFiles('supabase/migrations/*.sql'),
+    api_route_files: countFiles('app/api/**/route.ts'),
+    api_route_groups: countTopLevelDirs('app/api'),
+    page_routes: countFiles('app/**/page.tsx'),
     components_total: componentsTotal,
     components_custom: componentsTotal - componentsShadcn,
     components_shadcn: componentsShadcn,
-    hooks: countFiles("hooks/*.ts"),
-    contexts: countFiles("contexts/*.tsx"),
-    lib_modules_toplevel: countFiles("lib/*.ts"),
+    hooks: countFiles('hooks/*.ts'),
+    contexts: countFiles('contexts/*.tsx'),
+    lib_modules_toplevel: countFiles('lib/*.ts'),
     lib_modules_total: libTotal - libGenerated,
-    type_files: countFiles("types/*.ts"),
-    ai_modules: countFiles("lib/ai/*.ts"),
-    ai_skill_files: countFiles("lib/ai/skills/*.md"),
-    validation_files: countFiles("lib/validation/*.ts"),
-    extraction_files: countFiles("lib/extraction/*.ts"),
-    pipeline_modules: countFiles("scripts/kb_pipeline/*.py"),
+    type_files: countFiles('types/*.ts'),
+    ai_modules: countFiles('lib/ai/*.ts'),
+    ai_skill_files: countFiles('lib/ai/skills/*.md'),
+    validation_files: countFiles('lib/validation/*.ts'),
+    extraction_files: countFiles('lib/extraction/*.ts'),
+    pipeline_modules: countFiles('scripts/kb_pipeline/*.py'),
     mcp_tool_category_files:
-      countFiles("lib/mcp/tools/*.ts") -
-      (fs.existsSync(path.join(ROOT, "lib/mcp/tools/index.ts")) ? 1 : 0) -
-      (fs.existsSync(path.join(ROOT, "lib/mcp/tools/shared.ts")) ? 1 : 0),
-    mcp_apps: countTopLevelDirs("mcp-apps"),
-    quality_checks: countFiles(".claude/checks/*.md"),
-    cron_routes: countFiles("app/api/cron/**/route.ts"),
+      countFiles('lib/mcp/tools/*.ts') -
+      (fs.existsSync(path.join(ROOT, 'lib/mcp/tools/index.ts')) ? 1 : 0) -
+      (fs.existsSync(path.join(ROOT, 'lib/mcp/tools/shared.ts')) ? 1 : 0),
+    mcp_apps: countTopLevelDirs('mcp-apps'),
+    quality_checks: countFiles('.claude/checks/*.md'),
+    cron_routes: countFiles('app/api/cron/**/route.ts'),
   };
 }
 
@@ -162,20 +157,20 @@ export function collectFileStats(): Record<string, number> {
 
 export function collectCodeStats(): Record<string, number> {
   return {
-    mcp_tools: countPatternsInFiles("lib/mcp/tools/*.ts", [
-      "registerTool(",
-      "registerAppTool(",
+    mcp_tools: countPatternsInFiles('lib/mcp/tools/*.ts', [
+      'registerTool(',
+      'registerAppTool(',
     ]),
-    mcp_resources: countPatternsInFiles("lib/mcp/resources.ts", [
-      "registerResource(",
-      "registerAppResource(",
+    mcp_resources: countPatternsInFiles('lib/mcp/resources.ts', [
+      'registerResource(',
+      'registerAppResource(',
     ]),
-    mcp_prompts: countPatternsInFiles("lib/mcp/resources.ts", [
-      "registerPrompt(",
+    mcp_prompts: countPatternsInFiles('lib/mcp/resources.ts', [
+      'registerPrompt(',
     ]),
     content_types: countArrayEntries(
-      "lib/validation/schemas.ts",
-      "VALID_CONTENT_TYPES"
+      'lib/validation/schemas.ts',
+      'VALID_CONTENT_TYPES',
     ),
   };
 }
@@ -206,16 +201,18 @@ export function collectRuntimeStats(): RuntimeStats {
   // Vitest count
   try {
     const result = execFileSync(
-      "bun",
-      ["run", "test", "--run", "--reporter=json"],
+      'bun',
+      ['run', 'test', '--run', '--reporter=json'],
       {
         cwd: ROOT,
-        encoding: "utf-8",
+        encoding: 'utf-8',
         timeout: 300_000,
-        stdio: ["pipe", "pipe", "pipe"],
-      }
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
     );
-    const jsonLines = result.split("\n").filter((l) => l.trim().startsWith("{"));
+    const jsonLines = result
+      .split('\n')
+      .filter((l) => l.trim().startsWith('{'));
     for (const line of jsonLines) {
       try {
         const parsed = JSON.parse(line);
@@ -238,44 +235,37 @@ export function collectRuntimeStats(): RuntimeStats {
       }
     }
   } catch {
-    console.warn("  Warning: Could not collect vitest test count");
+    console.warn('  Warning: Could not collect vitest test count');
   }
 
   // Python test count
   try {
     const result = execFileSync(
-      "python3",
-      ["-m", "pytest", "scripts/tests/", "--co", "-q"],
+      'python3',
+      ['-m', 'pytest', 'scripts/tests/', '--co', '-q'],
       {
         cwd: ROOT,
-        encoding: "utf-8",
+        encoding: 'utf-8',
         timeout: 60_000,
-        stdio: ["pipe", "pipe", "pipe"],
-      }
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
     );
-    const testLines = result
-      .split("\n")
-      .filter((l) => l.includes("::"))
-      .length;
+    const testLines = result.split('\n').filter((l) => l.includes('::')).length;
     if (testLines > 0) {
       stats.python_test_count = testLines;
     }
   } catch {
-    console.warn("  Warning: Could not collect python test count");
+    console.warn('  Warning: Could not collect python test count');
   }
 
   // Lint
   try {
-    const result = execFileSync(
-      "bun",
-      ["lint", "--format", "json"],
-      {
-        cwd: ROOT,
-        encoding: "utf-8",
-        timeout: 120_000,
-        stdio: ["pipe", "pipe", "pipe"],
-      }
-    );
+    const result = execFileSync('bun', ['lint', '--format', 'json'], {
+      cwd: ROOT,
+      encoding: 'utf-8',
+      timeout: 120_000,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
     try {
       const parsed = JSON.parse(result);
       if (Array.isArray(parsed)) {
@@ -296,7 +286,7 @@ export function collectRuntimeStats(): RuntimeStats {
       // Could not parse lint output
     }
   } catch {
-    console.warn("  Warning: Could not collect lint stats");
+    console.warn('  Warning: Could not collect lint stats');
   }
 
   return stats;
@@ -331,24 +321,21 @@ export async function collectDbStats(): Promise<DbStats> {
   const key = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_ANON_KEY;
 
   if (!url || !key) {
-    console.warn("  Warning: Supabase env vars not set, skipping DB stats");
+    console.warn('  Warning: Supabase env vars not set, skipping DB stats');
     return stats;
   }
 
   async function countTable(table: string): Promise<number | null> {
     try {
-      const res = await fetch(
-        `${url}/rest/v1/${table}?select=count`,
-        {
-          method: "HEAD",
-          headers: {
-            apikey: key!,
-            Authorization: `Bearer ${key}`,
-            Prefer: "count=exact",
-          },
-        }
-      );
-      const range = res.headers.get("content-range");
+      const res = await fetch(`${url}/rest/v1/${table}?select=count`, {
+        method: 'HEAD',
+        headers: {
+          apikey: key!,
+          Authorization: `Bearer ${key}`,
+          Prefer: 'count=exact',
+        },
+      });
+      const range = res.headers.get('content-range');
       if (range) {
         const match = range.match(/\/(\d+)/);
         if (match) return parseInt(match[1], 10);
@@ -360,11 +347,14 @@ export async function collectDbStats(): Promise<DbStats> {
   }
 
   try {
-    stats.content_items_count = await countTable("content_items");
-    stats.domains_count = await countTable("taxonomy_domains");
-    stats.subtopics_count = await countTable("taxonomy_subtopics");
+    stats.content_items_count = await countTable('content_items');
+    stats.domains_count = await countTable('taxonomy_domains');
+    stats.subtopics_count = await countTable('taxonomy_subtopics');
   } catch (e) {
-    console.warn("  Warning: Could not collect some DB stats:", (e as Error).message);
+    console.warn(
+      '  Warning: Could not collect some DB stats:',
+      (e as Error).message,
+    );
   }
 
   return stats;
@@ -379,12 +369,12 @@ export function generateMarkdown(
   codeStats: Record<string, number>,
   runtimeStats: RuntimeStats,
   dbStats: DbStats,
-  generatedAt: string
+  generatedAt: string,
 ): string {
   const ukDate = formatUKDate(new Date(generatedAt));
 
   const fmt = (v: number | null): string =>
-    v !== null ? v.toLocaleString("en-GB") : "\u2014";
+    v !== null ? v.toLocaleString('en-GB') : '\u2014';
 
   return `<!-- AUTO-GENERATED \u2014 do not edit manually -->
 <!-- Run: bun run scripts/generate-codebase-stats.ts -->
@@ -482,63 +472,63 @@ function printSummary(
   stats: Record<string, number>,
   codeStats: Record<string, number>,
   runtimeStats: RuntimeStats,
-  dbStats: DbStats
+  dbStats: DbStats,
 ): void {
-  console.log("\n  Codebase Statistics Summary");
-  console.log("  ===========================\n");
+  console.log('\n  Codebase Statistics Summary');
+  console.log('  ===========================\n');
 
   const rows: [string, number | null][] = [
-    ["Vitest test files", stats.vitest_test_files],
-    ["E2E spec files", stats.e2e_spec_files],
-    ["Python test files", stats.python_test_files],
-    ["Migrations", stats.migrations],
-    ["API route files", stats.api_route_files],
-    ["API route groups", stats.api_route_groups],
-    ["Page routes", stats.page_routes],
-    ["Components (total)", stats.components_total],
-    ["Components (custom)", stats.components_custom],
-    ["Components (shadcn/ui)", stats.components_shadcn],
-    ["Hooks", stats.hooks],
-    ["Contexts", stats.contexts],
-    ["Lib modules (top-level)", stats.lib_modules_toplevel],
-    ["Lib modules (total)", stats.lib_modules_total],
-    ["Type files", stats.type_files],
-    ["MCP tools", codeStats.mcp_tools],
-    ["MCP resources", codeStats.mcp_resources],
-    ["MCP prompts", codeStats.mcp_prompts],
-    ["MCP tool category files", stats.mcp_tool_category_files],
-    ["MCP apps", stats.mcp_apps],
-    ["AI modules", stats.ai_modules],
-    ["AI skill files", stats.ai_skill_files],
-    ["Validation files", stats.validation_files],
-    ["Extraction files", stats.extraction_files],
-    ["Pipeline modules", stats.pipeline_modules],
-    ["Quality checks", stats.quality_checks],
-    ["Cron routes", stats.cron_routes],
-    ["Content types", codeStats.content_types],
+    ['Vitest test files', stats.vitest_test_files],
+    ['E2E spec files', stats.e2e_spec_files],
+    ['Python test files', stats.python_test_files],
+    ['Migrations', stats.migrations],
+    ['API route files', stats.api_route_files],
+    ['API route groups', stats.api_route_groups],
+    ['Page routes', stats.page_routes],
+    ['Components (total)', stats.components_total],
+    ['Components (custom)', stats.components_custom],
+    ['Components (shadcn/ui)', stats.components_shadcn],
+    ['Hooks', stats.hooks],
+    ['Contexts', stats.contexts],
+    ['Lib modules (top-level)', stats.lib_modules_toplevel],
+    ['Lib modules (total)', stats.lib_modules_total],
+    ['Type files', stats.type_files],
+    ['MCP tools', codeStats.mcp_tools],
+    ['MCP resources', codeStats.mcp_resources],
+    ['MCP prompts', codeStats.mcp_prompts],
+    ['MCP tool category files', stats.mcp_tool_category_files],
+    ['MCP apps', stats.mcp_apps],
+    ['AI modules', stats.ai_modules],
+    ['AI skill files', stats.ai_skill_files],
+    ['Validation files', stats.validation_files],
+    ['Extraction files', stats.extraction_files],
+    ['Pipeline modules', stats.pipeline_modules],
+    ['Quality checks', stats.quality_checks],
+    ['Cron routes', stats.cron_routes],
+    ['Content types', codeStats.content_types],
   ];
 
   if (runtimeStats.vitest_test_count !== null) {
-    rows.push(["Vitest test count", runtimeStats.vitest_test_count]);
+    rows.push(['Vitest test count', runtimeStats.vitest_test_count]);
   }
   if (runtimeStats.python_test_count !== null) {
-    rows.push(["Python test count", runtimeStats.python_test_count]);
+    rows.push(['Python test count', runtimeStats.python_test_count]);
   }
   if (runtimeStats.lint_errors !== null) {
-    rows.push(["Lint errors", runtimeStats.lint_errors]);
+    rows.push(['Lint errors', runtimeStats.lint_errors]);
   }
   if (runtimeStats.lint_warnings !== null) {
-    rows.push(["Lint warnings", runtimeStats.lint_warnings]);
+    rows.push(['Lint warnings', runtimeStats.lint_warnings]);
   }
 
   const dbEntries: [string, number | null][] = [
-    ["Tables", dbStats.tables],
-    ["RLS policies", dbStats.rls_policies],
-    ["RPC functions", dbStats.rpc_functions],
-    ["Domains", dbStats.domains_count],
-    ["Subtopics", dbStats.subtopics_count],
-    ["Content items", dbStats.content_items_count],
-    ["Entities", dbStats.entity_count],
+    ['Tables', dbStats.tables],
+    ['RLS policies', dbStats.rls_policies],
+    ['RPC functions', dbStats.rpc_functions],
+    ['Domains', dbStats.domains_count],
+    ['Subtopics', dbStats.subtopics_count],
+    ['Content items', dbStats.content_items_count],
+    ['Entities', dbStats.entity_count],
   ];
 
   for (const [label, value] of dbEntries) {
@@ -547,7 +537,7 @@ function printSummary(
 
   const maxLabel = Math.max(...rows.map(([l]) => l.length));
   for (const [label, value] of rows) {
-    const valStr = value !== null ? value.toLocaleString("en-GB") : "\u2014";
+    const valStr = value !== null ? value.toLocaleString('en-GB') : '\u2014';
     console.log(`  ${label.padEnd(maxLabel + 2)}${valStr}`);
   }
   console.log();
@@ -559,27 +549,25 @@ function printSummary(
 
 export function checkStats(newOutput: object): boolean {
   if (!fs.existsSync(JSON_OUTPUT)) {
-    console.error("No existing stats file found at", JSON_OUTPUT);
+    console.error('No existing stats file found at', JSON_OUTPUT);
     return false;
   }
 
-  const existing = JSON.parse(fs.readFileSync(JSON_OUTPUT, "utf-8"));
+  const existing = JSON.parse(fs.readFileSync(JSON_OUTPUT, 'utf-8'));
 
-  const keysToCompare = ["stats", "code_stats", "runtime_stats", "db_stats"];
+  const keysToCompare = ['stats', 'code_stats', 'runtime_stats', 'db_stats'];
   const newObj = newOutput as Record<string, unknown>;
 
   for (const key of keysToCompare) {
-    if (
-      JSON.stringify(existing[key]) !== JSON.stringify(newObj[key])
-    ) {
+    if (JSON.stringify(existing[key]) !== JSON.stringify(newObj[key])) {
       console.error(`Stats differ in "${key}" section.`);
       console.error(
-        "  Existing:",
-        JSON.stringify(existing[key], null, 2).slice(0, 200)
+        '  Existing:',
+        JSON.stringify(existing[key], null, 2).slice(0, 200),
       );
       console.error(
-        "  Current:",
-        JSON.stringify(newObj[key], null, 2).slice(0, 200)
+        '  Current:',
+        JSON.stringify(newObj[key], null, 2).slice(0, 200),
       );
       return false;
     }
@@ -594,16 +582,16 @@ export function checkStats(newOutput: object): boolean {
 
 export async function main(argv: string[] = process.argv): Promise<void> {
   const args = new Set(argv.slice(2));
-  const fullMode = args.has("--full");
-  const dbMode = args.has("--db");
-  const jsonOnly = args.has("--json-only");
-  const stdoutMode = args.has("--stdout");
-  const checkMode = args.has("--check");
+  const fullMode = args.has('--full');
+  const dbMode = args.has('--db');
+  const jsonOnly = args.has('--json-only');
+  const stdoutMode = args.has('--stdout');
+  const checkMode = args.has('--check');
 
-  console.log("Collecting file statistics...");
+  console.log('Collecting file statistics...');
   const fileStats = collectFileStats();
 
-  console.log("Collecting code-parsable statistics...");
+  console.log('Collecting code-parsable statistics...');
   const codeStats = collectCodeStats();
 
   let runtimeStats: RuntimeStats = {
@@ -614,7 +602,7 @@ export async function main(argv: string[] = process.argv): Promise<void> {
   };
 
   if (fullMode) {
-    console.log("Collecting runtime statistics (this may take a while)...");
+    console.log('Collecting runtime statistics (this may take a while)...');
     runtimeStats = collectRuntimeStats();
   }
 
@@ -629,7 +617,7 @@ export async function main(argv: string[] = process.argv): Promise<void> {
   };
 
   if (dbMode) {
-    console.log("Collecting database statistics...");
+    console.log('Collecting database statistics...');
     dbStats = await collectDbStats();
   }
 
@@ -637,7 +625,7 @@ export async function main(argv: string[] = process.argv): Promise<void> {
 
   const output = {
     generated_at: generatedAt,
-    generator: "scripts/generate-codebase-stats.ts",
+    generator: 'scripts/generate-codebase-stats.ts',
     stats: fileStats,
     code_stats: codeStats,
     runtime_stats: runtimeStats,
@@ -648,11 +636,11 @@ export async function main(argv: string[] = process.argv): Promise<void> {
   if (checkMode) {
     const matches = checkStats(output);
     if (matches) {
-      console.log("Stats are up to date.");
+      console.log('Stats are up to date.');
       process.exit(0);
     } else {
       console.error(
-        "Stats have changed. Run `bun run scripts/generate-codebase-stats.ts` to update."
+        'Stats have changed. Run `bun run scripts/generate-codebase-stats.ts` to update.',
       );
       process.exit(1);
     }
@@ -667,8 +655,8 @@ export async function main(argv: string[] = process.argv): Promise<void> {
   // Write files
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
-  const jsonContent = JSON.stringify(output, null, 2) + "\n";
-  fs.writeFileSync(JSON_OUTPUT, jsonContent, "utf-8");
+  const jsonContent = JSON.stringify(output, null, 2) + '\n';
+  fs.writeFileSync(JSON_OUTPUT, jsonContent, 'utf-8');
   console.log(`Written: ${path.relative(ROOT, JSON_OUTPUT)}`);
 
   if (!jsonOnly) {
@@ -677,9 +665,9 @@ export async function main(argv: string[] = process.argv): Promise<void> {
       codeStats,
       runtimeStats,
       dbStats,
-      generatedAt
+      generatedAt,
     );
-    fs.writeFileSync(MD_OUTPUT, mdContent, "utf-8");
+    fs.writeFileSync(MD_OUTPUT, mdContent, 'utf-8');
     console.log(`Written: ${path.relative(ROOT, MD_OUTPUT)}`);
   }
 
@@ -690,11 +678,11 @@ export async function main(argv: string[] = process.argv): Promise<void> {
 // Run when executed directly
 const isMainModule =
   import.meta.url === `file://${process.argv[1]}` ||
-  process.argv[1]?.endsWith("generate-codebase-stats.ts");
+  process.argv[1]?.endsWith('generate-codebase-stats.ts');
 
 if (isMainModule) {
   main().catch((err) => {
-    console.error("Fatal error:", err);
+    console.error('Fatal error:', err);
     process.exit(1);
   });
 }

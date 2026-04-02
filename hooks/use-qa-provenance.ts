@@ -14,13 +14,22 @@ export interface UseQAProvenanceParams {
   metadata: Record<string, unknown> | null;
   /** Direct source_file column value (preferred over metadata extraction) */
   sourceFile?: string | null;
-  onMetadataUpdate: (updater: (prevMetadata: Record<string, unknown> | null) => Record<string, unknown> | null) => void;
+  onMetadataUpdate: (
+    updater: (
+      prevMetadata: Record<string, unknown> | null,
+    ) => Record<string, unknown> | null,
+  ) => void;
 }
 
 export interface UseQAProvenanceReturn {
   usedInWorkspaces: Array<{ id: string; name: string; type: string }>;
   relatedQA: Array<{ id: string; title: string | null }>;
-  topicLayers: Array<{ id: string; title: string | null; layer: string | null; content_type: string | null }>;
+  topicLayers: Array<{
+    id: string;
+    title: string | null;
+    layer: string | null;
+    content_type: string | null;
+  }>;
   handleLayerChange: (newLayer: string | null) => Promise<void>;
 }
 
@@ -47,7 +56,11 @@ export function useQAProvenance({
   const queryClient = useQueryClient();
 
   // Derive sourceFile from prop or metadata fallback
-  const sourceFile = sourceFileProp ?? (metadata as Record<string, unknown> | null)?.source_file as string | undefined;
+  const sourceFile =
+    sourceFileProp ??
+    ((metadata as Record<string, unknown> | null)?.source_file as
+      | string
+      | undefined);
 
   // -----------------------------------------------------------------------
   // Query 1: Workspaces (bids) using this Q&A pair
@@ -63,7 +76,10 @@ export function useQAProvenance({
       if (!data) return [];
       return (data as WorkspaceJoinRow[])
         .map((d) => d.workspaces)
-        .filter((w): w is { id: string; name: string; type: string } => w !== null && w.type === 'bid');
+        .filter(
+          (w): w is { id: string; name: string; type: string } =>
+            w !== null && w.type === 'bid',
+        );
     },
     enabled: isQAPair,
     staleTime: 30_000,
@@ -101,7 +117,12 @@ export function useQAProvenance({
       if (!res.ok) return [];
       const data = await res.json();
       if (data.layers?.length > 0) {
-        return data.layers as Array<{ id: string; title: string | null; layer: string | null; content_type: string | null }>;
+        return data.layers as Array<{
+          id: string;
+          title: string | null;
+          layer: string | null;
+          content_type: string | null;
+        }>;
       }
       return [];
     },
@@ -123,8 +144,12 @@ export function useQAProvenance({
       return newLayer;
     },
     onSuccess: (newLayer) => {
-      toast.success(newLayer ? `Layer set to ${getLayerLabel(newLayer)}` : 'Layer cleared');
-      queryClient.invalidateQueries({ queryKey: queryKeys.qaProvenance.layers(itemId) });
+      toast.success(
+        newLayer ? `Layer set to ${getLayerLabel(newLayer)}` : 'Layer cleared',
+      );
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.qaProvenance.layers(itemId),
+      });
     },
   });
 

@@ -52,10 +52,11 @@ export function TaxonomySection() {
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="right" className="max-w-xs">
-                  Domains are the top-level groups (e.g. &ldquo;Health &amp; Safety&rdquo;,
-                  &ldquo;Technology &amp; Systems&rdquo;). Subtopics sit underneath domains for
-                  finer classification. Every knowledge item gets one domain and one
-                  subtopic. Most teams configure this once during setup.
+                  Domains are the top-level groups (e.g. &ldquo;Health &amp;
+                  Safety&rdquo;, &ldquo;Technology &amp; Systems&rdquo;).
+                  Subtopics sit underneath domains for finer classification.
+                  Every knowledge item gets one domain and one subtopic. Most
+                  teams configure this once during setup.
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -74,8 +75,13 @@ export function TaxonomySection() {
       {t.domains.length === 0 ? (
         <Card>
           <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
-            <Tags className="size-8 text-muted-foreground/50" aria-hidden="true" />
-            <p className="text-sm font-medium text-foreground">No domains configured yet</p>
+            <Tags
+              className="size-8 text-muted-foreground/50"
+              aria-hidden="true"
+            />
+            <p className="text-sm font-medium text-foreground">
+              No domains configured yet
+            </p>
             <p className="text-xs text-muted-foreground">
               Add domains and subtopics to organise your knowledge base.
             </p>

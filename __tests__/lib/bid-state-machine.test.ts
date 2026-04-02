@@ -66,26 +66,28 @@ describe('bid-state-machine', () => {
 
     // Withdrawal from any active state
     const activeStates: BidState[] = [
-      'draft', 'questions_extracted', 'matching', 'drafting',
-      'in_review', 'ready_for_export', 'submitted',
+      'draft',
+      'questions_extracted',
+      'matching',
+      'drafting',
+      'in_review',
+      'ready_for_export',
+      'submitted',
     ];
 
-    it.each(activeStates)(
-      'allows withdrawal from %s',
-      (state) => {
-        expect(canTransition(state, 'withdrawn')).toBe(true);
-      },
-    );
+    it.each(activeStates)('allows withdrawal from %s', (state) => {
+      expect(canTransition(state, 'withdrawn')).toBe(true);
+    });
 
     // Invalid transitions
     const invalidTransitions: [BidState, BidState][] = [
-      ['draft', 'drafting'],        // Skipping states
-      ['draft', 'submitted'],       // Skipping many states
-      ['won', 'draft'],             // From terminal
-      ['lost', 'draft'],            // From terminal
-      ['withdrawn', 'draft'],       // From terminal
-      ['matching', 'draft'],        // Going backward (not allowed)
-      ['drafting', 'matching'],     // Going backward (not allowed)
+      ['draft', 'drafting'], // Skipping states
+      ['draft', 'submitted'], // Skipping many states
+      ['won', 'draft'], // From terminal
+      ['lost', 'draft'], // From terminal
+      ['withdrawn', 'draft'], // From terminal
+      ['matching', 'draft'], // Going backward (not allowed)
+      ['drafting', 'matching'], // Going backward (not allowed)
     ];
 
     it.each(invalidTransitions)(
@@ -163,8 +165,13 @@ describe('bid-state-machine', () => {
   describe('BID_STATE_PROGRESSION', () => {
     it('contains only non-terminal states in order', () => {
       expect(BID_STATE_PROGRESSION).toEqual([
-        'draft', 'questions_extracted', 'matching', 'drafting',
-        'in_review', 'ready_for_export', 'submitted',
+        'draft',
+        'questions_extracted',
+        'matching',
+        'drafting',
+        'in_review',
+        'ready_for_export',
+        'submitted',
       ]);
     });
 

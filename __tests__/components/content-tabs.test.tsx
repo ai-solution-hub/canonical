@@ -103,7 +103,9 @@ describe('ContentTabs', () => {
         contentType="article"
       />,
     );
-    expect(screen.getByText('This is the executive summary.')).toBeInTheDocument();
+    expect(
+      screen.getByText('This is the executive summary.'),
+    ).toBeInTheDocument();
   });
 
   it('renders Detailed tab when detailed summary exists', () => {
@@ -396,7 +398,9 @@ describe('ContentTabs', () => {
         render(
           <ContentTabs
             itemId="item-1"
-            summaryData={makeSummaryData({ executive: 'AI generated summary text' })}
+            summaryData={makeSummaryData({
+              executive: 'AI generated summary text',
+            })}
             brief="Human-authored brief for readers"
             contentType="article"
             canEdit={false}
@@ -417,20 +421,18 @@ describe('ContentTabs', () => {
         render(
           <ContentTabs
             itemId="item-1"
-            summaryData={makeSummaryData({ executive: 'AI-only summary content' })}
+            summaryData={makeSummaryData({
+              executive: 'AI-only summary content',
+            })}
             contentType="article"
             canEdit={false}
             showSourceToggle={false}
           />,
         );
         // AI content should be displayed
-        expect(
-          screen.getByText('AI-only summary content'),
-        ).toBeInTheDocument();
+        expect(screen.getByText('AI-only summary content')).toBeInTheDocument();
         // But the "Auto-generated" message should NOT appear
-        expect(
-          screen.queryByText(/Auto-generated/),
-        ).not.toBeInTheDocument();
+        expect(screen.queryByText(/Auto-generated/)).not.toBeInTheDocument();
       });
 
       it('hides "Auto-generated" summary message even when canEdit is true', () => {
@@ -445,7 +447,9 @@ describe('ContentTabs', () => {
           />,
         );
         expect(
-          screen.queryByText(/Auto-generated \u2014 write a Summary to replace/),
+          screen.queryByText(
+            /Auto-generated \u2014 write a Summary to replace/,
+          ),
         ).not.toBeInTheDocument();
       });
 
@@ -465,7 +469,9 @@ describe('ContentTabs', () => {
         await user.click(inDepthTab);
 
         expect(
-          screen.queryByText(/Auto-generated \u2014 write In Depth content to replace/),
+          screen.queryByText(
+            /Auto-generated \u2014 write In Depth content to replace/,
+          ),
         ).not.toBeInTheDocument();
       });
 
@@ -577,7 +583,9 @@ describe('ContentTabs', () => {
         render(
           <ContentTabs
             itemId="item-1"
-            summaryData={makeSummaryData({ executive: 'Clean AI summary for readers' })}
+            summaryData={makeSummaryData({
+              executive: 'Clean AI summary for readers',
+            })}
             contentType="article"
             canEdit={false}
             showSourceToggle={false}

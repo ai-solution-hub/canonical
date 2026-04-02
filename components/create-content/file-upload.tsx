@@ -61,7 +61,11 @@ interface FileUploadProps {
   onFileRemoved: (fileId: string) => void;
 }
 
-export function FileUpload({ files, onFilesAdded, onFileRemoved }: FileUploadProps) {
+export function FileUpload({
+  files,
+  onFilesAdded,
+  onFileRemoved,
+}: FileUploadProps) {
   const onDrop = useCallback(
     (acceptedFiles: File[], rejections: FileRejection[]) => {
       // Check total count
@@ -100,10 +104,8 @@ export function FileUpload({ files, onFilesAdded, onFileRemoved }: FileUploadPro
         aria-label="Upload files drop zone. Drag and drop files here or click to browse."
         className={cn(
           'flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 text-center transition-colors cursor-pointer',
-          isDragActive && !isDragReject &&
-            'border-primary bg-primary/5',
-          isDragReject &&
-            'border-destructive bg-destructive/5',
+          isDragActive && !isDragReject && 'border-primary bg-primary/5',
+          isDragReject && 'border-destructive bg-destructive/5',
           !isDragActive &&
             !isDragReject &&
             'border-muted-foreground/25 hover:border-muted-foreground/50',
@@ -146,8 +148,10 @@ export function FileUpload({ files, onFilesAdded, onFileRemoved }: FileUploadPro
               key={f.id}
               className={cn(
                 'flex items-center gap-3 rounded-md border px-3 py-2',
-                f.status === 'error' && 'border-destructive/50 bg-destructive/5',
-                f.status === 'done' && 'border-status-success/50 bg-status-success/5',
+                f.status === 'error' &&
+                  'border-destructive/50 bg-destructive/5',
+                f.status === 'done' &&
+                  'border-status-success/50 bg-status-success/5',
               )}
             >
               {/* File type badge */}
@@ -164,12 +168,12 @@ export function FileUpload({ files, onFilesAdded, onFileRemoved }: FileUploadPro
                     <span className="text-primary">Uploading&hellip;</span>
                   )}
                   {f.status === 'extracting' && (
-                    <span className="text-primary">Extracting text&hellip;</span>
+                    <span className="text-primary">
+                      Extracting text&hellip;
+                    </span>
                   )}
                   {f.status === 'done' && (
-                    <span className="text-status-success">
-                      Done
-                    </span>
+                    <span className="text-status-success">Done</span>
                   )}
                   {f.status === 'error' && (
                     <span className="flex items-center gap-1 text-destructive">

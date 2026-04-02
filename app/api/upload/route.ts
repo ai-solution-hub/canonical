@@ -37,10 +37,7 @@ const EXTENSION_TO_MIME: Record<string, string> = {
 function detectMimeType(filename: string, providedMime: string): string {
   const ext = path.extname(filename).toLowerCase();
   // Prefer extension-based detection if the provided MIME is generic
-  if (
-    providedMime === 'application/octet-stream' &&
-    EXTENSION_TO_MIME[ext]
-  ) {
+  if (providedMime === 'application/octet-stream' && EXTENSION_TO_MIME[ext]) {
     return EXTENSION_TO_MIME[ext];
   }
   // If provided MIME is valid, use it
@@ -59,13 +56,26 @@ function detectMimeType(filename: string, providedMime: string): string {
 function validateMagicBytes(buffer: Buffer, mimeType: string): boolean {
   if (mimeType === 'application/pdf') {
     // %PDF (hex: 25 50 44 46)
-    return buffer.length >= 4 &&
-      buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46;
+    return (
+      buffer.length >= 4 &&
+      buffer[0] === 0x25 &&
+      buffer[1] === 0x50 &&
+      buffer[2] === 0x44 &&
+      buffer[3] === 0x46
+    );
   }
-  if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+  if (
+    mimeType ===
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  ) {
     // PK\x03\x04 — ZIP archive signature (DOCX is a ZIP container)
-    return buffer.length >= 4 &&
-      buffer[0] === 0x50 && buffer[1] === 0x4B && buffer[2] === 0x03 && buffer[3] === 0x04;
+    return (
+      buffer.length >= 4 &&
+      buffer[0] === 0x50 &&
+      buffer[1] === 0x4b &&
+      buffer[2] === 0x03 &&
+      buffer[3] === 0x04
+    );
   }
   // Markdown and plain text have no magic bytes — trust the extension
   return true;
@@ -102,14 +112,12 @@ interface PdfExtractionResult {
  * Extract text from a PDF using the shared extraction module.
  * Returns { text, page_count, tables, table_count }.
  */
-async function extractPdfText(
-  buffer: Buffer,
-): Promise<PdfExtractionResult> {
+async function extractPdfText(buffer: Buffer): Promise<PdfExtractionResult> {
   const result = await sharedExtractPdf(buffer);
   return {
     text: result.text,
     page_count: result.pageCount,
-    tables: [],      // unpdf does not support table extraction
+    tables: [], // unpdf does not support table extraction
     table_count: 0,
   };
 }
@@ -117,9 +125,7 @@ async function extractPdfText(
 /**
  * Extract text from a DOCX file using mammoth.
  */
-async function extractDocxText(
-  buffer: Buffer,
-): Promise<{ text: string }> {
+async function extractDocxText(buffer: Buffer): Promise<{ text: string }> {
   const result = await mammoth.extractRawText({ buffer });
   return { text: result.value };
 }
@@ -183,10 +189,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (file.size === 0) {
-      return NextResponse.json(
-        { error: 'File is empty.' },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: 'File is empty.' }, { status: 400 });
     }
 
     // Detect and validate MIME type
@@ -262,11 +265,14 @@ export async function POST(request: NextRequest) {
     } | null = null;
 
     try {
-      const { data: reuploadMatch } = await serviceClient.rpc('detect_reupload', {
-        p_filename: filename,
-        p_uploaded_by: user.id,
-        p_content_hash: contentHash,
-      });
+      const { data: reuploadMatch } = await serviceClient.rpc(
+        'detect_reupload',
+        {
+          p_filename: filename,
+          p_uploaded_by: user.id,
+          p_content_hash: contentHash,
+        },
+      );
 
       if (reuploadMatch && reuploadMatch.length > 0) {
         const match = reuploadMatch[0];
@@ -315,16 +321,20 @@ export async function POST(request: NextRequest) {
     if (insertError || !newItem) {
       console.error('Failed to create content item:', insertError);
       if (pipelineRunId) {
-        await updatePipelineProgress(pipelineRunId, {
-          step: 'failed',
-          steps_completed: 0,
-          steps_total: TOTAL_STEPS,
-          detail: 'Failed to create content item record.',
-        }, {
-          status: 'failed',
-          error_message: 'Failed to create content item record.',
-          completed_at: new Date().toISOString(),
-        });
+        await updatePipelineProgress(
+          pipelineRunId,
+          {
+            step: 'failed',
+            steps_completed: 0,
+            steps_total: TOTAL_STEPS,
+            detail: 'Failed to create content item record.',
+          },
+          {
+            status: 'failed',
+            error_message: 'Failed to create content item record.',
+            completed_at: new Date().toISOString(),
+          },
+        );
       }
       return NextResponse.json(
         { error: 'Failed to create content item record.' },
@@ -356,17 +366,21 @@ export async function POST(request: NextRequest) {
       // Clean up the content_item record (use service client to bypass RLS for editors)
       await serviceClient.from('content_items').delete().eq('id', itemId);
       if (pipelineRunId) {
-        await updatePipelineProgress(pipelineRunId, {
-          step: 'failed',
-          steps_completed: 0,
-          steps_total: TOTAL_STEPS,
-          detail: 'Failed to upload file to storage.',
-        }, {
-          status: 'failed',
-          error_message: 'Failed to upload file to storage.',
-          completed_at: new Date().toISOString(),
-          items_created: [],
-        });
+        await updatePipelineProgress(
+          pipelineRunId,
+          {
+            step: 'failed',
+            steps_completed: 0,
+            steps_total: TOTAL_STEPS,
+            detail: 'Failed to upload file to storage.',
+          },
+          {
+            status: 'failed',
+            error_message: 'Failed to upload file to storage.',
+            completed_at: new Date().toISOString(),
+            items_created: [],
+          },
+        );
       }
       return NextResponse.json(
         { error: 'Failed to upload file to storage.' },
@@ -378,9 +392,10 @@ export async function POST(request: NextRequest) {
     let sourceDocumentId: string | null = null;
     try {
       const newVersion = reuploadInfo ? reuploadInfo.existing_version + 1 : 1;
-      const parentId = reuploadInfo?.match_type === 'new_version'
-        ? reuploadInfo.existing_document_id
-        : null;
+      const parentId =
+        reuploadInfo?.match_type === 'new_version'
+          ? reuploadInfo.existing_document_id
+          : null;
 
       const { data: sourceDoc } = await serviceClient
         .from('source_documents')
@@ -456,10 +471,12 @@ export async function POST(request: NextRequest) {
     // 3b. Date extraction — run after text extraction, before classification
     // Non-blocking: failures logged as warnings but do not disrupt the upload
     let expiryDate: string | null = null;
-    let temporalReferences: import('@/lib/date-extraction').TemporalReference[] = [];
+    let temporalReferences: import('@/lib/date-extraction').TemporalReference[] =
+      [];
     if (extractedText) {
       try {
-        const { extractTemporalReferences, findExpiryDate, extractDates } = await import('@/lib/date-extraction');
+        const { extractTemporalReferences, findExpiryDate, extractDates } =
+          await import('@/lib/date-extraction');
         temporalReferences = extractTemporalReferences(extractedText);
         const dates = extractDates(extractedText);
         expiryDate = findExpiryDate(dates);
@@ -494,7 +511,8 @@ export async function POST(request: NextRequest) {
     }
     // Store temporal references from date extraction
     if (temporalReferences.length > 0) {
-      metadataUpdate.temporal_references = temporalReferences as unknown as Json;
+      metadataUpdate.temporal_references =
+        temporalReferences as unknown as Json;
     }
     updateData.metadata = metadataUpdate;
 
@@ -539,7 +557,10 @@ export async function POST(request: NextRequest) {
           })
           .eq('id', sourceDocumentId);
       } catch (srcUpdateErr) {
-        console.error('Source document extraction update failed:', srcUpdateErr);
+        console.error(
+          'Source document extraction update failed:',
+          srcUpdateErr,
+        );
       }
     }
 
@@ -566,12 +587,19 @@ export async function POST(request: NextRequest) {
 
     // 5. AI processing — awaited before response to avoid serverless truncation
     const warnings: string[] = [];
-    let duplicate_matches: { id: string; title: string; similarity: number; match_type: string }[] = [];
+    let duplicate_matches: {
+      id: string;
+      title: string;
+      similarity: number;
+      match_type: string;
+    }[] = [];
 
     // Warn if an expiry date was auto-detected and applied
     if (expiryDate) {
       const formatted = new Date(expiryDate).toLocaleDateString('en-GB');
-      warnings.push(`Expiry date detected: ${formatted} — lifecycle type set to date_bound`);
+      warnings.push(
+        `Expiry date detected: ${formatted} — lifecycle type set to date_bound`,
+      );
     }
 
     if (extractedText) {
@@ -601,7 +629,8 @@ export async function POST(request: NextRequest) {
 
       // Dedup check (non-blocking — warn only)
       try {
-        const { checkForDuplicates, formatDedupWarning } = await import('@/lib/dedup');
+        const { checkForDuplicates, formatDedupWarning } =
+          await import('@/lib/dedup');
         const dedupResult = await checkForDuplicates(
           serviceClient,
           extractedText,
@@ -627,7 +656,8 @@ export async function POST(request: NextRequest) {
       try {
         await classifyUpload(itemId, user.id);
       } catch (classifyErr) {
-        const msg = classifyErr instanceof Error ? classifyErr.message : 'Unknown error';
+        const msg =
+          classifyErr instanceof Error ? classifyErr.message : 'Unknown error';
         console.error(`Classification failed for ${itemId}:`, classifyErr);
         warnings.push(`Classification failed: ${msg}`);
       }
@@ -646,23 +676,29 @@ export async function POST(request: NextRequest) {
       try {
         await summariseUpload(itemId, user.id);
       } catch (summaryErr) {
-        const msg = summaryErr instanceof Error ? summaryErr.message : 'Unknown error';
+        const msg =
+          summaryErr instanceof Error ? summaryErr.message : 'Unknown error';
         console.error(`Summary generation failed for ${itemId}:`, summaryErr);
         warnings.push(`Summary generation failed: ${msg}`);
       }
     } else {
-      warnings.push('Text extraction failed — classification, embedding, and summary skipped');
+      warnings.push(
+        'Text extraction failed — classification, embedding, and summary skipped',
+      );
     }
 
     // Quality score — calculate and store after AI processing (classification + summary)
     if (extractedText) {
       try {
-        const { calculateAndRoundQualityScore } = await import('@/lib/quality/quality-score');
+        const { calculateAndRoundQualityScore } =
+          await import('@/lib/quality/quality-score');
 
         // Fetch the latest item state (classification and summary may have updated fields)
         const { data: latestItem } = await serviceClient
           .from('content_items')
-          .select('freshness, classification_confidence, brief, detail, reference, ai_summary, citation_count')
+          .select(
+            'freshness, classification_confidence, brief, detail, reference, ai_summary, citation_count',
+          )
           .eq('id', itemId)
           .single();
 
@@ -692,7 +728,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Layer inference — suggest and store a layer if not explicitly provided
-    let suggestedLayer: { suggestedLayer: string; reason: string; confidence: string } | undefined;
+    let suggestedLayer:
+      | { suggestedLayer: string; reason: string; confidence: string }
+      | undefined;
     if (extractedText) {
       try {
         const { inferLayer } = await import('@/lib/layer-inference');
@@ -731,7 +769,9 @@ export async function POST(request: NextRequest) {
         // Fetch domain/subtopic (set by classification above)
         const { data: classified } = await serviceClient
           .from('content_items')
-          .select('primary_domain, primary_subtopic, secondary_domain, secondary_subtopic')
+          .select(
+            'primary_domain, primary_subtopic, secondary_domain, secondary_subtopic',
+          )
           .eq('id', itemId)
           .single();
 
@@ -749,7 +789,10 @@ export async function POST(request: NextRequest) {
           });
 
           if (suggestion) {
-            topicSuggestion = { topicId: suggestion.topicId, reason: suggestion.reason };
+            topicSuggestion = {
+              topicId: suggestion.topicId,
+              reason: suggestion.reason,
+            };
             await serviceClient.rpc('merge_item_metadata', {
               p_item_id: itemId,
               p_new_data: { topic_id: suggestion.topicId },
@@ -763,10 +806,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Guide section suggestion — after topic suggestion
-    let guideSectionSuggestions: import('@/lib/guide-section-mapping').GuideSectionMatch[] | undefined;
+    let guideSectionSuggestions:
+      | import('@/lib/guide-section-mapping').GuideSectionMatch[]
+      | undefined;
     if (extractedText && classifiedDomain) {
       try {
-        const { suggestGuideSections } = await import('@/lib/guide-section-mapping');
+        const { suggestGuideSections } =
+          await import('@/lib/guide-section-mapping');
         const matches = await suggestGuideSections(serviceClient, {
           primaryDomain: classifiedDomain,
           primarySubtopic: classifiedSubtopic,
@@ -800,10 +846,10 @@ export async function POST(request: NextRequest) {
     let diffAvailable = false;
     if (reuploadInfo?.match_type === 'new_version' && sourceDocumentId) {
       try {
-        const { computeDocumentDiff } = await import('@/lib/source-documents/document-diff');
-        const { analyseDocumentImpact } = await import(
-          '@/lib/source-documents/source-document-impact'
-        );
+        const { computeDocumentDiff } =
+          await import('@/lib/source-documents/document-diff');
+        const { analyseDocumentImpact } =
+          await import('@/lib/source-documents/source-document-impact');
 
         // Get extracted text from old document
         const { data: oldDoc } = await serviceClient
@@ -837,9 +883,7 @@ export async function POST(request: NextRequest) {
               status: 'pending_review',
             }));
 
-            await serviceClient
-              .from('source_document_diffs')
-              .insert(diffRows);
+            await serviceClient.from('source_document_diffs').insert(diffRows);
 
             diffAvailable = true;
 
@@ -851,9 +895,8 @@ export async function POST(request: NextRequest) {
 
             // Send notifications to affected content owners
             if (impact.total_affected_items > 0) {
-              const { sendSourceDocumentUpdateNotifications } = await import(
-                '@/lib/source-documents/source-document-notifications'
-              );
+              const { sendSourceDocumentUpdateNotifications } =
+                await import('@/lib/source-documents/source-document-notifications');
               await sendSourceDocumentUpdateNotifications(
                 serviceClient,
                 impact,
@@ -871,29 +914,38 @@ export async function POST(request: NextRequest) {
 
     // Step 5 complete: all done
     if (pipelineRunId) {
-      await updatePipelineProgress(pipelineRunId, {
-        step: 'complete',
-        steps_completed: TOTAL_STEPS,
-        steps_total: TOTAL_STEPS,
-        detail: warnings.length > 0
-          ? `Completed with ${warnings.length} warning(s).`
-          : 'All processing steps completed successfully.',
-      }, {
-        status: 'completed',
-        items_processed: 1,
-        completed_at: new Date().toISOString(),
-      });
+      await updatePipelineProgress(
+        pipelineRunId,
+        {
+          step: 'complete',
+          steps_completed: TOTAL_STEPS,
+          steps_total: TOTAL_STEPS,
+          detail:
+            warnings.length > 0
+              ? `Completed with ${warnings.length} warning(s).`
+              : 'All processing steps completed successfully.',
+        },
+        {
+          status: 'completed',
+          items_processed: 1,
+          completed_at: new Date().toISOString(),
+        },
+      );
     }
 
     // Fetch enriched item data for the review UI (classification, summary, quality score)
-    let classificationData: { domain: string; subtopic: string; confidence: number | null } | undefined;
+    let classificationData:
+      | { domain: string; subtopic: string; confidence: number | null }
+      | undefined;
     let aiSummary: string | undefined;
     let qualityScore: number | undefined;
     if (extractedText) {
       try {
         const { data: processedItem } = await serviceClient
           .from('content_items')
-          .select('primary_domain, primary_subtopic, ai_summary, classification_confidence, quality_score, content_type')
+          .select(
+            'primary_domain, primary_subtopic, ai_summary, classification_confidence, quality_score, content_type',
+          )
           .eq('id', itemId)
           .single();
 
@@ -938,7 +990,9 @@ export async function POST(request: NextRequest) {
       }),
       ...(suggestedLayer && { suggested_layer: suggestedLayer }),
       ...(topicSuggestion && { topic_suggestion: topicSuggestion }),
-      ...(guideSectionSuggestions && { guide_section_suggestions: guideSectionSuggestions }),
+      ...(guideSectionSuggestions && {
+        guide_section_suggestions: guideSectionSuggestions,
+      }),
       ...(diffAvailable && { diff_available: true }),
       message: extractedText
         ? 'File uploaded, text extracted, and AI processing complete.'
@@ -947,16 +1001,20 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     // Mark pipeline run as failed if it exists
     if (pipelineRunId) {
-      await updatePipelineProgress(pipelineRunId, {
-        step: 'failed',
-        steps_completed: 0,
-        steps_total: TOTAL_STEPS,
-        detail: 'Upload pipeline failed unexpectedly.',
-      }, {
-        status: 'failed',
-        error_message: err instanceof Error ? err.message : 'Unknown error',
-        completed_at: new Date().toISOString(),
-      });
+      await updatePipelineProgress(
+        pipelineRunId,
+        {
+          step: 'failed',
+          steps_completed: 0,
+          steps_total: TOTAL_STEPS,
+          detail: 'Upload pipeline failed unexpectedly.',
+        },
+        {
+          status: 'failed',
+          error_message: err instanceof Error ? err.message : 'Unknown error',
+          completed_at: new Date().toISOString(),
+        },
+      );
     }
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to process file upload') },
@@ -969,10 +1027,7 @@ export async function POST(request: NextRequest) {
  * Awaited classification step for uploaded files.
  * Delegates to the shared classifyContent() service.
  */
-async function classifyUpload(
-  itemId: string,
-  userId: string,
-): Promise<void> {
+async function classifyUpload(itemId: string, userId: string): Promise<void> {
   const { createServiceClient } = await import('@/lib/supabase/server');
   const supabase = createServiceClient();
 
@@ -984,10 +1039,7 @@ async function classifyUpload(
  * Awaited summary generation step for uploaded files.
  * Delegates to the shared generateSummary() service.
  */
-async function summariseUpload(
-  itemId: string,
-  userId: string,
-): Promise<void> {
+async function summariseUpload(itemId: string, userId: string): Promise<void> {
   const { createServiceClient } = await import('@/lib/supabase/server');
   const supabase = createServiceClient();
 

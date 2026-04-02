@@ -5,7 +5,14 @@
  * allowing users to publish, edit, or discard uploaded draft items.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+  act,
+} from '@testing-library/react';
 import {
   UploadReviewStep,
   type UploadReviewItem,
@@ -64,11 +71,12 @@ const longSummaryItem: UploadReviewItem = {
   ...singleItem,
   id: 'item-4',
   title: 'Long Summary Item',
-  aiSummary:
-    'A'.repeat(250), // 250 characters — exceeds 200 char preview limit
+  aiSummary: 'A'.repeat(250), // 250 characters — exceeds 200 char preview limit
 };
 
-function defaultProps(overrides: Partial<UploadReviewStepProps> = {}): UploadReviewStepProps {
+function defaultProps(
+  overrides: Partial<UploadReviewStepProps> = {},
+): UploadReviewStepProps {
   return {
     items: [singleItem],
     onPublish: vi.fn().mockResolvedValue(undefined),
@@ -121,13 +129,17 @@ describe('UploadReviewStep', () => {
     it('renders domain badge when classification exists', () => {
       render(<UploadReviewStep {...defaultProps()} />);
 
-      expect(screen.getByTestId('domain-badge')).toHaveTextContent('Compliance');
+      expect(screen.getByTestId('domain-badge')).toHaveTextContent(
+        'Compliance',
+      );
     });
 
     it('renders subtopic badge when classification exists', () => {
       render(<UploadReviewStep {...defaultProps()} />);
 
-      expect(screen.getByTestId('subtopic-badge')).toHaveTextContent('ISO Standards');
+      expect(screen.getByTestId('subtopic-badge')).toHaveTextContent(
+        'ISO Standards',
+      );
     });
 
     it('renders content type badge', () => {
@@ -169,9 +181,7 @@ describe('UploadReviewStep', () => {
 
     it('truncates long summaries with Show more button', () => {
       render(
-        <UploadReviewStep
-          {...defaultProps({ items: [longSummaryItem] })}
-        />,
+        <UploadReviewStep {...defaultProps({ items: [longSummaryItem] })} />,
       );
 
       expect(screen.getByText('Show more')).toBeInTheDocument();
@@ -179,9 +189,7 @@ describe('UploadReviewStep', () => {
 
     it('expands truncated summary on Show more click', () => {
       render(
-        <UploadReviewStep
-          {...defaultProps({ items: [longSummaryItem] })}
-        />,
+        <UploadReviewStep {...defaultProps({ items: [longSummaryItem] })} />,
       );
 
       fireEvent.click(screen.getByText('Show more'));
@@ -204,20 +212,20 @@ describe('UploadReviewStep', () => {
   describe('Warnings and dedup', () => {
     it('displays pipeline warnings', () => {
       render(
-        <UploadReviewStep
-          {...defaultProps({ items: [itemWithWarnings] })}
-        />,
+        <UploadReviewStep {...defaultProps({ items: [itemWithWarnings] })} />,
       );
 
-      expect(screen.getByText('Embedding generation failed')).toBeInTheDocument();
-      expect(screen.getByText('Classification confidence low')).toBeInTheDocument();
+      expect(
+        screen.getByText('Embedding generation failed'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText('Classification confidence low'),
+      ).toBeInTheDocument();
     });
 
     it('displays DedupWarning when dedupMatches exist', () => {
       render(
-        <UploadReviewStep
-          {...defaultProps({ items: [itemWithWarnings] })}
-        />,
+        <UploadReviewStep {...defaultProps({ items: [itemWithWarnings] })} />,
       );
 
       expect(screen.getByText('Existing Bid Template')).toBeInTheDocument();
@@ -295,7 +303,9 @@ describe('UploadReviewStep', () => {
 
       fireEvent.click(screen.getByTestId('discard-button'));
 
-      expect(screen.getByText(/Are you sure you want to discard/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Are you sure you want to discard/),
+      ).toBeInTheDocument();
     });
 
     it('calls onDiscard when confirmation is accepted', async () => {
@@ -354,7 +364,9 @@ describe('UploadReviewStep', () => {
       );
 
       expect(screen.getByTestId('publish-all-button')).toBeInTheDocument();
-      expect(screen.getByTestId('publish-all-button')).toHaveTextContent('Confirm all (2)');
+      expect(screen.getByTestId('publish-all-button')).toHaveTextContent(
+        'Confirm all (2)',
+      );
     });
 
     it('does not show bulk actions for single-item upload', () => {
@@ -367,7 +379,10 @@ describe('UploadReviewStep', () => {
       const onPublishAll = vi.fn().mockResolvedValue(undefined);
       render(
         <UploadReviewStep
-          {...defaultProps({ items: [singleItem, itemWithWarnings], onPublishAll })}
+          {...defaultProps({
+            items: [singleItem, itemWithWarnings],
+            onPublishAll,
+          })}
         />,
       );
 
@@ -431,7 +446,9 @@ describe('UploadReviewStep', () => {
       render(<UploadReviewStep {...defaultProps()} />);
 
       expect(
-        screen.getByRole('article', { name: 'Review: ISO 27001 Security Policy' }),
+        screen.getByRole('article', {
+          name: 'Review: ISO 27001 Security Policy',
+        }),
       ).toBeInTheDocument();
     });
 
@@ -447,7 +464,9 @@ describe('UploadReviewStep', () => {
       render(<UploadReviewStep {...defaultProps()} />);
 
       expect(
-        screen.getByLabelText('Edit ISO 27001 Security Policy before publishing'),
+        screen.getByLabelText(
+          'Edit ISO 27001 Security Policy before publishing',
+        ),
       ).toBeInTheDocument();
     });
 
@@ -494,7 +513,9 @@ describe('UploadReviewStep', () => {
 
       await waitFor(() => {
         // First card should be gone, second should remain
-        expect(screen.queryByTestId('review-card-item-1')).not.toBeInTheDocument();
+        expect(
+          screen.queryByTestId('review-card-item-1'),
+        ).not.toBeInTheDocument();
         expect(screen.getByTestId('review-card-item-2')).toBeInTheDocument();
       });
     });
@@ -505,7 +526,9 @@ describe('UploadReviewStep', () => {
       render(<UploadReviewStep {...defaultProps()} />);
 
       expect(screen.getByTestId('skip-review-checkbox')).toBeInTheDocument();
-      expect(screen.getByText('Skip review for future uploads')).toBeInTheDocument();
+      expect(
+        screen.getByText('Skip review for future uploads'),
+      ).toBeInTheDocument();
     });
 
     it('renders skip review checkbox in completion state', async () => {
@@ -519,7 +542,9 @@ describe('UploadReviewStep', () => {
       });
 
       expect(screen.getByTestId('skip-review-checkbox')).toBeInTheDocument();
-      expect(screen.getByText('Skip review for future uploads')).toBeInTheDocument();
+      expect(
+        screen.getByText('Skip review for future uploads'),
+      ).toBeInTheDocument();
     });
 
     it('sets localStorage when checked', () => {
@@ -577,7 +602,9 @@ describe('UploadReviewStep', () => {
       fireEvent.click(publishBtn);
 
       await waitFor(() => {
-        expect(screen.queryByTestId('review-card-item-1')).not.toBeInTheDocument();
+        expect(
+          screen.queryByTestId('review-card-item-1'),
+        ).not.toBeInTheDocument();
       });
 
       // After requestAnimationFrame, focus should move to the next card
@@ -626,13 +653,17 @@ describe('UploadReviewStep', () => {
       );
 
       expect(screen.getByTestId('discard-all-button')).toBeInTheDocument();
-      expect(screen.getByTestId('discard-all-button')).toHaveTextContent('Discard all (2)');
+      expect(screen.getByTestId('discard-all-button')).toHaveTextContent(
+        'Discard all (2)',
+      );
     });
 
     it('does not show Discard all for single-item upload', () => {
       render(<UploadReviewStep {...defaultProps()} />);
 
-      expect(screen.queryByTestId('discard-all-button')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('discard-all-button'),
+      ).not.toBeInTheDocument();
     });
 
     it('shows confirmation dialog when Discard all is clicked', () => {
@@ -644,8 +675,12 @@ describe('UploadReviewStep', () => {
 
       fireEvent.click(screen.getByTestId('discard-all-button'));
 
-      expect(screen.getByTestId('discard-all-confirmation')).toBeInTheDocument();
-      expect(screen.getByText(/Are you sure you want to discard all 2 items/)).toBeInTheDocument();
+      expect(
+        screen.getByTestId('discard-all-confirmation'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/Are you sure you want to discard all 2 items/),
+      ).toBeInTheDocument();
     });
 
     it('hides Discard all button when confirmation is shown', () => {
@@ -658,7 +693,9 @@ describe('UploadReviewStep', () => {
       fireEvent.click(screen.getByTestId('discard-all-button'));
 
       // The "Discard all" trigger button should be hidden while confirmation is shown
-      expect(screen.queryByTestId('discard-all-button')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('discard-all-button'),
+      ).not.toBeInTheDocument();
     });
 
     it('dismisses confirmation when Cancel is clicked', () => {
@@ -669,13 +706,17 @@ describe('UploadReviewStep', () => {
       );
 
       fireEvent.click(screen.getByTestId('discard-all-button'));
-      expect(screen.getByTestId('discard-all-confirmation')).toBeInTheDocument();
+      expect(
+        screen.getByTestId('discard-all-confirmation'),
+      ).toBeInTheDocument();
 
       // Click Cancel within the confirmation
       const confirmation = screen.getByTestId('discard-all-confirmation');
       fireEvent.click(within(confirmation).getByText('Cancel'));
 
-      expect(screen.queryByTestId('discard-all-confirmation')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('discard-all-confirmation'),
+      ).not.toBeInTheDocument();
       // Discard all button should reappear
       expect(screen.getByTestId('discard-all-button')).toBeInTheDocument();
     });

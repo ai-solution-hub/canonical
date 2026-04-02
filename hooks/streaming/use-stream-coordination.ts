@@ -84,8 +84,15 @@ interface UseStreamCoordinationReturn {
   loadingAction: ResponseAction | null;
   // Handlers
   handleNavigate: (index: number) => void;
-  handleAction: (action: ResponseAction, instructions?: string) => Promise<void>;
-  handleLibraryInsert: (html: string, sourceId: string, sourceTitle: string) => Promise<void>;
+  handleAction: (
+    action: ResponseAction,
+    instructions?: string,
+  ) => Promise<void>;
+  handleLibraryInsert: (
+    html: string,
+    sourceId: string,
+    sourceTitle: string,
+  ) => Promise<void>;
   handleCitationClick: (contentId: string) => void;
   // Derived
   navigatorQuestions: NavigatorQuestion[];
@@ -131,7 +138,9 @@ export function useStreamCoordination({
   // ── Streaming (SSE) ──
   const stream = useDraftStream(bidId);
   const isStreaming =
-    stream.phase !== 'idle' && stream.phase !== 'done' && stream.phase !== 'error';
+    stream.phase !== 'idle' &&
+    stream.phase !== 'done' &&
+    stream.phase !== 'error';
 
   // ── Editor content state ──
   const [editorContent, setEditorContent] = useState('');

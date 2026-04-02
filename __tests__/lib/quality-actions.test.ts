@@ -4,14 +4,19 @@ import {
   getTopQualityActions,
   type QualityActionInput,
 } from '@/lib/quality/quality-actions';
-import { createMockSupabaseClient, type MockSupabaseClient } from '../helpers/mock-supabase';
+import {
+  createMockSupabaseClient,
+  type MockSupabaseClient,
+} from '../helpers/mock-supabase';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 /** Create a default well-scored item (no deficiencies). */
-function makeItem(overrides: Partial<QualityActionInput> = {}): QualityActionInput {
+function makeItem(
+  overrides: Partial<QualityActionInput> = {},
+): QualityActionInput {
   return {
     id: 'item-1',
     title: 'Test Item',
@@ -21,7 +26,8 @@ function makeItem(overrides: Partial<QualityActionInput> = {}): QualityActionInp
     primary_subtopic: 'Company History',
     freshness: 'fresh',
     classification_confidence: 0.9,
-    ai_summary: 'A comprehensive summary of the content that is long enough to pass the threshold check easily.',
+    ai_summary:
+      'A comprehensive summary of the content that is long enough to pass the threshold check easily.',
     brief: 'Brief content here',
     detail: 'Detailed content here',
     reference: 'Reference content here',
@@ -62,7 +68,7 @@ describe('suggestQualityActions', () => {
   it('suggests freshness action for stale item', () => {
     const item = makeItem({ id: 'stale-1', freshness: 'stale' });
     const actions = suggestQualityActions([item]);
-    const freshnessActions = actions.filter(a => a.category === 'freshness');
+    const freshnessActions = actions.filter((a) => a.category === 'freshness');
 
     expect(freshnessActions).toHaveLength(1);
     expect(freshnessActions[0].priority).toBe('medium');
@@ -73,7 +79,7 @@ describe('suggestQualityActions', () => {
   it('suggests high-priority freshness action for expired item', () => {
     const item = makeItem({ id: 'expired-1', freshness: 'expired' });
     const actions = suggestQualityActions([item]);
-    const freshnessActions = actions.filter(a => a.category === 'freshness');
+    const freshnessActions = actions.filter((a) => a.category === 'freshness');
 
     expect(freshnessActions).toHaveLength(1);
     expect(freshnessActions[0].priority).toBe('high');
@@ -84,14 +90,14 @@ describe('suggestQualityActions', () => {
   it('does not suggest freshness action for fresh items', () => {
     const item = makeItem({ freshness: 'fresh' });
     const actions = suggestQualityActions([item]);
-    const freshnessActions = actions.filter(a => a.category === 'freshness');
+    const freshnessActions = actions.filter((a) => a.category === 'freshness');
     expect(freshnessActions).toHaveLength(0);
   });
 
   it('does not suggest freshness action for ageing items', () => {
     const item = makeItem({ freshness: 'ageing' });
     const actions = suggestQualityActions([item]);
-    const freshnessActions = actions.filter(a => a.category === 'freshness');
+    const freshnessActions = actions.filter((a) => a.category === 'freshness');
     expect(freshnessActions).toHaveLength(0);
   });
 
@@ -105,7 +111,7 @@ describe('suggestQualityActions', () => {
       classification_confidence: 0.3,
     });
     const actions = suggestQualityActions([item]);
-    const classActions = actions.filter(a => a.category === 'classification');
+    const classActions = actions.filter((a) => a.category === 'classification');
 
     expect(classActions).toHaveLength(1);
     expect(classActions[0].priority).toBe('high');
@@ -116,14 +122,14 @@ describe('suggestQualityActions', () => {
   it('does not suggest reclassify for confidence >= 0.6', () => {
     const item = makeItem({ classification_confidence: 0.6 });
     const actions = suggestQualityActions([item]);
-    const classActions = actions.filter(a => a.category === 'classification');
+    const classActions = actions.filter((a) => a.category === 'classification');
     expect(classActions).toHaveLength(0);
   });
 
   it('suggests reclassify for confidence just below 0.6', () => {
     const item = makeItem({ classification_confidence: 0.59 });
     const actions = suggestQualityActions([item]);
-    const classActions = actions.filter(a => a.category === 'classification');
+    const classActions = actions.filter((a) => a.category === 'classification');
     expect(classActions).toHaveLength(1);
     expect(classActions[0].priority).toBe('high');
   });
@@ -131,14 +137,14 @@ describe('suggestQualityActions', () => {
   it('does not suggest reclassify for null confidence', () => {
     const item = makeItem({ classification_confidence: null });
     const actions = suggestQualityActions([item]);
-    const classActions = actions.filter(a => a.category === 'classification');
+    const classActions = actions.filter((a) => a.category === 'classification');
     expect(classActions).toHaveLength(0);
   });
 
   it('estimates correct score impact for low confidence', () => {
     const item = makeItem({ classification_confidence: 0.2 });
     const actions = suggestQualityActions([item]);
-    const classAction = actions.find(a => a.category === 'classification');
+    const classAction = actions.find((a) => a.category === 'classification');
 
     // (1 - 0.2) * 20 = 16
     expect(classAction?.estimatedScoreImpact).toBe(16);
@@ -152,7 +158,7 @@ describe('suggestQualityActions', () => {
     const item = makeItem({ id: 'no-summary', ai_summary: null });
     const actions = suggestQualityActions([item]);
     const summaryActions = actions.filter(
-      a => a.category === 'summary' && a.action.includes('Generate'),
+      (a) => a.category === 'summary' && a.action.includes('Generate'),
     );
 
     expect(summaryActions).toHaveLength(1);
@@ -161,10 +167,12 @@ describe('suggestQualityActions', () => {
   });
 
   it('does not suggest generate summary when ai_summary exists', () => {
-    const item = makeItem({ ai_summary: 'This is a long enough summary to exceed the threshold.' });
+    const item = makeItem({
+      ai_summary: 'This is a long enough summary to exceed the threshold.',
+    });
     const actions = suggestQualityActions([item]);
     const generateActions = actions.filter(
-      a => a.category === 'summary' && a.action.includes('Generate'),
+      (a) => a.category === 'summary' && a.action.includes('Generate'),
     );
     expect(generateActions).toHaveLength(0);
   });
@@ -180,7 +188,7 @@ describe('suggestQualityActions', () => {
     });
     const actions = suggestQualityActions([item]);
     const improveActions = actions.filter(
-      a => a.category === 'summary' && a.action.includes('Improve'),
+      (a) => a.category === 'summary' && a.action.includes('Improve'),
     );
 
     expect(improveActions).toHaveLength(1);
@@ -190,11 +198,12 @@ describe('suggestQualityActions', () => {
 
   it('does not suggest improve summary for adequately long summary', () => {
     const item = makeItem({
-      ai_summary: 'This is a summary that is clearly over fifty characters in total length.',
+      ai_summary:
+        'This is a summary that is clearly over fifty characters in total length.',
     });
     const actions = suggestQualityActions([item]);
     const improveActions = actions.filter(
-      a => a.category === 'summary' && a.action.includes('Improve'),
+      (a) => a.category === 'summary' && a.action.includes('Improve'),
     );
     expect(improveActions).toHaveLength(0);
   });
@@ -206,8 +215,8 @@ describe('suggestQualityActions', () => {
   it('suggests assign owner for item without content_owner_id', () => {
     const item = makeItem({ id: 'no-owner', content_owner_id: null });
     const actions = suggestQualityActions([item]);
-    const ownerActions = actions.filter(
-      a => a.action.includes('Assign content owner'),
+    const ownerActions = actions.filter((a) =>
+      a.action.includes('Assign content owner'),
     );
 
     expect(ownerActions).toHaveLength(1);
@@ -222,8 +231,8 @@ describe('suggestQualityActions', () => {
   it('suggests add source URL for item without source_url', () => {
     const item = makeItem({ id: 'no-url', source_url: null });
     const actions = suggestQualityActions([item]);
-    const urlActions = actions.filter(
-      a => a.action.includes('Add source URL'),
+    const urlActions = actions.filter((a) =>
+      a.action.includes('Add source URL'),
     );
 
     expect(urlActions).toHaveLength(1);
@@ -242,7 +251,7 @@ describe('suggestQualityActions', () => {
       metadata: { citation_count: 0 },
     });
     const actions = suggestQualityActions([item]);
-    const citationActions = actions.filter(a => a.category === 'citations');
+    const citationActions = actions.filter((a) => a.category === 'citations');
 
     expect(citationActions).toHaveLength(1);
     expect(citationActions[0].priority).toBe('low');
@@ -256,14 +265,17 @@ describe('suggestQualityActions', () => {
       metadata: { citation_count: 0 },
     });
     const actions = suggestQualityActions([item]);
-    const citationActions = actions.filter(a => a.category === 'citations');
+    const citationActions = actions.filter((a) => a.category === 'citations');
     expect(citationActions).toHaveLength(0);
   });
 
   it('does not suggest add citations when citation_count > 0', () => {
-    const item = makeItem({ citation_count: 2, metadata: { citation_count: 2 } });
+    const item = makeItem({
+      citation_count: 2,
+      metadata: { citation_count: 2 },
+    });
     const actions = suggestQualityActions([item]);
-    const citationActions = actions.filter(a => a.category === 'citations');
+    const citationActions = actions.filter((a) => a.category === 'citations');
     expect(citationActions).toHaveLength(0);
   });
 
@@ -274,7 +286,7 @@ describe('suggestQualityActions', () => {
       metadata: null,
     });
     const actions = suggestQualityActions([item]);
-    const citationActions = actions.filter(a => a.category === 'citations');
+    const citationActions = actions.filter((a) => a.category === 'citations');
     expect(citationActions).toHaveLength(1); // null metadata = 0 citations
   });
 
@@ -291,7 +303,7 @@ describe('suggestQualityActions', () => {
     });
     const actions = suggestQualityActions([item]);
     const depthActions = actions.filter(
-      a => a.category === 'completeness' && a.action.includes('depth'),
+      (a) => a.category === 'completeness' && a.action.includes('depth'),
     );
 
     expect(depthActions).toHaveLength(1);
@@ -308,7 +320,7 @@ describe('suggestQualityActions', () => {
     });
     const actions = suggestQualityActions([item]);
     const depthActions = actions.filter(
-      a => a.category === 'completeness' && a.action.includes('depth'),
+      (a) => a.category === 'completeness' && a.action.includes('depth'),
     );
 
     expect(depthActions).toHaveLength(1);
@@ -324,7 +336,7 @@ describe('suggestQualityActions', () => {
     });
     const actions = suggestQualityActions([item]);
     const depthActions = actions.filter(
-      a => a.category === 'completeness' && a.action.includes('depth'),
+      (a) => a.category === 'completeness' && a.action.includes('depth'),
     );
     expect(depthActions).toHaveLength(0);
   });
@@ -337,7 +349,7 @@ describe('suggestQualityActions', () => {
     });
     const actions = suggestQualityActions([item]);
     const depthActions = actions.filter(
-      a => a.category === 'completeness' && a.action.includes('depth'),
+      (a) => a.category === 'completeness' && a.action.includes('depth'),
     );
     // 0 of 3 is handled differently — the whole item is sparse,
     // not "partially populated"
@@ -370,7 +382,7 @@ describe('suggestQualityActions', () => {
     expect(actions.length).toBeGreaterThanOrEqual(6);
 
     // Verify categories present
-    const categories = new Set(actions.map(a => a.category));
+    const categories = new Set(actions.map((a) => a.category));
     expect(categories.has('freshness')).toBe(true);
     expect(categories.has('classification')).toBe(true);
     expect(categories.has('summary')).toBe(true);
@@ -399,12 +411,14 @@ describe('suggestQualityActions', () => {
     const actions = suggestQualityActions(items);
 
     // First actions should be high priority (freshness expired, classification)
-    const highActions = actions.filter(a => a.priority === 'high');
-    const lowActions = actions.filter(a => a.priority === 'low');
+    const highActions = actions.filter((a) => a.priority === 'high');
+    const lowActions = actions.filter((a) => a.priority === 'low');
 
     // All high-priority actions come before low-priority
     if (highActions.length > 0 && lowActions.length > 0) {
-      const lastHighIdx = actions.lastIndexOf(highActions[highActions.length - 1]);
+      const lastHighIdx = actions.lastIndexOf(
+        highActions[highActions.length - 1],
+      );
       const firstLowIdx = actions.indexOf(lowActions[0]);
       expect(lastHighIdx).toBeLessThan(firstLowIdx);
     }
@@ -425,7 +439,7 @@ describe('suggestQualityActions', () => {
       }),
     ];
     const actions = suggestQualityActions(items);
-    const highActions = actions.filter(a => a.priority === 'high');
+    const highActions = actions.filter((a) => a.priority === 'high');
 
     // Among high priority, expired freshness (30) should come before
     // low confidence (16) and missing summary (15)
@@ -476,7 +490,7 @@ describe('suggestQualityActions', () => {
     ];
     const actions = suggestQualityActions(items);
 
-    const itemIds = new Set(actions.map(a => a.itemId));
+    const itemIds = new Set(actions.map((a) => a.itemId));
     expect(itemIds.has('item-a')).toBe(true);
     expect(itemIds.has('item-b')).toBe(true);
     expect(itemIds.has('item-c')).toBe(true);
@@ -549,7 +563,7 @@ describe('suggestQualityActions', () => {
       metadata: { citation_count: 3 },
     });
     const actions = suggestQualityActions([item]);
-    const citationActions = actions.filter(a => a.category === 'citations');
+    const citationActions = actions.filter((a) => a.category === 'citations');
     expect(citationActions).toHaveLength(0); // has citations, no action
   });
 
@@ -560,7 +574,7 @@ describe('suggestQualityActions', () => {
       metadata: { citation_count: '5' },
     });
     const actions = suggestQualityActions([item]);
-    const citationActions = actions.filter(a => a.category === 'citations');
+    const citationActions = actions.filter((a) => a.category === 'citations');
     expect(citationActions).toHaveLength(0); // has citations, no action
   });
 
@@ -571,7 +585,7 @@ describe('suggestQualityActions', () => {
       metadata: { citation_count: 'invalid' },
     });
     const actions = suggestQualityActions([item]);
-    const citationActions = actions.filter(a => a.category === 'citations');
+    const citationActions = actions.filter((a) => a.category === 'citations');
     expect(citationActions).toHaveLength(1); // treated as 0
   });
 
@@ -609,7 +623,7 @@ describe('suggestQualityActions', () => {
       freshness: 'fresh',
     });
     const actions = suggestQualityActions([item], { threshold: 40 });
-    const dropActions = actions.filter(a => a.category === 'score_drop');
+    const dropActions = actions.filter((a) => a.category === 'score_drop');
 
     expect(dropActions).toHaveLength(1);
     expect(dropActions[0].priority).toBe('critical');
@@ -625,7 +639,7 @@ describe('suggestQualityActions', () => {
       quality_score: 30,
     });
     const actions = suggestQualityActions([item], { threshold: 40 });
-    const dropActions = actions.filter(a => a.category === 'score_drop');
+    const dropActions = actions.filter((a) => a.category === 'score_drop');
     expect(dropActions).toHaveLength(0);
   });
 
@@ -635,7 +649,7 @@ describe('suggestQualityActions', () => {
       quality_score: 50,
     });
     const actions = suggestQualityActions([item], { threshold: 40 });
-    const dropActions = actions.filter(a => a.category === 'score_drop');
+    const dropActions = actions.filter((a) => a.category === 'score_drop');
     expect(dropActions).toHaveLength(0);
   });
 
@@ -645,7 +659,7 @@ describe('suggestQualityActions', () => {
       quality_score: 30,
     });
     const actions = suggestQualityActions([item], { threshold: 40 });
-    const dropActions = actions.filter(a => a.category === 'score_drop');
+    const dropActions = actions.filter((a) => a.category === 'score_drop');
     expect(dropActions).toHaveLength(0);
   });
 
@@ -657,7 +671,7 @@ describe('suggestQualityActions', () => {
     });
     // No options passed — should use default threshold of 40
     const actions = suggestQualityActions([item]);
-    const dropActions = actions.filter(a => a.category === 'score_drop');
+    const dropActions = actions.filter((a) => a.category === 'score_drop');
     expect(dropActions).toHaveLength(1);
   });
 
@@ -688,7 +702,7 @@ describe('suggestQualityActions', () => {
       content_owner_id: null,
     });
     const actions = suggestQualityActions([item], { deduplicateByItem: false });
-    const itemActions = actions.filter(a => a.itemId === 'multi-issue');
+    const itemActions = actions.filter((a) => a.itemId === 'multi-issue');
     expect(itemActions.length).toBeGreaterThan(1);
   });
 
@@ -701,7 +715,7 @@ describe('suggestQualityActions', () => {
       source_url: null, // low priority
     });
     const actions = suggestQualityActions([item], { deduplicateByItem: true });
-    const itemActions = actions.filter(a => a.itemId === 'multi-issue');
+    const itemActions = actions.filter((a) => a.itemId === 'multi-issue');
     expect(itemActions).toHaveLength(1);
     expect(itemActions[0].priority).toBe('high');
   });
@@ -722,8 +736,8 @@ describe('suggestQualityActions', () => {
     const actions = suggestQualityActions(items, { deduplicateByItem: true });
 
     expect(actions).toHaveLength(2);
-    expect(actions.find(a => a.itemId === 'item-a')).toBeDefined();
-    expect(actions.find(a => a.itemId === 'item-b')).toBeDefined();
+    expect(actions.find((a) => a.itemId === 'item-a')).toBeDefined();
+    expect(actions.find((a) => a.itemId === 'item-b')).toBeDefined();
   });
 
   it('does not deduplicate by default', () => {
@@ -734,7 +748,7 @@ describe('suggestQualityActions', () => {
     });
     // No deduplicateByItem option
     const actions = suggestQualityActions([item]);
-    const itemActions = actions.filter(a => a.itemId === 'multi-issue');
+    const itemActions = actions.filter((a) => a.itemId === 'multi-issue');
     expect(itemActions.length).toBeGreaterThan(1);
   });
 });
@@ -748,20 +762,21 @@ describe('getTopQualityActions', () => {
 
   /** Helper to configure governance_config response. */
   function configureGovConfig(
-    rows: Array<{ domain: string | null; quality_score_threshold: number | null }>,
+    rows: Array<{
+      domain: string | null;
+      quality_score_threshold: number | null;
+    }>,
   ) {
     // First from() call is governance_config
-    mockClient._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: rows, error: null }),
+    mockClient._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: rows, error: null }),
     );
   }
 
   /** Helper to configure content_items response. */
-  function configureContentItems(
-    items: Array<Record<string, unknown>>,
-  ) {
-    mockClient._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: items, error: null }),
+  function configureContentItems(items: Array<Record<string, unknown>>) {
+    mockClient._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: items, error: null }),
     );
   }
 
@@ -785,9 +800,7 @@ describe('getTopQualityActions', () => {
   });
 
   it('respects per-domain threshold from governance_config', async () => {
-    configureGovConfig([
-      { domain: 'Compliance', quality_score_threshold: 60 },
-    ]);
+    configureGovConfig([{ domain: 'Compliance', quality_score_threshold: 60 }]);
     configureContentItems([
       {
         id: 'item-1',
@@ -814,10 +827,7 @@ describe('getTopQualityActions', () => {
     await getTopQualityActions(mockClient as never);
 
     // lte should be called with maxThreshold >= 60
-    expect(mockClient._chain.lte).toHaveBeenCalledWith(
-      'quality_score',
-      60,
-    );
+    expect(mockClient._chain.lte).toHaveBeenCalledWith('quality_score', 60);
   });
 
   it('respects scoreThreshold override', async () => {
@@ -829,10 +839,7 @@ describe('getTopQualityActions', () => {
     });
 
     // lte should be called with the override threshold
-    expect(mockClient._chain.lte).toHaveBeenCalledWith(
-      'quality_score',
-      70,
-    );
+    expect(mockClient._chain.lte).toHaveBeenCalledWith('quality_score', 70);
   });
 
   it('limits results to the specified limit', async () => {
@@ -879,7 +886,8 @@ describe('getTopQualityActions', () => {
         primary_subtopic: null,
         freshness: 'expired',
         classification_confidence: 0.9,
-        ai_summary: 'A comprehensive summary of the content that is long enough.',
+        ai_summary:
+          'A comprehensive summary of the content that is long enough.',
         brief: 'Brief',
         detail: 'Detail',
         reference: 'Reference',
@@ -901,12 +909,13 @@ describe('getTopQualityActions', () => {
   it('throws on Supabase query error', async () => {
     configureGovConfig([]);
     // Configure the content_items query to return an error
-    mockClient._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { message: 'Connection refused' } }),
+    mockClient._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: { message: 'Connection refused' } }),
     );
 
-    await expect(
-      getTopQualityActions(mockClient as never),
-    ).rejects.toThrow('Failed to fetch quality items: Connection refused');
+    await expect(getTopQualityActions(mockClient as never)).rejects.toThrow(
+      'Failed to fetch quality items: Connection refused',
+    );
   });
 });

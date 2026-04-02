@@ -7,7 +7,9 @@ import type { ReviewHistoryEntry } from '@/hooks/review/use-review-history';
 
 // ─── Test data ──────────────────────────────────────────────────────────────
 
-function makeEntry(overrides: Partial<ReviewHistoryEntry> = {}): ReviewHistoryEntry {
+function makeEntry(
+  overrides: Partial<ReviewHistoryEntry> = {},
+): ReviewHistoryEntry {
   return {
     id: 'log-1',
     flag_type: 'classification_low',
@@ -35,7 +37,9 @@ describe('ReviewHistorySection', () => {
 
   it('shows loading skeleton when isLoading is true', () => {
     render(<ReviewHistorySection history={[]} isLoading />);
-    expect(screen.getByRole('status', { name: 'Loading review history' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('status', { name: 'Loading review history' }),
+    ).toBeInTheDocument();
   });
 
   it('shows collapsed header with entry count', () => {
@@ -169,7 +173,9 @@ describe('ReviewHistorySection', () => {
     const entries = [makeEntry()];
     render(<ReviewHistorySection history={entries} />);
 
-    expect(screen.getByRole('region', { name: 'Review history' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', { name: 'Review history' }),
+    ).toBeInTheDocument();
   });
 
   it('collapses on second click', async () => {

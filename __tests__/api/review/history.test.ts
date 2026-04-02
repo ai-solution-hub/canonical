@@ -125,18 +125,20 @@ describe('GET /api/review/history', () => {
 
   it('returns review history entries with display names for a valid item_id', async () => {
     // First .then: ingestion_quality_log query
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: mockHistoryRows, error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: mockHistoryRows, error: null }),
     );
     // Second .then: user_roles display_name lookup
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({
-        data: [
-          { user_id: 'user-1', display_name: 'Alice Smith' },
-          { user_id: 'user-2', display_name: 'Bob Jones' },
-        ],
-        error: null,
-      }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            { user_id: 'user-1', display_name: 'Alice Smith' },
+            { user_id: 'user-2', display_name: 'Bob Jones' },
+          ],
+          error: null,
+        }),
     );
 
     const { GET } = await import('@/app/api/review/history/route');
@@ -176,12 +178,13 @@ describe('GET /api/review/history', () => {
 
   it('returns null display names when user_roles lookup returns nothing', async () => {
     // First .then: ingestion_quality_log query
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: mockHistoryRows, error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: mockHistoryRows, error: null }),
     );
     // Second .then: user_roles display_name lookup returns empty
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const { GET } = await import('@/app/api/review/history/route');
@@ -199,8 +202,8 @@ describe('GET /api/review/history', () => {
   });
 
   it('returns empty array when no history exists', async () => {
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const { GET } = await import('@/app/api/review/history/route');
@@ -215,8 +218,9 @@ describe('GET /api/review/history', () => {
   });
 
   it('returns 500 on database error', async () => {
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { message: 'Database error' } }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: { message: 'Database error' } }),
     );
 
     const { GET } = await import('@/app/api/review/history/route');
@@ -231,8 +235,8 @@ describe('GET /api/review/history', () => {
   });
 
   it('queries ingestion_quality_log with correct filters', async () => {
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const { GET } = await import('@/app/api/review/history/route');
@@ -242,8 +246,13 @@ describe('GET /api/review/history', () => {
     await GET(request);
 
     expect(mockSupabase.from).toHaveBeenCalledWith('ingestion_quality_log');
-    expect(mockSupabase._chain.eq).toHaveBeenCalledWith('content_item_id', VALID_UUID);
-    expect(mockSupabase._chain.order).toHaveBeenCalledWith('created_at', { ascending: false });
+    expect(mockSupabase._chain.eq).toHaveBeenCalledWith(
+      'content_item_id',
+      VALID_UUID,
+    );
+    expect(mockSupabase._chain.order).toHaveBeenCalledWith('created_at', {
+      ascending: false,
+    });
     expect(mockSupabase._chain.limit).toHaveBeenCalledWith(10);
     // No user_roles lookup when there are no rows (no user IDs to resolve)
   });

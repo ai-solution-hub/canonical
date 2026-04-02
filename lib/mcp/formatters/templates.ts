@@ -41,10 +41,10 @@ export interface TemplateCoverageData {
 }
 
 const STATUS_ICONS: Record<string, string> = {
-  strong: '\u2705',  // check mark
+  strong: '\u2705', // check mark
   partial: '\uD83D\uDFE1', // yellow circle
-  gap: '\u274C',     // cross mark
-  na: '\u2796',      // minus sign
+  gap: '\u274C', // cross mark
+  na: '\u2796', // minus sign
 };
 
 export function formatTemplateCoverage(data: TemplateCoverageData): string {
@@ -60,16 +60,24 @@ export function formatTemplateCoverage(data: TemplateCoverageData): string {
   ];
 
   for (const section of data.sections) {
-    const sectionStrong = section.requirements.filter(r => r.coverage_status === 'strong').length;
-    const sectionTotal = section.requirements.filter(r => r.coverage_status !== 'na').length;
-    const sectionPct = sectionTotal > 0 ? Math.round((sectionStrong / sectionTotal) * 100) : 0;
+    const sectionStrong = section.requirements.filter(
+      (r) => r.coverage_status === 'strong',
+    ).length;
+    const sectionTotal = section.requirements.filter(
+      (r) => r.coverage_status !== 'na',
+    ).length;
+    const sectionPct =
+      sectionTotal > 0 ? Math.round((sectionStrong / sectionTotal) * 100) : 0;
 
-    lines.push(`## ${section.section_ref}: ${section.section_name} (${sectionPct}% strong)`);
+    lines.push(
+      `## ${section.section_ref}: ${section.section_name} (${sectionPct}% strong)`,
+    );
     lines.push('');
 
     for (const req of section.requirements) {
       const icon = STATUS_ICONS[req.coverage_status] ?? '?';
-      const qNum = req.question_number !== null ? `Q${req.question_number}: ` : '';
+      const qNum =
+        req.question_number !== null ? `Q${req.question_number}: ` : '';
       const desc = req.description ?? truncate(req.requirement_text, 80);
       lines.push(`- ${icon} ${qNum}${desc}`);
     }
@@ -109,7 +117,9 @@ export function formatTemplateList(data: TemplateListData): string {
 
   for (const t of data.templates) {
     const version = t.template_version ? ` (${t.template_version})` : '';
-    lines.push(`- **${t.template_name}**${version} — ${t.template_type}, ${t.requirement_count} requirement${t.requirement_count === 1 ? '' : 's'}`);
+    lines.push(
+      `- **${t.template_name}**${version} — ${t.template_type}, ${t.requirement_count} requirement${t.requirement_count === 1 ? '' : 's'}`,
+    );
   }
 
   return lines.join('\n');
@@ -141,7 +151,9 @@ export function formatTemplateGaps(data: TemplateGapsData): string {
   ];
 
   if (totalActionable === 0) {
-    lines.push('No gaps or partial matches found — the knowledge base covers all requirements.');
+    lines.push(
+      'No gaps or partial matches found — the knowledge base covers all requirements.',
+    );
     return lines.join('\n');
   }
 
@@ -159,14 +171,19 @@ export function formatTemplateGaps(data: TemplateGapsData): string {
 
     for (const req of reqs) {
       const icon = STATUS_ICONS[req.coverage_status] ?? '?';
-      const qNum = req.question_number !== null ? `Q${req.question_number}: ` : '';
+      const qNum =
+        req.question_number !== null ? `Q${req.question_number}: ` : '';
       const desc = req.description ?? truncate(req.requirement_text, 100);
       lines.push(`- ${icon} **${qNum}${desc}** (${req.requirement_type})`);
 
       if (req.coverage_status === 'gap') {
-        lines.push(`  *Create ${req.requirement_type} content to fill this gap.*`);
+        lines.push(
+          `  *Create ${req.requirement_type} content to fill this gap.*`,
+        );
       } else {
-        lines.push(`  *Existing content is insufficient — expand or add more detail.*`);
+        lines.push(
+          `  *Existing content is insufficient — expand or add more detail.*`,
+        );
       }
     }
     lines.push('');

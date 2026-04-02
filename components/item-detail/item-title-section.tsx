@@ -8,7 +8,10 @@ import { FreshnessBadge } from '@/components/shared/freshness-badge';
 import { formatSmartDate } from '@/lib/format';
 import { useDisplayNames } from '@/hooks/use-display-names';
 import { useUserRole } from '@/hooks/use-user-role';
-import { LatestVerificationNote, VerificationHistory } from '@/components/item-detail/verification-history';
+import {
+  LatestVerificationNote,
+  VerificationHistory,
+} from '@/components/item-detail/verification-history';
 
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
 
@@ -42,7 +45,7 @@ export function ItemTitleSection({
   // Resolve verified_by UUID to display name
   const displayNames = useDisplayNames([item.verified_by]);
   const verifiedByName = item.verified_by
-    ? displayNames.get(item.verified_by) ?? null
+    ? (displayNames.get(item.verified_by) ?? null)
     : null;
 
   // Role-gate detailed trust levels (editor/admin only)
@@ -68,10 +71,16 @@ export function ItemTitleSection({
             className="text-xl font-bold"
           />
         ) : (
-          <h1 className="text-fluid-xl font-bold leading-tight break-words">{title}</h1>
+          <h1 className="text-fluid-xl font-bold leading-tight break-words">
+            {title}
+          </h1>
         )}
         {/* Metadata strip — freshness, verification, and source at a glance */}
-        <div className="mt-2 flex flex-wrap items-center gap-3" role="group" aria-label="Content metadata">
+        <div
+          className="mt-2 flex flex-wrap items-center gap-3"
+          role="group"
+          aria-label="Content metadata"
+        >
           {item.freshness && (
             <FreshnessBadge freshness={item.freshness as string} />
           )}
@@ -95,7 +104,10 @@ export function ItemTitleSection({
           )}
           {item.source_document && (
             <span className="text-xs text-muted-foreground">
-              Source: <span className="font-medium text-foreground/80">{item.source_document}</span>
+              Source:{' '}
+              <span className="font-medium text-foreground/80">
+                {item.source_document}
+              </span>
             </span>
           )}
         </div>
@@ -117,8 +129,12 @@ export function ItemTitleSection({
             Editing{editDirty ? ' \u2014 unsaved changes' : ''}
           </span>
           <div className="flex gap-2">
-            <Button size="sm" onClick={handleSaveAll}>Save</Button>
-            <Button size="sm" variant="outline" onClick={cancelEditMode}>Cancel</Button>
+            <Button size="sm" onClick={handleSaveAll}>
+              Save
+            </Button>
+            <Button size="sm" variant="outline" onClick={cancelEditMode}>
+              Cancel
+            </Button>
           </div>
         </div>
       )}

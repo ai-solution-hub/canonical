@@ -29,7 +29,10 @@ export default function LoginError({
         </div>
         <Card className="w-full max-w-md border-t-2 border-t-destructive">
           <CardContent className="flex flex-col items-center gap-4 px-8 py-8 text-center">
-            <KeyRound className="size-10 text-muted-foreground/50" aria-hidden="true" />
+            <KeyRound
+              className="size-10 text-muted-foreground/50"
+              aria-hidden="true"
+            />
             <h2 className="text-lg font-semibold text-foreground">
               Couldn&apos;t load the sign-in page
             </h2>

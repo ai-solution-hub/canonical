@@ -18,34 +18,37 @@
  *   bun run scripts/backfill-reader-html.ts --delay 2000     # ms between fetches
  */
 
-import { createClient } from "@supabase/supabase-js";
-import { JSDOM } from "jsdom";
-import { Readability } from "@mozilla/readability";
-import { parseArgs } from "util";
-import path from "path";
-import fs from "fs";
+import { createClient } from '@supabase/supabase-js';
+import { JSDOM } from 'jsdom';
+import { Readability } from '@mozilla/readability';
+import { parseArgs } from 'util';
+import path from 'path';
+import fs from 'fs';
 
 // ── Env loading (handles worktrees) ────────────────────────────────────────
 
 function loadEnv() {
   let dir = process.cwd();
-  while (dir !== "/") {
-    for (const file of [".env.local", ".env"]) {
+  while (dir !== '/') {
+    for (const file of ['.env.local', '.env']) {
       const p = path.join(dir, file);
       if (fs.existsSync(p)) {
-        const content = fs.readFileSync(p, "utf-8");
-        for (const line of content.split("\n")) {
+        const content = fs.readFileSync(p, 'utf-8');
+        for (const line of content.split('\n')) {
           const trimmed = line.trim();
-          if (!trimmed || trimmed.startsWith("#")) continue;
-          const eq = trimmed.indexOf("=");
+          if (!trimmed || trimmed.startsWith('#')) continue;
+          const eq = trimmed.indexOf('=');
           if (eq === -1) continue;
           const key = trimmed.slice(0, eq).trim();
-          const val = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, "");
+          const val = trimmed
+            .slice(eq + 1)
+            .trim()
+            .replace(/^["']|["']$/g, '');
           if (!process.env[key]) process.env[key] = val;
         }
       }
     }
-    if (fs.existsSync(path.join(dir, "package.json"))) break;
+    if (fs.existsSync(path.join(dir, 'package.json'))) break;
     dir = path.dirname(dir);
   }
 }
@@ -56,12 +59,12 @@ loadEnv();
 
 const { values: args } = parseArgs({
   options: {
-    limit: { type: "string", default: "0" },
-    "dry-run": { type: "boolean", default: false },
-    type: { type: "string", default: "" },
-    "batch-size": { type: "string", default: "50" },
-    delay: { type: "string", default: "1500" },
-    help: { type: "boolean", default: false },
+    limit: { type: 'string', default: '0' },
+    'dry-run': { type: 'boolean', default: false },
+    type: { type: 'string', default: '' },
+    'batch-size': { type: 'string', default: '50' },
+    delay: { type: 'string', default: '1500' },
+    help: { type: 'boolean', default: false },
   },
   strict: true,
 });
@@ -82,19 +85,21 @@ Options:
 }
 
 const LIMIT = parseInt(args.limit!, 10) || 0;
-const DRY_RUN = args["dry-run"]!;
+const DRY_RUN = args['dry-run']!;
 const TYPE_FILTER = args.type!;
-const BATCH_SIZE = parseInt(args["batch-size"]!, 10) || 50;
+const BATCH_SIZE = parseInt(args['batch-size']!, 10) || 50;
 const DELAY_MS = parseInt(args.delay!, 10) || 1500;
 
 // ── Supabase client ────────────────────────────────────────────────────────
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey =
-  process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  process.env.SUPABASE_SECRET_KEY ||
+  process.env.SUPABASE_ANON_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
-  console.error("Missing SUPABASE_URL or SUPABASE_SECRET_KEY in environment");
+  console.error('Missing SUPABASE_URL or SUPABASE_SECRET_KEY in environment');
   process.exit(1);
 }
 
@@ -102,13 +107,19 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 // ── Eligible content types ─────────────────────────────────────────────────
 
-const ELIGIBLE_TYPES = ["article", "blog", "newsletter", "product-page", "research"];
+const ELIGIBLE_TYPES = [
+  'article',
+  'blog',
+  'newsletter',
+  'product-page',
+  'research',
+];
 
 // ── Readability extraction ─────────────────────────────────────────────────
 
 async function extractReaderHtml(
   url: string,
-  html: string
+  html: string,
 ): Promise<string | null> {
   try {
     const doc = new JSDOM(html, { url });
@@ -133,19 +144,19 @@ async function fetchHtml(url: string): Promise<string | null> {
     const resp = await fetch(url, {
       signal: controller.signal,
       headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) KB-Backfill/1.0",
-        Accept: "text/html,application/xhtml+xml",
+        'User-Agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) KB-Backfill/1.0',
+        Accept: 'text/html,application/xhtml+xml',
       },
-      redirect: "follow",
+      redirect: 'follow',
     });
 
     clearTimeout(timeout);
 
     if (!resp.ok) return null;
 
-    const contentType = resp.headers.get("content-type") || "";
-    if (!contentType.includes("html")) return null;
+    const contentType = resp.headers.get('content-type') || '';
+    if (!contentType.includes('html')) return null;
 
     return await resp.text();
   } catch {
@@ -156,12 +167,12 @@ async function fetchHtml(url: string): Promise<string | null> {
 // ── Main ───────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log("=".repeat(60));
-  console.log("Reader HTML Backfill");
-  console.log("=".repeat(60));
-  console.log(`  Limit:      ${LIMIT || "all"}`);
+  console.log('='.repeat(60));
+  console.log('Reader HTML Backfill');
+  console.log('='.repeat(60));
+  console.log(`  Limit:      ${LIMIT || 'all'}`);
   console.log(`  Dry run:    ${DRY_RUN}`);
-  console.log(`  Type:       ${TYPE_FILTER || "all eligible"}`);
+  console.log(`  Type:       ${TYPE_FILTER || 'all eligible'}`);
   console.log(`  Batch size: ${BATCH_SIZE}`);
   console.log(`  Delay:      ${DELAY_MS}ms`);
   console.log();
@@ -170,13 +181,13 @@ async function main() {
   const types = TYPE_FILTER ? [TYPE_FILTER] : ELIGIBLE_TYPES;
 
   let query = supabase
-    .from("content_items")
-    .select("id, suggested_title, source_url, content_type, metadata", {
-      count: "exact",
+    .from('content_items')
+    .select('id, suggested_title, source_url, content_type, metadata', {
+      count: 'exact',
     })
-    .in("content_type", types)
-    .like("source_url", "https://%")
-    .order("captured_date", { ascending: false });
+    .in('content_type', types)
+    .like('source_url', 'https://%')
+    .order('captured_date', { ascending: false });
 
   // We'll filter out items that already have reader_html in code
   // (Supabase doesn't have a clean NOT jsonb ? 'key' filter via JS client)
@@ -190,18 +201,18 @@ async function main() {
   const { data: items, error, count } = await query;
 
   if (error) {
-    console.error("Query error:", error.message);
+    console.error('Query error:', error.message);
     process.exit(1);
   }
 
   if (!items || items.length === 0) {
-    console.log("No eligible items found.");
+    console.log('No eligible items found.');
     return;
   }
 
   // Filter out items that already have reader_html
   const eligible = items.filter(
-    (item) => !(item.metadata as Record<string, unknown>)?.reader_html
+    (item) => !(item.metadata as Record<string, unknown>)?.reader_html,
   );
 
   console.log(`Found ${items.length} items matching criteria`);
@@ -222,14 +233,14 @@ async function main() {
     const progress = `[${i + 1}/${toProcess.length}]`;
 
     console.log(
-      `${progress} ${item.content_type} | ${(item.suggested_title || "").slice(0, 60)}`
+      `${progress} ${item.content_type} | ${(item.suggested_title || '').slice(0, 60)}`,
     );
     console.log(`         ${item.source_url}`);
 
     // Fetch HTML
     const html = await fetchHtml(item.source_url);
     if (!html) {
-      console.log("         SKIP: fetch failed or not HTML");
+      console.log('         SKIP: fetch failed or not HTML');
       skipped++;
       continue;
     }
@@ -237,7 +248,7 @@ async function main() {
     // Extract with Readability
     const readerHtml = await extractReaderHtml(item.source_url, html);
     if (!readerHtml) {
-      console.log("         SKIP: readability extraction failed or too short");
+      console.log('         SKIP: readability extraction failed or too short');
       skipped++;
       continue;
     }
@@ -254,9 +265,9 @@ async function main() {
     const updatedMetadata = { ...existingMetadata, reader_html: readerHtml };
 
     const { error: updateError } = await supabase
-      .from("content_items")
+      .from('content_items')
       .update({ metadata: updatedMetadata })
-      .eq("id", item.id);
+      .eq('id', item.id);
 
     if (updateError) {
       console.log(`         ERROR: ${updateError.message}`);
@@ -274,16 +285,16 @@ async function main() {
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
 
   console.log();
-  console.log("=".repeat(60));
-  console.log("BACKFILL COMPLETE");
-  console.log("=".repeat(60));
-  console.log(`  Processed:  ${ok}${DRY_RUN ? " (dry run)" : ""}`);
+  console.log('='.repeat(60));
+  console.log('BACKFILL COMPLETE');
+  console.log('='.repeat(60));
+  console.log(`  Processed:  ${ok}${DRY_RUN ? ' (dry run)' : ''}`);
   console.log(`  Skipped:    ${skipped}`);
   console.log(`  Errors:     ${errors}`);
   console.log(`  Time:       ${elapsed}s`);
 }
 
 main().catch((err) => {
-  console.error("Fatal error:", err);
+  console.error('Fatal error:', err);
   process.exit(1);
 });

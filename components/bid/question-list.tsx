@@ -1,7 +1,13 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Plus, ChevronDown, ChevronRight, HelpCircle, Upload } from 'lucide-react';
+import {
+  Plus,
+  ChevronDown,
+  ChevronRight,
+  HelpCircle,
+  Upload,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,7 +72,9 @@ export function QuestionList({
   canEdit,
   onQuestionsChanged,
 }: QuestionListProps) {
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
+    new Set(),
+  );
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newQuestion, setNewQuestion] = useState({
@@ -103,13 +111,17 @@ export function QuestionList({
         body: JSON.stringify({
           section_name: newQuestion.section_name.trim() || null,
           question_text: newQuestion.question_text.trim(),
-          word_limit: newQuestion.word_limit ? parseInt(newQuestion.word_limit, 10) : null,
+          word_limit: newQuestion.word_limit
+            ? parseInt(newQuestion.word_limit, 10)
+            : null,
         }),
       });
 
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(body?.error ?? `Failed to add question (${res.status})`);
+        throw new Error(
+          body?.error ?? `Failed to add question (${res.status})`,
+        );
       }
 
       toast.success('Question added');
@@ -117,7 +129,8 @@ export function QuestionList({
       setAddDialogOpen(false);
       onQuestionsChanged();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to add question';
+      const message =
+        err instanceof Error ? err.message : 'Failed to add question';
       toast.error(message);
     } finally {
       setAdding(false);
@@ -127,8 +140,13 @@ export function QuestionList({
   if (questions.length === 0 && !canEdit) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
-        <HelpCircle className="size-8 text-muted-foreground/50" aria-hidden="true" />
-        <p className="mt-3 text-sm text-muted-foreground">No questions have been added yet.</p>
+        <HelpCircle
+          className="size-8 text-muted-foreground/50"
+          aria-hidden="true"
+        />
+        <p className="mt-3 text-sm text-muted-foreground">
+          No questions have been added yet.
+        </p>
       </div>
     );
   }
@@ -139,7 +157,8 @@ export function QuestionList({
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-medium">
-            {questions.length} {questions.length === 1 ? 'Question' : 'Questions'}
+            {questions.length}{' '}
+            {questions.length === 1 ? 'Question' : 'Questions'}
           </h3>
           {sections.length > 1 && (
             <p className="text-xs text-muted-foreground">
@@ -170,7 +189,10 @@ export function QuestionList({
                     placeholder="e.g. Technical Approach"
                     value={newQuestion.section_name}
                     onChange={(e) =>
-                      setNewQuestion((prev) => ({ ...prev, section_name: e.target.value }))
+                      setNewQuestion((prev) => ({
+                        ...prev,
+                        section_name: e.target.value,
+                      }))
                     }
                   />
                 </div>
@@ -184,7 +206,10 @@ export function QuestionList({
                     rows={4}
                     value={newQuestion.question_text}
                     onChange={(e) =>
-                      setNewQuestion((prev) => ({ ...prev, question_text: e.target.value }))
+                      setNewQuestion((prev) => ({
+                        ...prev,
+                        question_text: e.target.value,
+                      }))
                     }
                   />
                 </div>
@@ -197,7 +222,10 @@ export function QuestionList({
                     min={0}
                     value={newQuestion.word_limit}
                     onChange={(e) =>
-                      setNewQuestion((prev) => ({ ...prev, word_limit: e.target.value }))
+                      setNewQuestion((prev) => ({
+                        ...prev,
+                        word_limit: e.target.value,
+                      }))
                     }
                   />
                 </div>
@@ -229,9 +257,13 @@ export function QuestionList({
       {/* Empty state for editors */}
       {questions.length === 0 && canEdit && (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-12 text-center">
-          <Upload className="size-8 text-muted-foreground/50" aria-hidden="true" />
+          <Upload
+            className="size-8 text-muted-foreground/50"
+            aria-hidden="true"
+          />
           <p className="mt-3 text-sm text-muted-foreground">
-            No questions yet. Upload a tender document or add questions manually.
+            No questions yet. Upload a tender document or add questions
+            manually.
           </p>
           <div className="mt-4 flex items-center gap-2">
             <Button
@@ -267,7 +299,11 @@ export function QuestionList({
               ) : (
                 <ChevronDown className="size-4 shrink-0" aria-hidden="true" />
               )}
-              <span className={cn(!section.sectionName && 'italic text-muted-foreground')}>
+              <span
+                className={cn(
+                  !section.sectionName && 'italic text-muted-foreground',
+                )}
+              >
                 {section.sectionName ?? 'Ungrouped'}
               </span>
               <span className="ml-auto text-xs text-muted-foreground">

@@ -36,7 +36,9 @@ vi.mock('sonner', () => ({
 }));
 
 // Mock taxonomy context
-const mockGetDomainNames = vi.fn().mockReturnValue(['Technology', 'Compliance']);
+const mockGetDomainNames = vi
+  .fn()
+  .mockReturnValue(['Technology', 'Compliance']);
 const mockGetSubtopics = vi.fn().mockReturnValue(['Cloud', 'Security']);
 
 vi.mock('@/contexts/taxonomy-context', () => ({
@@ -124,7 +126,10 @@ beforeEach(() => {
         }),
       };
     }
-    if (typeof url === 'string' && url.includes('/api/content-owners/bulk-assign')) {
+    if (
+      typeof url === 'string' &&
+      url.includes('/api/content-owners/bulk-assign')
+    ) {
       return {
         ok: true,
         json: async () => ({ success: true, items_updated: 5 }),
@@ -167,7 +172,10 @@ describe('ContentOwnerManagement', () => {
 
   it('renders empty state when no owners assigned', async () => {
     fetchMock.mockImplementation(async (url: string) => {
-      if (typeof url === 'string' && url.includes('/api/content-owners/stats')) {
+      if (
+        typeof url === 'string' &&
+        url.includes('/api/content-owners/stats')
+      ) {
         return { ok: true, json: async () => [] };
       }
       if (typeof url === 'string' && url.includes('/api/users/display-names')) {
@@ -179,7 +187,9 @@ describe('ContentOwnerManagement', () => {
     render(<ContentOwnerManagement />);
 
     await waitFor(() => {
-      expect(screen.getByText('No content owners assigned yet')).toBeInTheDocument();
+      expect(
+        screen.getByText('No content owners assigned yet'),
+      ).toBeInTheDocument();
     });
   });
 
@@ -194,7 +204,8 @@ describe('ContentOwnerManagement', () => {
     const aliceRow = screen.getByText('Alice Admin').closest('tr');
     expect(aliceRow).toBeInTheDocument();
     if (aliceRow) {
-      const warningIcon = within(aliceRow).getByLabelText(/items need attention/);
+      const warningIcon =
+        within(aliceRow).getByLabelText(/items need attention/);
       expect(warningIcon).toBeInTheDocument();
     }
   });
@@ -206,7 +217,9 @@ describe('ContentOwnerManagement', () => {
       expect(screen.getByText('Alice Admin')).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('button', { name: /assign by domain/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /assign by domain/i }),
+    ).toBeInTheDocument();
   });
 
   it('renders assign unowned button', async () => {
@@ -216,7 +229,9 @@ describe('ContentOwnerManagement', () => {
       expect(screen.getByText('Alice Admin')).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('button', { name: /assign unowned/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /assign unowned/i }),
+    ).toBeInTheDocument();
   });
 
   it('shows description text', async () => {

@@ -30,8 +30,12 @@ import { StarButton } from '@/components/shared/star-button';
 // ---------------------------------------------------------------------------
 
 describe('StarButton', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
-  afterEach(() => { vi.unstubAllGlobals(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it('renders star button', () => {
     render(<StarButton itemId="item-1" starred={false} />);
@@ -40,13 +44,17 @@ describe('StarButton', () => {
 
   it('shows filled star label when starred is true', () => {
     render(<StarButton itemId="item-1" starred={true} />);
-    expect(screen.getByRole('button', { name: 'Remove star' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Remove star' }),
+    ).toBeInTheDocument();
     expect(screen.getByRole('button')).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('shows outline star label when starred is false', () => {
     render(<StarButton itemId="item-1" starred={false} />);
-    expect(screen.getByRole('button', { name: 'Star this item' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Star this item' }),
+    ).toBeInTheDocument();
     expect(screen.getByRole('button')).toHaveAttribute('aria-pressed', 'false');
   });
 
@@ -91,6 +99,8 @@ describe('StarButton', () => {
     });
 
     // Button should revert to "Star this item"
-    expect(screen.getByRole('button', { name: 'Star this item' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Star this item' }),
+    ).toBeInTheDocument();
   });
 });

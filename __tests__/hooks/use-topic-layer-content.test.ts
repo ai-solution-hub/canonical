@@ -171,7 +171,14 @@ describe('useTopicLayerContent', () => {
     const { result } = renderHook(
       () =>
         useTopicLayerContent(
-          [{ id: 'item-1', title: 'Current', layer: 'base', content_type: 'article' }],
+          [
+            {
+              id: 'item-1',
+              title: 'Current',
+              layer: 'base',
+              content_type: 'article',
+            },
+          ],
           'item-1',
         ),
       { wrapper: createWrapper() },
@@ -201,8 +208,18 @@ describe('useTopicLayerContent', () => {
     );
 
     const topicLayers = [
-      { id: 'item-1', title: 'Current', layer: 'base', content_type: 'article' },
-      { id: 'sibling-1', title: 'Sales', layer: 'sales_brief', content_type: 'article' },
+      {
+        id: 'item-1',
+        title: 'Current',
+        layer: 'base',
+        content_type: 'article',
+      },
+      {
+        id: 'sibling-1',
+        title: 'Sales',
+        layer: 'sales_brief',
+        content_type: 'article',
+      },
     ];
 
     const { result } = renderHook(
@@ -220,8 +237,18 @@ describe('useTopicLayerContent', () => {
 
   it('does not fetch when all topic layers are the current item', () => {
     const topicLayers = [
-      { id: 'item-1', title: 'Current', layer: 'base', content_type: 'article' },
-      { id: 'item-1', title: 'Current dupe', layer: 'sales', content_type: 'article' },
+      {
+        id: 'item-1',
+        title: 'Current',
+        layer: 'base',
+        content_type: 'article',
+      },
+      {
+        id: 'item-1',
+        title: 'Current dupe',
+        layer: 'sales',
+        content_type: 'article',
+      },
     ];
 
     const { result } = renderHook(

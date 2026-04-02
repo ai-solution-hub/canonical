@@ -6,7 +6,11 @@ import {
 } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
-import { uploadFileToAnthropic, getAnthropicFileMetadata, deleteAnthropicFile } from '@/lib/anthropic-files';
+import {
+  uploadFileToAnthropic,
+  getAnthropicFileMetadata,
+  deleteAnthropicFile,
+} from '@/lib/anthropic-files';
 import { toJson } from '@/lib/validation/jsonb';
 
 export const maxDuration = 60;
@@ -35,7 +39,9 @@ export async function POST(
     // Fetch the content item
     const { data: item, error: fetchError } = await supabase
       .from('content_items')
-      .select('id, content_type, file_path, source_url, suggested_title, title, metadata')
+      .select(
+        'id, content_type, file_path, source_url, suggested_title, title, metadata',
+      )
       .eq('id', id)
       .single();
 
@@ -45,7 +51,8 @@ export async function POST(
 
     // Check if already uploaded
     const metadata = item.metadata as Record<string, unknown> | null;
-    const existingFileId = (metadata?.anthropic_file as Record<string, unknown>)?.file_id as string | undefined;
+    const existingFileId = (metadata?.anthropic_file as Record<string, unknown>)
+      ?.file_id as string | undefined;
     if (existingFileId) {
       // Verify the file still exists
       try {
@@ -67,8 +74,7 @@ export async function POST(
     let mimeType: string;
 
     if (item.file_path) {
-      const { data: fileData, error: downloadError } = await supabase
-        .storage
+      const { data: fileData, error: downloadError } = await supabase.storage
         .from('documents')
         .download(item.file_path);
 
@@ -84,19 +90,24 @@ export async function POST(
       mimeType = 'application/pdf';
     } else if (item.source_url && item.content_type === 'pdf') {
       const response = await fetch(item.source_url, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' },
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+        },
         signal: AbortSignal.timeout(30_000),
       });
 
       if (!response.ok) {
         return NextResponse.json(
-          { error: `Failed to fetch file from source URL (HTTP ${response.status})` },
+          {
+            error: `Failed to fetch file from source URL (HTTP ${response.status})`,
+          },
           { status: 502 },
         );
       }
 
       buffer = Buffer.from(await response.arrayBuffer());
-      filename = item.source_url.split('/').pop()?.split('?')[0] || 'document.pdf';
+      filename =
+        item.source_url.split('/').pop()?.split('?')[0] || 'document.pdf';
       mimeType = response.headers.get('content-type') || 'application/pdf';
     } else {
       return NextResponse.json(
@@ -107,7 +118,9 @@ export async function POST(
 
     if (buffer.length > MAX_FILE_SIZE) {
       return NextResponse.json(
-        { error: `File too large (${(buffer.length / 1024 / 1024).toFixed(1)} MB, max 32 MB)` },
+        {
+          error: `File too large (${(buffer.length / 1024 / 1024).toFixed(1)} MB, max 32 MB)`,
+        },
         { status: 413 },
       );
     }
@@ -132,7 +145,12 @@ export async function POST(
       file_id: result.fileId,
       filename: result.filename,
       size: buffer.length,
-      ...(mergeError ? { warning: 'Upload succeeded but failed to persist file_id to metadata' } : {}),
+      ...(mergeError
+        ? {
+            warning:
+              'Upload succeeded but failed to persist file_id to metadata',
+          }
+        : {}),
     });
   } catch (err) {
     return NextResponse.json(
@@ -167,10 +185,14 @@ export async function DELETE(
     }
 
     const metadata = item.metadata as Record<string, unknown> | null;
-    const fileId = (metadata?.anthropic_file as Record<string, unknown>)?.file_id as string | undefined;
+    const fileId = (metadata?.anthropic_file as Record<string, unknown>)
+      ?.file_id as string | undefined;
 
     if (!fileId) {
-      return NextResponse.json({ error: 'No Anthropic file associated with this item' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'No Anthropic file associated with this item' },
+        { status: 404 },
+      );
     }
 
     // Delete from Anthropic
@@ -188,7 +210,9 @@ export async function DELETE(
 
     return NextResponse.json({
       deleted: true,
-      ...(mergeError ? { warning: 'File deleted but failed to update metadata' } : {}),
+      ...(mergeError
+        ? { warning: 'File deleted but failed to update metadata' }
+        : {}),
     });
   } catch (err) {
     return NextResponse.json(

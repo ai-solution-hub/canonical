@@ -6,9 +6,15 @@ import { Globe, Loader2, AlertCircle, Link2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { IngestionProgress, type IngestionStep } from '@/components/create-content/ingestion-progress';
+import {
+  IngestionProgress,
+  type IngestionStep,
+} from '@/components/create-content/ingestion-progress';
 import { IngestionSuccessCard } from '@/components/create-content/ingestion-success-card';
-import { DedupWarning, type DedupMatch } from '@/components/shared/dedup-warning';
+import {
+  DedupWarning,
+  type DedupMatch,
+} from '@/components/shared/dedup-warning';
 import { ClaudePromptButton } from '@/components/content/claude-prompt-button';
 import { generateIngestDocumentPrompt } from '@/lib/claude-prompts';
 
@@ -118,9 +124,11 @@ export function UrlIngestForm({ onSuggestManual }: UrlIngestFormProps = {}) {
     setErrorMessage('');
     setDedupMatches([]);
     setShowDedupWarning(false);
-    setSteps(INITIAL_STEPS.map((s, i) =>
-      i === 0 ? { ...s, status: 'active' as const } : s,
-    ));
+    setSteps(
+      INITIAL_STEPS.map((s, i) =>
+        i === 0 ? { ...s, status: 'active' as const } : s,
+      ),
+    );
 
     // Start cosmetic step advancement (every 3 seconds)
     stepTimerRef.current = setInterval(advanceSteps, 3000);
@@ -176,13 +184,13 @@ export function UrlIngestForm({ onSuggestManual }: UrlIngestFormProps = {}) {
         clearInterval(stepTimerRef.current);
         stepTimerRef.current = null;
       }
-      setErrorMessage('Network error. Please check your connection and try again.');
+      setErrorMessage(
+        'Network error. Please check your connection and try again.',
+      );
       setFormState('error');
       setSteps((prev) =>
         prev.map((s) =>
-          s.status === 'active'
-            ? { ...s, status: 'error' as const }
-            : s,
+          s.status === 'active' ? { ...s, status: 'error' as const } : s,
         ),
       );
     }
@@ -249,7 +257,10 @@ export function UrlIngestForm({ onSuggestManual }: UrlIngestFormProps = {}) {
           >
             {formState === 'processing' ? (
               <>
-                <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+                <Loader2
+                  className="size-4 animate-spin motion-reduce:animate-none"
+                  aria-hidden="true"
+                />
                 Importing...
               </>
             ) : (
@@ -295,9 +306,7 @@ export function UrlIngestForm({ onSuggestManual }: UrlIngestFormProps = {}) {
       )}
 
       {/* Progress display */}
-      {formState === 'processing' && (
-        <IngestionProgress steps={steps} />
-      )}
+      {formState === 'processing' && <IngestionProgress steps={steps} />}
 
       {/* Error display */}
       {formState === 'error' && (
@@ -310,7 +319,9 @@ export function UrlIngestForm({ onSuggestManual }: UrlIngestFormProps = {}) {
                 aria-hidden="true"
               />
               <div>
-                <p className="text-sm font-medium text-destructive">{errorMessage}</p>
+                <p className="text-sm font-medium text-destructive">
+                  {errorMessage}
+                </p>
                 <Button
                   variant="outline"
                   size="sm"
@@ -374,10 +385,7 @@ export function UrlIngestForm({ onSuggestManual }: UrlIngestFormProps = {}) {
             </div>
           )}
 
-          <Button
-            variant="outline"
-            onClick={handleReset}
-          >
+          <Button variant="outline" onClick={handleReset}>
             Import another URL
           </Button>
         </div>

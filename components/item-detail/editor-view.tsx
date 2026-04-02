@@ -17,7 +17,10 @@ import {
 import { ItemActionBar } from '@/components/item-detail/item-action-bar';
 import { CollapsibleSection } from '@/components/item-detail/collapsible-section';
 import { RelatedContentSection } from '@/components/item-detail/related-content-section';
-import { QAUsedInBids, QARelatedPairs } from '@/components/item-detail/qa-provenance-sections';
+import {
+  QAUsedInBids,
+  QARelatedPairs,
+} from '@/components/item-detail/qa-provenance-sections';
 import { ContentEffectivenessPanel } from '@/components/item-detail/content-effectiveness-panel';
 import { ContentBody } from '@/components/item-detail/content-body';
 import { LayerSwitcherNav } from '@/components/item-detail/layer-switcher-nav';
@@ -323,10 +326,7 @@ export function EditorView({
             )}
 
           {/* Content effectiveness — win rate feedback loop */}
-          <ContentEffectivenessPanel
-            contentItemId={item.id}
-            className="mt-6"
-          />
+          <ContentEffectivenessPanel contentItemId={item.id} className="mt-6" />
 
           {/* Relationships group (collapsed by default) */}
           <CollapsibleSection

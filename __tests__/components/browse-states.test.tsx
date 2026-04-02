@@ -29,8 +29,12 @@ import { LoadingSkeleton, EmptyState } from '@/components/browse/browse-states';
 // ---------------------------------------------------------------------------
 
 describe('LoadingSkeleton', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
-  afterEach(() => { vi.unstubAllGlobals(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it('renders list view skeleton with bordered rows', () => {
     const { container } = render(<LoadingSkeleton viewMode="list" />);
@@ -49,8 +53,12 @@ describe('LoadingSkeleton', () => {
 });
 
 describe('EmptyState', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
-  afterEach(() => { vi.unstubAllGlobals(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it('shows "No items match your filters" when hasFilters is true', () => {
     render(<EmptyState hasFilters={true} />);

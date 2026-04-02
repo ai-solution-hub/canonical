@@ -19,9 +19,7 @@
  *  - Graceful degradation: errors are caught, upload still succeeds
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import {
-  createMockSupabaseClient,
-} from '../helpers/mock-supabase';
+import { createMockSupabaseClient } from '../helpers/mock-supabase';
 import {
   computeDocumentDiff,
   extractQAPairs,
@@ -127,7 +125,12 @@ A: We hold ISO 9001:2015 certification and conduct quarterly audits.
 Q: What is your staff retention rate?
 A: Our annual retention rate exceeds 95%.`;
 
-    const diffResult = computeDocumentDiff('old-doc', 'new-doc', oldText, newText);
+    const diffResult = computeDocumentDiff(
+      'old-doc',
+      'new-doc',
+      oldText,
+      newText,
+    );
 
     // Mirror the route's row construction logic (includes diff_mode)
     const diffRows = diffResult.entries.map((entry) => ({
@@ -203,9 +206,8 @@ describe('Upload diff path — analyseDocumentImpact', () => {
   });
 
   it('returns empty impact when document has no parent', async () => {
-    const { analyseDocumentImpact } = await import(
-      '@/lib/source-documents/source-document-impact'
-    );
+    const { analyseDocumentImpact } =
+      await import('@/lib/source-documents/source-document-impact');
 
     // source_documents.select().eq().single() → doc with no parent
     mockClient._chain.single.mockResolvedValueOnce({
@@ -224,9 +226,8 @@ describe('Upload diff path — analyseDocumentImpact', () => {
   });
 
   it('returns empty impact when no diffs exist for the document pair', async () => {
-    const { analyseDocumentImpact } = await import(
-      '@/lib/source-documents/source-document-impact'
-    );
+    const { analyseDocumentImpact } =
+      await import('@/lib/source-documents/source-document-impact');
 
     // source_documents.select().eq().single() → doc with parent
     mockClient._chain.single.mockResolvedValueOnce({
@@ -236,8 +237,7 @@ describe('Upload diff path — analyseDocumentImpact', () => {
 
     // source_document_diffs.select().eq().eq().in() → no diffs
     mockClient._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const impact = await analyseDocumentImpact(
@@ -329,7 +329,8 @@ describe('Upload diff path — notifications', () => {
           content_item_id: 'ci-1',
           content_item_title: 'Data Protection Policy',
           impact_type: 'needs_update',
-          diff_detail: 'Q&A pair modified: "What is your data protection policy?"',
+          diff_detail:
+            'Q&A pair modified: "What is your data protection policy?"',
         },
         {
           content_item_id: 'ci-2',
@@ -350,8 +351,12 @@ describe('Upload diff path — notifications', () => {
     expect(shouldNotify).toBe(true);
 
     // Verify impact categorisation
-    const needsUpdate = impact.items.filter((i) => i.impact_type === 'needs_update');
-    const sourceRemoved = impact.items.filter((i) => i.impact_type === 'source_removed');
+    const needsUpdate = impact.items.filter(
+      (i) => i.impact_type === 'needs_update',
+    );
+    const sourceRemoved = impact.items.filter(
+      (i) => i.impact_type === 'source_removed',
+    );
     expect(needsUpdate).toHaveLength(2);
     expect(sourceRemoved).toHaveLength(1);
   });

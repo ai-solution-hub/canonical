@@ -41,9 +41,10 @@ import {
 const cliArgs = process.argv.slice(2);
 const skipAi = cliArgs.includes('--skip-ai');
 const serverArgIdx = cliArgs.indexOf('--server');
-const serverBase = serverArgIdx >= 0
-  ? cliArgs[serverArgIdx + 1] ?? 'http://localhost:3000'
-  : 'http://localhost:3000';
+const serverBase =
+  serverArgIdx >= 0
+    ? (cliArgs[serverArgIdx + 1] ?? 'http://localhost:3000')
+    : 'http://localhost:3000';
 const MCP_URL = `${serverBase}/api/mcp/streamable-http`;
 
 // ---------------------------------------------------------------------------
@@ -176,10 +177,18 @@ async function runDiscoveryChecks(accessToken: string): Promise<void> {
     if (tools.length === TOOL_COUNT) {
       pass('PC-01', 'tools/list count', `${tools.length} tools`);
     } else {
-      fail('PC-01', 'tools/list count', `Expected ${TOOL_COUNT}, got ${tools.length}`);
+      fail(
+        'PC-01',
+        'tools/list count',
+        `Expected ${TOOL_COUNT}, got ${tools.length}`,
+      );
     }
   } catch (err) {
-    fail('PC-01', 'tools/list count', `Error: ${err instanceof Error ? err.message : String(err)}`);
+    fail(
+      'PC-01',
+      'tools/list count',
+      `Error: ${err instanceof Error ? err.message : String(err)}`,
+    );
     return;
   }
 
@@ -188,7 +197,11 @@ async function runDiscoveryChecks(accessToken: string): Promise<void> {
     (t) => !t.name || !t.description || !t.inputSchema,
   );
   if (incomplete.length === 0) {
-    pass('PC-02', 'tool schema completeness', 'All tools have name, description, inputSchema');
+    pass(
+      'PC-02',
+      'tool schema completeness',
+      'All tools have name, description, inputSchema',
+    );
   } else {
     fail(
       'PC-02',
@@ -201,7 +214,9 @@ async function runDiscoveryChecks(accessToken: string): Promise<void> {
   const serverToolNames = new Set(tools.map((t) => t.name));
   const canonicalSet = new Set<string>(CANONICAL_TOOL_NAMES);
   const missing = CANONICAL_TOOL_NAMES.filter((n) => !serverToolNames.has(n));
-  const extra = tools.filter((t) => !canonicalSet.has(t.name)).map((t) => t.name);
+  const extra = tools
+    .filter((t) => !canonicalSet.has(t.name))
+    .map((t) => t.name);
   if (missing.length === 0 && extra.length === 0) {
     pass('PC-03', 'tool name validation', 'All names match canonical list');
   } else {
@@ -237,29 +252,53 @@ async function runDiscoveryChecks(accessToken: string): Promise<void> {
       if (count >= 7) {
         pass('PC-05', 'resources/list', `${count} resources`);
       } else {
-        fail('PC-05', 'resources/list', `Expected >= 7 resources, got ${count}`);
+        fail(
+          'PC-05',
+          'resources/list',
+          `Expected >= 7 resources, got ${count}`,
+        );
       }
     }
   } catch (err) {
-    fail('PC-05', 'resources/list', `Error: ${err instanceof Error ? err.message : String(err)}`);
+    fail(
+      'PC-05',
+      'resources/list',
+      `Error: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 
   // PC-06: resources/templates/list
   try {
-    const response = await mcpRequest('resources/templates/list', {}, accessToken);
+    const response = await mcpRequest(
+      'resources/templates/list',
+      {},
+      accessToken,
+    );
     if (response.error) {
-      fail('PC-06', 'resource templates', `RPC error: ${response.error.message}`);
+      fail(
+        'PC-06',
+        'resource templates',
+        `RPC error: ${response.error.message}`,
+      );
     } else {
       const result = response.result as { resourceTemplates: unknown[] };
       const count = result.resourceTemplates?.length ?? 0;
       if (count >= 3) {
         pass('PC-06', 'resource templates', `${count} templates`);
       } else {
-        fail('PC-06', 'resource templates', `Expected >= 3 templates, got ${count}`);
+        fail(
+          'PC-06',
+          'resource templates',
+          `Expected >= 3 templates, got ${count}`,
+        );
       }
     }
   } catch (err) {
-    fail('PC-06', 'resource templates', `Error: ${err instanceof Error ? err.message : String(err)}`);
+    fail(
+      'PC-06',
+      'resource templates',
+      `Error: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 
   // PC-07: prompts/list count
@@ -267,24 +306,40 @@ async function runDiscoveryChecks(accessToken: string): Promise<void> {
   try {
     const response = await mcpRequest('prompts/list', {}, accessToken);
     if (response.error) {
-      fail('PC-07', 'prompts/list count', `RPC error: ${response.error.message}`);
+      fail(
+        'PC-07',
+        'prompts/list count',
+        `RPC error: ${response.error.message}`,
+      );
     } else {
       const result = response.result as { prompts: PromptDef[] };
       prompts = result.prompts ?? [];
       if (prompts.length === PROMPT_COUNT) {
         pass('PC-07', 'prompts/list count', `${prompts.length} prompts`);
       } else {
-        fail('PC-07', 'prompts/list count', `Expected ${PROMPT_COUNT}, got ${prompts.length}`);
+        fail(
+          'PC-07',
+          'prompts/list count',
+          `Expected ${PROMPT_COUNT}, got ${prompts.length}`,
+        );
       }
     }
   } catch (err) {
-    fail('PC-07', 'prompts/list count', `Error: ${err instanceof Error ? err.message : String(err)}`);
+    fail(
+      'PC-07',
+      'prompts/list count',
+      `Error: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 
   // PC-08: prompt schema completeness
   const incompletePrompts = prompts.filter((p) => !p.name || !p.description);
   if (incompletePrompts.length === 0) {
-    pass('PC-08', 'prompt schema completeness', 'All prompts have name, description');
+    pass(
+      'PC-08',
+      'prompt schema completeness',
+      'All prompts have name, description',
+    );
   } else {
     fail(
       'PC-08',
@@ -412,13 +467,18 @@ async function runToolCallChecks(
     const { supabase } = await getAuthToken();
     for (const id of createdItemIds) {
       try {
-        await supabase.from('content_history').delete().eq('content_item_id', id);
+        await supabase
+          .from('content_history')
+          .delete()
+          .eq('content_item_id', id);
         await supabase.from('content_items').delete().eq('id', id);
       } catch {
         // Best effort cleanup
       }
     }
-    console.log(`  Cleaned up ${createdItemIds.length} item(s) created by write tool tests`);
+    console.log(
+      `  Cleaned up ${createdItemIds.length} item(s) created by write tool tests`,
+    );
   }
 }
 
@@ -442,7 +502,11 @@ async function runErrorHandlingChecks(accessToken: string): Promise<void> {
 
     if (response.error) {
       // Protocol-level error — acceptable if it's structured
-      pass('PC-20', 'invalid UUID', `RPC error: ${response.error.message.slice(0, 80)}`);
+      pass(
+        'PC-20',
+        'invalid UUID',
+        `RPC error: ${response.error.message.slice(0, 80)}`,
+      );
     } else {
       const result = response.result as ToolCallResult;
       const hasTextResponse = result.content?.some(
@@ -475,18 +539,30 @@ async function runErrorHandlingChecks(accessToken: string): Promise<void> {
 
     if (response.error) {
       // Protocol-level validation — acceptable
-      pass('PC-21', 'missing required param', `Validation error: ${response.error.message.slice(0, 80)}`);
+      pass(
+        'PC-21',
+        'missing required param',
+        `Validation error: ${response.error.message.slice(0, 80)}`,
+      );
     } else {
       const result = response.result as ToolCallResult;
       if (result.isError || (result.content && result.content.length > 0)) {
         pass('PC-21', 'missing required param', 'Returns validation error');
       } else {
-        fail('PC-21', 'missing required param', 'No error response for missing param');
+        fail(
+          'PC-21',
+          'missing required param',
+          'No error response for missing param',
+        );
       }
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    pass('PC-21', 'missing required param', `Error caught: ${msg.slice(0, 80)}`);
+    pass(
+      'PC-21',
+      'missing required param',
+      `Error caught: ${msg.slice(0, 80)}`,
+    );
   }
 
   // PC-22: Wrong param type returns validation error
@@ -501,7 +577,11 @@ async function runErrorHandlingChecks(accessToken: string): Promise<void> {
     );
 
     if (response.error) {
-      pass('PC-22', 'wrong param type', `Validation error: ${response.error.message.slice(0, 80)}`);
+      pass(
+        'PC-22',
+        'wrong param type',
+        `Validation error: ${response.error.message.slice(0, 80)}`,
+      );
     } else {
       const result = response.result as ToolCallResult;
       if (result.isError || (result.content && result.content.length > 0)) {
@@ -526,27 +606,50 @@ async function runErrorHandlingChecks(accessToken: string): Promise<void> {
     if (response.error) {
       const msg = response.error.message.toLowerCase();
       if (msg.includes('not found') || msg.includes('error')) {
-        pass('PC-23', 'non-existent resource', `Structured error: ${response.error.message.slice(0, 80)}`);
+        pass(
+          'PC-23',
+          'non-existent resource',
+          `Structured error: ${response.error.message.slice(0, 80)}`,
+        );
       } else {
-        pass('PC-23', 'non-existent resource', `RPC error handled: ${response.error.message.slice(0, 80)}`);
+        pass(
+          'PC-23',
+          'non-existent resource',
+          `RPC error handled: ${response.error.message.slice(0, 80)}`,
+        );
       }
     } else {
       const result = response.result as { contents: Array<{ text?: string }> };
       const hasNotFound = result.contents?.some((c) => {
         const text = typeof c.text === 'string' ? c.text : '';
-        return text.toLowerCase().includes('not found') || text.toLowerCase().includes('error');
+        return (
+          text.toLowerCase().includes('not found') ||
+          text.toLowerCase().includes('error')
+        );
       });
       if (hasNotFound) {
         pass('PC-23', 'non-existent resource', 'Returns "not found" text');
       } else if (result.contents?.length > 0) {
-        pass('PC-23', 'non-existent resource', 'Returns response (handled gracefully)');
+        pass(
+          'PC-23',
+          'non-existent resource',
+          'Returns response (handled gracefully)',
+        );
       } else {
-        fail('PC-23', 'non-existent resource', 'No response for non-existent resource');
+        fail(
+          'PC-23',
+          'non-existent resource',
+          'No response for non-existent resource',
+        );
       }
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    pass('PC-23', 'non-existent resource', `Error handled: ${msg.slice(0, 80)}`);
+    pass(
+      'PC-23',
+      'non-existent resource',
+      `Error handled: ${msg.slice(0, 80)}`,
+    );
   }
 }
 
@@ -583,7 +686,11 @@ function printReport(): void {
     console.log(`\n${section}`);
     for (const check of checks) {
       const icon =
-        check.status === 'PASS' ? 'PASS' : check.status === 'FAIL' ? 'FAIL' : 'SKIP';
+        check.status === 'PASS'
+          ? 'PASS'
+          : check.status === 'FAIL'
+            ? 'FAIL'
+            : 'SKIP';
       const label = `  ${check.id} ${check.name}`;
       const dots = '.'.repeat(Math.max(2, 50 - label.length));
       console.log(`${label} ${dots} ${icon} (${check.detail})`);
@@ -668,7 +775,10 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error('\nFatal error:', err instanceof Error ? err.message : String(err));
+  console.error(
+    '\nFatal error:',
+    err instanceof Error ? err.message : String(err),
+  );
   if (err instanceof Error && err.stack) {
     console.error(err.stack);
   }

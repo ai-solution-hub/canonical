@@ -82,7 +82,12 @@ interface ModeSelectorProps {
 
 function ModeSelector({ mode, onModeChange }: ModeSelectorProps) {
   return (
-    <div role="tablist" aria-label="Report mode" onKeyDown={handleTablistKeyDown} className="flex items-center gap-1 rounded-lg border bg-muted/50 p-1">
+    <div
+      role="tablist"
+      aria-label="Report mode"
+      onKeyDown={handleTablistKeyDown}
+      className="flex items-center gap-1 rounded-lg border bg-muted/50 p-1"
+    >
       <button
         role="tab"
         id="tab-preset"
@@ -180,7 +185,12 @@ function GenerateControls({
 
   return (
     <div className="space-y-4">
-      <div className={cn('flex flex-wrap items-center gap-3', variant === 'hero' && 'justify-center')}>
+      <div
+        className={cn(
+          'flex flex-wrap items-center gap-3',
+          variant === 'hero' && 'justify-center',
+        )}
+      >
         <ModeSelector mode={mode} onModeChange={onModeChange} />
       </div>
 
@@ -189,179 +199,41 @@ function GenerateControls({
         id="digest-content-panel"
         aria-labelledby={`tab-${mode}`}
       >
-        <div className={cn('flex flex-wrap items-center gap-3', variant === 'hero' && 'justify-center')}>
-        {mode === 'preset' && (
-          <Select value={periodDays} onValueChange={onPeriodDaysChange}>
-            <SelectTrigger className="w-[160px]">
-              <Calendar className="size-4" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PERIOD_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-
-        {mode === 'daily' && (
-          <span className="text-sm text-muted-foreground">
-            Summarise today&apos;s new additions
-          </span>
-        )}
-
-        {mode !== 'custom' && (
-          <Button
-            onClick={onGenerate}
-            disabled={generating}
-            variant={buttonVariant}
-            size={buttonSize}
-          >
-            {generating ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                {mode === 'daily' ? (
-                  <RefreshCw className="size-4" />
-                ) : variant === 'hero' ? (
-                  <RefreshCw className="size-4" />
-                ) : (
-                  <RefreshCw className="size-4" />
-                )}
-                {variant === 'hero' ? 'Generate Report' : 'Generate New Report'}
-              </>
-            )}
-          </Button>
-        )}
-
-        </div>
-
-      {/* Custom filter panel */}
-      {mode === 'custom' && (
-        <div className="mt-4 rounded-xl border bg-card p-5">
-          <div className="mb-4 flex items-center gap-2">
-            <Filter className="size-4 text-primary" />
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Custom Report Filters
-            </h3>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            {/* Date range */}
-            <div className="space-y-2">
-              <Label htmlFor="date-from">From</Label>
-              <Input
-                id="date-from"
-                type="date"
-                value={customDateFrom}
-                onChange={(e) => onCustomDateFromChange(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="date-to">To</Label>
-              <Input
-                id="date-to"
-                type="date"
-                value={customDateTo}
-                onChange={(e) => onCustomDateToChange(e.target.value)}
-              />
-            </div>
-
-            {/* Domain filter */}
-            <div className="space-y-2">
-              <Label htmlFor="custom-domain">Domain</Label>
-              <Select value={customDomain} onValueChange={onCustomDomainChange}>
-                <SelectTrigger id="custom-domain">
-                  <SelectValue placeholder="All domains" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All domains</SelectItem>
-                  {domainOptions.map((domain) => (
-                    <SelectItem key={domain} value={domain}>
-                      {domain}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Keywords filter */}
-            <div className="space-y-2">
-              <Label htmlFor="keywords">
-                Keywords{' '}
-                <span className="font-normal text-muted-foreground">
-                  (comma-separated)
-                </span>
-              </Label>
-              <Input
-                id="keywords"
-                type="text"
-                placeholder="e.g. ai agents, claude, llm"
-                value={customKeywords}
-                onChange={(e) => onCustomKeywordsChange(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Active filter badges */}
-          {((customDomain && customDomain !== 'all') ||
-            customKeywords.trim()) && (
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              <span className="text-xs text-muted-foreground">
-                Active filters:
-              </span>
-              {customDomain && customDomain !== 'all' && (
-                <Badge
-                  variant="secondary"
-                  className="gap-1 text-xs font-normal"
-                >
-                  {customDomain}
-                  <button
-                    onClick={() => onCustomDomainChange('')}
-                    aria-label={`Remove domain filter: ${customDomain}`}
-                    className="ml-0.5 flex min-h-[32px] min-w-[32px] items-center justify-center rounded-full hover:bg-muted"
-                  >
-                    <X className="size-3" />
-                  </button>
-                </Badge>
-              )}
-              {customKeywords
-                .split(',')
-                .map((k) => k.trim())
-                .filter(Boolean)
-                .map((kw) => (
-                  <Badge
-                    key={kw}
-                    variant="secondary"
-                    className="gap-1 text-xs font-normal"
-                  >
-                    {kw}
-                    <button
-                      onClick={() => {
-                        const remaining = customKeywords
-                          .split(',')
-                          .map((k) => k.trim())
-                          .filter((k) => k && k !== kw)
-                          .join(', ');
-                        onCustomKeywordsChange(remaining);
-                      }}
-                      aria-label={`Remove keyword filter: ${kw}`}
-                      className="ml-0.5 flex min-h-[32px] min-w-[32px] items-center justify-center rounded-full hover:bg-muted"
-                    >
-                      <X className="size-3" />
-                    </button>
-                  </Badge>
+        <div
+          className={cn(
+            'flex flex-wrap items-center gap-3',
+            variant === 'hero' && 'justify-center',
+          )}
+        >
+          {mode === 'preset' && (
+            <Select value={periodDays} onValueChange={onPeriodDaysChange}>
+              <SelectTrigger className="w-[160px]">
+                <Calendar className="size-4" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PERIOD_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
                 ))}
-            </div>
+              </SelectContent>
+            </Select>
           )}
 
-          <div className="mt-4">
-            <Button onClick={onGenerate} disabled={generating}>
+          {mode === 'daily' && (
+            <span className="text-sm text-muted-foreground">
+              Summarise today&apos;s new additions
+            </span>
+          )}
+
+          {mode !== 'custom' && (
+            <Button
+              onClick={onGenerate}
+              disabled={generating}
+              variant={buttonVariant}
+              size={buttonSize}
+            >
               {generating ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
@@ -369,14 +241,161 @@ function GenerateControls({
                 </>
               ) : (
                 <>
-                  <RefreshCw className="size-4" />
-                  Generate Custom Report
+                  {mode === 'daily' ? (
+                    <RefreshCw className="size-4" />
+                  ) : variant === 'hero' ? (
+                    <RefreshCw className="size-4" />
+                  ) : (
+                    <RefreshCw className="size-4" />
+                  )}
+                  {variant === 'hero'
+                    ? 'Generate Report'
+                    : 'Generate New Report'}
                 </>
               )}
             </Button>
-          </div>
+          )}
         </div>
-      )}
+
+        {/* Custom filter panel */}
+        {mode === 'custom' && (
+          <div className="mt-4 rounded-xl border bg-card p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <Filter className="size-4 text-primary" />
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Custom Report Filters
+              </h3>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              {/* Date range */}
+              <div className="space-y-2">
+                <Label htmlFor="date-from">From</Label>
+                <Input
+                  id="date-from"
+                  type="date"
+                  value={customDateFrom}
+                  onChange={(e) => onCustomDateFromChange(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="date-to">To</Label>
+                <Input
+                  id="date-to"
+                  type="date"
+                  value={customDateTo}
+                  onChange={(e) => onCustomDateToChange(e.target.value)}
+                />
+              </div>
+
+              {/* Domain filter */}
+              <div className="space-y-2">
+                <Label htmlFor="custom-domain">Domain</Label>
+                <Select
+                  value={customDomain}
+                  onValueChange={onCustomDomainChange}
+                >
+                  <SelectTrigger id="custom-domain">
+                    <SelectValue placeholder="All domains" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All domains</SelectItem>
+                    {domainOptions.map((domain) => (
+                      <SelectItem key={domain} value={domain}>
+                        {domain}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Keywords filter */}
+              <div className="space-y-2">
+                <Label htmlFor="keywords">
+                  Keywords{' '}
+                  <span className="font-normal text-muted-foreground">
+                    (comma-separated)
+                  </span>
+                </Label>
+                <Input
+                  id="keywords"
+                  type="text"
+                  placeholder="e.g. ai agents, claude, llm"
+                  value={customKeywords}
+                  onChange={(e) => onCustomKeywordsChange(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Active filter badges */}
+            {((customDomain && customDomain !== 'all') ||
+              customKeywords.trim()) && (
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground">
+                  Active filters:
+                </span>
+                {customDomain && customDomain !== 'all' && (
+                  <Badge
+                    variant="secondary"
+                    className="gap-1 text-xs font-normal"
+                  >
+                    {customDomain}
+                    <button
+                      onClick={() => onCustomDomainChange('')}
+                      aria-label={`Remove domain filter: ${customDomain}`}
+                      className="ml-0.5 flex min-h-[32px] min-w-[32px] items-center justify-center rounded-full hover:bg-muted"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </Badge>
+                )}
+                {customKeywords
+                  .split(',')
+                  .map((k) => k.trim())
+                  .filter(Boolean)
+                  .map((kw) => (
+                    <Badge
+                      key={kw}
+                      variant="secondary"
+                      className="gap-1 text-xs font-normal"
+                    >
+                      {kw}
+                      <button
+                        onClick={() => {
+                          const remaining = customKeywords
+                            .split(',')
+                            .map((k) => k.trim())
+                            .filter((k) => k && k !== kw)
+                            .join(', ');
+                          onCustomKeywordsChange(remaining);
+                        }}
+                        aria-label={`Remove keyword filter: ${kw}`}
+                        className="ml-0.5 flex min-h-[32px] min-w-[32px] items-center justify-center rounded-full hover:bg-muted"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  ))}
+              </div>
+            )}
+
+            <div className="mt-4">
+              <Button onClick={onGenerate} disabled={generating}>
+                {generating ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="size-4" />
+                    Generate Custom Report
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -452,15 +471,21 @@ export default function DigestPage() {
         ...(keywords.length > 0 ? { keywords } : {}),
       });
     } else {
-      const selectedPeriod = PERIOD_OPTIONS.find(
-        (o) => o.value === periodDays,
-      );
+      const selectedPeriod = PERIOD_OPTIONS.find((o) => o.value === periodDays);
       handleGenerate({
         period_days: parseInt(periodDays, 10),
         digest_type: selectedPeriod?.type ?? 'custom',
       });
     }
-  }, [mode, customKeywords, customDateFrom, customDateTo, customDomain, periodDays, handleGenerate]);
+  }, [
+    mode,
+    customKeywords,
+    customDateFrom,
+    customDateTo,
+    customDomain,
+    periodDays,
+    handleGenerate,
+  ]);
 
   // Mark all items from digest as read
   const handleMarkAllRead = useCallback(async () => {
@@ -505,7 +530,10 @@ export default function DigestPage() {
   // Loading state
   if (loading) {
     return (
-      <section aria-label="Change reports" className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
+      <section
+        aria-label="Change reports"
+        className="mx-auto max-w-5xl px-4 py-12 sm:px-6"
+      >
         <div role="status" aria-label="Loading">
           <DigestSkeleton />
         </div>
@@ -516,7 +544,10 @@ export default function DigestPage() {
   // No digest state + generating state
   if (!currentDigest) {
     return (
-      <section aria-label="Change reports" className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
+      <section
+        aria-label="Change reports"
+        className="mx-auto max-w-5xl px-4 py-12 sm:px-6"
+      >
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="rounded-full bg-primary/10 p-4">
             <FileText className="size-8 text-primary" />
@@ -534,7 +565,11 @@ export default function DigestPage() {
           </div>
 
           {generating && (
-            <div className="mt-8 w-full max-w-2xl" aria-live="polite" role="status">
+            <div
+              className="mt-8 w-full max-w-2xl"
+              aria-live="polite"
+              role="status"
+            >
               <p className="mb-4 text-center text-sm text-muted-foreground">
                 Generating your report... This may take up to a minute.
               </p>
@@ -548,7 +583,10 @@ export default function DigestPage() {
 
   // Digest view state
   return (
-    <section aria-label="Change reports" className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
+    <section
+      aria-label="Change reports"
+      className="mx-auto max-w-5xl px-4 py-12 sm:px-6"
+    >
       {/* Generate new / controls bar */}
       <div className="mb-8">
         <GenerateControls variant="bar" {...controlsProps} />
@@ -581,14 +619,22 @@ export default function DigestPage() {
       )}
 
       {/* Past digests */}
-      {(loadingPastDigests || pastDigests.filter((d) => d.id !== currentDigest?.id).length > 0) && (
+      {(loadingPastDigests ||
+        pastDigests.filter((d) => d.id !== currentDigest?.id).length > 0) && (
         <section className="mt-12 border-t border-border pt-8">
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Previous Reports
           </h2>
           {loadingPastDigests ? (
-            <div className="flex items-center justify-center py-4" role="status" aria-label="Loading previous reports">
-              <Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden="true" />
+            <div
+              className="flex items-center justify-center py-4"
+              role="status"
+              aria-label="Loading previous reports"
+            >
+              <Loader2
+                className="size-4 animate-spin text-muted-foreground"
+                aria-hidden="true"
+              />
               <span className="sr-only">Loading previous reports</span>
             </div>
           ) : (

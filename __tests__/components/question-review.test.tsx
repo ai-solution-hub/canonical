@@ -50,7 +50,9 @@ interface TestExtractedQuestion {
   category: string;
 }
 
-function makeExtractedQuestion(overrides: Partial<TestExtractedQuestion> = {}): TestExtractedQuestion {
+function makeExtractedQuestion(
+  overrides: Partial<TestExtractedQuestion> = {},
+): TestExtractedQuestion {
   return {
     section_name: 'Technical Approach',
     section_sequence: 1,
@@ -99,7 +101,9 @@ function makeQuestions(): TestExtractedQuestion[] {
   ];
 }
 
-function defaultProps(overrides: Partial<Parameters<typeof QuestionReview>[0]> = {}) {
+function defaultProps(
+  overrides: Partial<Parameters<typeof QuestionReview>[0]> = {},
+) {
   return {
     bidId: 'bid-1',
     questions: makeQuestions(),
@@ -128,7 +132,9 @@ describe('QuestionReview', () => {
 
   it('shows total question and section count', () => {
     render(<QuestionReview {...defaultProps()} />);
-    expect(screen.getByText(/4 questions found across 3 sections/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/4 questions found across 3 sections/),
+    ).toBeInTheDocument();
   });
 
   it('renders section headers', () => {
@@ -140,9 +146,15 @@ describe('QuestionReview', () => {
 
   it('renders question texts', () => {
     render(<QuestionReview {...defaultProps()} />);
-    expect(screen.getByText('Describe your delivery approach')).toBeInTheDocument();
-    expect(screen.getByText('What quality assurance processes do you use?')).toBeInTheDocument();
-    expect(screen.getByText('Provide your pricing schedule')).toBeInTheDocument();
+    expect(
+      screen.getByText('Describe your delivery approach'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('What quality assurance processes do you use?'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Provide your pricing schedule'),
+    ).toBeInTheDocument();
     expect(screen.getByText('Company registration number')).toBeInTheDocument();
   });
 
@@ -164,7 +176,9 @@ describe('QuestionReview', () => {
   it('shows informational warning when informational questions exist', () => {
     render(<QuestionReview {...defaultProps()} />);
     const alert = screen.getByRole('alert');
-    expect(alert).toHaveTextContent(/1 question is categorised as informational/);
+    expect(alert).toHaveTextContent(
+      /1 question is categorised as informational/,
+    );
   });
 
   it('shows informational badge on informational questions', () => {
@@ -175,7 +189,11 @@ describe('QuestionReview', () => {
   it('does not show informational warning when no informational questions', () => {
     const questions = [
       makeExtractedQuestion({ category: 'mandatory' }),
-      makeExtractedQuestion({ section_sequence: 2, section_name: 'B', category: 'desirable' }),
+      makeExtractedQuestion({
+        section_sequence: 2,
+        section_name: 'B',
+        category: 'desirable',
+      }),
     ];
     render(<QuestionReview {...defaultProps({ questions })} />);
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
@@ -183,11 +201,20 @@ describe('QuestionReview', () => {
 
   it('uses plural when multiple informational questions exist', () => {
     const questions = [
-      makeExtractedQuestion({ category: 'informational', question_sequence: 1 }),
-      makeExtractedQuestion({ category: 'informational', question_sequence: 2, question_text: 'VAT number' }),
+      makeExtractedQuestion({
+        category: 'informational',
+        question_sequence: 1,
+      }),
+      makeExtractedQuestion({
+        category: 'informational',
+        question_sequence: 2,
+        question_text: 'VAT number',
+      }),
     ];
     render(<QuestionReview {...defaultProps({ questions })} />);
-    expect(screen.getByRole('alert')).toHaveTextContent(/2 questions are categorised as informational/);
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      /2 questions are categorised as informational/,
+    );
   });
 
   // ---- Selection state ----
@@ -199,7 +226,9 @@ describe('QuestionReview', () => {
 
   it('shows correct confirm button text with all selected', () => {
     render(<QuestionReview {...defaultProps()} />);
-    expect(screen.getByRole('button', { name: 'Confirm 4 Questions' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Confirm 4 Questions' }),
+    ).toBeInTheDocument();
   });
 
   // ---- Select All / Deselect All ----
@@ -211,7 +240,9 @@ describe('QuestionReview', () => {
 
   it('enables Deselect All when some are selected', () => {
     render(<QuestionReview {...defaultProps()} />);
-    expect(screen.getByRole('button', { name: /Deselect All/ })).not.toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: /Deselect All/ }),
+    ).not.toBeDisabled();
   });
 
   it('deselects all when Deselect All is clicked', async () => {
@@ -221,7 +252,9 @@ describe('QuestionReview', () => {
     await user.click(screen.getByRole('button', { name: /Deselect All/ }));
 
     expect(screen.getByText('0 of 4 questions selected')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Select All/ })).not.toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: /Select All/ }),
+    ).not.toBeDisabled();
     expect(screen.getByRole('button', { name: /Deselect All/ })).toBeDisabled();
   });
 
@@ -256,7 +289,9 @@ describe('QuestionReview', () => {
     const checkboxes = screen.getAllByRole('checkbox');
     await user.click(checkboxes[0]);
 
-    expect(screen.getByRole('button', { name: 'Confirm 3 Questions' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Confirm 3 Questions' }),
+    ).toBeInTheDocument();
   });
 
   it('uses singular "Question" when exactly one is selected', async () => {
@@ -268,7 +303,9 @@ describe('QuestionReview', () => {
     const checkboxes = screen.getAllByRole('checkbox');
     await user.click(checkboxes[0]);
 
-    expect(screen.getByRole('button', { name: 'Confirm 1 Question' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Confirm 1 Question' }),
+    ).toBeInTheDocument();
   });
 
   // ---- Confirm action ----
@@ -279,7 +316,9 @@ describe('QuestionReview', () => {
     mockFetch.mockResolvedValueOnce({ ok: true });
 
     render(<QuestionReview {...defaultProps({ onConfirmed })} />);
-    await user.click(screen.getByRole('button', { name: /Confirm 4 Questions/ }));
+    await user.click(
+      screen.getByRole('button', { name: /Confirm 4 Questions/ }),
+    );
 
     expect(mockFetch).toHaveBeenCalledWith(
       '/api/bids/bid-1/questions',
@@ -288,7 +327,9 @@ describe('QuestionReview', () => {
         headers: { 'Content-Type': 'application/json' },
       }),
     );
-    expect(mockToast.success).toHaveBeenCalledWith('4 questions confirmed and saved');
+    expect(mockToast.success).toHaveBeenCalledWith(
+      '4 questions confirmed and saved',
+    );
     expect(onConfirmed).toHaveBeenCalled();
   });
 
@@ -302,13 +343,20 @@ describe('QuestionReview', () => {
     const checkboxes = screen.getAllByRole('checkbox');
     await user.click(checkboxes[0]);
 
-    await user.click(screen.getByRole('button', { name: /Confirm 3 Questions/ }));
+    await user.click(
+      screen.getByRole('button', { name: /Confirm 3 Questions/ }),
+    );
 
     const fetchCall = mockFetch.mock.calls[0];
     const body = JSON.parse(fetchCall[1].body as string);
     expect(body.questions).toHaveLength(3);
     // First question should not be included
-    expect(body.questions.find((q: TestExtractedQuestion) => q.question_text === 'Describe your delivery approach')).toBeUndefined();
+    expect(
+      body.questions.find(
+        (q: TestExtractedQuestion) =>
+          q.question_text === 'Describe your delivery approach',
+      ),
+    ).toBeUndefined();
   });
 
   it('shows error toast when API returns error', async () => {
@@ -320,7 +368,9 @@ describe('QuestionReview', () => {
     });
 
     render(<QuestionReview {...defaultProps()} />);
-    await user.click(screen.getByRole('button', { name: /Confirm 4 Questions/ }));
+    await user.click(
+      screen.getByRole('button', { name: /Confirm 4 Questions/ }),
+    );
 
     expect(mockToast.error).toHaveBeenCalledWith('Database error');
   });
@@ -334,9 +384,13 @@ describe('QuestionReview', () => {
     });
 
     render(<QuestionReview {...defaultProps()} />);
-    await user.click(screen.getByRole('button', { name: /Confirm 4 Questions/ }));
+    await user.click(
+      screen.getByRole('button', { name: /Confirm 4 Questions/ }),
+    );
 
-    expect(mockToast.error).toHaveBeenCalledWith('Failed to save questions (500)');
+    expect(mockToast.error).toHaveBeenCalledWith(
+      'Failed to save questions (500)',
+    );
   });
 
   it('shows error when confirming with no questions selected', async () => {
@@ -346,7 +400,9 @@ describe('QuestionReview', () => {
     await user.click(screen.getByRole('button', { name: /Deselect All/ }));
 
     // Confirm button should be disabled when none selected
-    const confirmButton = screen.getByRole('button', { name: /Confirm 0 Questions/ });
+    const confirmButton = screen.getByRole('button', {
+      name: /Confirm 0 Questions/,
+    });
     expect(confirmButton).toBeDisabled();
   });
 
@@ -374,7 +430,10 @@ describe('QuestionReview', () => {
   it('checkboxes have accessible aria-labels', () => {
     render(<QuestionReview {...defaultProps()} />);
     const checkboxes = screen.getAllByRole('checkbox');
-    expect(checkboxes[0]).toHaveAttribute('aria-label', expect.stringContaining('Select question'));
+    expect(checkboxes[0]).toHaveAttribute(
+      'aria-label',
+      expect.stringContaining('Select question'),
+    );
   });
 
   // ---- Single question ----
@@ -382,7 +441,9 @@ describe('QuestionReview', () => {
   it('handles a single question correctly', () => {
     const questions = [makeExtractedQuestion()];
     render(<QuestionReview {...defaultProps({ questions })} />);
-    expect(screen.getByText(/1 questions found across 1 sections/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/1 questions found across 1 sections/),
+    ).toBeInTheDocument();
     expect(screen.getByText('1 of 1 questions selected')).toBeInTheDocument();
   });
 
@@ -393,7 +454,9 @@ describe('QuestionReview', () => {
     mockFetch.mockRejectedValueOnce(new Error('Network failure'));
 
     render(<QuestionReview {...defaultProps()} />);
-    await user.click(screen.getByRole('button', { name: /Confirm 4 Questions/ }));
+    await user.click(
+      screen.getByRole('button', { name: /Confirm 4 Questions/ }),
+    );
 
     expect(mockToast.error).toHaveBeenCalledWith('Network failure');
   });

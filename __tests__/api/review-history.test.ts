@@ -88,7 +88,9 @@ describe('GET /api/review/history', () => {
     );
 
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(makeRequest(`/api/review/history?item_id=${VALID_UUID}`));
+    const response = await GET(
+      makeRequest(`/api/review/history?item_id=${VALID_UUID}`),
+    );
 
     expect(response.status).toBe(401);
     expect(mockGetAuthorisedClient).toHaveBeenCalledWith(['admin', 'editor']);
@@ -104,7 +106,9 @@ describe('GET /api/review/history', () => {
     );
 
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(makeRequest(`/api/review/history?item_id=${VALID_UUID}`));
+    const response = await GET(
+      makeRequest(`/api/review/history?item_id=${VALID_UUID}`),
+    );
 
     expect(response.status).toBe(403);
   });
@@ -135,7 +139,9 @@ describe('GET /api/review/history', () => {
 
   it('returns 400 when item_id is not a valid UUID', async () => {
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(makeRequest('/api/review/history?item_id=not-a-uuid'));
+    const response = await GET(
+      makeRequest('/api/review/history?item_id=not-a-uuid'),
+    );
 
     expect(response.status).toBe(400);
     const body = await response.json();
@@ -144,7 +150,9 @@ describe('GET /api/review/history', () => {
 
   it('returns 400 for a partial UUID', async () => {
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(makeRequest('/api/review/history?item_id=00000000-0000-0000'));
+    const response = await GET(
+      makeRequest('/api/review/history?item_id=00000000-0000-0000'),
+    );
 
     expect(response.status).toBe(400);
     const body = await response.json();
@@ -155,22 +163,26 @@ describe('GET /api/review/history', () => {
 
   it('returns history entries with populated display names', async () => {
     // First .then: ingestion_quality_log query
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: sampleHistoryRows, error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: sampleHistoryRows, error: null }),
     );
     // Second .then: user_roles display_name lookup
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({
-        data: [
-          { user_id: 'user-1', display_name: 'Alice Smith' },
-          { user_id: 'user-2', display_name: 'Bob Jones' },
-        ],
-        error: null,
-      }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            { user_id: 'user-1', display_name: 'Alice Smith' },
+            { user_id: 'user-2', display_name: 'Bob Jones' },
+          ],
+          error: null,
+        }),
     );
 
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(makeRequest(`/api/review/history?item_id=${VALID_UUID}`));
+    const response = await GET(
+      makeRequest(`/api/review/history?item_id=${VALID_UUID}`),
+    );
 
     expect(response.status).toBe(200);
     const body = await response.json();
@@ -202,32 +214,48 @@ describe('GET /api/review/history', () => {
   });
 
   it('includes resolution_notes in the response', async () => {
-    const rowWithNotes = [{
-      ...sampleHistoryRows[0],
-      resolution_notes: 'Fixed the classification manually',
-    }];
+    const rowWithNotes = [
+      {
+        ...sampleHistoryRows[0],
+        resolution_notes: 'Fixed the classification manually',
+      },
+    ];
 
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: rowWithNotes, error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: rowWithNotes, error: null }),
     );
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: [{ user_id: 'user-1', display_name: 'Alice' }, { user_id: 'user-2', display_name: 'Bob' }], error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            { user_id: 'user-1', display_name: 'Alice' },
+            { user_id: 'user-2', display_name: 'Bob' },
+          ],
+          error: null,
+        }),
     );
 
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(makeRequest(`/api/review/history?item_id=${VALID_UUID}`));
+    const response = await GET(
+      makeRequest(`/api/review/history?item_id=${VALID_UUID}`),
+    );
 
     const body = await response.json();
-    expect(body.history[0].resolution_notes).toBe('Fixed the classification manually');
+    expect(body.history[0].resolution_notes).toBe(
+      'Fixed the classification manually',
+    );
   });
 
   it('returns empty array when no history exists for the item', async () => {
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(makeRequest(`/api/review/history?item_id=${VALID_UUID}`));
+    const response = await GET(
+      makeRequest(`/api/review/history?item_id=${VALID_UUID}`),
+    );
 
     expect(response.status).toBe(200);
     const body = await response.json();
@@ -235,16 +263,19 @@ describe('GET /api/review/history', () => {
   });
 
   it('returns null display names when user_roles lookup returns no matches', async () => {
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: sampleHistoryRows, error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: sampleHistoryRows, error: null }),
     );
     // user_roles returns empty — no display names found
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(makeRequest(`/api/review/history?item_id=${VALID_UUID}`));
+    const response = await GET(
+      makeRequest(`/api/review/history?item_id=${VALID_UUID}`),
+    );
 
     const body = await response.json();
     expect(body.history[0].created_by_name).toBeNull();
@@ -252,16 +283,20 @@ describe('GET /api/review/history', () => {
   });
 
   it('handles null data from user_roles lookup gracefully', async () => {
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: sampleHistoryRows, error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: sampleHistoryRows, error: null }),
     );
     // user_roles returns null data (error but non-blocking)
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { message: 'something failed' } }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: { message: 'something failed' } }),
     );
 
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(makeRequest(`/api/review/history?item_id=${VALID_UUID}`));
+    const response = await GET(
+      makeRequest(`/api/review/history?item_id=${VALID_UUID}`),
+    );
 
     // Should still return 200 — display name lookup failure is non-fatal
     expect(response.status).toBe(200);
@@ -272,8 +307,8 @@ describe('GET /api/review/history', () => {
   // ── Database query construction ──────────────────────────────────────────
 
   it('queries ingestion_quality_log with correct table, filters, and limit', async () => {
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const { GET } = await import('@/app/api/review/history/route');
@@ -283,28 +318,37 @@ describe('GET /api/review/history', () => {
     expect(mockSupabase._chain.select).toHaveBeenCalledWith(
       'id, flag_type, severity, details, resolution_notes, created_at, created_by, resolved, resolved_at, resolved_by',
     );
-    expect(mockSupabase._chain.eq).toHaveBeenCalledWith('content_item_id', VALID_UUID);
-    expect(mockSupabase._chain.order).toHaveBeenCalledWith('created_at', { ascending: false });
+    expect(mockSupabase._chain.eq).toHaveBeenCalledWith(
+      'content_item_id',
+      VALID_UUID,
+    );
+    expect(mockSupabase._chain.order).toHaveBeenCalledWith('created_at', {
+      ascending: false,
+    });
     expect(mockSupabase._chain.limit).toHaveBeenCalledWith(10);
   });
 
   it('passes the item_id from the query parameter to the eq filter', async () => {
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const { GET } = await import('@/app/api/review/history/route');
     await GET(makeRequest(`/api/review/history?item_id=${ANOTHER_UUID}`));
 
-    expect(mockSupabase._chain.eq).toHaveBeenCalledWith('content_item_id', ANOTHER_UUID);
+    expect(mockSupabase._chain.eq).toHaveBeenCalledWith(
+      'content_item_id',
+      ANOTHER_UUID,
+    );
   });
 
   it('looks up user_roles with the correct user IDs from history rows', async () => {
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: sampleHistoryRows, error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: sampleHistoryRows, error: null }),
     );
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const { GET } = await import('@/app/api/review/history/route');
@@ -321,21 +365,24 @@ describe('GET /api/review/history', () => {
 
   it('does not query user_roles when there are no user IDs to resolve', async () => {
     // All rows have null created_by and resolved_by
-    const anonymousRows = [{
-      id: 'log-anon',
-      flag_type: 'short_content',
-      severity: 'info',
-      details: null,
-      resolution_notes: null,
-      created_at: '2026-03-20T10:00:00Z',
-      created_by: null,
-      resolved: false,
-      resolved_at: null,
-      resolved_by: null,
-    }];
+    const anonymousRows = [
+      {
+        id: 'log-anon',
+        flag_type: 'short_content',
+        severity: 'info',
+        details: null,
+        resolution_notes: null,
+        created_at: '2026-03-20T10:00:00Z',
+        created_by: null,
+        resolved: false,
+        resolved_at: null,
+        resolved_by: null,
+      },
+    ];
 
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: anonymousRows, error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: anonymousRows, error: null }),
     );
 
     const { GET } = await import('@/app/api/review/history/route');
@@ -349,12 +396,15 @@ describe('GET /api/review/history', () => {
   // ── Error handling ───────────────────────────────────────────────────────
 
   it('returns 500 when the database query fails', async () => {
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { message: 'Database connection lost' } }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: { message: 'Database connection lost' } }),
     );
 
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(makeRequest(`/api/review/history?item_id=${VALID_UUID}`));
+    const response = await GET(
+      makeRequest(`/api/review/history?item_id=${VALID_UUID}`),
+    );
 
     expect(response.status).toBe(500);
     const body = await response.json();
@@ -365,7 +415,9 @@ describe('GET /api/review/history', () => {
     mockGetAuthorisedClient.mockRejectedValue(new Error('Unexpected crash'));
 
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(makeRequest(`/api/review/history?item_id=${VALID_UUID}`));
+    const response = await GET(
+      makeRequest(`/api/review/history?item_id=${VALID_UUID}`),
+    );
 
     expect(response.status).toBe(500);
     const body = await response.json();
@@ -375,21 +427,25 @@ describe('GET /api/review/history', () => {
   // ── Response shape ───────────────────────────────────────────────────────
 
   it('returns all expected fields in each history entry', async () => {
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: [sampleHistoryRows[0]], error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [sampleHistoryRows[0]], error: null }),
     );
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({
-        data: [
-          { user_id: 'user-1', display_name: 'Alice' },
-          { user_id: 'user-2', display_name: 'Bob' },
-        ],
-        error: null,
-      }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            { user_id: 'user-1', display_name: 'Alice' },
+            { user_id: 'user-2', display_name: 'Bob' },
+          ],
+          error: null,
+        }),
     );
 
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(makeRequest(`/api/review/history?item_id=${VALID_UUID}`));
+    const response = await GET(
+      makeRequest(`/api/review/history?item_id=${VALID_UUID}`),
+    );
     const body = await response.json();
     const entry = body.history[0];
 
@@ -409,12 +465,14 @@ describe('GET /api/review/history', () => {
   });
 
   it('wraps the result in a { history } envelope', async () => {
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(makeRequest(`/api/review/history?item_id=${VALID_UUID}`));
+    const response = await GET(
+      makeRequest(`/api/review/history?item_id=${VALID_UUID}`),
+    );
     const body = await response.json();
 
     expect(body).toHaveProperty('history');

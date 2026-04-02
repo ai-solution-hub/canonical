@@ -18,7 +18,10 @@ import {
   type ModelTier,
 } from '@/lib/anthropic';
 import { extractCitedResponse, type CitationSourceItem } from '@/lib/citations';
-import { checkResponseQuality, type QualityCheckQuestion } from '@/lib/ai/quality-check';
+import {
+  checkResponseQuality,
+  type QualityCheckQuestion,
+} from '@/lib/ai/quality-check';
 import { loadSkill } from '@/lib/ai/skills/loader';
 
 // ──────────────────────────────────────────
@@ -121,7 +124,13 @@ const questionAnalysisSchema = {
 export async function analyseQuestion(
   question: DraftableQuestion,
   matchedContent: DraftableContent[],
-): Promise<{ analysis: QuestionAnalysis; tokensUsed: number; inputTokens: number; outputTokens: number; cost: number }> {
+): Promise<{
+  analysis: QuestionAnalysis;
+  tokensUsed: number;
+  inputTokens: number;
+  outputTokens: number;
+  cost: number;
+}> {
   const anthropic = getAnthropicClient();
   const model = getModelForTier('analysis');
 
@@ -216,21 +225,25 @@ export async function draftResponse(
   // Claude API allows max 4 cache_control blocks total. We use 1 for the system
   // prompt, so only the last 3 source blocks get cache_control.
   const MAX_CACHED_SOURCES = 3;
-  const uncachedBlocks = matchedContent.slice(0, Math.max(0, matchedContent.length - MAX_CACHED_SOURCES)).map((item) => ({
-    type: 'search_result' as const,
-    source: `/item/${item.id}`,
-    title: item.title ?? 'Untitled',
-    content: [{ type: 'text' as const, text: item.content ?? '' }],
-    citations: { enabled: true },
-  }));
-  const cachedBlocks = matchedContent.slice(Math.max(0, matchedContent.length - MAX_CACHED_SOURCES)).map((item) => ({
-    type: 'search_result' as const,
-    source: `/item/${item.id}`,
-    title: item.title ?? 'Untitled',
-    content: [{ type: 'text' as const, text: item.content ?? '' }],
-    citations: { enabled: true },
-    cache_control: { type: 'ephemeral' as const },
-  }));
+  const uncachedBlocks = matchedContent
+    .slice(0, Math.max(0, matchedContent.length - MAX_CACHED_SOURCES))
+    .map((item) => ({
+      type: 'search_result' as const,
+      source: `/item/${item.id}`,
+      title: item.title ?? 'Untitled',
+      content: [{ type: 'text' as const, text: item.content ?? '' }],
+      citations: { enabled: true },
+    }));
+  const cachedBlocks = matchedContent
+    .slice(Math.max(0, matchedContent.length - MAX_CACHED_SOURCES))
+    .map((item) => ({
+      type: 'search_result' as const,
+      source: `/item/${item.id}`,
+      title: item.title ?? 'Untitled',
+      content: [{ type: 'text' as const, text: item.content ?? '' }],
+      citations: { enabled: true },
+      cache_control: { type: 'ephemeral' as const },
+    }));
   const sourceBlocks = [...uncachedBlocks, ...cachedBlocks];
 
   const wordLimitInstruction = question.word_limit
@@ -289,7 +302,15 @@ RULES:
   const tokensUsed = inputTokens + outputTokens;
   const cost = estimateCost(model, response.usage);
 
-  return { responseText: text, citations, tokensUsed, inputTokens, outputTokens, cost, model };
+  return {
+    responseText: text,
+    citations,
+    tokensUsed,
+    inputTokens,
+    outputTokens,
+    cost,
+    model,
+  };
 }
 
 // ──────────────────────────────────────────
@@ -312,7 +333,10 @@ export async function draftResponseStreaming(
   analysis: QuestionAnalysis,
   modelTier: ModelTier = 'drafting',
   regenerationInstructions?: string,
-): Promise<{ textStream: AsyncIterable<string>; finalise: () => Promise<Pass2Result> }> {
+): Promise<{
+  textStream: AsyncIterable<string>;
+  finalise: () => Promise<Pass2Result>;
+}> {
   const anthropic = getAnthropicClient();
   const model = getModelForTier(modelTier);
 
@@ -333,21 +357,25 @@ export async function draftResponseStreaming(
   // Claude API allows max 4 cache_control blocks total. We use 1 for the system
   // prompt, so only the last 3 source blocks get cache_control.
   const STREAM_MAX_CACHED = 3;
-  const uncachedBlocks = matchedContent.slice(0, Math.max(0, matchedContent.length - STREAM_MAX_CACHED)).map((item) => ({
-    type: 'search_result' as const,
-    source: `/item/${item.id}`,
-    title: item.title ?? 'Untitled',
-    content: [{ type: 'text' as const, text: item.content ?? '' }],
-    citations: { enabled: true },
-  }));
-  const cachedBlocks = matchedContent.slice(Math.max(0, matchedContent.length - STREAM_MAX_CACHED)).map((item) => ({
-    type: 'search_result' as const,
-    source: `/item/${item.id}`,
-    title: item.title ?? 'Untitled',
-    content: [{ type: 'text' as const, text: item.content ?? '' }],
-    citations: { enabled: true },
-    cache_control: { type: 'ephemeral' as const },
-  }));
+  const uncachedBlocks = matchedContent
+    .slice(0, Math.max(0, matchedContent.length - STREAM_MAX_CACHED))
+    .map((item) => ({
+      type: 'search_result' as const,
+      source: `/item/${item.id}`,
+      title: item.title ?? 'Untitled',
+      content: [{ type: 'text' as const, text: item.content ?? '' }],
+      citations: { enabled: true },
+    }));
+  const cachedBlocks = matchedContent
+    .slice(Math.max(0, matchedContent.length - STREAM_MAX_CACHED))
+    .map((item) => ({
+      type: 'search_result' as const,
+      source: `/item/${item.id}`,
+      title: item.title ?? 'Untitled',
+      content: [{ type: 'text' as const, text: item.content ?? '' }],
+      citations: { enabled: true },
+      cache_control: { type: 'ephemeral' as const },
+    }));
   const sourceBlocks = [...uncachedBlocks, ...cachedBlocks];
 
   const wordLimitInstruction = question.word_limit
@@ -416,13 +444,24 @@ RULES:
   // Finalise: collect the complete message and extract citations + usage
   async function finalise(): Promise<Pass2Result> {
     const finalMessage = await messageStream.finalMessage();
-    const { text, citations } = extractCitedResponse(finalMessage, matchedContent);
+    const { text, citations } = extractCitedResponse(
+      finalMessage,
+      matchedContent,
+    );
     const inputTokens = finalMessage.usage.input_tokens;
     const outputTokens = finalMessage.usage.output_tokens;
     const tokensUsed = inputTokens + outputTokens;
     const cost = estimateCost(model, finalMessage.usage);
 
-    return { responseText: text, citations, tokensUsed, inputTokens, outputTokens, cost, model };
+    return {
+      responseText: text,
+      citations,
+      tokensUsed,
+      inputTokens,
+      outputTokens,
+      cost,
+      model,
+    };
   }
 
   return { textStream, finalise };
@@ -469,7 +508,13 @@ export async function runDraftingPipeline(
     outputTokens: draftOutput,
     cost: draftCost,
     model: draftModel,
-  } = await draftResponse(question, matchedContent, analysis, modelTier, regenerationInstructions);
+  } = await draftResponse(
+    question,
+    matchedContent,
+    analysis,
+    modelTier,
+    regenerationInstructions,
+  );
   totalTokens += draftTokens;
   totalInputTokens += draftInput;
   totalOutputTokens += draftOutput;
@@ -486,7 +531,12 @@ export async function runDraftingPipeline(
     inputTokens: qualityInput,
     outputTokens: qualityOutput,
     cost: qualityCost,
-  } = await checkResponseQuality(qualityQuestion, responseText, citations, matchedContent.length);
+  } = await checkResponseQuality(
+    qualityQuestion,
+    responseText,
+    citations,
+    matchedContent.length,
+  );
   totalTokens += qualityTokens;
   totalInputTokens += qualityInput;
   totalOutputTokens += qualityOutput;

@@ -15,7 +15,10 @@ afterEach(() => {
 describe('safeErrorMessage', () => {
   it('returns just the fallback in production', () => {
     process.env.NODE_ENV = 'production';
-    const result = safeErrorMessage(new Error('secret details'), 'Something went wrong');
+    const result = safeErrorMessage(
+      new Error('secret details'),
+      'Something went wrong',
+    );
     expect(result).toBe('Something went wrong');
   });
 

@@ -70,9 +70,7 @@ export default async function ConsentPage({ searchParams }: ConsentPageProps) {
   }
 
   // Show consent screen
-  const scopes = authDetails.scope?.trim()
-    ? authDetails.scope.split(' ')
-    : [];
+  const scopes = authDetails.scope?.trim() ? authDetails.scope.split(' ') : [];
 
   return (
     <ConsentLayout>
@@ -91,15 +89,25 @@ export default async function ConsentPage({ searchParams }: ConsentPageProps) {
           <div className="mt-6 space-y-3 rounded-lg border bg-accent/30 p-4">
             <DetailRow label="Application" value={authDetails.client.name} />
             {authDetails.client.uri && (
-              <DetailRow label="Website" value={authDetails.client.uri} truncate />
+              <DetailRow
+                label="Website"
+                value={authDetails.client.uri}
+                truncate
+              />
             )}
             <DetailRow label="Account" value={user.email ?? user.id} />
             {scopes.length > 0 && (
               <div>
-                <p id="requested-permissions-label" className="text-xs font-medium text-muted-foreground">
+                <p
+                  id="requested-permissions-label"
+                  className="text-xs font-medium text-muted-foreground"
+                >
                   Requested permissions
                 </p>
-                <ul aria-labelledby="requested-permissions-label" className="mt-1 list-inside list-disc text-sm text-foreground">
+                <ul
+                  aria-labelledby="requested-permissions-label"
+                  className="mt-1 list-inside list-disc text-sm text-foreground"
+                >
                   {scopes.map((scope) => (
                     <li key={scope}>{formatScope(scope)}</li>
                   ))}
@@ -201,11 +209,24 @@ function ErrorCard({ message }: { message: string }) {
   );
 }
 
-function DetailRow({ label, value, truncate }: { label: string; value: string; truncate?: boolean }) {
+function DetailRow({
+  label,
+  value,
+  truncate,
+}: {
+  label: string;
+  value: string;
+  truncate?: boolean;
+}) {
   return (
     <div>
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className={`text-sm text-foreground${truncate ? ' max-w-xs truncate' : ''}`} title={truncate ? value : undefined}>{value}</p>
+      <p
+        className={`text-sm text-foreground${truncate ? ' max-w-xs truncate' : ''}`}
+        title={truncate ? value : undefined}
+      >
+        {value}
+      </p>
     </div>
   );
 }

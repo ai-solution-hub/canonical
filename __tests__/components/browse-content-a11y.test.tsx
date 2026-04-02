@@ -63,12 +63,17 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: Record<string, unknown>) => (
-    <a href={href as string} {...props}>{children as React.ReactNode}</a>
+    <a href={href as string} {...props}>
+      {children as React.ReactNode}
+    </a>
   ),
 }));
 
 vi.mock('next/dynamic', () => ({
-  default: () => function DynamicComponent() { return null; },
+  default: () =>
+    function DynamicComponent() {
+      return null;
+    },
 }));
 
 vi.mock('sonner', () => ({
@@ -194,7 +199,9 @@ describe('BrowseContent — accessibility', () => {
   describe('aria-label on results container', () => {
     it('uses "Browse content" aria-label when not in search mode', () => {
       render(<BrowseContent />);
-      expect(screen.getByRole('region', { name: 'Browse content' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('region', { name: 'Browse content' }),
+      ).toBeInTheDocument();
     });
 
     it('uses "Browse and search results" aria-label when in search mode', () => {
@@ -202,7 +209,9 @@ describe('BrowseContent — accessibility', () => {
       mockBrowseData.searchQuery = 'data protection';
       mockBrowseData.totalCount = 5;
       render(<BrowseContent />);
-      expect(screen.getByRole('region', { name: 'Browse and search results' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('region', { name: 'Browse and search results' }),
+      ).toBeInTheDocument();
     });
   });
 
@@ -217,11 +226,13 @@ describe('BrowseContent — accessibility', () => {
       screen.getByRole('status', { name: '' });
       // The sr-only div with aria-live="polite"
       const srOnlyDivs = document.querySelectorAll('[aria-live="polite"]');
-      const announcementDiv = Array.from(srOnlyDivs).find(
-        (el) => el.classList.contains('sr-only'),
+      const announcementDiv = Array.from(srOnlyDivs).find((el) =>
+        el.classList.contains('sr-only'),
       );
       expect(announcementDiv).toBeDefined();
-      expect(announcementDiv!.textContent).toBe('5 results for data protection');
+      expect(announcementDiv!.textContent).toBe(
+        '5 results for data protection',
+      );
     });
 
     it('announces singular "result" for count of 1', () => {
@@ -232,8 +243,8 @@ describe('BrowseContent — accessibility', () => {
       render(<BrowseContent />);
 
       const srOnlyDivs = document.querySelectorAll('[aria-live="polite"]');
-      const announcementDiv = Array.from(srOnlyDivs).find(
-        (el) => el.classList.contains('sr-only'),
+      const announcementDiv = Array.from(srOnlyDivs).find((el) =>
+        el.classList.contains('sr-only'),
       );
       expect(announcementDiv).toBeDefined();
       expect(announcementDiv!.textContent).toBe('1 result for specific query');
@@ -246,8 +257,8 @@ describe('BrowseContent — accessibility', () => {
       render(<BrowseContent />);
 
       const srOnlyDivs = document.querySelectorAll('[aria-live="polite"]');
-      const announcementDiv = Array.from(srOnlyDivs).find(
-        (el) => el.classList.contains('sr-only'),
+      const announcementDiv = Array.from(srOnlyDivs).find((el) =>
+        el.classList.contains('sr-only'),
       );
       expect(announcementDiv).toBeDefined();
       expect(announcementDiv!.textContent).toBe('');
@@ -261,8 +272,8 @@ describe('BrowseContent — accessibility', () => {
       render(<BrowseContent />);
 
       const srOnlyDivs = document.querySelectorAll('[aria-live="polite"]');
-      const announcementDiv = Array.from(srOnlyDivs).find(
-        (el) => el.classList.contains('sr-only'),
+      const announcementDiv = Array.from(srOnlyDivs).find((el) =>
+        el.classList.contains('sr-only'),
       );
       expect(announcementDiv).toBeDefined();
       expect(announcementDiv!.textContent).toBe('');

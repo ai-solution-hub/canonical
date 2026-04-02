@@ -22,32 +22,35 @@
  *   bun run scripts/propagate-cert-metadata.ts --help         # show help
  */
 
-import { createClient } from "@supabase/supabase-js";
-import { parseArgs } from "util";
-import path from "path";
-import fs from "fs";
+import { createClient } from '@supabase/supabase-js';
+import { parseArgs } from 'util';
+import path from 'path';
+import fs from 'fs';
 
 // ── Env loading (handles worktrees) ────────────────────────────────────────
 
 function loadEnv() {
   let dir = process.cwd();
-  while (dir !== "/") {
-    for (const file of [".env.local", ".env"]) {
+  while (dir !== '/') {
+    for (const file of ['.env.local', '.env']) {
       const p = path.join(dir, file);
       if (fs.existsSync(p)) {
-        const content = fs.readFileSync(p, "utf-8");
-        for (const line of content.split("\n")) {
+        const content = fs.readFileSync(p, 'utf-8');
+        for (const line of content.split('\n')) {
           const trimmed = line.trim();
-          if (!trimmed || trimmed.startsWith("#")) continue;
-          const eq = trimmed.indexOf("=");
+          if (!trimmed || trimmed.startsWith('#')) continue;
+          const eq = trimmed.indexOf('=');
           if (eq === -1) continue;
           const key = trimmed.slice(0, eq).trim();
-          const val = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, "");
+          const val = trimmed
+            .slice(eq + 1)
+            .trim()
+            .replace(/^["']|["']$/g, '');
           if (!process.env[key]) process.env[key] = val;
         }
       }
     }
-    if (fs.existsSync(path.join(dir, "package.json"))) break;
+    if (fs.existsSync(path.join(dir, 'package.json'))) break;
     dir = path.dirname(dir);
   }
 }
@@ -58,9 +61,9 @@ loadEnv();
 
 const { values: args } = parseArgs({
   options: {
-    limit: { type: "string", default: "0" },
-    "dry-run": { type: "boolean", default: false },
-    help: { type: "boolean", default: false },
+    limit: { type: 'string', default: '0' },
+    'dry-run': { type: 'boolean', default: false },
+    help: { type: 'boolean', default: false },
   },
   strict: true,
 });
@@ -78,7 +81,7 @@ Options:
 }
 
 const LIMIT = parseInt(args.limit!, 10) || 0;
-const DRY_RUN = args["dry-run"]!;
+const DRY_RUN = args['dry-run']!;
 
 // ── Supabase client ────────────────────────────────────────────────────────
 
@@ -90,7 +93,7 @@ const supabaseKey =
 
 if (!supabaseUrl || !supabaseKey) {
   console.error(
-    "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY in environment"
+    'Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY in environment',
   );
   process.exit(1);
 }
@@ -101,27 +104,27 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 /** Certifications to skip entirely — see audit section 4 and section 6. */
 const SKIP_CERTIFICATIONS = new Set([
-  "Iso Certification", // Should be deleted (poorly normalised duplicate)
-  "WCAG 2.1 AA", // Should be reclassified to standard, not certification
-  "Scorm", // No rich source to propagate from
-  "Climate Neutral Data Centre Certification", // No rich source to propagate from
-  "DBS Basic Check", // No rich source to propagate from
+  'Iso Certification', // Should be deleted (poorly normalised duplicate)
+  'WCAG 2.1 AA', // Should be reclassified to standard, not certification
+  'Scorm', // No rich source to propagate from
+  'Climate Neutral Data Centre Certification', // No rich source to propagate from
+  'DBS Basic Check', // No rich source to propagate from
 ]);
 
 /** Metadata fields that can be propagated to self-held mentions. */
 const SELF_HELD_FIELDS = [
-  "holder",
-  "issuing_body",
-  "expiry_date",
-  "date_obtained",
-  "certificate_number",
-  "scope",
-  "notes",
-  "version",
+  'holder',
+  'issuing_body',
+  'expiry_date',
+  'date_obtained',
+  'certificate_number',
+  'scope',
+  'notes',
+  'version',
 ] as const;
 
 /** Metadata fields that can be propagated to supplier-held mentions. */
-const SUPPLIER_FIELDS = ["holder", "supplier_name"] as const;
+const SUPPLIER_FIELDS = ['holder', 'supplier_name'] as const;
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -144,7 +147,7 @@ interface ContentItem {
 function metadataRichness(metadata: Record<string, unknown> | null): number {
   if (!metadata) return 0;
   return Object.values(metadata).filter(
-    (v) => v !== null && v !== undefined && v !== ""
+    (v) => v !== null && v !== undefined && v !== '',
   ).length;
 }
 
@@ -157,13 +160,13 @@ function isMetadataEmpty(metadata: Record<string, unknown> | null): boolean {
 /** Check if a content item title indicates example-datacentre (supplier) context. */
 function isexample-datacentreContent(title: string | null): boolean {
   if (!title) return false;
-  return title.toLowerCase().includes("example-datacentre");
+  return title.toLowerCase().includes('example-datacentre');
 }
 
 /** Pick only specified fields from an object. */
 function pickFields(
   source: Record<string, unknown>,
-  fields: readonly string[]
+  fields: readonly string[],
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const field of fields) {
@@ -177,27 +180,27 @@ function pickFields(
 // ── Main ───────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log("=".repeat(60));
-  console.log("Certification Metadata Propagation");
-  console.log("=".repeat(60));
-  console.log(`  Limit:   ${LIMIT || "all"}`);
+  console.log('='.repeat(60));
+  console.log('Certification Metadata Propagation');
+  console.log('='.repeat(60));
+  console.log(`  Limit:   ${LIMIT || 'all'}`);
   console.log(`  Dry run: ${DRY_RUN}`);
   console.log();
 
   // 1. Fetch all certification entity mentions
   const { data: allMentions, error: mentionsError } = await supabase
-    .from("entity_mentions")
-    .select("id, canonical_name, entity_type, metadata, content_item_id")
-    .eq("entity_type", "certification")
-    .order("canonical_name");
+    .from('entity_mentions')
+    .select('id, canonical_name, entity_type, metadata, content_item_id')
+    .eq('entity_type', 'certification')
+    .order('canonical_name');
 
   if (mentionsError) {
-    console.error("Failed to fetch entity mentions:", mentionsError.message);
+    console.error('Failed to fetch entity mentions:', mentionsError.message);
     process.exit(1);
   }
 
   if (!allMentions || allMentions.length === 0) {
-    console.log("No certification mentions found.");
+    console.log('No certification mentions found.');
     return;
   }
 
@@ -209,12 +212,12 @@ async function main() {
   ];
 
   const { data: contentItems, error: contentError } = await supabase
-    .from("content_items")
-    .select("id, suggested_title")
-    .in("id", contentItemIds);
+    .from('content_items')
+    .select('id, suggested_title')
+    .in('id', contentItemIds);
 
   if (contentError) {
-    console.error("Failed to fetch content items:", contentError.message);
+    console.error('Failed to fetch content items:', contentError.message);
     process.exit(1);
   }
 
@@ -231,9 +234,7 @@ async function main() {
     groups.set(mention.canonical_name, existing);
   }
 
-  console.log(
-    `Grouped into ${groups.size} distinct certifications.`
-  );
+  console.log(`Grouped into ${groups.size} distinct certifications.`);
   console.log();
 
   // 4. Process each group
@@ -247,13 +248,14 @@ async function main() {
   for (const [certName, mentions] of groups) {
     // Skip certifications from the skip list
     if (SKIP_CERTIFICATIONS.has(certName)) {
-      const reason = certName === "Iso Certification"
-        ? "should be deleted"
-        : certName === "WCAG 2.1 AA"
-          ? "should be reclassified to standard"
-          : "no rich source to propagate from";
+      const reason =
+        certName === 'Iso Certification'
+          ? 'should be deleted'
+          : certName === 'WCAG 2.1 AA'
+            ? 'should be reclassified to standard'
+            : 'no rich source to propagate from';
       console.log(
-        `  SKIP: "${certName}" (${mentions.length} mentions) — ${reason}`
+        `  SKIP: "${certName}" (${mentions.length} mentions) — ${reason}`,
       );
       skippedCert += mentions.length;
       continue;
@@ -261,86 +263,82 @@ async function main() {
 
     // Separate mentions by holder context (example-datacentre = supplier, other = self)
     const selfHeldMentions = mentions.filter(
-      (m) => !isexample-datacentreContent(titleMap.get(m.content_item_id))
+      (m) => !isexample-datacentreContent(titleMap.get(m.content_item_id)),
     );
     const supplierMentions = mentions.filter((m) =>
-      isexample-datacentreContent(titleMap.get(m.content_item_id))
+      isexample-datacentreContent(titleMap.get(m.content_item_id)),
     );
 
     // Find richest source for each holder type
     const richestSelfHeld = selfHeldMentions
       .filter((m) => !isMetadataEmpty(m.metadata))
       .sort(
-        (a, b) =>
-          metadataRichness(b.metadata) - metadataRichness(a.metadata)
+        (a, b) => metadataRichness(b.metadata) - metadataRichness(a.metadata),
       )[0];
 
     const richestSupplier = supplierMentions
       .filter((m) => !isMetadataEmpty(m.metadata))
       .sort(
-        (a, b) =>
-          metadataRichness(b.metadata) - metadataRichness(a.metadata)
+        (a, b) => metadataRichness(b.metadata) - metadataRichness(a.metadata),
       )[0];
 
     // Find empty mentions that need propagation
     const emptySelfHeld = selfHeldMentions.filter((m) =>
-      isMetadataEmpty(m.metadata)
+      isMetadataEmpty(m.metadata),
     );
     const emptySupplier = supplierMentions.filter((m) =>
-      isMetadataEmpty(m.metadata)
+      isMetadataEmpty(m.metadata),
     );
 
     const totalEmpty = emptySelfHeld.length + emptySupplier.length;
 
     if (totalEmpty === 0) {
       console.log(
-        `  OK:   "${certName}" (${mentions.length} mentions) — all already have metadata`
+        `  OK:   "${certName}" (${mentions.length} mentions) — all already have metadata`,
       );
       skippedAlreadyRich += mentions.length;
       continue;
     }
 
     console.log(
-      `  PROC: "${certName}" (${mentions.length} mentions, ${totalEmpty} empty)`
+      `  PROC: "${certName}" (${mentions.length} mentions, ${totalEmpty} empty)`,
     );
 
     // Propagate to empty self-held mentions
     for (const mention of emptySelfHeld) {
       if (LIMIT > 0 && propagated >= LIMIT) break;
 
-      const title = titleMap.get(mention.content_item_id) || "(unknown)";
+      const title = titleMap.get(mention.content_item_id) || '(unknown)';
 
       if (!richestSelfHeld) {
-        console.log(
-          `        SKIP (no self-held source): ${title}`
-        );
+        console.log(`        SKIP (no self-held source): ${title}`);
         skippedNoSource++;
         continue;
       }
 
       const newMetadata = pickFields(
         richestSelfHeld.metadata!,
-        SELF_HELD_FIELDS
+        SELF_HELD_FIELDS,
       );
       const sourceTitle =
-        titleMap.get(richestSelfHeld.content_item_id) || "(unknown)";
+        titleMap.get(richestSelfHeld.content_item_id) || '(unknown)';
 
       console.log(
-        `        ${DRY_RUN ? "WOULD PROPAGATE" : "PROPAGATING"} → ${title}`
+        `        ${DRY_RUN ? 'WOULD PROPAGATE' : 'PROPAGATING'} → ${title}`,
       );
       console.log(
-        `          Source: ${sourceTitle} (${Object.keys(newMetadata).join(", ")})`
+        `          Source: ${sourceTitle} (${Object.keys(newMetadata).join(', ')})`,
       );
 
       details.push(
-        `${certName}: ${sourceTitle} → ${title} [${Object.keys(newMetadata).join(", ")}]`
+        `${certName}: ${sourceTitle} → ${title} [${Object.keys(newMetadata).join(', ')}]`,
       );
 
       if (!DRY_RUN) {
         const { error: updateError } = await supabase
-          .from("entity_mentions")
+          .from('entity_mentions')
           .update({ metadata: newMetadata })
-          .eq("id", mention.id);
+          .eq('id', mention.id);
 
         if (updateError) {
           console.log(`          ERROR: ${updateError.message}`);
@@ -356,32 +354,32 @@ async function main() {
     for (const mention of emptySupplier) {
       if (LIMIT > 0 && propagated >= LIMIT) break;
 
-      const title = titleMap.get(mention.content_item_id) || "(unknown)";
+      const title = titleMap.get(mention.content_item_id) || '(unknown)';
 
       if (!richestSupplier) {
         // No supplier source — infer minimal supplier metadata
         // from example-datacentre context
         const supplierMetadata: Record<string, unknown> = {
-          holder: "supplier",
-          supplier_name: "example-datacentre",
+          holder: 'supplier',
+          supplier_name: 'example-datacentre',
         };
 
         console.log(
-          `        ${DRY_RUN ? "WOULD SET" : "SETTING"} supplier defaults → ${title}`
+          `        ${DRY_RUN ? 'WOULD SET' : 'SETTING'} supplier defaults → ${title}`,
         );
         console.log(
-          `          Fields: holder, supplier_name (inferred from example-datacentre context)`
+          `          Fields: holder, supplier_name (inferred from example-datacentre context)`,
         );
 
         details.push(
-          `${certName}: inferred supplier defaults → ${title} [holder, supplier_name]`
+          `${certName}: inferred supplier defaults → ${title} [holder, supplier_name]`,
         );
 
         if (!DRY_RUN) {
           const { error: updateError } = await supabase
-            .from("entity_mentions")
+            .from('entity_mentions')
             .update({ metadata: supplierMetadata })
-            .eq("id", mention.id);
+            .eq('id', mention.id);
 
           if (updateError) {
             console.log(`          ERROR: ${updateError.message}`);
@@ -396,27 +394,27 @@ async function main() {
 
       const newMetadata = pickFields(
         richestSupplier.metadata!,
-        SUPPLIER_FIELDS
+        SUPPLIER_FIELDS,
       );
       const sourceTitle =
-        titleMap.get(richestSupplier.content_item_id) || "(unknown)";
+        titleMap.get(richestSupplier.content_item_id) || '(unknown)';
 
       console.log(
-        `        ${DRY_RUN ? "WOULD PROPAGATE" : "PROPAGATING"} → ${title}`
+        `        ${DRY_RUN ? 'WOULD PROPAGATE' : 'PROPAGATING'} → ${title}`,
       );
       console.log(
-        `          Source: ${sourceTitle} (${Object.keys(newMetadata).join(", ")})`
+        `          Source: ${sourceTitle} (${Object.keys(newMetadata).join(', ')})`,
       );
 
       details.push(
-        `${certName}: ${sourceTitle} → ${title} [${Object.keys(newMetadata).join(", ")}]`
+        `${certName}: ${sourceTitle} → ${title} [${Object.keys(newMetadata).join(', ')}]`,
       );
 
       if (!DRY_RUN) {
         const { error: updateError } = await supabase
-          .from("entity_mentions")
+          .from('entity_mentions')
           .update({ metadata: newMetadata })
-          .eq("id", mention.id);
+          .eq('id', mention.id);
 
         if (updateError) {
           console.log(`          ERROR: ${updateError.message}`);
@@ -431,11 +429,11 @@ async function main() {
 
   // 5. Report results
   console.log();
-  console.log("=".repeat(60));
-  console.log("PROPAGATION COMPLETE");
-  console.log("=".repeat(60));
+  console.log('='.repeat(60));
+  console.log('PROPAGATION COMPLETE');
+  console.log('='.repeat(60));
   console.log(
-    `  Propagated:           ${propagated}${DRY_RUN ? " (dry run)" : ""}`
+    `  Propagated:           ${propagated}${DRY_RUN ? ' (dry run)' : ''}`,
   );
   console.log(`  Skipped (exclusion):  ${skippedCert}`);
   console.log(`  Skipped (no source):  ${skippedNoSource}`);
@@ -444,7 +442,7 @@ async function main() {
   console.log();
 
   if (details.length > 0) {
-    console.log("Detail:");
+    console.log('Detail:');
     for (const d of details) {
       console.log(`  ${d}`);
     }
@@ -452,6 +450,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("Fatal error:", err);
+  console.error('Fatal error:', err);
   process.exit(1);
 });

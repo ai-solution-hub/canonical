@@ -1,18 +1,28 @@
 import type { Database } from '@/supabase/types/database.types';
 
 // Database row types
-export type BidQuestionRow = Database['public']['Tables']['bid_questions']['Row'];
-export type BidResponseRow = Database['public']['Tables']['bid_responses']['Row'];
+export type BidQuestionRow =
+  Database['public']['Tables']['bid_questions']['Row'];
+export type BidResponseRow =
+  Database['public']['Tables']['bid_responses']['Row'];
 export type WorkspaceRow = Database['public']['Tables']['workspaces']['Row'];
 
 // ---- State Machine ----
 
 export const BID_STATES = [
-  'draft', 'questions_extracted', 'matching', 'drafting',
-  'in_review', 'ready_for_export', 'submitted', 'won', 'lost', 'withdrawn',
+  'draft',
+  'questions_extracted',
+  'matching',
+  'drafting',
+  'in_review',
+  'ready_for_export',
+  'submitted',
+  'won',
+  'lost',
+  'withdrawn',
 ] as const;
 
-export type BidState = typeof BID_STATES[number];
+export type BidState = (typeof BID_STATES)[number];
 
 // ---- Bid Container ----
 
@@ -73,9 +83,23 @@ export interface TenderDocument {
 
 // ---- Bid Questions ----
 
-export type ConfidencePosture = 'strong_match' | 'partial_match' | 'needs_sme' | 'no_content';
-export type QuestionStatus = 'not_started' | 'ai_drafted' | 'in_progress' | 'needs_review' | 'complete';
-export type ResponseReviewStatus = 'draft' | 'ai_drafted' | 'edited' | 'approved' | 'needs_review';
+export type ConfidencePosture =
+  | 'strong_match'
+  | 'partial_match'
+  | 'needs_sme'
+  | 'no_content';
+export type QuestionStatus =
+  | 'not_started'
+  | 'ai_drafted'
+  | 'in_progress'
+  | 'needs_review'
+  | 'complete';
+export type ResponseReviewStatus =
+  | 'draft'
+  | 'ai_drafted'
+  | 'edited'
+  | 'approved'
+  | 'needs_review';
 
 export interface BidQuestion {
   id: string;
@@ -105,12 +129,15 @@ export interface BidResponseSummary {
 
 // ---- Confidence Posture Display ----
 
-export const CONFIDENCE_POSTURE_CONFIG: Record<ConfidencePosture, {
-  label: string;
-  colour: string;
-  icon: string;
-  description: string;
-}> = {
+export const CONFIDENCE_POSTURE_CONFIG: Record<
+  ConfidencePosture,
+  {
+    label: string;
+    colour: string;
+    icon: string;
+    description: string;
+  }
+> = {
   strong_match: {
     label: 'Strong Match',
     colour: 'green',

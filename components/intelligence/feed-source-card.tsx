@@ -149,9 +149,7 @@ export function FeedSourceCard({
             Every {source.polling_interval_minutes}m
           </span>
 
-          <span>
-            Last polled: {formatRelativeTime(source.last_polled_at)}
-          </span>
+          <span>Last polled: {formatRelativeTime(source.last_polled_at)}</span>
 
           {source.consecutive_failures > 0 && (
             <span className="flex items-center gap-1 text-destructive">

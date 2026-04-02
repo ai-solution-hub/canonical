@@ -3,7 +3,11 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { FolderPlus, FolderCheck, Check, Zap } from 'lucide-react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import type { ActiveBidWorkspace } from '@/hooks/use-quick-assign';
 
@@ -14,7 +18,11 @@ interface QuickAssignButtonProps {
   /** Workspace IDs this item is currently assigned to */
   assignedWorkspaceIds: Set<string>;
   /** Callback when assignment changes (for optimistic parent update) */
-  onAssignmentChange?: (itemId: string, workspaceId: string, workspaceName: string) => void;
+  onAssignmentChange?: (
+    itemId: string,
+    workspaceId: string,
+    workspaceName: string,
+  ) => void;
   /** Workspace ID from ?from_bid= URL param for contextual quick-assign shortcut */
   fromBidId?: string;
   className?: string;
@@ -62,10 +70,7 @@ export function QuickAssignButton({
     ? activeWorkspaces.find((ws) => ws.id === fromBidId)
     : undefined;
 
-  const handleToggle = (
-    e: React.MouseEvent,
-    workspace: ActiveBidWorkspace,
-  ) => {
+  const handleToggle = (e: React.MouseEvent, workspace: ActiveBidWorkspace) => {
     e.preventDefault();
     e.stopPropagation();
     onAssignmentChange?.(itemId, workspace.id, workspace.name);
@@ -178,7 +183,10 @@ export function QuickAssignButton({
                     </span>
                   )}
                   {isWsAssigned && (
-                    <Check className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+                    <Check
+                      className="size-3.5 shrink-0 text-primary"
+                      aria-hidden="true"
+                    />
                   )}
                 </button>
               );

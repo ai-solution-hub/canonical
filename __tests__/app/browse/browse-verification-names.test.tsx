@@ -13,7 +13,13 @@ import { render } from '@testing-library/react';
 // Hoisted mocks — must be declared before vi.mock() factories reference them
 // ---------------------------------------------------------------------------
 
-const { mockUseDisplayNames, mockUseBrowseData, mockItems, mockContentGridProps, mockContentListProps } = vi.hoisted(() => {
+const {
+  mockUseDisplayNames,
+  mockUseBrowseData,
+  mockItems,
+  mockContentGridProps,
+  mockContentListProps,
+} = vi.hoisted(() => {
   const mockItems = [
     {
       id: 'item-1',
@@ -96,10 +102,13 @@ const { mockUseDisplayNames, mockUseBrowseData, mockItems, mockContentGridProps,
   ];
 
   return {
-    mockUseDisplayNames: vi.fn(() => new Map([
-      ['user-uuid-1', 'Jane Smith'],
-      ['user-uuid-2', 'Bob Jones'],
-    ])),
+    mockUseDisplayNames: vi.fn(
+      () =>
+        new Map([
+          ['user-uuid-1', 'Jane Smith'],
+          ['user-uuid-2', 'Bob Jones'],
+        ]),
+    ),
     mockUseBrowseData: vi.fn(() => ({
       items: mockItems,
       totalCount: 3,
@@ -288,7 +297,10 @@ describe('BrowseContent — Verification Names', () => {
     render(<BrowseContent />);
 
     expect(mockContentGridProps).toHaveBeenCalled();
-    const gridProps = mockContentGridProps.mock.calls[0][0] as Record<string, unknown>;
+    const gridProps = mockContentGridProps.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
     const verifierNames = gridProps.verifierNames as Map<string, string>;
     expect(verifierNames).toBeInstanceOf(Map);
     expect(verifierNames.get('user-uuid-1')).toBe('Jane Smith');

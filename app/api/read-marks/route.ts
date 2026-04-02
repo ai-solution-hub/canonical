@@ -22,7 +22,10 @@ export async function GET(request: NextRequest) {
     if (!auth) return unauthorisedResponse();
     const { user, supabase } = auth;
 
-    const parsed = parseSearchParams(ReadMarkCheckParamsSchema, request.nextUrl.searchParams);
+    const parsed = parseSearchParams(
+      ReadMarkCheckParamsSchema,
+      request.nextUrl.searchParams,
+    );
     if (!parsed.success) return parsed.response;
 
     // Dual-mode: when item_ids is absent, return counts-only
@@ -129,7 +132,11 @@ export async function POST(request: NextRequest) {
       }
     } else if (action === 'mark_bulk_read') {
       const { item_ids, source } = parsed.data;
-      const rows = item_ids.map((id) => ({ content_item_id: id, source, user_id: user.id }));
+      const rows = item_ids.map((id) => ({
+        content_item_id: id,
+        source,
+        user_id: user.id,
+      }));
       const { error } = await supabase
         .from('read_marks')
         .upsert(rows, { onConflict: 'user_id,content_item_id' });

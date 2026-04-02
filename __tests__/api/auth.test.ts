@@ -72,17 +72,33 @@ function resetMocks() {
   });
 
   mockSupabase._chain.then.mockReset();
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 
   // Re-establish chainable returns (mockReset clears these too)
   const chain = mockSupabase._chain;
   const chainableMethods: (keyof typeof chain)[] = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ];
   for (const method of chainableMethods) {
     chain[method].mockReturnValue(chain);

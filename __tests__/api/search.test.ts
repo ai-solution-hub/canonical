@@ -92,9 +92,7 @@ describe('POST /api/search', () => {
     const json = await res.json();
     expect(json.error).toBe('Validation failed');
     expect(json.details).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ field: 'query' }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ field: 'query' })]),
     );
   });
 

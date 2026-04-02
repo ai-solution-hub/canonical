@@ -13,7 +13,10 @@ import {
 } from 'lucide-react';
 import { ReadToggleButton } from '@/components/shared/read-toggle-button';
 import { StarButton } from '@/components/shared/star-button';
-import { PrioritySelector, type Priority } from '@/components/shared/priority-selector';
+import {
+  PrioritySelector,
+  type Priority,
+} from '@/components/shared/priority-selector';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -29,7 +32,10 @@ import type { ItemData } from '@/app/item/[id]/item-detail-client';
 
 const PdfViewer = dynamic(
   () => import('@/components/reader/pdf-viewer').then((mod) => mod.PdfViewer),
-  { ssr: false, loading: () => <div className="h-9 w-24 animate-pulse rounded bg-accent" /> },
+  {
+    ssr: false,
+    loading: () => <div className="h-9 w-24 animate-pulse rounded bg-accent" />,
+  },
 );
 
 export interface ItemActionBarProps {
@@ -152,7 +158,12 @@ export function ItemActionBar({
       {/* Overflow menu */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="size-9 p-0" aria-label="More actions">
+          <Button
+            variant="outline"
+            size="sm"
+            className="size-9 p-0"
+            aria-label="More actions"
+          >
             <MoreHorizontal className="size-4" />
           </Button>
         </DropdownMenuTrigger>
@@ -164,7 +175,9 @@ export function ItemActionBar({
             </DropdownMenuItem>
           )}
           {item.source_url && (
-            <DropdownMenuItem onClick={() => window.open(item.source_url as string, '_blank')}>
+            <DropdownMenuItem
+              onClick={() => window.open(item.source_url as string, '_blank')}
+            >
               <ExternalLink className="size-4" />
               Open original
             </DropdownMenuItem>
@@ -173,17 +186,26 @@ export function ItemActionBar({
             <Copy className="size-4" />
             {copied ? 'Copied!' : 'Copy link'}
           </DropdownMenuItem>
-          {item.content_type === 'pdf' && (item.source_url || item.file_path) && (
-            <DropdownMenuItem onClick={() => {
-              const btn = document.querySelector<HTMLButtonElement>('[data-pdf-trigger]');
-              btn?.click();
-            }}>
-              <FileText className="size-4" />
-              View PDF
-            </DropdownMenuItem>
-          )}
+          {item.content_type === 'pdf' &&
+            (item.source_url || item.file_path) && (
+              <DropdownMenuItem
+                onClick={() => {
+                  const btn =
+                    document.querySelector<HTMLButtonElement>(
+                      '[data-pdf-trigger]',
+                    );
+                  btn?.click();
+                }}
+              >
+                <FileText className="size-4" />
+                View PDF
+              </DropdownMenuItem>
+            )}
           {showEditingActions && item.content_type === 'pdf' && (
-            <DropdownMenuItem onClick={handleVisionAnalysis} disabled={isAnalysing}>
+            <DropdownMenuItem
+              onClick={handleVisionAnalysis}
+              disabled={isAnalysing}
+            >
               <Eye className="size-4" />
               {isAnalysing ? 'Analysing\u2026' : 'Visual Analysis'}
             </DropdownMenuItem>
@@ -194,7 +216,9 @@ export function ItemActionBar({
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
                 onClick={() => {
-                  const btn = document.querySelector<HTMLButtonElement>('[data-delete-trigger]');
+                  const btn = document.querySelector<HTMLButtonElement>(
+                    '[data-delete-trigger]',
+                  );
                   btn?.click();
                 }}
               >
@@ -218,10 +242,7 @@ export function ItemActionBar({
       )}
       {showAdminActions && (
         <div className="hidden">
-          <DeleteContentDialog
-            itemId={item.id}
-            itemTitle={title}
-          />
+          <DeleteContentDialog itemId={item.id} itemTitle={title} />
         </div>
       )}
     </div>

@@ -21,7 +21,11 @@ export async function POST(request: NextRequest) {
     if (!auth.success) return authFailureResponse(auth);
     const { user, supabase } = auth;
 
-    const { allowed } = checkRateLimit(`tags:bulk-delete:${user.id}`, 5, 60_000);
+    const { allowed } = checkRateLimit(
+      `tags:bulk-delete:${user.id}`,
+      5,
+      60_000,
+    );
     if (!allowed) return rateLimitResponse();
 
     const raw = await request.json();

@@ -34,8 +34,9 @@ interface AdminMockClient extends MockSupabaseClient {
 const mockSupabase = createMockSupabaseClient() as AdminMockClient;
 
 // Add inviteUserByEmail — not in the shared helper but needed by admin routes
-mockSupabase.auth.admin.inviteUserByEmail =
-  vi.fn().mockResolvedValue({ data: { user: null }, error: null });
+mockSupabase.auth.admin.inviteUserByEmail = vi
+  .fn()
+  .mockResolvedValue({ data: { user: null }, error: null });
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => mockSupabase),
@@ -55,7 +56,10 @@ vi.mock('next/headers', () => ({
 
 import { GET as listUsers } from '@/app/api/admin/users/route';
 import { POST as inviteUser } from '@/app/api/admin/users/invite/route';
-import { PATCH as updateUserRole, DELETE as deactivateUser } from '@/app/api/admin/users/[userId]/route';
+import {
+  PATCH as updateUserRole,
+  DELETE as deactivateUser,
+} from '@/app/api/admin/users/[userId]/route';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -78,17 +82,33 @@ function resetMocks() {
   mockSupabase._chain.single.mockResolvedValue({ data: null, error: null });
 
   mockSupabase._chain.then.mockReset();
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 
   // Re-establish chainable returns
   const chain = mockSupabase._chain;
   const chainableMethods: (keyof typeof chain)[] = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ];
   for (const method of chainableMethods) {
     chain[method].mockReturnValue(chain);
@@ -186,21 +206,22 @@ describe('Admin API routes', () => {
 
       mockSupabase.auth.admin.listUsers.mockResolvedValueOnce({
         data: {
-          users: [{
-            id: 'user-no-role',
-            email: 'norole@example.com',
-            user_metadata: {},
-            created_at: '2026-01-01T00:00:00Z',
-            last_sign_in_at: null,
-          }],
+          users: [
+            {
+              id: 'user-no-role',
+              email: 'norole@example.com',
+              user_metadata: {},
+              created_at: '2026-01-01T00:00:00Z',
+              last_sign_in_at: null,
+            },
+          ],
         },
         error: null,
       });
 
       // Empty roles list
       mockSupabase._chain.then.mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: [], error: null }),
+        (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
       );
 
       const response = await listUsers();
@@ -246,7 +267,11 @@ describe('Admin API routes', () => {
 
       const request = createTestRequest('/api/admin/users/invite', {
         method: 'POST',
-        body: { email: 'newuser@example.com', role: 'editor', display_name: 'New User' },
+        body: {
+          email: 'newuser@example.com',
+          role: 'editor',
+          display_name: 'New User',
+        },
       });
 
       const response = await inviteUser(request);
@@ -275,9 +300,7 @@ describe('Admin API routes', () => {
       const body = await response.json();
       expect(body.error).toBe('Validation failed');
       expect(body.details).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ field: 'email' }),
-        ]),
+        expect.arrayContaining([expect.objectContaining({ field: 'email' })]),
       );
     });
 
@@ -296,7 +319,10 @@ describe('Admin API routes', () => {
       expect(body.error).toBe('Validation failed');
       expect(body.details).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ field: 'email', message: 'A valid email address is required' }),
+          expect.objectContaining({
+            field: 'email',
+            message: 'A valid email address is required',
+          }),
         ]),
       );
     });
@@ -315,9 +341,7 @@ describe('Admin API routes', () => {
       const body = await response.json();
       expect(body.error).toBe('Validation failed');
       expect(body.details).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ field: 'role' }),
-        ]),
+        expect.arrayContaining([expect.objectContaining({ field: 'role' })]),
       );
     });
 
@@ -326,7 +350,9 @@ describe('Admin API routes', () => {
 
       mockSupabase.auth.admin.inviteUserByEmail.mockResolvedValueOnce({
         data: { user: null },
-        error: { message: 'A user with this email address has already been registered' },
+        error: {
+          message: 'A user with this email address has already been registered',
+        },
       });
 
       const request = createTestRequest('/api/admin/users/invite', {
@@ -369,10 +395,13 @@ describe('Admin API routes', () => {
     it('updates role for valid UUID and role', async () => {
       configureRole(mockSupabase, 'admin');
 
-      const request = createTestRequest(`/api/admin/users/${TARGET_USER_UUID}`, {
-        method: 'PATCH',
-        body: { role: 'editor' },
-      });
+      const request = createTestRequest(
+        `/api/admin/users/${TARGET_USER_UUID}`,
+        {
+          method: 'PATCH',
+          body: { role: 'editor' },
+        },
+      );
 
       const response = await updateUserRole(request, {
         params: createTestParams({ userId: TARGET_USER_UUID }),
@@ -403,10 +432,13 @@ describe('Admin API routes', () => {
     it('returns 400 for invalid role value', async () => {
       configureRole(mockSupabase, 'admin');
 
-      const request = createTestRequest(`/api/admin/users/${TARGET_USER_UUID}`, {
-        method: 'PATCH',
-        body: { role: 'superadmin' },
-      });
+      const request = createTestRequest(
+        `/api/admin/users/${TARGET_USER_UUID}`,
+        {
+          method: 'PATCH',
+          body: { role: 'superadmin' },
+        },
+      );
 
       const response = await updateUserRole(request, {
         params: createTestParams({ userId: TARGET_USER_UUID }),
@@ -416,9 +448,7 @@ describe('Admin API routes', () => {
       const body = await response.json();
       expect(body.error).toBe('Validation failed');
       expect(body.details).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ field: 'role' }),
-        ]),
+        expect.arrayContaining([expect.objectContaining({ field: 'role' })]),
       );
     });
 
@@ -431,10 +461,13 @@ describe('Admin API routes', () => {
           resolve({ data: null, error: { message: 'DB error' } }),
       );
 
-      const request = createTestRequest(`/api/admin/users/${TARGET_USER_UUID}`, {
-        method: 'PATCH',
-        body: { role: 'editor' },
-      });
+      const request = createTestRequest(
+        `/api/admin/users/${TARGET_USER_UUID}`,
+        {
+          method: 'PATCH',
+          body: { role: 'editor' },
+        },
+      );
 
       const response = await updateUserRole(request, {
         params: createTestParams({ userId: TARGET_USER_UUID }),
@@ -456,9 +489,12 @@ describe('Admin API routes', () => {
         error: null,
       });
 
-      const request = createTestRequest(`/api/admin/users/${TARGET_USER_UUID}`, {
-        method: 'DELETE',
-      });
+      const request = createTestRequest(
+        `/api/admin/users/${TARGET_USER_UUID}`,
+        {
+          method: 'DELETE',
+        },
+      );
 
       const response = await deactivateUser(request, {
         params: createTestParams({ userId: TARGET_USER_UUID }),
@@ -521,9 +557,12 @@ describe('Admin API routes', () => {
         error: { message: 'Service error' },
       });
 
-      const request = createTestRequest(`/api/admin/users/${TARGET_USER_UUID}`, {
-        method: 'DELETE',
-      });
+      const request = createTestRequest(
+        `/api/admin/users/${TARGET_USER_UUID}`,
+        {
+          method: 'DELETE',
+        },
+      );
 
       const response = await deactivateUser(request, {
         params: createTestParams({ userId: TARGET_USER_UUID }),

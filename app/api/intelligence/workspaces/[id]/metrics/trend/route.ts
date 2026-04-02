@@ -67,9 +67,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     for (const article of articles ?? []) {
       const date = new Date(article.ingested_at);
       const bucketKey =
-        granularity === 'daily'
-          ? formatDateKey(date)
-          : formatWeekKey(date);
+        granularity === 'daily' ? formatDateKey(date) : formatWeekKey(date);
 
       const bucket = buckets.get(bucketKey) ?? { total: 0, passed: 0 };
       bucket.total += 1;

@@ -28,7 +28,10 @@ export default async function WorkspacesPage() {
   const counts = await getWorkspaceTypeCounts();
 
   return (
-    <section aria-label="Workspaces" className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+    <section
+      aria-label="Workspaces"
+      className="mx-auto max-w-7xl px-4 py-8 sm:px-6"
+    >
       <WorkspacesContent counts={counts} />
     </section>
   );

@@ -13,8 +13,12 @@ beforeEach(() => {
 
   vi.stubGlobal('localStorage', {
     getItem: vi.fn((key: string) => localStorageStore[key] ?? null),
-    setItem: vi.fn((key: string, value: string) => { localStorageStore[key] = value; }),
-    removeItem: vi.fn((key: string) => { delete localStorageStore[key]; }),
+    setItem: vi.fn((key: string, value: string) => {
+      localStorageStore[key] = value;
+    }),
+    removeItem: vi.fn((key: string) => {
+      delete localStorageStore[key];
+    }),
     clear: vi.fn(),
     length: 0,
     key: vi.fn(),
@@ -196,7 +200,9 @@ describe('useReaderPreferences', () => {
   });
 
   it('toggleDetached toggles when reader is open', () => {
-    localStorageStore['kb-reader-preferences'] = JSON.stringify({ readerOpen: true });
+    localStorageStore['kb-reader-preferences'] = JSON.stringify({
+      readerOpen: true,
+    });
 
     const { result } = renderHook(() => useReaderPreferences());
 
@@ -248,14 +254,22 @@ describe('useReaderPreferences', () => {
     });
 
     // Start with wide screen
-    Object.defineProperty(window, 'innerWidth', { value: 1024, writable: true, configurable: true });
+    Object.defineProperty(window, 'innerWidth', {
+      value: 1024,
+      writable: true,
+      configurable: true,
+    });
 
     const { result } = renderHook(() => useReaderPreferences());
     expect(result.current.isDetached).toBe(true);
 
     // Simulate resize to narrow screen
     act(() => {
-      Object.defineProperty(window, 'innerWidth', { value: 600, writable: true, configurable: true });
+      Object.defineProperty(window, 'innerWidth', {
+        value: 600,
+        writable: true,
+        configurable: true,
+      });
       window.dispatchEvent(new Event('resize'));
     });
 

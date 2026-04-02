@@ -89,10 +89,7 @@ export async function fetchBidExportData(
   if (questionsError) {
     return NextResponse.json(
       {
-        error: safeErrorMessage(
-          questionsError,
-          'Failed to fetch questions',
-        ),
+        error: safeErrorMessage(questionsError, 'Failed to fetch questions'),
       },
       { status: 500 },
     );

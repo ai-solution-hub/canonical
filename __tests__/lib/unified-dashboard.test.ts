@@ -79,27 +79,34 @@ const TEST_USER_ID = 'user-abc-123';
  *     fetchActiveBidsWithStats (mocked separately)
  *   auth.getUser() for display name
  */
-function setupDefaultMock(overrides: {
-  lastActivityData?: unknown[];
-  lastReadActivityData?: unknown[];
-  certRelData?: unknown[];
-  authUser?: Record<string, unknown> | null;
-  teamChangesData?: unknown[];
-  recentWorkData?: unknown[];
-  freshnessData?: { fresh: number; aging: number; stale: number; expired: number };
-  governanceCount?: number;
-  notificationsCount?: number;
-  qualityFlagsCount?: number;
-  bidResponseTeamChangesData?: unknown[];
-  bidResponseRecentWorkData?: unknown[];
-  unverifiedCount?: number;
-  expiringContentDateCount?: number;
-  certMentionsData?: unknown[];
-  coverageGapCount?: number;
-  activityFeedData?: unknown[];
-  workspaces?: unknown[];
-  statsMap?: Map<string, unknown>;
-} = {}) {
+function setupDefaultMock(
+  overrides: {
+    lastActivityData?: unknown[];
+    lastReadActivityData?: unknown[];
+    certRelData?: unknown[];
+    authUser?: Record<string, unknown> | null;
+    teamChangesData?: unknown[];
+    recentWorkData?: unknown[];
+    freshnessData?: {
+      fresh: number;
+      aging: number;
+      stale: number;
+      expired: number;
+    };
+    governanceCount?: number;
+    notificationsCount?: number;
+    qualityFlagsCount?: number;
+    bidResponseTeamChangesData?: unknown[];
+    bidResponseRecentWorkData?: unknown[];
+    unverifiedCount?: number;
+    expiringContentDateCount?: number;
+    certMentionsData?: unknown[];
+    coverageGapCount?: number;
+    activityFeedData?: unknown[];
+    workspaces?: unknown[];
+    statsMap?: Map<string, unknown>;
+  } = {},
+) {
   const mock = createMockSupabaseClient();
 
   // Track from() calls sequentially
@@ -112,7 +119,9 @@ function setupDefaultMock(overrides: {
   // Phase 1: last activity + cert relationships
   // Call 0: content_history for lastActivity (write)
   fromCalls.push({
-    data: overrides.lastActivityData ?? [{ created_at: '2026-03-08T08:00:00Z' }],
+    data: overrides.lastActivityData ?? [
+      { created_at: '2026-03-08T08:00:00Z' },
+    ],
     error: null,
     count: null,
   });
@@ -180,14 +189,23 @@ function setupDefaultMock(overrides: {
     const freshChain: Record<string, ReturnType<typeof vi.fn>> = {};
 
     for (const key of Object.keys(mock._chain)) {
-      if (key === 'then' || key === 'single' || key === 'maybeSingle' || key === 'csv') {
+      if (
+        key === 'then' ||
+        key === 'single' ||
+        key === 'maybeSingle' ||
+        key === 'csv'
+      ) {
         continue;
       }
       freshChain[key] = vi.fn().mockReturnValue(freshChain);
     }
 
     freshChain.then = vi.fn((resolve: (v: unknown) => void) =>
-      resolve({ data: response.data, error: response.error, count: response.count }),
+      resolve({
+        data: response.data,
+        error: response.error,
+        count: response.count,
+      }),
     );
     freshChain.single = vi.fn().mockResolvedValue({
       data: response.data,
@@ -203,7 +221,12 @@ function setupDefaultMock(overrides: {
   });
 
   // Build default freshness summary
-  const defaultFreshness = overrides.freshnessData ?? { fresh: 10, aging: 5, stale: 3, expired: 2 };
+  const defaultFreshness = overrides.freshnessData ?? {
+    fresh: 10,
+    aging: 5,
+    stale: 3,
+    expired: 2,
+  };
 
   // Configure rpc() calls — 2 RPCs in order:
   // [0] get_dashboard_attention_counts, [1] get_grouped_activity_feed
@@ -235,13 +258,14 @@ function setupDefaultMock(overrides: {
   });
 
   // Configure auth
-  const defaultAuthUser = overrides.authUser !== undefined
-    ? overrides.authUser
-    : {
-        id: TEST_USER_ID,
-        email: 'liam@example.com',
-        user_metadata: { display_name: 'Liam' },
-      };
+  const defaultAuthUser =
+    overrides.authUser !== undefined
+      ? overrides.authUser
+      : {
+          id: TEST_USER_ID,
+          email: 'liam@example.com',
+          user_metadata: { display_name: 'Liam' },
+        };
 
   mock.auth.getUser.mockResolvedValue({
     data: { user: defaultAuthUser },
@@ -363,7 +387,12 @@ describe('fetchUnifiedDashboardData', () => {
 
     expect(result.errors).toContain('attention_counts RPC failed');
     // Freshness should be zeroes when RPC fails
-    expect(result.freshness_summary).toEqual({ fresh: 0, aging: 0, stale: 0, expired: 0 });
+    expect(result.freshness_summary).toEqual({
+      fresh: 0,
+      aging: 0,
+      stale: 0,
+      expired: 0,
+    });
   });
 
   it('admin sees quality flags count', async () => {
@@ -412,16 +441,32 @@ describe('fetchUnifiedDashboardData', () => {
 
   it('active bids sorted by deadline urgency (most urgent first)', async () => {
     const statsMap = new Map();
-    statsMap.set('bid-1', { total_questions: 10, drafted_count: 5, complete_count: 2 });
-    statsMap.set('bid-2', { total_questions: 8, drafted_count: 3, complete_count: 1 });
-    statsMap.set('bid-3', { total_questions: 6, drafted_count: 2, complete_count: 0 });
+    statsMap.set('bid-1', {
+      total_questions: 10,
+      drafted_count: 5,
+      complete_count: 2,
+    });
+    statsMap.set('bid-2', {
+      total_questions: 8,
+      drafted_count: 3,
+      complete_count: 1,
+    });
+    statsMap.set('bid-3', {
+      total_questions: 6,
+      drafted_count: 2,
+      complete_count: 0,
+    });
 
     const mock = setupDefaultMock({
       workspaces: [
         {
           id: 'bid-1',
           name: 'Normal Bid',
-          domain_metadata: { deadline: '2026-04-01T00:00:00Z', buyer: 'Acme', status: 'in_progress' },
+          domain_metadata: {
+            deadline: '2026-04-01T00:00:00Z',
+            buyer: 'Acme',
+            status: 'in_progress',
+          },
           is_archived: false,
           created_at: '2026-01-01',
           updated_at: '2026-03-01',
@@ -429,7 +474,11 @@ describe('fetchUnifiedDashboardData', () => {
         {
           id: 'bid-2',
           name: 'Overdue Bid',
-          domain_metadata: { deadline: '2026-03-01T00:00:00Z', buyer: 'Corp', status: 'in_progress' },
+          domain_metadata: {
+            deadline: '2026-03-01T00:00:00Z',
+            buyer: 'Corp',
+            status: 'in_progress',
+          },
           is_archived: false,
           created_at: '2026-01-01',
           updated_at: '2026-03-01',
@@ -437,7 +486,11 @@ describe('fetchUnifiedDashboardData', () => {
         {
           id: 'bid-3',
           name: 'Urgent Bid',
-          domain_metadata: { deadline: '2026-03-09T00:00:00Z', buyer: 'Ltd', status: 'in_progress' },
+          domain_metadata: {
+            deadline: '2026-03-09T00:00:00Z',
+            buyer: 'Ltd',
+            status: 'in_progress',
+          },
           is_archived: false,
           created_at: '2026-01-01',
           updated_at: '2026-03-01',
@@ -493,7 +546,10 @@ describe('fetchUnifiedDashboardData', () => {
           change_summary: 'Updated title',
           created_by: 'other-user',
           created_at: '2026-03-08T09:00:00Z',
-          content_items: { title: 'Some Article', primary_domain: 'compliance' },
+          content_items: {
+            title: 'Some Article',
+            primary_domain: 'compliance',
+          },
         },
       ],
     });
@@ -534,7 +590,9 @@ describe('fetchUnifiedDashboardData', () => {
 
     expect(result.reorient.my_recent_work.length).toBe(1);
     expect(result.reorient.my_recent_work[0].entity_type).toBe('content_item');
-    expect(result.reorient.my_recent_work[0].entity_title).toBe('My New Article');
+    expect(result.reorient.my_recent_work[0].entity_title).toBe(
+      'My New Article',
+    );
     expect(result.reorient.my_recent_work[0].action).toBe('created');
     expect(result.reorient.my_recent_work[0].href).toBe('/item/item-2');
   });
@@ -548,11 +606,17 @@ describe('fetchUnifiedDashboardData', () => {
       const idx = rpcIdx++;
       if (idx === 0) {
         // attention counts RPC
-        return Promise.resolve({ data: null, error: { message: 'attention counts fail' } });
+        return Promise.resolve({
+          data: null,
+          error: { message: 'attention counts fail' },
+        });
       }
       if (idx === 1) {
         // activity feed RPC
-        return Promise.resolve({ data: null, error: { message: 'activity fail' } });
+        return Promise.resolve({
+          data: null,
+          error: { message: 'activity fail' },
+        });
       }
       return Promise.resolve({ data: [], error: null });
     });
@@ -616,7 +680,11 @@ describe('fetchUnifiedDashboardData', () => {
         {
           id: 'bid-x',
           name: 'Test Tender',
-          domain_metadata: { deadline: '2026-03-20T00:00:00Z', buyer: 'BigCo', status: 'in_progress' },
+          domain_metadata: {
+            deadline: '2026-03-20T00:00:00Z',
+            buyer: 'BigCo',
+            status: 'in_progress',
+          },
           is_archived: false,
           created_at: '2026-01-01',
           updated_at: '2026-03-01',

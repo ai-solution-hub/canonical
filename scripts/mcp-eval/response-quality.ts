@@ -36,7 +36,15 @@ function loadDomainNamesFromSnapshot(): string[] {
     return snapshot.domains.map((d) => d.name);
   } catch {
     // Fallback if snapshot is missing
-    return ['security', 'compliance', 'implementation', 'support', 'corporate', 'product-feature', 'methodology'];
+    return [
+      'security',
+      'compliance',
+      'implementation',
+      'support',
+      'corporate',
+      'product-feature',
+      'methodology',
+    ];
   }
 }
 
@@ -49,9 +57,10 @@ const TAXONOMY_DOMAIN_NAMES = loadDomainNamesFromSnapshot();
 const cliArgs = process.argv.slice(2);
 const skipSearch = cliArgs.includes('--skip-search');
 const serverArgIdx = cliArgs.indexOf('--server');
-const serverBase = serverArgIdx >= 0
-  ? cliArgs[serverArgIdx + 1] ?? 'http://localhost:3000'
-  : 'http://localhost:3000';
+const serverBase =
+  serverArgIdx >= 0
+    ? (cliArgs[serverArgIdx + 1] ?? 'http://localhost:3000')
+    : 'http://localhost:3000';
 const MCP_URL = `${serverBase}/api/mcp/streamable-http`;
 
 // ---------------------------------------------------------------------------
@@ -200,7 +209,12 @@ async function callTool(
   toolName: string,
   args: Record<string, unknown>,
   accessToken: string,
-): Promise<{ text: string; charCount: number; isError: boolean; errorMessage?: string }> {
+): Promise<{
+  text: string;
+  charCount: number;
+  isError: boolean;
+  errorMessage?: string;
+}> {
   try {
     const response = await mcpRequest(
       'tools/call',
@@ -243,7 +257,9 @@ async function callTool(
       text: '',
       charCount: 0,
       isError: true,
-      errorMessage: msg.includes('abort') ? `Timeout after ${REQUEST_TIMEOUT_MS / 1000}s` : msg,
+      errorMessage: msg.includes('abort')
+        ? `Timeout after ${REQUEST_TIMEOUT_MS / 1000}s`
+        : msg,
     };
   }
 }
@@ -344,19 +360,37 @@ async function runTokenEfficiencyChecks(
   for (const check of checks) {
     // Skip bid detail if no bid exists
     if (check.tool === 'get_bid_detail' && !knownUUIDs.bidId) {
-      record('Token Efficiency', check.id, check.label, 'SKIP', 'No bid workspace found');
+      record(
+        'Token Efficiency',
+        check.id,
+        check.label,
+        'SKIP',
+        'No bid workspace found',
+      );
       continue;
     }
 
     const result = await callTool(check.tool, check.args, accessToken);
 
     if (result.errorMessage) {
-      record('Token Efficiency', check.id, check.label, 'FAIL', result.errorMessage);
+      record(
+        'Token Efficiency',
+        check.id,
+        check.label,
+        'FAIL',
+        result.errorMessage,
+      );
       continue;
     }
 
     if (result.isError) {
-      record('Token Efficiency', check.id, check.label, 'FAIL', `Tool returned error: ${result.text.slice(0, 100)}`);
+      record(
+        'Token Efficiency',
+        check.id,
+        check.label,
+        'FAIL',
+        `Tool returned error: ${result.text.slice(0, 100)}`,
+      );
       continue;
     }
 
@@ -431,11 +465,20 @@ const SEARCH_RELEVANCE_CHECKS: SearchRelevanceCheck[] = [
           line.toLowerCase().includes('gdpr'),
       ).length;
       if (dataProtectionHits >= 3) {
-        return { status: 'PASS', detail: `${dataProtectionHits} data-protection references in results` };
+        return {
+          status: 'PASS',
+          detail: `${dataProtectionHits} data-protection references in results`,
+        };
       } else if (dataProtectionHits >= 1) {
-        return { status: 'WARN', detail: `Only ${dataProtectionHits} data-protection reference(s) — expected 3+` };
+        return {
+          status: 'WARN',
+          detail: `Only ${dataProtectionHits} data-protection reference(s) — expected 3+`,
+        };
       }
-      return { status: 'FAIL', detail: 'No data-protection references found in results' };
+      return {
+        status: 'FAIL',
+        detail: 'No data-protection references found in results',
+      };
     },
   },
   {
@@ -446,15 +489,26 @@ const SEARCH_RELEVANCE_CHECKS: SearchRelevanceCheck[] = [
     evaluate: (text: string) => {
       const textLower = text.toLowerCase();
       const hasSecurityDomain =
-        textLower.includes('security') || textLower.includes('iso-27001') || textLower.includes('isms');
+        textLower.includes('security') ||
+        textLower.includes('iso-27001') ||
+        textLower.includes('isms');
       const hasComplianceDomain =
         textLower.includes('compliance') || textLower.includes('certification');
       if (hasSecurityDomain && hasComplianceDomain) {
-        return { status: 'PASS', detail: 'Both security and compliance domains represented' };
+        return {
+          status: 'PASS',
+          detail: 'Both security and compliance domains represented',
+        };
       } else if (hasSecurityDomain || hasComplianceDomain) {
-        return { status: 'WARN', detail: `Only ${hasSecurityDomain ? 'security' : 'compliance'} domain found` };
+        return {
+          status: 'WARN',
+          detail: `Only ${hasSecurityDomain ? 'security' : 'compliance'} domain found`,
+        };
       }
-      return { status: 'FAIL', detail: 'Neither security nor compliance domain found in results' };
+      return {
+        status: 'FAIL',
+        detail: 'Neither security nor compliance domain found in results',
+      };
     },
   },
   {
@@ -474,9 +528,15 @@ const SEARCH_RELEVANCE_CHECKS: SearchRelevanceCheck[] = [
         textLower.includes('question') ||
         textLower.includes('answer');
       if (hasSLA) {
-        return { status: 'PASS', detail: `SLA content found${hasQA ? ' (Q&A format)' : ''}` };
+        return {
+          status: 'PASS',
+          detail: `SLA content found${hasQA ? ' (Q&A format)' : ''}`,
+        };
       }
-      return { status: 'FAIL', detail: 'No SLA-related content found in results' };
+      return {
+        status: 'FAIL',
+        detail: 'No SLA-related content found in results',
+      };
     },
   },
   {
@@ -494,9 +554,15 @@ const SEARCH_RELEVANCE_CHECKS: SearchRelevanceCheck[] = [
         textLower.includes('staff') ||
         textLower.includes('cv');
       if (hasStaffing) {
-        return { status: 'PASS', detail: 'Corporate/staffing content found in results' };
+        return {
+          status: 'PASS',
+          detail: 'Corporate/staffing content found in results',
+        };
       }
-      return { status: 'FAIL', detail: 'No staffing-related content found in results' };
+      return {
+        status: 'FAIL',
+        detail: 'No staffing-related content found in results',
+      };
     },
   },
   {
@@ -507,12 +573,12 @@ const SEARCH_RELEVANCE_CHECKS: SearchRelevanceCheck[] = [
     evaluate: (text: string) => {
       // Should return 0-3 results with low relevance
       // Count result items — look for numbered items or bullet points
-      const resultLines = text.split('\n').filter(
-        (line) =>
-          line.match(/^\d+\./) ||
-          line.match(/^- \*\*/) ||
-          line.match(/^###/),
-      );
+      const resultLines = text
+        .split('\n')
+        .filter(
+          (line) =>
+            line.match(/^\d+\./) || line.match(/^- \*\*/) || line.match(/^###/),
+        );
       if (resultLines.length <= 3) {
         return {
           status: 'PASS',
@@ -541,20 +607,42 @@ async function runSearchRelevanceChecks(accessToken: string): Promise<void> {
   console.log('\nSearch Relevance');
 
   for (const check of SEARCH_RELEVANCE_CHECKS) {
-    const result = await callTool(check.tool, { query: check.query }, accessToken);
+    const result = await callTool(
+      check.tool,
+      { query: check.query },
+      accessToken,
+    );
 
     if (result.errorMessage) {
-      record('Search Relevance', check.id, check.label, 'FAIL', result.errorMessage);
+      record(
+        'Search Relevance',
+        check.id,
+        check.label,
+        'FAIL',
+        result.errorMessage,
+      );
       continue;
     }
 
     if (result.isError) {
-      record('Search Relevance', check.id, check.label, 'FAIL', `Tool returned error: ${result.text.slice(0, 100)}`);
+      record(
+        'Search Relevance',
+        check.id,
+        check.label,
+        'FAIL',
+        `Tool returned error: ${result.text.slice(0, 100)}`,
+      );
       continue;
     }
 
     const evaluation = check.evaluate(result.text);
-    record('Search Relevance', check.id, check.label, evaluation.status, evaluation.detail);
+    record(
+      'Search Relevance',
+      check.id,
+      check.label,
+      evaluation.status,
+      evaluation.detail,
+    );
   }
 }
 
@@ -589,7 +677,10 @@ function getStructuralChecks(knownUUIDs: KnownUUIDs): StructuralCheck[] {
             detail: `${headerCount} section header(s), ${boldCount} bold label(s)`,
           };
         }
-        return { status: 'FAIL', detail: 'No section headers (## or **bold**) found' };
+        return {
+          status: 'FAIL',
+          detail: 'No section headers (## or **bold**) found',
+        };
       },
     },
     {
@@ -604,21 +695,37 @@ function getStructuralChecks(knownUUIDs: KnownUUIDs): StructuralCheck[] {
         const bulletItems = lines.filter((line) => /^[-*]\s\*\*/.test(line));
         const headerItems = lines.filter((line) => /^###\s/.test(line));
 
-        const itemCount = Math.max(numberedItems.length, bulletItems.length, headerItems.length);
+        const itemCount = Math.max(
+          numberedItems.length,
+          bulletItems.length,
+          headerItems.length,
+        );
         if (itemCount >= 2) {
-          const format = numberedItems.length >= 2
-            ? 'numbered list'
-            : bulletItems.length >= 2
-              ? 'bullet points'
-              : 'section headers';
-          return { status: 'PASS', detail: `${itemCount} items in consistent ${format} format` };
+          const format =
+            numberedItems.length >= 2
+              ? 'numbered list'
+              : bulletItems.length >= 2
+                ? 'bullet points'
+                : 'section headers';
+          return {
+            status: 'PASS',
+            detail: `${itemCount} items in consistent ${format} format`,
+          };
         }
         // Also check for bold labels on separate lines
-        const boldLabels = lines.filter((line) => /^\*\*[^*]+\*\*/.test(line.trim()));
+        const boldLabels = lines.filter((line) =>
+          /^\*\*[^*]+\*\*/.test(line.trim()),
+        );
         if (boldLabels.length >= 2) {
-          return { status: 'PASS', detail: `${boldLabels.length} items with bold label formatting` };
+          return {
+            status: 'PASS',
+            detail: `${boldLabels.length} items with bold label formatting`,
+          };
         }
-        return { status: 'FAIL', detail: 'Search results lack consistent item formatting' };
+        return {
+          status: 'FAIL',
+          detail: 'Search results lack consistent item formatting',
+        };
       },
     },
     {
@@ -629,26 +736,40 @@ function getStructuralChecks(knownUUIDs: KnownUUIDs): StructuralCheck[] {
       evaluate: (text: string) => {
         // Check that gaps are grouped by domain — look for domain names as headers or bold labels
         const domainNames = TAXONOMY_DOMAIN_NAMES.map((n) => n.toLowerCase());
-        const foundDomains = domainNames.filter(
-          (domain) => text.toLowerCase().includes(domain),
+        const foundDomains = domainNames.filter((domain) =>
+          text.toLowerCase().includes(domain),
         );
         if (foundDomains.length >= 3) {
           // Check for grouping — domain names should appear as headers or bold labels
           const hasGrouping =
-            foundDomains.some((d) => text.includes(`## ${d}`) || text.includes(`**${d}`)) ||
+            foundDomains.some(
+              (d) => text.includes(`## ${d}`) || text.includes(`**${d}`),
+            ) ||
             foundDomains.some((d) => {
               const regex = new RegExp(`(##|\\*\\*)\\s*${d}`, 'i');
               return regex.test(text);
             });
           if (hasGrouping) {
-            return { status: 'PASS', detail: `${foundDomains.length} domains with section grouping` };
+            return {
+              status: 'PASS',
+              detail: `${foundDomains.length} domains with section grouping`,
+            };
           }
-          return { status: 'PASS', detail: `${foundDomains.length} domains referenced (implicit grouping)` };
+          return {
+            status: 'PASS',
+            detail: `${foundDomains.length} domains referenced (implicit grouping)`,
+          };
         }
         if (foundDomains.length >= 1) {
-          return { status: 'WARN', detail: `Only ${foundDomains.length} domain(s) found — expected 3+` };
+          return {
+            status: 'WARN',
+            detail: `Only ${foundDomains.length} domain(s) found — expected 3+`,
+          };
         }
-        return { status: 'FAIL', detail: 'No domain grouping found in coverage gaps' };
+        return {
+          status: 'FAIL',
+          detail: 'No domain grouping found in coverage gaps',
+        };
       },
     },
     {
@@ -663,20 +784,36 @@ function getStructuralChecks(knownUUIDs: KnownUUIDs): StructuralCheck[] {
           (line) => /^[-*]\s/.test(line.trim()) || /^\d+\.\s/.test(line.trim()),
         );
         const proseLines = lines.filter(
-          (line) => line.trim().length > 80 && !line.trim().startsWith('-') && !line.trim().startsWith('*'),
+          (line) =>
+            line.trim().length > 80 &&
+            !line.trim().startsWith('-') &&
+            !line.trim().startsWith('*'),
         );
 
         if (listItems.length >= 2) {
-          return { status: 'PASS', detail: `${listItems.length} list items found — structured format` };
+          return {
+            status: 'PASS',
+            detail: `${listItems.length} list items found — structured format`,
+          };
         }
         if (proseLines.length > listItems.length) {
-          return { status: 'FAIL', detail: `Prose-heavy response (${proseLines.length} long lines vs ${listItems.length} list items)` };
+          return {
+            status: 'FAIL',
+            detail: `Prose-heavy response (${proseLines.length} long lines vs ${listItems.length} list items)`,
+          };
         }
         // May be a short or empty response — that's acceptable
         if (text.trim().length < 100) {
-          return { status: 'PASS', detail: 'Short response (few entities) — acceptable' };
+          return {
+            status: 'PASS',
+            detail: 'Short response (few entities) — acceptable',
+          };
         }
-        return { status: 'WARN', detail: 'Response structure unclear — neither list nor prose dominant' };
+        return {
+          status: 'WARN',
+          detail:
+            'Response structure unclear — neither list nor prose dominant',
+        };
       },
     },
     {
@@ -692,12 +829,21 @@ function getStructuralChecks(knownUUIDs: KnownUUIDs): StructuralCheck[] {
         const totalSections = hasH2 + hasH3 + hasBoldSections;
 
         if (totalSections >= 3) {
-          return { status: 'PASS', detail: `${totalSections} distinct sections found` };
+          return {
+            status: 'PASS',
+            detail: `${totalSections} distinct sections found`,
+          };
         }
         if (totalSections >= 1) {
-          return { status: 'WARN', detail: `Only ${totalSections} section(s) — expected 3+ for reorientation` };
+          return {
+            status: 'WARN',
+            detail: `Only ${totalSections} section(s) — expected 3+ for reorientation`,
+          };
         }
-        return { status: 'FAIL', detail: 'No section structure found in reorientation response' };
+        return {
+          status: 'FAIL',
+          detail: 'No section structure found in reorientation response',
+        };
       },
     },
   ];
@@ -721,11 +867,23 @@ async function runStructuralQualityChecks(
     if (text === undefined) {
       const result = await callTool(check.tool, check.args, accessToken);
       if (result.errorMessage) {
-        record('Structural Quality', check.id, check.label, 'FAIL', result.errorMessage);
+        record(
+          'Structural Quality',
+          check.id,
+          check.label,
+          'FAIL',
+          result.errorMessage,
+        );
         continue;
       }
       if (result.isError) {
-        record('Structural Quality', check.id, check.label, 'FAIL', `Tool returned error: ${result.text.slice(0, 100)}`);
+        record(
+          'Structural Quality',
+          check.id,
+          check.label,
+          'FAIL',
+          `Tool returned error: ${result.text.slice(0, 100)}`,
+        );
         continue;
       }
       text = result.text;
@@ -733,7 +891,13 @@ async function runStructuralQualityChecks(
     }
 
     const evaluation = check.evaluate(text);
-    record('Structural Quality', check.id, check.label, evaluation.status, evaluation.detail);
+    record(
+      'Structural Quality',
+      check.id,
+      check.label,
+      evaluation.status,
+      evaluation.detail,
+    );
   }
 }
 
@@ -810,7 +974,13 @@ async function main(): Promise<void> {
   // Step 4: Search Relevance (unless --skip-search)
   if (skipSearch) {
     for (const check of SEARCH_RELEVANCE_CHECKS) {
-      record('Search Relevance', check.id, check.label, 'SKIP', 'Skipped (--skip-search)');
+      record(
+        'Search Relevance',
+        check.id,
+        check.label,
+        'SKIP',
+        'Skipped (--skip-search)',
+      );
     }
   } else {
     await runSearchRelevanceChecks(accessToken);
@@ -832,7 +1002,10 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error('\nFatal error:', err instanceof Error ? err.message : String(err));
+  console.error(
+    '\nFatal error:',
+    err instanceof Error ? err.message : String(err),
+  );
   if (err instanceof Error && err.stack) {
     console.error(err.stack);
   }

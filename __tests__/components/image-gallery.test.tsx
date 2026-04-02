@@ -68,9 +68,7 @@ describe('ImageGallery', () => {
   });
 
   it('shows extract button when no images have been extracted', () => {
-    render(
-      <ImageGallery itemId="item-1" hasExtractedImages={false} />,
-    );
+    render(<ImageGallery itemId="item-1" hasExtractedImages={false} />);
 
     expect(
       screen.getByRole('button', { name: /extract images/i }),
@@ -81,9 +79,7 @@ describe('ImageGallery', () => {
     // Mock a fetch that never resolves during this test
     mockFetch.mockReturnValue(new Promise(() => {}));
 
-    render(
-      <ImageGallery itemId="item-1" hasExtractedImages={true} />,
-    );
+    render(<ImageGallery itemId="item-1" hasExtractedImages={true} />);
 
     expect(screen.getByText('Loading images...')).toBeInTheDocument();
   });
@@ -95,15 +91,15 @@ describe('ImageGallery', () => {
       json: () => Promise.resolve({ images, extracted_at: '2026-01-01' }),
     });
 
-    render(
-      <ImageGallery itemId="item-1" hasExtractedImages={true} />,
-    );
+    render(<ImageGallery itemId="item-1" hasExtractedImages={true} />);
 
     await waitFor(() => {
       expect(screen.getByText('(3)')).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('list', { name: /extracted pdf images/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('list', { name: /extracted pdf images/i }),
+    ).toBeInTheDocument();
   });
 
   it('shows page badge on each thumbnail', async () => {
@@ -113,9 +109,7 @@ describe('ImageGallery', () => {
       json: () => Promise.resolve({ images, extracted_at: '2026-01-01' }),
     });
 
-    render(
-      <ImageGallery itemId="item-1" hasExtractedImages={true} />,
-    );
+    render(<ImageGallery itemId="item-1" hasExtractedImages={true} />);
 
     await waitFor(() => {
       expect(screen.getByText('Page 1')).toBeInTheDocument();
@@ -131,9 +125,7 @@ describe('ImageGallery', () => {
       json: () => Promise.resolve({ images, extracted_at: '2026-01-01' }),
     });
 
-    render(
-      <ImageGallery itemId="item-1" hasExtractedImages={true} />,
-    );
+    render(<ImageGallery itemId="item-1" hasExtractedImages={true} />);
 
     await waitFor(() => {
       expect(screen.getByText('Page 1')).toBeInTheDocument();
@@ -157,9 +149,7 @@ describe('ImageGallery', () => {
       json: () => Promise.resolve({ images, extracted_at: '2026-01-01' }),
     });
 
-    render(
-      <ImageGallery itemId="item-1" hasExtractedImages={true} />,
-    );
+    render(<ImageGallery itemId="item-1" hasExtractedImages={true} />);
 
     await waitFor(() => {
       expect(screen.getByText('Page 1')).toBeInTheDocument();
@@ -182,9 +172,7 @@ describe('ImageGallery', () => {
       json: () => Promise.resolve({ images, extracted_at: '2026-01-01' }),
     });
 
-    render(
-      <ImageGallery itemId="item-1" hasExtractedImages={true} />,
-    );
+    render(<ImageGallery itemId="item-1" hasExtractedImages={true} />);
 
     await waitFor(() => {
       expect(screen.getByText('Page 1')).toBeInTheDocument();
@@ -205,9 +193,7 @@ describe('ImageGallery', () => {
       json: () => Promise.resolve({ images: [], total_uploaded: 0 }),
     });
 
-    render(
-      <ImageGallery itemId="item-1" hasExtractedImages={false} />,
-    );
+    render(<ImageGallery itemId="item-1" hasExtractedImages={false} />);
 
     await user.click(screen.getByRole('button', { name: /extract images/i }));
 

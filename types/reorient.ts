@@ -29,7 +29,12 @@ export interface ReorientData {
 }
 
 export interface UrgentItem {
-  type: 'bid_deadline' | 'review_pending' | 'content_expired' | 'quality_flag' | 'notification';
+  type:
+    | 'bid_deadline'
+    | 'review_pending'
+    | 'content_expired'
+    | 'quality_flag'
+    | 'notification';
   priority: 1 | 2 | 3;
   title: string;
   detail: string;

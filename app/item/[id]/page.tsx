@@ -2,10 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import { ItemDetailClient } from './item-detail-client';
 import { CONTENT_DETAIL_COLUMNS } from '@/types/content';
-import {
-  parseJsonb,
-  SummaryDataSchema,
-} from '@/lib/validation/jsonb';
+import { parseJsonb, SummaryDataSchema } from '@/lib/validation/jsonb';
 import type { ContentListItem } from '@/types/content';
 import type { ItemData } from './item-detail-client';
 
@@ -34,7 +31,9 @@ export default async function ItemDetailPage({
     if (item) break;
     const isNotFound = error?.code === 'PGRST116';
     if (!isNotFound || attempt >= 2) break;
-    console.warn(`[item/${id}] Retry ${attempt + 1}/2: item not found yet (read-after-write race)`);
+    console.warn(
+      `[item/${id}] Retry ${attempt + 1}/2: item not found yet (read-after-write race)`,
+    );
     await new Promise((r) => setTimeout(r, 500));
   }
 

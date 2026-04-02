@@ -2,7 +2,10 @@ import Link from 'next/link';
 import { Plus, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { BidListCard } from '@/components/bid/bid-list-card';
-import { generateBidPrompt, generateBidDeadlinePrompt } from '@/lib/claude-prompts';
+import {
+  generateBidPrompt,
+  generateBidDeadlinePrompt,
+} from '@/lib/claude-prompts';
 import type { ActiveBidSummary } from '@/lib/dashboard';
 import type { Bid, BidMetadata } from '@/types/bid';
 
@@ -48,15 +51,23 @@ interface ActiveBidsSectionProps {
 
 export function ActiveBidsSection({ bids }: ActiveBidsSectionProps) {
   return (
-    <section aria-label="Active bids" className="rounded-lg border bg-card p-4 shadow-sm">
+    <section
+      aria-label="Active bids"
+      className="rounded-lg border bg-card p-4 shadow-sm"
+    >
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
         Active Bids
       </h2>
 
       {bids.length === 0 ? (
         <div className="rounded-lg border bg-card p-6 text-center">
-          <Briefcase className="mx-auto size-8 text-muted-foreground/50" aria-hidden="true" />
-          <p className="mt-3 text-sm font-medium text-foreground">No active bids</p>
+          <Briefcase
+            className="mx-auto size-8 text-muted-foreground/50"
+            aria-hidden="true"
+          />
+          <p className="mt-3 text-sm font-medium text-foreground">
+            No active bids
+          </p>
           <p className="mt-1 text-xs text-muted-foreground">
             Create a new bid to start managing tender responses.
           </p>

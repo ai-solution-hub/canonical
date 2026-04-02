@@ -174,7 +174,8 @@ describe('computeHeatmapLevel', () => {
 describe('buildHeatmapColumns', () => {
   it('returns subtopics for a single domain in order', () => {
     const getSubtopics = (d: string) => {
-      if (d === 'corporate') return ['annual-accounts', 'company-overview', 'key-personnel'];
+      if (d === 'corporate')
+        return ['annual-accounts', 'company-overview', 'key-personnel'];
       return [];
     };
 
@@ -192,11 +193,9 @@ describe('buildHeatmapColumns', () => {
       return [];
     };
 
-    expect(buildHeatmapColumns(['corporate', 'financial'], getSubtopics)).toEqual([
-      'annual-accounts',
-      'company-overview',
-      'pricing-models',
-    ]);
+    expect(
+      buildHeatmapColumns(['corporate', 'financial'], getSubtopics),
+    ).toEqual(['annual-accounts', 'company-overview', 'pricing-models']);
   });
 
   it('returns empty array for empty domains list', () => {
@@ -270,7 +269,8 @@ describe('HEATMAP_LEVEL_CLASSES', () => {
   });
 
   it('uses only semantic tokens, not raw Tailwind colours', () => {
-    const rawColourPattern = /(?:bg|text|border)-(red|green|blue|amber|orange|yellow|gray|slate|zinc|neutral|stone|emerald|teal|cyan|sky|indigo|violet|purple|fuchsia|pink|rose|lime)-\d+/;
+    const rawColourPattern =
+      /(?:bg|text|border)-(red|green|blue|amber|orange|yellow|gray|slate|zinc|neutral|stone|emerald|teal|cyan|sky|indigo|violet|purple|fuchsia|pink|rose|lime)-\d+/;
 
     for (const level of ALL_LEVELS) {
       const classes = HEATMAP_LEVEL_CLASSES[level];

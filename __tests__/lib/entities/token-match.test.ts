@@ -16,20 +16,36 @@ import {
 
 describe('tokenise', () => {
   it('splits on whitespace', () => {
-    expect(tokenise('ISO 27001 certification')).toEqual(['iso', '27001', 'certification']);
+    expect(tokenise('ISO 27001 certification')).toEqual([
+      'iso',
+      '27001',
+      'certification',
+    ]);
   });
 
   it('splits on punctuation including hyphens', () => {
-    expect(tokenise('ISO/IEC 27001:2022')).toEqual(['iso', 'iec', '27001', '2022']);
+    expect(tokenise('ISO/IEC 27001:2022')).toEqual([
+      'iso',
+      'iec',
+      '27001',
+      '2022',
+    ]);
     expect(tokenise('PCI-DSS')).toEqual(['pci', 'dss']);
   });
 
   it('removes stop words', () => {
-    expect(tokenise('The GDPR is a regulation')).toEqual(['gdpr', 'regulation']);
+    expect(tokenise('The GDPR is a regulation')).toEqual([
+      'gdpr',
+      'regulation',
+    ]);
   });
 
   it('lowercases all tokens', () => {
-    expect(tokenise('Cyber Essentials Plus')).toEqual(['cyber', 'essentials', 'plus']);
+    expect(tokenise('Cyber Essentials Plus')).toEqual([
+      'cyber',
+      'essentials',
+      'plus',
+    ]);
   });
 
   it('handles empty string', () => {
@@ -41,7 +57,11 @@ describe('tokenise', () => {
   });
 
   it('removes multiple stop words in sequence', () => {
-    expect(tokenise('our GDPR compliance was completed')).toEqual(['gdpr', 'compliance', 'completed']);
+    expect(tokenise('our GDPR compliance was completed')).toEqual([
+      'gdpr',
+      'compliance',
+      'completed',
+    ]);
   });
 });
 
@@ -121,10 +141,7 @@ describe('tokenMatch', () => {
   // --- Low coverage with short name (coverage >= 0.5, nameTokens <= 2, confidence = 0.6) ---
 
   it('partial match (0.6): 1 of 2 tokens for short name', () => {
-    const result = tokenMatch(
-      '27001 certification expires 2027',
-      'ISO 27001',
-    );
+    const result = tokenMatch('27001 certification expires 2027', 'ISO 27001');
     expect(result.match).toBe(true);
     expect(result.confidence).toBe(0.6);
   });
@@ -132,10 +149,7 @@ describe('tokenMatch', () => {
   // --- No match cases ---
 
   it('no match: completely unrelated context', () => {
-    const result = tokenMatch(
-      'Company revenue increased by 20%',
-      'ISO 27001',
-    );
+    const result = tokenMatch('Company revenue increased by 20%', 'ISO 27001');
     expect(result.match).toBe(false);
   });
 
@@ -200,10 +214,7 @@ describe('tokenMatch', () => {
   });
 
   it('handles hyphenated entity names', () => {
-    const result = tokenMatch(
-      'PCI-DSS compliance expires 2027',
-      'PCI-DSS',
-    );
+    const result = tokenMatch('PCI-DSS compliance expires 2027', 'PCI-DSS');
     expect(result.match).toBe(true);
   });
 
@@ -233,7 +244,11 @@ describe('parseDuration', () => {
   });
 
   it('parses full combination: P2Y3M15D', () => {
-    expect(parseDuration('P2Y3M15D')).toEqual({ years: 2, months: 3, days: 15 });
+    expect(parseDuration('P2Y3M15D')).toEqual({
+      years: 2,
+      months: 3,
+      days: 15,
+    });
   });
 
   it('returns null for empty string', () => {

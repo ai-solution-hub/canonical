@@ -42,7 +42,10 @@ export async function GET(request: NextRequest) {
     if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;
 
-    const parsed = parseSearchParams(ReviewHistoryParamsSchema, request.nextUrl.searchParams);
+    const parsed = parseSearchParams(
+      ReviewHistoryParamsSchema,
+      request.nextUrl.searchParams,
+    );
     if (!parsed.success) return parsed.response;
     const { item_id: itemId } = parsed.data;
 
@@ -94,11 +97,15 @@ export async function GET(request: NextRequest) {
       resolution_notes: row.resolution_notes,
       created_at: row.created_at ?? '',
       created_by: row.created_by,
-      created_by_name: row.created_by ? (displayNames[row.created_by] ?? null) : null,
+      created_by_name: row.created_by
+        ? (displayNames[row.created_by] ?? null)
+        : null,
       resolved: row.resolved ?? false,
       resolved_at: row.resolved_at,
       resolved_by: row.resolved_by,
-      resolved_by_name: row.resolved_by ? (displayNames[row.resolved_by] ?? null) : null,
+      resolved_by_name: row.resolved_by
+        ? (displayNames[row.resolved_by] ?? null)
+        : null,
     }));
 
     return NextResponse.json({ history });

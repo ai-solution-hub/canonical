@@ -8,10 +8,7 @@ import { CompanyProfileUpdateSchema } from '@/lib/validation/schemas';
 type RouteContext = { params: Promise<{ id: string }> };
 
 /** GET /api/intelligence/profiles/:id — get a single company profile */
-export async function GET(
-  _request: NextRequest,
-  context: RouteContext,
-) {
+export async function GET(_request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
     const auth = await getAuthorisedClient(['admin', 'editor']);
@@ -39,10 +36,7 @@ export async function GET(
 }
 
 /** PATCH /api/intelligence/profiles/:id — update a company profile */
-export async function PATCH(
-  request: NextRequest,
-  context: RouteContext,
-) {
+export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
     const auth = await getAuthorisedClient(['admin', 'editor']);
@@ -63,7 +57,10 @@ export async function PATCH(
 
     if (error || !data) {
       if (error?.code === '23505') {
-        return NextResponse.json({ error: 'A profile with this slug already exists' }, { status: 409 });
+        return NextResponse.json(
+          { error: 'A profile with this slug already exists' },
+          { status: 409 },
+        );
       }
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
@@ -78,10 +75,7 @@ export async function PATCH(
 }
 
 /** DELETE /api/intelligence/profiles/:id — soft-delete a company profile (admin only) */
-export async function DELETE(
-  _request: NextRequest,
-  context: RouteContext,
-) {
+export async function DELETE(_request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
     const auth = await getAuthorisedClient(['admin']);

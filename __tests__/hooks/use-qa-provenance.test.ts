@@ -7,18 +7,22 @@ import React from 'react';
 // Hoisted mocks
 // ---------------------------------------------------------------------------
 
-const { mockToast, mockIsFeatureEnabled, mockWorkspaceResult, mockRelatedResult } =
-  vi.hoisted(() => ({
-    mockToast: Object.assign(vi.fn(), {
-      success: vi.fn(),
-      error: vi.fn(),
-      info: vi.fn(),
-      warning: vi.fn(),
-    }),
-    mockIsFeatureEnabled: vi.fn(() => false),
-    mockWorkspaceResult: { data: null as unknown, error: null as unknown },
-    mockRelatedResult: { data: null as unknown, error: null as unknown },
-  }));
+const {
+  mockToast,
+  mockIsFeatureEnabled,
+  mockWorkspaceResult,
+  mockRelatedResult,
+} = vi.hoisted(() => ({
+  mockToast: Object.assign(vi.fn(), {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  }),
+  mockIsFeatureEnabled: vi.fn(() => false),
+  mockWorkspaceResult: { data: null as unknown, error: null as unknown },
+  mockRelatedResult: { data: null as unknown, error: null as unknown },
+}));
 
 vi.mock('sonner', () => ({ toast: mockToast }));
 
@@ -27,7 +31,7 @@ vi.mock('@/lib/client-config', () => ({
 }));
 
 vi.mock('@/lib/validation/layer-schemas', () => ({
-  getLayerLabel: (key: string) => key === 'strategic' ? 'Strategic' : key,
+  getLayerLabel: (key: string) => (key === 'strategic' ? 'Strategic' : key),
 }));
 
 vi.mock('@/lib/supabase/client', () => ({
@@ -92,7 +96,11 @@ function createWrapper() {
   });
 
   return function Wrapper({ children }: { children: React.ReactNode }) {
-    return React.createElement(QueryClientProvider, { client: queryClient }, children);
+    return React.createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      children,
+    );
   };
 }
 
@@ -128,7 +136,12 @@ describe('useQAProvenance', () => {
           ok: true,
           json: async () => ({
             layers: [
-              { id: 'l-1', title: 'Layer Item', layer: 'strategic', content_type: 'article' },
+              {
+                id: 'l-1',
+                title: 'Layer Item',
+                layer: 'strategic',
+                content_type: 'article',
+              },
             ],
           }),
         };
@@ -163,9 +176,10 @@ describe('useQAProvenance', () => {
   });
 
   it('does not fetch workspaces when isQAPair is false', async () => {
-    const { result } = renderHook(() =>
-      useQAProvenance({ ...DEFAULT_PARAMS, isQAPair: false }),
-    { wrapper: createWrapper() });
+    const { result } = renderHook(
+      () => useQAProvenance({ ...DEFAULT_PARAMS, isQAPair: false }),
+      { wrapper: createWrapper() },
+    );
 
     await new Promise((r) => setTimeout(r, 50));
     expect(result.current.usedInWorkspaces).toEqual([]);
@@ -215,31 +229,36 @@ describe('useQAProvenance', () => {
   });
 
   it('does not fetch related Q&A when no source_file available', async () => {
-    const { result } = renderHook(() =>
-      useQAProvenance({ ...DEFAULT_PARAMS, sourceFile: null, metadata: {} }),
-    { wrapper: createWrapper() });
+    const { result } = renderHook(
+      () =>
+        useQAProvenance({ ...DEFAULT_PARAMS, sourceFile: null, metadata: {} }),
+      { wrapper: createWrapper() },
+    );
 
     await new Promise((r) => setTimeout(r, 50));
     expect(result.current.relatedQA).toEqual([]);
   });
 
   it('does not fetch related Q&A when isQAPair is false', async () => {
-    const { result } = renderHook(() =>
-      useQAProvenance({ ...DEFAULT_PARAMS, isQAPair: false }),
-    { wrapper: createWrapper() });
+    const { result } = renderHook(
+      () => useQAProvenance({ ...DEFAULT_PARAMS, isQAPair: false }),
+      { wrapper: createWrapper() },
+    );
 
     await new Promise((r) => setTimeout(r, 50));
     expect(result.current.relatedQA).toEqual([]);
   });
 
   it('falls back to metadata.source_file when sourceFile prop is null', async () => {
-    const { result } = renderHook(() =>
-      useQAProvenance({
-        ...DEFAULT_PARAMS,
-        sourceFile: null,
-        metadata: { source_file: 'fallback.docx' },
-      }),
-    { wrapper: createWrapper() });
+    const { result } = renderHook(
+      () =>
+        useQAProvenance({
+          ...DEFAULT_PARAMS,
+          sourceFile: null,
+          metadata: { source_file: 'fallback.docx' },
+        }),
+      { wrapper: createWrapper() },
+    );
 
     await waitFor(() => {
       expect(result.current.relatedQA).toHaveLength(2);
@@ -260,7 +279,8 @@ describe('useQAProvenance', () => {
     await new Promise((r) => setTimeout(r, 50));
     // fetch should not have been called with /layers URL
     const layerCalls = mockFetch.mock.calls.filter(
-      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('/layers'),
+      (c: unknown[]) =>
+        typeof c[0] === 'string' && (c[0] as string).includes('/layers'),
     );
     expect(layerCalls).toHaveLength(0);
   });
@@ -303,9 +323,10 @@ describe('useQAProvenance', () => {
 
   it('performs optimistic update when changing layer', async () => {
     const onMetadataUpdate = vi.fn();
-    const { result } = renderHook(() =>
-      useQAProvenance({ ...DEFAULT_PARAMS, onMetadataUpdate }),
-    { wrapper: createWrapper() });
+    const { result } = renderHook(
+      () => useQAProvenance({ ...DEFAULT_PARAMS, onMetadataUpdate }),
+      { wrapper: createWrapper() },
+    );
 
     await act(async () => {
       await result.current.handleLayerChange('strategic');
@@ -322,9 +343,10 @@ describe('useQAProvenance', () => {
 
   it('removes layer key from metadata when setting to null', async () => {
     const onMetadataUpdate = vi.fn();
-    const { result } = renderHook(() =>
-      useQAProvenance({ ...DEFAULT_PARAMS, onMetadataUpdate }),
-    { wrapper: createWrapper() });
+    const { result } = renderHook(
+      () => useQAProvenance({ ...DEFAULT_PARAMS, onMetadataUpdate }),
+      { wrapper: createWrapper() },
+    );
 
     await act(async () => {
       await result.current.handleLayerChange(null);
@@ -371,13 +393,15 @@ describe('useQAProvenance', () => {
       return { ok: true, json: async () => ({}) };
     });
 
-    const { result } = renderHook(() =>
-      useQAProvenance({
-        ...DEFAULT_PARAMS,
-        metadata: originalMetadata,
-        onMetadataUpdate,
-      }),
-    { wrapper: createWrapper() });
+    const { result } = renderHook(
+      () =>
+        useQAProvenance({
+          ...DEFAULT_PARAMS,
+          metadata: originalMetadata,
+          onMetadataUpdate,
+        }),
+      { wrapper: createWrapper() },
+    );
 
     await act(async () => {
       await result.current.handleLayerChange('strategic');

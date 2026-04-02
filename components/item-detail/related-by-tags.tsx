@@ -29,11 +29,7 @@ interface RelatedByTagsProps {
  * Panel showing up to N items that share the most tags with the current item.
  * Fetches on mount using a client-side Supabase query.
  */
-export function RelatedByTags({
-  itemId,
-  tags,
-  limit = 5,
-}: RelatedByTagsProps) {
+export function RelatedByTags({ itemId, tags, limit = 5 }: RelatedByTagsProps) {
   const [items, setItems] = useState<RelatedItem[]>([]);
   const [loading, setLoading] = useState(tags.length > 0);
 
@@ -48,10 +44,14 @@ export function RelatedByTags({
       // Find items that overlap on user_tags, excluding current item
       const { data, error } = await supabase
         .from('content_items')
-        .select('id, title, suggested_title, primary_domain, content_type, user_tags')
+        .select(
+          'id, title, suggested_title, primary_domain, content_type, user_tags',
+        )
         .neq('id', itemId)
         .overlaps('user_tags', tags)
-        .or('governance_review_status.is.null,governance_review_status.neq.draft')
+        .or(
+          'governance_review_status.is.null,governance_review_status.neq.draft',
+        )
         .limit(50); // Fetch more than needed to sort by overlap
 
       if (error || !data) {
@@ -118,7 +118,8 @@ export function RelatedByTags({
                     <DomainBadge domain={item.primary_domain} />
                   )}
                   <span className="text-xs text-muted-foreground">
-                    {item.overlap_count} shared tag{item.overlap_count !== 1 ? 's' : ''}
+                    {item.overlap_count} shared tag
+                    {item.overlap_count !== 1 ? 's' : ''}
                   </span>
                 </div>
               </div>

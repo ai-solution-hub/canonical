@@ -19,7 +19,11 @@ export interface CollapsibleGroupProps {
 // CollapsibleGroup — expandable section for grouped Q&A pairs
 // ---------------------------------------------------------------------------
 
-export function CollapsibleGroup({ label, count, children }: CollapsibleGroupProps) {
+export function CollapsibleGroup({
+  label,
+  count,
+  children,
+}: CollapsibleGroupProps) {
   const [expanded, setExpanded] = useState(true);
 
   return (
@@ -42,11 +46,7 @@ export function CollapsibleGroup({ label, count, children }: CollapsibleGroupPro
           {count}
         </Badge>
       </button>
-      {expanded && (
-        <div className="space-y-2 p-3">
-          {children}
-        </div>
-      )}
+      {expanded && <div className="space-y-2 p-3">{children}</div>}
     </div>
   );
 }
@@ -70,7 +70,11 @@ export function groupItems(
   for (const item of items) {
     let key: string;
     if (groupBy === 'source') {
-      key = item.source_file || (item.metadata as Record<string, unknown> | null)?.source_file as string || 'No source';
+      key =
+        item.source_file ||
+        ((item.metadata as Record<string, unknown> | null)
+          ?.source_file as string) ||
+        'No source';
     } else {
       key = item.primary_domain || 'Unclassified';
     }

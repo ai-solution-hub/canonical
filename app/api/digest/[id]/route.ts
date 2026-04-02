@@ -47,10 +47,7 @@ export async function GET(
     }
 
     if (!data) {
-      return NextResponse.json(
-        { error: 'Digest not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Digest not found' }, { status: 404 });
     }
 
     const digest: Digest = {

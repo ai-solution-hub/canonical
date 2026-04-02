@@ -84,7 +84,10 @@ export function OwnedContentHealth() {
   if (loading) {
     return (
       <div className="flex items-center justify-center rounded-lg border bg-card p-4 shadow-sm">
-        <Loader2 className="size-4 animate-spin text-muted-foreground" aria-label="Loading owned content health" />
+        <Loader2
+          className="size-4 animate-spin text-muted-foreground"
+          aria-label="Loading owned content health"
+        />
       </div>
     );
   }
@@ -104,7 +107,8 @@ export function OwnedContentHealth() {
         />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-foreground">
-            Your {data.totalOwned} owned {data.totalOwned === 1 ? 'item is' : 'items are'} all up to date
+            Your {data.totalOwned} owned{' '}
+            {data.totalOwned === 1 ? 'item is' : 'items are'} all up to date
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             No stale or expired content in your ownership.
@@ -138,7 +142,8 @@ export function OwnedContentHealth() {
       />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-foreground">
-          {needsAttention} of your {data.totalOwned} owned {data.totalOwned === 1 ? 'item needs' : 'items need'} attention
+          {needsAttention} of your {data.totalOwned} owned{' '}
+          {data.totalOwned === 1 ? 'item needs' : 'items need'} attention
         </p>
         <p className="mt-0.5 text-xs text-muted-foreground">
           {detailText} — review and refresh to keep your content current.

@@ -43,7 +43,8 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
     'get_dashboard_summary',
     {
       title: 'Dashboard Summary',
-      description: 'Get an overview of the knowledge base health including items needing attention, content freshness breakdown, active bids, and recent activity. Use this to understand the current state of the knowledge base at a glance.',
+      description:
+        'Get an overview of the knowledge base health including items needing attention, content freshness breakdown, active bids, and recent activity. Use this to understand the current state of the knowledge base at a glance.',
       annotations: {
         readOnlyHint: true,
         idempotentHint: true,
@@ -56,8 +57,14 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
         const userId = getMcpUserId(extra.authInfo);
         const role = await getMcpUserRole(extra.authInfo!);
         const isAdmin = role === 'admin';
-        const { fetchUnifiedDashboardData, unifiedToDashboardData } = await getDashboardModule();
-        const unified = await fetchUnifiedDashboardData(supabase, userId, isAdmin, role);
+        const { fetchUnifiedDashboardData, unifiedToDashboardData } =
+          await getDashboardModule();
+        const unified = await fetchUnifiedDashboardData(
+          supabase,
+          userId,
+          isAdmin,
+          role,
+        );
         const data = unifiedToDashboardData(unified);
         const markdown = truncateResponse(formatDashboardSummary(data));
 
@@ -68,7 +75,12 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Dashboard query failed: ${message}. The database function may be temporarily unavailable.` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Dashboard query failed: ${message}. The database function may be temporarily unavailable.`,
+            },
+          ],
           isError: true,
         };
       }
@@ -82,7 +94,8 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
     'get_reorientation',
     {
       title: 'Reorientation Briefing',
-      description: 'Get a personal briefing on what has changed in the knowledge base since your last visit. Includes urgent items needing attention, team activity, your recent work, and active bid status. Use this to quickly catch up on what happened while you were away.',
+      description:
+        'Get a personal briefing on what has changed in the knowledge base since your last visit. Includes urgent items needing attention, team activity, your recent work, and active bid status. Use this to quickly catch up on what happened while you were away.',
       annotations: {
         readOnlyHint: true,
         idempotentHint: true,
@@ -95,11 +108,12 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
         const userId = getMcpUserId(extra.authInfo);
         const role = await getMcpUserRole(extra.authInfo!);
         const isAdmin = role === 'admin';
-        const { fetchReorientData, resolveDisplayNames } = await getReorientModule();
+        const { fetchReorientData, resolveDisplayNames } =
+          await getReorientModule();
         const data = await fetchReorientData(supabase, userId, isAdmin, role);
 
         // Resolve team member display names server-side
-        const userIds = data.team_changes.map(c => c.user_id).filter(Boolean);
+        const userIds = data.team_changes.map((c) => c.user_id).filter(Boolean);
         const displayNames = await resolveDisplayNames(userIds);
         for (const change of data.team_changes) {
           if (change.user_id && displayNames.has(change.user_id)) {
@@ -165,7 +179,12 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Reorientation briefing failed: ${message}. The database function may be temporarily unavailable.` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Reorientation briefing failed: ${message}. The database function may be temporarily unavailable.`,
+            },
+          ],
           isError: true,
         };
       }
@@ -179,7 +198,8 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
     'get_freshness_report',
     {
       title: 'Freshness Report',
-      description: 'Get a breakdown of content freshness across the knowledge base — how many items are fresh, aging, stale, or expired. Use this to understand the health of your content.',
+      description:
+        'Get a breakdown of content freshness across the knowledge base — how many items are fresh, aging, stale, or expired. Use this to understand the health of your content.',
       annotations: {
         readOnlyHint: true,
         idempotentHint: true,
@@ -189,17 +209,32 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
     async (extra: ToolExtra) => {
       try {
         const supabase = createMcpClient(extra.authInfo);
-        const { data: rows, error } = await supabase.rpc('get_freshness_breakdown');
+        const { data: rows, error } = await supabase.rpc(
+          'get_freshness_breakdown',
+        );
 
         if (error) {
           return {
-            content: [{ type: 'text' as const, text: `Freshness query failed: ${error.message}` }],
+            content: [
+              {
+                type: 'text' as const,
+                text: `Freshness query failed: ${error.message}`,
+              },
+            ],
             isError: true,
           };
         }
 
-        const report: FreshnessReport = { fresh: 0, aging: 0, stale: 0, expired: 0 };
-        for (const row of (rows ?? []) as Array<{ freshness: string; count: number }>) {
+        const report: FreshnessReport = {
+          fresh: 0,
+          aging: 0,
+          stale: 0,
+          expired: 0,
+        };
+        for (const row of (rows ?? []) as Array<{
+          freshness: string;
+          count: number;
+        }>) {
           const key = row.freshness as keyof FreshnessReport;
           if (key in report) {
             report[key] = Number(row.count);
@@ -214,7 +249,12 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Freshness query failed: ${message}. The database function may be temporarily unavailable.` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Freshness query failed: ${message}. The database function may be temporarily unavailable.`,
+            },
+          ],
           isError: true,
         };
       }
@@ -234,7 +274,9 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
         days_ahead: z
           .number()
           .optional()
-          .describe('How many days ahead to look for expiring content (default: 30, max: 365)'),
+          .describe(
+            'How many days ahead to look for expiring content (default: 30, max: 365)',
+          ),
         domain: z
           .string()
           .optional()
@@ -242,7 +284,9 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
         include_entities: z
           .boolean()
           .optional()
-          .describe('Include entity mention expiry dates such as certifications and registrations (default: true)'),
+          .describe(
+            'Include entity mention expiry dates such as certifications and registrations (default: true)',
+          ),
       },
       annotations: {
         readOnlyHint: true,
@@ -277,18 +321,25 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
 
         if (contentError) {
           return {
-            content: [{ type: 'text' as const, text: `Expiring content query failed: ${contentError.message}` }],
+            content: [
+              {
+                type: 'text' as const,
+                text: `Expiring content query failed: ${contentError.message}`,
+              },
+            ],
             isError: true,
           };
         }
 
-        const contentItems: ExpiringContentItem[] = ((contentRows ?? []) as unknown as Array<{
-          id: string;
-          title: string;
-          expiry_date: string;
-          primary_domain: string | null;
-          lifecycle_type: string | null;
-        }>).map((row) => {
+        const contentItems: ExpiringContentItem[] = (
+          (contentRows ?? []) as unknown as Array<{
+            id: string;
+            title: string;
+            expiry_date: string;
+            primary_domain: string | null;
+            lifecycle_type: string | null;
+          }>
+        ).map((row) => {
           const expiryDate = new Date(row.expiry_date);
           const diffMs = expiryDate.getTime() - now.getTime();
           const daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
@@ -306,7 +357,8 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
         let entityMentions: ExpiringEntityMention[] = [];
 
         if (includeEntities) {
-          const { deriveExpiryStatus } = await import('@/lib/certification-status');
+          const { deriveExpiryStatus } =
+            await import('@/lib/certification-status');
 
           const { data: entityRows, error: entityError } = await supabase
             .from('entity_mentions')
@@ -374,7 +426,12 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Expiring content query failed: ${message}. The database function may be temporarily unavailable.` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Expiring content query failed: ${message}. The database function may be temporarily unavailable.`,
+            },
+          ],
           isError: true,
         };
       }

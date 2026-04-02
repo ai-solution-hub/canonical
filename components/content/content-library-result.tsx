@@ -14,10 +14,14 @@ interface ContentLibraryResultProps {
   result: SearchResult;
   onCopy: (text: string) => void;
   /** Callback when "Insert" is clicked. Null disables the insert button (e.g., no editor). */
-  onInsert?: ((contentHtml: string, sourceId: string, sourceTitle: string) => void) | null;
+  onInsert?:
+    | ((contentHtml: string, sourceId: string, sourceTitle: string) => void)
+    | null;
 }
 
-function extractQAParts(result: SearchResult): { question: string; answer: string } | null {
+function extractQAParts(
+  result: SearchResult,
+): { question: string; answer: string } | null {
   if (result.content_type !== 'q_a_pair') return null;
 
   const metadata = result.metadata as Record<string, unknown> | null;
@@ -27,20 +31,28 @@ function extractQAParts(result: SearchResult): { question: string; answer: strin
   return { question, answer };
 }
 
-export function ContentLibraryResult({ result, onCopy, onInsert }: ContentLibraryResultProps) {
+export function ContentLibraryResult({
+  result,
+  onCopy,
+  onInsert,
+}: ContentLibraryResultProps) {
   const title = getDisplayTitle(result);
   const isQAPair = result.content_type === 'q_a_pair';
   const qaParts = extractQAParts(result);
   const isVerified = !!result.verified_at;
 
-  const sourceDocument = result.source_file
-    ?? (result.metadata as Record<string, unknown> | null)?.source_file as string | undefined
-    ?? result.source_document
-    ?? undefined;
+  const sourceDocument =
+    result.source_file ??
+    ((result.metadata as Record<string, unknown> | null)?.source_file as
+      | string
+      | undefined) ??
+    result.source_document ??
+    undefined;
 
-  const copyText = isQAPair && qaParts
-    ? qaParts.answer
-    : (result.ai_summary || result.brief || result.snippet || '');
+  const copyText =
+    isQAPair && qaParts
+      ? qaParts.answer
+      : result.ai_summary || result.brief || result.snippet || '';
 
   const handleCopy = () => {
     if (!copyText) return;
@@ -50,7 +62,8 @@ export function ContentLibraryResult({ result, onCopy, onInsert }: ContentLibrar
           toast.success('Copied to clipboard');
         } else {
           toast('Copied to clipboard', {
-            description: 'Unverified \u2014 consider reviewing before submitting',
+            description:
+              'Unverified \u2014 consider reviewing before submitting',
             duration: 4000,
           });
         }
@@ -96,7 +109,9 @@ export function ContentLibraryResult({ result, onCopy, onInsert }: ContentLibrar
         {/* Question */}
         {qaParts.question && (
           <div className="mt-2 rounded border bg-muted/30 px-2.5 py-1.5">
-            <p className="text-xs font-medium text-muted-foreground">Question</p>
+            <p className="text-xs font-medium text-muted-foreground">
+              Question
+            </p>
             <p className="mt-0.5 text-xs leading-relaxed text-foreground line-clamp-3">
               {qaParts.question}
             </p>

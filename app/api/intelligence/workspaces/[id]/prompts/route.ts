@@ -18,10 +18,7 @@ const RollbackSchema = z.object({
 });
 
 /** GET /api/intelligence/workspaces/:id/prompts — list all prompt versions */
-export async function GET(
-  _request: NextRequest,
-  context: RouteContext,
-) {
+export async function GET(_request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
     const auth = await getAuthorisedClient(['admin', 'editor']);
@@ -30,7 +27,9 @@ export async function GET(
 
     const { data, error } = await supabase
       .from('feed_prompts')
-      .select('id, workspace_id, version, prompt_text, is_active, performance_snapshot, change_notes, created_at, created_by')
+      .select(
+        'id, workspace_id, version, prompt_text, is_active, performance_snapshot, change_notes, created_at, created_by',
+      )
       .eq('workspace_id', id)
       .order('version', { ascending: false });
 
@@ -51,10 +50,7 @@ export async function GET(
 }
 
 /** POST /api/intelligence/workspaces/:id/prompts — create new version or rollback */
-export async function POST(
-  request: NextRequest,
-  context: RouteContext,
-) {
+export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
     const auth = await getAuthorisedClient(['admin']);
@@ -68,7 +64,12 @@ export async function POST(
       const rollbackParsed = parseBody(RollbackSchema, body);
       if (!rollbackParsed.success) return rollbackParsed.response;
 
-      return await handleRollback(supabase, id, rollbackParsed.data.from_version_id, user.id);
+      return await handleRollback(
+        supabase,
+        id,
+        rollbackParsed.data.from_version_id,
+        user.id,
+      );
     }
 
     // Normal prompt creation

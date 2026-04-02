@@ -3,7 +3,11 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { TemporalReference, DateContextType, ConfidenceLevel } from '@/lib/date-extraction';
+import type {
+  TemporalReference,
+  DateContextType,
+  ConfidenceLevel,
+} from '@/lib/date-extraction';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -122,7 +126,8 @@ export function TemporalReferencesSection({
                 <span
                   className={cn(
                     'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium',
-                    CONTEXT_TYPE_STYLES[ref.type] ?? 'bg-muted text-muted-foreground',
+                    CONTEXT_TYPE_STYLES[ref.type] ??
+                      'bg-muted text-muted-foreground',
                   )}
                 >
                   {CONTEXT_TYPE_LABELS[ref.type] ?? ref.type}
@@ -130,7 +135,8 @@ export function TemporalReferencesSection({
                 <span
                   className={cn(
                     'text-[10px]',
-                    CONFIDENCE_STYLES[ref.confidence] ?? 'text-muted-foreground',
+                    CONFIDENCE_STYLES[ref.confidence] ??
+                      'text-muted-foreground',
                   )}
                   aria-label={`Confidence: ${ref.confidence}`}
                 >

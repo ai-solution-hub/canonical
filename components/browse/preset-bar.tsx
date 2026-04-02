@@ -38,7 +38,9 @@ export function PresetBar({
           <button
             key={preset.id}
             type="button"
-            onClick={() => (isActive ? onClearFilters() : onApplyPreset(preset.id))}
+            onClick={() =>
+              isActive ? onClearFilters() : onApplyPreset(preset.id)
+            }
             aria-pressed={isActive}
             aria-label={`${isActive ? 'Clear' : 'Apply'} preset: ${preset.name}`}
             className={cn(

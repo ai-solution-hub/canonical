@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse, rateLimitResponse } from '@/lib/auth';
+import {
+  getAuthorisedClient,
+  authFailureResponse,
+  rateLimitResponse,
+} from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 
@@ -18,7 +22,11 @@ export async function POST() {
     if (!auth.success) return authFailureResponse(auth);
     const { user, supabase } = auth;
 
-    const { allowed } = checkRateLimit(`freshness:recalculate-all:${user.id}`, 5, 60_000);
+    const { allowed } = checkRateLimit(
+      `freshness:recalculate-all:${user.id}`,
+      5,
+      60_000,
+    );
     if (!allowed) return rateLimitResponse();
 
     const { data, error } = await supabase.rpc('recalculate_all_freshness');

@@ -7,7 +7,10 @@ import {
 } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
-import { BidUpdateBodySchema, parseBidMetadata } from '@/lib/validation/schemas';
+import {
+  BidUpdateBodySchema,
+  parseBidMetadata,
+} from '@/lib/validation/schemas';
 import { canTransition } from '@/lib/bid/bid-state-machine';
 import type { BidState } from '@/lib/bid/bid-state-machine';
 
@@ -45,10 +48,7 @@ export async function GET(
       .single();
 
     if (error || !bid) {
-      return NextResponse.json(
-        { error: 'Bid not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
     }
 
     // Fetch question statistics
@@ -59,7 +59,10 @@ export async function GET(
     // List tender documents from storage
     const { data: files } = await supabase.storage
       .from('tender-documents')
-      .list(id, { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
+      .list(id, {
+        limit: 100,
+        sortBy: { column: 'created_at', order: 'desc' },
+      });
 
     const tenderDocuments = (files ?? []).map((file) => ({
       path: `${id}/${file.name}`,
@@ -71,7 +74,8 @@ export async function GET(
 
     return NextResponse.json({
       ...bid,
-      domain_metadata: parseBidMetadata(bid.domain_metadata) ?? bid.domain_metadata,
+      domain_metadata:
+        parseBidMetadata(bid.domain_metadata) ?? bid.domain_metadata,
       question_stats: stats?.[0] ?? null,
       tender_documents: tenderDocuments,
     });
@@ -114,13 +118,13 @@ export async function PATCH(
       .single();
 
     if (fetchError || !current) {
-      return NextResponse.json(
-        { error: 'Bid not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
     }
 
-    const currentMetadata = parseBidMetadata(current.domain_metadata) ?? (current.domain_metadata as Record<string, unknown> ?? {});
+    const currentMetadata =
+      parseBidMetadata(current.domain_metadata) ??
+      (current.domain_metadata as Record<string, unknown>) ??
+      {};
     const { name, description, status, ...metadataUpdates } = parsed.data;
 
     // Validate state transition if status is being changed
@@ -179,10 +183,7 @@ export async function PATCH(
     }
 
     if (!updated) {
-      return NextResponse.json(
-        { error: 'Bid not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
     }
 
     return NextResponse.json(updated);
@@ -221,10 +222,7 @@ export async function DELETE(
       .single();
 
     if (fetchError || !bid) {
-      return NextResponse.json(
-        { error: 'Bid not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
     }
 
     // Clean up storage files before DB delete (best-effort)

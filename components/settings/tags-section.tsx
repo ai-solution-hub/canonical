@@ -51,7 +51,9 @@ type SortOrder = 'asc' | 'desc';
 // Frequency tier helpers
 // ---------------------------------------------------------------------------
 
-function getFrequencyTier(count: number): 'core' | 'common' | 'occasional' | 'rare' {
+function getFrequencyTier(
+  count: number,
+): 'core' | 'common' | 'occasional' | 'rare' {
   if (count >= 10) return 'core';
   if (count >= 4) return 'common';
   if (count >= 2) return 'occasional';
@@ -194,7 +196,8 @@ export function TagsSection() {
   // ─────────────────────────────────────────
 
   // Compute the effective tab: if user hasn't picked one yet, default based on data
-  const effectiveTab = activeTab ?? (duplicates.length > 0 ? 'duplicates' : 'all');
+  const effectiveTab =
+    activeTab ?? (duplicates.length > 0 ? 'duplicates' : 'all');
 
   // ─────────────────────────────────────────
   // Summary stats
@@ -347,8 +350,8 @@ export function TagsSection() {
             </h3>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Tags are keywords attached to individual items, created automatically
-            during ingestion or added manually.
+            Tags are keywords attached to individual items, created
+            automatically during ingestion or added manually.
           </p>
         </div>
 
@@ -392,10 +395,7 @@ export function TagsSection() {
       </div>
 
       {/* ─── Tabbed View ─── */}
-      <Tabs
-        value={effectiveTab}
-        onValueChange={setActiveTab}
-      >
+      <Tabs value={effectiveTab} onValueChange={setActiveTab}>
         <TabsList className="w-full sm:w-auto">
           <TabsTrigger value="duplicates">
             Duplicates
@@ -410,9 +410,7 @@ export function TagsSection() {
           </TabsTrigger>
           <TabsTrigger value="domains">By Domain</TabsTrigger>
           <TabsTrigger value="all">All Tags</TabsTrigger>
-          {canAdmin && (
-            <TabsTrigger value="bulk">Bulk Actions</TabsTrigger>
-          )}
+          {canAdmin && <TabsTrigger value="bulk">Bulk Actions</TabsTrigger>}
         </TabsList>
 
         {/* ─── Duplicates Tab ─── */}
@@ -458,7 +456,12 @@ export function TagsSection() {
                 className={cn(sortField === 'count' && 'border-foreground/30')}
               >
                 <BarChart3 className="mr-1.5 size-3.5" />
-                Count {sortField === 'count' ? (sortOrder === 'desc' ? '\u2193' : '\u2191') : ''}
+                Count{' '}
+                {sortField === 'count'
+                  ? sortOrder === 'desc'
+                    ? '\u2193'
+                    : '\u2191'
+                  : ''}
               </Button>
               <Button
                 variant="outline"
@@ -473,7 +476,12 @@ export function TagsSection() {
                 }}
                 className={cn(sortField === 'tag' && 'border-foreground/30')}
               >
-                A-Z {sortField === 'tag' ? (sortOrder === 'asc' ? '\u2191' : '\u2193') : ''}
+                A-Z{' '}
+                {sortField === 'tag'
+                  ? sortOrder === 'asc'
+                    ? '\u2191'
+                    : '\u2193'
+                  : ''}
               </Button>
             </div>
 
@@ -490,14 +498,18 @@ export function TagsSection() {
                 <span className="tabular-nums">({stats.singletons})</span>
               </label>
               <span className="text-xs text-muted-foreground">
-                {filteredTags.length.toLocaleString()} tag{filteredTags.length !== 1 ? 's' : ''} shown
+                {filteredTags.length.toLocaleString()} tag
+                {filteredTags.length !== 1 ? 's' : ''} shown
               </span>
             </div>
 
             {/* Virtual scrolled tag list */}
             {filteredTags.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-                <Scissors className="size-8 text-muted-foreground/50" aria-hidden="true" />
+                <Scissors
+                  className="size-8 text-muted-foreground/50"
+                  aria-hidden="true"
+                />
                 <p className="text-sm text-muted-foreground">
                   {searchQuery
                     ? 'No tags matching your search.'
@@ -537,10 +549,18 @@ export function TagsSection() {
                           tag={tag}
                           isAdmin={canAdmin}
                           onRename={(t) =>
-                            setRenameDialog({ open: true, tag: t, newName: t.tag })
+                            setRenameDialog({
+                              open: true,
+                              tag: t,
+                              newName: t.tag,
+                            })
                           }
                           onMerge={(t) =>
-                            setMergeDialog({ open: true, tag: t, targetName: '' })
+                            setMergeDialog({
+                              open: true,
+                              tag: t,
+                              targetName: '',
+                            })
                           }
                           onDelete={(t) =>
                             setDeleteDialog({ open: true, tag: t })

@@ -37,12 +37,7 @@ export function TranscriptReaderCard({
   const captionsType = metadata?.captions_type as string | undefined;
 
   return (
-    <div
-      className={cn(
-        'rounded-lg border bg-card overflow-hidden',
-        className,
-      )}
-    >
+    <div className={cn('rounded-lg border bg-card overflow-hidden', className)}>
       {/* Video metadata header */}
       <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3 text-sm text-muted-foreground">
         {channel && (

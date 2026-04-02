@@ -238,10 +238,7 @@ export function TagBulkActions({
     onActionComplete();
   };
 
-  const renderTagList = (
-    tagList: TagCount[],
-    label: string,
-  ) => {
+  const renderTagList = (tagList: TagCount[], label: string) => {
     if (tagList.length === 0) return null;
 
     return (
@@ -314,9 +311,7 @@ export function TagBulkActions({
       {/* Selection summary and actions */}
       {selected.size > 0 && isAdmin && (
         <div className="flex items-center justify-between rounded-md border bg-muted/30 px-4 py-2">
-          <Badge variant="secondary">
-            {selected.size} selected
-          </Badge>
+          <Badge variant="secondary">{selected.size} selected</Badge>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
@@ -381,15 +376,13 @@ export function TagBulkActions({
           <DialogHeader>
             <DialogTitle>Delete Selected Tags</DialogTitle>
             <DialogDescription>
-              This will remove {selected.size} tag{selected.size !== 1 ? 's' : ''} from
-              all content items. This action cannot be undone.
+              This will remove {selected.size} tag
+              {selected.size !== 1 ? 's' : ''} from all content items. This
+              action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteDialog(false)}
-            >
+            <Button variant="outline" onClick={() => setDeleteDialog(false)}>
               Cancel
             </Button>
             <Button variant="destructive" onClick={handleBulkDelete}>
@@ -405,15 +398,12 @@ export function TagBulkActions({
           <DialogHeader>
             <DialogTitle>Merge Selected Tags</DialogTitle>
             <DialogDescription>
-              Merge {selected.size} selected tag{selected.size !== 1 ? 's' : ''} into a
-              single target tag. All variants will be replaced.
+              Merge {selected.size} selected tag{selected.size !== 1 ? 's' : ''}{' '}
+              into a single target tag. All variants will be replaced.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <label
-              htmlFor="merge-target"
-              className="text-sm font-medium"
-            >
+            <label htmlFor="merge-target" className="text-sm font-medium">
               Target tag name
             </label>
             <Input
@@ -425,16 +415,10 @@ export function TagBulkActions({
             />
           </div>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setMergeDialog(false)}
-            >
+            <Button variant="outline" onClick={() => setMergeDialog(false)}>
               Cancel
             </Button>
-            <Button
-              onClick={handleBulkMerge}
-              disabled={!mergeTarget.trim()}
-            >
+            <Button onClick={handleBulkMerge} disabled={!mergeTarget.trim()}>
               Merge into &ldquo;{mergeTarget.trim()}&rdquo;
             </Button>
           </DialogFooter>

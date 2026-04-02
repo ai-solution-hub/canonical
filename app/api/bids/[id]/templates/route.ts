@@ -89,17 +89,15 @@ export async function POST(
     }
 
     if (file.size === 0) {
-      return NextResponse.json(
-        { error: 'File is empty.' },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: 'File is empty.' }, { status: 400 });
     }
 
     // Validate MIME type
     if (file.type !== ALLOWED_MIME_TYPE) {
       return NextResponse.json(
         {
-          error: 'Invalid file type. Only .docx files are supported for template completion.',
+          error:
+            'Invalid file type. Only .docx files are supported for template completion.',
         },
         { status: 400 },
       );
@@ -137,10 +135,7 @@ export async function POST(
       .single();
 
     if (bidError || !bid) {
-      return NextResponse.json(
-        { error: 'Bid not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
     }
 
     const bidStatus = bid.status as string | undefined;
@@ -252,10 +247,7 @@ export async function GET(
       .single();
 
     if (bidError || !bid) {
-      return NextResponse.json(
-        { error: 'Bid not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
     }
 
     // Fetch templates with completion count

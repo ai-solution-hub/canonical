@@ -3,7 +3,14 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Rss, FileText, Settings2, Play, BarChart3, BookOpen } from 'lucide-react';
+import {
+  Rss,
+  FileText,
+  Settings2,
+  Play,
+  BarChart3,
+  BookOpen,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MetricsPanel } from '@/components/intelligence/metrics-panel';
@@ -20,8 +27,10 @@ export default function WorkspaceOverviewPage() {
   const isAdmin = role === 'admin';
 
   const [period, setPeriod] = useState('30d');
-  const { data: metrics, isLoading: metricsLoading } =
-    useIntelligenceMetrics(workspaceId, period);
+  const { data: metrics, isLoading: metricsLoading } = useIntelligenceMetrics(
+    workspaceId,
+    period,
+  );
   const { data: workspace } = useIntelligenceWorkspace(workspaceId);
   const guideId = workspace?.domain_metadata?.guide_id;
 
@@ -139,10 +148,7 @@ export default function WorkspaceOverviewPage() {
           {metrics && metrics.recent_flags.length > 0 ? (
             <div className="space-y-2">
               {metrics.recent_flags.map((flag) => (
-                <div
-                  key={flag.id}
-                  className="rounded-md border p-3"
-                >
+                <div key={flag.id} className="rounded-md border p-3">
                   <p className="text-sm font-medium text-foreground line-clamp-1">
                     {flag.article_title}
                   </p>

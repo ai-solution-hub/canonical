@@ -24,19 +24,27 @@ const { mockFetch } = vi.hoisted(() => ({
 // ---------------------------------------------------------------------------
 
 vi.mock('@/app/coverage/coverage-content', () => ({
-  CoverageContent: () => <div data-testid="coverage-content">Taxonomy Content</div>,
+  CoverageContent: () => (
+    <div data-testid="coverage-content">Taxonomy Content</div>
+  ),
 }));
 
 vi.mock('@/components/coverage/template-coverage-content', () => ({
-  TemplateCoverageContent: () => <div data-testid="template-coverage-content">Template Content</div>,
+  TemplateCoverageContent: () => (
+    <div data-testid="template-coverage-content">Template Content</div>
+  ),
 }));
 
 vi.mock('@/components/coverage/coverage-guide-tab', () => ({
-  CoverageGuideTab: () => <div data-testid="coverage-guide-tab">Guide Content</div>,
+  CoverageGuideTab: () => (
+    <div data-testid="coverage-guide-tab">Guide Content</div>
+  ),
 }));
 
 vi.mock('@/components/coverage/priority-gaps-tab', () => ({
-  PriorityGapsTab: () => <div data-testid="priority-gaps-tab">Priority Gaps Content</div>,
+  PriorityGapsTab: () => (
+    <div data-testid="priority-gaps-tab">Priority Gaps Content</div>
+  ),
 }));
 
 // Import AFTER mocks
@@ -111,8 +119,17 @@ describe('CoveragePageTabs', () => {
     vi.clearAllMocks();
     // Default: no gaps (banner hidden)
     setupFetchMock(
-      makeGapSummary({ total_gaps: 0, total_partial: 0, templates_assessed: 0 }),
-      makeUnifiedSummary({ total_gaps: 0, taxonomy_gaps: 0, template_gaps: 0, guide_gaps: 0 }),
+      makeGapSummary({
+        total_gaps: 0,
+        total_partial: 0,
+        templates_assessed: 0,
+      }),
+      makeUnifiedSummary({
+        total_gaps: 0,
+        taxonomy_gaps: 0,
+        template_gaps: 0,
+        guide_gaps: 0,
+      }),
     );
     vi.stubGlobal('fetch', mockFetch);
   });
@@ -164,7 +181,9 @@ describe('CoveragePageTabs', () => {
     // Never-resolving fetch to keep loading state
     mockFetch.mockReturnValue(new Promise(() => {}));
     render(<CoveragePageTabs />);
-    expect(screen.getByRole('status', { name: /Loading gap summary/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole('status', { name: /Loading gap summary/ }),
+    ).toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------
@@ -175,22 +194,37 @@ describe('CoveragePageTabs', () => {
     setupFetchMock(makeGapSummary(), makeUnifiedSummary());
     render(<CoveragePageTabs />);
     await waitFor(() => {
-      expect(screen.getByText('Action required: content gaps detected')).toBeInTheDocument();
+      expect(
+        screen.getByText('Action required: content gaps detected'),
+      ).toBeInTheDocument();
     });
   });
 
   it('does not render gap summary banner when no gaps exist across all sources', async () => {
     setupFetchMock(
-      makeGapSummary({ total_gaps: 0, total_partial: 0, templates_assessed: 3 }),
-      makeUnifiedSummary({ total_gaps: 0, taxonomy_gaps: 0, template_gaps: 0, guide_gaps: 0 }),
+      makeGapSummary({
+        total_gaps: 0,
+        total_partial: 0,
+        templates_assessed: 3,
+      }),
+      makeUnifiedSummary({
+        total_gaps: 0,
+        taxonomy_gaps: 0,
+        template_gaps: 0,
+        guide_gaps: 0,
+      }),
     );
     render(<CoveragePageTabs />);
     await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
     // Wait for loading to finish
     await waitFor(() => {
-      expect(screen.queryByRole('status', { name: /Loading gap summary/ })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('status', { name: /Loading gap summary/ }),
+      ).not.toBeInTheDocument();
     });
-    expect(screen.queryByText('Action required: content gaps detected')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Action required: content gaps detected'),
+    ).not.toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------
@@ -226,8 +260,17 @@ describe('CoveragePageTabs', () => {
 
   it('uses singular form for 1 taxonomy gap', async () => {
     setupFetchMock(
-      makeGapSummary({ total_gaps: 0, total_partial: 0, templates_assessed: 0 }),
-      makeUnifiedSummary({ taxonomy_gaps: 1, template_gaps: 0, guide_gaps: 0, total_gaps: 1 }),
+      makeGapSummary({
+        total_gaps: 0,
+        total_partial: 0,
+        templates_assessed: 0,
+      }),
+      makeUnifiedSummary({
+        taxonomy_gaps: 1,
+        template_gaps: 0,
+        guide_gaps: 0,
+        total_gaps: 1,
+      }),
     );
     render(<CoveragePageTabs />);
     await waitFor(() => {
@@ -261,7 +304,9 @@ describe('CoveragePageTabs', () => {
     const user = userEvent.setup();
     render(<CoveragePageTabs />);
     await waitFor(() => {
-      expect(screen.getByText('View template coverage details')).toBeInTheDocument();
+      expect(
+        screen.getByText('View template coverage details'),
+      ).toBeInTheDocument();
     });
     await user.click(screen.getByText('View template coverage details'));
     expect(screen.getByTestId('template-coverage-content')).toBeInTheDocument();
@@ -274,7 +319,9 @@ describe('CoveragePageTabs', () => {
 
     // First switch away from priority gaps (so we can verify it switches back)
     await waitFor(() => {
-      expect(screen.getByRole('tab', { name: /Templates/ })).toBeInTheDocument();
+      expect(
+        screen.getByRole('tab', { name: /Templates/ }),
+      ).toBeInTheDocument();
     });
     await user.click(screen.getByRole('tab', { name: /Templates/ }));
     expect(screen.getByTestId('template-coverage-content')).toBeInTheDocument();
@@ -318,7 +365,9 @@ describe('CoveragePageTabs', () => {
     render(<CoveragePageTabs />);
     await waitFor(() => {
       // Banner should still show with template-only data
-      expect(screen.getByText('Action required: content gaps detected')).toBeInTheDocument();
+      expect(
+        screen.getByText('Action required: content gaps detected'),
+      ).toBeInTheDocument();
     });
     // Template gap count should still be visible
     expect(screen.getByText('template gaps')).toBeInTheDocument();
@@ -333,15 +382,28 @@ describe('CoveragePageTabs', () => {
 
   it('shows banner for taxonomy-only gaps (no template gaps)', async () => {
     setupFetchMock(
-      makeGapSummary({ total_gaps: 0, total_partial: 0, templates_assessed: 0 }),
-      makeUnifiedSummary({ taxonomy_gaps: 3, template_gaps: 0, guide_gaps: 0, total_gaps: 3 }),
+      makeGapSummary({
+        total_gaps: 0,
+        total_partial: 0,
+        templates_assessed: 0,
+      }),
+      makeUnifiedSummary({
+        taxonomy_gaps: 3,
+        template_gaps: 0,
+        guide_gaps: 0,
+        total_gaps: 3,
+      }),
     );
     render(<CoveragePageTabs />);
     await waitFor(() => {
-      expect(screen.getByText('Action required: content gaps detected')).toBeInTheDocument();
+      expect(
+        screen.getByText('Action required: content gaps detected'),
+      ).toBeInTheDocument();
     });
     expect(screen.getByText('taxonomy gaps')).toBeInTheDocument();
     // No template breakdown should appear
-    expect(screen.queryByText('View template coverage details')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('View template coverage details'),
+    ).not.toBeInTheDocument();
   });
 });

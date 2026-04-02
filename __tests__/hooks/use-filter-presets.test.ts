@@ -31,7 +31,10 @@ vi.stubGlobal('crypto', {
   },
 });
 
-import { useFilterPresets, normaliseParams } from '@/hooks/browse/use-filter-presets';
+import {
+  useFilterPresets,
+  normaliseParams,
+} from '@/hooks/browse/use-filter-presets';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -109,9 +112,7 @@ describe('useFilterPresets', () => {
     act(() => {
       result.current.applyPreset('system-stale');
     });
-    expect(mockPush).toHaveBeenCalledWith(
-      expect.stringContaining('/browse?'),
-    );
+    expect(mockPush).toHaveBeenCalledWith(expect.stringContaining('/browse?'));
     expect(mockPush).toHaveBeenCalledWith(
       expect.stringContaining('freshness=stale'),
     );

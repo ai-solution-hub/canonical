@@ -60,10 +60,7 @@ export function useTopicLayerContent(
   currentItemId: string,
 ) {
   const siblingIds = useMemo(
-    () =>
-      topicLayers
-        .filter((l) => l.id !== currentItemId)
-        .map((l) => l.id),
+    () => topicLayers.filter((l) => l.id !== currentItemId).map((l) => l.id),
     [topicLayers, currentItemId],
   );
 
@@ -84,8 +81,7 @@ export function useTopicLayerContent(
 
       const mapped: LayerItem[] = data.map((row) => ({
         id: row.id,
-        layer:
-          ((row as Record<string, unknown>).layer as string) ?? '',
+        layer: ((row as Record<string, unknown>).layer as string) ?? '',
         title: row.title ?? '',
         brief: row.brief ?? null,
         detail: row.detail ?? null,

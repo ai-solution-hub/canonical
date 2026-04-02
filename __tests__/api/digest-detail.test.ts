@@ -56,7 +56,11 @@ const MOCK_DIGEST_ROW = {
     },
   ],
   theme_clusters: [
-    { theme: 'AI Adoption', description: 'Multiple items on AI', item_count: 3 },
+    {
+      theme: 'AI Adoption',
+      description: 'Multiple items on AI',
+      item_count: 3,
+    },
   ],
   narrative_summary: 'You captured 5 items this week.',
   generated_at: '2026-03-07T12:00:00.000Z',
@@ -75,16 +79,41 @@ function resetMocks() {
   });
 
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockResolvedValue({ data: null, error: null, count: null });
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null, count: null });
+  mockSupabase._chain.single.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
@@ -92,7 +121,6 @@ function resetMocks() {
   mockSupabase.from.mockReturnValue(mockSupabase._chain);
   mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
 }
-
 
 // ---------------------------------------------------------------------------
 // GET /api/digest/[id]
@@ -107,7 +135,9 @@ describe('GET /api/digest/[id]', () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest(`/api/digest/${VALID_UUID}`);
-    const res = await GET(req, { params: createTestParams({ id: VALID_UUID }) });
+    const res = await GET(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
 
     expect(res.status).toBe(401);
     const json = await res.json();
@@ -118,7 +148,9 @@ describe('GET /api/digest/[id]', () => {
 
   it('returns 400 for invalid UUID format', async () => {
     const req = createTestRequest('/api/digest/not-a-uuid');
-    const res = await GET(req, { params: createTestParams({ id: 'not-a-uuid' }) });
+    const res = await GET(req, {
+      params: createTestParams({ id: 'not-a-uuid' }),
+    });
 
     expect(res.status).toBe(400);
     const json = await res.json();
@@ -143,7 +175,9 @@ describe('GET /api/digest/[id]', () => {
     });
 
     const req = createTestRequest(`/api/digest/${VALID_UUID}`);
-    const res = await GET(req, { params: createTestParams({ id: VALID_UUID }) });
+    const res = await GET(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
 
     expect(res.status).toBe(404);
     const json = await res.json();
@@ -159,7 +193,9 @@ describe('GET /api/digest/[id]', () => {
     });
 
     const req = createTestRequest(`/api/digest/${VALID_UUID}`);
-    const res = await GET(req, { params: createTestParams({ id: VALID_UUID }) });
+    const res = await GET(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
 
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -168,7 +204,9 @@ describe('GET /api/digest/[id]', () => {
     expect(json.digest.id).toBe(VALID_UUID);
     expect(json.digest.digest_type).toBe('weekly');
     expect(json.digest.item_count).toBe(5);
-    expect(json.digest.narrative_summary).toBe('You captured 5 items this week.');
+    expect(json.digest.narrative_summary).toBe(
+      'You captured 5 items this week.',
+    );
     expect(json.digest.item_ids).toEqual(['item-1', 'item-2', 'item-3']);
 
     // JSONB arrays are parsed
@@ -207,7 +245,9 @@ describe('GET /api/digest/[id]', () => {
     });
 
     const req = createTestRequest(`/api/digest/${VALID_UUID}`);
-    const res = await GET(req, { params: createTestParams({ id: VALID_UUID }) });
+    const res = await GET(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
 
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -223,7 +263,9 @@ describe('GET /api/digest/[id]', () => {
     });
 
     const req = createTestRequest(`/api/digest/${VALID_UUID}`);
-    const res = await GET(req, { params: createTestParams({ id: VALID_UUID }) });
+    const res = await GET(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
 
     expect(res.status).toBe(500);
     const json = await res.json();

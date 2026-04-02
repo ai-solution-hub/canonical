@@ -105,8 +105,7 @@ export function NotificationBell({ mobile }: NotificationBellProps) {
   // Announce new notifications to screen readers via textContent update
   useEffect(() => {
     if (announcementRef.current && unreadCount > 0) {
-      announcementRef.current.textContent =
-        `${unreadCount} new notification${unreadCount === 1 ? '' : 's'}`;
+      announcementRef.current.textContent = `${unreadCount} new notification${unreadCount === 1 ? '' : 's'}`;
     } else if (announcementRef.current) {
       announcementRef.current.textContent = '';
     }
@@ -149,7 +148,11 @@ export function NotificationBell({ mobile }: NotificationBellProps) {
             )}
           </button>
         </PopoverTrigger>
-        <PopoverContent id={`${popoverId}-mobile`} align="start" className="w-80 p-0">
+        <PopoverContent
+          id={`${popoverId}-mobile`}
+          align="start"
+          className="w-80 p-0"
+        >
           <NotificationPanel
             notifications={notifications}
             unreadCount={unreadCount}
@@ -181,7 +184,11 @@ export function NotificationBell({ mobile }: NotificationBellProps) {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent id={`${popoverId}-desktop`} align="end" className="w-80 p-0">
+      <PopoverContent
+        id={`${popoverId}-desktop`}
+        align="end"
+        className="w-80 p-0"
+      >
         <NotificationPanel
           notifications={notifications}
           unreadCount={unreadCount}
@@ -243,10 +250,11 @@ function NotificationPanel({
       {/* Empty state */}
       {!loading && notifications.length === 0 && (
         <div className="flex flex-col items-center justify-center px-4 py-8 text-center">
-          <BellOff className="size-8 text-muted-foreground/50" aria-hidden="true" />
-          <p className="mt-3 text-sm font-medium text-foreground">
-            All clear
-          </p>
+          <BellOff
+            className="size-8 text-muted-foreground/50"
+            aria-hidden="true"
+          />
+          <p className="mt-3 text-sm font-medium text-foreground">All clear</p>
           <p className="mt-1 text-xs text-muted-foreground">
             No new notifications to review.
           </p>

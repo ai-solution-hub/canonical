@@ -38,7 +38,7 @@ describe('Browse Error Boundary', () => {
   it('renders the heading text', () => {
     render(<BrowseError error={error} reset={reset} />);
     expect(
-      screen.getByText(/couldn.*t load the knowledge base/i)
+      screen.getByText(/couldn.*t load the knowledge base/i),
     ).toBeInTheDocument();
   });
 
@@ -60,7 +60,7 @@ describe('Browse Error Boundary', () => {
     render(<BrowseError error={error} reset={reset} />);
     expect(screen.getByRole('link', { name: /return home/i })).toHaveAttribute(
       'href',
-      '/'
+      '/',
     );
   });
 
@@ -80,7 +80,7 @@ describe('Browse Loading Skeleton', () => {
     render(<BrowseLoading />);
     expect(screen.getByRole('status')).toHaveAttribute(
       'aria-label',
-      'Loading knowledge base'
+      'Loading knowledge base',
     );
   });
 

@@ -22,7 +22,15 @@ export interface ClaudePrompt {
   /** Brief explanation of what this prompt does */
   description: string;
   /** Category for grouping */
-  category: 'governance' | 'quality' | 'freshness' | 'bid' | 'coverage' | 'general' | 'ingestion' | 'compliance';
+  category:
+    | 'governance'
+    | 'quality'
+    | 'freshness'
+    | 'bid'
+    | 'coverage'
+    | 'general'
+    | 'ingestion'
+    | 'compliance';
 }
 
 // ---------------------------------------------------------------------------
@@ -45,24 +53,27 @@ export function generateBidPrompt(bid: ActiveBidSummary): ClaudePrompt {
     }
   }
 
-  const prompt = totalQ > 0 && remainingQ > 0
-    ? `Show me the status of the "${bid.name}" bid. We have ${answeredQ} of ${totalQ} questions drafted${deadlineText}. Help me draft answers for the remaining ${remainingQ} questions, starting with the highest-priority gaps.`
-    : `Show me the current status of the "${bid.name}" bid${deadlineText}. Summarise the progress and suggest what needs attention.`;
+  const prompt =
+    totalQ > 0 && remainingQ > 0
+      ? `Show me the status of the "${bid.name}" bid. We have ${answeredQ} of ${totalQ} questions drafted${deadlineText}. Help me draft answers for the remaining ${remainingQ} questions, starting with the highest-priority gaps.`
+      : `Show me the current status of the "${bid.name}" bid${deadlineText}. Summarise the progress and suggest what needs attention.`;
 
   return {
     label: 'Analyse this bid',
     prompt,
-    description: remainingQ > 0
-      ? `${remainingQ} questions remaining${deadlineText}`
-      : `Review bid progress${deadlineText}`,
+    description:
+      remainingQ > 0
+        ? `${remainingQ} questions remaining${deadlineText}`
+        : `Review bid progress${deadlineText}`,
     category: 'bid',
   };
 }
 
 export function generateBidDeadlinePrompt(bid: ActiveBidSummary): ClaudePrompt {
-  const deadlineText = bid.days_until_deadline === 0
-    ? 'today'
-    : `in ${bid.days_until_deadline} ${bid.days_until_deadline === 1 ? 'day' : 'days'}`;
+  const deadlineText =
+    bid.days_until_deadline === 0
+      ? 'today'
+      : `in ${bid.days_until_deadline} ${bid.days_until_deadline === 1 ? 'day' : 'days'}`;
 
   return {
     label: 'Review before deadline',
@@ -105,7 +116,9 @@ export function generateIngestUrlPrompt(url: string): ClaudePrompt {
 }
 
 export function generateIngestDocumentPrompt(filename?: string): ClaudePrompt {
-  const fileRef = filename ? `the attached document "${filename}"` : 'your document';
+  const fileRef = filename
+    ? `the attached document "${filename}"`
+    : 'your document';
   const dateStamp = new Date().toISOString().split('T')[0];
 
   return {

@@ -38,7 +38,11 @@ interface ContentGridProps {
   /** Map of item ID to set of assigned workspace IDs */
   itemAssignments?: Map<string, Set<string>>;
   /** Callback when workspace assignment changes */
-  onAssignmentChange?: (itemId: string, workspaceId: string, workspaceName: string) => void;
+  onAssignmentChange?: (
+    itemId: string,
+    workspaceId: string,
+    workspaceName: string,
+  ) => void;
   /** Workspace ID from ?from_bid= URL param for contextual quick-assign shortcut */
   fromBidId?: string;
   /** Map of user UUID to display name for verification badge attribution */
@@ -130,7 +134,16 @@ export function ContentGrid({
   // Arrow key navigation across grid cards
   const handleGridKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+      if (
+        ![
+          'ArrowUp',
+          'ArrowDown',
+          'ArrowLeft',
+          'ArrowRight',
+          'Home',
+          'End',
+        ].includes(e.key)
+      ) {
         return;
       }
 
@@ -205,7 +218,10 @@ export function ContentGrid({
               aria-setsize={items.length}
               aria-posinset={idx + 1}
               data-grid-index={idx}
-              className={cn('relative rounded-lg', isActive && 'ring-2 ring-ring ring-offset-2')}
+              className={cn(
+                'relative rounded-lg',
+                isActive && 'ring-2 ring-ring ring-offset-2',
+              )}
             >
               {multiSelectMode && (
                 <button
@@ -216,9 +232,7 @@ export function ContentGrid({
                     onToggleSelect?.(item.id);
                   }}
                   className="absolute left-2 top-2 z-10 flex items-center justify-center rounded border border-border bg-background/90 p-2.5 shadow-sm transition-colors hover:bg-accent"
-                  aria-label={
-                    selectedIds?.has(item.id) ? 'Deselect' : 'Select'
-                  }
+                  aria-label={selectedIds?.has(item.id) ? 'Deselect' : 'Select'}
                   aria-checked={selectedIds?.has(item.id) ?? false}
                 >
                   <span
@@ -245,7 +259,9 @@ export function ContentGrid({
               <ContentCard
                 item={item}
                 isRead={readItemIds ? readItemIds.has(item.id) : undefined}
-                hasQualityFlag={qualityFlaggedIds ? qualityFlaggedIds.has(item.id) : undefined}
+                hasQualityFlag={
+                  qualityFlaggedIds ? qualityFlaggedIds.has(item.id) : undefined
+                }
                 hideThumbnail={hideThumbnails}
                 highlightQuery={highlightQuery}
                 canEdit={canEdit}
@@ -308,66 +324,74 @@ export function ContentGrid({
               >
                 {rowItems.map((item, colIdx) => {
                   const itemIndex = virtualRow.index * columns + colIdx;
-                  const isActive = activeIndex != null && itemIndex === activeIndex;
+                  const isActive =
+                    activeIndex != null && itemIndex === activeIndex;
                   return (
-                  <div
-                    key={item.id}
-                    role="article"
-                    aria-setsize={items.length}
-                    aria-posinset={itemIndex + 1}
-                    data-grid-index={itemIndex}
-                    className={cn('relative rounded-lg', isActive && 'ring-2 ring-ring ring-offset-2')}
-                  >
-                    {multiSelectMode && (
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          onToggleSelect?.(item.id);
-                        }}
-                        className="absolute left-2 top-2 z-10 flex items-center justify-center rounded border border-border bg-background/90 p-2.5 shadow-sm transition-colors hover:bg-accent"
-                        aria-label={
-                          selectedIds?.has(item.id) ? 'Deselect' : 'Select'
-                        }
-                      >
-                        <span
-                          className={`size-3.5 rounded-sm border ${selectedIds?.has(item.id) ? 'border-primary bg-primary' : 'border-muted-foreground/40'}`}
+                    <div
+                      key={item.id}
+                      role="article"
+                      aria-setsize={items.length}
+                      aria-posinset={itemIndex + 1}
+                      data-grid-index={itemIndex}
+                      className={cn(
+                        'relative rounded-lg',
+                        isActive && 'ring-2 ring-ring ring-offset-2',
+                      )}
+                    >
+                      {multiSelectMode && (
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onToggleSelect?.(item.id);
+                          }}
+                          className="absolute left-2 top-2 z-10 flex items-center justify-center rounded border border-border bg-background/90 p-2.5 shadow-sm transition-colors hover:bg-accent"
+                          aria-label={
+                            selectedIds?.has(item.id) ? 'Deselect' : 'Select'
+                          }
                         >
-                          {selectedIds?.has(item.id) && (
-                            <svg
-                              viewBox="0 0 14 14"
-                              fill="none"
-                              className="size-full text-primary-foreground"
-                            >
-                              <path
-                                d="M3 7l3 3 5-5"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
-                          )}
-                        </span>
-                      </button>
-                    )}
-                    <ContentCard
-                      item={item}
-                      isRead={
-                        readItemIds ? readItemIds.has(item.id) : undefined
-                      }
-                      hasQualityFlag={qualityFlaggedIds ? qualityFlaggedIds.has(item.id) : undefined}
-                      hideThumbnail={hideThumbnails}
-                      highlightQuery={highlightQuery}
-                      canEdit={canEdit}
-                      simplifiedQuality={simplifiedQuality}
-                      onQuickReviewUpdate={onQuickReviewUpdate}
-                      activeWorkspaces={activeWorkspaces}
-                      assignedWorkspaceIds={itemAssignments?.get(item.id)}
-                      onAssignmentChange={onAssignmentChange}
-                      verifierNames={verifierNames}
-                    />
-                  </div>
+                          <span
+                            className={`size-3.5 rounded-sm border ${selectedIds?.has(item.id) ? 'border-primary bg-primary' : 'border-muted-foreground/40'}`}
+                          >
+                            {selectedIds?.has(item.id) && (
+                              <svg
+                                viewBox="0 0 14 14"
+                                fill="none"
+                                className="size-full text-primary-foreground"
+                              >
+                                <path
+                                  d="M3 7l3 3 5-5"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            )}
+                          </span>
+                        </button>
+                      )}
+                      <ContentCard
+                        item={item}
+                        isRead={
+                          readItemIds ? readItemIds.has(item.id) : undefined
+                        }
+                        hasQualityFlag={
+                          qualityFlaggedIds
+                            ? qualityFlaggedIds.has(item.id)
+                            : undefined
+                        }
+                        hideThumbnail={hideThumbnails}
+                        highlightQuery={highlightQuery}
+                        canEdit={canEdit}
+                        simplifiedQuality={simplifiedQuality}
+                        onQuickReviewUpdate={onQuickReviewUpdate}
+                        activeWorkspaces={activeWorkspaces}
+                        assignedWorkspaceIds={itemAssignments?.get(item.id)}
+                        onAssignmentChange={onAssignmentChange}
+                        verifierNames={verifierNames}
+                      />
+                    </div>
                   );
                 })}
               </div>

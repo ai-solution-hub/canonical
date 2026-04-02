@@ -45,10 +45,14 @@ function daysAgo(days: number): string {
   // Subtract an extra 2 hours so Math.floor always produces exactly `days`,
   // even if there's tiny floating-point drift.
   const buffer = 2 * 60 * 60 * 1000;
-  return new Date(FIXED_NOW - days * 24 * 60 * 60 * 1000 - buffer).toISOString();
+  return new Date(
+    FIXED_NOW - days * 24 * 60 * 60 * 1000 - buffer,
+  ).toISOString();
 }
 
-function makeReviewItem(overrides: Partial<ReviewQueueItem> = {}): ReviewQueueItem {
+function makeReviewItem(
+  overrides: Partial<ReviewQueueItem> = {},
+): ReviewQueueItem {
   return {
     id: '00000000-0000-4000-8000-000000000001',
     title: 'Test Item',
@@ -102,7 +106,9 @@ describe('ReviewCard — days since review', () => {
   });
 
   it('shows "Reviewed today" when verified_at is today', () => {
-    const item = makeReviewItem({ verified_at: new Date(FIXED_NOW).toISOString() });
+    const item = makeReviewItem({
+      verified_at: new Date(FIXED_NOW).toISOString(),
+    });
     render(<ReviewCard item={item} position={1} total={10} />);
 
     expect(screen.getByText('Reviewed today')).toBeInTheDocument();

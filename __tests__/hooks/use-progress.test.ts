@@ -332,11 +332,7 @@ describe('useProgress', () => {
     mockUseReadMarks.isLoaded = true;
 
     // All items read today — should count as this week
-    setupReadMarksQuery([
-      daysAgo(0),
-      daysAgo(0),
-      daysAgo(0),
-    ]);
+    setupReadMarksQuery([daysAgo(0), daysAgo(0), daysAgo(0)]);
 
     const { result } = renderHook(() => useProgress(), {
       wrapper: createWrapper(),
@@ -358,7 +354,9 @@ describe('useProgress', () => {
 
     const chain: Record<string, ReturnType<typeof vi.fn>> = {};
     chain.gte = vi.fn().mockReturnValue(chain);
-    chain.order = vi.fn().mockResolvedValue({ data: null, error: { message: 'DB error' } });
+    chain.order = vi
+      .fn()
+      .mockResolvedValue({ data: null, error: { message: 'DB error' } });
     mockSelect.mockReturnValue(chain);
 
     const { result } = renderHook(() => useProgress(), {

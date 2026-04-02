@@ -94,7 +94,11 @@ function getStatusModifier(status: string): string {
 /** Build card class name from urgency and expanded state */
 function buildCardClassName(urgency: Urgency, isExpanded: boolean): string {
   const classes = ['bid-card'];
-  if (urgency === 'overdue' || urgency === 'urgent' || urgency === 'approaching') {
+  if (
+    urgency === 'overdue' ||
+    urgency === 'urgent' ||
+    urgency === 'approaching'
+  ) {
     classes.push(`bid-card--${urgency}`);
   }
   if (isExpanded) {
@@ -133,7 +137,7 @@ interface GapEntry {
 
 /** Check if a domain has gaps */
 function domainHasGaps(domain: DomainData, gaps: GapEntry[]): boolean {
-  return gaps.some(g => g.domain === domain.name);
+  return gaps.some((g) => g.domain === domain.name);
 }
 
 /** Calculate freshness distribution as percentages */
@@ -154,7 +158,10 @@ function freshnessPercentages(counts: {
 }
 
 /** Sort domains: those with gaps first, then alphabetically */
-function sortDomainsForDisplay(domains: DomainData[], gaps: GapEntry[]): DomainData[] {
+function sortDomainsForDisplay(
+  domains: DomainData[],
+  gaps: GapEntry[],
+): DomainData[] {
   return [...domains].sort((a, b) => {
     const aHasGaps = domainHasGaps(a, gaps);
     const bHasGaps = domainHasGaps(b, gaps);
@@ -197,32 +204,96 @@ describe('Bid Dashboard: urgency calculation', () => {
 
 describe('Bid Dashboard: bid sorting', () => {
   const bids: BidSummary[] = [
-    { id: '1', name: 'Normal', buyer: null, status: 'active', deadline: '2026-06-01', days_until_deadline: 30, total_questions: 10, answered_questions: 5, approved_questions: 2 },
-    { id: '2', name: 'Overdue', buyer: null, status: 'active', deadline: '2026-02-01', days_until_deadline: -10, total_questions: 10, answered_questions: 5, approved_questions: 2 },
-    { id: '3', name: 'Urgent', buyer: null, status: 'active', deadline: '2026-03-12', days_until_deadline: 2, total_questions: 10, answered_questions: 5, approved_questions: 2 },
-    { id: '4', name: 'No Deadline', buyer: null, status: 'draft', deadline: null, days_until_deadline: null, total_questions: 10, answered_questions: 5, approved_questions: 2 },
-    { id: '5', name: 'Approaching', buyer: null, status: 'active', deadline: '2026-03-20', days_until_deadline: 10, total_questions: 10, answered_questions: 5, approved_questions: 2 },
+    {
+      id: '1',
+      name: 'Normal',
+      buyer: null,
+      status: 'active',
+      deadline: '2026-06-01',
+      days_until_deadline: 30,
+      total_questions: 10,
+      answered_questions: 5,
+      approved_questions: 2,
+    },
+    {
+      id: '2',
+      name: 'Overdue',
+      buyer: null,
+      status: 'active',
+      deadline: '2026-02-01',
+      days_until_deadline: -10,
+      total_questions: 10,
+      answered_questions: 5,
+      approved_questions: 2,
+    },
+    {
+      id: '3',
+      name: 'Urgent',
+      buyer: null,
+      status: 'active',
+      deadline: '2026-03-12',
+      days_until_deadline: 2,
+      total_questions: 10,
+      answered_questions: 5,
+      approved_questions: 2,
+    },
+    {
+      id: '4',
+      name: 'No Deadline',
+      buyer: null,
+      status: 'draft',
+      deadline: null,
+      days_until_deadline: null,
+      total_questions: 10,
+      answered_questions: 5,
+      approved_questions: 2,
+    },
+    {
+      id: '5',
+      name: 'Approaching',
+      buyer: null,
+      status: 'active',
+      deadline: '2026-03-20',
+      days_until_deadline: 10,
+      total_questions: 10,
+      answered_questions: 5,
+      approved_questions: 2,
+    },
   ];
 
   it('sorts overdue bids first', () => {
-    const sorted = [...bids].sort((a, b) => getUrgencyOrder(a) - getUrgencyOrder(b));
+    const sorted = [...bids].sort(
+      (a, b) => getUrgencyOrder(a) - getUrgencyOrder(b),
+    );
     expect(sorted[0].name).toBe('Overdue');
   });
 
   it('sorts urgent bids after overdue', () => {
-    const sorted = [...bids].sort((a, b) => getUrgencyOrder(a) - getUrgencyOrder(b));
+    const sorted = [...bids].sort(
+      (a, b) => getUrgencyOrder(a) - getUrgencyOrder(b),
+    );
     expect(sorted[1].name).toBe('Urgent');
   });
 
   it('sorts no-deadline bids last', () => {
-    const sorted = [...bids].sort((a, b) => getUrgencyOrder(a) - getUrgencyOrder(b));
+    const sorted = [...bids].sort(
+      (a, b) => getUrgencyOrder(a) - getUrgencyOrder(b),
+    );
     expect(sorted[sorted.length - 1].name).toBe('No Deadline');
   });
 
   it('maintains correct full order: overdue, urgent, approaching, normal, none', () => {
-    const sorted = [...bids].sort((a, b) => getUrgencyOrder(a) - getUrgencyOrder(b));
-    const names = sorted.map(b => b.name);
-    expect(names).toEqual(['Overdue', 'Urgent', 'Approaching', 'Normal', 'No Deadline']);
+    const sorted = [...bids].sort(
+      (a, b) => getUrgencyOrder(a) - getUrgencyOrder(b),
+    );
+    const names = sorted.map((b) => b.name);
+    expect(names).toEqual([
+      'Overdue',
+      'Urgent',
+      'Approaching',
+      'Normal',
+      'No Deadline',
+    ]);
   });
 });
 
@@ -314,15 +385,21 @@ describe('Bid Dashboard: status badge mapping', () => {
 
 describe('Bid Dashboard: card class name building', () => {
   it('includes urgency modifier for overdue', () => {
-    expect(buildCardClassName('overdue', false)).toBe('bid-card bid-card--overdue');
+    expect(buildCardClassName('overdue', false)).toBe(
+      'bid-card bid-card--overdue',
+    );
   });
 
   it('includes urgency modifier for urgent', () => {
-    expect(buildCardClassName('urgent', false)).toBe('bid-card bid-card--urgent');
+    expect(buildCardClassName('urgent', false)).toBe(
+      'bid-card bid-card--urgent',
+    );
   });
 
   it('includes urgency modifier for approaching', () => {
-    expect(buildCardClassName('approaching', false)).toBe('bid-card bid-card--approaching');
+    expect(buildCardClassName('approaching', false)).toBe(
+      'bid-card bid-card--approaching',
+    );
   });
 
   it('does not include modifier for normal', () => {
@@ -334,17 +411,26 @@ describe('Bid Dashboard: card class name building', () => {
   });
 
   it('includes expanded modifier when expanded', () => {
-    expect(buildCardClassName('overdue', true)).toBe('bid-card bid-card--overdue bid-card--expanded');
+    expect(buildCardClassName('overdue', true)).toBe(
+      'bid-card bid-card--overdue bid-card--expanded',
+    );
   });
 
   it('includes only expanded modifier for normal+expanded', () => {
-    expect(buildCardClassName('normal', true)).toBe('bid-card bid-card--expanded');
+    expect(buildCardClassName('normal', true)).toBe(
+      'bid-card bid-card--expanded',
+    );
   });
 });
 
 describe('Coverage Matrix: freshness distribution percentages', () => {
   it('calculates correct percentages', () => {
-    const pct = freshnessPercentages({ fresh: 120, aging: 40, stale: 20, expired: 6 });
+    const pct = freshnessPercentages({
+      fresh: 120,
+      aging: 40,
+      stale: 20,
+      expired: 6,
+    });
     // 120/186 = 64.5 -> 65, 40/186 = 21.5 -> 22, 20/186 = 10.8 -> 11, 6/186 = 3.2 -> 3
     expect(pct.fresh).toBe(65);
     expect(pct.aging).toBe(22);
@@ -353,7 +439,12 @@ describe('Coverage Matrix: freshness distribution percentages', () => {
   });
 
   it('returns all zeros for empty data', () => {
-    const pct = freshnessPercentages({ fresh: 0, aging: 0, stale: 0, expired: 0 });
+    const pct = freshnessPercentages({
+      fresh: 0,
+      aging: 0,
+      stale: 0,
+      expired: 0,
+    });
     expect(pct.fresh).toBe(0);
     expect(pct.aging).toBe(0);
     expect(pct.stale).toBe(0);
@@ -361,7 +452,12 @@ describe('Coverage Matrix: freshness distribution percentages', () => {
   });
 
   it('handles single-category data', () => {
-    const pct = freshnessPercentages({ fresh: 100, aging: 0, stale: 0, expired: 0 });
+    const pct = freshnessPercentages({
+      fresh: 100,
+      aging: 0,
+      stale: 0,
+      expired: 0,
+    });
     expect(pct.fresh).toBe(100);
     expect(pct.aging).toBe(0);
   });
@@ -369,8 +465,18 @@ describe('Coverage Matrix: freshness distribution percentages', () => {
 
 describe('Coverage Matrix: gap detection', () => {
   const gaps: GapEntry[] = [
-    { domain: 'Security', subtopic: 'Zero Trust', item_count: 0, issue: 'empty' },
-    { domain: 'Security', subtopic: 'Incident Response', item_count: 2, issue: 'thin' },
+    {
+      domain: 'Security',
+      subtopic: 'Zero Trust',
+      item_count: 0,
+      issue: 'empty',
+    },
+    {
+      domain: 'Security',
+      subtopic: 'Incident Response',
+      item_count: 2,
+      issue: 'thin',
+    },
   ];
 
   const securityDomain: DomainData = {
@@ -404,13 +510,42 @@ describe('Coverage Matrix: gap detection', () => {
 
 describe('Coverage Matrix: domain sorting for display', () => {
   const gaps: GapEntry[] = [
-    { domain: 'Security', subtopic: 'Zero Trust', item_count: 0, issue: 'empty' },
+    {
+      domain: 'Security',
+      subtopic: 'Zero Trust',
+      item_count: 0,
+      issue: 'empty',
+    },
   ];
 
   const domains: DomainData[] = [
-    { name: 'Operations', total_items: 20, fresh: 15, aging: 3, stale: 1, expired: 1, subtopics: [] },
-    { name: 'Compliance', total_items: 10, fresh: 5, aging: 3, stale: 1, expired: 1, subtopics: [] },
-    { name: 'Security', total_items: 45, fresh: 30, aging: 10, stale: 3, expired: 2, subtopics: [] },
+    {
+      name: 'Operations',
+      total_items: 20,
+      fresh: 15,
+      aging: 3,
+      stale: 1,
+      expired: 1,
+      subtopics: [],
+    },
+    {
+      name: 'Compliance',
+      total_items: 10,
+      fresh: 5,
+      aging: 3,
+      stale: 1,
+      expired: 1,
+      subtopics: [],
+    },
+    {
+      name: 'Security',
+      total_items: 45,
+      fresh: 30,
+      aging: 10,
+      stale: 3,
+      expired: 2,
+      subtopics: [],
+    },
   ];
 
   it('puts domains with gaps first', () => {

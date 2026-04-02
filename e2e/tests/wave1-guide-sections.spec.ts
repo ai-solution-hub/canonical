@@ -15,7 +15,9 @@ import { test, expect } from '../fixtures';
  */
 
 test.describe('Guide section banner on create page', { tag: '@wave1' }, () => {
-  test('create page loads with form fields for content creation', async ({ authenticatedPage: page }) => {
+  test('create page loads with form fields for content creation', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/item/new');
 
     // Verify the create page loaded
@@ -35,14 +37,18 @@ test.describe('Guide section banner on create page', { tag: '@wave1' }, () => {
     ).toBeVisible();
   });
 
-  test('creating content shows guide section banner when matches exist', async ({ authenticatedPage: page }) => {
+  test('creating content shows guide section banner when matches exist', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/item/new');
     await expect(
       page.getByRole('heading', { name: 'Create New Content' }),
     ).toBeVisible({ timeout: 10000 });
 
     // Fill in a title likely to match guide sections (ISO/security domain)
-    await page.getByLabel(/Title/).fill('E2E Guide Test: ISO 27001 Information Security Management');
+    await page
+      .getByLabel(/Title/)
+      .fill('E2E Guide Test: ISO 27001 Information Security Management');
 
     // Select content type
     await page.getByLabel('Content Type').click();
@@ -76,23 +82,27 @@ test.describe('Guide section banner on create page', { tag: '@wave1' }, () => {
     // 1. Shows the guide section banner (if guide section matches found), or
     // 2. Shows the layer suggestion banner, or
     // 3. Redirects to the item detail page
-    const guideBanner = page.getByRole('region', { name: 'Guide section suggestions' });
+    const guideBanner = page.getByRole('region', {
+      name: 'Guide section suggestions',
+    });
     const layerBanner = page.getByRole('region', { name: 'Layer suggestion' });
     const detailPage = page.getByRole('heading', { level: 1 });
 
     // Wait for any of these outcomes
-    await expect(guideBanner.or(layerBanner).or(detailPage)).toBeVisible({ timeout: 30000 });
+    await expect(guideBanner.or(layerBanner).or(detailPage)).toBeVisible({
+      timeout: 30000,
+    });
 
     // If the guide section banner appeared, verify its structure
     if (await guideBanner.isVisible({ timeout: 2000 }).catch(() => false)) {
       // Banner should have a heading about guide sections
-      await expect(
-        guideBanner.getByText(/guide sections/i),
-      ).toBeVisible();
+      await expect(guideBanner.getByText(/guide sections/i)).toBeVisible();
 
       // Dismiss button should be present
       await expect(
-        guideBanner.getByRole('button', { name: /Dismiss guide section suggestions/ }),
+        guideBanner.getByRole('button', {
+          name: /Dismiss guide section suggestions/,
+        }),
       ).toBeVisible();
 
       // Section links should point to /guide/ paths
@@ -113,14 +123,18 @@ test.describe('Guide section banner on create page', { tag: '@wave1' }, () => {
     }
   });
 
-  test('guide section banner dismiss hides the banner', async ({ authenticatedPage: page }) => {
+  test('guide section banner dismiss hides the banner', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/item/new');
     await expect(
       page.getByRole('heading', { name: 'Create New Content' }),
     ).toBeVisible({ timeout: 10000 });
 
     // Create content to trigger the banner
-    await page.getByLabel(/Title/).fill('E2E Guide Dismiss Test: Security Policy Framework');
+    await page
+      .getByLabel(/Title/)
+      .fill('E2E Guide Dismiss Test: Security Policy Framework');
 
     await page.getByLabel('Content Type').click();
     await page.getByRole('option', { name: 'Policy' }).click();
@@ -147,15 +161,21 @@ test.describe('Guide section banner on create page', { tag: '@wave1' }, () => {
     await expect(saveButton).toBeEnabled();
     await saveButton.click();
 
-    const guideBanner = page.getByRole('region', { name: 'Guide section suggestions' });
+    const guideBanner = page.getByRole('region', {
+      name: 'Guide section suggestions',
+    });
     const layerBanner = page.getByRole('region', { name: 'Layer suggestion' });
     const detailPage = page.getByRole('heading', { level: 1 });
 
-    await expect(guideBanner.or(layerBanner).or(detailPage)).toBeVisible({ timeout: 30000 });
+    await expect(guideBanner.or(layerBanner).or(detailPage)).toBeVisible({
+      timeout: 30000,
+    });
 
     if (await guideBanner.isVisible({ timeout: 2000 }).catch(() => false)) {
       // Click dismiss button
-      const dismissButton = guideBanner.getByRole('button', { name: /Dismiss guide section suggestions/ });
+      const dismissButton = guideBanner.getByRole('button', {
+        name: /Dismiss guide section suggestions/,
+      });
       await dismissButton.click();
 
       // Banner should disappear
@@ -163,14 +183,18 @@ test.describe('Guide section banner on create page', { tag: '@wave1' }, () => {
     }
   });
 
-  test('guide section banner shows grouped sections by guide name', async ({ authenticatedPage: page }) => {
+  test('guide section banner shows grouped sections by guide name', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/item/new');
     await expect(
       page.getByRole('heading', { name: 'Create New Content' }),
     ).toBeVisible({ timeout: 10000 });
 
     // Create content with broad domain coverage for multiple guide matches
-    await page.getByLabel(/Title/).fill('E2E Guide Groups Test: Cyber Essentials Implementation');
+    await page
+      .getByLabel(/Title/)
+      .fill('E2E Guide Groups Test: Cyber Essentials Implementation');
 
     await page.getByLabel('Content Type').click();
     await page.getByRole('option', { name: 'Policy' }).click();
@@ -197,11 +221,15 @@ test.describe('Guide section banner on create page', { tag: '@wave1' }, () => {
     await expect(saveButton).toBeEnabled();
     await saveButton.click();
 
-    const guideBanner = page.getByRole('region', { name: 'Guide section suggestions' });
+    const guideBanner = page.getByRole('region', {
+      name: 'Guide section suggestions',
+    });
     const layerBanner = page.getByRole('region', { name: 'Layer suggestion' });
     const detailPage = page.getByRole('heading', { level: 1 });
 
-    await expect(guideBanner.or(layerBanner).or(detailPage)).toBeVisible({ timeout: 30000 });
+    await expect(guideBanner.or(layerBanner).or(detailPage)).toBeVisible({
+      timeout: 30000,
+    });
 
     if (await guideBanner.isVisible({ timeout: 2000 }).catch(() => false)) {
       // Sections are displayed as links within <ul> lists

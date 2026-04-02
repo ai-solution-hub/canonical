@@ -36,10 +36,7 @@ function FeedRow({ label, description, url }: FeedRowProps) {
           <p className="text-sm font-medium text-foreground">{label}</p>
           <p className="text-xs text-muted-foreground">{description}</p>
         </div>
-        <Badge
-          variant="outline"
-          className="shrink-0 text-[10px]"
-        >
+        <Badge variant="outline" className="shrink-0 text-[10px]">
           Public
         </Badge>
       </div>
@@ -59,9 +56,7 @@ function FeedRow({ label, description, url }: FeedRowProps) {
           ) : (
             <Copy className="size-3.5" aria-hidden="true" />
           )}
-          <span className="sr-only">
-            {copied ? 'Copied' : 'Copy feed URL'}
-          </span>
+          <span className="sr-only">{copied ? 'Copied' : 'Copy feed URL'}</span>
         </Button>
         <Button
           variant="ghost"
@@ -84,7 +79,10 @@ function FeedRow({ label, description, url }: FeedRowProps) {
   );
 }
 
-export function RssFeedPanel({ workspaceId, workspaceName }: RssFeedPanelProps) {
+export function RssFeedPanel({
+  workspaceId,
+  workspaceName,
+}: RssFeedPanelProps) {
   const baseUrl =
     typeof window !== 'undefined'
       ? window.location.origin
@@ -97,9 +95,7 @@ export function RssFeedPanel({ workspaceId, workspaceName }: RssFeedPanelProps) 
     <div className="rounded-lg border bg-card p-4 shadow-sm">
       <div className="mb-3 flex items-center gap-2">
         <Rss className="size-4 text-muted-foreground" aria-hidden="true" />
-        <h3 className="text-sm font-semibold text-foreground">
-          RSS Feeds
-        </h3>
+        <h3 className="text-sm font-semibold text-foreground">RSS Feeds</h3>
       </div>
 
       <div className="space-y-2">

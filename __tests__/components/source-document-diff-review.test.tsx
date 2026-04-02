@@ -39,10 +39,18 @@ vi.mock('next/link', () => ({
 // Mock lucide-react icons
 vi.mock('lucide-react', () => ({
   ChevronRight: ({ className, ...props }: Record<string, unknown>) => (
-    <span data-testid="chevron-right" className={className as string} {...props} />
+    <span
+      data-testid="chevron-right"
+      className={className as string}
+      {...props}
+    />
   ),
   CheckCircle2: ({ className, ...props }: Record<string, unknown>) => (
-    <span data-testid="check-circle" className={className as string} {...props} />
+    <span
+      data-testid="check-circle"
+      className={className as string}
+      {...props}
+    />
   ),
   Loader2: ({ className, ...props }: Record<string, unknown>) => (
     <span data-testid="loader" className={className as string} {...props} />
@@ -90,7 +98,10 @@ const NEW_DOC = {
 };
 
 function makeEntry(
-  overrides: Partial<DiffReviewEntry> & { id: string; diff_type: DiffReviewEntry['diff_type'] },
+  overrides: Partial<DiffReviewEntry> & {
+    id: string;
+    diff_type: DiffReviewEntry['diff_type'];
+  },
 ): DiffReviewEntry {
   return {
     status: 'pending_review',
@@ -134,7 +145,12 @@ const UNCHANGED_ENTRY = makeEntry({
   new_content: 'Acme Ltd.',
 });
 
-const DEFAULT_ENTRIES = [MODIFIED_ENTRY, ADDED_ENTRY, REMOVED_ENTRY, UNCHANGED_ENTRY];
+const DEFAULT_ENTRIES = [
+  MODIFIED_ENTRY,
+  ADDED_ENTRY,
+  REMOVED_ENTRY,
+  UNCHANGED_ENTRY,
+];
 
 const DEFAULT_SUMMARY = {
   added: 1,
@@ -209,36 +225,54 @@ describe('SourceDocumentDiffReview', () => {
 
   describe('badges', () => {
     it('shows "Added" badge for added entries', () => {
-      renderComponent({ entries: [ADDED_ENTRY], summary: { ...DEFAULT_SUMMARY, added: 1 } });
+      renderComponent({
+        entries: [ADDED_ENTRY],
+        summary: { ...DEFAULT_SUMMARY, added: 1 },
+      });
       expect(screen.getByLabelText('Diff type: Added')).toBeInTheDocument();
     });
 
     it('shows "Modified" badge for modified entries', () => {
-      renderComponent({ entries: [MODIFIED_ENTRY], summary: { ...DEFAULT_SUMMARY, modified: 1 } });
+      renderComponent({
+        entries: [MODIFIED_ENTRY],
+        summary: { ...DEFAULT_SUMMARY, modified: 1 },
+      });
       expect(screen.getByLabelText('Diff type: Modified')).toBeInTheDocument();
     });
 
     it('shows "Removed" badge for removed entries', () => {
-      renderComponent({ entries: [REMOVED_ENTRY], summary: { ...DEFAULT_SUMMARY, removed: 1 } });
+      renderComponent({
+        entries: [REMOVED_ENTRY],
+        summary: { ...DEFAULT_SUMMARY, removed: 1 },
+      });
       expect(screen.getByLabelText('Diff type: Removed')).toBeInTheDocument();
     });
 
     it('applies correct CSS classes for added badge', () => {
-      renderComponent({ entries: [ADDED_ENTRY], summary: { ...DEFAULT_SUMMARY } });
+      renderComponent({
+        entries: [ADDED_ENTRY],
+        summary: { ...DEFAULT_SUMMARY },
+      });
       const badge = screen.getByLabelText('Diff type: Added');
       expect(badge.className).toContain('text-quality-good');
       expect(badge.className).toContain('bg-quality-good-bg');
     });
 
     it('applies correct CSS classes for modified badge', () => {
-      renderComponent({ entries: [MODIFIED_ENTRY], summary: { ...DEFAULT_SUMMARY } });
+      renderComponent({
+        entries: [MODIFIED_ENTRY],
+        summary: { ...DEFAULT_SUMMARY },
+      });
       const badge = screen.getByLabelText('Diff type: Modified');
       expect(badge.className).toContain('text-freshness-aging');
       expect(badge.className).toContain('bg-freshness-aging-bg');
     });
 
     it('applies correct CSS classes for removed badge', () => {
-      renderComponent({ entries: [REMOVED_ENTRY], summary: { ...DEFAULT_SUMMARY } });
+      renderComponent({
+        entries: [REMOVED_ENTRY],
+        summary: { ...DEFAULT_SUMMARY },
+      });
       const badge = screen.getByLabelText('Diff type: Removed');
       expect(badge.className).toContain('text-destructive');
       expect(badge.className).toContain('bg-destructive/10');
@@ -262,10 +296,18 @@ describe('SourceDocumentDiffReview', () => {
   describe('filter tabs', () => {
     it('renders all filter tabs', () => {
       renderComponent();
-      expect(screen.getByRole('tab', { name: /show all entries/i })).toBeInTheDocument();
-      expect(screen.getByRole('tab', { name: /show added entries/i })).toBeInTheDocument();
-      expect(screen.getByRole('tab', { name: /show modified entries/i })).toBeInTheDocument();
-      expect(screen.getByRole('tab', { name: /show removed entries/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('tab', { name: /show all entries/i }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('tab', { name: /show added entries/i }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('tab', { name: /show modified entries/i }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('tab', { name: /show removed entries/i }),
+      ).toBeInTheDocument();
     });
 
     it('shows "All" tab as selected by default', () => {
@@ -278,7 +320,9 @@ describe('SourceDocumentDiffReview', () => {
       const user = userEvent.setup();
       renderComponent();
 
-      await user.click(screen.getByRole('tab', { name: /show added entries/i }));
+      await user.click(
+        screen.getByRole('tab', { name: /show added entries/i }),
+      );
 
       // Added entry should be visible
       expect(
@@ -331,7 +375,9 @@ describe('SourceDocumentDiffReview', () => {
       renderComponent();
 
       // Switch to Added
-      await user.click(screen.getByRole('tab', { name: /show added entries/i }));
+      await user.click(
+        screen.getByRole('tab', { name: /show added entries/i }),
+      );
       // Switch back to All
       await user.click(screen.getByRole('tab', { name: /show all entries/i }));
 
@@ -357,9 +403,7 @@ describe('SourceDocumentDiffReview', () => {
 
       expect(screen.getByText('Old answer:')).toBeInTheDocument();
       expect(
-        screen.getByText(
-          'We follow GDPR guidelines and have appointed a DPO.',
-        ),
+        screen.getByText('We follow GDPR guidelines and have appointed a DPO.'),
       ).toBeInTheDocument();
 
       expect(screen.getByText('New answer:')).toBeInTheDocument();
@@ -382,9 +426,7 @@ describe('SourceDocumentDiffReview', () => {
       });
       renderComponent({ entries: [entry] });
 
-      expect(
-        screen.getByText(/Question changed to:/),
-      ).toBeInTheDocument();
+      expect(screen.getByText(/Question changed to:/)).toBeInTheDocument();
       expect(
         screen.getByText('What is UK GDPR compliance?', { selector: 'em' }),
       ).toBeInTheDocument();
@@ -439,9 +481,7 @@ describe('SourceDocumentDiffReview', () => {
 
     it('has aria-label for similarity score', () => {
       renderComponent({ entries: [MODIFIED_ENTRY] });
-      expect(
-        screen.getByLabelText('Similarity: 92%'),
-      ).toBeInTheDocument();
+      expect(screen.getByLabelText('Similarity: 92%')).toBeInTheDocument();
     });
 
     it('does not show similarity for added entries', () => {
@@ -465,9 +505,7 @@ describe('SourceDocumentDiffReview', () => {
         entries: [],
         summary: { added: 0, removed: 0, modified: 0, unchanged: 0 },
       });
-      expect(
-        screen.getByText('No diff entries found.'),
-      ).toBeInTheDocument();
+      expect(screen.getByText('No diff entries found.')).toBeInTheDocument();
     });
 
     it('shows filter message when filter produces no results', async () => {
@@ -477,7 +515,9 @@ describe('SourceDocumentDiffReview', () => {
         summary: { added: 0, removed: 0, modified: 1, unchanged: 0 },
       });
 
-      await user.click(screen.getByRole('tab', { name: /show added entries/i }));
+      await user.click(
+        screen.getByRole('tab', { name: /show added entries/i }),
+      );
 
       expect(
         screen.getByText('No entries match the current filter.'),
@@ -545,10 +585,14 @@ describe('SourceDocumentDiffReview', () => {
       const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' });
       expect(breadcrumb).toBeInTheDocument();
 
-      const sourceDocsLink = within(breadcrumb).getByRole('link', { name: 'Source Documents' });
+      const sourceDocsLink = within(breadcrumb).getByRole('link', {
+        name: 'Source Documents',
+      });
       expect(sourceDocsLink).toHaveAttribute('href', '/documents');
 
-      const filenameLink = within(breadcrumb).getByRole('link', { name: 'policy-v2.docx' });
+      const filenameLink = within(breadcrumb).getByRole('link', {
+        name: 'policy-v2.docx',
+      });
       expect(filenameLink).toHaveAttribute('href', '/documents/doc-new-id');
 
       expect(within(breadcrumb).getByText('Diff Review')).toBeInTheDocument();
@@ -599,16 +643,12 @@ describe('SourceDocumentDiffReview', () => {
 
     it('diff type badges have aria-labels', () => {
       renderComponent({ entries: [ADDED_ENTRY] });
-      expect(
-        screen.getByLabelText('Diff type: Added'),
-      ).toBeInTheDocument();
+      expect(screen.getByLabelText('Diff type: Added')).toBeInTheDocument();
     });
 
     it('status badges have aria-labels', () => {
       renderComponent({ entries: [REMOVED_ENTRY] });
-      expect(
-        screen.getByLabelText('Status: Dismissed'),
-      ).toBeInTheDocument();
+      expect(screen.getByLabelText('Status: Dismissed')).toBeInTheDocument();
     });
   });
 
@@ -695,14 +735,22 @@ describe('SourceDocumentDiffReview', () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          updated: [{ id: 'diff-1', status: 'applied', updated_at: new Date().toISOString() }],
+          updated: [
+            {
+              id: 'diff-1',
+              status: 'applied',
+              updated_at: new Date().toISOString(),
+            },
+          ],
           summary: { pending_review: 0, applied: 2, dismissed: 1 },
         }),
       });
 
       renderComponent({ entries: [MODIFIED_ENTRY] });
 
-      await user.click(screen.getByRole('button', { name: 'Apply this change' }));
+      await user.click(
+        screen.getByRole('button', { name: 'Apply this change' }),
+      );
 
       // After click, the entry should show Reset button (optimistic update)
       await waitFor(() => {
@@ -719,11 +767,15 @@ describe('SourceDocumentDiffReview', () => {
 
       renderComponent({ entries: [MODIFIED_ENTRY] });
 
-      await user.click(screen.getByRole('button', { name: 'Apply this change' }));
+      await user.click(
+        screen.getByRole('button', { name: 'Apply this change' }),
+      );
 
       // The Reset button (from optimistic update) should be disabled
       await waitFor(() => {
-        const resetButton = screen.getByRole('button', { name: 'Reset to pending review' });
+        const resetButton = screen.getByRole('button', {
+          name: 'Reset to pending review',
+        });
         expect(resetButton).toBeDisabled();
       });
     });
@@ -752,19 +804,36 @@ describe('SourceDocumentDiffReview', () => {
       renderComponent();
       // REMOVED_ENTRY has status 'dismissed', so Reset All should be visible
       expect(
-        screen.getByRole('button', { name: 'Reset all reviewed changes to pending' }),
+        screen.getByRole('button', {
+          name: 'Reset all reviewed changes to pending',
+        }),
       ).toBeInTheDocument();
     });
 
     it('disables bulk buttons when no pending entries', () => {
       const allApplied = [
-        makeEntry({ id: 'e1', diff_type: 'modified', status: 'applied', old_content: 'a', new_content: 'b' }),
-        makeEntry({ id: 'e2', diff_type: 'added', status: 'applied', new_content: 'c' }),
+        makeEntry({
+          id: 'e1',
+          diff_type: 'modified',
+          status: 'applied',
+          old_content: 'a',
+          new_content: 'b',
+        }),
+        makeEntry({
+          id: 'e2',
+          diff_type: 'added',
+          status: 'applied',
+          new_content: 'c',
+        }),
       ];
       renderComponent({ entries: allApplied });
 
-      const acceptBtn = screen.getByRole('button', { name: 'Accept all pending changes' });
-      const dismissBtn = screen.getByRole('button', { name: 'Dismiss all pending changes' });
+      const acceptBtn = screen.getByRole('button', {
+        name: 'Accept all pending changes',
+      });
+      const dismissBtn = screen.getByRole('button', {
+        name: 'Dismiss all pending changes',
+      });
       expect(acceptBtn).toBeDisabled();
       expect(dismissBtn).toBeDisabled();
     });
@@ -819,7 +888,9 @@ describe('SourceDocumentDiffReview', () => {
 
     it('displays status counts in the bulk toolbar', () => {
       renderComponent();
-      const toolbar = screen.getByRole('toolbar', { name: 'Bulk review actions' });
+      const toolbar = screen.getByRole('toolbar', {
+        name: 'Bulk review actions',
+      });
       // 2 pending (MODIFIED + ADDED), 0 applied, 1 dismissed (REMOVED)
       expect(within(toolbar).getByText(/2 pending/)).toBeInTheDocument();
       expect(within(toolbar).getByText(/1 dismissed/)).toBeInTheDocument();
@@ -848,12 +919,18 @@ describe('SourceDocumentDiffReview', () => {
         summary: { added: 0, removed: 0, modified: 1, unchanged: 0 },
       });
 
-      await user.click(screen.getByRole('button', { name: 'Apply this change' }));
+      await user.click(
+        screen.getByRole('button', { name: 'Apply this change' }),
+      );
 
       await waitFor(() => {
         const summaryRegion = screen.getByLabelText('Diff summary');
-        expect(within(summaryRegion).getByText(/0 pending/)).toBeInTheDocument();
-        expect(within(summaryRegion).getByText(/1 applied/)).toBeInTheDocument();
+        expect(
+          within(summaryRegion).getByText(/0 pending/),
+        ).toBeInTheDocument();
+        expect(
+          within(summaryRegion).getByText(/1 applied/),
+        ).toBeInTheDocument();
       });
     });
   });
@@ -898,7 +975,9 @@ describe('SourceDocumentDiffReview', () => {
 
       await user.click(screen.getByRole('radio', { name: 'Side-by-Side' }));
 
-      const sideBySideRadio = screen.getByRole('radio', { name: 'Side-by-Side' });
+      const sideBySideRadio = screen.getByRole('radio', {
+        name: 'Side-by-Side',
+      });
       expect(sideBySideRadio).toHaveAttribute('aria-checked', 'true');
 
       // In side-by-side mode, a grid container should be present
@@ -922,8 +1001,20 @@ describe('SourceDocumentDiffReview', () => {
 
     it('shows when all actionable entries are reviewed', () => {
       const allReviewed = [
-        makeEntry({ id: 'e1', diff_type: 'modified', status: 'applied', old_content: 'a', new_content: 'b', affected_item: { id: 'item-1', title: 'Item One' } }),
-        makeEntry({ id: 'e2', diff_type: 'added', status: 'dismissed', new_content: 'c' }),
+        makeEntry({
+          id: 'e1',
+          diff_type: 'modified',
+          status: 'applied',
+          old_content: 'a',
+          new_content: 'b',
+          affected_item: { id: 'item-1', title: 'Item One' },
+        }),
+        makeEntry({
+          id: 'e2',
+          diff_type: 'added',
+          status: 'dismissed',
+          new_content: 'c',
+        }),
         // Unchanged entries do not count — their status is irrelevant
         makeEntry({ id: 'e3', diff_type: 'unchanged', old_content: 'x' }),
       ];
@@ -934,14 +1025,31 @@ describe('SourceDocumentDiffReview', () => {
 
       const banner = screen.getByRole('status', { name: 'Review complete' });
       expect(banner).toBeInTheDocument();
-      expect(within(banner).getByText('All changes reviewed')).toBeInTheDocument();
-      expect(within(banner).getByText(/1 applied, 1 dismissed/)).toBeInTheDocument();
+      expect(
+        within(banner).getByText('All changes reviewed'),
+      ).toBeInTheDocument();
+      expect(
+        within(banner).getByText(/1 applied, 1 dismissed/),
+      ).toBeInTheDocument();
     });
 
     it('lists affected KB items with links', () => {
       const allReviewed = [
-        makeEntry({ id: 'e1', diff_type: 'modified', status: 'applied', old_content: 'a', new_content: 'b', affected_item: { id: 'item-1', title: 'Data Policy' } }),
-        makeEntry({ id: 'e2', diff_type: 'removed', status: 'dismissed', old_content: 'c', affected_item: { id: 'item-2', title: 'Access Control' } }),
+        makeEntry({
+          id: 'e1',
+          diff_type: 'modified',
+          status: 'applied',
+          old_content: 'a',
+          new_content: 'b',
+          affected_item: { id: 'item-1', title: 'Data Policy' },
+        }),
+        makeEntry({
+          id: 'e2',
+          diff_type: 'removed',
+          status: 'dismissed',
+          old_content: 'c',
+          affected_item: { id: 'item-2', title: 'Access Control' },
+        }),
       ];
       renderComponent({
         entries: allReviewed,
@@ -949,9 +1057,13 @@ describe('SourceDocumentDiffReview', () => {
       });
 
       const banner = screen.getByRole('status', { name: 'Review complete' });
-      const dataLink = within(banner).getByRole('link', { name: 'Data Policy' });
+      const dataLink = within(banner).getByRole('link', {
+        name: 'Data Policy',
+      });
       expect(dataLink).toHaveAttribute('href', '/item/item-1');
-      const accessLink = within(banner).getByRole('link', { name: 'Access Control' });
+      const accessLink = within(banner).getByRole('link', {
+        name: 'Access Control',
+      });
       expect(accessLink).toHaveAttribute('href', '/item/item-2');
     });
 
@@ -967,7 +1079,13 @@ describe('SourceDocumentDiffReview', () => {
 
     it('shows check icon in completion banner', () => {
       const allReviewed = [
-        makeEntry({ id: 'e1', diff_type: 'modified', status: 'applied', old_content: 'a', new_content: 'b' }),
+        makeEntry({
+          id: 'e1',
+          diff_type: 'modified',
+          status: 'applied',
+          old_content: 'a',
+          new_content: 'b',
+        }),
       ];
       renderComponent({
         entries: allReviewed,
@@ -1004,7 +1122,9 @@ describe('SourceDocumentDiffReview', () => {
       expect(screen.getByText('Reviewed 1 of 3')).toBeInTheDocument();
 
       // Apply the first entry
-      const applyButtons = screen.getAllByRole('button', { name: 'Apply this change' });
+      const applyButtons = screen.getAllByRole('button', {
+        name: 'Apply this change',
+      });
       await user.click(applyButtons[0]);
 
       await waitFor(() => {
@@ -1055,11 +1175,11 @@ describe('SourceDocumentDiffReview', () => {
       const user = userEvent.setup();
       renderComponent({ entries: [MODIFIED_ENTRY] });
 
-      await user.click(screen.getByRole('button', { name: 'Add a reviewer note' }));
+      await user.click(
+        screen.getByRole('button', { name: 'Add a reviewer note' }),
+      );
 
-      expect(
-        screen.getByLabelText('Reviewer note'),
-      ).toBeInTheDocument();
+      expect(screen.getByLabelText('Reviewer note')).toBeInTheDocument();
     });
 
     it('shows existing note in expanded state', () => {
@@ -1082,7 +1202,13 @@ describe('SourceDocumentDiffReview', () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          updated: [{ id: 'diff-1', status: 'applied', updated_at: new Date().toISOString() }],
+          updated: [
+            {
+              id: 'diff-1',
+              status: 'applied',
+              updated_at: new Date().toISOString(),
+            },
+          ],
           summary: { pending_review: 0, applied: 1, dismissed: 0 },
         }),
       });
@@ -1093,12 +1219,16 @@ describe('SourceDocumentDiffReview', () => {
       });
 
       // Expand the note textarea
-      await user.click(screen.getByRole('button', { name: 'Add a reviewer note' }));
+      await user.click(
+        screen.getByRole('button', { name: 'Add a reviewer note' }),
+      );
       const textarea = screen.getByLabelText('Reviewer note');
       await user.type(textarea, 'Approved by legal');
 
       // Apply the change
-      await user.click(screen.getByRole('button', { name: 'Apply this change' }));
+      await user.click(
+        screen.getByRole('button', { name: 'Apply this change' }),
+      );
 
       await waitFor(() => {
         expect(mockFetch).toHaveBeenCalledWith(
@@ -1115,7 +1245,9 @@ describe('SourceDocumentDiffReview', () => {
       const user = userEvent.setup();
       renderComponent({ entries: [MODIFIED_ENTRY] });
 
-      await user.click(screen.getByRole('button', { name: 'Add a reviewer note' }));
+      await user.click(
+        screen.getByRole('button', { name: 'Add a reviewer note' }),
+      );
 
       expect(screen.getByText('0/500')).toBeInTheDocument();
     });
@@ -1124,7 +1256,9 @@ describe('SourceDocumentDiffReview', () => {
       const user = userEvent.setup();
       renderComponent({ entries: [MODIFIED_ENTRY] });
 
-      await user.click(screen.getByRole('button', { name: 'Add a reviewer note' }));
+      await user.click(
+        screen.getByRole('button', { name: 'Add a reviewer note' }),
+      );
       const textarea = screen.getByLabelText('Reviewer note');
       await user.type(textarea, 'Test note');
 
@@ -1135,7 +1269,9 @@ describe('SourceDocumentDiffReview', () => {
       const user = userEvent.setup();
       renderComponent({ entries: [MODIFIED_ENTRY] });
 
-      await user.click(screen.getByRole('button', { name: 'Add a reviewer note' }));
+      await user.click(
+        screen.getByRole('button', { name: 'Add a reviewer note' }),
+      );
       const textarea = screen.getByLabelText('Reviewer note');
 
       expect(textarea).toHaveAttribute('maxLength', '500');
@@ -1154,7 +1290,9 @@ describe('SourceDocumentDiffReview', () => {
 
       const noteRegion = screen.getByLabelText('Saved reviewer note');
       expect(noteRegion).toBeInTheDocument();
-      expect(screen.getByText('Verified by compliance team.')).toBeInTheDocument();
+      expect(
+        screen.getByText('Verified by compliance team.'),
+      ).toBeInTheDocument();
     });
 
     it('shows "Edit note" button on reviewed entries with saved notes', () => {
@@ -1185,7 +1323,9 @@ describe('SourceDocumentDiffReview', () => {
       });
       renderComponent({ entries: [reviewedEntry] });
 
-      await user.click(screen.getByRole('button', { name: 'Edit reviewer note' }));
+      await user.click(
+        screen.getByRole('button', { name: 'Edit reviewer note' }),
+      );
 
       const textarea = screen.getByLabelText('Reviewer note');
       expect(textarea).toBeInTheDocument();
@@ -1249,7 +1389,9 @@ describe('SourceDocumentDiffReview', () => {
 
       const banner = screen.getByRole('status', { name: 'Review complete' });
       expect(
-        within(banner).getByRole('button', { name: /send 2 affected items to review queue/i }),
+        within(banner).getByRole('button', {
+          name: /send 2 affected items to review queue/i,
+        }),
       ).toBeInTheDocument();
     });
 
@@ -1264,7 +1406,9 @@ describe('SourceDocumentDiffReview', () => {
       const banner = screen.getByRole('status', { name: 'Review complete' });
       expect(banner).toBeInTheDocument();
       expect(
-        within(banner).queryByRole('button', { name: /send.*to review queue/i }),
+        within(banner).queryByRole('button', {
+          name: /send.*to review queue/i,
+        }),
       ).not.toBeInTheDocument();
     });
 
@@ -1281,12 +1425,16 @@ describe('SourceDocumentDiffReview', () => {
 
       const banner = screen.getByRole('status', { name: 'Review complete' });
       await user.click(
-        within(banner).getByRole('button', { name: /send 2 affected items to review queue/i }),
+        within(banner).getByRole('button', {
+          name: /send 2 affected items to review queue/i,
+        }),
       );
 
       await waitFor(() => {
         expect(
-          within(banner).getByRole('button', { name: /sending items to review queue/i }),
+          within(banner).getByRole('button', {
+            name: /sending items to review queue/i,
+          }),
         ).toBeInTheDocument();
         expect(within(banner).getByText('Sending...')).toBeInTheDocument();
       });
@@ -1314,12 +1462,18 @@ describe('SourceDocumentDiffReview', () => {
 
       const banner = screen.getByRole('status', { name: 'Review complete' });
       await user.click(
-        within(banner).getByRole('button', { name: /send 2 affected items to review queue/i }),
+        within(banner).getByRole('button', {
+          name: /send 2 affected items to review queue/i,
+        }),
       );
 
       await waitFor(() => {
-        expect(within(banner).getByText(/2 items sent to review queue/)).toBeInTheDocument();
-        const reviewLink = within(banner).getByRole('link', { name: /view items in review queue/i });
+        expect(
+          within(banner).getByText(/2 items sent to review queue/),
+        ).toBeInTheDocument();
+        const reviewLink = within(banner).getByRole('link', {
+          name: /view items in review queue/i,
+        });
         expect(reviewLink).toHaveAttribute(
           'href',
           '/review?status=all&source_document_id=test-doc-id',
@@ -1342,13 +1496,19 @@ describe('SourceDocumentDiffReview', () => {
 
       const banner = screen.getByRole('status', { name: 'Review complete' });
       await user.click(
-        within(banner).getByRole('button', { name: /send 2 affected items to review queue/i }),
+        within(banner).getByRole('button', {
+          name: /send 2 affected items to review queue/i,
+        }),
       );
 
       await waitFor(() => {
-        expect(within(banner).getByText(/failed to send items to review queue/i)).toBeInTheDocument();
         expect(
-          within(banner).getByRole('button', { name: /retry sending items to review queue/i }),
+          within(banner).getByText(/failed to send items to review queue/i),
+        ).toBeInTheDocument();
+        expect(
+          within(banner).getByRole('button', {
+            name: /retry sending items to review queue/i,
+          }),
         ).toBeInTheDocument();
       });
     });
@@ -1372,9 +1532,13 @@ describe('SourceDocumentDiffReview', () => {
         summary: { added: 0, removed: 0, modified: 1, unchanged: 0 },
       });
 
-      const toolbar = screen.getByRole('toolbar', { name: 'Bulk review actions' });
+      const toolbar = screen.getByRole('toolbar', {
+        name: 'Bulk review actions',
+      });
       expect(
-        within(toolbar).getByRole('button', { name: /send affected items to review/i }),
+        within(toolbar).getByRole('button', {
+          name: /send affected items to review/i,
+        }),
       ).toBeInTheDocument();
     });
   });
@@ -1414,7 +1578,12 @@ describe('SourceDocumentDiffReview', () => {
       new_content: 'This paragraph has not changed.',
     });
 
-    const FULL_TEXT_ENTRIES = [FULL_TEXT_ADDED, FULL_TEXT_REMOVED, FULL_TEXT_MODIFIED, FULL_TEXT_UNCHANGED];
+    const FULL_TEXT_ENTRIES = [
+      FULL_TEXT_ADDED,
+      FULL_TEXT_REMOVED,
+      FULL_TEXT_MODIFIED,
+      FULL_TEXT_UNCHANGED,
+    ];
 
     const FULL_TEXT_SUMMARY = {
       added: 1,
@@ -1475,7 +1644,9 @@ describe('SourceDocumentDiffReview', () => {
       });
 
       expect(screen.getByText('Added:')).toBeInTheDocument();
-      expect(screen.getByText('This is a newly added paragraph about compliance.')).toBeInTheDocument();
+      expect(
+        screen.getByText('This is a newly added paragraph about compliance.'),
+      ).toBeInTheDocument();
     });
 
     it('shows "Removed:" label for removed full-text entries', () => {
@@ -1485,7 +1656,9 @@ describe('SourceDocumentDiffReview', () => {
       });
 
       expect(screen.getByText('Removed:')).toBeInTheDocument();
-      expect(screen.getByText('This outdated paragraph has been removed.')).toBeInTheDocument();
+      expect(
+        screen.getByText('This outdated paragraph has been removed.'),
+      ).toBeInTheDocument();
     });
 
     it('shows "Old version:" and "New version:" labels for modified full-text entries', () => {
@@ -1525,8 +1698,12 @@ describe('SourceDocumentDiffReview', () => {
         summary: { added: 0, removed: 0, modified: 1, unchanged: 0 },
       });
 
-      expect(screen.getByRole('button', { name: 'Apply this change' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Dismiss this change' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Apply this change' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Dismiss this change' }),
+      ).toBeInTheDocument();
     });
 
     it('shows diff type badges for full-text entries', () => {
@@ -1547,11 +1724,12 @@ describe('SourceDocumentDiffReview', () => {
       });
 
       // Q&A mode should show "Q:" heading
-      expect(screen.getByText('Q: What is your data protection policy?')).toBeInTheDocument();
+      expect(
+        screen.getByText('Q: What is your data protection policy?'),
+      ).toBeInTheDocument();
       // And "Old answer:" / "New answer:" labels
       expect(screen.getByText('Old answer:')).toBeInTheDocument();
       expect(screen.getByText('New answer:')).toBeInTheDocument();
     });
   });
 });
-

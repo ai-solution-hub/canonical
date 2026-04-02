@@ -71,7 +71,9 @@ vi.mock('@/contexts/taxonomy-context', () => ({
   useTaxonomy: () => ({
     getDomainNames: () => ['Corporate', 'Technical'],
     getSubtopics: (domain: string) =>
-      domain === 'Corporate' ? ['Company History', 'Staff'] : ['Infrastructure'],
+      domain === 'Corporate'
+        ? ['Company History', 'Staff']
+        : ['Infrastructure'],
     formatSubtopic: (name: string) => name,
     formatDomainName: (name: string) => name,
   }),
@@ -79,14 +81,19 @@ vi.mock('@/contexts/taxonomy-context', () => ({
 
 // Mock the Select component to avoid Radix pointer capture issues in jsdom
 vi.mock('@/components/ui/select', () => ({
-  Select: ({ children }: {
+  Select: ({
+    children,
+  }: {
     value: string;
     onValueChange: (val: string) => void;
     children: React.ReactNode;
-  }) => (
-    <div data-testid="select-wrapper">{children}</div>
-  ),
-  SelectTrigger: ({ id, children, className, ...props }: Record<string, unknown>) => (
+  }) => <div data-testid="select-wrapper">{children}</div>,
+  SelectTrigger: ({
+    id,
+    children,
+    className,
+    ...props
+  }: Record<string, unknown>) => (
     <button
       id={id as string}
       data-testid={`select-trigger-${id}`}
@@ -102,9 +109,13 @@ vi.mock('@/components/ui/select', () => ({
   SelectContent: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
-  SelectItem: ({ value, children }: { value: string; children: React.ReactNode }) => (
-    <div data-testid={`select-item-${value}`}>{children}</div>
-  ),
+  SelectItem: ({
+    value,
+    children,
+  }: {
+    value: string;
+    children: React.ReactNode;
+  }) => <div data-testid={`select-item-${value}`}>{children}</div>,
   SelectGroup: ({ children }: { children: React.ReactNode }) => (
     <div role="group">{children}</div>
   ),
@@ -168,7 +179,9 @@ describe('CreateContentClient', () => {
 
     it('renders details toggle with descriptive label', () => {
       renderForm();
-      expect(screen.getByText('Classification, tags, and source info')).toBeInTheDocument();
+      expect(
+        screen.getByText('Classification, tags, and source info'),
+      ).toBeInTheDocument();
     });
 
     it('renders character count on title input', () => {
@@ -223,7 +236,10 @@ describe('CreateContentClient', () => {
       await waitFor(() => {
         const titleErrorEl = screen.getByText('Title is required');
         expect(titleErrorEl).toHaveAttribute('id', 'title-error');
-        expect(titleInput).toHaveAttribute('aria-describedby', 'title-error title-char-count');
+        expect(titleInput).toHaveAttribute(
+          'aria-describedby',
+          'title-error title-char-count',
+        );
       });
     });
 

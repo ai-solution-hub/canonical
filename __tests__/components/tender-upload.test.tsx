@@ -32,7 +32,12 @@ vi.mock('sonner', () => ({
 }));
 
 vi.mock('@/components/ui/button', () => ({
-  Button: ({ children, onClick, disabled, ...props }: Record<string, unknown>) => (
+  Button: ({
+    children,
+    onClick,
+    disabled,
+    ...props
+  }: Record<string, unknown>) => (
     <button
       onClick={onClick as React.MouseEventHandler}
       disabled={disabled as boolean}
@@ -45,15 +50,39 @@ vi.mock('@/components/ui/button', () => ({
 
 vi.mock('@/components/ui/progress', () => ({
   Progress: (props: Record<string, unknown>) => (
-    <div role="progressbar" aria-label={props['aria-label'] as string} data-testid="progress-bar" />
+    <div
+      role="progressbar"
+      aria-label={props['aria-label'] as string}
+      data-testid="progress-bar"
+    />
   ),
 }));
 
 vi.mock('lucide-react', () => ({
-  FileUp: (props: Record<string, unknown>) => <span data-testid="file-up-icon" aria-hidden={props['aria-hidden'] as string} />,
-  Loader2: (props: Record<string, unknown>) => <span data-testid="loader-icon" aria-hidden={props['aria-hidden'] as string} />,
-  CheckCircle: (props: Record<string, unknown>) => <span data-testid="check-icon" aria-hidden={props['aria-hidden'] as string} />,
-  AlertTriangle: (props: Record<string, unknown>) => <span data-testid="alert-icon" aria-hidden={props['aria-hidden'] as string} />,
+  FileUp: (props: Record<string, unknown>) => (
+    <span
+      data-testid="file-up-icon"
+      aria-hidden={props['aria-hidden'] as string}
+    />
+  ),
+  Loader2: (props: Record<string, unknown>) => (
+    <span
+      data-testid="loader-icon"
+      aria-hidden={props['aria-hidden'] as string}
+    />
+  ),
+  CheckCircle: (props: Record<string, unknown>) => (
+    <span
+      data-testid="check-icon"
+      aria-hidden={props['aria-hidden'] as string}
+    />
+  ),
+  AlertTriangle: (props: Record<string, unknown>) => (
+    <span
+      data-testid="alert-icon"
+      aria-hidden={props['aria-hidden'] as string}
+    />
+  ),
 }));
 
 // Import AFTER mocks
@@ -100,7 +129,9 @@ describe('TenderUpload', () => {
   it('renders idle state by default', () => {
     render(<TenderUpload {...defaultProps} />);
     expect(screen.getByText('Upload Tender Document')).toBeInTheDocument();
-    expect(screen.getByText(/Drag and drop your tender document here/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Drag and drop your tender document here/),
+    ).toBeInTheDocument();
     expect(screen.getByText(/Accepts: .docx, .pdf/)).toBeInTheDocument();
   });
 
@@ -141,35 +172,49 @@ describe('TenderUpload', () => {
 
     // Validation triggers synchronously via processFile
     expect(screen.getByText(/Invalid file type/)).toBeInTheDocument();
-    expect(mockToast.error).toHaveBeenCalledWith(expect.stringContaining('Invalid file type'));
+    expect(mockToast.error).toHaveBeenCalledWith(
+      expect.stringContaining('Invalid file type'),
+    );
   });
 
   it('rejects files exceeding 50MB', async () => {
     const user = userEvent.setup();
     render(<TenderUpload {...defaultProps} />);
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
 
-    const largeFile = createMockFile('huge.pdf', 51 * 1024 * 1024, 'application/pdf');
+    const largeFile = createMockFile(
+      'huge.pdf',
+      51 * 1024 * 1024,
+      'application/pdf',
+    );
     await user.upload(input, largeFile);
 
     await waitFor(() => {
       expect(screen.getByText(/File is too large/)).toBeInTheDocument();
     });
-    expect(mockToast.error).toHaveBeenCalledWith(expect.stringContaining('too large'));
+    expect(mockToast.error).toHaveBeenCalledWith(
+      expect.stringContaining('too large'),
+    );
   });
 
   it('accepts .pdf files', async () => {
     mockFetch
       .mockReturnValueOnce(mockFetchResponse({ path: '/uploads/tender.pdf' }))
-      .mockReturnValueOnce(mockFetchResponse({
-        sections: [],
-        total_questions: 5,
-        total_sections: 2,
-      }));
+      .mockReturnValueOnce(
+        mockFetchResponse({
+          sections: [],
+          total_questions: 5,
+          total_sections: 2,
+        }),
+      );
 
     const user = userEvent.setup();
     render(<TenderUpload {...defaultProps} />);
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
 
     const file = createMockFile('tender.pdf', 1024, 'application/pdf');
     await user.upload(input, file);
@@ -185,15 +230,19 @@ describe('TenderUpload', () => {
   it('accepts .docx files', async () => {
     mockFetch
       .mockReturnValueOnce(mockFetchResponse({ path: '/uploads/tender.docx' }))
-      .mockReturnValueOnce(mockFetchResponse({
-        sections: [],
-        total_questions: 3,
-        total_sections: 1,
-      }));
+      .mockReturnValueOnce(
+        mockFetchResponse({
+          sections: [],
+          total_questions: 3,
+          total_sections: 1,
+        }),
+      );
 
     const user = userEvent.setup();
     render(<TenderUpload {...defaultProps} />);
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
 
     const file = createMockFile(
       'tender.docx',
@@ -218,7 +267,9 @@ describe('TenderUpload', () => {
 
     const user = userEvent.setup();
     render(<TenderUpload {...defaultProps} />);
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
 
     const file = createMockFile('tender.pdf', 1024, 'application/pdf');
     await user.upload(input, file);
@@ -232,22 +283,28 @@ describe('TenderUpload', () => {
   it('shows complete state after successful extraction', async () => {
     mockFetch
       .mockReturnValueOnce(mockFetchResponse({ path: '/uploads/tender.pdf' }))
-      .mockReturnValueOnce(mockFetchResponse({
-        sections: [],
-        total_questions: 8,
-        total_sections: 3,
-      }));
+      .mockReturnValueOnce(
+        mockFetchResponse({
+          sections: [],
+          total_questions: 8,
+          total_sections: 3,
+        }),
+      );
 
     const user = userEvent.setup();
     render(<TenderUpload {...defaultProps} />);
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
 
     const file = createMockFile('tender.pdf', 1024, 'application/pdf');
     await user.upload(input, file);
 
     await waitFor(() => {
       expect(screen.getByText('Extraction complete')).toBeInTheDocument();
-      expect(screen.getByText(/Found 8 questions across 3 sections/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Found 8 questions across 3 sections/),
+      ).toBeInTheDocument();
       expect(screen.getByTestId('check-icon')).toBeInTheDocument();
     });
   });
@@ -255,15 +312,19 @@ describe('TenderUpload', () => {
   it('shows success toast after extraction', async () => {
     mockFetch
       .mockReturnValueOnce(mockFetchResponse({ path: '/uploads/tender.pdf' }))
-      .mockReturnValueOnce(mockFetchResponse({
-        sections: [],
-        total_questions: 8,
-        total_sections: 3,
-      }));
+      .mockReturnValueOnce(
+        mockFetchResponse({
+          sections: [],
+          total_questions: 8,
+          total_sections: 3,
+        }),
+      );
 
     const user = userEvent.setup();
     render(<TenderUpload {...defaultProps} />);
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
 
     const file = createMockFile('tender.pdf', 1024, 'application/pdf');
     await user.upload(input, file);
@@ -278,15 +339,19 @@ describe('TenderUpload', () => {
   it('shows Review Questions and Upload Another buttons after completion', async () => {
     mockFetch
       .mockReturnValueOnce(mockFetchResponse({ path: '/uploads/tender.pdf' }))
-      .mockReturnValueOnce(mockFetchResponse({
-        sections: [],
-        total_questions: 5,
-        total_sections: 2,
-      }));
+      .mockReturnValueOnce(
+        mockFetchResponse({
+          sections: [],
+          total_questions: 5,
+          total_sections: 2,
+        }),
+      );
 
     const user = userEvent.setup();
     render(<TenderUpload {...defaultProps} />);
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
 
     const file = createMockFile('tender.pdf', 1024, 'application/pdf');
     await user.upload(input, file);
@@ -309,7 +374,9 @@ describe('TenderUpload', () => {
 
     const user = userEvent.setup();
     render(<TenderUpload {...defaultProps} />);
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
 
     const file = createMockFile('tender.pdf', 1024, 'application/pdf');
     await user.upload(input, file);
@@ -319,17 +386,23 @@ describe('TenderUpload', () => {
     });
 
     await user.click(screen.getByText('Review Questions'));
-    expect(defaultProps.onUploadComplete).toHaveBeenCalledWith(extractionResult);
+    expect(defaultProps.onUploadComplete).toHaveBeenCalledWith(
+      extractionResult,
+    );
   });
 
   // ---- Error state ----
 
   it('shows error state when upload fails', async () => {
-    mockFetch.mockReturnValueOnce(mockFetchResponse({ error: 'Storage error' }, false, 500));
+    mockFetch.mockReturnValueOnce(
+      mockFetchResponse({ error: 'Storage error' }, false, 500),
+    );
 
     const user = userEvent.setup();
     render(<TenderUpload {...defaultProps} />);
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
 
     const file = createMockFile('tender.pdf', 1024, 'application/pdf');
     await user.upload(input, file);
@@ -344,11 +417,15 @@ describe('TenderUpload', () => {
   it('shows error state when extraction fails', async () => {
     mockFetch
       .mockReturnValueOnce(mockFetchResponse({ path: '/uploads/tender.pdf' }))
-      .mockReturnValueOnce(mockFetchResponse({ error: 'Extraction timeout' }, false, 500));
+      .mockReturnValueOnce(
+        mockFetchResponse({ error: 'Extraction timeout' }, false, 500),
+      );
 
     const user = userEvent.setup();
     render(<TenderUpload {...defaultProps} />);
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
 
     const file = createMockFile('tender.pdf', 1024, 'application/pdf');
     await user.upload(input, file);
@@ -360,11 +437,15 @@ describe('TenderUpload', () => {
   });
 
   it('shows Try Again button in error state', async () => {
-    mockFetch.mockReturnValueOnce(mockFetchResponse({ error: 'Error' }, false, 500));
+    mockFetch.mockReturnValueOnce(
+      mockFetchResponse({ error: 'Error' }, false, 500),
+    );
 
     const user = userEvent.setup();
     render(<TenderUpload {...defaultProps} />);
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
 
     const file = createMockFile('tender.pdf', 1024, 'application/pdf');
     await user.upload(input, file);
@@ -375,11 +456,15 @@ describe('TenderUpload', () => {
   });
 
   it('resets to idle state when Try Again is clicked', async () => {
-    mockFetch.mockReturnValueOnce(mockFetchResponse({ error: 'Error' }, false, 500));
+    mockFetch.mockReturnValueOnce(
+      mockFetchResponse({ error: 'Error' }, false, 500),
+    );
 
     const user = userEvent.setup();
     render(<TenderUpload {...defaultProps} />);
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
 
     const file = createMockFile('tender.pdf', 1024, 'application/pdf');
     await user.upload(input, file);
@@ -400,7 +485,9 @@ describe('TenderUpload', () => {
 
     const user = userEvent.setup();
     render(<TenderUpload {...defaultProps} />);
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
 
     const file = createMockFile('tender.pdf', 1024, 'application/pdf');
     await user.upload(input, file);
@@ -435,11 +522,13 @@ describe('TenderUpload', () => {
   it('processes file on drop', async () => {
     mockFetch
       .mockReturnValueOnce(mockFetchResponse({ path: '/uploads/tender.pdf' }))
-      .mockReturnValueOnce(mockFetchResponse({
-        sections: [],
-        total_questions: 5,
-        total_sections: 2,
-      }));
+      .mockReturnValueOnce(
+        mockFetchResponse({
+          sections: [],
+          total_questions: 5,
+          total_sections: 2,
+        }),
+      );
 
     render(<TenderUpload {...defaultProps} />);
     const dropZone = screen.getByRole('button', {
@@ -473,15 +562,19 @@ describe('TenderUpload', () => {
   it('resets to idle when Upload Another is clicked', async () => {
     mockFetch
       .mockReturnValueOnce(mockFetchResponse({ path: '/uploads/tender.pdf' }))
-      .mockReturnValueOnce(mockFetchResponse({
-        sections: [],
-        total_questions: 5,
-        total_sections: 2,
-      }));
+      .mockReturnValueOnce(
+        mockFetchResponse({
+          sections: [],
+          total_questions: 5,
+          total_sections: 2,
+        }),
+      );
 
     const user = userEvent.setup();
     render(<TenderUpload {...defaultProps} />);
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
 
     const file = createMockFile('tender.pdf', 1024, 'application/pdf');
     await user.upload(input, file);
@@ -502,15 +595,19 @@ describe('TenderUpload', () => {
   it('detects pdf format from filename', async () => {
     mockFetch
       .mockReturnValueOnce(mockFetchResponse({ path: '/uploads/tender.pdf' }))
-      .mockReturnValueOnce(mockFetchResponse({
-        sections: [],
-        total_questions: 1,
-        total_sections: 1,
-      }));
+      .mockReturnValueOnce(
+        mockFetchResponse({
+          sections: [],
+          total_questions: 1,
+          total_sections: 1,
+        }),
+      );
 
     const user = userEvent.setup();
     render(<TenderUpload {...defaultProps} />);
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
 
     const file = createMockFile('tender.pdf', 1024, 'application/pdf');
     await user.upload(input, file);
@@ -525,15 +622,19 @@ describe('TenderUpload', () => {
   it('detects docx format from filename', async () => {
     mockFetch
       .mockReturnValueOnce(mockFetchResponse({ path: '/uploads/tender.docx' }))
-      .mockReturnValueOnce(mockFetchResponse({
-        sections: [],
-        total_questions: 1,
-        total_sections: 1,
-      }));
+      .mockReturnValueOnce(
+        mockFetchResponse({
+          sections: [],
+          total_questions: 1,
+          total_sections: 1,
+        }),
+      );
 
     const user = userEvent.setup();
     render(<TenderUpload {...defaultProps} />);
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
 
     const file = createMockFile(
       'tender.docx',

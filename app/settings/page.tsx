@@ -21,28 +21,44 @@ import type { SettingsSection } from '@/components/settings/settings-sidebar';
 // ---------------------------------------------------------------------------
 
 const LazyTeamSection = lazy(() =>
-  import('@/components/settings/team-section').then((m) => ({ default: m.TeamSection }))
+  import('@/components/settings/team-section').then((m) => ({
+    default: m.TeamSection,
+  })),
 );
 const LazyGovernanceSection = lazy(() =>
-  import('@/components/settings/governance-section').then((m) => ({ default: m.GovernanceSection }))
+  import('@/components/settings/governance-section').then((m) => ({
+    default: m.GovernanceSection,
+  })),
 );
 const LazyActivitySection = lazy(() =>
-  import('@/components/settings/activity-section').then((m) => ({ default: m.ActivitySection }))
+  import('@/components/settings/activity-section').then((m) => ({
+    default: m.ActivitySection,
+  })),
 );
 const LazyContentOrganisationSection = lazy(() =>
-  import('@/components/settings/content-organisation-section').then((m) => ({ default: m.ContentOrganisationSection }))
+  import('@/components/settings/content-organisation-section').then((m) => ({
+    default: m.ContentOrganisationSection,
+  })),
 );
 const LazyEntitiesSection = lazy(() =>
-  import('@/components/settings/entities-section').then((m) => ({ default: m.EntitiesSection }))
+  import('@/components/settings/entities-section').then((m) => ({
+    default: m.EntitiesSection,
+  })),
 );
 const LazyGuidesSection = lazy(() =>
-  import('@/components/settings/guides-section').then((m) => ({ default: m.GuidesSection }))
+  import('@/components/settings/guides-section').then((m) => ({
+    default: m.GuidesSection,
+  })),
 );
 const LazyDeveloperSetupSection = lazy(() =>
-  import('@/components/settings/developer-setup-section').then((m) => ({ default: m.DeveloperSetupSection }))
+  import('@/components/settings/developer-setup-section').then((m) => ({
+    default: m.DeveloperSetupSection,
+  })),
 );
 const LazyContentOwnerManagement = lazy(() =>
-  import('@/components/settings/content-owner-management').then((m) => ({ default: m.ContentOwnerManagement }))
+  import('@/components/settings/content-owner-management').then((m) => ({
+    default: m.ContentOwnerManagement,
+  })),
 );
 
 // ---------------------------------------------------------------------------
@@ -174,7 +190,12 @@ function SettingsContent() {
   }
 
   return (
-    <div className={cn('mx-auto px-4 py-8 sm:px-6', canAdmin ? 'max-w-5xl' : 'max-w-3xl')}>
+    <div
+      className={cn(
+        'mx-auto px-4 py-8 sm:px-6',
+        canAdmin ? 'max-w-5xl' : 'max-w-3xl',
+      )}
+    >
       <div className="mb-6 flex items-center gap-3">
         <Settings className="size-6 text-muted-foreground" aria-hidden="true" />
         <div className="flex-1">
@@ -198,7 +219,10 @@ function SettingsContent() {
           activeSection={activeSection}
           onSectionChange={handleSectionChange}
         />
-        <section className="min-w-0 flex-1 rounded-lg border bg-card p-6" aria-label="Settings content">
+        <section
+          className="min-w-0 flex-1 rounded-lg border bg-card p-6"
+          aria-label="Settings content"
+        >
           <SectionContent section={activeSection} />
         </section>
       </div>

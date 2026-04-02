@@ -59,15 +59,23 @@ describe('CLIENT_CONFIG', () => {
 
   describe('entity_examples', () => {
     it('has all required entity example fields', () => {
-      expect(typeof CLIENT_CONFIG.entity_examples.organisation_name).toBe('string');
-      expect(typeof CLIENT_CONFIG.entity_examples.organisation_short).toBe('string');
+      expect(typeof CLIENT_CONFIG.entity_examples.organisation_name).toBe(
+        'string',
+      );
+      expect(typeof CLIENT_CONFIG.entity_examples.organisation_short).toBe(
+        'string',
+      );
       expect(typeof CLIENT_CONFIG.entity_examples.product_name).toBe('string');
       expect(typeof CLIENT_CONFIG.entity_examples.product_short).toBe('string');
     });
 
     it('has non-empty example values', () => {
-      expect(CLIENT_CONFIG.entity_examples.organisation_name.length).toBeGreaterThan(0);
-      expect(CLIENT_CONFIG.entity_examples.product_name.length).toBeGreaterThan(0);
+      expect(
+        CLIENT_CONFIG.entity_examples.organisation_name.length,
+      ).toBeGreaterThan(0);
+      expect(CLIENT_CONFIG.entity_examples.product_name.length).toBeGreaterThan(
+        0,
+      );
     });
   });
 });

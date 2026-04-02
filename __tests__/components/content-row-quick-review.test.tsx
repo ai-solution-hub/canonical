@@ -22,7 +22,9 @@ vi.mock('@/contexts/taxonomy-context', () => ({
 
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: Record<string, unknown>) => (
-    <a href={href as string} {...props}>{children as React.ReactNode}</a>
+    <a href={href as string} {...props}>
+      {children as React.ReactNode}
+    </a>
   ),
 }));
 
@@ -129,7 +131,9 @@ function renderWithQuery(ui: React.ReactElement) {
 // Mock data factory
 // ---------------------------------------------------------------------------
 
-function makeContentItem(overrides: Partial<ContentListItem> = {}): ContentListItem {
+function makeContentItem(
+  overrides: Partial<ContentListItem> = {},
+): ContentListItem {
   return {
     id: 'row-1',
     title: 'Default Row Title',
@@ -175,9 +179,7 @@ describe('ContentRow with QuickReviewActions', () => {
   });
 
   it('quick review actions rendered in row when canEdit={true}', () => {
-    renderWithQuery(
-      <ContentRow item={makeContentItem()} canEdit={true} />,
-    );
+    renderWithQuery(<ContentRow item={makeContentItem()} canEdit={true} />);
     expect(screen.getByLabelText('Verify')).toBeInTheDocument();
     expect(screen.getByLabelText('Flag for review')).toBeInTheDocument();
   });
@@ -189,12 +191,13 @@ describe('ContentRow with QuickReviewActions', () => {
   });
 
   it('actions do not navigate (stopPropagation)', () => {
-    renderWithQuery(
-      <ContentRow item={makeContentItem()} canEdit={true} />,
-    );
+    renderWithQuery(<ContentRow item={makeContentItem()} canEdit={true} />);
 
     const verifyBtn = screen.getByLabelText('Verify');
-    const clickEvent = new MouseEvent('click', { bubbles: true, cancelable: true });
+    const clickEvent = new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+    });
     const preventDefaultSpy = vi.spyOn(clickEvent, 'preventDefault');
     const stopPropagationSpy = vi.spyOn(clickEvent, 'stopPropagation');
 

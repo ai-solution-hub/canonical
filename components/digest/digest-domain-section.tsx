@@ -71,7 +71,11 @@ export function DigestDomainSection({
                   href={`/item/${item.id}`}
                   className="group flex items-start gap-2 rounded-lg p-2 transition-colors hover:bg-background/60"
                 >
-                  <ContentTypeIcon contentType={item.content_type ?? null} size="size-4" className="mt-0.5 transition-colors group-hover:text-foreground" />
+                  <ContentTypeIcon
+                    contentType={item.content_type ?? null}
+                    size="size-4"
+                    className="mt-0.5 transition-colors group-hover:text-foreground"
+                  />
                   <div className="min-w-0">
                     <span className="text-sm font-medium leading-tight text-foreground group-hover:underline">
                       {item.title}

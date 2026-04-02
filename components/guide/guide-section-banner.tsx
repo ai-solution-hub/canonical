@@ -4,7 +4,10 @@ import { useMemo } from 'react';
 import Link from 'next/link';
 import { BookOpen, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import type { GuideSectionMatch, MatchStrength } from '@/lib/guide-section-mapping';
+import type {
+  GuideSectionMatch,
+  MatchStrength,
+} from '@/lib/guide-section-mapping';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -24,7 +27,10 @@ export interface GuideSectionBannerProps {
 /** Group matches by guide for display */
 function groupByGuide(
   matches: GuideSectionMatch[],
-): Map<string, { guideName: string; guideSlug: string; sections: GuideSectionMatch[] }> {
+): Map<
+  string,
+  { guideName: string; guideSlug: string; sections: GuideSectionMatch[] }
+> {
   const groups = new Map<
     string,
     { guideName: string; guideSlug: string; sections: GuideSectionMatch[] }
@@ -79,7 +85,10 @@ export function GuideSectionBanner({
   guideSections,
   onDismiss,
 }: GuideSectionBannerProps) {
-  const guideGroups = useMemo(() => groupByGuide(guideSections), [guideSections]);
+  const guideGroups = useMemo(
+    () => groupByGuide(guideSections),
+    [guideSections],
+  );
 
   // Don't render if there are no matches
   if (guideSections.length === 0) {

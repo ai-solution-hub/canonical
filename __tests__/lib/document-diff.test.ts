@@ -182,7 +182,8 @@ describe('extractQAPairs', () => {
   });
 
   it('returns empty array for text with no Q&A structure', () => {
-    const text = 'This is just a regular paragraph with no questions or answers.';
+    const text =
+      'This is just a regular paragraph with no questions or answers.';
     expect(extractQAPairs(text)).toEqual([]);
   });
 
@@ -208,7 +209,9 @@ describe('extractQAPairs', () => {
 
     expect(pairs).toHaveLength(MAX_QA_PAIRS);
     expect(pairs[0].question).toBe('Question number 0?');
-    expect(pairs[MAX_QA_PAIRS - 1].question).toBe(`Question number ${MAX_QA_PAIRS - 1}?`);
+    expect(pairs[MAX_QA_PAIRS - 1].question).toBe(
+      `Question number ${MAX_QA_PAIRS - 1}?`,
+    );
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining(`truncated ${count} pairs to ${MAX_QA_PAIRS}`),
     );
@@ -280,10 +283,9 @@ describe('computeDocumentDiff', () => {
   });
 
   it('detects modified via exact question match with different answer', () => {
-    const oldText = [
-      'Q: What is your company name?',
-      'A: Acme Corp',
-    ].join('\n');
+    const oldText = ['Q: What is your company name?', 'A: Acme Corp'].join(
+      '\n',
+    );
     const newText = [
       'Q: What is your company name?',
       'A: Acme Corporation Ltd',
@@ -324,10 +326,9 @@ describe('computeDocumentDiff', () => {
   });
 
   it('treats low-similarity questions as separate added/removed', () => {
-    const oldText = [
-      'Q: What is your company name?',
-      'A: Acme Corp',
-    ].join('\n');
+    const oldText = ['Q: What is your company name?', 'A: Acme Corp'].join(
+      '\n',
+    );
     const newText = [
       'Q: How many data centres do you operate?',
       'A: Three, across the UK.',
@@ -352,9 +353,9 @@ describe('computeDocumentDiff', () => {
 
     const newText = [
       'Q: What is your company name?',
-      'A: Acme Corp',         // unchanged
+      'A: Acme Corp', // unchanged
       'Q: How many employees?',
-      'A: 200',               // modified (answer changed)
+      'A: 200', // modified (answer changed)
       'Q: Do you have ISO 27001?',
       'A: Yes, certified since 2020.', // added (new question)
     ].join('\n');
@@ -363,22 +364,18 @@ describe('computeDocumentDiff', () => {
 
     expect(result.summary.unchanged).toBe(1);
     expect(result.summary.modified).toBe(1);
-    expect(result.summary.removed).toBe(1);  // turnover removed
-    expect(result.summary.added).toBe(1);    // ISO 27001 added
+    expect(result.summary.removed).toBe(1); // turnover removed
+    expect(result.summary.added).toBe(1); // ISO 27001 added
     expect(result.summary.total_old).toBe(3);
     expect(result.summary.total_new).toBe(3);
   });
 
   it('summary counts are correct and match entry counts', () => {
-    const oldText = [
-      'Q: Q1\nA: A1',
-      'Q: Q2\nA: A2',
-      'Q: Q3\nA: A3',
-    ].join('\n');
+    const oldText = ['Q: Q1\nA: A1', 'Q: Q2\nA: A2', 'Q: Q3\nA: A3'].join('\n');
     const newText = [
-      'Q: Q1\nA: A1',    // unchanged
-      'Q: Q2\nA: A2b',   // modified
-      'Q: Q4\nA: A4',    // added (Q3 removed)
+      'Q: Q1\nA: A1', // unchanged
+      'Q: Q2\nA: A2b', // modified
+      'Q: Q4\nA: A4', // added (Q3 removed)
     ].join('\n');
 
     const result = computeDocumentDiff(OLD_ID, NEW_ID, oldText, newText);
@@ -387,7 +384,8 @@ describe('computeDocumentDiff', () => {
       added: result.entries.filter((e) => e.diff_type === 'added').length,
       removed: result.entries.filter((e) => e.diff_type === 'removed').length,
       modified: result.entries.filter((e) => e.diff_type === 'modified').length,
-      unchanged: result.entries.filter((e) => e.diff_type === 'unchanged').length,
+      unchanged: result.entries.filter((e) => e.diff_type === 'unchanged')
+        .length,
     };
 
     expect(result.summary.added).toBe(counts.added);
@@ -401,9 +399,15 @@ describe('computeDocumentDiff', () => {
     const newText = 'Q: What is your data protection approach?\nA: UK DPA.';
 
     // With a very high threshold, these should NOT match as modified
-    const highThreshold = computeDocumentDiff(OLD_ID, NEW_ID, oldText, newText, {
-      similarityThreshold: 0.99,
-    });
+    const highThreshold = computeDocumentDiff(
+      OLD_ID,
+      NEW_ID,
+      oldText,
+      newText,
+      {
+        similarityThreshold: 0.99,
+      },
+    );
     expect(highThreshold.summary.removed).toBe(1);
     expect(highThreshold.summary.added).toBe(1);
     expect(highThreshold.summary.modified).toBe(0);

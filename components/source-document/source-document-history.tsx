@@ -153,10 +153,7 @@ export function SourceDocumentHistory({
           className,
         )}
       >
-        <FileText
-          className="size-6 text-muted-foreground"
-          aria-hidden="true"
-        />
+        <FileText className="size-6 text-muted-foreground" aria-hidden="true" />
         <p className="text-sm text-muted-foreground">
           No version history available.
         </p>
@@ -201,10 +198,7 @@ export function SourceDocumentHistory({
                 )}
               </div>
               {!isLast && (
-                <div
-                  className="w-0.5 flex-1 bg-border"
-                  aria-hidden="true"
-                />
+                <div className="w-0.5 flex-1 bg-border" aria-hidden="true" />
               )}
             </div>
 

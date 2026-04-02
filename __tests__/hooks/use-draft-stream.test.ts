@@ -62,7 +62,10 @@ global.fetch = mockFetch;
 // Import under test — after global mocks are in place
 // ---------------------------------------------------------------------------
 
-import { useDraftStream, type StreamPhase } from '@/hooks/streaming/use-draft-stream';
+import {
+  useDraftStream,
+  type StreamPhase,
+} from '@/hooks/streaming/use-draft-stream';
 
 // ---------------------------------------------------------------------------
 // Test setup
@@ -94,7 +97,9 @@ describe('useDraftStream', () => {
 
   describe('initial state', () => {
     it('returns idle phase with empty data', () => {
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       expect(result.current.phase).toBe('idle');
       expect(result.current.text).toBe('');
@@ -106,7 +111,9 @@ describe('useDraftStream', () => {
     });
 
     it('provides startDraft and cancel functions', () => {
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       expect(typeof result.current.startDraft).toBe('function');
       expect(typeof result.current.cancel).toBe('function');
@@ -125,7 +132,9 @@ describe('useDraftStream', () => {
         body: buildSSEStream([]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -139,10 +148,14 @@ describe('useDraftStream', () => {
     it('calls fetch with correct URL, method, and body', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
-        body: buildSSEStream([sseEvent('done', { response_id: 'r-1', total_cost: 0.01 })]),
+        body: buildSSEStream([
+          sseEvent('done', { response_id: 'r-1', total_cost: 0.01 }),
+        ]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -165,7 +178,9 @@ describe('useDraftStream', () => {
         body: buildSSEStream([sseEvent('done', { response_id: 'r-1' })]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1', 'analysis');
@@ -181,7 +196,9 @@ describe('useDraftStream', () => {
         body: buildSSEStream([sseEvent('done', { response_id: 'r-1' })]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -202,7 +219,9 @@ describe('useDraftStream', () => {
         ]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -236,7 +255,9 @@ describe('useDraftStream', () => {
         body: buildSSEStream([sseEvent('done', { response_id: 'r-1' })]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -260,7 +281,9 @@ describe('useDraftStream', () => {
         ]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -280,7 +303,9 @@ describe('useDraftStream', () => {
         ]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -313,7 +338,9 @@ describe('useDraftStream', () => {
         ]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -334,7 +361,9 @@ describe('useDraftStream', () => {
         ]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -365,7 +394,9 @@ describe('useDraftStream', () => {
         ]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -386,7 +417,9 @@ describe('useDraftStream', () => {
         ]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -408,7 +441,9 @@ describe('useDraftStream', () => {
         ]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -430,7 +465,9 @@ describe('useDraftStream', () => {
         ]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -451,7 +488,9 @@ describe('useDraftStream', () => {
         ]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -466,12 +505,12 @@ describe('useDraftStream', () => {
     it('handles error event with missing error message', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
-        body: buildSSEStream([
-          sseEvent('error', {}),
-        ]),
+        body: buildSSEStream([sseEvent('error', {})]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -513,7 +552,9 @@ describe('useDraftStream', () => {
         ]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -547,7 +588,9 @@ describe('useDraftStream', () => {
         ]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -569,7 +612,9 @@ describe('useDraftStream', () => {
         ]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -590,7 +635,9 @@ describe('useDraftStream', () => {
         json: async () => ({ error: 'Bid not found' }),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -608,7 +655,9 @@ describe('useDraftStream', () => {
         },
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -624,7 +673,9 @@ describe('useDraftStream', () => {
         body: null,
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -637,7 +688,9 @@ describe('useDraftStream', () => {
     it('handles network error (fetch rejects)', async () => {
       mockFetch.mockRejectedValue(new Error('Failed to fetch'));
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -673,7 +726,9 @@ describe('useDraftStream', () => {
         body: stream,
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -696,7 +751,9 @@ describe('useDraftStream', () => {
         ]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -709,10 +766,15 @@ describe('useDraftStream', () => {
 
     it('does not set error state on AbortError', async () => {
       // Simulate an abort by having fetch throw AbortError
-      const abortError = new DOMException('The operation was aborted', 'AbortError');
+      const abortError = new DOMException(
+        'The operation was aborted',
+        'AbortError',
+      );
       mockFetch.mockRejectedValue(abortError);
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -740,7 +802,9 @@ describe('useDraftStream', () => {
         ]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       // Start and complete a draft first
       await act(async () => {
@@ -773,13 +837,13 @@ describe('useDraftStream', () => {
         }
         return {
           ok: true,
-          body: buildSSEStream([
-            sseEvent('done', { response_id: 'r-new' }),
-          ]),
+          body: buildSSEStream([sseEvent('done', { response_id: 'r-new' })]),
         };
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       // Start first draft
       await act(async () => {
@@ -795,7 +859,9 @@ describe('useDraftStream', () => {
     });
 
     it('cancel can be called when idle (no-op)', () => {
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       // Should not throw
       act(() => {
@@ -817,7 +883,9 @@ describe('useDraftStream', () => {
         body: buildSSEStream([]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -838,14 +906,14 @@ describe('useDraftStream', () => {
           controller.enqueue(encoder.encode(sseEvent('pass1_complete', {})));
           // Malformed JSON event
           controller.enqueue(
-            encoder.encode('event: token\ndata: {broken json\n\n')
+            encoder.encode('event: token\ndata: {broken json\n\n'),
           );
           // Valid event after malformed one
           controller.enqueue(
-            encoder.encode(sseEvent('token', { text: 'Valid token' }))
+            encoder.encode(sseEvent('token', { text: 'Valid token' })),
           );
           controller.enqueue(
-            encoder.encode(sseEvent('done', { response_id: 'r-1' }))
+            encoder.encode(sseEvent('done', { response_id: 'r-1' })),
           );
           controller.close();
         },
@@ -853,7 +921,9 @@ describe('useDraftStream', () => {
 
       mockFetch.mockResolvedValue({ ok: true, body: stream });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -876,7 +946,9 @@ describe('useDraftStream', () => {
         ]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -893,19 +965,15 @@ describe('useDraftStream', () => {
         start(controller) {
           // First chunk: complete pass1_complete event + partial token event
           controller.enqueue(
-            encoder.encode(
-              'event: pass1_complete\ndata: {}\n\nevent: tok'
-            )
+            encoder.encode('event: pass1_complete\ndata: {}\n\nevent: tok'),
           );
           // Second chunk: rest of token event
           controller.enqueue(
-            encoder.encode(
-              'en\ndata: {"text":"split text"}\n\n'
-            )
+            encoder.encode('en\ndata: {"text":"split text"}\n\n'),
           );
           // Third chunk: done event
           controller.enqueue(
-            encoder.encode(sseEvent('done', { response_id: 'r-1' }))
+            encoder.encode(sseEvent('done', { response_id: 'r-1' })),
           );
           controller.close();
         },
@@ -913,7 +981,9 @@ describe('useDraftStream', () => {
 
       mockFetch.mockResolvedValue({ ok: true, body: stream });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -934,7 +1004,9 @@ describe('useDraftStream', () => {
         ]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -954,7 +1026,9 @@ describe('useDraftStream', () => {
         ]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -974,7 +1048,7 @@ describe('useDraftStream', () => {
           // Random line with no prefix — ignored
           controller.enqueue(encoder.encode('random garbage\n\n'));
           controller.enqueue(
-            encoder.encode(sseEvent('done', { response_id: 'r-1' }))
+            encoder.encode(sseEvent('done', { response_id: 'r-1' })),
           );
           controller.close();
         },
@@ -982,7 +1056,9 @@ describe('useDraftStream', () => {
 
       mockFetch.mockResolvedValue({ ok: true, body: stream });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -995,12 +1071,12 @@ describe('useDraftStream', () => {
     it('uses different bidId for different hook instances', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
-        body: buildSSEStream([
-          sseEvent('done', { response_id: 'r-1' }),
-        ]),
+        body: buildSSEStream([sseEvent('done', { response_id: 'r-1' })]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-42'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-42'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -1022,7 +1098,9 @@ describe('useDraftStream', () => {
         };
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       // Fire three drafts rapidly
       await act(async () => {
@@ -1083,14 +1161,16 @@ describe('useDraftStream', () => {
           body: buildSSEStream(events),
         });
 
-        const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+        const { result } = renderHook(() => useDraftStream('bid-1'), {
+          wrapper: Wrapper,
+        });
 
         await act(async () => {
           await result.current.startDraft('q-1');
         });
 
         expect(result.current.phase).toBe(expectedPhase);
-      }
+      },
     );
   });
 
@@ -1100,7 +1180,9 @@ describe('useDraftStream', () => {
 
   describe('callback stability', () => {
     it('startDraft is stable across re-renders with same bidId', () => {
-      const { result, rerender } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result, rerender } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       const firstStartDraft = result.current.startDraft;
       const firstCancel = result.current.cancel;
@@ -1113,7 +1195,9 @@ describe('useDraftStream', () => {
 
     it('startDraft changes when bidId changes', () => {
       let bidId = 'bid-1';
-      const { result, rerender } = renderHook(() => useDraftStream(bidId), { wrapper: Wrapper });
+      const { result, rerender } = renderHook(() => useDraftStream(bidId), {
+        wrapper: Wrapper,
+      });
 
       const firstStartDraft = result.current.startDraft;
 
@@ -1141,7 +1225,9 @@ describe('useDraftStream', () => {
         ]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -1173,7 +1259,9 @@ describe('useDraftStream', () => {
         ]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -1194,7 +1282,9 @@ describe('useDraftStream', () => {
         ]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-1'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-1'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');
@@ -1209,12 +1299,12 @@ describe('useDraftStream', () => {
 
       mockFetch.mockResolvedValue({
         ok: true,
-        body: buildSSEStream([
-          sseEvent('done', { response_id: 'r-1' }),
-        ]),
+        body: buildSSEStream([sseEvent('done', { response_id: 'r-1' })]),
       });
 
-      const { result } = renderHook(() => useDraftStream('bid-42'), { wrapper: Wrapper });
+      const { result } = renderHook(() => useDraftStream('bid-42'), {
+        wrapper: Wrapper,
+      });
 
       await act(async () => {
         await result.current.startDraft('q-1');

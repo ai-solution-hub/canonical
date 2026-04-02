@@ -11,7 +11,9 @@ import { render, screen } from '@testing-library/react';
 
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: Record<string, unknown>) => (
-    <a href={href as string} {...props}>{children as React.ReactNode}</a>
+    <a href={href as string} {...props}>
+      {children as React.ReactNode}
+    </a>
   ),
 }));
 
@@ -25,7 +27,9 @@ describe('WorkspacesContent', () => {
   it('renders page description', () => {
     render(<WorkspacesContent counts={{}} />);
     expect(
-      screen.getByText('Use your knowledge base to power different types of work.'),
+      screen.getByText(
+        'Use your knowledge base to power different types of work.',
+      ),
     ).toBeInTheDocument();
   });
 
@@ -50,7 +54,9 @@ describe('WorkspacesContent', () => {
 
   it('marks coming soon cards as aria-disabled', () => {
     render(<WorkspacesContent counts={{}} />);
-    const proposalCard = screen.getByText('Sales Proposals').closest('[aria-disabled]');
+    const proposalCard = screen
+      .getByText('Sales Proposals')
+      .closest('[aria-disabled]');
     expect(proposalCard).toHaveAttribute('aria-disabled', 'true');
   });
 

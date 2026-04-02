@@ -93,7 +93,11 @@ export function useSearch() {
 
   // Derive error message string from mutation error (preserving null convention)
   const error =
-    mutation.error instanceof Error ? mutation.error.message : mutation.error ? 'Search failed' : null;
+    mutation.error instanceof Error
+      ? mutation.error.message
+      : mutation.error
+        ? 'Search failed'
+        : null;
 
   return {
     results: mutation.data?.results ?? [],

@@ -32,7 +32,9 @@ export function useLibraryData(filters: LibraryFilters) {
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: queryKeys.contentItems.library(filters as Record<string, unknown>),
+    queryKey: queryKeys.contentItems.library(
+      filters as Record<string, unknown>,
+    ),
     queryFn: async () => {
       const supabase = createClient();
 
@@ -67,9 +69,7 @@ export function useLibraryData(filters: LibraryFilters) {
           .is('answer_standard', null)
           .not('answer_advanced', 'is', null);
       } else if (filters.variant === 'neither') {
-        query = query
-          .is('answer_standard', null)
-          .is('answer_advanced', null);
+        query = query.is('answer_standard', null).is('answer_advanced', null);
       }
 
       if (filters.freshness) {
@@ -84,9 +84,7 @@ export function useLibraryData(filters: LibraryFilters) {
 
       if (filters.search) {
         const escaped = escapePostgrestValue(filters.search);
-        query = query.or(
-          `title.ilike.%${escaped}%,content.ilike.%${escaped}%`,
-        );
+        query = query.or(`title.ilike.%${escaped}%,content.ilike.%${escaped}%`);
       }
 
       const { data, error } = await query;

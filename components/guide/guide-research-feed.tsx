@@ -48,9 +48,13 @@ function ResearchCard({ item }: { item: ContentItem | SearchResult }) {
   const title = 'content_title' in item ? item.content_title : item.title;
   const brief = 'content_brief' in item ? item.content_brief : item.brief;
   const freshness =
-    'content_freshness' in item ? item.content_freshness : item.freshness_status;
+    'content_freshness' in item
+      ? item.content_freshness
+      : item.freshness_status;
   const capturedDate =
-    'content_captured_date' in item ? item.content_captured_date : item.captured_date;
+    'content_captured_date' in item
+      ? item.content_captured_date
+      : item.captured_date;
 
   return (
     <Link
@@ -123,8 +127,7 @@ export function GuideResearchFeed({
             .filter(
               (r: SearchResult) =>
                 // Only include research-layer or article items
-                r.content_type === 'article' ||
-                r.content_type === 'report',
+                r.content_type === 'article' || r.content_type === 'report',
             )
             .slice(0, 5 - existingItems.length);
           setAdditionalItems(results);
@@ -171,19 +174,28 @@ export function GuideResearchFeed({
         ))}
 
         {loading && (
-          <div className="flex items-center justify-center py-4" role="status" aria-label="Loading research">
-            <Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden="true" />
+          <div
+            className="flex items-center justify-center py-4"
+            role="status"
+            aria-label="Loading research"
+          >
+            <Loader2
+              className="size-4 animate-spin text-muted-foreground"
+              aria-hidden="true"
+            />
             <span className="sr-only">Loading research...</span>
           </div>
         )}
 
-        {!loading && existingItems.length === 0 && additionalItems.length === 0 && (
-          <div className="rounded-md border border-dashed border-border bg-muted/20 px-4 py-6 text-center">
-            <p className="text-xs text-muted-foreground">
-              No research content available for this domain yet.
-            </p>
-          </div>
-        )}
+        {!loading &&
+          existingItems.length === 0 &&
+          additionalItems.length === 0 && (
+            <div className="rounded-md border border-dashed border-border bg-muted/20 px-4 py-6 text-center">
+              <p className="text-xs text-muted-foreground">
+                No research content available for this domain yet.
+              </p>
+            </div>
+          )}
       </div>
 
       {/* View all link */}

@@ -10,7 +10,11 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { CitationEntry } from '@/types/bid-metadata';
 
 const mockContent = [
-  { id: 'uuid-1', title: 'Data Encryption Policy', content: 'We use AES-256...' },
+  {
+    id: 'uuid-1',
+    title: 'Data Encryption Policy',
+    content: 'We use AES-256...',
+  },
   { id: 'uuid-2', title: 'Security FAQ', content: 'TLS 1.3 is used...' },
 ];
 
@@ -432,14 +436,8 @@ describe('countUniqueSources', () => {
 
 describe('getOrphanedSourceIds', () => {
   it('returns empty set when no orphans', () => {
-    const citations = [
-      { source_id: 'uuid-1' },
-      { source_id: 'uuid-2' },
-    ];
-    const sourceContent = [
-      { id: 'uuid-1' },
-      { id: 'uuid-2' },
-    ];
+    const citations = [{ source_id: 'uuid-1' }, { source_id: 'uuid-2' }];
+    const sourceContent = [{ id: 'uuid-1' }, { id: 'uuid-2' }];
 
     const result = getOrphanedSourceIds(citations, sourceContent);
     expect(result.size).toBe(0);
@@ -464,20 +462,14 @@ describe('getOrphanedSourceIds', () => {
   });
 
   it('handles empty citations array', () => {
-    const sourceContent = [
-      { id: 'uuid-1' },
-      { id: 'uuid-2' },
-    ];
+    const sourceContent = [{ id: 'uuid-1' }, { id: 'uuid-2' }];
 
     const result = getOrphanedSourceIds([], sourceContent);
     expect(result.size).toBe(0);
   });
 
   it('handles empty sourceContent array', () => {
-    const citations = [
-      { source_id: 'uuid-1' },
-      { source_id: 'uuid-2' },
-    ];
+    const citations = [{ source_id: 'uuid-1' }, { source_id: 'uuid-2' }];
 
     const result = getOrphanedSourceIds(citations, []);
     expect(result.size).toBe(2);
@@ -486,13 +478,8 @@ describe('getOrphanedSourceIds', () => {
   });
 
   it('ignores citations with empty source_id', () => {
-    const citations = [
-      { source_id: '' },
-      { source_id: 'uuid-1' },
-    ];
-    const sourceContent = [
-      { id: 'uuid-1' },
-    ];
+    const citations = [{ source_id: '' }, { source_id: 'uuid-1' }];
+    const sourceContent = [{ id: 'uuid-1' }];
 
     const result = getOrphanedSourceIds(citations, sourceContent);
     expect(result.size).toBe(0);
@@ -504,9 +491,7 @@ describe('getOrphanedSourceIds', () => {
       { source_id: 'uuid-deleted' },
       { source_id: 'uuid-deleted' },
     ];
-    const sourceContent = [
-      { id: 'uuid-existing' },
-    ];
+    const sourceContent = [{ id: 'uuid-existing' }];
 
     const result = getOrphanedSourceIds(citations, sourceContent);
     expect(result.size).toBe(1);
@@ -563,9 +548,7 @@ describe('checkOrphanedSourceIds', () => {
   });
 
   it('filters out empty source IDs', async () => {
-    const supabase = createMockSupabase([
-      { id: 'uuid-1', item_exists: true },
-    ]);
+    const supabase = createMockSupabase([{ id: 'uuid-1', item_exists: true }]);
 
     const result = await checkOrphanedSourceIds(['', 'uuid-1', ''], supabase);
     expect(result.size).toBe(0);
@@ -575,9 +558,7 @@ describe('checkOrphanedSourceIds', () => {
   });
 
   it('deduplicates input source IDs', async () => {
-    const supabase = createMockSupabase([
-      { id: 'uuid-1', item_exists: true },
-    ]);
+    const supabase = createMockSupabase([{ id: 'uuid-1', item_exists: true }]);
 
     await checkOrphanedSourceIds(['uuid-1', 'uuid-1', 'uuid-1'], supabase);
     expect(supabase.rpc).toHaveBeenCalledWith('check_content_exists', {

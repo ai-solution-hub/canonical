@@ -12,7 +12,10 @@ vi.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 
-import { BidStateBadge, BidStateStepper } from '@/components/bid/bid-state-indicator';
+import {
+  BidStateBadge,
+  BidStateStepper,
+} from '@/components/bid/bid-state-indicator';
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -24,7 +27,10 @@ describe('BidStateBadge', () => {
   });
 
   it('renders correct label for each state', () => {
-    const states: Array<{ state: 'draft' | 'in_review' | 'won' | 'lost' | 'withdrawn'; label: string }> = [
+    const states: Array<{
+      state: 'draft' | 'in_review' | 'won' | 'lost' | 'withdrawn';
+      label: string;
+    }> = [
       { state: 'draft', label: 'Draft' },
       { state: 'in_review', label: 'In Review' },
       { state: 'won', label: 'Won' },
@@ -112,7 +118,9 @@ describe('BidStateStepper', () => {
 
     // Abbreviated labels for mobile (aria-hidden but present)
     const mobileLabels = container.querySelectorAll('[aria-hidden="true"]');
-    const mobileTextContent = Array.from(mobileLabels).map(el => el.textContent);
+    const mobileTextContent = Array.from(mobileLabels).map(
+      (el) => el.textContent,
+    );
     expect(mobileTextContent).toContain('Review');
     expect(mobileTextContent).toContain('Extract');
   });
@@ -125,7 +133,9 @@ describe('BidStateStepper', () => {
 
     // Abbreviated mobile label also present (aria-hidden span)
     const mobileLabels = container.querySelectorAll('span[aria-hidden="true"]');
-    const mobileTextContent = Array.from(mobileLabels).map(el => el.textContent);
+    const mobileTextContent = Array.from(mobileLabels).map(
+      (el) => el.textContent,
+    );
     // 'Won' is both abbreviated and full label
     expect(mobileTextContent).toContain('Won');
   });

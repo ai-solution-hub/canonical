@@ -111,15 +111,18 @@ export async function GET(request: NextRequest) {
       previousResult?.consecutive_gap_counts ?? {};
 
     // Analyse each template
-    const gapsResult: Record<string, {
-      total: number;
-      strong: number;
-      partial: number;
-      gap: number;
-      new_gaps: number;
-      resolved_gaps: number;
-      persistent_gaps: number;
-    }> = {};
+    const gapsResult: Record<
+      string,
+      {
+        total: number;
+        strong: number;
+        partial: number;
+        gap: number;
+        new_gaps: number;
+        resolved_gaps: number;
+        persistent_gaps: number;
+      }
+    > = {};
 
     const newSnapshots: GapSnapshot[] = [];
     const newConsecutiveCounts: Record<string, number> = {};
@@ -130,7 +133,9 @@ export async function GET(request: NextRequest) {
     for (const [templateName, templateVersion] of uniqueTemplates) {
       // Timeout check
       if (Date.now() - startTime > 25_000) {
-        console.warn('Content gaps: timeout approaching, stopping template processing');
+        console.warn(
+          'Content gaps: timeout approaching, stopping template processing',
+        );
         break;
       }
 
@@ -167,7 +172,9 @@ export async function GET(request: NextRequest) {
         const prevGaps = previousGapSets.get(templateName) ?? new Set<string>();
 
         const newGaps = currentGapIds.filter((id) => !prevGaps.has(id));
-        const resolvedGaps = [...prevGaps].filter((id) => !currentGapIds.includes(id));
+        const resolvedGaps = [...prevGaps].filter(
+          (id) => !currentGapIds.includes(id),
+        );
 
         // Track consecutive gap counts
         let persistentCount = 0;
@@ -206,7 +213,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Create notifications
-    const adminAndEditorIds = await getUsersByRole(supabase, ['admin', 'editor']);
+    const adminAndEditorIds = await getUsersByRole(supabase, [
+      'admin',
+      'editor',
+    ]);
     let notificationsCreated = 0;
 
     if (adminAndEditorIds.length > 0) {
@@ -237,7 +247,9 @@ export async function GET(request: NextRequest) {
       // New gaps notification (per template)
       for (const [templateName, stats] of Object.entries(gapsResult)) {
         if (stats.new_gaps > 0) {
-          const firstNewGap = allNewGapReqIds.find((id) => !existingIds.has(id));
+          const firstNewGap = allNewGapReqIds.find(
+            (id) => !existingIds.has(id),
+          );
           if (firstNewGap) {
             for (const userId of adminAndEditorIds) {
               notifications.push({
@@ -254,7 +266,9 @@ export async function GET(request: NextRequest) {
 
         // Persistent gaps notification
         if (stats.persistent_gaps > 0) {
-          const firstPersistent = allPersistentGapReqIds.find((id) => !existingIds.has(id));
+          const firstPersistent = allPersistentGapReqIds.find(
+            (id) => !existingIds.has(id),
+          );
           if (firstPersistent) {
             for (const userId of adminAndEditorIds) {
               notifications.push({
@@ -271,7 +285,10 @@ export async function GET(request: NextRequest) {
       }
 
       if (notifications.length > 0) {
-        const { error: bulkError } = await createBulkNotifications(supabase, notifications);
+        const { error: bulkError } = await createBulkNotifications(
+          supabase,
+          notifications,
+        );
         if (!bulkError) notificationsCreated = notifications.length;
       }
     }

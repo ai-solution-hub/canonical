@@ -24,12 +24,14 @@ vi.mock('@/hooks/use-display-names', () => ({
 }));
 
 vi.mock('@/lib/format', () => ({
-  formatRelativeDate: (d: string | null) => d ? '2 hours ago' : '',
+  formatRelativeDate: (d: string | null) => (d ? '2 hours ago' : ''),
 }));
 
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: Record<string, unknown>) => (
-    <a href={href as string} {...props}>{children as React.ReactNode}</a>
+    <a href={href as string} {...props}>
+      {children as React.ReactNode}
+    </a>
   ),
 }));
 
@@ -39,7 +41,9 @@ import { ActivityFeed } from '@/components/dashboard/activity-feed';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function createActivity(overrides: Partial<GroupedActivityItem> = {}): GroupedActivityItem {
+function createActivity(
+  overrides: Partial<GroupedActivityItem> = {},
+): GroupedActivityItem {
   return {
     id: overrides.id ?? 'act-1',
     type: overrides.type ?? 'edit',
@@ -94,8 +98,16 @@ describe('ActivityFeed', () => {
   it('renders activity cards with correct icons by type', async () => {
     mockFetchResponse([
       createActivity({ id: 'a1', type: 'edit', summary: 'Edited document' }),
-      createActivity({ id: 'a2', type: 'rollback', summary: 'Rolled back change' }),
-      createActivity({ id: 'a3', type: 'quality_flag', summary: 'Flagged for quality' }),
+      createActivity({
+        id: 'a2',
+        type: 'rollback',
+        summary: 'Rolled back change',
+      }),
+      createActivity({
+        id: 'a3',
+        type: 'quality_flag',
+        summary: 'Flagged for quality',
+      }),
     ]);
 
     render(<ActivityFeed />);
@@ -115,7 +127,9 @@ describe('ActivityFeed', () => {
   });
 
   it('shows rollback badge for rollback type', async () => {
-    mockFetchResponse([createActivity({ type: 'rollback', summary: 'Reverted pricing' })]);
+    mockFetchResponse([
+      createActivity({ type: 'rollback', summary: 'Reverted pricing' }),
+    ]);
     render(<ActivityFeed />);
     await waitFor(() => {
       expect(screen.getByText('Rollback')).toBeInTheDocument();
@@ -125,7 +139,11 @@ describe('ActivityFeed', () => {
   it('filters by event type', async () => {
     mockFetchResponse([
       createActivity({ id: 'a1', type: 'edit', summary: 'Content edit' }),
-      createActivity({ id: 'a2', type: 'quality_flag', summary: 'Quality issue' }),
+      createActivity({
+        id: 'a2',
+        type: 'quality_flag',
+        summary: 'Quality issue',
+      }),
     ]);
 
     // eventFilter='governance' should only show quality_flag (governance category)
@@ -139,11 +157,23 @@ describe('ActivityFeed', () => {
   it('filters by date range', async () => {
     const now = new Date();
     const recent = new Date(now.getTime() - 1000 * 60 * 30).toISOString(); // 30 min ago
-    const old = new Date(now.getTime() - 1000 * 60 * 60 * 24 * 14).toISOString(); // 2 weeks ago
+    const old = new Date(
+      now.getTime() - 1000 * 60 * 60 * 24 * 14,
+    ).toISOString(); // 2 weeks ago
 
     mockFetchResponse([
-      createActivity({ id: 'a1', type: 'edit', summary: 'Recent change', created_at: recent }),
-      createActivity({ id: 'a2', type: 'edit', summary: 'Old change', created_at: old }),
+      createActivity({
+        id: 'a1',
+        type: 'edit',
+        summary: 'Recent change',
+        created_at: recent,
+      }),
+      createActivity({
+        id: 'a2',
+        type: 'edit',
+        summary: 'Old change',
+        created_at: old,
+      }),
     ]);
 
     render(<ActivityFeed dateRange="week" />);
@@ -154,22 +184,19 @@ describe('ActivityFeed', () => {
   });
 
   it('shows Load More button when hasMore=true', async () => {
-    mockFetchResponse(
-      [createActivity({ id: 'a1' })],
-      true,
-    );
+    mockFetchResponse([createActivity({ id: 'a1' })], true);
 
     render(<ActivityFeed />);
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Load More/ })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /Load More/ }),
+      ).toBeInTheDocument();
     });
   });
 
   it('shows "No matching activity" when filters exclude all', async () => {
     // Return content-type activities, but filter for 'bid' category
-    mockFetchResponse([
-      createActivity({ type: 'edit', summary: 'An edit' }),
-    ]);
+    mockFetchResponse([createActivity({ type: 'edit', summary: 'An edit' })]);
 
     render(<ActivityFeed eventFilter="bid" />);
     await waitFor(() => {

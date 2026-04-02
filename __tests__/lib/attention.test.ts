@@ -196,12 +196,20 @@ describe('produceBidDeadlineItems', () => {
   });
 
   it('skips bids with normal urgency', () => {
-    const bid = { ...baseBid, deadline: '2099-12-31', days_until_deadline: 365 };
+    const bid = {
+      ...baseBid,
+      deadline: '2099-12-31',
+      days_until_deadline: 365,
+    };
     expect(produceBidDeadlineItems([bid])).toEqual([]);
   });
 
   it('returns critical for overdue bids', () => {
-    const bid = { ...baseBid, deadline: '2020-01-01', days_until_deadline: -100 };
+    const bid = {
+      ...baseBid,
+      deadline: '2020-01-01',
+      days_until_deadline: -100,
+    };
     const items = produceBidDeadlineItems([bid]);
     expect(items).toHaveLength(1);
     expect(items[0].severity).toBe('critical');
@@ -209,7 +217,9 @@ describe('produceBidDeadlineItems', () => {
   });
 
   it('returns high for urgent bids (<=3 days)', () => {
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    const tomorrow = new Date(Date.now() + 86400000)
+      .toISOString()
+      .split('T')[0];
     const bid = { ...baseBid, deadline: tomorrow, days_until_deadline: 1 };
     const items = produceBidDeadlineItems([bid]);
     expect(items).toHaveLength(1);
@@ -236,10 +246,12 @@ describe('produceBidDeadlineItems', () => {
   it('maps approaching bids (< 14 days) to medium severity', () => {
     const approachingDate = new Date();
     approachingDate.setDate(approachingDate.getDate() + 7);
-    const bids = [makeBid({
-      deadline: approachingDate.toISOString(),
-      days_until_deadline: 7,
-    })];
+    const bids = [
+      makeBid({
+        deadline: approachingDate.toISOString(),
+        days_until_deadline: 7,
+      }),
+    ];
     const items = produceBidDeadlineItems(bids);
     expect(items).toHaveLength(1);
     expect(items[0].severity).toBe('medium');
@@ -248,11 +260,13 @@ describe('produceBidDeadlineItems', () => {
   it('includes bid name and deadline info in title', () => {
     const soonDate = new Date();
     soonDate.setDate(soonDate.getDate() + 2);
-    const bids = [makeBid({
-      name: 'Acme Bid',
-      deadline: soonDate.toISOString(),
-      days_until_deadline: 2,
-    })];
+    const bids = [
+      makeBid({
+        name: 'Acme Bid',
+        deadline: soonDate.toISOString(),
+        days_until_deadline: 2,
+      }),
+    ];
     const items = produceBidDeadlineItems(bids);
     expect(items[0].title).toContain('Acme Bid');
     expect(items[0].title).toContain('2 days remaining');
@@ -261,10 +275,12 @@ describe('produceBidDeadlineItems', () => {
   it('handles "due today" for 0 days remaining', () => {
     const todayDate = new Date();
     todayDate.setHours(todayDate.getHours() + 6);
-    const bids = [makeBid({
-      deadline: todayDate.toISOString(),
-      days_until_deadline: 0,
-    })];
+    const bids = [
+      makeBid({
+        deadline: todayDate.toISOString(),
+        days_until_deadline: 0,
+      }),
+    ];
     const items = produceBidDeadlineItems(bids);
     expect(items).toHaveLength(1);
     expect(items[0].title).toContain('due today');
@@ -273,11 +289,13 @@ describe('produceBidDeadlineItems', () => {
   it('includes buyer in detail when present', () => {
     const soonDate = new Date();
     soonDate.setDate(soonDate.getDate() + 1);
-    const bids = [makeBid({
-      buyer: 'Widget Co',
-      deadline: soonDate.toISOString(),
-      days_until_deadline: 1,
-    })];
+    const bids = [
+      makeBid({
+        buyer: 'Widget Co',
+        deadline: soonDate.toISOString(),
+        days_until_deadline: 1,
+      }),
+    ];
     const items = produceBidDeadlineItems(bids);
     expect(items[0].detail).toContain('Widget Co');
   });
@@ -285,10 +303,12 @@ describe('produceBidDeadlineItems', () => {
   it('sets entity_type to workspace with bid id', () => {
     const soonDate = new Date();
     soonDate.setDate(soonDate.getDate() + 1);
-    const bids = [makeBid({
-      id: 'bid-abc-123',
-      deadline: soonDate.toISOString(),
-    })];
+    const bids = [
+      makeBid({
+        id: 'bid-abc-123',
+        deadline: soonDate.toISOString(),
+      }),
+    ];
     const items = produceBidDeadlineItems(bids);
     expect(items[0].entity_type).toBe('workspace');
     expect(items[0].entity_id).toBe('bid-abc-123');
@@ -400,7 +420,10 @@ describe('produceCoverageGapItems', () => {
 // ---------------------------------------------------------------------------
 
 describe('sortAttentionItems', () => {
-  const makeItem = (severity: AttentionItem['severity'], deadline?: string): AttentionItem => ({
+  const makeItem = (
+    severity: AttentionItem['severity'],
+    deadline?: string,
+  ): AttentionItem => ({
     id: `item-${severity}-${deadline ?? 'none'}`,
     type: 'governance_review',
     severity,
@@ -423,7 +446,10 @@ describe('sortAttentionItems', () => {
     ];
     const sorted = sortAttentionItems(items);
     expect(sorted.map((i) => i.severity)).toEqual([
-      'critical', 'high', 'medium', 'info',
+      'critical',
+      'high',
+      'medium',
+      'info',
     ]);
   });
 
@@ -435,7 +461,9 @@ describe('sortAttentionItems', () => {
     ];
     const sorted = sortAttentionItems(items);
     expect(sorted.map((i) => i.deadline)).toEqual([
-      '2026-03-01', '2026-06-01', '2026-12-01',
+      '2026-03-01',
+      '2026-06-01',
+      '2026-12-01',
     ]);
   });
 

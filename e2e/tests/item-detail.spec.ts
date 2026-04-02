@@ -12,31 +12,48 @@ import { isMobileViewport } from '../helpers/responsive';
  */
 
 test.describe('Item detail — page loading and core display', () => {
-  test('item detail page loads with title', async ({ authenticatedPage: page, workerData }) => {
+  test('item detail page loads with title', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
     await page.goto(`/item/${workerData.articleId}`);
 
-    await expect(
-      page.getByRole('heading', { level: 1 }),
-    ).toContainText('IT Support Policy', { timeout: 10000 });
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(
+      'IT Support Policy',
+      { timeout: 10000 },
+    );
   });
 
-  test('breadcrumb shows Browse link for articles', async ({ authenticatedPage: page, workerData }) => {
+  test('breadcrumb shows Browse link for articles', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
     await page.goto(`/item/${workerData.articleId}`);
 
     const breadcrumb = page.getByRole('navigation', { name: 'Breadcrumb' });
     await expect(breadcrumb).toBeVisible({ timeout: 10000 });
-    await expect(breadcrumb.getByRole('link', { name: 'Browse' })).toBeVisible();
+    await expect(
+      breadcrumb.getByRole('link', { name: 'Browse' }),
+    ).toBeVisible();
   });
 
-  test('breadcrumb shows Q&A Library link for Q&A pairs', async ({ authenticatedPage: page, workerData }) => {
+  test('breadcrumb shows Q&A Library link for Q&A pairs', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
     await page.goto(`/item/${workerData.qaPairId}`);
 
     const breadcrumb = page.getByRole('navigation', { name: 'Breadcrumb' });
     await expect(breadcrumb).toBeVisible({ timeout: 10000 });
-    await expect(breadcrumb.getByRole('link', { name: 'Q&A Library' })).toBeVisible();
+    await expect(
+      breadcrumb.getByRole('link', { name: 'Q&A Library' }),
+    ).toBeVisible();
   });
 
-  test('content type is displayed in metadata sidebar', async ({ authenticatedPage: page, workerData }) => {
+  test('content type is displayed in metadata sidebar', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
     await page.goto(`/item/${workerData.articleId}`);
 
     // The metadata sidebar shows content type as "Article"
@@ -47,7 +64,10 @@ test.describe('Item detail — page loading and core display', () => {
 });
 
 test.describe('Item detail — metadata sidebar', () => {
-  test('metadata sidebar shows domain badge', async ({ authenticatedPage: page, workerData }) => {
+  test('metadata sidebar shows domain badge', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
     // Skip on mobile — sidebar stacks below content and domain is visible in different context
     test.skip(isMobileViewport(page), 'Desktop-only test');
 
@@ -58,7 +78,10 @@ test.describe('Item detail — metadata sidebar', () => {
     await expect(sidebar.getByText('Service Delivery')).toBeVisible();
   });
 
-  test('metadata sidebar shows classification confidence', async ({ authenticatedPage: page, workerData }) => {
+  test('metadata sidebar shows classification confidence', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
     test.skip(isMobileViewport(page), 'Desktop-only test');
 
     await page.goto(`/item/${workerData.certificationId}`);
@@ -72,7 +95,10 @@ test.describe('Item detail — metadata sidebar', () => {
     await expect(sidebar.getByText('Security & Compliance')).toBeVisible();
   });
 
-  test('metadata sidebar shows freshness badge for stale item', async ({ authenticatedPage: page, workerData }) => {
+  test('metadata sidebar shows freshness badge for stale item', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
     test.skip(isMobileViewport(page), 'Desktop-only test');
 
     await page.goto(`/item/${workerData.staleItemId}`);
@@ -80,10 +106,15 @@ test.describe('Item detail — metadata sidebar', () => {
     const sidebar = page.locator('aside');
     await expect(sidebar).toBeVisible({ timeout: 10000 });
     // FreshnessBadge renders with aria-label="Freshness: Stale"
-    await expect(sidebar.locator('[aria-label="Freshness: Stale"]')).toBeVisible();
+    await expect(
+      sidebar.locator('[aria-label="Freshness: Stale"]'),
+    ).toBeVisible();
   });
 
-  test('metadata sidebar shows freshness badge for fresh item', async ({ authenticatedPage: page, workerData }) => {
+  test('metadata sidebar shows freshness badge for fresh item', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
     test.skip(isMobileViewport(page), 'Desktop-only test');
 
     await page.goto(`/item/${workerData.certificationId}`);
@@ -91,12 +122,17 @@ test.describe('Item detail — metadata sidebar', () => {
     const sidebar = page.locator('aside');
     await expect(sidebar).toBeVisible({ timeout: 10000 });
     // FreshnessBadge renders with aria-label="Freshness: Fresh"
-    await expect(sidebar.locator('[aria-label="Freshness: Fresh"]')).toBeVisible();
+    await expect(
+      sidebar.locator('[aria-label="Freshness: Fresh"]'),
+    ).toBeVisible();
   });
 });
 
 test.describe('Item detail — content sections', () => {
-  test('article shows content tabs', async ({ authenticatedPage: page, workerData }) => {
+  test('article shows content tabs', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
     await page.goto(`/item/${workerData.articleId}`);
 
     // The article has brief, detail, reference — so ContentTabs renders with a tablist
@@ -107,13 +143,16 @@ test.describe('Item detail — content sections', () => {
     await expect(tablist.getByText('Summary')).toBeVisible();
   });
 
-  test('Q&A pair shows answer display', async ({ authenticatedPage: page, workerData }) => {
+  test('Q&A pair shows answer display', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
     await page.goto(`/item/${workerData.qaPairId}`);
 
     // QAAnswerDisplay renders "Standard Answer" label
-    await expect(
-      page.getByText('Standard Answer'),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Standard Answer')).toBeVisible({
+      timeout: 10000,
+    });
 
     // The answer_standard text content should be present
     await expect(
@@ -121,33 +160,40 @@ test.describe('Item detail — content sections', () => {
     ).toBeVisible();
   });
 
-  test('Q&A pair with both variants shows standard and advanced', async ({ authenticatedPage: page, workerData }) => {
+  test('Q&A pair with both variants shows standard and advanced', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
     await page.goto(`/item/${workerData.qaPairTechId}`);
 
     // Both answer labels should be visible
-    await expect(
-      page.getByText('Standard Answer'),
-    ).toBeVisible({ timeout: 10000 });
-    await expect(
-      page.getByText('Advanced Answer'),
-    ).toBeVisible();
+    await expect(page.getByText('Standard Answer')).toBeVisible({
+      timeout: 10000,
+    });
+    await expect(page.getByText('Advanced Answer')).toBeVisible();
   });
 });
 
 test.describe('Item detail — tags and organisation', () => {
-  test('organise section is visible', async ({ authenticatedPage: page, workerData }) => {
+  test('organise section is visible', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
     await page.goto(`/item/${workerData.articleId}`);
 
     // OrganiseSection renders with keywords/tags. Look for keyword-related text.
     // The section has headings with "Keywords" or "Tags" text.
-    await expect(
-      page.getByText(/keyword/i).first(),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/keyword/i).first()).toBeVisible({
+      timeout: 10000,
+    });
   });
 });
 
 test.describe('Item detail — navigation', () => {
-  test('can navigate back to browse from breadcrumb', async ({ authenticatedPage: page, workerData }) => {
+  test('can navigate back to browse from breadcrumb', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
     await page.goto(`/item/${workerData.articleId}`);
 
     const breadcrumb = page.getByRole('navigation', { name: 'Breadcrumb' });
@@ -157,7 +203,10 @@ test.describe('Item detail — navigation', () => {
     await expect(page).toHaveURL(/\/browse/);
   });
 
-  test('can navigate back to Q&A Library from Q&A breadcrumb', async ({ authenticatedPage: page, workerData }) => {
+  test('can navigate back to Q&A Library from Q&A breadcrumb', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
     await page.goto(`/item/${workerData.qaPairId}`);
 
     const breadcrumb = page.getByRole('navigation', { name: 'Breadcrumb' });
@@ -167,11 +216,15 @@ test.describe('Item detail — navigation', () => {
     await expect(page).toHaveURL(/\/library/);
   });
 
-  test('clicking a browse item navigates to detail page', async ({ authenticatedPage: page }) => {
+  test('clicking a browse item navigates to detail page', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/browse');
 
     // Wait for content to load
-    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({
+      timeout: 10000,
+    });
 
     // Click any item link to navigate to detail
     const itemLink = page.locator('a[href^="/item/"]').first();
@@ -187,7 +240,10 @@ test.describe('Item detail — navigation', () => {
 });
 
 test.describe('Item detail — action bar', () => {
-  test('action bar shows copy link in overflow menu', async ({ authenticatedPage: page, workerData }) => {
+  test('action bar shows copy link in overflow menu', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
     await page.goto(`/item/${workerData.articleId}`);
 
     // Copy link is inside the "More actions" overflow dropdown
@@ -198,11 +254,17 @@ test.describe('Item detail — action bar', () => {
     await expect(page.getByText('Copy link')).toBeVisible();
   });
 
-  test('action bar shows edit button for admin', async ({ authenticatedPage: page, workerData }) => {
+  test('action bar shows edit button for admin', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
     await page.goto(`/item/${workerData.articleId}`);
 
     // Wait for page content to load first
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('IT Support Policy', { timeout: 10000 });
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(
+      'IT Support Policy',
+      { timeout: 10000 },
+    );
 
     // The Edit button renders after useUserRole() resolves. There may be multiple
     // "Edit" buttons (action bar + tab panel edit). Use the first one which is the action bar.
@@ -211,13 +273,17 @@ test.describe('Item detail — action bar', () => {
     ).toBeVisible({ timeout: 15000 });
   });
 
-  test('viewer cannot see edit button', async ({ viewerPage: page, workerData }) => {
+  test('viewer cannot see edit button', async ({
+    viewerPage: page,
+    workerData,
+  }) => {
     await page.goto(`/item/${workerData.articleId}`);
 
     // Wait for the page to load (h1 visible)
-    await expect(
-      page.getByRole('heading', { level: 1 }),
-    ).toContainText('IT Support Policy', { timeout: 10000 });
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(
+      'IT Support Policy',
+      { timeout: 10000 },
+    );
 
     // No Edit button should be visible for viewers (action bar or tab panel)
     await expect(
@@ -227,11 +293,16 @@ test.describe('Item detail — action bar', () => {
 });
 
 test.describe('Item detail — Q&A specific', () => {
-  test('Q&A pair shows copy answer button', async ({ authenticatedPage: page, workerData }) => {
+  test('Q&A pair shows copy answer button', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
     await page.goto(`/item/${workerData.qaPairId}`);
 
     // Wait for page content to load
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible({
+      timeout: 10000,
+    });
 
     // The "Copy answer" dropdown button renders after useUserRole() resolves
     await expect(
@@ -241,7 +312,10 @@ test.describe('Item detail — Q&A specific', () => {
 });
 
 test.describe('Item detail — verified badges', () => {
-  test('verified item shows verification badge', async ({ authenticatedPage: page, workerData }) => {
+  test('verified item shows verification badge', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
     await page.goto(`/item/${workerData.certificationId}`);
 
     // VerificationBadge renders a role="status" span with "Verified" text
@@ -252,7 +326,10 @@ test.describe('Item detail — verified badges', () => {
 });
 
 test.describe('Item detail — mobile responsive', () => {
-  test('metadata sidebar is visible on mobile (stacked below content)', async ({ authenticatedPage: page, workerData }) => {
+  test('metadata sidebar is visible on mobile (stacked below content)', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
     test.skip(!isMobileViewport(page), 'Mobile-only test');
 
     await page.goto(`/item/${workerData.articleId}`);
@@ -267,7 +344,9 @@ test.describe('Item detail — mobile responsive', () => {
 });
 
 test.describe('Item detail — error handling', () => {
-  test('invalid item ID shows 404 page', async ({ authenticatedPage: page }) => {
+  test('invalid item ID shows 404 page', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/item/00000000-0000-0000-0000-000000000000');
 
     // The not-found page renders "Page not found" as h1 and "404" text

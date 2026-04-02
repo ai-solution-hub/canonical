@@ -131,7 +131,10 @@ export async function POST(
 
       for (const question of questions) {
         const score = similarity(field.question_text, question.question_text);
-        if (score >= threshold && (!bestMatch || score > bestMatch.confidence)) {
+        if (
+          score >= threshold &&
+          (!bestMatch || score > bestMatch.confidence)
+        ) {
           bestMatch = {
             question_id: question.id,
             confidence: score,

@@ -118,11 +118,15 @@ export function createMockSupabaseClient(): MockSupabaseClient {
   }
 
   const storageBucket = {
-    upload: vi.fn().mockResolvedValue({ data: { path: 'test-path' }, error: null }),
+    upload: vi
+      .fn()
+      .mockResolvedValue({ data: { path: 'test-path' }, error: null }),
     download: vi.fn().mockResolvedValue({ data: new Blob(), error: null }),
     remove: vi.fn().mockResolvedValue({ data: [], error: null }),
     list: vi.fn().mockResolvedValue({ data: [], error: null }),
-    getPublicUrl: vi.fn().mockReturnValue({ data: { publicUrl: 'https://example.com/file' } }),
+    getPublicUrl: vi
+      .fn()
+      .mockReturnValue({ data: { publicUrl: 'https://example.com/file' } }),
   };
 
   return {
@@ -134,9 +138,15 @@ export function createMockSupabaseClient(): MockSupabaseClient {
         error: null,
       }),
       admin: {
-        listUsers: vi.fn().mockResolvedValue({ data: { users: [] }, error: null }),
-        createUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
-        updateUserById: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
+        listUsers: vi
+          .fn()
+          .mockResolvedValue({ data: { users: [] }, error: null }),
+        createUser: vi
+          .fn()
+          .mockResolvedValue({ data: { user: null }, error: null }),
+        updateUserById: vi
+          .fn()
+          .mockResolvedValue({ data: { user: null }, error: null }),
         deleteUser: vi.fn().mockResolvedValue({ data: null, error: null }),
       },
     },
@@ -174,4 +184,3 @@ export function configureUnauthenticated(client: MockSupabaseClient) {
     error: { message: 'No session' },
   });
 }
-

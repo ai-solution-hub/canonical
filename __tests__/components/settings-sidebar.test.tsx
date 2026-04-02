@@ -83,7 +83,9 @@ describe('SettingsSidebar', () => {
     expect(within(nav).getByText('Connections')).toBeInTheDocument();
 
     // Admin-only groups should not be present
-    expect(within(nav).queryByText('Content Management')).not.toBeInTheDocument();
+    expect(
+      within(nav).queryByText('Content Management'),
+    ).not.toBeInTheDocument();
     expect(within(nav).queryByText('System')).not.toBeInTheDocument();
     expect(within(nav).queryByText('Team')).not.toBeInTheDocument();
     expect(within(nav).queryByText('Developer Setup')).not.toBeInTheDocument();
@@ -160,7 +162,9 @@ describe('SettingsMobileSidebar', () => {
       />,
     );
 
-    const triggerButton = screen.getByRole('button', { name: /Quality Review/i });
+    const triggerButton = screen.getByRole('button', {
+      name: /Quality Review/i,
+    });
     expect(triggerButton).toBeInTheDocument();
 
     await user.click(triggerButton);

@@ -21,7 +21,11 @@ export async function GET(request: NextRequest) {
     if (!auth.success) return authFailureResponse(auth);
     const { user, supabase } = auth;
 
-    const { allowed } = checkRateLimit(`tags:duplicates:${user.id}`, 20, 60_000);
+    const { allowed } = checkRateLimit(
+      `tags:duplicates:${user.id}`,
+      20,
+      60_000,
+    );
     if (!allowed) return rateLimitResponse();
 
     const parsed = parseSearchParams(

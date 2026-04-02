@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import {
-  getAuthorisedClient,
-  authFailureResponse,
-} from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { parseBody } from '@/lib/validation';
 import { safeErrorMessage } from '@/lib/error';
 import crypto from 'crypto';
@@ -43,9 +40,15 @@ const BatchItemSchema = z.object({
  */
 const BatchCreateBodySchema = z.object({
   /** Array of Q&A pairs to create. */
-  items: z.array(BatchItemSchema).min(1, 'At least one item is required').max(100),
+  items: z
+    .array(BatchItemSchema)
+    .min(1, 'At least one item is required')
+    .max(100),
   /** Source document UUID to link all created items to. */
-  source_document_id: z.string().uuid('source_document_id must be a valid UUID').optional(),
+  source_document_id: z
+    .string()
+    .uuid('source_document_id must be a valid UUID')
+    .optional(),
   /** Single-use batch token to prevent duplicate submissions. */
   batch_token: z.string().min(1).max(500).optional(),
 });
@@ -102,7 +105,10 @@ export async function POST(request: NextRequest) {
 
       if (existingRuns && existingRuns.length > 0) {
         return NextResponse.json(
-          { error: 'Batch token already used. This batch has already been processed.' },
+          {
+            error:
+              'Batch token already used. This batch has already been processed.',
+          },
           { status: 409 },
         );
       }
@@ -138,7 +144,12 @@ export async function POST(request: NextRequest) {
     // -----------------------------------------------------------------------
     // Sequential item creation
     // -----------------------------------------------------------------------
-    const createdItems: Array<{ id: string; title: string; status: 'created' | 'failed'; error?: string }> = [];
+    const createdItems: Array<{
+      id: string;
+      title: string;
+      status: 'created' | 'failed';
+      error?: string;
+    }> = [];
     const createdIds: string[] = [];
     let failedCount = 0;
 
@@ -161,18 +172,21 @@ export async function POST(request: NextRequest) {
           metadata.detection_confidence = item.confidence;
         }
 
-        const insertData: Database['public']['Tables']['content_items']['Insert'] = {
-          title: item.title,
-          content: item.content,
-          content_type: 'q_a_pair',
-          platform: 'extraction',
-          suggested_title: item.title,
-          captured_date: new Date().toISOString(),
-          created_by: user.id,
-          metadata,
-          ...(source_document_id ? { source_document_id } : {}),
-          ...(item.answerAdvanced ? { answer_advanced: item.answerAdvanced } : {}),
-        };
+        const insertData: Database['public']['Tables']['content_items']['Insert'] =
+          {
+            title: item.title,
+            content: item.content,
+            content_type: 'q_a_pair',
+            platform: 'extraction',
+            suggested_title: item.title,
+            captured_date: new Date().toISOString(),
+            created_by: user.id,
+            metadata,
+            ...(source_document_id ? { source_document_id } : {}),
+            ...(item.answerAdvanced
+              ? { answer_advanced: item.answerAdvanced }
+              : {}),
+          };
 
         // Insert the content item
         const { data: newItem, error: insertError } = await serviceClient
@@ -224,17 +238,33 @@ export async function POST(request: NextRequest) {
         // 2. Classify
         try {
           const { classifyContent } = await import('@/lib/ai/classify');
-          await classifyContent({ supabase: serviceClient, itemId: newItem.id, force: true, userId: user.id });
+          await classifyContent({
+            supabase: serviceClient,
+            itemId: newItem.id,
+            force: true,
+            userId: user.id,
+          });
         } catch (classifyErr) {
-          console.error(`Classification failed for batch item ${i}:`, classifyErr);
+          console.error(
+            `Classification failed for batch item ${i}:`,
+            classifyErr,
+          );
         }
 
         // 3. Generate AI summary
         try {
           const { generateSummary } = await import('@/lib/ai/summarise');
-          await generateSummary({ supabase: serviceClient, itemId: newItem.id, force: true, userId: user.id });
+          await generateSummary({
+            supabase: serviceClient,
+            itemId: newItem.id,
+            force: true,
+            userId: user.id,
+          });
         } catch (summaryErr) {
-          console.error(`Summary generation failed for batch item ${i}:`, summaryErr);
+          console.error(
+            `Summary generation failed for batch item ${i}:`,
+            summaryErr,
+          );
         }
 
         // 4. Layer inference
@@ -258,7 +288,10 @@ export async function POST(request: NextRequest) {
             .update({ layer: suggestion.suggestedLayer })
             .eq('id', newItem.id);
         } catch (layerErr) {
-          console.error(`Layer inference failed for batch item ${i}:`, layerErr);
+          console.error(
+            `Layer inference failed for batch item ${i}:`,
+            layerErr,
+          );
         }
 
         // 5. Topic suggestion
@@ -290,16 +323,22 @@ export async function POST(request: NextRequest) {
             }
           }
         } catch (topicErr) {
-          console.error(`Topic suggestion failed for batch item ${i}:`, topicErr);
+          console.error(
+            `Topic suggestion failed for batch item ${i}:`,
+            topicErr,
+          );
         }
 
         // 6. Quality score
         try {
-          const { calculateAndRoundQualityScore } = await import('@/lib/quality/quality-score');
+          const { calculateAndRoundQualityScore } =
+            await import('@/lib/quality/quality-score');
 
           const { data: latestItem } = await serviceClient
             .from('content_items')
-            .select('freshness, classification_confidence, brief, detail, reference, ai_summary, citation_count')
+            .select(
+              'freshness, classification_confidence, brief, detail, reference, ai_summary, citation_count',
+            )
             .eq('id', newItem.id)
             .single();
 
@@ -323,16 +362,28 @@ export async function POST(request: NextRequest) {
               .eq('id', newItem.id);
           }
         } catch (qualityErr) {
-          console.error(`Quality score failed for batch item ${i}:`, qualityErr);
+          console.error(
+            `Quality score failed for batch item ${i}:`,
+            qualityErr,
+          );
         }
 
-        createdItems.push({ id: newItem.id, title: newItem.title, status: 'created' });
-
+        createdItems.push({
+          id: newItem.id,
+          title: newItem.title,
+          status: 'created',
+        });
       } catch (itemErr) {
         failedCount++;
-        const errorMsg = itemErr instanceof Error ? itemErr.message : 'Unknown error';
+        const errorMsg =
+          itemErr instanceof Error ? itemErr.message : 'Unknown error';
         console.error(`Batch item ${i} failed:`, itemErr);
-        createdItems.push({ id: '', title: item.title, status: 'failed', error: errorMsg });
+        createdItems.push({
+          id: '',
+          title: item.title,
+          status: 'failed',
+          error: errorMsg,
+        });
       }
 
       // Update pipeline progress after each item
@@ -375,13 +426,16 @@ export async function POST(request: NextRequest) {
               step: 'complete',
               steps_completed: items.length,
               steps_total: items.length,
-              detail: failedCount > 0
-                ? `Completed with ${failedCount} failure(s). ${createdIds.length} items created.`
-                : `All ${items.length} items created successfully.`,
+              detail:
+                failedCount > 0
+                  ? `Completed with ${failedCount} failure(s). ${createdIds.length} items created.`
+                  : `All ${items.length} items created successfully.`,
               ...(tokenHash ? { batch_token_hash: tokenHash } : {}),
               autosplit_batch_id: autosplitBatchId,
             },
-            ...(failedCount === items.length ? { error_message: 'All items failed to create' } : {}),
+            ...(failedCount === items.length
+              ? { error_message: 'All items failed to create' }
+              : {}),
           })
           .eq('id', pipelineRunId);
       } catch {

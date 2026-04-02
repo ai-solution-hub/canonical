@@ -22,9 +22,9 @@ test.describe('Settings -- Team management', () => {
     authenticatedPage: page,
   }) => {
     await page.goto('/settings?section=team');
-    await expect(
-      page.getByRole('heading', { name: 'Settings' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({
+      timeout: 10000,
+    });
 
     const main = page.locator('main');
     await expect(
@@ -40,7 +40,13 @@ test.describe('Settings -- Team management', () => {
     const roleBadges = ['Admin', 'Editor', 'Viewer'];
     let foundRole = false;
     for (const role of roleBadges) {
-      if (await main.getByText(role, { exact: true }).first().isVisible({ timeout: 2000 }).catch(() => false)) {
+      if (
+        await main
+          .getByText(role, { exact: true })
+          .first()
+          .isVisible({ timeout: 2000 })
+          .catch(() => false)
+      ) {
         foundRole = true;
         break;
       }
@@ -52,9 +58,9 @@ test.describe('Settings -- Team management', () => {
     authenticatedPage: page,
   }) => {
     await page.goto('/settings?section=team');
-    await expect(
-      page.getByRole('heading', { name: 'Settings' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({
+      timeout: 10000,
+    });
 
     const main = page.locator('main');
     await expect(
@@ -69,7 +75,10 @@ test.describe('Settings -- Team management', () => {
     const dropdownCount = await roleDropdowns.count();
 
     if (dropdownCount === 0) {
-      test.skip(true, 'No non-current-user rows found — cannot test role dropdown');
+      test.skip(
+        true,
+        'No non-current-user rows found — cannot test role dropdown',
+      );
       return;
     }
 
@@ -91,9 +100,9 @@ test.describe('Settings -- Team management', () => {
     authenticatedPage: page,
   }) => {
     await page.goto('/settings?section=team');
-    await expect(
-      page.getByRole('heading', { name: 'Settings' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({
+      timeout: 10000,
+    });
 
     const main = page.locator('main');
     await expect(
@@ -101,10 +110,15 @@ test.describe('Settings -- Team management', () => {
     ).toBeVisible({ timeout: 15000 });
 
     // Find the invite/add button
-    const inviteButton = main.getByRole('button', { name: /invite|add/i }).first();
+    const inviteButton = main
+      .getByRole('button', { name: /invite|add/i })
+      .first();
     const isVisible = await inviteButton.isVisible({ timeout: 5000 });
     if (!isVisible) {
-      test.skip(true, 'Invite button not found — invite flow may not be implemented yet');
+      test.skip(
+        true,
+        'Invite button not found — invite flow may not be implemented yet',
+      );
       return;
     }
 
@@ -120,7 +134,9 @@ test.describe('Settings -- Team management', () => {
     await emailInput.fill('not-an-email');
 
     // Role selector should be present
-    const roleSelector = dialog.getByText(/role/i).or(dialog.getByRole('combobox'));
+    const roleSelector = dialog
+      .getByText(/role/i)
+      .or(dialog.getByRole('combobox'));
     await expect(roleSelector.first()).toBeVisible();
 
     // The email input has the HTML `required` attribute and type="email",
@@ -129,7 +145,9 @@ test.describe('Settings -- Team management', () => {
     await expect(emailInput).toHaveAttribute('type', 'email');
 
     // Try to submit — validation should prevent it
-    const submitButton = dialog.getByRole('button', { name: /invite|add|send/i }).last();
+    const submitButton = dialog
+      .getByRole('button', { name: /invite|add|send/i })
+      .last();
     await submitButton.click();
 
     // Dialog should still be visible (invalid submission blocked by browser validation)
@@ -146,9 +164,9 @@ test.describe('Settings -- Content Organisation (Taxonomy)', () => {
     authenticatedPage: page,
   }) => {
     await page.goto('/settings?section=content-organisation');
-    await expect(
-      page.getByRole('heading', { name: 'Settings' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({
+      timeout: 10000,
+    });
 
     const main = page.locator('main');
 
@@ -158,9 +176,9 @@ test.describe('Settings -- Content Organisation (Taxonomy)', () => {
     ).toBeVisible({ timeout: 15000 });
 
     // Wait for the "Add Domain" button to confirm the taxonomy section loaded
-    await expect(
-      main.getByRole('button', { name: /Add Domain/i }),
-    ).toBeVisible({ timeout: 15000 });
+    await expect(main.getByRole('button', { name: /Add Domain/i })).toBeVisible(
+      { timeout: 15000 },
+    );
 
     // The "Categories" heading should be visible (default tab)
     await expect(
@@ -177,9 +195,9 @@ test.describe('Settings -- Content Organisation (Taxonomy)', () => {
     authenticatedPage: page,
   }) => {
     await page.goto('/settings?section=content-organisation');
-    await expect(
-      page.getByRole('heading', { name: 'Settings' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({
+      timeout: 10000,
+    });
 
     const main = page.locator('main');
 
@@ -195,41 +213,39 @@ test.describe('Settings -- Content Organisation (Taxonomy)', () => {
     await expect(dialog).toBeVisible();
 
     // Dialog should contain a name input
-    const nameInput = dialog.getByLabel(/name/i).or(dialog.getByRole('textbox'));
+    const nameInput = dialog
+      .getByLabel(/name/i)
+      .or(dialog.getByRole('textbox'));
     await expect(nameInput.first()).toBeVisible();
 
     // Dialog should contain a submit button
-    const submitButton = dialog.getByRole('button', { name: /add|create|save/i });
+    const submitButton = dialog.getByRole('button', {
+      name: /add|create|save/i,
+    });
     await expect(submitButton.first()).toBeVisible();
   });
 
-  test('tags tab loads with tag list', async ({
-    authenticatedPage: page,
-  }) => {
+  test('tags tab loads with tag list', async ({ authenticatedPage: page }) => {
     await page.goto('/settings?section=content-organisation&tab=tags');
-    await expect(
-      page.getByRole('heading', { name: 'Settings' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({
+      timeout: 10000,
+    });
 
     const main = page.locator('main');
 
     // Wait for content to load (either tags or empty state)
     // The tags tab should be active
-    await expect(
-      main.getByText(/tags/i).first(),
-    ).toBeVisible({ timeout: 15000 });
+    await expect(main.getByText(/tags/i).first()).toBeVisible({
+      timeout: 15000,
+    });
 
     // The tags section renders sub-tabs: "Duplicates", "By Domain", "All Tags".
     // Verify the tag health stats loaded (confirms tags data fetched)
     // and that the sub-tab navigation is rendered.
-    await expect(
-      main.getByText('Tag Health'),
-    ).toBeVisible({ timeout: 15000 });
+    await expect(main.getByText('Tag Health')).toBeVisible({ timeout: 15000 });
 
     // At least one sub-tab should be visible (the section uses its own internal Tabs)
-    await expect(
-      main.getByRole('tab', { name: /All Tags/ }),
-    ).toBeVisible();
+    await expect(main.getByRole('tab', { name: /All Tags/ })).toBeVisible();
   });
 });
 
@@ -242,27 +258,29 @@ test.describe('Settings -- Quality Review (Governance)', () => {
     authenticatedPage: page,
   }) => {
     await page.goto('/settings?section=governance');
-    await expect(
-      page.getByRole('heading', { name: 'Settings' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({
+      timeout: 10000,
+    });
 
     const main = page.locator('main');
 
     // Wait for governance content to load (Suspense boundary)
     // Look for the governance config heading which has a specific ID
-    await expect(
-      main.locator('#governance-config-heading'),
-    ).toBeVisible({ timeout: 15000 });
+    await expect(main.locator('#governance-config-heading')).toBeVisible({
+      timeout: 15000,
+    });
 
     // Verify the heading text matches "Quality Review Rules"
-    await expect(
-      main.locator('#governance-config-heading'),
-    ).toHaveText(/Quality Review Rules/);
+    await expect(main.locator('#governance-config-heading')).toHaveText(
+      /Quality Review Rules/,
+    );
 
     // Check for domain configuration rows or the empty state.
     // The component renders a role="list" with listitem rows when configs exist,
     // or an empty state with "No governance rules configured" text.
-    const configList = main.locator('[role="list"][aria-labelledby="governance-config-heading"]');
+    const configList = main.locator(
+      '[role="list"][aria-labelledby="governance-config-heading"]',
+    );
     const emptyState = main.getByText('No governance rules configured');
 
     if (await configList.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -274,13 +292,13 @@ test.describe('Settings -- Quality Review (Governance)', () => {
       // Each row has a domain name (text-sm font-medium) and posture badge
       const firstItem = listItems.first();
       await expect(firstItem.locator('.text-sm.font-medium')).toBeVisible();
-      await expect(firstItem.locator('.text-xs.text-muted-foreground').first()).toBeVisible();
+      await expect(
+        firstItem.locator('.text-xs.text-muted-foreground').first(),
+      ).toBeVisible();
     } else {
       // Empty state is acceptable — verify its content
       await expect(emptyState).toBeVisible();
-      await expect(
-        main.getByText(/Open.*posture by default/),
-      ).toBeVisible();
+      await expect(main.getByText(/Open.*posture by default/)).toBeVisible();
     }
 
     // "Content Freshness" section should also be visible below governance config
@@ -299,9 +317,9 @@ test.describe('Settings -- Permission gating for mutations', () => {
     editorPage: page,
   }) => {
     await page.goto('/settings');
-    await expect(
-      page.getByRole('heading', { name: 'Settings' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({
+      timeout: 10000,
+    });
 
     const settingsNav = await getSettingsNav(page);
 
@@ -312,7 +330,9 @@ test.describe('Settings -- Permission gating for mutations', () => {
     // Admin-only sections should NOT be visible
     await expect(settingsNav.getByText('Team')).not.toBeVisible();
     await expect(settingsNav.getByText('Quality Review')).not.toBeVisible();
-    await expect(settingsNav.getByText('Content Organisation')).not.toBeVisible();
+    await expect(
+      settingsNav.getByText('Content Organisation'),
+    ).not.toBeVisible();
     await expect(settingsNav.getByText('Activity')).not.toBeVisible();
   });
 
@@ -320,9 +340,9 @@ test.describe('Settings -- Permission gating for mutations', () => {
     viewerPage: page,
   }) => {
     await page.goto('/settings');
-    await expect(
-      page.getByRole('heading', { name: 'Settings' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({
+      timeout: 10000,
+    });
 
     const settingsNav = await getSettingsNav(page);
 
@@ -333,7 +353,9 @@ test.describe('Settings -- Permission gating for mutations', () => {
     // Admin-only sections should NOT be visible
     await expect(settingsNav.getByText('Team')).not.toBeVisible();
     await expect(settingsNav.getByText('Quality Review')).not.toBeVisible();
-    await expect(settingsNav.getByText('Content Organisation')).not.toBeVisible();
+    await expect(
+      settingsNav.getByText('Content Organisation'),
+    ).not.toBeVisible();
     await expect(settingsNav.getByText('Activity')).not.toBeVisible();
   });
 
@@ -341,9 +363,9 @@ test.describe('Settings -- Permission gating for mutations', () => {
     authenticatedPage: page,
   }) => {
     await page.goto('/settings');
-    await expect(
-      page.getByRole('heading', { name: 'Settings' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({
+      timeout: 10000,
+    });
 
     const settingsNav = await getSettingsNav(page);
 

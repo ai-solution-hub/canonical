@@ -25,10 +25,7 @@ export default function GuideDetailLoading() {
         {/* Main content sections */}
         <div className="min-w-0 flex-1 space-y-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div
-              key={i}
-              className="rounded-lg border bg-card p-5"
-            >
+            <div key={i} className="rounded-lg border bg-card p-5">
               <div className="h-5 w-40 animate-pulse rounded bg-accent" />
               <div className="mt-3 space-y-2">
                 <div className="h-3 w-full animate-pulse rounded bg-accent" />
@@ -45,7 +42,10 @@ export default function GuideDetailLoading() {
             <div className="h-4 w-28 animate-pulse rounded bg-accent" />
             <div className="mt-3 space-y-2">
               {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="h-8 w-full animate-pulse rounded-md bg-accent" />
+                <div
+                  key={i}
+                  className="h-8 w-full animate-pulse rounded-md bg-accent"
+                />
               ))}
             </div>
           </div>

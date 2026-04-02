@@ -14,10 +14,7 @@ const MetricsParamsSchema = z.object({
 type Period = '7d' | '30d' | 'all';
 
 /** GET /api/intelligence/workspaces/:id/metrics — aggregate workspace metrics */
-export async function GET(
-  request: NextRequest,
-  context: RouteContext,
-) {
+export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
     const auth = await getAuthorisedClient(['admin', 'editor']);
@@ -132,7 +129,8 @@ export async function GET(
         flag_type: f.flag_type,
         notes: f.notes,
         created_at: f.created_at,
-        article_title: (f.feed_articles as Record<string, unknown>)?.title ?? 'Unknown',
+        article_title:
+          (f.feed_articles as Record<string, unknown>)?.title ?? 'Unknown',
       })),
       period,
     });

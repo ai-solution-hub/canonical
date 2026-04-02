@@ -37,7 +37,7 @@ function makeEstimate(overrides: Record<string, unknown> = {}) {
     total_questions: 12,
     eligible_questions: 8,
     estimated_cost_min: 0.45,
-    estimated_cost_max: 1.20,
+    estimated_cost_max: 1.2,
     estimated_input_tokens: 150000,
     estimated_output_tokens: 30000,
     breakdown: [],
@@ -85,7 +85,9 @@ describe('CostEstimateDialog', () => {
 
     renderDialog();
     expect(
-      screen.getByText(/Estimated API cost for drafting all eligible questions/),
+      screen.getByText(
+        /Estimated API cost for drafting all eligible questions/,
+      ),
     ).toBeInTheDocument();
   });
 
@@ -93,18 +95,26 @@ describe('CostEstimateDialog', () => {
 
   it('shows loading state while fetching estimate', () => {
     // Never resolves to keep loading state
-    (globalThis.fetch as ReturnType<typeof vi.fn>).mockReturnValue(new Promise(() => {}));
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockReturnValue(
+      new Promise(() => {}),
+    );
 
     renderDialog();
     expect(screen.getByRole('status')).toBeInTheDocument();
-    expect(screen.getByText('Calculating cost estimate...')).toBeInTheDocument();
+    expect(
+      screen.getByText('Calculating cost estimate...'),
+    ).toBeInTheDocument();
   });
 
   it('disables Proceed button while loading', () => {
-    (globalThis.fetch as ReturnType<typeof vi.fn>).mockReturnValue(new Promise(() => {}));
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockReturnValue(
+      new Promise(() => {}),
+    );
 
     renderDialog();
-    expect(screen.getByRole('button', { name: 'Proceed with Drafting' })).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'Proceed with Drafting' }),
+    ).toBeDisabled();
   });
 
   // ---- Fetching ----
@@ -163,7 +173,10 @@ describe('CostEstimateDialog', () => {
   it('displays cost range', async () => {
     (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve(makeEstimate({ estimated_cost_min: 0.45, estimated_cost_max: 1.20 })),
+      json: () =>
+        Promise.resolve(
+          makeEstimate({ estimated_cost_min: 0.45, estimated_cost_max: 1.2 }),
+        ),
     });
 
     renderDialog();
@@ -180,7 +193,13 @@ describe('CostEstimateDialog', () => {
   it('formats very small costs as less than $0.01', async () => {
     (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve(makeEstimate({ estimated_cost_min: 0.005, estimated_cost_max: 0.008 })),
+      json: () =>
+        Promise.resolve(
+          makeEstimate({
+            estimated_cost_min: 0.005,
+            estimated_cost_max: 0.008,
+          }),
+        ),
     });
 
     renderDialog();
@@ -194,7 +213,13 @@ describe('CostEstimateDialog', () => {
   it('formats million-scale tokens with M suffix', async () => {
     (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve(makeEstimate({ estimated_input_tokens: 1500000, estimated_output_tokens: 500000 })),
+      json: () =>
+        Promise.resolve(
+          makeEstimate({
+            estimated_input_tokens: 1500000,
+            estimated_output_tokens: 500000,
+          }),
+        ),
     });
 
     renderDialog();
@@ -236,7 +261,9 @@ describe('CostEstimateDialog', () => {
     renderDialog();
 
     await waitFor(() => {
-      expect(screen.getByText(/No questions are eligible for drafting/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/No questions are eligible for drafting/),
+      ).toBeInTheDocument();
     });
   });
 
@@ -249,7 +276,9 @@ describe('CostEstimateDialog', () => {
     renderDialog();
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Proceed with Drafting' })).toBeDisabled();
+      expect(
+        screen.getByRole('button', { name: 'Proceed with Drafting' }),
+      ).toBeDisabled();
     });
   });
 
@@ -279,7 +308,9 @@ describe('CostEstimateDialog', () => {
     renderDialog();
 
     await waitFor(() => {
-      expect(screen.getByText('Failed to fetch cost estimate')).toBeInTheDocument();
+      expect(
+        screen.getByText('Failed to fetch cost estimate'),
+      ).toBeInTheDocument();
     });
   });
 
@@ -293,7 +324,9 @@ describe('CostEstimateDialog', () => {
     renderDialog();
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Proceed with Drafting' })).toBeDisabled();
+      expect(
+        screen.getByRole('button', { name: 'Proceed with Drafting' }),
+      ).toBeDisabled();
     });
   });
 
@@ -341,10 +374,14 @@ describe('CostEstimateDialog', () => {
     renderDialog({ onProceed, onOpenChange });
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Proceed with Drafting' })).not.toBeDisabled();
+      expect(
+        screen.getByRole('button', { name: 'Proceed with Drafting' }),
+      ).not.toBeDisabled();
     });
 
-    await user.click(screen.getByRole('button', { name: 'Proceed with Drafting' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Proceed with Drafting' }),
+    );
 
     expect(onProceed).toHaveBeenCalled();
     expect(onOpenChange).toHaveBeenCalledWith(false);
@@ -368,10 +405,14 @@ describe('CostEstimateDialog', () => {
   // ---- Cancel and Proceed buttons always visible ----
 
   it('renders Cancel and Proceed buttons regardless of state', () => {
-    (globalThis.fetch as ReturnType<typeof vi.fn>).mockReturnValue(new Promise(() => {}));
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockReturnValue(
+      new Promise(() => {}),
+    );
 
     renderDialog();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Proceed with Drafting' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Proceed with Drafting' }),
+    ).toBeInTheDocument();
   });
 });

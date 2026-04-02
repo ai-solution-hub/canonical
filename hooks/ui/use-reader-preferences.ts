@@ -82,12 +82,14 @@ function loadPreferences(): ReaderPreferences {
         typeof parsed.panelLayout.reader === 'number'
           ? parsed.panelLayout
           : DEFAULTS.panelLayout,
-      readerOpen: typeof parsed.readerOpen === 'boolean'
-        ? parsed.readerOpen
-        : DEFAULTS.readerOpen,
-      isDetached: typeof parsed.isDetached === 'boolean'
-        ? parsed.isDetached
-        : DEFAULTS.isDetached,
+      readerOpen:
+        typeof parsed.readerOpen === 'boolean'
+          ? parsed.readerOpen
+          : DEFAULTS.readerOpen,
+      isDetached:
+        typeof parsed.isDetached === 'boolean'
+          ? parsed.isDetached
+          : DEFAULTS.isDetached,
       detachedPosition: isValidPosition(parsed.detachedPosition)
         ? parsed.detachedPosition
         : DEFAULTS.detachedPosition,

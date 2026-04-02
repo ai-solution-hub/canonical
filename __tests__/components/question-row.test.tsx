@@ -48,7 +48,10 @@ describe('QuestionRow', () => {
     };
   }
 
-  function renderRow(questionOverrides: Partial<BidQuestion> = {}, canEdit = false) {
+  function renderRow(
+    questionOverrides: Partial<BidQuestion> = {},
+    canEdit = false,
+  ) {
     return render(
       <QuestionRow
         question={makeQuestion(questionOverrides)}
@@ -152,8 +155,12 @@ describe('QuestionRow', () => {
     renderRow({}, false);
 
     await user.click(screen.getByRole('button'));
-    expect(screen.queryByRole('button', { name: /Edit/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Delete/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Edit/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Delete/ }),
+    ).not.toBeInTheDocument();
   });
 
   // ----------------------------------------------------------

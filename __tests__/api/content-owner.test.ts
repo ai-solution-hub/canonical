@@ -27,15 +27,10 @@ vi.mock('next/headers', () => ({
 }));
 
 // Import routes AFTER mocks are registered
-const { PATCH: ownerPatch } = await import(
-  '@/app/api/items/[id]/owner/route'
-);
-const { POST: bulkAssignPost } = await import(
-  '@/app/api/content-owners/bulk-assign/route'
-);
-const { GET: statsGet } = await import(
-  '@/app/api/content-owners/stats/route'
-);
+const { PATCH: ownerPatch } = await import('@/app/api/items/[id]/owner/route');
+const { POST: bulkAssignPost } =
+  await import('@/app/api/content-owners/bulk-assign/route');
+const { GET: statsGet } = await import('@/app/api/content-owners/stats/route');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -62,9 +57,26 @@ beforeEach(() => {
   mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
 
   const chainable = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const m of chainable) {
     mockSupabase._chain[m].mockReturnValue(mockSupabase._chain);
@@ -73,13 +85,15 @@ beforeEach(() => {
   mockSupabase._chain.single.mockReset();
   mockSupabase._chain.single.mockResolvedValue({ data: null, error: null });
   mockSupabase._chain.maybeSingle.mockReset();
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+  });
   mockSupabase._chain.csv.mockReset();
   mockSupabase._chain.csv.mockResolvedValue({ data: null, error: null });
   mockSupabase._chain.then.mockReset();
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 
   // Default service client mock for stats route
@@ -180,14 +194,12 @@ describe('PATCH /api/items/[id]/owner', () => {
 
     // History insert (awaited chain)
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     // Notification insert (awaited chain)
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest(`/api/items/${VALID_UUID}/owner`, {
@@ -220,8 +232,7 @@ describe('PATCH /api/items/[id]/owner', () => {
 
     // History insert (awaited chain)
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest(`/api/items/${VALID_UUID}/owner`, {
@@ -341,8 +352,7 @@ describe('POST /api/content-owners/bulk-assign', () => {
 
     // Notification insert (awaited chain)
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest('/api/content-owners/bulk-assign', {
@@ -388,8 +398,7 @@ describe('POST /api/content-owners/bulk-assign', () => {
 
     // Notification insert (awaited chain)
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest('/api/content-owners/bulk-assign', {
@@ -413,8 +422,7 @@ describe('POST /api/content-owners/bulk-assign', () => {
 
     // Filter query returns empty
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const req = createTestRequest('/api/content-owners/bulk-assign', {

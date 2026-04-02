@@ -94,7 +94,14 @@ export async function suggestGuideSections(
   supabase: SupabaseClient<Database>,
   input: GuideSectionMatchInput,
 ): Promise<GuideSectionMatch[]> {
-  const { primaryDomain, primarySubtopic, secondaryDomain, secondarySubtopic, layer, contentType } = input;
+  const {
+    primaryDomain,
+    primarySubtopic,
+    secondaryDomain,
+    secondarySubtopic,
+    layer,
+    contentType,
+  } = input;
 
   // Guard: domain is required (sections are always scoped to a guide domain)
   if (!primaryDomain) {
@@ -146,7 +153,8 @@ export async function suggestGuideSections(
     if (section.subtopic_filter !== null) {
       const subtopicMatches =
         section.subtopic_filter === primarySubtopic ||
-        (secondarySubtopic != null && section.subtopic_filter === secondarySubtopic);
+        (secondarySubtopic != null &&
+          section.subtopic_filter === secondarySubtopic);
       filterChecks.push({
         name: 'subtopic',
         matches: subtopicMatches,
@@ -239,9 +247,9 @@ export async function suggestGuideSections(
   });
 
   // Strip internal guideDisplayOrder before returning
-  return matches.slice(0, MAX_RESULTS).map(
-    ({ guideDisplayOrder: _guideDisplayOrder, ...match }) => match,
-  );
+  return matches
+    .slice(0, MAX_RESULTS)
+    .map(({ guideDisplayOrder: _guideDisplayOrder, ...match }) => match);
 }
 
 // ---------------------------------------------------------------------------
@@ -272,9 +280,10 @@ function buildMatchReason(
       if (isSecondaryDomainMatch && unmatchedFilters.length === 0) {
         // Capped from exact due to secondary domain — all filters matched
         // but domain is secondary, not primary
-        const filterNote = matchedFilters.length > 0
-          ? ` (${matchedFilters.join(', ')} match)`
-          : '';
+        const filterNote =
+          matchedFilters.length > 0
+            ? ` (${matchedFilters.join(', ')} match)`
+            : '';
         return `Matches ${prefix} via secondary domain${filterNote}`;
       }
       return `Partially matches ${prefix} — matches ${matchedFilters.join(', ')} but not ${unmatchedFilters.join(', ')}`;

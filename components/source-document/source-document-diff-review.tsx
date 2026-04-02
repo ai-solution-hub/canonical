@@ -155,13 +155,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function ContentBlock({
-  label,
-  content,
-}: {
-  label: string;
-  content: string;
-}) {
+function ContentBlock({ label, content }: { label: string; content: string }) {
   return (
     <div>
       <p className="mb-1 text-xs font-medium text-muted-foreground">{label}</p>
@@ -390,7 +384,9 @@ function BulkActionToolbar({
           className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:opacity-50"
           aria-label="Send affected items to review"
         >
-          {sendToReviewState === 'loading' ? 'Sending...' : 'Send affected items to review'}
+          {sendToReviewState === 'loading'
+            ? 'Sending...'
+            : 'Send affected items to review'}
         </button>
       )}
       <span
@@ -488,11 +484,15 @@ function CompletionBanner({
   const actionable = entries.filter((e) => e.diff_type !== 'unchanged');
   if (actionable.length === 0) return null;
 
-  const pendingCount = actionable.filter((e) => e.status === 'pending_review').length;
+  const pendingCount = actionable.filter(
+    (e) => e.status === 'pending_review',
+  ).length;
   if (pendingCount > 0) return null;
 
   const appliedCount = actionable.filter((e) => e.status === 'applied').length;
-  const dismissedCount = actionable.filter((e) => e.status === 'dismissed').length;
+  const dismissedCount = actionable.filter(
+    (e) => e.status === 'dismissed',
+  ).length;
 
   // Collect unique affected KB items from reviewed entries
   const affectedItems = new Map<string, string>();
@@ -541,7 +541,8 @@ function CompletionBanner({
                 className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                 aria-label={`Send ${affectedItems.size} affected items to review queue`}
               >
-                Send {affectedItems.size} affected item{affectedItems.size !== 1 ? 's' : ''} to Review Queue
+                Send {affectedItems.size} affected item
+                {affectedItems.size !== 1 ? 's' : ''} to Review Queue
               </button>
             )}
 
@@ -559,7 +560,9 @@ function CompletionBanner({
             {sendToReviewState === 'success' && sendToReviewResult && (
               <div className="text-sm text-foreground" aria-live="polite">
                 <p>
-                  {sendToReviewResult.sent} item{sendToReviewResult.sent !== 1 ? 's' : ''} sent to review queue.{' '}
+                  {sendToReviewResult.sent} item
+                  {sendToReviewResult.sent !== 1 ? 's' : ''} sent to review
+                  queue.{' '}
                   <Link
                     href={sendToReviewResult.review_url}
                     className="font-medium text-primary underline-offset-4 hover:underline"
@@ -568,15 +571,21 @@ function CompletionBanner({
                     View in Review Queue
                   </Link>
                 </p>
-                {(sendToReviewResult.already_pending > 0 || sendToReviewResult.skipped_draft > 0) && (
+                {(sendToReviewResult.already_pending > 0 ||
+                  sendToReviewResult.skipped_draft > 0) && (
                   <p className="mt-1 text-xs text-muted-foreground">
-                    ({sendToReviewResult.already_pending > 0
+                    (
+                    {sendToReviewResult.already_pending > 0
                       ? `${sendToReviewResult.already_pending} already pending`
                       : ''}
-                    {sendToReviewResult.already_pending > 0 && sendToReviewResult.skipped_draft > 0 ? ', ' : ''}
+                    {sendToReviewResult.already_pending > 0 &&
+                    sendToReviewResult.skipped_draft > 0
+                      ? ', '
+                      : ''}
                     {sendToReviewResult.skipped_draft > 0
                       ? `${sendToReviewResult.skipped_draft} draft${sendToReviewResult.skipped_draft !== 1 ? 's' : ''} skipped`
-                      : ''})
+                      : ''}
+                    )
                   </p>
                 )}
               </div>
@@ -584,7 +593,9 @@ function CompletionBanner({
 
             {sendToReviewState === 'error' && (
               <div className="text-sm" role="alert">
-                <p className="text-destructive">Failed to send items to review queue.</p>
+                <p className="text-destructive">
+                  Failed to send items to review queue.
+                </p>
                 <button
                   onClick={onSendToReview}
                   className="mt-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
@@ -622,16 +633,15 @@ function DiffEntryCard({
   const [showCardDiff, setShowCardDiff] = useState(false);
 
   const question =
-    entry.diff_type === 'added'
-      ? entry.new_question
-      : entry.old_question;
+    entry.diff_type === 'added' ? entry.new_question : entry.old_question;
 
   // Determine if inline diff should be shown in card view.
   // For large texts, only compute the diff when the user toggles it on.
   const isModified = entry.diff_type === 'modified';
   const oldContent = entry.old_content ?? '';
   const newContent = entry.new_content ?? '';
-  const isLargeText = isModified && exceedsLazyThreshold(oldContent, newContent);
+  const isLargeText =
+    isModified && exceedsLazyThreshold(oldContent, newContent);
   // In card mode: show diff only when toggled on (lazy for large texts, eager for small)
   const showDiffInCard = isModified && viewMode === 'card' && showCardDiff;
 
@@ -644,15 +654,14 @@ function DiffEntryCard({
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <DiffTypeBadge diffType={entry.diff_type} />
 
-        {isModified &&
-          entry.similarity_score !== undefined && (
-            <span
-              className="text-xs text-muted-foreground"
-              aria-label={`Similarity: ${Math.round(entry.similarity_score * 100)}%`}
-            >
-              (similarity: {Math.round(entry.similarity_score * 100)}%)
-            </span>
-          )}
+        {isModified && entry.similarity_score !== undefined && (
+          <span
+            className="text-xs text-muted-foreground"
+            aria-label={`Similarity: ${Math.round(entry.similarity_score * 100)}%`}
+          >
+            (similarity: {Math.round(entry.similarity_score * 100)}%)
+          </span>
+        )}
 
         <span className="flex-1" />
 
@@ -697,11 +706,17 @@ function DiffEntryCard({
                     onClick={() => setShowCardDiff((prev) => !prev)}
                     className="mb-2 rounded-md bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                     aria-pressed={showCardDiff}
-                    aria-label={showCardDiff ? 'Hide inline changes' : 'Show inline changes'}
+                    aria-label={
+                      showCardDiff
+                        ? 'Hide inline changes'
+                        : 'Show inline changes'
+                    }
                   >
                     {showCardDiff ? 'Hide changes' : 'Show changes'}
                     {isLargeText && !showCardDiff && (
-                      <span className="ml-1 text-muted-foreground/60">(large text)</span>
+                      <span className="ml-1 text-muted-foreground/60">
+                        (large text)
+                      </span>
                     )}
                   </button>
                 )}
@@ -728,16 +743,10 @@ function DiffEntryCard({
                 ) : (
                   <>
                     {oldContent && (
-                      <ContentBlock
-                        label="Old answer:"
-                        content={oldContent}
-                      />
+                      <ContentBlock label="Old answer:" content={oldContent} />
                     )}
                     {newContent && (
-                      <ContentBlock
-                        label="New answer:"
-                        content={newContent}
-                      />
+                      <ContentBlock label="New answer:" content={newContent} />
                     )}
                   </>
                 )}
@@ -885,7 +894,11 @@ function FullTextDiffEntryCard({
                     onClick={() => setShowCardDiff((prev) => !prev)}
                     className="mb-2 rounded-md bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                     aria-pressed={showCardDiff}
-                    aria-label={showCardDiff ? 'Hide inline changes' : 'Show inline changes'}
+                    aria-label={
+                      showCardDiff
+                        ? 'Hide inline changes'
+                        : 'Show inline changes'
+                    }
                   >
                     {showCardDiff ? 'Hide changes' : 'Show changes'}
                   </button>
@@ -999,8 +1012,7 @@ export function SourceDocumentDiffReview({
     return entry.diff_type === activeFilter;
   });
 
-  const totalVisible =
-    summary.added + summary.removed + summary.modified;
+  const totalVisible = summary.added + summary.removed + summary.modified;
 
   const isAnyLoading = loadingIds.size > 0;
 
@@ -1044,9 +1056,8 @@ export function SourceDocumentDiffReview({
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {oldDocument.filename} (v{oldDocument.version},{' '}
-          {formatDateUK(oldDocument.uploaded_at)}) &rarr;{' '}
-          {newDocument.filename} (v{newDocument.version},{' '}
-          {formatDateUK(newDocument.uploaded_at)})
+          {formatDateUK(oldDocument.uploaded_at)}) &rarr; {newDocument.filename}{' '}
+          (v{newDocument.version}, {formatDateUK(newDocument.uploaded_at)})
         </p>
       </header>
 
@@ -1063,7 +1074,11 @@ export function SourceDocumentDiffReview({
         className="flex flex-wrap gap-4 rounded-lg border bg-card p-4"
         aria-label="Diff summary"
       >
-        <SummaryItem label="Modified" count={summary.modified} type="modified" />
+        <SummaryItem
+          label="Modified"
+          count={summary.modified}
+          type="modified"
+        />
         <SummaryItem label="Added" count={summary.added} type="added" />
         <SummaryItem label="Removed" count={summary.removed} type="removed" />
         <SummaryItem
@@ -1079,7 +1094,11 @@ export function SourceDocumentDiffReview({
       </div>
 
       {/* Filter tabs + view mode toggle */}
-      <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Filter diff entries">
+      <div
+        className="flex flex-wrap items-center gap-2"
+        role="tablist"
+        aria-label="Filter diff entries"
+      >
         {FILTER_OPTIONS.map((option) => (
           <button
             key={option.value}
@@ -1152,8 +1171,12 @@ export function SourceDocumentDiffReview({
 
       {/* Progress indicator */}
       {(() => {
-        const actionable = localEntries.filter((e) => e.diff_type !== 'unchanged');
-        const reviewed = actionable.filter((e) => e.status !== 'pending_review').length;
+        const actionable = localEntries.filter(
+          (e) => e.diff_type !== 'unchanged',
+        );
+        const reviewed = actionable.filter(
+          (e) => e.status !== 'pending_review',
+        ).length;
         const total = actionable.length;
         if (total === 0) return null;
         return (

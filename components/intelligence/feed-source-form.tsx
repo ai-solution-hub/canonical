@@ -12,7 +12,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import type { FeedSource, FeedSourceInput } from '@/hooks/intelligence/use-feed-sources';
+import type {
+  FeedSource,
+  FeedSourceInput,
+} from '@/hooks/intelligence/use-feed-sources';
 
 interface FeedSourceFormProps {
   initialData?: FeedSource;
@@ -56,7 +59,10 @@ export function FeedSourceForm({
   );
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-lg border bg-card p-4 shadow-sm">
+    <form
+      onSubmit={handleSubmit}
+      className="rounded-lg border bg-card p-4 shadow-sm"
+    >
       <h3 className="mb-4 text-base font-semibold text-foreground">
         {initialData ? 'Edit Feed Source' : 'Add Feed Source'}
       </h3>

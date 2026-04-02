@@ -37,7 +37,10 @@ describe('BASELINE_ALIASES', () => {
 
   it('all alias values are non-empty strings', () => {
     for (const [key, value] of Object.entries(BASELINE_ALIASES)) {
-      expect(value, `alias for "${key}" should be a non-empty string`).toBeTruthy();
+      expect(
+        value,
+        `alias for "${key}" should be a non-empty string`,
+      ).toBeTruthy();
     }
   });
 });

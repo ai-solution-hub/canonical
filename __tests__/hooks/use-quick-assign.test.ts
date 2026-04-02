@@ -120,12 +120,7 @@ describe('useQuickAssign', () => {
         return Promise.resolve({
           ok: true,
           json: () =>
-            Promise.resolve([
-              WS_ACTIVE_1,
-              WS_ACTIVE_2,
-              WS_WON,
-              WS_KB_SECTION,
-            ]),
+            Promise.resolve([WS_ACTIVE_1, WS_ACTIVE_2, WS_WON, WS_KB_SECTION]),
         });
       }
       if (url === '/api/items/batch-workspaces') {
@@ -211,62 +206,54 @@ describe('useQuickAssign', () => {
     });
 
     await act(async () => {
-      await result.current.loadAssignments([
-        'item-1',
-        'item-2',
-        'item-3',
-      ]);
+      await result.current.loadAssignments(['item-1', 'item-2', 'item-3']);
     });
 
     expect(result.current.itemAssignments.get('item-1')).toEqual(
       new Set(['ws-1']),
     );
-    expect(result.current.itemAssignments.get('item-2')).toEqual(
-      new Set([]),
-    );
+    expect(result.current.itemAssignments.get('item-2')).toEqual(new Set([]));
     expect(result.current.itemAssignments.get('item-3')).toEqual(
       new Set(['ws-1', 'ws-2']),
     );
   });
 
   it('performs optimistic update on assignment toggle', async () => {
-    mockFetch.mockImplementation(
-      (url: string, init?: RequestInit) => {
-        if (url === '/api/workspaces') {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve([WS_ACTIVE_1]),
-          });
-        }
-        if (url === '/api/items/batch-workspaces') {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ assignments: {} }),
-          });
-        }
-        // Simulate slow API
-        if (
-          typeof url === 'string' &&
-          url.includes('/workspaces') &&
-          init?.method === 'POST'
-        ) {
-          return new Promise((resolve) =>
-            setTimeout(
-              () =>
-                resolve({
-                  ok: true,
-                  json: () => Promise.resolve({ success: true }),
-                }),
-              100,
-            ),
-          );
-        }
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      if (url === '/api/workspaces') {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ success: true }),
+          json: () => Promise.resolve([WS_ACTIVE_1]),
         });
-      },
-    );
+      }
+      if (url === '/api/items/batch-workspaces') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ assignments: {} }),
+        });
+      }
+      // Simulate slow API
+      if (
+        typeof url === 'string' &&
+        url.includes('/workspaces') &&
+        init?.method === 'POST'
+      ) {
+        return new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                ok: true,
+                json: () => Promise.resolve({ success: true }),
+              }),
+            100,
+          ),
+        );
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ success: true }),
+      });
+    });
 
     const { result } = renderHook(() => useQuickAssign(), {
       wrapper: createWrapper(),
@@ -281,23 +268,17 @@ describe('useQuickAssign', () => {
       await result.current.loadAssignments(['item-1']);
     });
 
-    expect(result.current.itemAssignments.get('item-1')).toEqual(
-      new Set(),
-    );
+    expect(result.current.itemAssignments.get('item-1')).toEqual(new Set());
 
     // Toggle assignment — should optimistically update immediately
     act(() => {
-      result.current.toggleAssignment(
-        'item-1',
-        'ws-1',
-        'Active Bid Alpha',
-      );
+      result.current.toggleAssignment('item-1', 'ws-1', 'Active Bid Alpha');
     });
 
     // Optimistic: should appear assigned immediately
-    expect(
-      result.current.itemAssignments.get('item-1')?.has('ws-1'),
-    ).toBe(true);
+    expect(result.current.itemAssignments.get('item-1')?.has('ws-1')).toBe(
+      true,
+    );
   });
 
   it('does not load assignments for empty array', async () => {
@@ -326,8 +307,7 @@ describe('useQuickAssign', () => {
         return Promise.resolve({
           ok: false,
           status: 500,
-          json: () =>
-            Promise.resolve({ error: 'Internal Server Error' }),
+          json: () => Promise.resolve({ error: 'Internal Server Error' }),
         });
       }
       return Promise.resolve({
@@ -428,9 +408,9 @@ describe('useQuickAssign', () => {
 
     // After error: should have rolled back — ws-1 should be present again
     await waitFor(() => {
-      expect(
-        result.current.itemAssignments.get('item-1')?.has('ws-1'),
-      ).toBe(true);
+      expect(result.current.itemAssignments.get('item-1')?.has('ws-1')).toBe(
+        true,
+      );
     });
   });
 

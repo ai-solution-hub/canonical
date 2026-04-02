@@ -41,10 +41,7 @@ export async function PATCH(
 
     if (error || !data) {
       if (!data && !error) {
-        return NextResponse.json(
-          { error: 'Item not found' },
-          { status: 404 },
-        );
+        return NextResponse.json({ error: 'Item not found' }, { status: 404 });
       }
       console.error('Failed to update priority:', error);
       return NextResponse.json(

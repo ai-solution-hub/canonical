@@ -43,10 +43,17 @@ export async function registerBidTools(server: McpServer): Promise<void> {
     'list_active_bids',
     {
       title: 'List Active Bids',
-      description: 'List all active (non-archived) bids with their status, buyer, deadline, and question completion progress. Use this to see which bids are in progress and which need attention.',
+      description:
+        'List all active (non-archived) bids with their status, buyer, deadline, and question completion progress. Use this to see which bids are in progress and which need attention.',
       inputSchema: {
-        limit: z.number().optional().describe('Maximum number of bids to return (default: 20, max: 50)'),
-        offset: z.number().optional().describe('Number of bids to skip for pagination (default: 0)'),
+        limit: z
+          .number()
+          .optional()
+          .describe('Maximum number of bids to return (default: 20, max: 50)'),
+        offset: z
+          .number()
+          .optional()
+          .describe('Number of bids to skip for pagination (default: 0)'),
       },
       annotations: {
         readOnlyHint: true,
@@ -60,10 +67,12 @@ export async function registerBidTools(server: McpServer): Promise<void> {
         const bidLimit = Math.min(args.limit ?? 20, 50);
         const bidOffset = args.offset ?? 0;
         const { fetchActiveBidsWithStats } = await getBidQueriesModule();
-        const { workspaces, statsMap } = await fetchActiveBidsWithStats(supabase);
+        const { workspaces, statsMap } =
+          await fetchActiveBidsWithStats(supabase);
 
         // Map to ActiveBidSummary type
-        const { getDeadlineUrgency, getDaysUntilDeadline } = await getDashboardModule();
+        const { getDeadlineUrgency, getDaysUntilDeadline } =
+          await getDashboardModule();
         const allBids: ActiveBidSummary[] = workspaces.map((workspace) => {
           const meta = parseBidMetadata(workspace.domain_metadata);
           const stats = statsMap.get(workspace.id);
@@ -77,14 +86,19 @@ export async function registerBidTools(server: McpServer): Promise<void> {
             deadline,
             days_until_deadline: getDaysUntilDeadline(deadline),
             total_questions: stats?.total_questions ?? 0,
-            answered_questions: (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0),
+            answered_questions:
+              (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0),
             approved_questions: stats?.complete_count ?? 0,
           };
         });
 
         // Sort by deadline urgency
         const urgencyOrder: Record<string, number> = {
-          overdue: 0, urgent: 1, approaching: 2, normal: 3, unknown: 4,
+          overdue: 0,
+          urgent: 1,
+          approaching: 2,
+          normal: 3,
+          unknown: 4,
         };
         allBids.sort((a, b) => {
           const aUrgency = urgencyOrder[getDeadlineUrgency(a.deadline)] ?? 4;
@@ -112,7 +126,12 @@ export async function registerBidTools(server: McpServer): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Failed to list bids: ${message}. Try simplifying your query or removing filters.` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Failed to list bids: ${message}. Try simplifying your query or removing filters.`,
+            },
+          ],
           isError: true,
         };
       }
@@ -126,7 +145,8 @@ export async function registerBidTools(server: McpServer): Promise<void> {
     'get_bid_detail',
     {
       title: 'Get Bid Detail',
-      description: 'Get detailed information about a specific bid including buyer, deadline, status, and question completion progress. Use this after listing bids to drill into a specific one.',
+      description:
+        'Get detailed information about a specific bid including buyer, deadline, status, and question completion progress. Use this after listing bids to drill into a specific one.',
       inputSchema: {
         id: z.string().uuid().describe('The UUID of the bid workspace'),
       },
@@ -150,7 +170,9 @@ export async function registerBidTools(server: McpServer): Promise<void> {
 
         if (wsError || !workspace) {
           return {
-            content: [{ type: 'text' as const, text: `Bid not found: ${args.id}` }],
+            content: [
+              { type: 'text' as const, text: `Bid not found: ${args.id}` },
+            ],
             isError: true,
           };
         }
@@ -161,10 +183,13 @@ export async function registerBidTools(server: McpServer): Promise<void> {
         });
 
         // Fetch individual questions grouped by section
-        const { sections, status_breakdown, confidence_breakdown } = await fetchBidSections(supabase, args.id);
+        const { sections, status_breakdown, confidence_breakdown } =
+          await fetchBidSections(supabase, args.id);
 
         // Compute readiness summary from responses with metadata
-        const allQuestionIds = sections.flatMap((s) => s.questions.map((q) => q.id));
+        const allQuestionIds = sections.flatMap((s) =>
+          s.questions.map((q) => q.id),
+        );
         let readinessSummary: {
           ready: boolean;
           summary: {
@@ -179,16 +204,21 @@ export async function registerBidTools(server: McpServer): Promise<void> {
         if (allQuestionIds.length > 0) {
           const { data: responses } = await supabase
             .from('bid_responses')
-            .select('question_id, response_text, review_status, metadata, overall_score')
+            .select(
+              'question_id, response_text, review_status, metadata, overall_score',
+            )
             .in('question_id', allQuestionIds);
 
-          const responseMap = new Map<string, {
-            response_text: string | null;
-            review_status: string | null;
-            metadata: unknown;
-            overall_score?: number | null;
-          }>();
-          for (const r of (responses ?? [])) {
+          const responseMap = new Map<
+            string,
+            {
+              response_text: string | null;
+              review_status: string | null;
+              metadata: unknown;
+              overall_score?: number | null;
+            }
+          >();
+          for (const r of responses ?? []) {
             responseMap.set(r.question_id, r);
           }
 
@@ -200,22 +230,34 @@ export async function registerBidTools(server: McpServer): Promise<void> {
 
           for (const qId of allQuestionIds) {
             const resp = responseMap.get(qId);
-            if (resp?.response_text && resp.response_text.trim().length > 0) answered++;
-            if (resp?.review_status === 'approved' || resp?.review_status === 'edited') approved++;
+            if (resp?.response_text && resp.response_text.trim().length > 0)
+              answered++;
+            if (
+              resp?.review_status === 'approved' ||
+              resp?.review_status === 'edited'
+            )
+              approved++;
 
             const meta2 = (resp?.metadata ?? {}) as BidResponseMetadata;
             const qd: QualityData | null = meta2.quality_data ?? null;
             if (qd) {
               qualityChecked++;
               // Prefer overall_score from dedicated column; fall back to metadata
-              const score = (resp as Record<string, unknown> | undefined)?.overall_score as number | null ?? qd.overall_score ?? 0;
+              const score =
+                ((resp as Record<string, unknown> | undefined)
+                  ?.overall_score as number | null) ??
+                qd.overall_score ??
+                0;
               if (score >= QUALITY_THRESHOLD) passingQuality++;
             }
           }
 
           const totalQ = allQuestionIds.length;
           readinessSummary = {
-            ready: answered === totalQ && approved === totalQ && (qualityChecked === 0 || passingQuality === qualityChecked),
+            ready:
+              answered === totalQ &&
+              approved === totalQ &&
+              (qualityChecked === 0 || passingQuality === qualityChecked),
             summary: {
               total_questions: totalQ,
               answered,
@@ -244,7 +286,9 @@ export async function registerBidTools(server: McpServer): Promise<void> {
         const readinessLine = readinessSummary
           ? `\n\n**Readiness:** ${readinessSummary.ready ? 'Ready to export' : 'Not ready'} (${readinessSummary.summary.answered}/${readinessSummary.summary.total_questions} answered, ${readinessSummary.summary.approved}/${readinessSummary.summary.total_questions} approved)`
           : '';
-        const markdown = truncateResponse(formatBidDetail(bidDetail) + readinessLine);
+        const markdown = truncateResponse(
+          formatBidDetail(bidDetail) + readinessLine,
+        );
         return {
           content: [{ type: 'text' as const, text: markdown }],
           structuredContent: toStructuredContent({
@@ -255,7 +299,12 @@ export async function registerBidTools(server: McpServer): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Failed to get bid detail: ${message}. Check the ID is a valid UUID.` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Failed to get bid detail: ${message}. Check the ID is a valid UUID.`,
+            },
+          ],
           isError: true,
         };
       }
@@ -269,7 +318,8 @@ export async function registerBidTools(server: McpServer): Promise<void> {
     'get_bid_question',
     {
       title: 'Get Bid Question',
-      description: 'Get a specific bid question with its response text, confidence posture, and review status. Use this to see the detail of a particular question within a bid.',
+      description:
+        'Get a specific bid question with its response text, confidence posture, and review status. Use this to see the detail of a particular question within a bid.',
       inputSchema: {
         question_id: z.string().uuid().describe('The UUID of the bid question'),
       },
@@ -286,13 +336,20 @@ export async function registerBidTools(server: McpServer): Promise<void> {
         // Fetch question
         const { data: question, error: qError } = await supabase
           .from('bid_questions')
-          .select('id, question_text, section_name, word_limit, confidence_posture, status')
+          .select(
+            'id, question_text, section_name, word_limit, confidence_posture, status',
+          )
           .eq('id', args.question_id)
           .single();
 
         if (qError || !question) {
           return {
-            content: [{ type: 'text' as const, text: `Question not found: ${args.question_id}` }],
+            content: [
+              {
+                type: 'text' as const,
+                text: `Question not found: ${args.question_id}`,
+              },
+            ],
             isError: true,
           };
         }
@@ -323,7 +380,12 @@ export async function registerBidTools(server: McpServer): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Failed to get bid question: ${message}. Check the ID is a valid UUID.` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Failed to get bid question: ${message}. Check the ID is a valid UUID.`,
+            },
+          ],
           isError: true,
         };
       }
@@ -337,11 +399,21 @@ export async function registerBidTools(server: McpServer): Promise<void> {
     'cite_content',
     {
       title: 'Cite Content',
-      description: 'Record that a knowledge base content item was used when drafting a bid response. This tracks which content contributes to bids and enables win rate analysis. Requires editor or admin role. Note: if the same content_item_id + bid_response_id pair is cited again, the existing citation is updated (upsert) — re-citing with a different citation_type will silently overwrite the previous type.',
+      description:
+        'Record that a knowledge base content item was used when drafting a bid response. This tracks which content contributes to bids and enables win rate analysis. Requires editor or admin role. Note: if the same content_item_id + bid_response_id pair is cited again, the existing citation is updated (upsert) — re-citing with a different citation_type will silently overwrite the previous type.',
       inputSchema: {
-        content_item_id: z.string().uuid().describe('The UUID of the content item that was used'),
-        bid_response_id: z.string().uuid().describe('The UUID of the bid response it was used in'),
-        citation_type: z.enum(['reference', 'copied', 'adapted', 'inspired']).optional().describe('How the content was used (default: reference)'),
+        content_item_id: z
+          .string()
+          .uuid()
+          .describe('The UUID of the content item that was used'),
+        bid_response_id: z
+          .string()
+          .uuid()
+          .describe('The UUID of the bid response it was used in'),
+        citation_type: z
+          .enum(['reference', 'copied', 'adapted', 'inspired'])
+          .optional()
+          .describe('How the content was used (default: reference)'),
       },
       annotations: {
         readOnlyHint: false,
@@ -355,7 +427,12 @@ export async function registerBidTools(server: McpServer): Promise<void> {
         const role = await checkMcpRole(extra.authInfo, ['admin', 'editor']);
         if (!role) {
           return {
-            content: [{ type: 'text' as const, text: 'Permission denied: editor or admin role required.' }],
+            content: [
+              {
+                type: 'text' as const,
+                text: 'Permission denied: editor or admin role required.',
+              },
+            ],
             isError: true,
           };
         }
@@ -363,12 +440,13 @@ export async function registerBidTools(server: McpServer): Promise<void> {
         const supabase = createMcpClient(extra.authInfo);
         const userId = getMcpUserId(extra.authInfo);
 
-        const insertData: Database['public']['Tables']['content_citations']['Insert'] = {
-          content_item_id: args.content_item_id,
-          bid_response_id: args.bid_response_id,
-          citation_type: args.citation_type ?? 'reference',
-          created_by: userId,
-        };
+        const insertData: Database['public']['Tables']['content_citations']['Insert'] =
+          {
+            content_item_id: args.content_item_id,
+            bid_response_id: args.bid_response_id,
+            citation_type: args.citation_type ?? 'reference',
+            created_by: userId,
+          };
 
         const { data: citation, error } = await supabase
           .from('content_citations')
@@ -380,7 +458,12 @@ export async function registerBidTools(server: McpServer): Promise<void> {
 
         if (error || !citation) {
           return {
-            content: [{ type: 'text' as const, text: `Failed to record citation: ${error?.message ?? 'Unknown error'}. Ensure both the content item and bid response exist.` }],
+            content: [
+              {
+                type: 'text' as const,
+                text: `Failed to record citation: ${error?.message ?? 'Unknown error'}. Ensure both the content item and bid response exist.`,
+              },
+            ],
             isError: true,
           };
         }
@@ -401,7 +484,12 @@ export async function registerBidTools(server: McpServer): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Failed to record citation: ${message}. Ensure you have editor or admin permissions.` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Failed to record citation: ${message}. Ensure you have editor or admin permissions.`,
+            },
+          ],
           isError: true,
         };
       }
@@ -415,9 +503,13 @@ export async function registerBidTools(server: McpServer): Promise<void> {
     'get_content_effectiveness',
     {
       title: 'Content Effectiveness',
-      description: 'Get win rate statistics for a content item — how often it has been cited in bid responses and what proportion of those bids were won. Use this to identify high-performing content and content that may need improvement.',
+      description:
+        'Get win rate statistics for a content item — how often it has been cited in bid responses and what proportion of those bids were won. Use this to identify high-performing content and content that may need improvement.',
       inputSchema: {
-        content_item_id: z.string().uuid().describe('The UUID of the content item to check'),
+        content_item_id: z
+          .string()
+          .uuid()
+          .describe('The UUID of the content item to check'),
       },
       annotations: {
         readOnlyHint: true,
@@ -430,18 +522,34 @@ export async function registerBidTools(server: McpServer): Promise<void> {
       try {
         const supabase = createMcpClient(extra.authInfo);
 
-        const { data: rows, error } = await supabase.rpc('get_content_win_rate', {
-          p_content_item_id: args.content_item_id,
-        });
+        const { data: rows, error } = await supabase.rpc(
+          'get_content_win_rate',
+          {
+            p_content_item_id: args.content_item_id,
+          },
+        );
 
         if (error) {
           return {
-            content: [{ type: 'text' as const, text: `Effectiveness query failed: ${error.message}. The database function may be temporarily unavailable.` }],
+            content: [
+              {
+                type: 'text' as const,
+                text: `Effectiveness query failed: ${error.message}. The database function may be temporarily unavailable.`,
+              },
+            ],
             isError: true,
           };
         }
 
-        const row = (rows as Array<{ total_citations: number; winning_citations: number; losing_citations: number; pending_citations: number; win_rate: number }> | null)?.[0];
+        const row = (
+          rows as Array<{
+            total_citations: number;
+            winning_citations: number;
+            losing_citations: number;
+            pending_citations: number;
+            win_rate: number;
+          }> | null
+        )?.[0];
 
         const effectiveness: ContentEffectiveness = {
           content_item_id: args.content_item_id,
@@ -460,7 +568,12 @@ export async function registerBidTools(server: McpServer): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Effectiveness query failed: ${message}. The database function may be temporarily unavailable.` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Effectiveness query failed: ${message}. The database function may be temporarily unavailable.`,
+            },
+          ],
           isError: true,
         };
       }

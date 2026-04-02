@@ -64,21 +64,23 @@ const ADMIN_ID_2 = '00000000-0000-4000-8000-000000000002';
 const REVIEWER_ID = '00000000-0000-4000-8000-000000000099';
 const GOV_CONFIG_ID = '00000000-0000-4000-8000-000000000050';
 
-function makeContentItem(overrides: Partial<{
-  id: string;
-  title: string;
-  primary_domain: string | null;
-  freshness: string | null;
-  classification_confidence: number | null;
-  brief: string | null;
-  detail: string | null;
-  reference: string | null;
-  ai_summary: string | null;
-  metadata: Record<string, unknown> | null;
-  quality_score: number | null;
-  governance_review_status: string | null;
-  verified_at: string | null;
-}> = {}) {
+function makeContentItem(
+  overrides: Partial<{
+    id: string;
+    title: string;
+    primary_domain: string | null;
+    freshness: string | null;
+    classification_confidence: number | null;
+    brief: string | null;
+    detail: string | null;
+    reference: string | null;
+    ai_summary: string | null;
+    metadata: Record<string, unknown> | null;
+    quality_score: number | null;
+    governance_review_status: string | null;
+    verified_at: string | null;
+  }> = {},
+) {
   return {
     id: overrides.id ?? '00000000-0000-4000-8000-000000000010',
     title: overrides.title ?? 'Test Item',
@@ -114,9 +116,26 @@ function resetMocks() {
 
   // Configure chain defaults
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
@@ -235,8 +254,13 @@ function configureDetailedMock(options: {
   items?: Array<ReturnType<typeof makeContentItem>>;
 }) {
   const { govConfigs = [], items = [] } = options;
-  const updateCalls: Array<{ table: string; data: Record<string, unknown>; id?: string }> = [];
-  const insertCalls: Array<{ table: string; data: Record<string, unknown> }> = [];
+  const updateCalls: Array<{
+    table: string;
+    data: Record<string, unknown>;
+    id?: string;
+  }> = [];
+  const insertCalls: Array<{ table: string; data: Record<string, unknown> }> =
+    [];
   let contentItemsCallCount = 0;
 
   mockSupabase.from.mockImplementation((table: string) => {
@@ -373,7 +397,9 @@ describe('GET /api/cron/quality-score', () => {
     expect(res.status).toBe(200);
 
     // Find the quality score update (not the governance update)
-    const scoreUpdates = updateCalls.filter(u => u.data.quality_score !== undefined);
+    const scoreUpdates = updateCalls.filter(
+      (u) => u.data.quality_score !== undefined,
+    );
     expect(scoreUpdates.length).toBeGreaterThan(0);
     expect(scoreUpdates[0].data.previous_quality_score).toBe(75);
     expect(typeof scoreUpdates[0].data.quality_score).toBe('number');
@@ -405,7 +431,8 @@ describe('GET /api/cron/quality-score', () => {
     expect(body.notifications_created).toBeGreaterThan(0);
 
     expect(mockCreateBulkNotifications).toHaveBeenCalled();
-    const notifications = mockCreateBulkNotifications.mock.calls[0][1] as Array<{
+    const notifications = mockCreateBulkNotifications.mock
+      .calls[0][1] as Array<{
       userId: string;
       type: string;
       entityId: string;
@@ -483,7 +510,8 @@ describe('GET /api/cron/quality-score', () => {
     expect(body.dropped_below_threshold).toBe(1);
 
     expect(mockCreateBulkNotifications).toHaveBeenCalled();
-    const notifications = mockCreateBulkNotifications.mock.calls[0][1] as Array<{
+    const notifications = mockCreateBulkNotifications.mock
+      .calls[0][1] as Array<{
       entityId: string;
       title: string;
     }>;
@@ -515,12 +543,16 @@ describe('GET /api/cron/quality-score', () => {
   });
 
   it('logs results to pipeline_runs', async () => {
-    const { insertCalls } = configureDetailedMock({ items: [makeContentItem()] });
+    const { insertCalls } = configureDetailedMock({
+      items: [makeContentItem()],
+    });
 
     const res = await GET(createCronRequest() as never);
     expect(res.status).toBe(200);
 
-    const pipelineInserts = insertCalls.filter(c => c.table === 'pipeline_runs');
+    const pipelineInserts = insertCalls.filter(
+      (c) => c.table === 'pipeline_runs',
+    );
     expect(pipelineInserts.length).toBe(1);
     expect(pipelineInserts[0].data.pipeline_name).toBe('quality_score');
     expect(pipelineInserts[0].data.status).toBe('completed');
@@ -563,7 +595,8 @@ describe('GET /api/cron/quality-score', () => {
     expect(body.dropped_below_threshold).toBe(1);
 
     expect(mockCreateBulkNotifications).toHaveBeenCalled();
-    const notifications = mockCreateBulkNotifications.mock.calls[0][1] as Array<{
+    const notifications = mockCreateBulkNotifications.mock
+      .calls[0][1] as Array<{
       userId: string;
       type: string;
       entityId: string;
@@ -600,15 +633,17 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
     });
 
     const { updateCalls } = configureDetailedMock({
-      govConfigs: [{
-        domain: 'Operations',
-        id: GOV_CONFIG_ID,
-        quality_score_threshold: 40,
-        auto_flag_on_quality_drop: true,
-        auto_flag_cooldown_days: 7,
-        reviewer_id: REVIEWER_ID,
-        timeout_days: 14,
-      }],
+      govConfigs: [
+        {
+          domain: 'Operations',
+          id: GOV_CONFIG_ID,
+          quality_score_threshold: 40,
+          auto_flag_on_quality_drop: true,
+          auto_flag_cooldown_days: 7,
+          reviewer_id: REVIEWER_ID,
+          timeout_days: 14,
+        },
+      ],
       items: [item],
     });
 
@@ -619,7 +654,9 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
     expect(body.auto_governance_triggered).toBe(1);
 
     // Check that governance status was set to pending
-    const govUpdates = updateCalls.filter(u => u.data.governance_review_status === 'pending');
+    const govUpdates = updateCalls.filter(
+      (u) => u.data.governance_review_status === 'pending',
+    );
     expect(govUpdates.length).toBe(1);
     expect(govUpdates[0].data.governance_reviewer_id).toBe(REVIEWER_ID);
     expect(govUpdates[0].data.governance_review_due).toBeDefined();
@@ -628,7 +665,8 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
 
     // Check governance_review_needed notification was created (second call to createBulkNotifications)
     expect(mockCreateBulkNotifications).toHaveBeenCalledTimes(2);
-    const govNotifications = mockCreateBulkNotifications.mock.calls[1][1] as Array<{
+    const govNotifications = mockCreateBulkNotifications.mock
+      .calls[1][1] as Array<{
       userId: string;
       type: string;
       entityId: string;
@@ -654,13 +692,15 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
     });
 
     configureDetailedMock({
-      govConfigs: [{
-        domain: 'Operations',
-        id: GOV_CONFIG_ID,
-        quality_score_threshold: 40,
-        auto_flag_on_quality_drop: false,
-        auto_flag_cooldown_days: 7,
-      }],
+      govConfigs: [
+        {
+          domain: 'Operations',
+          id: GOV_CONFIG_ID,
+          quality_score_threshold: 40,
+          auto_flag_on_quality_drop: false,
+          auto_flag_cooldown_days: 7,
+        },
+      ],
       items: [item],
     });
 
@@ -685,13 +725,15 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
     });
 
     configureDetailedMock({
-      govConfigs: [{
-        domain: 'Operations',
-        id: GOV_CONFIG_ID,
-        quality_score_threshold: 40,
-        auto_flag_on_quality_drop: true,
-        auto_flag_cooldown_days: 7,
-      }],
+      govConfigs: [
+        {
+          domain: 'Operations',
+          id: GOV_CONFIG_ID,
+          quality_score_threshold: 40,
+          auto_flag_on_quality_drop: true,
+          auto_flag_cooldown_days: 7,
+        },
+      ],
       items: [item],
     });
 
@@ -715,13 +757,15 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
     });
 
     configureDetailedMock({
-      govConfigs: [{
-        domain: 'Operations',
-        id: GOV_CONFIG_ID,
-        quality_score_threshold: 40,
-        auto_flag_on_quality_drop: true,
-        auto_flag_cooldown_days: 7,
-      }],
+      govConfigs: [
+        {
+          domain: 'Operations',
+          id: GOV_CONFIG_ID,
+          quality_score_threshold: 40,
+          auto_flag_on_quality_drop: true,
+          auto_flag_cooldown_days: 7,
+        },
+      ],
       items: [item],
     });
 
@@ -745,13 +789,15 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
     });
 
     configureDetailedMock({
-      govConfigs: [{
-        domain: 'Operations',
-        id: GOV_CONFIG_ID,
-        quality_score_threshold: 40,
-        auto_flag_on_quality_drop: true,
-        auto_flag_cooldown_days: 7,
-      }],
+      govConfigs: [
+        {
+          domain: 'Operations',
+          id: GOV_CONFIG_ID,
+          quality_score_threshold: 40,
+          auto_flag_on_quality_drop: true,
+          auto_flag_cooldown_days: 7,
+        },
+      ],
       items: [item],
     });
 
@@ -764,7 +810,9 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
 
   it('respects cooldown period and skips recently verified items', async () => {
     // Item was verified 3 days ago, cooldown is 7 days
-    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+    const threeDaysAgo = new Date(
+      Date.now() - 3 * 24 * 60 * 60 * 1000,
+    ).toISOString();
     const item = makeContentItem({
       id: '00000000-0000-4000-8000-000000000010',
       primary_domain: 'Operations',
@@ -778,13 +826,15 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
     });
 
     configureDetailedMock({
-      govConfigs: [{
-        domain: 'Operations',
-        id: GOV_CONFIG_ID,
-        quality_score_threshold: 40,
-        auto_flag_on_quality_drop: true,
-        auto_flag_cooldown_days: 7,
-      }],
+      govConfigs: [
+        {
+          domain: 'Operations',
+          id: GOV_CONFIG_ID,
+          quality_score_threshold: 40,
+          auto_flag_on_quality_drop: true,
+          auto_flag_cooldown_days: 7,
+        },
+      ],
       items: [item],
     });
 
@@ -797,7 +847,9 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
 
   it('auto-flags items when cooldown has expired (verified_at outside cooldown)', async () => {
     // Item was verified 10 days ago, cooldown is 7 days -> should flag
-    const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
+    const tenDaysAgo = new Date(
+      Date.now() - 10 * 24 * 60 * 60 * 1000,
+    ).toISOString();
     const item = makeContentItem({
       id: '00000000-0000-4000-8000-000000000010',
       title: 'Expired Cooldown Item',
@@ -812,13 +864,15 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
     });
 
     configureDetailedMock({
-      govConfigs: [{
-        domain: 'Operations',
-        id: GOV_CONFIG_ID,
-        quality_score_threshold: 40,
-        auto_flag_on_quality_drop: true,
-        auto_flag_cooldown_days: 7,
-      }],
+      govConfigs: [
+        {
+          domain: 'Operations',
+          id: GOV_CONFIG_ID,
+          quality_score_threshold: 40,
+          auto_flag_on_quality_drop: true,
+          auto_flag_cooldown_days: 7,
+        },
+      ],
       items: [item],
     });
 
@@ -843,15 +897,17 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
     });
 
     configureDetailedMock({
-      govConfigs: [{
-        domain: 'Operations',
-        id: GOV_CONFIG_ID,
-        quality_score_threshold: 40,
-        auto_flag_on_quality_drop: true,
-        auto_flag_cooldown_days: 7,
-        reviewer_id: null,
-        timeout_days: 7,
-      }],
+      govConfigs: [
+        {
+          domain: 'Operations',
+          id: GOV_CONFIG_ID,
+          quality_score_threshold: 40,
+          auto_flag_on_quality_drop: true,
+          auto_flag_cooldown_days: 7,
+          reviewer_id: null,
+          timeout_days: 7,
+        },
+      ],
       items: [item],
     });
 
@@ -863,14 +919,15 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
 
     // Second createBulkNotifications call is governance
     expect(mockCreateBulkNotifications).toHaveBeenCalledTimes(2);
-    const govNotifications = mockCreateBulkNotifications.mock.calls[1][1] as Array<{
+    const govNotifications = mockCreateBulkNotifications.mock
+      .calls[1][1] as Array<{
       userId: string;
       type: string;
     }>;
 
     // Should notify both admins (no reviewer configured)
     expect(govNotifications.length).toBe(2);
-    const userIds = govNotifications.map(n => n.userId).sort();
+    const userIds = govNotifications.map((n) => n.userId).sort();
     expect(userIds).toEqual([ADMIN_ID_1, ADMIN_ID_2].sort());
     for (const notif of govNotifications) {
       expect(notif.type).toBe('governance_review_needed');
@@ -890,20 +947,24 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
     });
 
     const { insertCalls } = configureDetailedMock({
-      govConfigs: [{
-        domain: 'Operations',
-        id: GOV_CONFIG_ID,
-        quality_score_threshold: 40,
-        auto_flag_on_quality_drop: true,
-        auto_flag_cooldown_days: 7,
-      }],
+      govConfigs: [
+        {
+          domain: 'Operations',
+          id: GOV_CONFIG_ID,
+          quality_score_threshold: 40,
+          auto_flag_on_quality_drop: true,
+          auto_flag_cooldown_days: 7,
+        },
+      ],
       items: [item],
     });
 
     const res = await GET(createCronRequest() as never);
     expect(res.status).toBe(200);
 
-    const pipelineInserts = insertCalls.filter(c => c.table === 'pipeline_runs');
+    const pipelineInserts = insertCalls.filter(
+      (c) => c.table === 'pipeline_runs',
+    );
     expect(pipelineInserts.length).toBe(1);
     const result = pipelineInserts[0].data.result as Record<string, unknown>;
     expect(result.auto_governance_triggered).toBe(1);
@@ -923,13 +984,15 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
     });
 
     configureDetailedMock({
-      govConfigs: [{
-        domain: 'Operations',
-        id: GOV_CONFIG_ID,
-        quality_score_threshold: 40,
-        auto_flag_on_quality_drop: true,
-        auto_flag_cooldown_days: 7,
-      }],
+      govConfigs: [
+        {
+          domain: 'Operations',
+          id: GOV_CONFIG_ID,
+          quality_score_threshold: 40,
+          auto_flag_on_quality_drop: true,
+          auto_flag_cooldown_days: 7,
+        },
+      ],
       items: [item],
     });
 
@@ -957,15 +1020,17 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
     );
 
     configureDetailedMock({
-      govConfigs: [{
-        domain: 'Operations',
-        id: GOV_CONFIG_ID,
-        quality_score_threshold: 40,
-        auto_flag_on_quality_drop: true,
-        auto_flag_cooldown_days: 7,
-        reviewer_id: REVIEWER_ID,
-        timeout_days: 14,
-      }],
+      govConfigs: [
+        {
+          domain: 'Operations',
+          id: GOV_CONFIG_ID,
+          quality_score_threshold: 40,
+          auto_flag_on_quality_drop: true,
+          auto_flag_cooldown_days: 7,
+          reviewer_id: REVIEWER_ID,
+          timeout_days: 14,
+        },
+      ],
       items,
     });
 
@@ -981,7 +1046,8 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
     // Second call = governance summary (one per unique recipient)
     expect(mockCreateBulkNotifications).toHaveBeenCalledTimes(2);
 
-    const govNotifications = mockCreateBulkNotifications.mock.calls[1][1] as Array<{
+    const govNotifications = mockCreateBulkNotifications.mock
+      .calls[1][1] as Array<{
       userId: string;
       type: string;
       entityType: string;
@@ -991,7 +1057,7 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
     }>;
 
     // Should have one notification per unique recipient (reviewer + 2 admins = 3)
-    const recipientIds = new Set(govNotifications.map(n => n.userId));
+    const recipientIds = new Set(govNotifications.map((n) => n.userId));
     expect(recipientIds.has(REVIEWER_ID)).toBe(true);
     expect(recipientIds.has(ADMIN_ID_1)).toBe(true);
     expect(recipientIds.has(ADMIN_ID_2)).toBe(true);

@@ -60,9 +60,9 @@ export const MAX_DIFF_ENTRIES = 2000;
  * Tested against individual lines of text.
  */
 export const HEADING_PATTERNS: RegExp[] = [
-  /^#{1,6}\s+(.+)$/,              // Markdown headings: # Heading, ## Sub, etc.
-  /^(\d+\.[\d.]*)\s+(.+)$/,       // Numbered sections: 1. / 1.1 / 1.1.1
-  /^([A-Z][A-Z\s]{2,})$/,         // ALL CAPS headings (min 3 chars to avoid false positives)
+  /^#{1,6}\s+(.+)$/, // Markdown headings: # Heading, ## Sub, etc.
+  /^(\d+\.[\d.]*)\s+(.+)$/, // Numbered sections: 1. / 1.1 / 1.1.1
+  /^([A-Z][A-Z\s]{2,})$/, // ALL CAPS headings (min 3 chars to avoid false positives)
 ];
 
 /**
@@ -180,7 +180,9 @@ export function extractQAPairs(text: string): QAPair[] {
   }
 
   if (pairs.length > MAX_QA_PAIRS) {
-    console.warn(`extractQAPairs: truncated ${pairs.length} pairs to ${MAX_QA_PAIRS}`);
+    console.warn(
+      `extractQAPairs: truncated ${pairs.length} pairs to ${MAX_QA_PAIRS}`,
+    );
     pairs = pairs.slice(0, MAX_QA_PAIRS);
   }
 
@@ -327,13 +329,23 @@ export function computeFullTextDiff(
   newText: string,
 ): DiffResult {
   // Both empty — return zeroed result
-  if ((!oldText || oldText.trim().length === 0) && (!newText || newText.trim().length === 0)) {
+  if (
+    (!oldText || oldText.trim().length === 0) &&
+    (!newText || newText.trim().length === 0)
+  ) {
     return {
       old_document_id: oldDocumentId,
       new_document_id: newDocumentId,
       diff_mode: 'full_text',
       entries: [],
-      summary: { added: 0, removed: 0, modified: 0, unchanged: 0, total_old: 0, total_new: 0 },
+      summary: {
+        added: 0,
+        removed: 0,
+        modified: 0,
+        unchanged: 0,
+        total_old: 0,
+        total_new: 0,
+      },
     };
   }
 
@@ -374,10 +386,7 @@ export function computeFullTextDiff(
     const curr = rawEntries[i];
     const next = rawEntries[i + 1];
 
-    if (
-      curr.diff_type === 'removed' &&
-      next?.diff_type === 'added'
-    ) {
+    if (curr.diff_type === 'removed' && next?.diff_type === 'added') {
       merged.push({
         diff_type: 'modified',
         diff_mode: 'full_text',
@@ -394,13 +403,12 @@ export function computeFullTextDiff(
   const collapsed: DiffEntry[] = [];
   for (const entry of merged) {
     const prev = collapsed[collapsed.length - 1];
-    if (
-      entry.diff_type === 'unchanged' &&
-      prev?.diff_type === 'unchanged'
-    ) {
+    if (entry.diff_type === 'unchanged' && prev?.diff_type === 'unchanged') {
       // Combine text into the previous unchanged entry
-      prev.old_content = (prev.old_content ?? '') + '\n' + (entry.old_content ?? '');
-      prev.new_content = (prev.new_content ?? '') + '\n' + (entry.new_content ?? '');
+      prev.old_content =
+        (prev.old_content ?? '') + '\n' + (entry.old_content ?? '');
+      prev.new_content =
+        (prev.new_content ?? '') + '\n' + (entry.new_content ?? '');
     } else {
       collapsed.push(entry);
     }
@@ -415,7 +423,7 @@ export function computeFullTextDiff(
 
     console.warn(
       `computeFullTextDiff: ${collapsed.length} entries exceed cap of ${MAX_DIFF_ENTRIES}. ` +
-      `Keeping first ${keepStart} and last ${keepEnd}, collapsing ${droppedCount} middle entries.`,
+        `Keeping first ${keepStart} and last ${keepEnd}, collapsing ${droppedCount} middle entries.`,
     );
 
     const startSlice = collapsed.slice(0, keepStart);
@@ -436,8 +444,10 @@ export function computeFullTextDiff(
   annotateWithSectionHeaders(finalEntries);
 
   // Step 6: Compute summary
-  const oldLineCount = oldText.trim().length > 0 ? oldText.split('\n').length : 0;
-  const newLineCount = newText.trim().length > 0 ? newText.split('\n').length : 0;
+  const oldLineCount =
+    oldText.trim().length > 0 ? oldText.split('\n').length : 0;
+  const newLineCount =
+    newText.trim().length > 0 ? newText.split('\n').length : 0;
 
   const summary = {
     added: finalEntries.filter((e) => e.diff_type === 'added').length,

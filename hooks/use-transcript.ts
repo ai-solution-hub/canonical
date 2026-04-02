@@ -24,14 +24,17 @@ export function useTranscript({
   initialSegments,
   initialHighlights,
 }: UseTranscriptOptions): UseTranscriptReturn {
-  const [segments, setSegments] = useState<TranscriptSegment[] | null>(initialSegments);
-  const [highlights] = useState<TranscriptHighlight[] | null>(initialHighlights);
+  const [segments, setSegments] = useState<TranscriptSegment[] | null>(
+    initialSegments,
+  );
+  const [highlights] = useState<TranscriptHighlight[] | null>(
+    initialHighlights,
+  );
 
   const extractHighlights = useCallback(() => {
     // Not yet implemented
   }, []);
 
-   
   const handleHighlightStarToggle = useCallback((_index: number) => {
     // Not yet implemented
   }, []);

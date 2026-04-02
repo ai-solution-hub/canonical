@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedClient, unauthorisedResponse, getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import {
+  getAuthenticatedClient,
+  unauthorisedResponse,
+  getAuthorisedClient,
+  authFailureResponse,
+} from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody, parseSearchParams } from '@/lib/validation';
-import { QualityResolveBodySchema, QualityFlagsParamsSchema } from '@/lib/validation/schemas';
+import {
+  QualityResolveBodySchema,
+  QualityFlagsParamsSchema,
+} from '@/lib/validation/schemas';
 
 export const maxDuration = 30;
 
@@ -19,13 +27,25 @@ export async function GET(request: NextRequest) {
     if (!auth) return unauthorisedResponse();
     const { supabase } = auth;
 
-    const parsed = parseSearchParams(QualityFlagsParamsSchema, request.nextUrl.searchParams);
+    const parsed = parseSearchParams(
+      QualityFlagsParamsSchema,
+      request.nextUrl.searchParams,
+    );
     if (!parsed.success) return parsed.response;
-    const { item_id: itemId, flag_type: flagType, resolved, limit, offset } = parsed.data;
+    const {
+      item_id: itemId,
+      flag_type: flagType,
+      resolved,
+      limit,
+      offset,
+    } = parsed.data;
 
     let query = supabase
       .from('ingestion_quality_log')
-      .select('id, content_item_id, flag_type, severity, details, resolved, resolved_at, resolved_by, resolution_notes, created_at', { count: 'exact' });
+      .select(
+        'id, content_item_id, flag_type, severity, details, resolved, resolved_at, resolved_by, resolution_notes, created_at',
+        { count: 'exact' },
+      );
 
     if (itemId) {
       query = query.eq('content_item_id', itemId);

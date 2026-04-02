@@ -50,10 +50,12 @@ const ENTITY_TYPE_STYLES: Record<string, { bg: string; text: string }> = {
 
 /** Get style classes for an entity type, with a neutral fallback */
 function getEntityStyle(entityType: string): { bg: string; text: string } {
-  return ENTITY_TYPE_STYLES[entityType] ?? {
-    bg: 'bg-muted',
-    text: 'text-foreground',
-  };
+  return (
+    ENTITY_TYPE_STYLES[entityType] ?? {
+      bg: 'bg-muted',
+      text: 'text-foreground',
+    }
+  );
 }
 
 /** Format entity type labels for display */
@@ -130,7 +132,11 @@ export function EntityCoOccurrence({
   return (
     <FilterSection title="Entity Co-occurrence" defaultOpen={defaultOpen}>
       {isLoading && (
-        <div className="flex items-center justify-center py-4" role="status" aria-label="Loading co-occurrence data">
+        <div
+          className="flex items-center justify-center py-4"
+          role="status"
+          aria-label="Loading co-occurrence data"
+        >
           <Loader2 className="size-4 animate-spin text-muted-foreground" />
           <span className="sr-only">Loading entity co-occurrence data</span>
         </div>
@@ -149,7 +155,11 @@ export function EntityCoOccurrence({
       )}
 
       {!isLoading && pairs.length > 0 && (
-        <div className="space-y-1.5" role="list" aria-label="Co-occurring entity pairs">
+        <div
+          className="space-y-1.5"
+          role="list"
+          aria-label="Co-occurring entity pairs"
+        >
           {pairs.map((pair) => {
             const styleA = getEntityStyle(pair.type_a);
             const styleB = getEntityStyle(pair.type_b);
@@ -167,10 +177,15 @@ export function EntityCoOccurrence({
                   title={`Filter by ${pair.entity_a} (${formatEntityType(pair.type_a)})`}
                   aria-label={`Filter by entity: ${pair.entity_a}`}
                 >
-                  <span className="max-w-[120px] truncate">{pair.entity_a}</span>
+                  <span className="max-w-[120px] truncate">
+                    {pair.entity_a}
+                  </span>
                 </button>
 
-                <Network className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <Network
+                  className="size-3 shrink-0 text-muted-foreground"
+                  aria-hidden="true"
+                />
 
                 <button
                   type="button"
@@ -179,7 +194,9 @@ export function EntityCoOccurrence({
                   title={`Filter by ${pair.entity_b} (${formatEntityType(pair.type_b)})`}
                   aria-label={`Filter by entity: ${pair.entity_b}`}
                 >
-                  <span className="max-w-[120px] truncate">{pair.entity_b}</span>
+                  <span className="max-w-[120px] truncate">
+                    {pair.entity_b}
+                  </span>
                 </button>
 
                 <span className="ml-auto shrink-0 tabular-nums text-muted-foreground">

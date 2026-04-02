@@ -30,7 +30,7 @@ export interface CoverageMatrixData {
     domain: string;
     subtopic: string | null;
     item_count: number;
-    issue: "empty" | "thin" | "stale_only";
+    issue: 'empty' | 'thin' | 'stale_only';
   }>;
 }
 
@@ -77,12 +77,12 @@ export interface DetailPanelState {
 }
 
 /** Freshness state key used in data objects */
-export type FreshnessKey = "fresh" | "aging" | "stale" | "expired";
+export type FreshnessKey = 'fresh' | 'aging' | 'stale' | 'expired';
 
 /** Display labels for freshness states (UK English) */
 export const FRESHNESS_LABELS: Record<FreshnessKey, string> = {
-  fresh: "Fresh",
-  aging: "Ageing",
-  stale: "Stale",
-  expired: "Expired",
+  fresh: 'Fresh',
+  aging: 'Ageing',
+  stale: 'Stale',
+  expired: 'Expired',
 };

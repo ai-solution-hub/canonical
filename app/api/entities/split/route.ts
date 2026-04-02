@@ -56,7 +56,9 @@ export async function POST(request: NextRequest) {
 
     if (updateErr) {
       return NextResponse.json(
-        { error: safeErrorMessage(updateErr, 'Failed to split entity mentions') },
+        {
+          error: safeErrorMessage(updateErr, 'Failed to split entity mentions'),
+        },
         { status: 500 },
       );
     }

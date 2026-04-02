@@ -14,7 +14,11 @@ describe('reconcileTemporalReferences', () => {
     // same year-month. The spec requires these to be deduplicated as the same
     // reference, with AI's more precise date and context preserved.
     const aiRefs: ClassificationTemporalReference[] = [
-      { date: '2025-06-25', context: 'ISO 27001 certification expiry', context_type: 'expiry' },
+      {
+        date: '2025-06-25',
+        context: 'ISO 27001 certification expiry',
+        context_type: 'expiry',
+      },
     ];
     const regexRefs: TemporalReference[] = [
       {
@@ -38,7 +42,11 @@ describe('reconcileTemporalReferences', () => {
 
   it('T5.1b: deduplicates exact date+context_type matches', () => {
     const aiRefs: ClassificationTemporalReference[] = [
-      { date: '2025-06-30', context: 'ISO 27001 certification expiry', context_type: 'expiry' },
+      {
+        date: '2025-06-30',
+        context: 'ISO 27001 certification expiry',
+        context_type: 'expiry',
+      },
     ];
     const regexRefs: TemporalReference[] = [
       {
@@ -60,7 +68,11 @@ describe('reconcileTemporalReferences', () => {
 
   it('T5.1c: does NOT deduplicate dates in different months', () => {
     const aiRefs: ClassificationTemporalReference[] = [
-      { date: '2025-06-30', context: 'ISO 27001 certification expiry', context_type: 'expiry' },
+      {
+        date: '2025-06-30',
+        context: 'ISO 27001 certification expiry',
+        context_type: 'expiry',
+      },
     ];
     const regexRefs: TemporalReference[] = [
       {
@@ -79,8 +91,16 @@ describe('reconcileTemporalReferences', () => {
 
   it('T5.2: handles only AI references', () => {
     const aiRefs: ClassificationTemporalReference[] = [
-      { date: '2024-01-15', context: 'Cyber Essentials awarded', context_type: 'effective' },
-      { date: '2025-01-15', context: 'Cyber Essentials renewal', context_type: 'expiry' },
+      {
+        date: '2024-01-15',
+        context: 'Cyber Essentials awarded',
+        context_type: 'effective',
+      },
+      {
+        date: '2025-01-15',
+        context: 'Cyber Essentials renewal',
+        context_type: 'expiry',
+      },
     ];
 
     const result = reconcileTemporalReferences(aiRefs, undefined);
@@ -111,7 +131,11 @@ describe('reconcileTemporalReferences', () => {
 
   it('T5.4: keeps both when dates are different', () => {
     const aiRefs: ClassificationTemporalReference[] = [
-      { date: '2025-06-30', context: 'ISO 27001 expiry', context_type: 'expiry' },
+      {
+        date: '2025-06-30',
+        context: 'ISO 27001 expiry',
+        context_type: 'expiry',
+      },
     ];
     const regexRefs: TemporalReference[] = [
       {
@@ -131,7 +155,11 @@ describe('reconcileTemporalReferences', () => {
 
   it('T5.5: AI takes precedence when context_type disagrees for same date', () => {
     const aiRefs: ClassificationTemporalReference[] = [
-      { date: '2025-06-30', context: 'ISO 27001 certification expiry', context_type: 'expiry' },
+      {
+        date: '2025-06-30',
+        context: 'ISO 27001 certification expiry',
+        context_type: 'expiry',
+      },
     ];
     const regexRefs: TemporalReference[] = [
       {

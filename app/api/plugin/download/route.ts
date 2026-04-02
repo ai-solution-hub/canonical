@@ -17,7 +17,8 @@ export const maxDuration = 10;
 export async function GET() {
   try {
     // Lazy import to keep the ~110 KB base64 string out of module evaluation
-    const { PLUGIN_ZIP_BASE64, PLUGIN_ZIP_SIZE } = await import('@/lib/mcp/plugin-bundle');
+    const { PLUGIN_ZIP_BASE64, PLUGIN_ZIP_SIZE } =
+      await import('@/lib/mcp/plugin-bundle');
 
     const zipData = Buffer.from(PLUGIN_ZIP_BASE64, 'base64');
 
@@ -25,7 +26,8 @@ export async function GET() {
       status: 200,
       headers: {
         'Content-Type': 'application/zip',
-        'Content-Disposition': 'attachment; filename="knowledge-hub-plugin.zip"',
+        'Content-Disposition':
+          'attachment; filename="knowledge-hub-plugin.zip"',
         'Content-Length': String(PLUGIN_ZIP_SIZE),
         'Cache-Control': 'no-cache',
       },

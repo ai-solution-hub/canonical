@@ -18,17 +18,24 @@ export const maxDuration = 30;
 
 /** Schema for batch question insert (from QuestionReview) */
 const BatchQuestionCreateSchema = z.object({
-  questions: z.array(
-    z.object({
-      section_name: z.string().max(200).optional(),
-      section_sequence: z.number().int().min(0).optional().default(0),
-      question_sequence: z.number().int().min(0).optional().default(0),
-      question_text: z.string().trim().min(1, 'Question text is required').max(5000),
-      word_limit: z.number().int().min(1).max(100000).nullable().optional(),
-      evaluation_weight: z.number().min(0).max(100).nullable().optional(),
-      category: z.string().max(50).optional(),
-    }),
-  ).min(1, 'At least one question is required').max(500),
+  questions: z
+    .array(
+      z.object({
+        section_name: z.string().max(200).optional(),
+        section_sequence: z.number().int().min(0).optional().default(0),
+        question_sequence: z.number().int().min(0).optional().default(0),
+        question_text: z
+          .string()
+          .trim()
+          .min(1, 'Question text is required')
+          .max(5000),
+        word_limit: z.number().int().min(1).max(100000).nullable().optional(),
+        evaluation_weight: z.number().min(0).max(100).nullable().optional(),
+        category: z.string().max(50).optional(),
+      }),
+    )
+    .min(1, 'At least one question is required')
+    .max(500),
 });
 
 const UUID_RE =
@@ -61,10 +68,7 @@ export async function GET(
       .single();
 
     if (bidError || !bid) {
-      return NextResponse.json(
-        { error: 'Bid not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
     }
 
     // Fetch questions ordered by section then question sequence
@@ -100,16 +104,23 @@ export async function GET(
 
       if (responses) {
         responsePreviews = Object.fromEntries(
-          responses.map((r: { id: string; question_id: string; review_status: string; response_text: string | null }) => [
-            r.question_id,
-            {
-              id: r.id,
-              review_status: r.review_status,
-              word_count: r.response_text
-                ? r.response_text.split(/\s+/).filter(Boolean).length
-                : 0,
-            },
-          ]),
+          responses.map(
+            (r: {
+              id: string;
+              question_id: string;
+              review_status: string;
+              response_text: string | null;
+            }) => [
+              r.question_id,
+              {
+                id: r.id,
+                review_status: r.review_status,
+                word_count: r.response_text
+                  ? r.response_text.split(/\s+/).filter(Boolean).length
+                  : 0,
+              },
+            ],
+          ),
         );
       }
     }
@@ -169,16 +180,18 @@ export async function POST(
       .single();
 
     if (bidError || !bid) {
-      return NextResponse.json(
-        { error: 'Bid not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
     }
 
     // Try batch format first (from QuestionReview component)
     const batchParsed = parseBody(BatchQuestionCreateSchema, raw);
     if (batchParsed.success) {
-      return handleBatchInsert(supabase, id, user.id, batchParsed.data.questions);
+      return handleBatchInsert(
+        supabase,
+        id,
+        user.id,
+        batchParsed.data.questions,
+      );
     }
 
     // Fall back to single question format

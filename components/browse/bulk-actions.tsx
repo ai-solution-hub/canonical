@@ -23,7 +23,11 @@ export function BulkActions({
   isSendingToReview = false,
 }: BulkActionsProps) {
   return (
-    <div className="mt-4 flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5" role="status" aria-live="polite">
+    <div
+      className="mt-4 flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5"
+      role="status"
+      aria-live="polite"
+    >
       <span className="text-sm font-medium text-foreground">
         {selectedCount} selected
       </span>
@@ -52,12 +56,7 @@ export function BulkActions({
           Send to review
         </Button>
       )}
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onCancel}
-        className="gap-1.5"
-      >
+      <Button variant="ghost" size="sm" onClick={onCancel} className="gap-1.5">
         <X className="size-3.5" />
         Cancel
       </Button>

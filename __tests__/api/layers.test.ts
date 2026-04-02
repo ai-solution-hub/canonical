@@ -31,7 +31,10 @@ vi.mock('@/lib/rate-limit', () => ({
 
 // Import routes AFTER mocks are registered
 import { GET as listLayers, POST as createLayer } from '@/app/api/layers/route';
-import { PATCH as updateLayer, DELETE as deleteLayer } from '@/app/api/layers/[id]/route';
+import {
+  PATCH as updateLayer,
+  DELETE as deleteLayer,
+} from '@/app/api/layers/[id]/route';
 import { PUT as reorderLayers } from '@/app/api/layers/reorder/route';
 
 // ---------------------------------------------------------------------------
@@ -51,9 +54,26 @@ beforeEach(() => {
   mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
 
   const chainable = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainable) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
@@ -110,8 +130,9 @@ describe('GET /api/layers', () => {
 
   it('returns layers for admin users', async () => {
     configureRole(mockSupabase, 'admin');
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: SAMPLE_LAYERS, error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: SAMPLE_LAYERS, error: null }),
     );
 
     const res = await listLayers();
@@ -122,8 +143,8 @@ describe('GET /api/layers', () => {
 
   it('returns empty array when no layers exist', async () => {
     configureRole(mockSupabase, 'admin');
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const res = await listLayers();
@@ -134,8 +155,9 @@ describe('GET /api/layers', () => {
 
   it('returns 500 on database error', async () => {
     configureRole(mockSupabase, 'admin');
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { message: 'DB error' } }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: { message: 'DB error' } }),
     );
 
     const res = await listLayers();
@@ -180,7 +202,12 @@ describe('POST /api/layers', () => {
     });
     // Mock the insert result
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: 'new-layer', key: 'technical', label: 'Technical', display_order: 50 },
+      data: {
+        id: 'new-layer',
+        key: 'technical',
+        label: 'Technical',
+        display_order: 50,
+      },
       error: null,
     });
 
@@ -196,7 +223,12 @@ describe('POST /api/layers', () => {
     configureRole(mockSupabase, 'admin');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: 'new-layer', key: 'technical', label: 'Technical', display_order: 5 },
+      data: {
+        id: 'new-layer',
+        key: 'technical',
+        label: 'Technical',
+        display_order: 5,
+      },
       error: null,
     });
 
@@ -255,7 +287,9 @@ describe('PATCH /api/layers/:id', () => {
       method: 'PATCH',
       body: { label: 'Updated' },
     });
-    const res = await updateLayer(req, { params: createTestParams({ id: 'layer-1' }) });
+    const res = await updateLayer(req, {
+      params: createTestParams({ id: 'layer-1' }),
+    });
     expect(res.status).toBe(401);
   });
 
@@ -265,7 +299,9 @@ describe('PATCH /api/layers/:id', () => {
       method: 'PATCH',
       body: { label: 'Updated' },
     });
-    const res = await updateLayer(req, { params: createTestParams({ id: 'layer-1' }) });
+    const res = await updateLayer(req, {
+      params: createTestParams({ id: 'layer-1' }),
+    });
     expect(res.status).toBe(403);
   });
 
@@ -280,7 +316,9 @@ describe('PATCH /api/layers/:id', () => {
       method: 'PATCH',
       body: { label: 'Updated Brief' },
     });
-    const res = await updateLayer(req, { params: createTestParams({ id: 'layer-1' }) });
+    const res = await updateLayer(req, {
+      params: createTestParams({ id: 'layer-1' }),
+    });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.label).toBe('Updated Brief');
@@ -297,7 +335,9 @@ describe('PATCH /api/layers/:id', () => {
       method: 'PATCH',
       body: { label: 'Updated' },
     });
-    const res = await updateLayer(req, { params: createTestParams({ id: 'nonexistent' }) });
+    const res = await updateLayer(req, {
+      params: createTestParams({ id: 'nonexistent' }),
+    });
     expect(res.status).toBe(404);
   });
 
@@ -312,7 +352,9 @@ describe('PATCH /api/layers/:id', () => {
       method: 'PATCH',
       body: { is_active: false },
     });
-    const res = await updateLayer(req, { params: createTestParams({ id: 'layer-1' }) });
+    const res = await updateLayer(req, {
+      params: createTestParams({ id: 'layer-1' }),
+    });
     expect(res.status).toBe(200);
   });
 });
@@ -325,14 +367,18 @@ describe('DELETE /api/layers/:id', () => {
   it('returns 401 for unauthenticated users', async () => {
     configureUnauthenticated(mockSupabase);
     const req = createTestRequest('/api/layers/layer-1', { method: 'DELETE' });
-    const res = await deleteLayer(req, { params: createTestParams({ id: 'layer-1' }) });
+    const res = await deleteLayer(req, {
+      params: createTestParams({ id: 'layer-1' }),
+    });
     expect(res.status).toBe(401);
   });
 
   it('returns 403 for non-admin users', async () => {
     configureRole(mockSupabase, 'editor');
     const req = createTestRequest('/api/layers/layer-1', { method: 'DELETE' });
-    const res = await deleteLayer(req, { params: createTestParams({ id: 'layer-1' }) });
+    const res = await deleteLayer(req, {
+      params: createTestParams({ id: 'layer-1' }),
+    });
     expect(res.status).toBe(403);
   });
 
@@ -344,16 +390,19 @@ describe('DELETE /api/layers/:id', () => {
       error: null,
     });
     // Count content items using this layer
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null, count: 0 }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: null, count: 0 }),
     );
     // Delete succeeds
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest('/api/layers/layer-1', { method: 'DELETE' });
-    const res = await deleteLayer(req, { params: createTestParams({ id: 'layer-1' }) });
+    const res = await deleteLayer(req, {
+      params: createTestParams({ id: 'layer-1' }),
+    });
     expect(res.status).toBe(204);
   });
 
@@ -365,12 +414,15 @@ describe('DELETE /api/layers/:id', () => {
       error: null,
     });
     // Count content items: 5 items use this layer
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null, count: 5 }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: null, count: 5 }),
     );
 
     const req = createTestRequest('/api/layers/layer-1', { method: 'DELETE' });
-    const res = await deleteLayer(req, { params: createTestParams({ id: 'layer-1' }) });
+    const res = await deleteLayer(req, {
+      params: createTestParams({ id: 'layer-1' }),
+    });
     expect(res.status).toBe(409);
     const body = await res.json();
     expect(body.error).toContain('5 content items');
@@ -384,8 +436,12 @@ describe('DELETE /api/layers/:id', () => {
       error: { code: 'PGRST116', message: 'no rows' },
     });
 
-    const req = createTestRequest('/api/layers/nonexistent', { method: 'DELETE' });
-    const res = await deleteLayer(req, { params: createTestParams({ id: 'nonexistent' }) });
+    const req = createTestRequest('/api/layers/nonexistent', {
+      method: 'DELETE',
+    });
+    const res = await deleteLayer(req, {
+      params: createTestParams({ id: 'nonexistent' }),
+    });
     expect(res.status).toBe(404);
   });
 });
@@ -399,7 +455,11 @@ describe('PUT /api/layers/reorder', () => {
     configureUnauthenticated(mockSupabase);
     const req = createTestRequest('/api/layers/reorder', {
       method: 'PUT',
-      body: { layers: [{ id: 'a0000000-0000-4000-8000-000000000001', display_order: 20 }] },
+      body: {
+        layers: [
+          { id: 'a0000000-0000-4000-8000-000000000001', display_order: 20 },
+        ],
+      },
     });
     const res = await reorderLayers(req);
     expect(res.status).toBe(401);
@@ -409,7 +469,11 @@ describe('PUT /api/layers/reorder', () => {
     configureRole(mockSupabase, 'editor');
     const req = createTestRequest('/api/layers/reorder', {
       method: 'PUT',
-      body: { layers: [{ id: 'a0000000-0000-4000-8000-000000000001', display_order: 20 }] },
+      body: {
+        layers: [
+          { id: 'a0000000-0000-4000-8000-000000000001', display_order: 20 },
+        ],
+      },
     });
     const res = await reorderLayers(req);
     expect(res.status).toBe(403);
@@ -418,8 +482,8 @@ describe('PUT /api/layers/reorder', () => {
   it('reorders layers successfully', async () => {
     configureRole(mockSupabase, 'admin');
     // Mock two update operations
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest('/api/layers/reorder', {

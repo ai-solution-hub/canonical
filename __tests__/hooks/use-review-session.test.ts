@@ -21,7 +21,9 @@ Object.defineProperty(window, 'history', {
  * Creates a ReadonlyURLSearchParams-compatible object from a URLSearchParams.
  * Next.js ReadonlyURLSearchParams is a subset of URLSearchParams.
  */
-function makeSearchParams(init?: string | Record<string, string | string[]>): ReadonlyURLSearchParams {
+function makeSearchParams(
+  init?: string | Record<string, string | string[]>,
+): ReadonlyURLSearchParams {
   const params = new URLSearchParams();
   if (typeof init === 'string') {
     return new URLSearchParams(init) as unknown as ReadonlyURLSearchParams;
@@ -127,10 +129,7 @@ describe('useReviewSession', () => {
 
       const { result } = renderHook(() => useReviewSession(searchParams));
 
-      expect(result.current.filters.content_type).toEqual([
-        'article',
-        'guide',
-      ]);
+      expect(result.current.filters.content_type).toEqual(['article', 'guide']);
     });
 
     it('reads source_file from URL search params', () => {
@@ -142,9 +141,7 @@ describe('useReviewSession', () => {
     });
 
     it('reads source_document_id from URL search params', () => {
-      const searchParams = makeSearchParams(
-        'source_document_id=abc-123',
-      );
+      const searchParams = makeSearchParams('source_document_id=abc-123');
 
       const { result } = renderHook(() => useReviewSession(searchParams));
 

@@ -25,7 +25,11 @@ interface ContentListProps {
   /** Map of item ID to set of assigned workspace IDs */
   itemAssignments?: Map<string, Set<string>>;
   /** Callback when workspace assignment changes */
-  onAssignmentChange?: (itemId: string, workspaceId: string, workspaceName: string) => void;
+  onAssignmentChange?: (
+    itemId: string,
+    workspaceId: string,
+    workspaceName: string,
+  ) => void;
   /** Workspace ID from ?from_bid= URL param for contextual quick-assign shortcut */
   fromBidId?: string;
   /** Map of user UUID to display name for verification badge attribution */
@@ -148,7 +152,11 @@ export function ContentList({
                   item={item}
                   isActive={virtualItem.index === activeIndex}
                   isRead={readItemIds ? readItemIds.has(item.id) : undefined}
-                  hasQualityFlag={qualityFlaggedIds ? qualityFlaggedIds.has(item.id) : undefined}
+                  hasQualityFlag={
+                    qualityFlaggedIds
+                      ? qualityFlaggedIds.has(item.id)
+                      : undefined
+                  }
                   highlightQuery={highlightQuery}
                   canEdit={canEdit}
                   onQuickReviewUpdate={onQuickReviewUpdate}

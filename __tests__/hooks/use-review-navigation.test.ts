@@ -2,7 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { InfiniteData, UseInfiniteQueryResult } from '@tanstack/react-query';
+import type {
+  InfiniteData,
+  UseInfiniteQueryResult,
+} from '@tanstack/react-query';
 import type { ReviewQueueItem } from '@/types/review';
 import type { QueueSortField } from '@/components/review/review-queue-panel';
 import type { ReviewQueuePage } from '@/hooks/review/use-review-queue-data';
@@ -215,24 +218,30 @@ describe('useReviewNavigation', () => {
         captured_date: '2026-01-01',
         governance_review_status: null,
       }),
-      makeQueueItem({
-        id: 'a',
-        primary_domain: 'Alpha',
-        content_type: 'article',
-        classification_confidence: 0.9,
-        quality_score: 30,
-        captured_date: '2026-03-01',
-        governance_review_status: 'pending',
-      }, 1),
-      makeQueueItem({
-        id: 'm',
-        primary_domain: 'Middle',
-        content_type: 'brief',
-        classification_confidence: 0.7,
-        quality_score: 60,
-        captured_date: '2026-02-01',
-        governance_review_status: null,
-      }, 2),
+      makeQueueItem(
+        {
+          id: 'a',
+          primary_domain: 'Alpha',
+          content_type: 'article',
+          classification_confidence: 0.9,
+          quality_score: 30,
+          captured_date: '2026-03-01',
+          governance_review_status: 'pending',
+        },
+        1,
+      ),
+      makeQueueItem(
+        {
+          id: 'm',
+          primary_domain: 'Middle',
+          content_type: 'brief',
+          classification_confidence: 0.7,
+          quality_score: 60,
+          captured_date: '2026-02-01',
+          governance_review_status: null,
+        },
+        2,
+      ),
     ];
 
     function renderWithSort(sort: QueueSortField) {
@@ -380,10 +389,7 @@ describe('useReviewNavigation', () => {
     });
 
     it('does not advance past the last item', () => {
-      const items = [
-        makeQueueItem({ id: 'a' }),
-        makeQueueItem({ id: 'b' }, 1),
-      ];
+      const items = [makeQueueItem({ id: 'a' }), makeQueueItem({ id: 'b' }, 1)];
       const queueQuery = makeMockQueueQuery();
 
       const { result } = renderHook(
@@ -424,10 +430,7 @@ describe('useReviewNavigation', () => {
 
   describe('handleBack boundary guards', () => {
     it('moves index back by 1 when not at the start', () => {
-      const items = [
-        makeQueueItem({ id: 'a' }),
-        makeQueueItem({ id: 'b' }, 1),
-      ];
+      const items = [makeQueueItem({ id: 'a' }), makeQueueItem({ id: 'b' }, 1)];
       const queueQuery = makeMockQueueQuery();
 
       const { result } = renderHook(
@@ -607,10 +610,7 @@ describe('useReviewNavigation', () => {
 
   describe('advanceToNext', () => {
     it('advances to next item', () => {
-      const items = [
-        makeQueueItem({ id: 'a' }),
-        makeQueueItem({ id: 'b' }, 1),
-      ];
+      const items = [makeQueueItem({ id: 'a' }), makeQueueItem({ id: 'b' }, 1)];
       const queueQuery = makeMockQueueQuery();
 
       const { result } = renderHook(

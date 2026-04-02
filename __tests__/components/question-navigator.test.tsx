@@ -46,15 +46,41 @@ function makeQuestion(overrides: Partial<TestQuestion> = {}): TestQuestion {
 
 function makeQuestions(): TestQuestion[] {
   return [
-    makeQuestion({ id: 'q-1', confidence_posture: 'strong_match', status: 'complete' }),
-    makeQuestion({ id: 'q-2', confidence_posture: 'partial_match', status: 'ai_drafted', question_text: 'What is your methodology?' }),
-    makeQuestion({ id: 'q-3', confidence_posture: 'needs_sme', status: 'not_started', question_text: 'Provide case studies' }),
-    makeQuestion({ id: 'q-4', confidence_posture: 'no_content', status: 'not_started', question_text: 'Team structure' }),
-    makeQuestion({ id: 'q-5', confidence_posture: 'strong_match', status: 'approved', question_text: 'Quality assurance' }),
+    makeQuestion({
+      id: 'q-1',
+      confidence_posture: 'strong_match',
+      status: 'complete',
+    }),
+    makeQuestion({
+      id: 'q-2',
+      confidence_posture: 'partial_match',
+      status: 'ai_drafted',
+      question_text: 'What is your methodology?',
+    }),
+    makeQuestion({
+      id: 'q-3',
+      confidence_posture: 'needs_sme',
+      status: 'not_started',
+      question_text: 'Provide case studies',
+    }),
+    makeQuestion({
+      id: 'q-4',
+      confidence_posture: 'no_content',
+      status: 'not_started',
+      question_text: 'Team structure',
+    }),
+    makeQuestion({
+      id: 'q-5',
+      confidence_posture: 'strong_match',
+      status: 'approved',
+      question_text: 'Quality assurance',
+    }),
   ];
 }
 
-function defaultProps(overrides: Partial<Parameters<typeof QuestionNavigator>[0]> = {}) {
+function defaultProps(
+  overrides: Partial<Parameters<typeof QuestionNavigator>[0]> = {},
+) {
   return {
     questions: makeQuestions(),
     currentIndex: 0,
@@ -103,7 +129,10 @@ describe('QuestionNavigator', () => {
   it('has accessible label on progress bar', () => {
     render(<QuestionNavigator {...defaultProps()} />);
     const progressBar = screen.getByRole('progressbar');
-    expect(progressBar).toHaveAttribute('aria-label', '2 of 5 questions complete');
+    expect(progressBar).toHaveAttribute(
+      'aria-label',
+      '2 of 5 questions complete',
+    );
   });
 
   // ---- Previous / Next buttons ----
@@ -118,7 +147,7 @@ describe('QuestionNavigator', () => {
     render(<QuestionNavigator {...defaultProps({ currentIndex: 2 })} />);
     // Previous button shows "Q2: ..." text
     const buttons = screen.getAllByRole('button');
-    const prevButton = buttons.find(b => b.textContent?.includes('Q2:'));
+    const prevButton = buttons.find((b) => b.textContent?.includes('Q2:'));
     expect(prevButton).not.toBeDisabled();
   });
 
@@ -131,17 +160,19 @@ describe('QuestionNavigator', () => {
   it('enables Next button when not on the last question', () => {
     render(<QuestionNavigator {...defaultProps({ currentIndex: 0 })} />);
     const buttons = screen.getAllByRole('button');
-    const nextButton = buttons.find(b => b.textContent?.includes('Q2:'));
+    const nextButton = buttons.find((b) => b.textContent?.includes('Q2:'));
     expect(nextButton).not.toBeDisabled();
   });
 
   it('calls onNavigate with previous index when Previous is clicked', async () => {
     const user = userEvent.setup();
     const onNavigate = vi.fn();
-    render(<QuestionNavigator {...defaultProps({ currentIndex: 2, onNavigate })} />);
+    render(
+      <QuestionNavigator {...defaultProps({ currentIndex: 2, onNavigate })} />,
+    );
 
     const buttons = screen.getAllByRole('button');
-    const prevButton = buttons.find(b => b.textContent?.includes('Q2:'));
+    const prevButton = buttons.find((b) => b.textContent?.includes('Q2:'));
     await user.click(prevButton!);
 
     expect(onNavigate).toHaveBeenCalledWith(1);
@@ -150,10 +181,12 @@ describe('QuestionNavigator', () => {
   it('calls onNavigate with next index when Next is clicked', async () => {
     const user = userEvent.setup();
     const onNavigate = vi.fn();
-    render(<QuestionNavigator {...defaultProps({ currentIndex: 2, onNavigate })} />);
+    render(
+      <QuestionNavigator {...defaultProps({ currentIndex: 2, onNavigate })} />,
+    );
 
     const buttons = screen.getAllByRole('button');
-    const nextButton = buttons.find(b => b.textContent?.includes('Q4:'));
+    const nextButton = buttons.find((b) => b.textContent?.includes('Q4:'));
     await user.click(nextButton!);
 
     expect(onNavigate).toHaveBeenCalledWith(3);
@@ -164,21 +197,39 @@ describe('QuestionNavigator', () => {
   it('shows section name in navigation button when available', () => {
     const questions = [
       makeQuestion({ id: 'q-1', section_name: 'Technical' }),
-      makeQuestion({ id: 'q-2', section_name: 'Commercial', question_text: 'Pricing details' }),
+      makeQuestion({
+        id: 'q-2',
+        section_name: 'Commercial',
+        question_text: 'Pricing details',
+      }),
     ];
-    render(<QuestionNavigator {...defaultProps({ questions, currentIndex: 0 })} />);
+    render(
+      <QuestionNavigator {...defaultProps({ questions, currentIndex: 0 })} />,
+    );
     // Next button should show Q2 with section name
     expect(screen.getByText(/Q2: Commercial/)).toBeInTheDocument();
   });
 
   it('falls back to question text when section name is null', () => {
     const questions = [
-      makeQuestion({ id: 'q-1', section_name: null, question_text: 'First question about approach' }),
-      makeQuestion({ id: 'q-2', section_name: null, question_text: 'Second question about delivery' }),
+      makeQuestion({
+        id: 'q-1',
+        section_name: null,
+        question_text: 'First question about approach',
+      }),
+      makeQuestion({
+        id: 'q-2',
+        section_name: null,
+        question_text: 'Second question about delivery',
+      }),
     ];
-    render(<QuestionNavigator {...defaultProps({ questions, currentIndex: 0 })} />);
+    render(
+      <QuestionNavigator {...defaultProps({ questions, currentIndex: 0 })} />,
+    );
     // Next button text should contain truncated question text
-    expect(screen.getByText(/Q2: Second question about deliver/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Q2: Second question about deliver/),
+    ).toBeInTheDocument();
   });
 
   // ---- Jump-to posture badges ----
@@ -280,15 +331,17 @@ describe('QuestionNavigator', () => {
   // ---- Edge cases ----
 
   it('handles empty questions array', () => {
-    render(<QuestionNavigator {...defaultProps({ questions: [], currentIndex: 0 })} />);
+    render(
+      <QuestionNavigator
+        {...defaultProps({ questions: [], currentIndex: 0 })}
+      />,
+    );
     expect(screen.getByText('Q1 of 0')).toBeInTheDocument();
     expect(screen.getByText('(0 complete)')).toBeInTheDocument();
   });
 
   it('handles questions with null confidence_posture as no_content', () => {
-    const questions = [
-      makeQuestion({ id: 'q-1', confidence_posture: null }),
-    ];
+    const questions = [makeQuestion({ id: 'q-1', confidence_posture: null })];
     render(<QuestionNavigator {...defaultProps({ questions })} />);
     expect(screen.getByText('No content')).toBeInTheDocument();
   });
@@ -306,7 +359,9 @@ describe('QuestionNavigator', () => {
 
   it('disables both nav buttons when there is only one question', () => {
     const questions = [makeQuestion({ id: 'q-1' })];
-    render(<QuestionNavigator {...defaultProps({ questions, currentIndex: 0 })} />);
+    render(
+      <QuestionNavigator {...defaultProps({ questions, currentIndex: 0 })} />,
+    );
     const prevButton = screen.getByRole('button', { name: /Previous/ });
     const nextButton = screen.getByRole('button', { name: /Next/ });
     expect(prevButton).toBeDisabled();

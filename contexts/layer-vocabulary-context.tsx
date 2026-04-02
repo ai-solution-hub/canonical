@@ -1,11 +1,6 @@
 'use client';
 
-import {
-  createContext,
-  useContext,
-  useCallback,
-  useMemo,
-} from 'react';
+import { createContext, useContext, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { queryKeys } from '@/lib/query/query-keys';
@@ -107,7 +102,11 @@ export function LayerVocabularyProvider({
   });
 
   // Map TanStack Query error to string (matching original context API)
-  const error = queryError ? (queryError instanceof Error ? queryError.message : 'Failed to load layers') : null;
+  const error = queryError
+    ? queryError instanceof Error
+      ? queryError.message
+      : 'Failed to load layers'
+    : null;
 
   const refresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: queryKeys.layers.all });
@@ -147,7 +146,15 @@ export function LayerVocabularyProvider({
       getLayerDescription,
       refresh,
     }),
-    [layers, loading, error, getLayerKeys, getLayerLabel, getLayerDescription, refresh],
+    [
+      layers,
+      loading,
+      error,
+      getLayerKeys,
+      getLayerLabel,
+      getLayerDescription,
+      refresh,
+    ],
   );
 
   return (

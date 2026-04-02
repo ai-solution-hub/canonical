@@ -62,10 +62,12 @@ import { EntityList } from '@/components/entity-management/entity-list';
 // Factories
 // ---------------------------------------------------------------------------
 
-function createEntityResponse(overrides: Partial<{
-  entities: unknown[];
-  total: number;
-}> = {}) {
+function createEntityResponse(
+  overrides: Partial<{
+    entities: unknown[];
+    total: number;
+  }> = {},
+) {
   return {
     entities: overrides.entities ?? [
       {
@@ -142,7 +144,9 @@ describe('EntityList', () => {
     render(<EntityList />);
 
     // Before the debounce timer fires there should be a loader
-    expect(screen.queryByRole('list', { name: /entity list/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('list', { name: /entity list/i }),
+    ).not.toBeInTheDocument();
   });
 
   it('renders entity list after loading', async () => {
@@ -275,7 +279,9 @@ describe('EntityList', () => {
       expect(screen.getByText('Acme Corporation')).toBeInTheDocument();
     });
 
-    const detailButton = screen.getByLabelText('View detail for Acme Corporation');
+    const detailButton = screen.getByLabelText(
+      'View detail for Acme Corporation',
+    );
     await user.click(detailButton);
 
     expect(screen.getByTestId('entity-detail-panel')).toBeInTheDocument();
@@ -284,7 +290,11 @@ describe('EntityList', () => {
 
   it('shows error toast when fetch fails', async () => {
     mockFetch.mockImplementation(() =>
-      Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({ error: 'fail' }) }),
+      Promise.resolve({
+        ok: false,
+        status: 500,
+        json: () => Promise.resolve({ error: 'fail' }),
+      }),
     );
     render(<EntityList />);
     vi.advanceTimersByTime(350);

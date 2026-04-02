@@ -89,10 +89,13 @@ export function PdfViewer({ sourceUrl, filePath, title }: PdfViewerProps) {
     }
   }, []);
 
-  const onDocumentLoadSuccess = useCallback(({ numPages: total }: { numPages: number }) => {
-    setNumPages(total);
-    setHasError(false);
-  }, []);
+  const onDocumentLoadSuccess = useCallback(
+    ({ numPages: total }: { numPages: number }) => {
+      setNumPages(total);
+      setHasError(false);
+    },
+    [],
+  );
 
   const onDocumentLoadError = useCallback(() => {
     setHasError(true);
@@ -107,9 +110,12 @@ export function PdfViewer({ sourceUrl, filePath, title }: PdfViewerProps) {
     [numPages],
   );
 
-  const handlePageInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setPageInputValue(e.target.value);
-  }, []);
+  const handlePageInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setPageInputValue(e.target.value);
+    },
+    [],
+  );
 
   const handlePageInputSubmit = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -148,20 +154,17 @@ export function PdfViewer({ sourceUrl, filePath, title }: PdfViewerProps) {
     }
   }, []);
 
-  const onPageLoadSuccess = useCallback(
-    (page: { originalWidth: number }) => {
-      if (!pageWidthRef.current) {
-        pageWidthRef.current = page.originalWidth;
-        // Auto fit-width on first page load
-        if (containerRef.current) {
-          const containerWidth = containerRef.current.clientWidth - 48;
-          const newScale = containerWidth / page.originalWidth;
-          setScale(Math.max(MIN_SCALE, Math.min(newScale, MAX_SCALE)));
-        }
+  const onPageLoadSuccess = useCallback((page: { originalWidth: number }) => {
+    if (!pageWidthRef.current) {
+      pageWidthRef.current = page.originalWidth;
+      // Auto fit-width on first page load
+      if (containerRef.current) {
+        const containerWidth = containerRef.current.clientWidth - 48;
+        const newScale = containerWidth / page.originalWidth;
+        setScale(Math.max(MIN_SCALE, Math.min(newScale, MAX_SCALE)));
       }
-    },
-    [],
-  );
+    }
+  }, []);
 
   // Keyboard navigation (only when dialog is open)
   useEffect(() => {
@@ -202,12 +205,20 @@ export function PdfViewer({ sourceUrl, filePath, title }: PdfViewerProps) {
   return (
     <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5" data-pdf-trigger>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          data-pdf-trigger
+        >
           <FileText className="size-3.5" />
           View PDF
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-5xl" aria-describedby="pdf-viewer-description">
+      <DialogContent
+        className="sm:max-w-5xl"
+        aria-describedby="pdf-viewer-description"
+      >
         <DialogHeader>
           <DialogTitle className="truncate">{title}</DialogTitle>
           <DialogDescription id="pdf-viewer-description" className="sr-only">
@@ -226,7 +237,11 @@ export function PdfViewer({ sourceUrl, filePath, title }: PdfViewerProps) {
               </div>
               {fallbackUrl && (
                 <Button variant="outline" size="sm" className="gap-1.5" asChild>
-                  <a href={fallbackUrl} target="_blank" rel="noopener noreferrer">
+                  <a
+                    href={fallbackUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     <ExternalLink className="size-3.5" />
                     Open in new tab
                   </a>

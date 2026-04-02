@@ -26,7 +26,13 @@ import type {
   UpdatedItemResult,
   BatchContentItemsResult,
 } from '@/lib/mcp/formatters';
-import { type ToolExtra, toStructuredContent, getGenerateEmbedding, getClassifyContent, getGenerateSummary } from './shared';
+import {
+  type ToolExtra,
+  toStructuredContent,
+  getGenerateEmbedding,
+  getClassifyContent,
+  getGenerateSummary,
+} from './shared';
 
 export async function registerContentTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
@@ -36,9 +42,13 @@ export async function registerContentTools(server: McpServer): Promise<void> {
     'get_content_item',
     {
       title: 'Get Content Item',
-      description: 'Retrieve a specific content item from the knowledge base by its ID. Returns the full item including title, type, domain, summary, keywords, freshness status, content text, and entity relationships. For Q&A pairs, includes standard and advanced answers. Use this after searching to get the complete details of a specific item. Use get_entity_relationships to explore connected entities.',
+      description:
+        'Retrieve a specific content item from the knowledge base by its ID. Returns the full item including title, type, domain, summary, keywords, freshness status, content text, and entity relationships. For Q&A pairs, includes standard and advanced answers. Use this after searching to get the complete details of a specific item. Use get_entity_relationships to explore connected entities.',
       inputSchema: {
-        id: z.string().uuid().describe('The UUID of the content item to retrieve'),
+        id: z
+          .string()
+          .uuid()
+          .describe('The UUID of the content item to retrieve'),
       },
       annotations: {
         readOnlyHint: true,
@@ -60,7 +70,12 @@ export async function registerContentTools(server: McpServer): Promise<void> {
 
         if (error || !item) {
           return {
-            content: [{ type: 'text' as const, text: `Content item not found: ${args.id}` }],
+            content: [
+              {
+                type: 'text' as const,
+                text: `Content item not found: ${args.id}`,
+              },
+            ],
             isError: true,
           };
         }
@@ -89,8 +104,13 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         // Truncate content in structuredContent to prevent oversized responses
         // from large PDFs (which can exceed 500KB)
         const structuredItem = { ...item };
-        if (typeof structuredItem.content === 'string' && structuredItem.content.length > CHARACTER_LIMIT) {
-          structuredItem.content = structuredItem.content.slice(0, CHARACTER_LIMIT) + '\n\n... (content truncated)';
+        if (
+          typeof structuredItem.content === 'string' &&
+          structuredItem.content.length > CHARACTER_LIMIT
+        ) {
+          structuredItem.content =
+            structuredItem.content.slice(0, CHARACTER_LIMIT) +
+            '\n\n... (content truncated)';
         }
 
         return {
@@ -100,7 +120,12 @@ export async function registerContentTools(server: McpServer): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Failed to retrieve content item: ${message}. Check the ID is a valid UUID.` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Failed to retrieve content item: ${message}. Check the ID is a valid UUID.`,
+            },
+          ],
           isError: true,
         };
       }
@@ -114,21 +139,58 @@ export async function registerContentTools(server: McpServer): Promise<void> {
     'create_content_item',
     {
       title: 'Create Content Item',
-      description: 'Create a new content item in the knowledge base. Requires editor or admin role. The item will be automatically embedded for search unless created as a draft. Set governance_review_status to "draft" to create items that are excluded from search and visible only in the review queue\'s Drafts filter — useful for batch content creation that needs review before going live. Use batch_tag to group related draft items (e.g. "reorient-2026-03") and source_document to record provenance. Choose content_type carefully: use q_a_pair for question-answer pairs, case_study for project examples, policy for governance documents, certification for accreditations, capability for service descriptions. Use the kb://taxonomy resource to see valid domain and subtopic values.',
+      description:
+        'Create a new content item in the knowledge base. Requires editor or admin role. The item will be automatically embedded for search unless created as a draft. Set governance_review_status to "draft" to create items that are excluded from search and visible only in the review queue\'s Drafts filter — useful for batch content creation that needs review before going live. Use batch_tag to group related draft items (e.g. "reorient-2026-03") and source_document to record provenance. Choose content_type carefully: use q_a_pair for question-answer pairs, case_study for project examples, policy for governance documents, certification for accreditations, capability for service descriptions. Use the kb://taxonomy resource to see valid domain and subtopic values.',
       inputSchema: {
         title: z.string().min(1).max(500).describe('Title of the content item'),
         content: z.string().min(1).max(500000).describe('The content text'),
-        content_type: z.enum([
-          'article', 'blog', 'pdf', 'note', 'research', 'other',
-          'q_a_pair', 'case_study', 'policy', 'certification',
-          'compliance', 'methodology', 'capability', 'product_description',
-        ]).describe('Type of content'),
-        primary_domain: z.string().optional().describe('Primary domain category'),
+        content_type: z
+          .enum([
+            'article',
+            'blog',
+            'pdf',
+            'note',
+            'research',
+            'other',
+            'q_a_pair',
+            'case_study',
+            'policy',
+            'certification',
+            'compliance',
+            'methodology',
+            'capability',
+            'product_description',
+          ])
+          .describe('Type of content'),
+        primary_domain: z
+          .string()
+          .optional()
+          .describe('Primary domain category'),
         primary_subtopic: z.string().optional().describe('Primary subtopic'),
-        priority: z.enum(['high', 'medium', 'low']).optional().describe('Priority level'),
-        governance_review_status: z.enum(['draft']).optional().describe('Set to "draft" to create as a draft item (excluded from search, no embedding generated). Publish later via update_governance_status.'),
-        batch_tag: z.string().max(200).optional().describe('Tag to group related items (e.g. "reorient-2026-03"). Stored in metadata.batch_tag for filtering.'),
-        source_document: z.string().max(500).optional().describe('Source document name or path for provenance tracking. Stored in metadata.source_document.'),
+        priority: z
+          .enum(['high', 'medium', 'low'])
+          .optional()
+          .describe('Priority level'),
+        governance_review_status: z
+          .enum(['draft'])
+          .optional()
+          .describe(
+            'Set to "draft" to create as a draft item (excluded from search, no embedding generated). Publish later via update_governance_status.',
+          ),
+        batch_tag: z
+          .string()
+          .max(200)
+          .optional()
+          .describe(
+            'Tag to group related items (e.g. "reorient-2026-03"). Stored in metadata.batch_tag for filtering.',
+          ),
+        source_document: z
+          .string()
+          .max(500)
+          .optional()
+          .describe(
+            'Source document name or path for provenance tracking. Stored in metadata.source_document.',
+          ),
       },
       annotations: {
         readOnlyHint: false,
@@ -142,7 +204,12 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         const role = await checkMcpRole(extra.authInfo, ['admin', 'editor']);
         if (!role) {
           return {
-            content: [{ type: 'text' as const, text: 'Permission denied: editor or admin role required.' }],
+            content: [
+              {
+                type: 'text' as const,
+                text: 'Permission denied: editor or admin role required.',
+              },
+            ],
             isError: true,
           };
         }
@@ -156,7 +223,9 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         if (!isDraft) {
           try {
             const generateEmbedding = await getGenerateEmbedding();
-            embedding = await generateEmbedding(args.title + ' ' + args.content.slice(0, 5000));
+            embedding = await generateEmbedding(
+              args.title + ' ' + args.content.slice(0, 5000),
+            );
           } catch (error) {
             // Embedding failure is non-fatal — item is still created but invisible to search
             console.error('Failed to generate embeddings:', error);
@@ -166,23 +235,29 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         // Build metadata with optional batch_tag and source_document
         const metadata: Record<string, string> = {};
         if (args.batch_tag) metadata.batch_tag = args.batch_tag;
-        if (args.source_document) metadata.source_document = args.source_document;
+        if (args.source_document)
+          metadata.source_document = args.source_document;
 
-        const insertData: Database['public']['Tables']['content_items']['Insert'] = {
-          title: args.title,
-          suggested_title: args.title,
-          content: args.content,
-          content_type: args.content_type,
-          platform: 'manual',
-          captured_date: new Date().toISOString(),
-          created_by: userId,
-          ...(args.primary_domain && { primary_domain: args.primary_domain }),
-          ...(args.primary_subtopic && { primary_subtopic: args.primary_subtopic }),
-          ...(args.priority && { priority: args.priority }),
-          ...(embedding && { embedding: JSON.stringify(embedding) }),
-          ...(isDraft && { governance_review_status: 'draft' }),
-          ...(Object.keys(metadata).length > 0 && { metadata: metadata as unknown as Json }),
-        };
+        const insertData: Database['public']['Tables']['content_items']['Insert'] =
+          {
+            title: args.title,
+            suggested_title: args.title,
+            content: args.content,
+            content_type: args.content_type,
+            platform: 'manual',
+            captured_date: new Date().toISOString(),
+            created_by: userId,
+            ...(args.primary_domain && { primary_domain: args.primary_domain }),
+            ...(args.primary_subtopic && {
+              primary_subtopic: args.primary_subtopic,
+            }),
+            ...(args.priority && { priority: args.priority }),
+            ...(embedding && { embedding: JSON.stringify(embedding) }),
+            ...(isDraft && { governance_review_status: 'draft' }),
+            ...(Object.keys(metadata).length > 0 && {
+              metadata: metadata as unknown as Json,
+            }),
+          };
 
         const { data: item, error } = await supabase
           .from('content_items')
@@ -192,7 +267,12 @@ export async function registerContentTools(server: McpServer): Promise<void> {
 
         if (error || !item) {
           return {
-            content: [{ type: 'text' as const, text: `Failed to create item: ${error?.message ?? 'Unknown error'}` }],
+            content: [
+              {
+                type: 'text' as const,
+                text: `Failed to create item: ${error?.message ?? 'Unknown error'}`,
+              },
+            ],
             isError: true,
           };
         }
@@ -223,7 +303,10 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             // Store the suggested layer in the dedicated column
             await supabase
               .from('content_items')
-              .update({ layer: suggestion.suggestedLayer } as Record<string, unknown>)
+              .update({ layer: suggestion.suggestedLayer } as Record<
+                string,
+                unknown
+              >)
               .eq('id', item.id);
           } catch (layerErr) {
             // Non-fatal — item is still usable without a layer
@@ -237,40 +320,70 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         if (!isDraft) {
           try {
             const classifyContent = await getClassifyContent();
-            await classifyContent({ supabase, itemId: item.id, force: true, userId });
+            await classifyContent({
+              supabase,
+              itemId: item.id,
+              force: true,
+              userId,
+            });
           } catch (err) {
             const msg = err instanceof Error ? err.message : 'Unknown error';
             warnings.push(`Classification failed: ${msg}`);
-            console.error(`MCP create_content_item classification failed for ${item.id}:`, err);
+            console.error(
+              `MCP create_content_item classification failed for ${item.id}:`,
+              err,
+            );
           }
 
           try {
             const generateSummary = await getGenerateSummary();
-            await generateSummary({ supabase, itemId: item.id, force: true, userId });
+            await generateSummary({
+              supabase,
+              itemId: item.id,
+              force: true,
+              userId,
+            });
           } catch (err) {
             const msg = err instanceof Error ? err.message : 'Unknown error';
             warnings.push(`Summary generation failed: ${msg}`);
-            console.error(`MCP create_content_item summary failed for ${item.id}:`, err);
+            console.error(
+              `MCP create_content_item summary failed for ${item.id}:`,
+              err,
+            );
           }
         }
 
         // Guide section suggestion — fetch classified item then match
-        let guideSectionSuggestions: { guideId: string; guideName: string; guideSlug: string; sectionId: string; sectionName: string; sectionOrder: number; isRequired: boolean; matchStrength: string; matchReason: string }[] = [];
+        let guideSectionSuggestions: {
+          guideId: string;
+          guideName: string;
+          guideSlug: string;
+          sectionId: string;
+          sectionName: string;
+          sectionOrder: number;
+          isRequired: boolean;
+          matchStrength: string;
+          matchReason: string;
+        }[] = [];
         if (!isDraft) {
           try {
             const { data: classifiedItem } = await supabase
               .from('content_items')
-              .select('primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, metadata')
+              .select(
+                'primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, metadata',
+              )
               .eq('id', item.id)
               .single();
 
             if (classifiedItem?.primary_domain) {
-              const { suggestGuideSections } = await import('@/lib/guide-section-mapping');
+              const { suggestGuideSections } =
+                await import('@/lib/guide-section-mapping');
               const matches = await suggestGuideSections(supabase, {
                 primaryDomain: classifiedItem.primary_domain,
                 primarySubtopic: classifiedItem.primary_subtopic || '',
                 secondaryDomain: classifiedItem.secondary_domain || undefined,
-                secondarySubtopic: classifiedItem.secondary_subtopic || undefined,
+                secondarySubtopic:
+                  classifiedItem.secondary_subtopic || undefined,
                 layer: suggestedLayerKey || undefined,
                 contentType: classifiedItem.content_type || args.content_type,
               });
@@ -288,13 +401,20 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         const layerNote = suggestedLayerKey
           ? `\n\n**Layer:** ${suggestedLayerKey} (auto-assigned)`
           : '';
-        const guideNote = guideSectionSuggestions.length > 0
-          ? `\n\n**Guide sections:** ${guideSectionSuggestions.map(gs => `${gs.guideName} > ${gs.sectionName}`).join(', ')}`
-          : '';
-        const warningNote = warnings.length > 0
-          ? `\n\n**Warnings:**\n${warnings.map(w => `- ${w}`).join('\n')}`
-          : '';
-        const markdown = formatCreatedItem(created) + draftNote + layerNote + guideNote + warningNote;
+        const guideNote =
+          guideSectionSuggestions.length > 0
+            ? `\n\n**Guide sections:** ${guideSectionSuggestions.map((gs) => `${gs.guideName} > ${gs.sectionName}`).join(', ')}`
+            : '';
+        const warningNote =
+          warnings.length > 0
+            ? `\n\n**Warnings:**\n${warnings.map((w) => `- ${w}`).join('\n')}`
+            : '';
+        const markdown =
+          formatCreatedItem(created) +
+          draftNote +
+          layerNote +
+          guideNote +
+          warningNote;
         return {
           content: [{ type: 'text' as const, text: markdown }],
           structuredContent: toStructuredContent({
@@ -303,14 +423,22 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             batch_tag: args.batch_tag ?? null,
             source_document: args.source_document ?? null,
             suggested_layer: suggestedLayerKey ?? null,
-            guide_sections: guideSectionSuggestions.length > 0 ? guideSectionSuggestions : undefined,
+            guide_sections:
+              guideSectionSuggestions.length > 0
+                ? guideSectionSuggestions
+                : undefined,
             warnings: warnings.length > 0 ? warnings : undefined,
           }),
         };
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Failed to create item: ${message}. Ensure you have editor or admin permissions.` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Failed to create item: ${message}. Ensure you have editor or admin permissions.`,
+            },
+          ],
           isError: true,
         };
       }
@@ -324,23 +452,67 @@ export async function registerContentTools(server: McpServer): Promise<void> {
     'update_content_item',
     {
       title: 'Update Content Item',
-      description: 'Edit an existing content item\'s metadata and content fields. Updates are applied immediately and auto-versioned in content_history. Requires editor or admin role. Updatable fields: title, suggested_title, content, answer_standard, answer_advanced, primary_domain, primary_subtopic, priority, notes, expiry_date, lifecycle_type. Use the kb://taxonomy resource for valid domain and subtopic values.',
+      description:
+        "Edit an existing content item's metadata and content fields. Updates are applied immediately and auto-versioned in content_history. Requires editor or admin role. Updatable fields: title, suggested_title, content, answer_standard, answer_advanced, primary_domain, primary_subtopic, priority, notes, expiry_date, lifecycle_type. Use the kb://taxonomy resource for valid domain and subtopic values.",
       inputSchema: {
-        id: z.string().uuid().describe('The UUID of the content item to update'),
-        fields: z.object({
-          title: z.string().optional().describe('Display title'),
-          suggested_title: z.string().optional().describe('AI-suggested title'),
-          content: z.string().max(500000).optional().describe('Main content text'),
-          answer_standard: z.string().optional().describe('Standard answer (Q&A pairs)'),
-          answer_advanced: z.string().optional().describe('Advanced answer (Q&A pairs)'),
-          primary_domain: z.string().optional().describe('Domain classification'),
-          primary_subtopic: z.string().optional().describe('Subtopic classification'),
-          priority: z.enum(['high', 'medium', 'low']).optional().describe('Priority level'),
-          notes: z.string().optional().describe('Editorial notes'),
-          expiry_date: z.string().nullable().optional().describe('Expiry date in ISO 8601 format (YYYY-MM-DD). Set to null to clear.'),
-          lifecycle_type: z.enum(['evergreen', 'date_bound', 'regulatory', 'version_bound']).optional().describe('Content lifecycle type'),
-        }).describe('Fields to update — only include fields you want to change'),
-        reason: z.string().optional().describe('Explanation of why the update was made (stored for audit trail)'),
+        id: z
+          .string()
+          .uuid()
+          .describe('The UUID of the content item to update'),
+        fields: z
+          .object({
+            title: z.string().optional().describe('Display title'),
+            suggested_title: z
+              .string()
+              .optional()
+              .describe('AI-suggested title'),
+            content: z
+              .string()
+              .max(500000)
+              .optional()
+              .describe('Main content text'),
+            answer_standard: z
+              .string()
+              .optional()
+              .describe('Standard answer (Q&A pairs)'),
+            answer_advanced: z
+              .string()
+              .optional()
+              .describe('Advanced answer (Q&A pairs)'),
+            primary_domain: z
+              .string()
+              .optional()
+              .describe('Domain classification'),
+            primary_subtopic: z
+              .string()
+              .optional()
+              .describe('Subtopic classification'),
+            priority: z
+              .enum(['high', 'medium', 'low'])
+              .optional()
+              .describe('Priority level'),
+            notes: z.string().optional().describe('Editorial notes'),
+            expiry_date: z
+              .string()
+              .nullable()
+              .optional()
+              .describe(
+                'Expiry date in ISO 8601 format (YYYY-MM-DD). Set to null to clear.',
+              ),
+            lifecycle_type: z
+              .enum(['evergreen', 'date_bound', 'regulatory', 'version_bound'])
+              .optional()
+              .describe('Content lifecycle type'),
+          })
+          .describe(
+            'Fields to update — only include fields you want to change',
+          ),
+        reason: z
+          .string()
+          .optional()
+          .describe(
+            'Explanation of why the update was made (stored for audit trail)',
+          ),
       },
       annotations: {
         readOnlyHint: false,
@@ -354,7 +526,12 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         const role = await checkMcpRole(extra.authInfo, ['admin', 'editor']);
         if (!role) {
           return {
-            content: [{ type: 'text' as const, text: 'Permission denied: editor or admin role required.' }],
+            content: [
+              {
+                type: 'text' as const,
+                text: 'Permission denied: editor or admin role required.',
+              },
+            ],
             isError: true,
           };
         }
@@ -364,9 +541,17 @@ export async function registerContentTools(server: McpServer): Promise<void> {
 
         // Validate that at least one field is being updated
         const allowedFields = [
-          'title', 'suggested_title', 'content', 'answer_standard',
-          'answer_advanced', 'primary_domain', 'primary_subtopic',
-          'priority', 'notes', 'expiry_date', 'lifecycle_type',
+          'title',
+          'suggested_title',
+          'content',
+          'answer_standard',
+          'answer_advanced',
+          'primary_domain',
+          'primary_subtopic',
+          'priority',
+          'notes',
+          'expiry_date',
+          'lifecycle_type',
         ] as const;
 
         const updateData: Record<string, unknown> = {};
@@ -381,7 +566,12 @@ export async function registerContentTools(server: McpServer): Promise<void> {
 
         if (updatedFields.length === 0) {
           return {
-            content: [{ type: 'text' as const, text: 'No fields to update. Provide at least one field in the fields object.' }],
+            content: [
+              {
+                type: 'text' as const,
+                text: 'No fields to update. Provide at least one field in the fields object.',
+              },
+            ],
             isError: true,
           };
         }
@@ -395,7 +585,12 @@ export async function registerContentTools(server: McpServer): Promise<void> {
 
         if (fetchError || !current) {
           return {
-            content: [{ type: 'text' as const, text: `Content item not found: ${args.id}` }],
+            content: [
+              {
+                type: 'text' as const,
+                text: `Content item not found: ${args.id}`,
+              },
+            ],
             isError: true,
           };
         }
@@ -406,12 +601,19 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         // Apply update
         const { error: updateError } = await supabase
           .from('content_items')
-          .update(updateData as Database['public']['Tables']['content_items']['Update'])
+          .update(
+            updateData as Database['public']['Tables']['content_items']['Update'],
+          )
           .eq('id', args.id);
 
         if (updateError) {
           return {
-            content: [{ type: 'text' as const, text: `Update failed: ${updateError.message}. Check the ID is valid and you have permissions.` }],
+            content: [
+              {
+                type: 'text' as const,
+                text: `Update failed: ${updateError.message}. Check the ID is valid and you have permissions.`,
+              },
+            ],
             isError: true,
           };
         }
@@ -419,7 +621,10 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         const result: UpdatedItemResult = {
           id: args.id,
           updated_fields: updatedFields,
-          previous_values: JSON.parse(JSON.stringify(current)) as Record<string, unknown>,
+          previous_values: JSON.parse(JSON.stringify(current)) as Record<
+            string,
+            unknown
+          >,
           reason: args.reason ?? null,
         };
 
@@ -431,7 +636,12 @@ export async function registerContentTools(server: McpServer): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Update failed: ${message}. Ensure you have editor or admin permissions.` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Update failed: ${message}. Ensure you have editor or admin permissions.`,
+            },
+          ],
           isError: true,
         };
       }
@@ -445,9 +655,14 @@ export async function registerContentTools(server: McpServer): Promise<void> {
     'get_content_items',
     {
       title: 'Get Content Items (Batch)',
-      description: 'Fetch multiple content items by ID array in a single call. Eliminates the need for multiple get_content_item calls when auditing or reviewing several items. Returns the same detail level as get_content_item for each item. Maximum 50 IDs per call.',
+      description:
+        'Fetch multiple content items by ID array in a single call. Eliminates the need for multiple get_content_item calls when auditing or reviewing several items. Returns the same detail level as get_content_item for each item. Maximum 50 IDs per call.',
       inputSchema: {
-        ids: z.array(z.string().uuid()).min(1).max(50).describe('Array of content item UUIDs to fetch (max: 50)'),
+        ids: z
+          .array(z.string().uuid())
+          .min(1)
+          .max(50)
+          .describe('Array of content item UUIDs to fetch (max: 50)'),
       },
       annotations: {
         readOnlyHint: true,
@@ -469,19 +684,29 @@ export async function registerContentTools(server: McpServer): Promise<void> {
 
         if (error) {
           return {
-            content: [{ type: 'text' as const, text: `Batch fetch failed: ${error.message}.` }],
+            content: [
+              {
+                type: 'text' as const,
+                text: `Batch fetch failed: ${error.message}.`,
+              },
+            ],
             isError: true,
           };
         }
 
-        const foundIds = new Set((rows ?? []).map((r: Record<string, unknown>) => r.id as string));
+        const foundIds = new Set(
+          (rows ?? []).map((r: Record<string, unknown>) => r.id as string),
+        );
         const notFound = args.ids.filter((id) => !foundIds.has(id));
 
-        const items: ContentItemDetail[] = ((rows ?? []) as Record<string, unknown>[]).map((item) => {
+        const items: ContentItemDetail[] = (
+          (rows ?? []) as Record<string, unknown>[]
+        ).map((item) => {
           // Truncate content in results to prevent oversized responses
           let content = item.content as string | null;
           if (typeof content === 'string' && content.length > CHARACTER_LIMIT) {
-            content = content.slice(0, CHARACTER_LIMIT) + '\n\n... (content truncated)';
+            content =
+              content.slice(0, CHARACTER_LIMIT) + '\n\n... (content truncated)';
           }
 
           return {
@@ -494,19 +719,25 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             ai_summary: item.ai_summary as string | null,
             ai_keywords: item.ai_keywords as string[] | null,
             freshness: item.freshness as string | null,
-            classification_confidence: item.classification_confidence as number | null,
+            classification_confidence: item.classification_confidence as
+              | number
+              | null,
             source_url: item.source_url as string | null,
             content,
             created_at: item.created_at as string | null,
             updated_at: item.updated_at as string | null,
-            governance_review_status: item.governance_review_status as string | null,
+            governance_review_status: item.governance_review_status as
+              | string
+              | null,
             priority: item.priority as string | null,
           };
         });
 
         // Reorder to match input ID order
         const idOrder = new Map(args.ids.map((id, index) => [id, index]));
-        items.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0));
+        items.sort(
+          (a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0),
+        );
 
         const result: BatchContentItemsResult = {
           count: items.length,
@@ -522,7 +753,9 @@ export async function registerContentTools(server: McpServer): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Batch fetch failed: ${message}.` }],
+          content: [
+            { type: 'text' as const, text: `Batch fetch failed: ${message}.` },
+          ],
           isError: true,
         };
       }
@@ -536,12 +769,15 @@ export async function registerContentTools(server: McpServer): Promise<void> {
     'assign_content_owner',
     {
       title: 'Assign Content Owner',
-      description: 'Assign or change the content owner for one or more items. The owner receives targeted notifications when their content becomes stale or needs governance review. Requires admin role. Use this to delegate content maintenance responsibility to specific team members.',
+      description:
+        'Assign or change the content owner for one or more items. The owner receives targeted notifications when their content becomes stale or needs governance review. Requires admin role. Use this to delegate content maintenance responsibility to specific team members.',
       inputSchema: {
-        item_ids: z.array(z.string().uuid()).min(1).max(50)
+        item_ids: z
+          .array(z.string().uuid())
+          .min(1)
+          .max(50)
           .describe('Content item IDs to assign (1-50)'),
-        owner_id: z.string().uuid()
-          .describe('User ID of the new owner'),
+        owner_id: z.string().uuid().describe('User ID of the new owner'),
       },
       annotations: {
         readOnlyHint: false,
@@ -555,7 +791,12 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         const role = await checkMcpRole(extra.authInfo, ['admin']);
         if (!role) {
           return {
-            content: [{ type: 'text' as const, text: 'Permission denied: admin role required to assign content owners.' }],
+            content: [
+              {
+                type: 'text' as const,
+                text: 'Permission denied: admin role required to assign content owners.',
+              },
+            ],
             isError: true,
           };
         }
@@ -564,15 +805,23 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         const userId = getMcpUserId(extra.authInfo);
 
         // Call the bulk_assign_content_owner RPC
-        const { data: updatedCount, error } = await supabase.rpc('bulk_assign_content_owner', {
-          p_item_ids: args.item_ids,
-          p_owner_id: args.owner_id,
-          p_assigned_by: userId,
-        });
+        const { data: updatedCount, error } = await supabase.rpc(
+          'bulk_assign_content_owner',
+          {
+            p_item_ids: args.item_ids,
+            p_owner_id: args.owner_id,
+            p_assigned_by: userId,
+          },
+        );
 
         if (error) {
           return {
-            content: [{ type: 'text' as const, text: `Failed to assign content owner: ${error.message}` }],
+            content: [
+              {
+                type: 'text' as const,
+                text: `Failed to assign content owner: ${error.message}`,
+              },
+            ],
             isError: true,
           };
         }
@@ -584,7 +833,8 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         if (notFoundCount > 0) {
           message += ` ${notFoundCount} item${notFoundCount === 1 ? '' : 's'} not found or unchanged.`;
         }
-        message += '\n\nThe owner will receive targeted notifications when their content becomes stale or needs governance review.';
+        message +=
+          '\n\nThe owner will receive targeted notifications when their content becomes stale or needs governance review.';
 
         return {
           content: [{ type: 'text' as const, text: message }],
@@ -599,7 +849,12 @@ export async function registerContentTools(server: McpServer): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Failed to assign content owner: ${message}. Ensure you have admin permissions.` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Failed to assign content owner: ${message}. Ensure you have admin permissions.`,
+            },
+          ],
           isError: true,
         };
       }
@@ -613,9 +868,13 @@ export async function registerContentTools(server: McpServer): Promise<void> {
     'get_document_versions',
     {
       title: 'Get Source Document Versions',
-      description: 'List all versions of a source document, showing the version chain and which KB items were created from each version.',
+      description:
+        'List all versions of a source document, showing the version chain and which KB items were created from each version.',
       inputSchema: {
-        document_id: z.string().uuid().describe('Source document ID (any version in the chain)'),
+        document_id: z
+          .string()
+          .uuid()
+          .describe('Source document ID (any version in the chain)'),
       },
       annotations: {
         readOnlyHint: true,
@@ -653,7 +912,12 @@ export async function registerContentTools(server: McpServer): Promise<void> {
 
         if (error) {
           return {
-            content: [{ type: 'text' as const, text: `Failed to retrieve document versions: ${(error as { message: string }).message}. Check the ID is a valid source document UUID.` }],
+            content: [
+              {
+                type: 'text' as const,
+                text: `Failed to retrieve document versions: ${(error as { message: string }).message}. Check the ID is a valid source document UUID.`,
+              },
+            ],
             isError: true,
           };
         }
@@ -662,7 +926,12 @@ export async function registerContentTools(server: McpServer): Promise<void> {
 
         if (!versions || versions.length === 0) {
           return {
-            content: [{ type: 'text' as const, text: `No document found for ID: ${args.document_id}` }],
+            content: [
+              {
+                type: 'text' as const,
+                text: `No document found for ID: ${args.document_id}`,
+              },
+            ],
             isError: true,
           };
         }
@@ -677,8 +946,11 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         for (const v of versions) {
           const date = v.created_at
             ? new Date(v.created_at).toLocaleDateString('en-GB', {
-                day: '2-digit', month: '2-digit', year: 'numeric',
-                hour: '2-digit', minute: '2-digit',
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
               })
             : 'Unknown date';
 
@@ -689,8 +961,12 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           lines.push(`- **ID:** ${v.id}`);
           lines.push(`- **Status:** ${v.status}`);
           lines.push(`- **Uploaded:** ${date}`);
-          lines.push(`- **File size:** ${v.file_size ? `${(v.file_size / 1024).toFixed(1)} KB` : 'Unknown'}`);
-          lines.push(`- **Content hash:** ${v.content_hash?.slice(0, 12) ?? 'N/A'}...`);
+          lines.push(
+            `- **File size:** ${v.file_size ? `${(v.file_size / 1024).toFixed(1)} KB` : 'Unknown'}`,
+          );
+          lines.push(
+            `- **Content hash:** ${v.content_hash?.slice(0, 12) ?? 'N/A'}...`,
+          );
           lines.push(`- **KB items created:** ${itemCount}`);
           if (v.parent_id) {
             lines.push(`- **Parent version:** ${v.parent_id}`);
@@ -723,7 +999,12 @@ export async function registerContentTools(server: McpServer): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Failed to retrieve document versions: ${message}. Check the ID is a valid source document UUID.` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Failed to retrieve document versions: ${message}. Check the ID is a valid source document UUID.`,
+            },
+          ],
           isError: true,
         };
       }
@@ -737,10 +1018,22 @@ export async function registerContentTools(server: McpServer): Promise<void> {
     'get_document_diff',
     {
       title: 'Get Source Document Diff',
-      description: 'Compare two versions of a source document. Shows added, modified, and removed content blocks (Q&A pairs or full-text sections depending on document type), plus which KB items are affected by the changes. Use when a client sends an updated document and you need to understand what changed.',
+      description:
+        'Compare two versions of a source document. Shows added, modified, and removed content blocks (Q&A pairs or full-text sections depending on document type), plus which KB items are affected by the changes. Use when a client sends an updated document and you need to understand what changed.',
       inputSchema: {
-        document_id: z.string().uuid().describe('Source document ID \u2014 returns the latest diff for this document'),
-        diff_id: z.string().uuid().optional().describe('Specific diff ID to retrieve (overrides document_id lookup)'),
+        document_id: z
+          .string()
+          .uuid()
+          .describe(
+            'Source document ID \u2014 returns the latest diff for this document',
+          ),
+        diff_id: z
+          .string()
+          .uuid()
+          .optional()
+          .describe(
+            'Specific diff ID to retrieve (overrides document_id lookup)',
+          ),
       },
       annotations: {
         readOnlyHint: true,
@@ -766,7 +1059,12 @@ export async function registerContentTools(server: McpServer): Promise<void> {
 
           if (diffLookupError || !diffEntry) {
             return {
-              content: [{ type: 'text' as const, text: `Diff entry not found: ${args.diff_id}` }],
+              content: [
+                {
+                  type: 'text' as const,
+                  text: `Diff entry not found: ${args.diff_id}`,
+                },
+              ],
               isError: true,
             };
           }
@@ -786,7 +1084,12 @@ export async function registerContentTools(server: McpServer): Promise<void> {
 
           if (!oldDocRow || !newDocRow) {
             return {
-              content: [{ type: 'text' as const, text: 'Source documents referenced by this diff no longer exist.' }],
+              content: [
+                {
+                  type: 'text' as const,
+                  text: 'Source documents referenced by this diff no longer exist.',
+                },
+              ],
               isError: true,
             };
           }
@@ -823,7 +1126,9 @@ export async function registerContentTools(server: McpServer): Promise<void> {
 
             if (!parent) {
               return {
-                content: [{ type: 'text' as const, text: 'Parent document not found.' }],
+                content: [
+                  { type: 'text' as const, text: 'Parent document not found.' },
+                ],
                 isError: true,
               };
             }
@@ -842,7 +1147,12 @@ export async function registerContentTools(server: McpServer): Promise<void> {
 
             if (!child) {
               return {
-                content: [{ type: 'text' as const, text: 'No version history found for this document. Upload an updated version to generate a diff.' }],
+                content: [
+                  {
+                    type: 'text' as const,
+                    text: 'No version history found for this document. Upload an updated version to generate a diff.',
+                  },
+                ],
               };
             }
 
@@ -854,20 +1164,32 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         // Fetch diff entries
         const { data: diffs, error: diffError } = await supabase
           .from('source_document_diffs')
-          .select('diff_type, diff_mode, old_question, new_question, old_content, new_content, similarity_score, affected_content_item_id, status')
+          .select(
+            'diff_type, diff_mode, old_question, new_question, old_content, new_content, similarity_score, affected_content_item_id, status',
+          )
           .eq('old_document_id', oldDoc.id)
           .eq('new_document_id', newDoc.id);
 
         if (diffError) {
           return {
-            content: [{ type: 'text' as const, text: `Failed to fetch diff: ${diffError.message}` }],
+            content: [
+              {
+                type: 'text' as const,
+                text: `Failed to fetch diff: ${diffError.message}`,
+              },
+            ],
             isError: true,
           };
         }
 
         if (!diffs || diffs.length === 0) {
           return {
-            content: [{ type: 'text' as const, text: `No diff data found between ${oldDoc.filename} and ${newDoc.filename}. The diff may not have been computed yet.` }],
+            content: [
+              {
+                type: 'text' as const,
+                text: `No diff data found between ${oldDoc.filename} and ${newDoc.filename}. The diff may not have been computed yet.`,
+              },
+            ],
           };
         }
 
@@ -883,7 +1205,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             .select('id, title')
             .in('id', affectedIds);
 
-          for (const item of (items ?? [])) {
+          for (const item of items ?? []) {
             itemTitles.set(item.id, item.title ?? 'Untitled');
           }
         }
@@ -892,9 +1214,10 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         const { formatDocumentDiff } = await import('@/lib/mcp/formatters');
 
         // Determine overall diff mode from entries
-        const entryDiffMode = diffs.length > 0 && (diffs[0] as Record<string, unknown>).diff_mode
-          ? ((diffs[0] as Record<string, unknown>).diff_mode as string)
-          : 'qa';
+        const entryDiffMode =
+          diffs.length > 0 && (diffs[0] as Record<string, unknown>).diff_mode
+            ? ((diffs[0] as Record<string, unknown>).diff_mode as string)
+            : 'qa';
 
         const formatterData: import('@/lib/mcp/formatters').DocumentDiffData = {
           old_filename: oldDoc.filename,
@@ -905,19 +1228,32 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             removed: diffs.filter((d) => d.diff_type === 'removed').length,
             modified: diffs.filter((d) => d.diff_type === 'modified').length,
             unchanged: diffs.filter((d) => d.diff_type === 'unchanged').length,
-            total_old: diffs.filter((d) => ['removed', 'modified', 'unchanged'].includes(d.diff_type)).length,
-            total_new: diffs.filter((d) => ['added', 'modified', 'unchanged'].includes(d.diff_type)).length,
+            total_old: diffs.filter((d) =>
+              ['removed', 'modified', 'unchanged'].includes(d.diff_type),
+            ).length,
+            total_new: diffs.filter((d) =>
+              ['added', 'modified', 'unchanged'].includes(d.diff_type),
+            ).length,
           },
           entries: diffs.map((d) => ({
-            diff_type: d.diff_type as 'added' | 'removed' | 'modified' | 'unchanged',
-            diff_mode: ((d as Record<string, unknown>).diff_mode as string ?? 'qa') as 'qa' | 'full_text',
+            diff_type: d.diff_type as
+              | 'added'
+              | 'removed'
+              | 'modified'
+              | 'unchanged',
+            diff_mode: (((d as Record<string, unknown>).diff_mode as string) ??
+              'qa') as 'qa' | 'full_text',
             old_question: d.old_question ?? undefined,
             new_question: d.new_question ?? undefined,
             old_content: d.old_content ?? undefined,
             new_content: d.new_content ?? undefined,
             similarity_score: d.similarity_score ?? undefined,
             affected_item: d.affected_content_item_id
-              ? { id: d.affected_content_item_id, title: itemTitles.get(d.affected_content_item_id) ?? 'Unknown' }
+              ? {
+                  id: d.affected_content_item_id,
+                  title:
+                    itemTitles.get(d.affected_content_item_id) ?? 'Unknown',
+                }
               : null,
           })),
         };
@@ -931,11 +1267,12 @@ export async function registerContentTools(server: McpServer): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Document diff failed: ${message}` }],
+          content: [
+            { type: 'text' as const, text: `Document diff failed: ${message}` },
+          ],
           isError: true,
         };
       }
     },
   );
-
 }

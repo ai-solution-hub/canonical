@@ -15,8 +15,12 @@ import { ContentRenderer } from '@/components/item-detail/content-renderer';
 // ---------------------------------------------------------------------------
 
 describe('ContentRenderer', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
-  afterEach(() => { vi.unstubAllGlobals(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it('renders plain text as paragraphs when no markdown is detected', () => {
     const text = 'First paragraph\n\nSecond paragraph';

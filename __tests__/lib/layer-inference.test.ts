@@ -5,7 +5,9 @@ import { inferLayer, type LayerInferenceInput } from '@/lib/layer-inference';
 // Helper — returns a default input with all flags false / neutral
 // ---------------------------------------------------------------------------
 
-function baseInput(overrides: Partial<LayerInferenceInput> = {}): LayerInferenceInput {
+function baseInput(
+  overrides: Partial<LayerInferenceInput> = {},
+): LayerInferenceInput {
   return {
     contentType: 'article',
     contentLength: 1000,
@@ -70,7 +72,11 @@ describe('inferLayer — Rule 2: Bid library Q&A pairs', () => {
 
   it('does not trigger for Q&A pairs from non-bid-library sources', () => {
     const result = inferLayer(
-      baseInput({ ingestionSource: 'manual', contentType: 'q_a_pair', contentLength: 200 }),
+      baseInput({
+        ingestionSource: 'manual',
+        contentType: 'q_a_pair',
+        contentLength: 200,
+      }),
     );
     // Should hit Rule 5 (short Q&A), not Rule 2
     expect(result.suggestedLayer).toBe('sales_brief');
@@ -128,11 +134,14 @@ describe('inferLayer — Rule 4: Content type mapping', () => {
     ['policy', 'company_reference', 'medium'],
     ['compliance', 'company_reference', 'medium'],
     ['certification', 'company_reference', 'medium'],
-  ] as const)('maps %s to %s (%s confidence)', (contentType, expectedLayer, expectedConfidence) => {
-    const result = inferLayer(baseInput({ contentType }));
-    expect(result.suggestedLayer).toBe(expectedLayer);
-    expect(result.confidence).toBe(expectedConfidence);
-  });
+  ] as const)(
+    'maps %s to %s (%s confidence)',
+    (contentType, expectedLayer, expectedConfidence) => {
+      const result = inferLayer(baseInput({ contentType }));
+      expect(result.suggestedLayer).toBe(expectedLayer);
+      expect(result.confidence).toBe(expectedConfidence);
+    },
+  );
 
   it('maps research content type to research layer with high confidence', () => {
     const result = inferLayer(baseInput({ contentType: 'research' }));
@@ -147,16 +156,15 @@ describe('inferLayer — Rule 4: Content type mapping', () => {
     expect(result.confidence).toBe('medium');
   });
 
-  it.each([
-    'product_description',
-    'capability',
-    'methodology',
-  ])('maps %s to bid_detail with medium confidence', (contentType) => {
-    const result = inferLayer(baseInput({ contentType }));
-    expect(result.suggestedLayer).toBe('bid_detail');
-    expect(result.confidence).toBe('medium');
-    expect(result.reason).toContain('bid-level detail');
-  });
+  it.each(['product_description', 'capability', 'methodology'])(
+    'maps %s to bid_detail with medium confidence',
+    (contentType) => {
+      const result = inferLayer(baseInput({ contentType }));
+      expect(result.suggestedLayer).toBe('bid_detail');
+      expect(result.confidence).toBe('medium');
+      expect(result.reason).toContain('bid-level detail');
+    },
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -191,10 +199,14 @@ describe('inferLayer — Rule 5: Content length heuristics', () => {
   });
 
   it('Q&A boundary: 499 chars -> sales_brief, 500 chars -> bid_detail', () => {
-    const short = inferLayer(baseInput({ contentType: 'q_a_pair', contentLength: 499 }));
+    const short = inferLayer(
+      baseInput({ contentType: 'q_a_pair', contentLength: 499 }),
+    );
     expect(short.suggestedLayer).toBe('sales_brief');
 
-    const long = inferLayer(baseInput({ contentType: 'q_a_pair', contentLength: 500 }));
+    const long = inferLayer(
+      baseInput({ contentType: 'q_a_pair', contentLength: 500 }),
+    );
     expect(long.suggestedLayer).toBe('bid_detail');
   });
 
@@ -240,7 +252,11 @@ describe('inferLayer — Rule 6: Source-based fallback', () => {
 
   it('url_import is overridden by content type rules', () => {
     const result = inferLayer(
-      baseInput({ ingestionSource: 'url_import', contentType: 'policy', contentLength: 1000 }),
+      baseInput({
+        ingestionSource: 'url_import',
+        contentType: 'policy',
+        contentLength: 1000,
+      }),
     );
     // Rule 4 (policy -> company_reference) should fire before Rule 6
     expect(result.suggestedLayer).toBe('company_reference');
@@ -401,7 +417,9 @@ describe('inferLayer — Edge cases', () => {
 
     for (const input of inputs) {
       const result = inferLayer(input);
-      expect(result.suggestedLayer).toMatch(/^(sales_brief|bid_detail|company_reference|research)$/);
+      expect(result.suggestedLayer).toMatch(
+        /^(sales_brief|bid_detail|company_reference|research)$/,
+      );
       expect(result.confidence).toMatch(/^(high|medium|low)$/);
       expect(result.reason).toBeTruthy();
       expect(typeof result.reason).toBe('string');

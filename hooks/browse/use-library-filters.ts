@@ -35,9 +35,11 @@ export function useLibraryFilters() {
         (searchParams.get('variant') as LibraryFilters['variant']) || undefined,
       search: searchParams.get('q') || undefined,
       freshness:
-        (searchParams.get('freshness') as LibraryFilters['freshness']) || undefined,
+        (searchParams.get('freshness') as LibraryFilters['freshness']) ||
+        undefined,
       verified:
-        (searchParams.get('verified') as LibraryFilters['verified']) || undefined,
+        (searchParams.get('verified') as LibraryFilters['verified']) ||
+        undefined,
     }),
     [searchParams],
   );
@@ -64,7 +66,8 @@ export function useLibraryFilters() {
     (updates: Partial<LibraryFilters>) => {
       const params = new URLSearchParams(searchParams.toString());
       for (const [key, value] of Object.entries(updates)) {
-        const paramKey = key === 'source_file' ? 'source' : key === 'search' ? 'q' : key;
+        const paramKey =
+          key === 'source_file' ? 'source' : key === 'search' ? 'q' : key;
         if (value) {
           params.set(paramKey, value);
         } else {
@@ -89,5 +92,12 @@ export function useLibraryFilters() {
     filters.verified,
   ].filter(Boolean).length;
 
-  return { filters, setFilters, clearFilters, activeCount, groupBy, setGroupBy };
+  return {
+    filters,
+    setFilters,
+    clearFilters,
+    activeCount,
+    groupBy,
+    setGroupBy,
+  };
 }

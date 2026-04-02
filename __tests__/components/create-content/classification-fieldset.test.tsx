@@ -16,7 +16,9 @@ import type { ClassificationFieldsetProps } from '@/components/create-content/cl
 // Helpers
 // ---------------------------------------------------------------------------
 
-function createDefaultProps(overrides: Partial<ClassificationFieldsetProps> = {}): ClassificationFieldsetProps {
+function createDefaultProps(
+  overrides: Partial<ClassificationFieldsetProps> = {},
+): ClassificationFieldsetProps {
   return {
     primaryDomain: '',
     setPrimaryDomain: vi.fn(),
@@ -37,8 +39,12 @@ function createDefaultProps(overrides: Partial<ClassificationFieldsetProps> = {}
 // ---------------------------------------------------------------------------
 
 describe('ClassificationFieldset', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
-  afterEach(() => { vi.unstubAllGlobals(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it('renders domain select with trigger', () => {
     render(<ClassificationFieldset {...createDefaultProps()} />);
@@ -46,7 +52,9 @@ describe('ClassificationFieldset', () => {
   });
 
   it('renders subtopic select (disabled when no domain)', () => {
-    render(<ClassificationFieldset {...createDefaultProps({ primaryDomain: '' })} />);
+    render(
+      <ClassificationFieldset {...createDefaultProps({ primaryDomain: '' })} />,
+    );
     // The subtopic trigger should be disabled when no domain is selected
     const subtopicTrigger = screen.getByLabelText('Subtopic');
     expect(subtopicTrigger).toBeDisabled();

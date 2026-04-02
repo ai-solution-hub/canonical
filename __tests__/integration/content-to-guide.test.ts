@@ -59,7 +59,10 @@ vi.mock('next/headers', () => ({
 
 // Import route handler and suggestGuideSections AFTER mocks
 import { GET as guidesGet } from '@/app/api/guides/[slug]/route';
-import { suggestGuideSections, type GuideSectionMatchInput } from '@/lib/guide-section-mapping';
+import {
+  suggestGuideSections,
+  type GuideSectionMatchInput,
+} from '@/lib/guide-section-mapping';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -102,9 +105,8 @@ function configureSectionQueryResponse(
   client: MockSupabaseClient,
   sections: ReturnType<typeof createGuideSectionQueryRow>[],
 ) {
-  client._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: sections, error: null, count: sections.length }),
+  client._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: sections, error: null, count: sections.length }),
   );
 }
 
@@ -175,7 +177,9 @@ describe('4.1 Core Domain Matching', () => {
       expect(body.sections[0].section_name).toBe('Overview');
       expect(body.sections[0].content_items).toHaveLength(1);
       expect(body.sections[0].content_items[0].content_id).toBe(contentItem.id);
-      expect(body.sections[0].content_items[0].content_title).toBe('Company Profile');
+      expect(body.sections[0].content_items[0].content_title).toBe(
+        'Company Profile',
+      );
 
       // Verify: The RPC was called with the correct slug
       expect(mockSupabase.rpc).toHaveBeenCalledWith('get_guide_content', {
@@ -357,7 +361,9 @@ describe('4.2 Subtopic Filtering', () => {
         (s: { section_name: string }) => s.section_name === 'Certification',
       );
       expect(certSection.content_items).toHaveLength(1);
-      expect(certSection.content_items[0].content_title).toBe('ISO 27001 Status');
+      expect(certSection.content_items[0].content_title).toBe(
+        'ISO 27001 Status',
+      );
 
       // Section 'Audit' contains only item 2
       const auditSection = body.sections.find(
@@ -508,7 +514,9 @@ describe('4.3 Layer Filtering', () => {
 
       expect(body.sections).toHaveLength(1);
       expect(body.sections[0].content_items).toHaveLength(1);
-      expect(body.sections[0].content_items[0].content_layer).toBe('company_reference');
+      expect(body.sections[0].content_items[0].content_layer).toBe(
+        'company_reference',
+      );
 
       // Item2 with layer='research' should not appear
       const allContentIds = body.sections[0].content_items.map(
@@ -612,7 +620,9 @@ describe('4.4 Content Type Filtering', () => {
 
       expect(body.sections).toHaveLength(1);
       expect(body.sections[0].content_items).toHaveLength(1);
-      expect(body.sections[0].content_items[0].content_title).toBe('Security Q&A');
+      expect(body.sections[0].content_items[0].content_title).toBe(
+        'Security Q&A',
+      );
       expect(body.sections[0].content_items[0].content_type).toBe('q_a_pair');
 
       // Item2 (policy) should not appear
@@ -676,7 +686,9 @@ describe('4.5 Exclusion Tests', () => {
       const body = await res.json();
 
       expect(body.sections[0].content_items).toHaveLength(1);
-      expect(body.sections[0].content_items[0].content_title).toBe('Active Item');
+      expect(body.sections[0].content_items[0].content_title).toBe(
+        'Active Item',
+      );
     });
   });
 
@@ -780,7 +792,9 @@ describe('4.5 Exclusion Tests', () => {
           content_count: 5,
         }),
       ];
-      expect(coverageRows.every(r => r.guide_slug !== 'test-unpub-guide')).toBe(true);
+      expect(
+        coverageRows.every((r) => r.guide_slug !== 'test-unpub-guide'),
+      ).toBe(true);
     });
   });
 });
@@ -835,8 +849,13 @@ describe('4.6 Semantic Validation — Domain Value Consistency', () => {
       // Verify our factory defaults use baseline taxonomy domains (not client domains)
       const item = createTestContentItem();
       const baselineDomains = [
-        'security', 'compliance', 'corporate', 'support',
-        'product-feature', 'methodology', 'implementation',
+        'security',
+        'compliance',
+        'corporate',
+        'support',
+        'product-feature',
+        'methodology',
+        'implementation',
       ];
       expect(baselineDomains).toContain(item.primary_domain);
 
@@ -944,8 +963,8 @@ describe('4.7 Coverage RPC Consistency', () => {
 
       // Verify consistency: content count matches the number of distinct content items
       const distinctContentIds = contentRows
-        .filter(r => r.content_id !== null)
-        .map(r => r.content_id);
+        .filter((r) => r.content_id !== null)
+        .map((r) => r.content_id);
       expect(distinctContentIds).toHaveLength(coverageRow.content_count);
 
       // Also verify via the API route
@@ -961,7 +980,9 @@ describe('4.7 Coverage RPC Consistency', () => {
 
       // The API groups by section and counts content items
       const sectionFromApi = body.sections[0];
-      expect(sectionFromApi.content_items).toHaveLength(coverageRow.content_count);
+      expect(sectionFromApi.content_items).toHaveLength(
+        coverageRow.content_count,
+      );
     });
   });
 });
@@ -1014,7 +1035,10 @@ describe('4.8 Client-Side Matching Consistency', () => {
         layer: 'company_reference',
       };
 
-      const suggestions = await suggestGuideSections(asSupabase(mockSupabase), input);
+      const suggestions = await suggestGuideSections(
+        asSupabase(mockSupabase),
+        input,
+      );
 
       // Verify: Suggestions include the section with exact match strength
       expect(suggestions).toHaveLength(1);
@@ -1085,7 +1109,10 @@ describe('4.9 Domain with No Matching Guide', () => {
         primarySubtopic: 'any',
       };
 
-      const suggestions = await suggestGuideSections(asSupabase(mockSupabase), input);
+      const suggestions = await suggestGuideSections(
+        asSupabase(mockSupabase),
+        input,
+      );
 
       expect(suggestions).toEqual([]);
       // No errors thrown — graceful handling
@@ -1097,7 +1124,10 @@ describe('4.9 Domain with No Matching Guide', () => {
         primarySubtopic: 'any',
       };
 
-      const suggestions = await suggestGuideSections(asSupabase(mockSupabase), input);
+      const suggestions = await suggestGuideSections(
+        asSupabase(mockSupabase),
+        input,
+      );
 
       // Empty domain triggers early return without querying
       expect(suggestions).toEqual([]);

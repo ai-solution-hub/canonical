@@ -164,10 +164,7 @@ export function SourceDocumentInfo({
             <span className="text-xs text-muted-foreground">
               {formatDateUK(document.created_at)}
             </span>
-            <span
-              className="text-xs text-muted-foreground"
-              aria-hidden="true"
-            >
+            <span className="text-xs text-muted-foreground" aria-hidden="true">
               &middot;
             </span>
             <span className="text-xs text-muted-foreground">

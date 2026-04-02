@@ -41,17 +41,27 @@ export function formatDocumentDiff(data: DocumentDiffData): string {
 
   // Unit labels differ by mode
   const unit = isFullText ? 'block' : 'Q&A pair';
-  const units = (count: number) => count === 1 ? unit : `${unit}s`;
+  const units = (count: number) => (count === 1 ? unit : `${unit}s`);
 
-  lines.push(`# Document Diff: ${data.old_filename} \u2192 ${data.new_filename}`);
+  lines.push(
+    `# Document Diff: ${data.old_filename} \u2192 ${data.new_filename}`,
+  );
   lines.push('');
 
   // Summary
   lines.push('## Summary');
-  lines.push(`- **Added:** ${data.summary.added} new ${units(data.summary.added)}`);
-  lines.push(`- **Removed:** ${data.summary.removed} ${units(data.summary.removed)}`);
-  lines.push(`- **Modified:** ${data.summary.modified} ${units(data.summary.modified)} changed`);
-  lines.push(`- **Unchanged:** ${data.summary.unchanged} ${units(data.summary.unchanged)} identical`);
+  lines.push(
+    `- **Added:** ${data.summary.added} new ${units(data.summary.added)}`,
+  );
+  lines.push(
+    `- **Removed:** ${data.summary.removed} ${units(data.summary.removed)}`,
+  );
+  lines.push(
+    `- **Modified:** ${data.summary.modified} ${units(data.summary.modified)} changed`,
+  );
+  lines.push(
+    `- **Unchanged:** ${data.summary.unchanged} ${units(data.summary.unchanged)} identical`,
+  );
   if (isFullText) {
     lines.push(`- **Mode:** Full-text diff (line-level comparison)`);
   }
@@ -72,7 +82,10 @@ export function formatDocumentDiff(data: DocumentDiffData): string {
       lines.push('|---|-----------|');
       for (let i = 0; i < added.length; i++) {
         const entry = added[i];
-        const content = truncate(entry.new_content ?? '', CONTENT_TRUNCATE_LENGTH);
+        const content = truncate(
+          entry.new_content ?? '',
+          CONTENT_TRUNCATE_LENGTH,
+        );
         lines.push(`| ${i + 1} | ${content} |`);
       }
       lines.push('');
@@ -86,8 +99,14 @@ export function formatDocumentDiff(data: DocumentDiffData): string {
       lines.push('|---|----------|----------|');
       for (let i = 0; i < modified.length; i++) {
         const entry = modified[i];
-        const oldText = truncate(entry.old_content ?? '', CONTENT_TRUNCATE_LENGTH);
-        const newText = truncate(entry.new_content ?? '', CONTENT_TRUNCATE_LENGTH);
+        const oldText = truncate(
+          entry.old_content ?? '',
+          CONTENT_TRUNCATE_LENGTH,
+        );
+        const newText = truncate(
+          entry.new_content ?? '',
+          CONTENT_TRUNCATE_LENGTH,
+        );
         lines.push(`| ${i + 1} | ${oldText} | ${newText} |`);
       }
       lines.push('');
@@ -101,7 +120,10 @@ export function formatDocumentDiff(data: DocumentDiffData): string {
       lines.push('|---|-----------|');
       for (let i = 0; i < removed.length; i++) {
         const entry = removed[i];
-        const content = truncate(entry.old_content ?? '', CONTENT_TRUNCATE_LENGTH);
+        const content = truncate(
+          entry.old_content ?? '',
+          CONTENT_TRUNCATE_LENGTH,
+        );
         lines.push(`| ${i + 1} | ${content} |`);
       }
       lines.push('');
@@ -117,8 +139,14 @@ export function formatDocumentDiff(data: DocumentDiffData): string {
       lines.push('|---|----------|--------|');
       for (let i = 0; i < added.length; i++) {
         const entry = added[i];
-        const question = truncate(entry.new_question ?? '', CONTENT_TRUNCATE_LENGTH);
-        const answer = truncate(entry.new_content ?? '', CONTENT_TRUNCATE_LENGTH);
+        const question = truncate(
+          entry.new_question ?? '',
+          CONTENT_TRUNCATE_LENGTH,
+        );
+        const answer = truncate(
+          entry.new_content ?? '',
+          CONTENT_TRUNCATE_LENGTH,
+        );
         lines.push(`| ${i + 1} | ${question} | ${answer} |`);
       }
       lines.push('');
@@ -128,19 +156,32 @@ export function formatDocumentDiff(data: DocumentDiffData): string {
     if (modified.length > 0) {
       lines.push(`### Modified (${modified.length})`);
       lines.push('');
-      lines.push('| # | Old Question | New Question | Similarity | Affected KB Item |');
-      lines.push('|---|-------------|-------------|-----------|-----------------|');
+      lines.push(
+        '| # | Old Question | New Question | Similarity | Affected KB Item |',
+      );
+      lines.push(
+        '|---|-------------|-------------|-----------|-----------------|',
+      );
       for (let i = 0; i < modified.length; i++) {
         const entry = modified[i];
-        const oldQ = truncate(entry.old_question ?? '', CONTENT_TRUNCATE_LENGTH);
-        const newQ = truncate(entry.new_question ?? '', CONTENT_TRUNCATE_LENGTH);
-        const similarity = entry.similarity_score !== undefined
-          ? `${Math.round(entry.similarity_score * 100)}%`
-          : 'N/A';
+        const oldQ = truncate(
+          entry.old_question ?? '',
+          CONTENT_TRUNCATE_LENGTH,
+        );
+        const newQ = truncate(
+          entry.new_question ?? '',
+          CONTENT_TRUNCATE_LENGTH,
+        );
+        const similarity =
+          entry.similarity_score !== undefined
+            ? `${Math.round(entry.similarity_score * 100)}%`
+            : 'N/A';
         const affected = entry.affected_item
           ? truncate(entry.affected_item.title, CONTENT_TRUNCATE_LENGTH)
           : '\u2014';
-        lines.push(`| ${i + 1} | ${oldQ} | ${newQ} | ${similarity} | ${affected} |`);
+        lines.push(
+          `| ${i + 1} | ${oldQ} | ${newQ} | ${similarity} | ${affected} |`,
+        );
       }
       lines.push('');
     }
@@ -153,8 +194,14 @@ export function formatDocumentDiff(data: DocumentDiffData): string {
       lines.push('|---|----------|--------|-----------------|');
       for (let i = 0; i < removed.length; i++) {
         const entry = removed[i];
-        const question = truncate(entry.old_question ?? '', CONTENT_TRUNCATE_LENGTH);
-        const answer = truncate(entry.old_content ?? '', CONTENT_TRUNCATE_LENGTH);
+        const question = truncate(
+          entry.old_question ?? '',
+          CONTENT_TRUNCATE_LENGTH,
+        );
+        const answer = truncate(
+          entry.old_content ?? '',
+          CONTENT_TRUNCATE_LENGTH,
+        );
         const affected = entry.affected_item
           ? truncate(entry.affected_item.title, CONTENT_TRUNCATE_LENGTH)
           : '\u2014';

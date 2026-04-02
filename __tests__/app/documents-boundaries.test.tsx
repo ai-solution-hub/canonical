@@ -38,7 +38,7 @@ describe('Diff Error Boundary', () => {
   it('renders the heading text', () => {
     render(<DiffError error={error} reset={reset} />);
     expect(
-      screen.getByText(/couldn.*t load the diff review/i)
+      screen.getByText(/couldn.*t load the diff review/i),
     ).toBeInTheDocument();
   });
 
@@ -59,7 +59,7 @@ describe('Diff Error Boundary', () => {
   it('has a navigation link to /browse', () => {
     render(<DiffError error={error} reset={reset} />);
     expect(
-      screen.getByRole('link', { name: /back to browse/i })
+      screen.getByRole('link', { name: /back to browse/i }),
     ).toHaveAttribute('href', '/browse');
   });
 
@@ -79,7 +79,7 @@ describe('Diff Loading Skeleton', () => {
     render(<DiffLoading />);
     expect(screen.getByRole('status')).toHaveAttribute(
       'aria-label',
-      'Loading diff review'
+      'Loading diff review',
     );
   });
 

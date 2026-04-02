@@ -94,7 +94,10 @@ describe('useUserRole', () => {
   });
 
   it('returns admin role after auth resolves', async () => {
-    mockChain.single.mockResolvedValue({ data: { role: 'admin' }, error: null });
+    mockChain.single.mockResolvedValue({
+      data: { role: 'admin' },
+      error: null,
+    });
 
     const { result } = renderHook(() => useUserRole(), {
       wrapper: createWrapper(),

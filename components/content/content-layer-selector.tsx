@@ -77,7 +77,10 @@ export function ContentLayerSelector({
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         Content Layer
       </h3>
-      <Badge variant="outline" className="text-xs border-confidence-needs-sme-border text-confidence-needs-sme">
+      <Badge
+        variant="outline"
+        className="text-xs border-confidence-needs-sme-border text-confidence-needs-sme"
+      >
         {getLayerLabel(item.layer)}
       </Badge>
     </section>

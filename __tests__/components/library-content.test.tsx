@@ -66,7 +66,12 @@ const {
     handleBulkTagConfirm: vi.fn(),
     handleBulkAssignConfirm: vi.fn(),
   },
-  mockUserRole: { role: 'editor' as string | null, loading: false, canEdit: true, canAdmin: false },
+  mockUserRole: {
+    role: 'editor' as string | null,
+    loading: false,
+    canEdit: true,
+    canAdmin: false,
+  },
   mockLibraryData: {
     items: [] as unknown[],
     isLoading: false,
@@ -76,7 +81,9 @@ const {
 
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: Record<string, unknown>) => (
-    <a href={href as string} {...props}>{children as React.ReactNode}</a>
+    <a href={href as string} {...props}>
+      {children as React.ReactNode}
+    </a>
   ),
 }));
 
@@ -144,11 +151,15 @@ vi.mock('@/components/qa/qa-row', () => ({
 
 vi.mock('@/components/browse/bulk-action-toolbar', () => ({
   BulkActionToolbar: ({ selectedCount }: { selectedCount: number }) =>
-    selectedCount > 0 ? <div data-testid="bulk-toolbar">Bulk: {selectedCount}</div> : null,
+    selectedCount > 0 ? (
+      <div data-testid="bulk-toolbar">Bulk: {selectedCount}</div>
+    ) : null,
 }));
 
 vi.mock('@/components/shell/collapsible-group', () => ({
-  CollapsibleGroup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  CollapsibleGroup: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
   groupItems: vi.fn(),
 }));
 
@@ -158,7 +169,14 @@ import { LibraryContent } from '@/app/library/library-content';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function createQAItem(overrides: Partial<{ id: string; title: string; answer_standard: string | null; answer_advanced: string | null }> = {}) {
+function createQAItem(
+  overrides: Partial<{
+    id: string;
+    title: string;
+    answer_standard: string | null;
+    answer_advanced: string | null;
+  }> = {},
+) {
   return {
     id: overrides.id ?? 'item-1',
     title: overrides.title ?? 'What is our approach?',
@@ -229,7 +247,9 @@ describe('LibraryContent', () => {
   it('renders header with "Q&A Library" title', async () => {
     renderLibraryContent();
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Q&A Library' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', { name: 'Q&A Library' }),
+      ).toBeInTheDocument();
     });
   });
 
@@ -303,8 +323,16 @@ describe('LibraryContent', () => {
 
   it('shows stats bar with count', async () => {
     const items = [
-      createQAItem({ id: 'qa-1', answer_standard: 'Yes', answer_advanced: null }),
-      createQAItem({ id: 'qa-2', answer_standard: 'Yes', answer_advanced: 'Detailed' }),
+      createQAItem({
+        id: 'qa-1',
+        answer_standard: 'Yes',
+        answer_advanced: null,
+      }),
+      createQAItem({
+        id: 'qa-2',
+        answer_standard: 'Yes',
+        answer_advanced: 'Detailed',
+      }),
     ];
     mockLibraryData.items = items;
 
@@ -385,14 +413,20 @@ describe('LibraryContent', () => {
 
   it('does not show semantic search link when no search term', async () => {
     mockActiveCount.value = 1;
-    mockFilters.value = { ...mockFilters.value, domain: 'Technical', search: undefined };
+    mockFilters.value = {
+      ...mockFilters.value,
+      domain: 'Technical',
+      search: undefined,
+    };
     mockLibraryData.items = [];
 
     renderLibraryContent();
     await waitFor(() => {
       expect(screen.getByText('No matching Q&A pairs')).toBeInTheDocument();
     });
-    expect(screen.queryByText('Try searching the full knowledge base')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Try searching the full knowledge base'),
+    ).not.toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------

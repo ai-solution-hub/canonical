@@ -100,9 +100,9 @@ describe('useBatchCreate', () => {
         batch_id: 'batch-1',
       };
 
-      global.fetch = vi.fn().mockImplementation(() =>
-        createMockFetchResponse(mockResponse),
-      );
+      global.fetch = vi
+        .fn()
+        .mockImplementation(() => createMockFetchResponse(mockResponse));
 
       const { result } = renderHook(() => useBatchCreate(), {
         wrapper: createWrapper(),
@@ -144,13 +144,15 @@ describe('useBatchCreate', () => {
     });
 
     it('handles API errors gracefully', async () => {
-      global.fetch = vi.fn().mockImplementation(() =>
-        createMockFetchResponse(
-          { error: 'Batch creation failed' },
-          false,
-          500,
-        ),
-      );
+      global.fetch = vi
+        .fn()
+        .mockImplementation(() =>
+          createMockFetchResponse(
+            { error: 'Batch creation failed' },
+            false,
+            500,
+          ),
+        );
 
       const { result } = renderHook(() => useBatchCreate(), {
         wrapper: createWrapper(),
@@ -205,9 +207,9 @@ describe('useBatchCreate', () => {
         batch_id: 'batch-1',
       };
 
-      global.fetch = vi.fn().mockImplementation(() =>
-        createMockFetchResponse(mockResponse),
-      );
+      global.fetch = vi
+        .fn()
+        .mockImplementation(() => createMockFetchResponse(mockResponse));
 
       const { result } = renderHook(() => useBatchCreate(), {
         wrapper: createWrapper(),
@@ -242,15 +244,16 @@ describe('useBatchCreate', () => {
       });
 
       await act(async () => {
-        await result.current.submit(
-          [{ question: 'Q1', answer: 'A1' }],
-          { sourceDocumentLink: '550e8400-e29b-41d4-a716-446655440000' },
-        );
+        await result.current.submit([{ question: 'Q1', answer: 'A1' }], {
+          sourceDocumentLink: '550e8400-e29b-41d4-a716-446655440000',
+        });
       });
 
       const fetchCall = vi.mocked(global.fetch).mock.calls[0];
       const body = JSON.parse(fetchCall[1]?.body as string);
-      expect(body.source_document_id).toBe('550e8400-e29b-41d4-a716-446655440000');
+      expect(body.source_document_id).toBe(
+        '550e8400-e29b-41d4-a716-446655440000',
+      );
     });
 
     it('does not pass source_document_id when sourceDocumentLink is not a UUID', async () => {
@@ -269,10 +272,9 @@ describe('useBatchCreate', () => {
       });
 
       await act(async () => {
-        await result.current.submit(
-          [{ question: 'Q1', answer: 'A1' }],
-          { sourceDocumentLink: 'https://example.com/doc' },
-        );
+        await result.current.submit([{ question: 'Q1', answer: 'A1' }], {
+          sourceDocumentLink: 'https://example.com/doc',
+        });
       });
 
       const fetchCall = vi.mocked(global.fetch).mock.calls[0];
@@ -289,9 +291,9 @@ describe('useBatchCreate', () => {
         batch_id: 'batch-empty',
       };
 
-      global.fetch = vi.fn().mockImplementation(() =>
-        createMockFetchResponse(mockResponse),
-      );
+      global.fetch = vi
+        .fn()
+        .mockImplementation(() => createMockFetchResponse(mockResponse));
 
       const { result } = renderHook(() => useBatchCreate(), {
         wrapper: createWrapper(),
@@ -315,9 +317,11 @@ describe('useBatchCreate', () => {
 
     it('resets error and results on new submission', async () => {
       // First call fails
-      global.fetch = vi.fn().mockImplementation(() =>
-        createMockFetchResponse({ error: 'Failed' }, false, 500),
-      );
+      global.fetch = vi
+        .fn()
+        .mockImplementation(() =>
+          createMockFetchResponse({ error: 'Failed' }, false, 500),
+        );
 
       const wrapper = createWrapper();
 

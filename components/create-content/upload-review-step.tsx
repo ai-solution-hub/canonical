@@ -1,13 +1,25 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { CheckCircle, ExternalLink, Trash2, Loader2, AlertTriangle } from 'lucide-react';
+import {
+  CheckCircle,
+  ExternalLink,
+  Trash2,
+  Loader2,
+  AlertTriangle,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { QualityBadge } from '@/components/shared/quality-badge';
-import { DedupWarning, type DedupMatch } from '@/components/shared/dedup-warning';
-import { calculateQualityScore, type QualityScoreInput } from '@/lib/quality/quality-score';
+import {
+  DedupWarning,
+  type DedupMatch,
+} from '@/components/shared/dedup-warning';
+import {
+  calculateQualityScore,
+  type QualityScoreInput,
+} from '@/lib/quality/quality-score';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -55,7 +67,13 @@ export interface UploadReviewStepProps {
 // Item status tracking
 // ---------------------------------------------------------------------------
 
-type ItemStatus = 'pending' | 'publishing' | 'published' | 'discarding' | 'discarded' | 'error';
+type ItemStatus =
+  | 'pending'
+  | 'publishing'
+  | 'published'
+  | 'discarding'
+  | 'discarded'
+  | 'error';
 
 interface ItemState {
   status: ItemStatus;
@@ -115,7 +133,11 @@ function SummaryPreview({
 
   return (
     <div className="text-sm text-muted-foreground">
-      <p>{expanded || !needsTruncation ? summary : truncateText(summary, SUMMARY_PREVIEW_LENGTH)}</p>
+      <p>
+        {expanded || !needsTruncation
+          ? summary
+          : truncateText(summary, SUMMARY_PREVIEW_LENGTH)}
+      </p>
       {needsTruncation && (
         <button
           type="button"
@@ -152,7 +174,8 @@ function ReviewCard({
   onToggleConfirmDiscard: (show: boolean) => void;
   cardRef?: (el: HTMLElement | null) => void;
 }) {
-  const isActioning = state.status === 'publishing' || state.status === 'discarding';
+  const isActioning =
+    state.status === 'publishing' || state.status === 'discarding';
   const isDone = state.status === 'published' || state.status === 'discarded';
   const qualityInput = buildQualityInput(item);
   const qualityResult = calculateQualityScore(qualityInput);
@@ -171,7 +194,9 @@ function ReviewCard({
       {/* Title and content type */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold text-foreground truncate">{item.title}</h3>
+          <h3 className="text-sm font-semibold text-foreground truncate">
+            {item.title}
+          </h3>
         </div>
         <QualityBadge score={qualityResult} size="md" />
       </div>
@@ -206,8 +231,14 @@ function ReviewCard({
       {item.warnings.length > 0 && (
         <div className="space-y-1" data-testid="warnings-section">
           {item.warnings.map((warning, i) => (
-            <div key={i} className="flex items-start gap-1.5 text-xs text-quality-moderate">
-              <AlertTriangle className="mt-0.5 size-3 shrink-0" aria-hidden="true" />
+            <div
+              key={i}
+              className="flex items-start gap-1.5 text-xs text-quality-moderate"
+            >
+              <AlertTriangle
+                className="mt-0.5 size-3 shrink-0"
+                aria-hidden="true"
+              />
               <span>{warning}</span>
             </div>
           ))}
@@ -225,7 +256,10 @@ function ReviewCard({
 
       {/* Error message */}
       {state.status === 'error' && state.error && (
-        <div className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive" role="alert">
+        <div
+          className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive"
+          role="alert"
+        >
           {state.error}
         </div>
       )}
@@ -238,7 +272,8 @@ function ReviewCard({
           aria-label="Confirm discard"
         >
           <p className="text-xs text-foreground">
-            Are you sure you want to discard &ldquo;{item.title}&rdquo;? This will archive the item.
+            Are you sure you want to discard &ldquo;{item.title}&rdquo;? This
+            will archive the item.
           </p>
           <div className="flex gap-2">
             <Button
@@ -250,7 +285,10 @@ function ReviewCard({
             >
               {state.status === 'discarding' ? (
                 <>
-                  <Loader2 className="mr-1 size-3 animate-spin" aria-hidden="true" />
+                  <Loader2
+                    className="mr-1 size-3 animate-spin"
+                    aria-hidden="true"
+                  />
                   Discarding...
                 </>
               ) : (
@@ -280,7 +318,10 @@ function ReviewCard({
         >
           {state.status === 'publishing' ? (
             <>
-              <Loader2 className="mr-1 size-3 animate-spin" aria-hidden="true" />
+              <Loader2
+                className="mr-1 size-3 animate-spin"
+                aria-hidden="true"
+              />
               Publishing...
             </>
           ) : (
@@ -336,17 +377,19 @@ export function UploadReviewStep({
   onDiscardAll,
 }: UploadReviewStepProps) {
   // Track per-item state
-  const [itemStates, setItemStates] = useState<Record<string, ItemState>>(() => {
-    const initial: Record<string, ItemState> = {};
-    for (const item of items) {
-      initial[item.id] = {
-        status: 'pending',
-        summaryExpanded: false,
-        confirmDiscard: false,
-      };
-    }
-    return initial;
-  });
+  const [itemStates, setItemStates] = useState<Record<string, ItemState>>(
+    () => {
+      const initial: Record<string, ItemState> = {};
+      for (const item of items) {
+        initial[item.id] = {
+          status: 'pending',
+          summaryExpanded: false,
+          confirmDiscard: false,
+        };
+      }
+      return initial;
+    },
+  );
 
   // Skip review checkbox state — read from localStorage on mount
   const [skipReview, setSkipReview] = useState(false);
@@ -358,19 +401,22 @@ export function UploadReviewStep({
     }
   }, []);
 
-  const handleSkipReviewChange = useCallback((checked: boolean | 'indeterminate') => {
-    const value = checked === true;
-    setSkipReview(value);
-    try {
-      if (value) {
-        localStorage.setItem(SKIP_REVIEW_KEY, 'true');
-      } else {
-        localStorage.removeItem(SKIP_REVIEW_KEY);
+  const handleSkipReviewChange = useCallback(
+    (checked: boolean | 'indeterminate') => {
+      const value = checked === true;
+      setSkipReview(value);
+      try {
+        if (value) {
+          localStorage.setItem(SKIP_REVIEW_KEY, 'true');
+        } else {
+          localStorage.removeItem(SKIP_REVIEW_KEY);
+        }
+      } catch {
+        // localStorage unavailable
       }
-    } catch {
-      // localStorage unavailable
-    }
-  }, []);
+    },
+    [],
+  );
 
   // Ref for focus management after actions
   const containerRef = useRef<HTMLDivElement>(null);
@@ -381,7 +427,9 @@ export function UploadReviewStep({
   // Count active (not published/discarded) items
   const activeItems = items.filter((item) => {
     const state = itemStates[item.id];
-    return state && state.status !== 'published' && state.status !== 'discarded';
+    return (
+      state && state.status !== 'published' && state.status !== 'discarded'
+    );
   });
 
   const isMultiItem = items.length > 1;
@@ -389,69 +437,81 @@ export function UploadReviewStep({
   const [discardingAll, setDiscardingAll] = useState(false);
   const [confirmDiscardAll, setConfirmDiscardAll] = useState(false);
 
-  const updateItemState = useCallback((itemId: string, updates: Partial<ItemState>) => {
-    setItemStates((prev) => ({
-      ...prev,
-      [itemId]: { ...prev[itemId], ...updates },
-    }));
-  }, []);
+  const updateItemState = useCallback(
+    (itemId: string, updates: Partial<ItemState>) => {
+      setItemStates((prev) => ({
+        ...prev,
+        [itemId]: { ...prev[itemId], ...updates },
+      }));
+    },
+    [],
+  );
 
   // Focus the next active card after an item is removed, or the completion area
-  const focusNextItem = useCallback((removedItemId: string) => {
-    requestAnimationFrame(() => {
-      // Find the next active item after the removed one
-      const removedIndex = items.findIndex((i) => i.id === removedItemId);
-      // Look forward first, then backward for a remaining active card
-      for (let offset = 1; offset < items.length; offset++) {
-        for (const dir of [1, -1]) {
-          const idx = removedIndex + offset * dir;
-          if (idx >= 0 && idx < items.length) {
-            const candidate = items[idx];
-            const ref = cardRefs.current[candidate.id];
-            if (ref) {
-              ref.focus();
-              return;
+  const focusNextItem = useCallback(
+    (removedItemId: string) => {
+      requestAnimationFrame(() => {
+        // Find the next active item after the removed one
+        const removedIndex = items.findIndex((i) => i.id === removedItemId);
+        // Look forward first, then backward for a remaining active card
+        for (let offset = 1; offset < items.length; offset++) {
+          for (const dir of [1, -1]) {
+            const idx = removedIndex + offset * dir;
+            if (idx >= 0 && idx < items.length) {
+              const candidate = items[idx];
+              const ref = cardRefs.current[candidate.id];
+              if (ref) {
+                ref.focus();
+                return;
+              }
             }
           }
         }
-      }
-      // No remaining cards — focus the completion area or upload-more button
-      if (completionRef.current) {
-        completionRef.current.focus();
-      } else if (uploadMoreRef.current) {
-        uploadMoreRef.current.focus();
-      }
-    });
-  }, [items]);
-
-  const handlePublish = useCallback(async (itemId: string) => {
-    updateItemState(itemId, { status: 'publishing', error: undefined });
-    try {
-      await onPublish(itemId);
-      updateItemState(itemId, { status: 'published' });
-      focusNextItem(itemId);
-    } catch (err) {
-      updateItemState(itemId, {
-        status: 'error',
-        error: err instanceof Error ? err.message : 'Failed to publish',
+        // No remaining cards — focus the completion area or upload-more button
+        if (completionRef.current) {
+          completionRef.current.focus();
+        } else if (uploadMoreRef.current) {
+          uploadMoreRef.current.focus();
+        }
       });
-    }
-  }, [onPublish, updateItemState, focusNextItem]);
+    },
+    [items],
+  );
 
-  const handleDiscard = useCallback(async (itemId: string) => {
-    updateItemState(itemId, { status: 'discarding', error: undefined });
-    try {
-      await onDiscard(itemId);
-      updateItemState(itemId, { status: 'discarded' });
-      focusNextItem(itemId);
-    } catch (err) {
-      updateItemState(itemId, {
-        status: 'error',
-        error: err instanceof Error ? err.message : 'Failed to discard',
-        confirmDiscard: false,
-      });
-    }
-  }, [onDiscard, updateItemState, focusNextItem]);
+  const handlePublish = useCallback(
+    async (itemId: string) => {
+      updateItemState(itemId, { status: 'publishing', error: undefined });
+      try {
+        await onPublish(itemId);
+        updateItemState(itemId, { status: 'published' });
+        focusNextItem(itemId);
+      } catch (err) {
+        updateItemState(itemId, {
+          status: 'error',
+          error: err instanceof Error ? err.message : 'Failed to publish',
+        });
+      }
+    },
+    [onPublish, updateItemState, focusNextItem],
+  );
+
+  const handleDiscard = useCallback(
+    async (itemId: string) => {
+      updateItemState(itemId, { status: 'discarding', error: undefined });
+      try {
+        await onDiscard(itemId);
+        updateItemState(itemId, { status: 'discarded' });
+        focusNextItem(itemId);
+      } catch (err) {
+        updateItemState(itemId, {
+          status: 'error',
+          error: err instanceof Error ? err.message : 'Failed to discard',
+          confirmDiscard: false,
+        });
+      }
+    },
+    [onDiscard, updateItemState, focusNextItem],
+  );
 
   const handlePublishAll = useCallback(async () => {
     setPublishingAll(true);
@@ -509,9 +569,14 @@ export function UploadReviewStep({
         className="space-y-4 text-center py-8 outline-none"
         data-testid="review-complete"
       >
-        <CheckCircle className="mx-auto size-8 text-quality-good" aria-hidden="true" />
+        <CheckCircle
+          className="mx-auto size-8 text-quality-good"
+          aria-hidden="true"
+        />
         <div>
-          <p className="text-sm font-medium text-foreground">All items reviewed</p>
+          <p className="text-sm font-medium text-foreground">
+            All items reviewed
+          </p>
           <p className="mt-1 text-xs text-muted-foreground">
             You can upload more files or return to the knowledge base.
           </p>
@@ -528,14 +593,19 @@ export function UploadReviewStep({
 
         {/* Skip review preference */}
         <div className="flex items-center justify-center gap-2 pt-2">
-          <label htmlFor="skip-review-checkbox" className="flex cursor-pointer items-center gap-2">
+          <label
+            htmlFor="skip-review-checkbox"
+            className="flex cursor-pointer items-center gap-2"
+          >
             <Checkbox
               id="skip-review-checkbox"
               checked={skipReview}
               onCheckedChange={handleSkipReviewChange}
               data-testid="skip-review-checkbox"
             />
-            <span className="text-xs text-muted-foreground">Skip review for future uploads</span>
+            <span className="text-xs text-muted-foreground">
+              Skip review for future uploads
+            </span>
           </label>
         </div>
       </div>
@@ -553,8 +623,12 @@ export function UploadReviewStep({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <h2 className="text-base font-semibold text-foreground">Review uploaded content</h2>
-          <Badge variant="secondary">{activeItems.length} item{activeItems.length !== 1 ? 's' : ''}</Badge>
+          <h2 className="text-base font-semibold text-foreground">
+            Review uploaded content
+          </h2>
+          <Badge variant="secondary">
+            {activeItems.length} item{activeItems.length !== 1 ? 's' : ''}
+          </Badge>
         </div>
       </div>
 
@@ -573,7 +647,9 @@ export function UploadReviewStep({
               onDiscard={() => handleDiscard(item.id)}
               onEditItem={() => onEditItem(item.id)}
               onToggleSummary={() =>
-                updateItemState(item.id, { summaryExpanded: !state.summaryExpanded })
+                updateItemState(item.id, {
+                  summaryExpanded: !state.summaryExpanded,
+                })
               }
               onToggleConfirmDiscard={(show) =>
                 updateItemState(item.id, { confirmDiscard: show })
@@ -601,7 +677,8 @@ export function UploadReviewStep({
               data-testid="discard-all-confirmation"
             >
               <p className="text-xs text-foreground">
-                Are you sure you want to discard all {activeItems.length} items? This will archive them.
+                Are you sure you want to discard all {activeItems.length} items?
+                This will archive them.
               </p>
               <div className="flex gap-2">
                 <Button
@@ -613,7 +690,10 @@ export function UploadReviewStep({
                 >
                   {discardingAll ? (
                     <>
-                      <Loader2 className="mr-1 size-3 animate-spin" aria-hidden="true" />
+                      <Loader2
+                        className="mr-1 size-3 animate-spin"
+                        aria-hidden="true"
+                      />
                       Discarding all...
                     </>
                   ) : (
@@ -654,7 +734,10 @@ export function UploadReviewStep({
             >
               {publishingAll ? (
                 <>
-                  <Loader2 className="mr-1 size-3 animate-spin" aria-hidden="true" />
+                  <Loader2
+                    className="mr-1 size-3 animate-spin"
+                    aria-hidden="true"
+                  />
                   Publishing all...
                 </>
               ) : (
@@ -667,14 +750,19 @@ export function UploadReviewStep({
 
       {/* Skip review preference */}
       <div className="flex items-center gap-2 border-t border-border pt-3">
-        <label htmlFor="skip-review-active-checkbox" className="flex cursor-pointer items-center gap-2">
+        <label
+          htmlFor="skip-review-active-checkbox"
+          className="flex cursor-pointer items-center gap-2"
+        >
           <Checkbox
             id="skip-review-active-checkbox"
             checked={skipReview}
             onCheckedChange={handleSkipReviewChange}
             data-testid="skip-review-checkbox"
           />
-          <span className="text-xs text-muted-foreground">Skip review for future uploads</span>
+          <span className="text-xs text-muted-foreground">
+            Skip review for future uploads
+          </span>
         </label>
       </div>
     </div>

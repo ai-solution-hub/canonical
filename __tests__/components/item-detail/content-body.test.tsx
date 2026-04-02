@@ -16,7 +16,9 @@ import { render, screen } from '@testing-library/react';
 const { mockIsFeatureEnabled, mockCreateClient } = vi.hoisted(() => ({
   mockIsFeatureEnabled: vi.fn((f: string) => f === 'draft_status'),
   mockCreateClient: vi.fn(() => ({
-    from: () => ({ update: () => ({ eq: () => Promise.resolve({ error: null }) }) }),
+    from: () => ({
+      update: () => ({ eq: () => Promise.resolve({ error: null }) }),
+    }),
   })),
 }));
 
@@ -42,7 +44,10 @@ vi.mock('next/dynamic', () => ({
 
 vi.mock('@/components/shared/content-type-header', () => ({
   ContentTypeHeader: (props: Record<string, unknown>) => (
-    <div data-testid="content-type-header" data-content-type={props.contentType}>
+    <div
+      data-testid="content-type-header"
+      data-content-type={props.contentType}
+    >
       ContentTypeHeader
     </div>
   ),
@@ -119,7 +124,9 @@ function createMockItem(overrides: Partial<ItemData> = {}): ItemData {
   };
 }
 
-function createDefaultProps(overrides: Partial<ContentBodyProps> = {}): ContentBodyProps {
+function createDefaultProps(
+  overrides: Partial<ContentBodyProps> = {},
+): ContentBodyProps {
   return {
     item: createMockItem(),
     setItem: vi.fn(),
@@ -150,7 +157,9 @@ function createDefaultProps(overrides: Partial<ContentBodyProps> = {}): ContentB
 describe('ContentBody', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockIsFeatureEnabled.mockImplementation((f: string) => f === 'draft_status');
+    mockIsFeatureEnabled.mockImplementation(
+      (f: string) => f === 'draft_status',
+    );
   });
 
   afterEach(() => {
@@ -182,7 +191,9 @@ describe('ContentBody', () => {
       item: createMockItem({ content: 'Some content' }),
     });
     render(<ContentBody {...props} />);
-    expect(screen.queryByTestId('ai-processing-indicators')).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('ai-processing-indicators'),
+    ).not.toBeInTheDocument();
   });
 
   it('renders QAAnswerDisplay when isQAPair is true', () => {
@@ -209,7 +220,9 @@ describe('ContentBody', () => {
     const props = createDefaultProps({ canEdit: true });
     render(<ContentBody {...props} />);
     expect(screen.getByText('Status')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /click to draft/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /click to draft/i }),
+    ).toBeInTheDocument();
   });
 
   it('shows vision analysis section when visionAnalysis is provided', () => {
@@ -223,6 +236,8 @@ describe('ContentBody', () => {
     });
     render(<ContentBody {...props} />);
     expect(screen.getByText('Visual Analysis')).toBeInTheDocument();
-    expect(screen.getByText('This document contains charts and tables.')).toBeInTheDocument();
+    expect(
+      screen.getByText('This document contains charts and tables.'),
+    ).toBeInTheDocument();
   });
 });

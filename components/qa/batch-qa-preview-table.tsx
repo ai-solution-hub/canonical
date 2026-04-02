@@ -107,15 +107,12 @@ export function BatchQAPreviewTable({
     setEditingCell(null);
   }, []);
 
-  const handleCellKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === 'Escape') {
-        e.preventDefault();
-        setEditingCell(null);
-      }
-    },
-    [],
-  );
+  const handleCellKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === 'Escape') {
+      e.preventDefault();
+      setEditingCell(null);
+    }
+  }, []);
 
   const handleAddRow = useCallback(() => {
     if (pairs.length >= MAX_PAIRS) return;
@@ -150,19 +147,35 @@ export function BatchQAPreviewTable({
   return (
     <div className="space-y-3">
       <div className="overflow-x-auto rounded-md border">
-        <table className="w-full text-sm" role="grid" aria-label="Q&A pairs preview">
+        <table
+          className="w-full text-sm"
+          role="grid"
+          aria-label="Q&A pairs preview"
+        >
           <thead>
             <tr className="border-b bg-muted/50">
-              <th scope="col" className="w-12 px-3 py-2 text-left font-medium text-muted-foreground">
+              <th
+                scope="col"
+                className="w-12 px-3 py-2 text-left font-medium text-muted-foreground"
+              >
                 #
               </th>
-              <th scope="col" className="min-w-[200px] px-3 py-2 text-left font-medium text-muted-foreground">
+              <th
+                scope="col"
+                className="min-w-[200px] px-3 py-2 text-left font-medium text-muted-foreground"
+              >
                 Question
               </th>
-              <th scope="col" className="min-w-[200px] px-3 py-2 text-left font-medium text-muted-foreground">
+              <th
+                scope="col"
+                className="min-w-[200px] px-3 py-2 text-left font-medium text-muted-foreground"
+              >
                 Answer
               </th>
-              <th scope="col" className="w-24 px-3 py-2 text-left font-medium text-muted-foreground">
+              <th
+                scope="col"
+                className="w-24 px-3 py-2 text-left font-medium text-muted-foreground"
+              >
                 Status
               </th>
               <th scope="col" className="w-12 px-3 py-2">
@@ -174,15 +187,21 @@ export function BatchQAPreviewTable({
             {pairs.map((pair, index) => {
               const statusDisplay = getStatusDisplay(index);
               return (
-                <tr key={index} className="border-b last:border-b-0 hover:bg-muted/30">
+                <tr
+                  key={index}
+                  className="border-b last:border-b-0 hover:bg-muted/30"
+                >
                   <td className="px-3 py-2 text-muted-foreground tabular-nums">
                     {index + 1}
                   </td>
                   <td className="px-3 py-2">
-                    {editingCell?.row === index && editingCell.field === 'question' ? (
+                    {editingCell?.row === index &&
+                    editingCell.field === 'question' ? (
                       <Input
                         value={pair.question}
-                        onChange={(e) => handleCellChange(index, 'question', e.target.value)}
+                        onChange={(e) =>
+                          handleCellChange(index, 'question', e.target.value)
+                        }
                         onBlur={handleCellBlur}
                         onKeyDown={handleCellKeyDown}
                         autoFocus
@@ -206,10 +225,13 @@ export function BatchQAPreviewTable({
                     )}
                   </td>
                   <td className="px-3 py-2">
-                    {editingCell?.row === index && editingCell.field === 'answer' ? (
+                    {editingCell?.row === index &&
+                    editingCell.field === 'answer' ? (
                       <Input
                         value={pair.answer}
-                        onChange={(e) => handleCellChange(index, 'answer', e.target.value)}
+                        onChange={(e) =>
+                          handleCellChange(index, 'answer', e.target.value)
+                        }
                         onBlur={handleCellBlur}
                         onKeyDown={handleCellKeyDown}
                         autoFocus
@@ -246,7 +268,10 @@ export function BatchQAPreviewTable({
                       disabled={disabled}
                       aria-label={`Remove row ${index + 1}`}
                     >
-                      <Trash2 className="size-3.5 text-muted-foreground" aria-hidden="true" />
+                      <Trash2
+                        className="size-3.5 text-muted-foreground"
+                        aria-hidden="true"
+                      />
                     </Button>
                   </td>
                 </tr>
@@ -254,8 +279,12 @@ export function BatchQAPreviewTable({
             })}
             {pairs.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-3 py-8 text-center text-muted-foreground">
-                  No Q&A pairs yet. Paste from a spreadsheet or add rows manually.
+                <td
+                  colSpan={5}
+                  className="px-3 py-8 text-center text-muted-foreground"
+                >
+                  No Q&A pairs yet. Paste from a spreadsheet or add rows
+                  manually.
                 </td>
               </tr>
             )}

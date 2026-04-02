@@ -9,7 +9,10 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
-import type { CoverageMatrixData, BidDashboardData } from '@/lib/mcp/formatters';
+import type {
+  CoverageMatrixData,
+  BidDashboardData,
+} from '@/lib/mcp/formatters';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks — vi.mock factories are hoisted above const declarations
@@ -93,7 +96,10 @@ vi.mock('@/lib/reorient', () => ({
 // Mock McpServer that captures registered tool handlers
 // ---------------------------------------------------------------------------
 
-type ToolHandler = (args: Record<string, unknown>, extra: Record<string, unknown>) => Promise<unknown>;
+type ToolHandler = (
+  args: Record<string, unknown>,
+  extra: Record<string, unknown>,
+) => Promise<unknown>;
 
 interface RegisteredTool {
   name: string;
@@ -106,7 +112,11 @@ function createMockMcpServer() {
 
   return {
     tools,
-    registerTool(name: string, config: Record<string, unknown>, handler: ToolHandler) {
+    registerTool(
+      name: string,
+      config: Record<string, unknown>,
+      handler: ToolHandler,
+    ) {
       tools[name] = { name, config, handler };
     },
     getHandler(name: string): ToolHandler | undefined {
@@ -174,11 +184,18 @@ describe('MCP App trigger tools #22-23', () => {
     supabase = mocks.mockSupabaseClient;
 
     // Reset chain methods
-    for (const key of ['select', 'eq', 'neq', 'in', 'order', 'limit'] as const) {
+    for (const key of [
+      'select',
+      'eq',
+      'neq',
+      'in',
+      'order',
+      'limit',
+    ] as const) {
       mocks.chainMethods[key].mockReturnValue(mocks.chainMethods);
     }
-    mocks.chainMethods.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mocks.chainMethods.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
     supabase.from.mockReturnValue(mocks.chainMethods);
 
@@ -199,7 +216,7 @@ describe('MCP App trigger tools #22-23', () => {
       const handler = mockServer.getHandler('show_coverage_matrix')!;
       expect(handler).toBeDefined();
 
-      const result = await handler({}, extra) as {
+      const result = (await handler({}, extra)) as {
         content: Array<{ type: string; text: string }>;
         structuredContent: CoverageMatrixData;
       };
@@ -229,7 +246,7 @@ describe('MCP App trigger tools #22-23', () => {
         freshness_summary: { fresh: 50, aging: 20, stale: 10, expired: 5 },
       });
 
-      const result = await handler({}, extra) as {
+      const result = (await handler({}, extra)) as {
         structuredContent: CoverageMatrixData;
       };
 
@@ -258,10 +275,26 @@ describe('MCP App trigger tools #22-23', () => {
           chain.then.mockImplementation((resolve: (v: unknown) => void) =>
             resolve({
               data: [
-                { primary_domain: 'Security', primary_subtopic: 'Pen Testing', freshness: 'fresh' },
-                { primary_domain: 'Security', primary_subtopic: 'Pen Testing', freshness: 'aging' },
-                { primary_domain: 'Security', primary_subtopic: 'Incident Response', freshness: 'stale' },
-                { primary_domain: 'Compliance', primary_subtopic: null, freshness: 'fresh' },
+                {
+                  primary_domain: 'Security',
+                  primary_subtopic: 'Pen Testing',
+                  freshness: 'fresh',
+                },
+                {
+                  primary_domain: 'Security',
+                  primary_subtopic: 'Pen Testing',
+                  freshness: 'aging',
+                },
+                {
+                  primary_domain: 'Security',
+                  primary_subtopic: 'Incident Response',
+                  freshness: 'stale',
+                },
+                {
+                  primary_domain: 'Compliance',
+                  primary_subtopic: null,
+                  freshness: 'fresh',
+                },
               ],
               error: null,
             }),
@@ -280,8 +313,18 @@ describe('MCP App trigger tools #22-23', () => {
           chain.then.mockImplementation((resolve: (v: unknown) => void) =>
             resolve({
               data: [
-                { id: 's1', name: 'Pen Testing', domain_id: 'd1', display_order: 1 },
-                { id: 's2', name: 'Incident Response', domain_id: 'd1', display_order: 2 },
+                {
+                  id: 's1',
+                  name: 'Pen Testing',
+                  domain_id: 'd1',
+                  display_order: 1,
+                },
+                {
+                  id: 's2',
+                  name: 'Incident Response',
+                  domain_id: 'd1',
+                  display_order: 2,
+                },
                 { id: 's3', name: 'GDPR', domain_id: 'd2', display_order: 1 },
               ],
               error: null,
@@ -309,7 +352,7 @@ describe('MCP App trigger tools #22-23', () => {
         return chain;
       });
 
-      const result = await handler({}, extra) as {
+      const result = (await handler({}, extra)) as {
         structuredContent: CoverageMatrixData;
       };
 
@@ -317,7 +360,7 @@ describe('MCP App trigger tools #22-23', () => {
       expect(domains.length).toBeGreaterThan(0);
 
       // Find Security domain
-      const security = domains.find(d => d.name === 'Security');
+      const security = domains.find((d) => d.name === 'Security');
       expect(security).toBeDefined();
       expect(security!.total_items).toBe(3);
       expect(security!.fresh).toBe(1);
@@ -325,7 +368,9 @@ describe('MCP App trigger tools #22-23', () => {
       expect(security!.stale).toBe(1);
 
       // Check subtopics
-      const penTesting = security!.subtopics.find(s => s.name === 'Pen Testing');
+      const penTesting = security!.subtopics.find(
+        (s) => s.name === 'Pen Testing',
+      );
       expect(penTesting).toBeDefined();
       expect(penTesting!.total_items).toBe(2);
       expect(penTesting!.fresh).toBe(1);
@@ -358,7 +403,12 @@ describe('MCP App trigger tools #22-23', () => {
           chain.then.mockImplementation((resolve: (v: unknown) => void) =>
             resolve({
               data: [
-                { id: 's1', name: 'Empty Subtopic', domain_id: 'd1', display_order: 1 },
+                {
+                  id: 's1',
+                  name: 'Empty Subtopic',
+                  domain_id: 'd1',
+                  display_order: 1,
+                },
               ],
               error: null,
             }),
@@ -372,18 +422,20 @@ describe('MCP App trigger tools #22-23', () => {
         return chain;
       });
 
-      const result = await handler({}, extra) as {
+      const result = (await handler({}, extra)) as {
         structuredContent: CoverageMatrixData;
       };
 
       const gaps = result.structuredContent.gaps;
       // Domain with 0 items
-      const domainGap = gaps.find(g => g.domain === 'Security' && g.subtopic === null);
+      const domainGap = gaps.find(
+        (g) => g.domain === 'Security' && g.subtopic === null,
+      );
       expect(domainGap).toBeDefined();
       expect(domainGap!.issue).toBe('empty');
 
       // Subtopic with 0 items
-      const subtopicGap = gaps.find(g => g.subtopic === 'Empty Subtopic');
+      const subtopicGap = gaps.find((g) => g.subtopic === 'Empty Subtopic');
       expect(subtopicGap).toBeDefined();
       expect(subtopicGap!.issue).toBe('empty');
       expect(subtopicGap!.item_count).toBe(0);
@@ -404,8 +456,16 @@ describe('MCP App trigger tools #22-23', () => {
           chain.then.mockImplementation((resolve: (v: unknown) => void) =>
             resolve({
               data: [
-                { primary_domain: 'Security', primary_subtopic: 'Thin Area', freshness: 'fresh' },
-                { primary_domain: 'Security', primary_subtopic: 'Thin Area', freshness: 'fresh' },
+                {
+                  primary_domain: 'Security',
+                  primary_subtopic: 'Thin Area',
+                  freshness: 'fresh',
+                },
+                {
+                  primary_domain: 'Security',
+                  primary_subtopic: 'Thin Area',
+                  freshness: 'fresh',
+                },
               ],
               error: null,
             }),
@@ -421,7 +481,12 @@ describe('MCP App trigger tools #22-23', () => {
           chain.then.mockImplementation((resolve: (v: unknown) => void) =>
             resolve({
               data: [
-                { id: 's1', name: 'Thin Area', domain_id: 'd1', display_order: 1 },
+                {
+                  id: 's1',
+                  name: 'Thin Area',
+                  domain_id: 'd1',
+                  display_order: 1,
+                },
               ],
               error: null,
             }),
@@ -435,12 +500,12 @@ describe('MCP App trigger tools #22-23', () => {
         return chain;
       });
 
-      const result = await handler({}, extra) as {
+      const result = (await handler({}, extra)) as {
         structuredContent: CoverageMatrixData;
       };
 
       const gaps = result.structuredContent.gaps;
-      const thinGap = gaps.find(g => g.subtopic === 'Thin Area');
+      const thinGap = gaps.find((g) => g.subtopic === 'Thin Area');
       expect(thinGap).toBeDefined();
       expect(thinGap!.issue).toBe('thin');
       expect(thinGap!.item_count).toBe(2);
@@ -461,9 +526,21 @@ describe('MCP App trigger tools #22-23', () => {
           chain.then.mockImplementation((resolve: (v: unknown) => void) =>
             resolve({
               data: [
-                { primary_domain: 'Security', primary_subtopic: 'Old Area', freshness: 'stale' },
-                { primary_domain: 'Security', primary_subtopic: 'Old Area', freshness: 'stale' },
-                { primary_domain: 'Security', primary_subtopic: 'Old Area', freshness: 'expired' },
+                {
+                  primary_domain: 'Security',
+                  primary_subtopic: 'Old Area',
+                  freshness: 'stale',
+                },
+                {
+                  primary_domain: 'Security',
+                  primary_subtopic: 'Old Area',
+                  freshness: 'stale',
+                },
+                {
+                  primary_domain: 'Security',
+                  primary_subtopic: 'Old Area',
+                  freshness: 'expired',
+                },
               ],
               error: null,
             }),
@@ -479,7 +556,12 @@ describe('MCP App trigger tools #22-23', () => {
           chain.then.mockImplementation((resolve: (v: unknown) => void) =>
             resolve({
               data: [
-                { id: 's1', name: 'Old Area', domain_id: 'd1', display_order: 1 },
+                {
+                  id: 's1',
+                  name: 'Old Area',
+                  domain_id: 'd1',
+                  display_order: 1,
+                },
               ],
               error: null,
             }),
@@ -493,12 +575,12 @@ describe('MCP App trigger tools #22-23', () => {
         return chain;
       });
 
-      const result = await handler({}, extra) as {
+      const result = (await handler({}, extra)) as {
         structuredContent: CoverageMatrixData;
       };
 
       const gaps = result.structuredContent.gaps;
-      const staleGap = gaps.find(g => g.subtopic === 'Old Area');
+      const staleGap = gaps.find((g) => g.subtopic === 'Old Area');
       expect(staleGap).toBeDefined();
       expect(staleGap!.issue).toBe('stale_only');
       expect(staleGap!.item_count).toBe(3);
@@ -525,7 +607,9 @@ describe('MCP App trigger tools #22-23', () => {
         } else if (table === 'taxonomy_subtopics') {
           chain.then.mockImplementation((resolve: (v: unknown) => void) =>
             resolve({
-              data: [{ id: 's1', name: 'Empty', domain_id: 'd1', display_order: 1 }],
+              data: [
+                { id: 's1', name: 'Empty', domain_id: 'd1', display_order: 1 },
+              ],
               error: null,
             }),
           );
@@ -538,7 +622,7 @@ describe('MCP App trigger tools #22-23', () => {
         return chain;
       });
 
-      const result = await handler({ include_gaps: false }, extra) as {
+      const result = (await handler({ include_gaps: false }, extra)) as {
         structuredContent: CoverageMatrixData;
       };
 
@@ -576,7 +660,7 @@ describe('MCP App trigger tools #22-23', () => {
         return chain;
       });
 
-      const result = await handler({ include_gaps: false }, extra) as {
+      const result = (await handler({ include_gaps: false }, extra)) as {
         structuredContent: CoverageMatrixData;
       };
 
@@ -590,7 +674,7 @@ describe('MCP App trigger tools #22-23', () => {
     it('returns Markdown text in content', async () => {
       const handler = mockServer.getHandler('show_coverage_matrix')!;
 
-      const result = await handler({}, extra) as {
+      const result = (await handler({}, extra)) as {
         content: Array<{ type: string; text: string }>;
       };
 
@@ -603,9 +687,11 @@ describe('MCP App trigger tools #22-23', () => {
     it('returns error response when an exception occurs', async () => {
       const handler = mockServer.getHandler('show_coverage_matrix')!;
 
-      mocks.fetchUnifiedDashboardData.mockRejectedValue(new Error('Connection refused'));
+      mocks.fetchUnifiedDashboardData.mockRejectedValue(
+        new Error('Connection refused'),
+      );
 
-      const result = await handler({}, extra) as {
+      const result = (await handler({}, extra)) as {
         content: Array<{ text: string }>;
         isError: boolean;
       };
@@ -655,7 +741,7 @@ describe('MCP App trigger tools #22-23', () => {
         active_bids: sampleBids,
       });
 
-      const result = await handler({}, extra) as {
+      const result = (await handler({}, extra)) as {
         content: Array<{ type: string; text: string }>;
         structuredContent: BidDashboardData;
       };
@@ -683,7 +769,7 @@ describe('MCP App trigger tools #22-23', () => {
         active_bids: sampleBids,
       });
 
-      const result = await handler({}, extra) as {
+      const result = (await handler({}, extra)) as {
         structuredContent: BidDashboardData;
       };
 
@@ -713,7 +799,7 @@ describe('MCP App trigger tools #22-23', () => {
         active_bids: [],
       });
 
-      const result = await handler({}, extra) as {
+      const result = (await handler({}, extra)) as {
         content: Array<{ text: string }>;
         structuredContent: BidDashboardData;
       };
@@ -767,29 +853,43 @@ describe('MCP App trigger tools #22-23', () => {
 
       // Mock RPC for question stats
       supabase.rpc.mockResolvedValueOnce({
-        data: [{
-          total_questions: 25,
-          strong_match_count: 10,
-          partial_match_count: 8,
-          needs_sme_count: 3,
-          no_content_count: 2,
-          unmatched_count: 2,
-          drafted_count: 15,
-          complete_count: 12,
-        }],
+        data: [
+          {
+            total_questions: 25,
+            strong_match_count: 10,
+            partial_match_count: 8,
+            needs_sme_count: 3,
+            no_content_count: 2,
+            unmatched_count: 2,
+            drafted_count: 15,
+            complete_count: 12,
+          },
+        ],
         error: null,
       });
 
-      const result = await handler({ bid_id: 'bid-001' }, extra) as {
-        structuredContent: BidDashboardData & { focused_bid_detail: Record<string, unknown> };
+      const result = (await handler({ bid_id: 'bid-001' }, extra)) as {
+        structuredContent: BidDashboardData & {
+          focused_bid_detail: Record<string, unknown>;
+        };
       };
 
       expect(result.structuredContent.focused_bid_detail).toBeDefined();
-      expect(result.structuredContent.focused_bid_detail.name).toBe('NHS Digital Transformation');
-      expect(result.structuredContent.focused_bid_detail.buyer).toBe('NHS England');
-      expect(result.structuredContent.focused_bid_detail.reference_number).toBe('NHS-DT-2026');
-      expect(result.structuredContent.focused_bid_detail.question_stats).toBeDefined();
-      expect(result.structuredContent.focused_bid_detail.sections).toBeDefined();
+      expect(result.structuredContent.focused_bid_detail.name).toBe(
+        'NHS Digital Transformation',
+      );
+      expect(result.structuredContent.focused_bid_detail.buyer).toBe(
+        'NHS England',
+      );
+      expect(result.structuredContent.focused_bid_detail.reference_number).toBe(
+        'NHS-DT-2026',
+      );
+      expect(
+        result.structuredContent.focused_bid_detail.question_stats,
+      ).toBeDefined();
+      expect(
+        result.structuredContent.focused_bid_detail.sections,
+      ).toBeDefined();
     });
 
     it('does not include focused_bid_detail when bid_id is omitted', async () => {
@@ -800,7 +900,7 @@ describe('MCP App trigger tools #22-23', () => {
         active_bids: sampleBids,
       });
 
-      const result = await handler({}, extra) as {
+      const result = (await handler({}, extra)) as {
         structuredContent: BidDashboardData;
       };
 
@@ -826,7 +926,7 @@ describe('MCP App trigger tools #22-23', () => {
       };
       supabase.from.mockReturnValue(mockChain);
 
-      const result = await handler({ bid_id: 'nonexistent-id' }, extra) as {
+      const result = (await handler({ bid_id: 'nonexistent-id' }, extra)) as {
         structuredContent: BidDashboardData;
       };
 
@@ -843,7 +943,7 @@ describe('MCP App trigger tools #22-23', () => {
         active_bids: sampleBids,
       });
 
-      const result = await handler({}, extra) as {
+      const result = (await handler({}, extra)) as {
         content: Array<{ type: string; text: string }>;
       };
 
@@ -856,9 +956,11 @@ describe('MCP App trigger tools #22-23', () => {
     it('returns error response when an exception occurs', async () => {
       const handler = mockServer.getHandler('show_bid_dashboard')!;
 
-      mocks.fetchUnifiedDashboardData.mockRejectedValue(new Error('Database timeout'));
+      mocks.fetchUnifiedDashboardData.mockRejectedValue(
+        new Error('Database timeout'),
+      );
 
-      const result = await handler({}, extra) as {
+      const result = (await handler({}, extra)) as {
         content: Array<{ text: string }>;
         isError: boolean;
       };
@@ -873,20 +975,22 @@ describe('MCP App trigger tools #22-23', () => {
 
       mocks.fetchUnifiedDashboardData.mockResolvedValue({
         ...baseDashboardData,
-        active_bids: [{
-          id: 'bid-003',
-          name: 'Unnamed Bid',
-          buyer: null,
-          status: 'draft',
-          deadline: null,
-          days_until_deadline: null,
-          total_questions: 0,
-          answered_questions: 0,
-          approved_questions: 0,
-        }],
+        active_bids: [
+          {
+            id: 'bid-003',
+            name: 'Unnamed Bid',
+            buyer: null,
+            status: 'draft',
+            deadline: null,
+            days_until_deadline: null,
+            total_questions: 0,
+            answered_questions: 0,
+            approved_questions: 0,
+          },
+        ],
       });
 
-      const result = await handler({}, extra) as {
+      const result = (await handler({}, extra)) as {
         structuredContent: BidDashboardData;
       };
 
@@ -937,21 +1041,25 @@ describe('MCP App trigger tools #22-23', () => {
 
       // Mock RPC for question stats
       supabase.rpc.mockResolvedValueOnce({
-        data: [{
-          total_questions: 5,
-          strong_match_count: 2,
-          partial_match_count: 1,
-          needs_sme_count: 1,
-          no_content_count: 1,
-          unmatched_count: 0,
-          drafted_count: 3,
-          complete_count: 2,
-        }],
+        data: [
+          {
+            total_questions: 5,
+            strong_match_count: 2,
+            partial_match_count: 1,
+            needs_sme_count: 1,
+            no_content_count: 1,
+            unmatched_count: 0,
+            drafted_count: 3,
+            complete_count: 2,
+          },
+        ],
         error: null,
       });
 
-      const result = await handler({ bid_id: 'bid-001' }, extra) as {
-        structuredContent: BidDashboardData & { focused_bid_detail: Record<string, unknown> };
+      const result = (await handler({ bid_id: 'bid-001' }, extra)) as {
+        structuredContent: BidDashboardData & {
+          focused_bid_detail: Record<string, unknown>;
+        };
       };
 
       const detail = result.structuredContent.focused_bid_detail;
@@ -977,17 +1085,58 @@ describe('MCP App trigger tools #22-23', () => {
         order: vi.fn().mockReturnThis(),
         single: vi.fn().mockResolvedValue({
           data: {
-            id: 'bid-001', name: 'Test Bid', description: null,
-            domain_metadata: { buyer: 'Placeholder', status: 'draft', deadline: null, reference_number: null, estimated_value: null, tender_source: null, tender_document_ids: [], submission_date: null, outcome: null, outcome_notes: null, notes: null },
+            id: 'bid-001',
+            name: 'Test Bid',
+            description: null,
+            domain_metadata: {
+              buyer: 'Placeholder',
+              status: 'draft',
+              deadline: null,
+              reference_number: null,
+              estimated_value: null,
+              tender_source: null,
+              tender_document_ids: [],
+              submission_date: null,
+              outcome: null,
+              outcome_notes: null,
+              notes: null,
+            },
           },
           error: null,
         }),
         then: vi.fn((resolve: (v: unknown) => void) =>
           resolve({
             data: [
-              { id: 'q1', question_text: 'Q1', section_name: 'S1', section_sequence: 1, question_sequence: 1, status: 'ai_drafted', confidence_posture: 'partial_match', word_limit: null },
-              { id: 'q2', question_text: 'Q2', section_name: 'S1', section_sequence: 1, question_sequence: 2, status: 'complete', confidence_posture: 'strong_match', word_limit: null },
-              { id: 'q3', question_text: 'Q3', section_name: 'S1', section_sequence: 1, question_sequence: 3, status: 'not_started', confidence_posture: 'needs_sme', word_limit: null },
+              {
+                id: 'q1',
+                question_text: 'Q1',
+                section_name: 'S1',
+                section_sequence: 1,
+                question_sequence: 1,
+                status: 'ai_drafted',
+                confidence_posture: 'partial_match',
+                word_limit: null,
+              },
+              {
+                id: 'q2',
+                question_text: 'Q2',
+                section_name: 'S1',
+                section_sequence: 1,
+                question_sequence: 2,
+                status: 'complete',
+                confidence_posture: 'strong_match',
+                word_limit: null,
+              },
+              {
+                id: 'q3',
+                question_text: 'Q3',
+                section_name: 'S1',
+                section_sequence: 1,
+                question_sequence: 3,
+                status: 'not_started',
+                confidence_posture: 'needs_sme',
+                word_limit: null,
+              },
             ],
             error: null,
           }),
@@ -995,15 +1144,29 @@ describe('MCP App trigger tools #22-23', () => {
       };
       supabase.from.mockReturnValue(mockChain);
       supabase.rpc.mockResolvedValueOnce({
-        data: [{ total_questions: 3, strong_match_count: 1, partial_match_count: 1, needs_sme_count: 1, no_content_count: 0, unmatched_count: 0, drafted_count: 1, complete_count: 1 }],
+        data: [
+          {
+            total_questions: 3,
+            strong_match_count: 1,
+            partial_match_count: 1,
+            needs_sme_count: 1,
+            no_content_count: 0,
+            unmatched_count: 0,
+            drafted_count: 1,
+            complete_count: 1,
+          },
+        ],
         error: null,
       });
 
-      const result = await handler({ bid_id: 'bid-001' }, extra) as {
-        structuredContent: BidDashboardData & { focused_bid_detail: Record<string, unknown> };
+      const result = (await handler({ bid_id: 'bid-001' }, extra)) as {
+        structuredContent: BidDashboardData & {
+          focused_bid_detail: Record<string, unknown>;
+        };
       };
 
-      const breakdown = result.structuredContent.focused_bid_detail.status_breakdown as Record<string, number>;
+      const breakdown = result.structuredContent.focused_bid_detail
+        .status_breakdown as Record<string, number>;
       expect(breakdown.ai_drafted).toBe(1);
       expect(breakdown.complete).toBe(1);
       expect(breakdown.not_started).toBe(1);
@@ -1024,17 +1187,58 @@ describe('MCP App trigger tools #22-23', () => {
         order: vi.fn().mockReturnThis(),
         single: vi.fn().mockResolvedValue({
           data: {
-            id: 'bid-001', name: 'Test Bid', description: null,
-            domain_metadata: { buyer: 'Placeholder', status: 'draft', deadline: null, reference_number: null, estimated_value: null, tender_source: null, tender_document_ids: [], submission_date: null, outcome: null, outcome_notes: null, notes: null },
+            id: 'bid-001',
+            name: 'Test Bid',
+            description: null,
+            domain_metadata: {
+              buyer: 'Placeholder',
+              status: 'draft',
+              deadline: null,
+              reference_number: null,
+              estimated_value: null,
+              tender_source: null,
+              tender_document_ids: [],
+              submission_date: null,
+              outcome: null,
+              outcome_notes: null,
+              notes: null,
+            },
           },
           error: null,
         }),
         then: vi.fn((resolve: (v: unknown) => void) =>
           resolve({
             data: [
-              { id: 'q1', question_text: 'Q1', section_name: 'S1', section_sequence: 1, question_sequence: 1, status: 'not_started', confidence_posture: 'strong_match', word_limit: null },
-              { id: 'q2', question_text: 'Q2', section_name: 'S1', section_sequence: 1, question_sequence: 2, status: 'not_started', confidence_posture: 'needs_sme', word_limit: null },
-              { id: 'q3', question_text: 'Q3', section_name: 'S1', section_sequence: 1, question_sequence: 3, status: 'not_started', confidence_posture: 'needs_sme', word_limit: null },
+              {
+                id: 'q1',
+                question_text: 'Q1',
+                section_name: 'S1',
+                section_sequence: 1,
+                question_sequence: 1,
+                status: 'not_started',
+                confidence_posture: 'strong_match',
+                word_limit: null,
+              },
+              {
+                id: 'q2',
+                question_text: 'Q2',
+                section_name: 'S1',
+                section_sequence: 1,
+                question_sequence: 2,
+                status: 'not_started',
+                confidence_posture: 'needs_sme',
+                word_limit: null,
+              },
+              {
+                id: 'q3',
+                question_text: 'Q3',
+                section_name: 'S1',
+                section_sequence: 1,
+                question_sequence: 3,
+                status: 'not_started',
+                confidence_posture: 'needs_sme',
+                word_limit: null,
+              },
             ],
             error: null,
           }),
@@ -1042,15 +1246,29 @@ describe('MCP App trigger tools #22-23', () => {
       };
       supabase.from.mockReturnValue(mockChain);
       supabase.rpc.mockResolvedValueOnce({
-        data: [{ total_questions: 3, strong_match_count: 1, partial_match_count: 0, needs_sme_count: 2, no_content_count: 0, unmatched_count: 0, drafted_count: 0, complete_count: 0 }],
+        data: [
+          {
+            total_questions: 3,
+            strong_match_count: 1,
+            partial_match_count: 0,
+            needs_sme_count: 2,
+            no_content_count: 0,
+            unmatched_count: 0,
+            drafted_count: 0,
+            complete_count: 0,
+          },
+        ],
         error: null,
       });
 
-      const result = await handler({ bid_id: 'bid-001' }, extra) as {
-        structuredContent: BidDashboardData & { focused_bid_detail: Record<string, unknown> };
+      const result = (await handler({ bid_id: 'bid-001' }, extra)) as {
+        structuredContent: BidDashboardData & {
+          focused_bid_detail: Record<string, unknown>;
+        };
       };
 
-      const breakdown = result.structuredContent.focused_bid_detail.confidence_breakdown as Record<string, number>;
+      const breakdown = result.structuredContent.focused_bid_detail
+        .confidence_breakdown as Record<string, number>;
       expect(breakdown.strong_match).toBe(1);
       expect(breakdown.needs_sme).toBe(2);
     });
@@ -1070,8 +1288,15 @@ describe('MCP App trigger tools #22-23', () => {
         order: vi.fn().mockReturnThis(),
         single: vi.fn().mockResolvedValue({
           data: {
-            id: 'bid-001', name: 'Empty Bid', description: null,
-            domain_metadata: { buyer: null, status: 'draft', deadline: null, reference_number: null },
+            id: 'bid-001',
+            name: 'Empty Bid',
+            description: null,
+            domain_metadata: {
+              buyer: null,
+              status: 'draft',
+              deadline: null,
+              reference_number: null,
+            },
           },
           error: null,
         }),
@@ -1081,12 +1306,25 @@ describe('MCP App trigger tools #22-23', () => {
       };
       supabase.from.mockReturnValue(mockChain);
       supabase.rpc.mockResolvedValueOnce({
-        data: [{ total_questions: 0, strong_match_count: 0, partial_match_count: 0, needs_sme_count: 0, no_content_count: 0, unmatched_count: 0, drafted_count: 0, complete_count: 0 }],
+        data: [
+          {
+            total_questions: 0,
+            strong_match_count: 0,
+            partial_match_count: 0,
+            needs_sme_count: 0,
+            no_content_count: 0,
+            unmatched_count: 0,
+            drafted_count: 0,
+            complete_count: 0,
+          },
+        ],
         error: null,
       });
 
-      const result = await handler({ bid_id: 'bid-001' }, extra) as {
-        structuredContent: BidDashboardData & { focused_bid_detail: Record<string, unknown> };
+      const result = (await handler({ bid_id: 'bid-001' }, extra)) as {
+        structuredContent: BidDashboardData & {
+          focused_bid_detail: Record<string, unknown>;
+        };
       };
 
       const detail = result.structuredContent.focused_bid_detail;
@@ -1117,7 +1355,12 @@ describe('MCP App trigger tools #22-23', () => {
               id: 'bid-001',
               name: 'Test Bid',
               description: null,
-              domain_metadata: { buyer: 'Test Corp', status: 'active', deadline: null, reference_number: null },
+              domain_metadata: {
+                buyer: 'Test Corp',
+                status: 'active',
+                deadline: null,
+                reference_number: null,
+              },
               is_archived: false,
             },
             error: null,
@@ -1129,9 +1372,36 @@ describe('MCP App trigger tools #22-23', () => {
           chain.then.mockImplementation((resolve: (v: unknown) => void) =>
             resolve({
               data: [
-                { id: 'q1', question_text: 'Question A', section_name: 'Section 1', section_sequence: 1, question_sequence: 1, status: 'complete', confidence_posture: 'strong_match', word_limit: 500 },
-                { id: 'q2', question_text: 'Question B', section_name: 'Section 1', section_sequence: 1, question_sequence: 2, status: 'ai_drafted', confidence_posture: 'partial_match', word_limit: null },
-                { id: 'q3', question_text: 'Question C', section_name: 'Section 2', section_sequence: 2, question_sequence: 1, status: 'not_started', confidence_posture: null, word_limit: 1000 },
+                {
+                  id: 'q1',
+                  question_text: 'Question A',
+                  section_name: 'Section 1',
+                  section_sequence: 1,
+                  question_sequence: 1,
+                  status: 'complete',
+                  confidence_posture: 'strong_match',
+                  word_limit: 500,
+                },
+                {
+                  id: 'q2',
+                  question_text: 'Question B',
+                  section_name: 'Section 1',
+                  section_sequence: 1,
+                  question_sequence: 2,
+                  status: 'ai_drafted',
+                  confidence_posture: 'partial_match',
+                  word_limit: null,
+                },
+                {
+                  id: 'q3',
+                  question_text: 'Question C',
+                  section_name: 'Section 2',
+                  section_sequence: 2,
+                  question_sequence: 1,
+                  status: 'not_started',
+                  confidence_posture: null,
+                  word_limit: 1000,
+                },
               ],
               error: null,
             }),
@@ -1140,8 +1410,16 @@ describe('MCP App trigger tools #22-23', () => {
           chain.then.mockImplementation((resolve: (v: unknown) => void) =>
             resolve({
               data: [
-                { question_id: 'q1', response_text: 'Response for q1', review_status: 'approved' },
-                { question_id: 'q2', response_text: 'Draft for q2', review_status: null },
+                {
+                  question_id: 'q1',
+                  response_text: 'Response for q1',
+                  review_status: 'approved',
+                },
+                {
+                  question_id: 'q2',
+                  response_text: 'Draft for q2',
+                  review_status: null,
+                },
               ],
               error: null,
             }),
@@ -1153,12 +1431,25 @@ describe('MCP App trigger tools #22-23', () => {
 
       // Mock RPC for question stats
       supabase.rpc.mockResolvedValueOnce({
-        data: [{ total_questions: 3, strong_match_count: 1, partial_match_count: 1, needs_sme_count: 0, no_content_count: 0, unmatched_count: 1, drafted_count: 2, complete_count: 1 }],
+        data: [
+          {
+            total_questions: 3,
+            strong_match_count: 1,
+            partial_match_count: 1,
+            needs_sme_count: 0,
+            no_content_count: 0,
+            unmatched_count: 1,
+            drafted_count: 2,
+            complete_count: 1,
+          },
+        ],
         error: null,
       });
 
-      const result = await handler({ id: 'bid-001' }, extra) as {
-        structuredContent: { sections: Array<{ name: string; questions: Array<{ id: string }> }> };
+      const result = (await handler({ id: 'bid-001' }, extra)) as {
+        structuredContent: {
+          sections: Array<{ name: string; questions: Array<{ id: string }> }>;
+        };
       };
 
       const sections = result.structuredContent.sections;
@@ -1183,7 +1474,12 @@ describe('MCP App trigger tools #22-23', () => {
               id: 'bid-001',
               name: 'Test Bid',
               description: null,
-              domain_metadata: { buyer: null, status: 'draft', deadline: null, reference_number: null },
+              domain_metadata: {
+                buyer: null,
+                status: 'draft',
+                deadline: null,
+                reference_number: null,
+              },
               is_archived: false,
             },
             error: null,
@@ -1195,8 +1491,26 @@ describe('MCP App trigger tools #22-23', () => {
           chain.then.mockImplementation((resolve: (v: unknown) => void) =>
             resolve({
               data: [
-                { id: 'q1', question_text: 'Q1', section_name: 'S1', section_sequence: 1, question_sequence: 1, status: 'complete', confidence_posture: 'strong_match', word_limit: null },
-                { id: 'q2', question_text: 'Q2', section_name: 'S1', section_sequence: 1, question_sequence: 2, status: 'not_started', confidence_posture: null, word_limit: null },
+                {
+                  id: 'q1',
+                  question_text: 'Q1',
+                  section_name: 'S1',
+                  section_sequence: 1,
+                  question_sequence: 1,
+                  status: 'complete',
+                  confidence_posture: 'strong_match',
+                  word_limit: null,
+                },
+                {
+                  id: 'q2',
+                  question_text: 'Q2',
+                  section_name: 'S1',
+                  section_sequence: 1,
+                  question_sequence: 2,
+                  status: 'not_started',
+                  confidence_posture: null,
+                  word_limit: null,
+                },
               ],
               error: null,
             }),
@@ -1205,7 +1519,11 @@ describe('MCP App trigger tools #22-23', () => {
           chain.then.mockImplementation((resolve: (v: unknown) => void) =>
             resolve({
               data: [
-                { question_id: 'q1', response_text: 'Answer', review_status: 'approved' },
+                {
+                  question_id: 'q1',
+                  response_text: 'Answer',
+                  review_status: 'approved',
+                },
               ],
               error: null,
             }),
@@ -1215,10 +1533,32 @@ describe('MCP App trigger tools #22-23', () => {
         return chain;
       });
 
-      supabase.rpc.mockResolvedValueOnce({ data: [{ total_questions: 2, strong_match_count: 1, partial_match_count: 0, needs_sme_count: 0, no_content_count: 0, unmatched_count: 1, drafted_count: 1, complete_count: 1 }], error: null });
+      supabase.rpc.mockResolvedValueOnce({
+        data: [
+          {
+            total_questions: 2,
+            strong_match_count: 1,
+            partial_match_count: 0,
+            needs_sme_count: 0,
+            no_content_count: 0,
+            unmatched_count: 1,
+            drafted_count: 1,
+            complete_count: 1,
+          },
+        ],
+        error: null,
+      });
 
-      const result = await handler({ id: 'bid-001' }, extra) as {
-        structuredContent: { sections: Array<{ questions: Array<{ id: string; has_response: boolean; review_status: string | null }> }> };
+      const result = (await handler({ id: 'bid-001' }, extra)) as {
+        structuredContent: {
+          sections: Array<{
+            questions: Array<{
+              id: string;
+              has_response: boolean;
+              review_status: string | null;
+            }>;
+          }>;
+        };
       };
 
       const questions = result.structuredContent.sections[0].questions;
@@ -1242,7 +1582,12 @@ describe('MCP App trigger tools #22-23', () => {
               id: 'bid-001',
               name: 'Test Bid',
               description: null,
-              domain_metadata: { buyer: null, status: 'draft', deadline: null, reference_number: null },
+              domain_metadata: {
+                buyer: null,
+                status: 'draft',
+                deadline: null,
+                reference_number: null,
+              },
               is_archived: false,
             },
             error: null,
@@ -1254,7 +1599,16 @@ describe('MCP App trigger tools #22-23', () => {
           chain.then.mockImplementation((resolve: (v: unknown) => void) =>
             resolve({
               data: [
-                { id: 'q1', question_text: 'Orphan Q', section_name: null, section_sequence: 0, question_sequence: 1, status: 'not_started', confidence_posture: null, word_limit: null },
+                {
+                  id: 'q1',
+                  question_text: 'Orphan Q',
+                  section_name: null,
+                  section_sequence: 0,
+                  question_sequence: 1,
+                  status: 'not_started',
+                  confidence_posture: null,
+                  word_limit: null,
+                },
               ],
               error: null,
             }),
@@ -1268,9 +1622,23 @@ describe('MCP App trigger tools #22-23', () => {
         return chain;
       });
 
-      supabase.rpc.mockResolvedValueOnce({ data: [{ total_questions: 1, strong_match_count: 0, partial_match_count: 0, needs_sme_count: 0, no_content_count: 0, unmatched_count: 1, drafted_count: 0, complete_count: 0 }], error: null });
+      supabase.rpc.mockResolvedValueOnce({
+        data: [
+          {
+            total_questions: 1,
+            strong_match_count: 0,
+            partial_match_count: 0,
+            needs_sme_count: 0,
+            no_content_count: 0,
+            unmatched_count: 1,
+            drafted_count: 0,
+            complete_count: 0,
+          },
+        ],
+        error: null,
+      });
 
-      const result = await handler({ id: 'bid-001' }, extra) as {
+      const result = (await handler({ id: 'bid-001' }, extra)) as {
         structuredContent: { sections: Array<{ name: string }> };
       };
 
@@ -1292,7 +1660,12 @@ describe('MCP App trigger tools #22-23', () => {
               id: 'bid-001',
               name: 'Empty Bid',
               description: null,
-              domain_metadata: { buyer: null, status: 'draft', deadline: null, reference_number: null },
+              domain_metadata: {
+                buyer: null,
+                status: 'draft',
+                deadline: null,
+                reference_number: null,
+              },
               is_archived: false,
             },
             error: null,
@@ -1305,10 +1678,28 @@ describe('MCP App trigger tools #22-23', () => {
         return chain;
       });
 
-      supabase.rpc.mockResolvedValueOnce({ data: [{ total_questions: 0, strong_match_count: 0, partial_match_count: 0, needs_sme_count: 0, no_content_count: 0, unmatched_count: 0, drafted_count: 0, complete_count: 0 }], error: null });
+      supabase.rpc.mockResolvedValueOnce({
+        data: [
+          {
+            total_questions: 0,
+            strong_match_count: 0,
+            partial_match_count: 0,
+            needs_sme_count: 0,
+            no_content_count: 0,
+            unmatched_count: 0,
+            drafted_count: 0,
+            complete_count: 0,
+          },
+        ],
+        error: null,
+      });
 
-      const result = await handler({ id: 'bid-001' }, extra) as {
-        structuredContent: { sections: unknown[]; status_breakdown: Record<string, number>; confidence_breakdown: Record<string, number> };
+      const result = (await handler({ id: 'bid-001' }, extra)) as {
+        structuredContent: {
+          sections: unknown[];
+          status_breakdown: Record<string, number>;
+          confidence_breakdown: Record<string, number>;
+        };
       };
 
       expect(result.structuredContent.sections).toEqual([]);
@@ -1330,7 +1721,19 @@ describe('MCP App trigger tools #22-23', () => {
               id: 'bid-001',
               name: 'Test Bid',
               description: null,
-              domain_metadata: { buyer: 'Placeholder', status: 'draft', deadline: null, reference_number: null, estimated_value: null, tender_source: null, tender_document_ids: [], submission_date: null, outcome: null, outcome_notes: null, notes: null },
+              domain_metadata: {
+                buyer: 'Placeholder',
+                status: 'draft',
+                deadline: null,
+                reference_number: null,
+                estimated_value: null,
+                tender_source: null,
+                tender_document_ids: [],
+                submission_date: null,
+                outcome: null,
+                outcome_notes: null,
+                notes: null,
+              },
               is_archived: false,
             },
             error: null,
@@ -1342,9 +1745,36 @@ describe('MCP App trigger tools #22-23', () => {
           chain.then.mockImplementation((resolve: (v: unknown) => void) =>
             resolve({
               data: [
-                { id: 'q1', question_text: 'Q1', section_name: 'S1', section_sequence: 1, question_sequence: 1, status: 'complete', confidence_posture: 'strong_match', word_limit: null },
-                { id: 'q2', question_text: 'Q2', section_name: 'S1', section_sequence: 1, question_sequence: 2, status: 'complete', confidence_posture: 'strong_match', word_limit: null },
-                { id: 'q3', question_text: 'Q3', section_name: 'S1', section_sequence: 1, question_sequence: 3, status: 'not_started', confidence_posture: 'needs_sme', word_limit: null },
+                {
+                  id: 'q1',
+                  question_text: 'Q1',
+                  section_name: 'S1',
+                  section_sequence: 1,
+                  question_sequence: 1,
+                  status: 'complete',
+                  confidence_posture: 'strong_match',
+                  word_limit: null,
+                },
+                {
+                  id: 'q2',
+                  question_text: 'Q2',
+                  section_name: 'S1',
+                  section_sequence: 1,
+                  question_sequence: 2,
+                  status: 'complete',
+                  confidence_posture: 'strong_match',
+                  word_limit: null,
+                },
+                {
+                  id: 'q3',
+                  question_text: 'Q3',
+                  section_name: 'S1',
+                  section_sequence: 1,
+                  question_sequence: 3,
+                  status: 'not_started',
+                  confidence_posture: 'needs_sme',
+                  word_limit: null,
+                },
               ],
               error: null,
             }),
@@ -1358,14 +1788,37 @@ describe('MCP App trigger tools #22-23', () => {
         return chain;
       });
 
-      supabase.rpc.mockResolvedValueOnce({ data: [{ total_questions: 3, strong_match_count: 2, partial_match_count: 0, needs_sme_count: 1, no_content_count: 0, unmatched_count: 0, drafted_count: 2, complete_count: 2 }], error: null });
+      supabase.rpc.mockResolvedValueOnce({
+        data: [
+          {
+            total_questions: 3,
+            strong_match_count: 2,
+            partial_match_count: 0,
+            needs_sme_count: 1,
+            no_content_count: 0,
+            unmatched_count: 0,
+            drafted_count: 2,
+            complete_count: 2,
+          },
+        ],
+        error: null,
+      });
 
-      const result = await handler({ id: 'bid-001' }, extra) as {
-        structuredContent: { status_breakdown: Record<string, number>; confidence_breakdown: Record<string, number> };
+      const result = (await handler({ id: 'bid-001' }, extra)) as {
+        structuredContent: {
+          status_breakdown: Record<string, number>;
+          confidence_breakdown: Record<string, number>;
+        };
       };
 
-      expect(result.structuredContent.status_breakdown).toEqual({ complete: 2, not_started: 1 });
-      expect(result.structuredContent.confidence_breakdown).toEqual({ strong_match: 2, needs_sme: 1 });
+      expect(result.structuredContent.status_breakdown).toEqual({
+        complete: 2,
+        not_started: 1,
+      });
+      expect(result.structuredContent.confidence_breakdown).toEqual({
+        strong_match: 2,
+        needs_sme: 1,
+      });
     });
   });
 });

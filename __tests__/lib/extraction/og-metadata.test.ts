@@ -9,13 +9,15 @@ import { extractOgMetadata } from '@/lib/extraction/og-metadata';
 
 describe('extractOgMetadata', () => {
   it('extracts og:image', () => {
-    const html = '<meta property="og:image" content="https://example.com/image.jpg">';
+    const html =
+      '<meta property="og:image" content="https://example.com/image.jpg">';
     const result = extractOgMetadata(html);
     expect(result.ogImage).toBe('https://example.com/image.jpg');
   });
 
   it('extracts og:description', () => {
-    const html = '<meta property="og:description" content="A description of the page.">';
+    const html =
+      '<meta property="og:description" content="A description of the page.">';
     const result = extractOgMetadata(html);
     expect(result.ogDescription).toBe('A description of the page.');
   });
@@ -42,7 +44,8 @@ describe('extractOgMetadata', () => {
   });
 
   it('extracts article:published_time', () => {
-    const html = '<meta property="article:published_time" content="2024-01-15T10:00:00Z">';
+    const html =
+      '<meta property="article:published_time" content="2024-01-15T10:00:00Z">';
     const result = extractOgMetadata(html);
     expect(result.ogDate).toBe('2024-01-15T10:00:00Z');
   });
@@ -57,13 +60,15 @@ describe('extractOgMetadata', () => {
   });
 
   it('handles single-quoted attributes', () => {
-    const html = "<meta property='og:image' content='https://example.com/pic.png'>";
+    const html =
+      "<meta property='og:image' content='https://example.com/pic.png'>";
     const result = extractOgMetadata(html);
     expect(result.ogImage).toBe('https://example.com/pic.png');
   });
 
   it('handles content attribute before property attribute', () => {
-    const html = '<meta content="https://example.com/img.jpg" property="og:image">';
+    const html =
+      '<meta content="https://example.com/img.jpg" property="og:image">';
     const result = extractOgMetadata(html);
     expect(result.ogImage).toBe('https://example.com/img.jpg');
   });

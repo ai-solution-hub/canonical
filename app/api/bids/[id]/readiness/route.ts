@@ -1,8 +1,5 @@
 import { NextResponse } from 'next/server';
-import {
-  getAuthorisedClient,
-  authFailureResponse,
-} from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import type { BidResponseMetadata, QualityData } from '@/types/bid-metadata';
 
@@ -107,10 +104,7 @@ export async function GET(
       .single();
 
     if (bidError || !bid) {
-      return NextResponse.json(
-        { error: 'Bid not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
     }
 
     // Fetch all questions for this bid
@@ -143,7 +137,9 @@ export async function GET(
     if (questionIds.length > 0) {
       const { data: responses, error: responsesError } = await supabase
         .from('bid_responses')
-        .select('question_id, response_text, review_status, metadata, overall_score')
+        .select(
+          'question_id, response_text, review_status, metadata, overall_score',
+        )
         .in('question_id', questionIds);
 
       if (responsesError) {
@@ -185,30 +181,42 @@ export async function GET(
       const issues: string[] = [];
 
       // Check 1: Has response
-      const hasResponse = !!response?.response_text && response.response_text.trim().length > 0;
+      const hasResponse =
+        !!response?.response_text && response.response_text.trim().length > 0;
       if (hasResponse) answeredCount++;
       else issues.push('No response drafted');
 
       // Check 2: Review status
       const reviewStatus = response?.review_status ?? null;
-      const isApproved = reviewStatus === 'approved' || reviewStatus === 'edited';
+      const isApproved =
+        reviewStatus === 'approved' || reviewStatus === 'edited';
       if (isApproved) approvedCount++;
-      else if (hasResponse) issues.push(`Review status: ${reviewStatus ?? 'none'} (requires approved or edited)`);
+      else if (hasResponse)
+        issues.push(
+          `Review status: ${reviewStatus ?? 'none'} (requires approved or edited)`,
+        );
 
       // Quality data assessment — prefer overall_score from dedicated column
       const meta = (response?.metadata ?? {}) as BidResponseMetadata;
       const qualityDataFromMeta = meta.quality_data ?? null;
       // Merge column value into quality data for backward compat
-      const columnScore = (response as Record<string, unknown> | undefined)?.overall_score as number | null | undefined;
+      const columnScore = (response as Record<string, unknown> | undefined)
+        ?.overall_score as number | null | undefined;
       const qualityData = qualityDataFromMeta
-        ? { ...qualityDataFromMeta, overall_score: columnScore ?? qualityDataFromMeta.overall_score }
+        ? {
+            ...qualityDataFromMeta,
+            overall_score: columnScore ?? qualityDataFromMeta.overall_score,
+          }
         : null;
       const quality = assessQualityData(qualityData);
 
       if (quality.hasQualityCheck) {
         qualityCheckedCount++;
         if (quality.passingQuality) passingQualityCount++;
-        else issues.push(`Quality score: ${qualityData?.overall_score ?? 0}/100 (threshold: ${QUALITY_SCORE_THRESHOLD})`);
+        else
+          issues.push(
+            `Quality score: ${qualityData?.overall_score ?? 0}/100 (threshold: ${QUALITY_SCORE_THRESHOLD})`,
+          );
       }
 
       // Check 3: Word limit compliance
@@ -221,7 +229,10 @@ export async function GET(
 
       // Check 5: No unsupported claims
       if (quality.noUnsupportedClaims) noUnsupportedClaimsCount++;
-      else issues.push(`${qualityData?.unsupported_claims?.length ?? 0} unsupported claim(s)`);
+      else
+        issues.push(
+          `${qualityData?.unsupported_claims?.length ?? 0} unsupported claim(s)`,
+        );
 
       // Check 6: Has citations
       if (quality.hasCitations) hasCitationsCount++;
@@ -230,7 +241,8 @@ export async function GET(
       if (issues.length > 0) {
         questionIssues.push({
           question_number: q.question_sequence ?? i + 1,
-          question_title: q.question_text?.substring(0, 100) ?? 'Untitled question',
+          question_title:
+            q.question_text?.substring(0, 100) ?? 'Untitled question',
           issues,
         });
       }
@@ -257,10 +269,13 @@ export async function GET(
       },
       {
         name: 'Quality threshold met',
-        passed: qualityCheckedCount > 0 && passingQualityCount === qualityCheckedCount,
-        details: qualityCheckedCount > 0
-          ? `${passingQualityCount} of ${qualityCheckedCount} checked responses pass quality threshold`
-          : 'No quality checks completed yet',
+        passed:
+          qualityCheckedCount > 0 &&
+          passingQualityCount === qualityCheckedCount,
+        details:
+          qualityCheckedCount > 0
+            ? `${passingQualityCount} of ${qualityCheckedCount} checked responses pass quality threshold`
+            : 'No quality checks completed yet',
       },
       {
         name: 'No unsupported claims',
@@ -269,10 +284,12 @@ export async function GET(
       },
       {
         name: 'Has citations',
-        passed: qualityCheckedCount > 0 && hasCitationsCount === qualityCheckedCount,
-        details: qualityCheckedCount > 0
-          ? `${hasCitationsCount} of ${qualityCheckedCount} checked responses have citations`
-          : 'No quality checks completed yet',
+        passed:
+          qualityCheckedCount > 0 && hasCitationsCount === qualityCheckedCount,
+        details:
+          qualityCheckedCount > 0
+            ? `${hasCitationsCount} of ${qualityCheckedCount} checked responses have citations`
+            : 'No quality checks completed yet',
       },
       {
         name: 'No critical issues',

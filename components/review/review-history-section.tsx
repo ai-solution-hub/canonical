@@ -1,7 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertTriangle, Check, ChevronDown, ChevronRight, History } from 'lucide-react';
+import {
+  AlertTriangle,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  History,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDateUK } from '@/lib/format';
 import type { ReviewHistoryEntry } from '@/hooks/review/use-review-history';
@@ -22,7 +28,10 @@ function formatFlagType(flagType: string): string {
     missing_title: 'Missing Title',
     duplicate_url: 'Duplicate URL',
   };
-  return labels[flagType] ?? flagType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  return (
+    labels[flagType] ??
+    flagType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  );
 }
 
 /** Get attribution text for a review entry */
@@ -124,10 +133,7 @@ function ReviewHistoryItem({ entry }: { entry: ReviewHistoryEntry }) {
       {/* Status icon */}
       <span className="mt-0.5 shrink-0">
         {entry.resolved ? (
-          <Check
-            className="size-3.5 text-quality-good"
-            aria-hidden="true"
-          />
+          <Check className="size-3.5 text-quality-good" aria-hidden="true" />
         ) : (
           <AlertTriangle
             className="size-3.5 text-status-warning"
@@ -142,21 +148,21 @@ function ReviewHistoryItem({ entry }: { entry: ReviewHistoryEntry }) {
         <p className="text-foreground">
           <span className="font-medium">{flagLabel}</span>
           <span className="text-muted-foreground">
-            {' '}by {createdBy} on {createdDate}
+            {' '}
+            by {createdBy} on {createdDate}
           </span>
         </p>
 
         {/* Notes from the flag */}
         {notes && (
-          <p className="mt-0.5 text-muted-foreground">
-            &ldquo;{notes}&rdquo;
-          </p>
+          <p className="mt-0.5 text-muted-foreground">&ldquo;{notes}&rdquo;</p>
         )}
 
         {/* Resolution details */}
         {entry.resolved && entry.resolved_at && (
           <p className="mt-0.5 text-muted-foreground">
-            Resolved{entry.resolved_by_name ? ` by ${entry.resolved_by_name}` : ''} on{' '}
+            Resolved
+            {entry.resolved_by_name ? ` by ${entry.resolved_by_name}` : ''} on{' '}
             {formatDateUK(entry.resolved_at)}
             {entry.resolution_notes && (
               <span>: &ldquo;{entry.resolution_notes}&rdquo;</span>

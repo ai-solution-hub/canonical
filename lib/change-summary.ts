@@ -86,9 +86,10 @@ function summariseFieldChange(change: FieldChange): string {
     case 'secondary_subtopic': {
       const oldVal = String(oldValue ?? 'none');
       const newVal = String(newValue ?? 'none');
-      const label = field === 'secondary_domain'
-        ? 'secondary domain'
-        : 'secondary subtopic';
+      const label =
+        field === 'secondary_domain'
+          ? 'secondary domain'
+          : 'secondary subtopic';
       return `Secondary classification changed: ${label} from ${oldVal} to ${newVal}`;
     }
 

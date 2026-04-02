@@ -290,7 +290,6 @@ describe('EmbedBodySchema', () => {
   });
 });
 
-
 describe('ReviewQueueParamsSchema', () => {
   it('should apply default limit and offset when no fields provided', () => {
     const result = ReviewQueueParamsSchema.safeParse({});
@@ -319,7 +318,9 @@ describe('ReviewQueueParamsSchema', () => {
   });
 
   it('should accept sort=confidence_asc', () => {
-    const result = ReviewQueueParamsSchema.safeParse({ sort: 'confidence_asc' });
+    const result = ReviewQueueParamsSchema.safeParse({
+      sort: 'confidence_asc',
+    });
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.sort).toBe('confidence_asc');
@@ -327,7 +328,9 @@ describe('ReviewQueueParamsSchema', () => {
   });
 
   it('should accept sort=quality_score_asc', () => {
-    const result = ReviewQueueParamsSchema.safeParse({ sort: 'quality_score_asc' });
+    const result = ReviewQueueParamsSchema.safeParse({
+      sort: 'quality_score_asc',
+    });
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.sort).toBe('quality_score_asc');
@@ -719,7 +722,10 @@ describe.each(LIMIT_CLAMPING_SCHEMAS)(
 const OFFSET_CLAMPING_SCHEMAS = [
   { name: 'QualityFlagsParamsSchema', schema: QualityFlagsParamsSchema },
   { name: 'BidListParamsSchema', schema: BidListParamsSchema },
-  { name: 'GovernanceReviewParamsSchema', schema: GovernanceReviewParamsSchema },
+  {
+    name: 'GovernanceReviewParamsSchema',
+    schema: GovernanceReviewParamsSchema,
+  },
   { name: 'CoverageGapsParamsSchema', schema: CoverageGapsParamsSchema },
 ] as const;
 

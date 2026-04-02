@@ -86,9 +86,9 @@ describe('DiffHighlightedText', () => {
         />,
       );
 
-      const addedMarks = Array.from(
-        container.querySelectorAll('mark'),
-      ).filter((m) => m.getAttribute('aria-label') === 'Added text');
+      const addedMarks = Array.from(container.querySelectorAll('mark')).filter(
+        (m) => m.getAttribute('aria-label') === 'Added text',
+      );
       expect(addedMarks).toHaveLength(0);
     });
   });

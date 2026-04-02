@@ -28,25 +28,35 @@ export async function POST(request: Request) {
     const supabase = await createClient();
 
     if (decision === 'approve') {
-      const { data, error } =
-        await supabase.auth.oauth.approveAuthorization(authorizationId, {
+      const { data, error } = await supabase.auth.oauth.approveAuthorization(
+        authorizationId,
+        {
           skipBrowserRedirect: true,
-        });
+        },
+      );
 
       if (error) {
-        return NextResponse.json({ error: safeErrorMessage(error, 'OAuth decision failed') }, { status: 400 });
+        return NextResponse.json(
+          { error: safeErrorMessage(error, 'OAuth decision failed') },
+          { status: 400 },
+        );
       }
 
       // 303 See Other — converts POST to GET for the callback redirect
       return NextResponse.redirect(data.redirect_url, 303);
     } else {
-      const { data, error } =
-        await supabase.auth.oauth.denyAuthorization(authorizationId, {
+      const { data, error } = await supabase.auth.oauth.denyAuthorization(
+        authorizationId,
+        {
           skipBrowserRedirect: true,
-        });
+        },
+      );
 
       if (error) {
-        return NextResponse.json({ error: safeErrorMessage(error, 'OAuth decision failed') }, { status: 400 });
+        return NextResponse.json(
+          { error: safeErrorMessage(error, 'OAuth decision failed') },
+          { status: 400 },
+        );
       }
 
       return NextResponse.redirect(data.redirect_url, 303);

@@ -44,7 +44,6 @@ import { POST as postAction } from '@/app/api/review/action/route';
 
 const VALID_UUID = '00000000-0000-4000-8000-000000000001';
 
-
 function resetMocks() {
   vi.clearAllMocks();
 
@@ -54,16 +53,41 @@ function resetMocks() {
   });
 
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockResolvedValue({ data: null, error: null, count: null });
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null, count: null });
+  mockSupabase._chain.single.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
@@ -89,8 +113,8 @@ describe('POST /api/review/action — verification_history recording', () => {
     });
 
     // All subsequent operations succeed
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest('/api/review/action', {
@@ -121,13 +145,17 @@ describe('POST /api/review/action — verification_history recording', () => {
       error: null,
     });
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest('/api/review/action', {
       method: 'POST',
-      body: { item_id: VALID_UUID, action: 'verify', note: 'Looks good, verified content accuracy' },
+      body: {
+        item_id: VALID_UUID,
+        action: 'verify',
+        note: 'Looks good, verified content accuracy',
+      },
     });
 
     const res = await postAction(req);
@@ -150,8 +178,8 @@ describe('POST /api/review/action — verification_history recording', () => {
       error: null,
     });
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest('/api/review/action', {
@@ -179,13 +207,17 @@ describe('POST /api/review/action — verification_history recording', () => {
       error: null,
     });
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest('/api/review/action', {
       method: 'POST',
-      body: { item_id: VALID_UUID, action: 'unverify', note: 'Content is out of date' },
+      body: {
+        item_id: VALID_UUID,
+        action: 'unverify',
+        note: 'Content is out of date',
+      },
     });
 
     const res = await postAction(req);
@@ -208,13 +240,17 @@ describe('POST /api/review/action — verification_history recording', () => {
       error: null,
     });
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest('/api/review/action', {
       method: 'POST',
-      body: { item_id: VALID_UUID, action: 'flag', flag_details: 'Outdated statistics' },
+      body: {
+        item_id: VALID_UUID,
+        action: 'flag',
+        flag_details: 'Outdated statistics',
+      },
     });
 
     const res = await postAction(req);
@@ -237,8 +273,8 @@ describe('POST /api/review/action — verification_history recording', () => {
       error: null,
     });
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest('/api/review/action', {
@@ -283,8 +319,8 @@ describe('POST /api/review/action — verification_history recording', () => {
       error: null,
     });
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const exactNote = 'x'.repeat(500);

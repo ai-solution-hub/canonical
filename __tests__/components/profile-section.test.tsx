@@ -13,12 +13,24 @@ import userEvent from '@testing-library/user-event';
 // vi.hoisted() — mocks referenced in vi.mock() factories
 // ---------------------------------------------------------------------------
 
-const { mockGetUser, mockUpdateUser, mockToast, mockUseUserRole } = vi.hoisted(() => ({
-  mockGetUser: vi.fn(),
-  mockUpdateUser: vi.fn(),
-  mockToast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
-  mockUseUserRole: { role: 'editor' as string | null, loading: false, canEdit: true, canAdmin: false },
-}));
+const { mockGetUser, mockUpdateUser, mockToast, mockUseUserRole } = vi.hoisted(
+  () => ({
+    mockGetUser: vi.fn(),
+    mockUpdateUser: vi.fn(),
+    mockToast: {
+      success: vi.fn(),
+      error: vi.fn(),
+      info: vi.fn(),
+      warning: vi.fn(),
+    },
+    mockUseUserRole: {
+      role: 'editor' as string | null,
+      loading: false,
+      canEdit: true,
+      canAdmin: false,
+    },
+  }),
+);
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
@@ -143,7 +155,9 @@ describe('ProfileSection', () => {
     expect(mockUpdateUser).toHaveBeenCalledWith({
       data: { display_name: 'Updated Name' },
     });
-    expect(mockToast.success).toHaveBeenCalledWith('Profile updated successfully');
+    expect(mockToast.success).toHaveBeenCalledWith(
+      'Profile updated successfully',
+    );
   });
 
   it('shows error toast when save fails', async () => {
@@ -179,14 +193,20 @@ describe('ProfileSection', () => {
     await user.type(screen.getByLabelText('Confirm Password'), 'short');
 
     // Submit the password form (second form on the page)
-    const changePasswordBtn = screen.getByRole('button', { name: 'Change Password' });
+    const changePasswordBtn = screen.getByRole('button', {
+      name: 'Change Password',
+    });
     await user.click(changePasswordBtn);
 
     await waitFor(() => {
-      expect(mockToast.error).toHaveBeenCalledWith('Password must be at least 8 characters');
+      expect(mockToast.error).toHaveBeenCalledWith(
+        'Password must be at least 8 characters',
+      );
     });
 
-    expect(mockUpdateUser).not.toHaveBeenCalledWith(expect.objectContaining({ password: expect.any(String) }));
+    expect(mockUpdateUser).not.toHaveBeenCalledWith(
+      expect.objectContaining({ password: expect.any(String) }),
+    );
   });
 
   it('changes password successfully and clears fields', async () => {
@@ -198,20 +218,31 @@ describe('ProfileSection', () => {
     });
 
     await user.type(screen.getByLabelText('New Password'), 'newsecurepassword');
-    await user.type(screen.getByLabelText('Confirm Password'), 'newsecurepassword');
+    await user.type(
+      screen.getByLabelText('Confirm Password'),
+      'newsecurepassword',
+    );
 
     await user.click(screen.getByRole('button', { name: 'Change Password' }));
 
     await waitFor(() => {
-      expect(mockUpdateUser).toHaveBeenCalledWith({ password: 'newsecurepassword' });
+      expect(mockUpdateUser).toHaveBeenCalledWith({
+        password: 'newsecurepassword',
+      });
     });
 
-    expect(mockToast.success).toHaveBeenCalledWith('Password changed successfully');
+    expect(mockToast.success).toHaveBeenCalledWith(
+      'Password changed successfully',
+    );
 
     // Fields should be cleared
     await waitFor(() => {
-      expect((screen.getByLabelText('New Password') as HTMLInputElement).value).toBe('');
-      expect((screen.getByLabelText('Confirm Password') as HTMLInputElement).value).toBe('');
+      expect(
+        (screen.getByLabelText('New Password') as HTMLInputElement).value,
+      ).toBe('');
+      expect(
+        (screen.getByLabelText('Confirm Password') as HTMLInputElement).value,
+      ).toBe('');
     });
   });
 

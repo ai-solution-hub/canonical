@@ -6,7 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { X } from 'lucide-react';
-import type { CompanyProfile, CompanyProfileInput } from '@/hooks/intelligence/use-company-profiles';
+import type {
+  CompanyProfile,
+  CompanyProfileInput,
+} from '@/hooks/intelligence/use-company-profiles';
 
 interface CompanyProfileFormProps {
   initialData?: CompanyProfile;
@@ -104,11 +107,17 @@ export function CompanyProfileForm({
   const [name, setName] = useState(initialData?.name ?? '');
   const [slug, setSlug] = useState(initialData?.slug ?? '');
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(!!initialData);
-  const [description, setDescription] = useState(initialData?.description ?? '');
+  const [description, setDescription] = useState(
+    initialData?.description ?? '',
+  );
   const [websiteUrl, setWebsiteUrl] = useState(initialData?.website_url ?? '');
   const [sectors, setSectors] = useState<string[]>(initialData?.sectors ?? []);
-  const [services, setServices] = useState<string[]>(initialData?.services ?? []);
-  const [keyTopics, setKeyTopics] = useState<string[]>(initialData?.key_topics ?? []);
+  const [services, setServices] = useState<string[]>(
+    initialData?.services ?? [],
+  );
+  const [keyTopics, setKeyTopics] = useState<string[]>(
+    initialData?.key_topics ?? [],
+  );
   const [certifications, setCertifications] = useState<string[]>(
     initialData?.certifications ?? [],
   );
@@ -302,7 +311,16 @@ export function CompanyProfileForm({
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" disabled={isPending || !name || !slug || sectors.length === 0 || keyTopics.length === 0}>
+        <Button
+          type="submit"
+          disabled={
+            isPending ||
+            !name ||
+            !slug ||
+            sectors.length === 0 ||
+            keyTopics.length === 0
+          }
+        >
           {isPending
             ? 'Saving...'
             : initialData

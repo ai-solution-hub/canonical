@@ -38,7 +38,9 @@ export function SplitModal({
   variantNames,
   onSplitComplete,
 }: SplitModalProps) {
-  const [selectedVariants, setSelectedVariants] = useState<Set<string>>(new Set());
+  const [selectedVariants, setSelectedVariants] = useState<Set<string>>(
+    new Set(),
+  );
   const [newCanonicalName, setNewCanonicalName] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -76,7 +78,9 @@ export function SplitModal({
       handleClose();
       onSplitComplete();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to split entity');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to split entity',
+      );
     } finally {
       setLoading(false);
     }

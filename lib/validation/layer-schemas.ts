@@ -16,9 +16,7 @@ const FALLBACK_KEYS = FALLBACK_LAYERS.map((l) => l.key);
  * pass the layers array from useLayerVocabulary().
  */
 export function getLayerSchema(layers?: LayerDefinition[]) {
-  const keys = layers
-    ? layers.map((l) => l.key)
-    : FALLBACK_KEYS;
+  const keys = layers ? layers.map((l) => l.key) : FALLBACK_KEYS;
   if (keys.length === 0) return z.never();
   return z.enum(keys as [string, ...string[]]);
 }

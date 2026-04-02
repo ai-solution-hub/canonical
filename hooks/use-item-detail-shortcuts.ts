@@ -83,17 +83,37 @@ export function useItemDetailShortcuts({
         toast('Read state toggled', { duration: 1500 });
       }
       // s — star toggle (editor mode only)
-      if (e.key === 's' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && editShortcutsEnabled) {
+      if (
+        e.key === 's' &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.shiftKey &&
+        editShortcutsEnabled
+      ) {
         e.preventDefault();
         handleStarToggle();
       }
       // p — priority cycle (editor mode only)
-      if (e.key === 'p' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && editShortcutsEnabled) {
+      if (
+        e.key === 'p' &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.shiftKey &&
+        editShortcutsEnabled
+      ) {
         e.preventDefault();
         handlePriorityCycle();
       }
       // e — edit mode toggle (editor mode only)
-      if (e.key === 'e' && !e.metaKey && !e.ctrlKey && !e.altKey && editShortcutsEnabled) {
+      if (
+        e.key === 'e' &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        editShortcutsEnabled
+      ) {
         e.preventDefault();
         setIsEditing((prev) => {
           if (!prev) {
@@ -106,7 +126,13 @@ export function useItemDetailShortcuts({
         });
       }
       // r — toggle reader panel (active in all modes)
-      if (e.key === 'r' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      if (
+        e.key === 'r' &&
+        !e.shiftKey &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey
+      ) {
         e.preventDefault();
         toggleReader();
       }
@@ -141,5 +167,26 @@ export function useItemDetailShortcuts({
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [itemId, answerStandard, answerAdvanced, toggleRead, router, handleStarToggle, handlePriorityCycle, toggleReader, readerOpen, toggleDetached, canEdit, title, setIsEditing, setEditTitle, setEditStandard, setEditAdvanced, setEditDirty, editShortcutsEnabled, detailMode, toggleDetailMode]);
+  }, [
+    itemId,
+    answerStandard,
+    answerAdvanced,
+    toggleRead,
+    router,
+    handleStarToggle,
+    handlePriorityCycle,
+    toggleReader,
+    readerOpen,
+    toggleDetached,
+    canEdit,
+    title,
+    setIsEditing,
+    setEditTitle,
+    setEditStandard,
+    setEditAdvanced,
+    setEditDirty,
+    editShortcutsEnabled,
+    detailMode,
+    toggleDetailMode,
+  ]);
 }

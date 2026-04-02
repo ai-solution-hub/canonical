@@ -1,6 +1,9 @@
 // __tests__/lib/intelligence/content-extractor.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { extractContent, normaliseUrl } from '@/lib/intelligence/content-extractor';
+import {
+  extractContent,
+  normaliseUrl,
+} from '@/lib/intelligence/content-extractor';
 import type { ParsedFeedItem } from '@/lib/intelligence/types';
 
 // Mock Firecrawl — use function keyword for vi.fn() with new (CLAUDE.md gotcha)
@@ -43,7 +46,10 @@ describe('extractContent', () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       headers: new Headers({ 'content-type': 'text/html' }),
-      text: () => Promise.resolve(`<html><body><article><p>${'Long content word. '.repeat(200)}</p></article></body></html>`),
+      text: () =>
+        Promise.resolve(
+          `<html><body><article><p>${'Long content word. '.repeat(200)}</p></article></body></html>`,
+        ),
     });
 
     const result = await extractContent(item);
@@ -58,7 +64,11 @@ describe('extractContent', () => {
   });
 
   it('returns summary_fallback method when all extraction fails', async () => {
-    const item = { ...baseItem, contentEncoded: null, summary: 'Fallback summary text' };
+    const item = {
+      ...baseItem,
+      contentEncoded: null,
+      summary: 'Fallback summary text',
+    };
 
     mockFetch.mockRejectedValueOnce(new Error('Network error'));
 
@@ -69,15 +79,21 @@ describe('extractContent', () => {
 
 describe('normaliseUrl', () => {
   it('lowercases hostname', () => {
-    expect(normaliseUrl('https://WWW.GOV.UK/page')).toBe('https://www.gov.uk/page');
+    expect(normaliseUrl('https://WWW.GOV.UK/page')).toBe(
+      'https://www.gov.uk/page',
+    );
   });
 
   it('strips tracking params', () => {
-    expect(normaliseUrl('https://example.com/page?utm_source=twitter&key=val')).toBe('https://example.com/page?key=val');
+    expect(
+      normaliseUrl('https://example.com/page?utm_source=twitter&key=val'),
+    ).toBe('https://example.com/page?key=val');
   });
 
   it('removes trailing slash', () => {
-    expect(normaliseUrl('https://example.com/page/')).toBe('https://example.com/page');
+    expect(normaliseUrl('https://example.com/page/')).toBe(
+      'https://example.com/page',
+    );
   });
 
   it('preserves root slash', () => {

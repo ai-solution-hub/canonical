@@ -86,7 +86,9 @@ describe('KBIntegrationReview', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal('fetch', vi.fn());
-    mockHtmlToPlainText.mockImplementation((html: string) => html.replace(/<[^>]*>/g, ''));
+    mockHtmlToPlainText.mockImplementation((html: string) =>
+      html.replace(/<[^>]*>/g, ''),
+    );
   });
 
   // ---- Rendering ----
@@ -98,7 +100,9 @@ describe('KBIntegrationReview', () => {
 
   it('does not render content when open is false', () => {
     renderReview({ open: false });
-    expect(screen.queryByText('Knowledge Base Integration')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Knowledge Base Integration'),
+    ).not.toBeInTheDocument();
   });
 
   it('shows the bid name in the description', () => {
@@ -113,14 +117,19 @@ describe('KBIntegrationReview', () => {
 
   it('shows response preview text', () => {
     renderReview();
-    expect(screen.getByText('We have 10 years of experience.')).toBeInTheDocument();
+    expect(
+      screen.getByText('We have 10 years of experience.'),
+    ).toBeInTheDocument();
   });
 
   it('shows responses available count', () => {
     renderReview({
       candidates: [
         makeCandidate({ question_id: 'q-1' }),
-        makeCandidate({ question_id: 'q-2', question_text: 'Another question' }),
+        makeCandidate({
+          question_id: 'q-2',
+          question_text: 'Another question',
+        }),
       ],
     });
     expect(screen.getByText('2 responses available')).toBeInTheDocument();
@@ -147,8 +156,12 @@ describe('KBIntegrationReview', () => {
 
   it('renders Integrate All and Skip All buttons', () => {
     renderReview();
-    expect(screen.getByRole('button', { name: /Integrate All/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Skip All/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Integrate All/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Skip All/ }),
+    ).toBeInTheDocument();
   });
 
   // ---- "Has KB source" badge ----
@@ -187,7 +200,9 @@ describe('KBIntegrationReview', () => {
 
   it('disables submit button when candidates array is empty', () => {
     renderReview({ candidates: [] });
-    expect(screen.getByRole('button', { name: 'Skip All Responses' })).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'Skip All Responses' }),
+    ).toBeDisabled();
   });
 
   // ---- Submit button text ----
@@ -199,28 +214,36 @@ describe('KBIntegrationReview', () => {
         makeCandidate({ question_id: 'q-2', recommendation: 'new_entry' }),
       ],
     });
-    expect(screen.getByRole('button', { name: 'Integrate 2 Responses' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Integrate 2 Responses' }),
+    ).toBeInTheDocument();
   });
 
   it('shows "Integrate 1 Response" for singular', () => {
     renderReview({
       candidates: [makeCandidate({ recommendation: 'new_entry' })],
     });
-    expect(screen.getByRole('button', { name: 'Integrate 1 Response' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Integrate 1 Response' }),
+    ).toBeInTheDocument();
   });
 
   it('shows "Skip All Responses" when all candidates are set to skip', () => {
     renderReview({
       candidates: [makeCandidate({ recommendation: 'skip' })],
     });
-    expect(screen.getByRole('button', { name: 'Skip All Responses' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Skip All Responses' }),
+    ).toBeInTheDocument();
   });
 
   // ---- Candidate list accessibility ----
 
   it('renders candidate list with role="list"', () => {
     renderReview();
-    expect(screen.getByRole('list', { name: 'Integration candidates' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('list', { name: 'Integration candidates' }),
+    ).toBeInTheDocument();
   });
 
   it('renders candidates as listitems', () => {
@@ -238,13 +261,17 @@ describe('KBIntegrationReview', () => {
   it('falls back to new_entry when update_existing is recommended but no source_content_ids', () => {
     // This is an internal behaviour — the select value should default to new_entry
     renderReview({
-      candidates: [makeCandidate({
-        recommendation: 'update_existing',
-        source_content_ids: null,
-      })],
+      candidates: [
+        makeCandidate({
+          recommendation: 'update_existing',
+          source_content_ids: null,
+        }),
+      ],
     });
     // The submit button should say "Integrate" not "Skip"
-    expect(screen.getByRole('button', { name: 'Integrate 1 Response' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Integrate 1 Response' }),
+    ).toBeInTheDocument();
   });
 
   // ---- Successful submission ----
@@ -262,10 +289,14 @@ describe('KBIntegrationReview', () => {
     renderReview({
       onIntegrationComplete,
       onOpenChange,
-      candidates: [makeCandidate({ question_id: 'q-1', recommendation: 'new_entry' })],
+      candidates: [
+        makeCandidate({ question_id: 'q-1', recommendation: 'new_entry' }),
+      ],
     });
 
-    await user.click(screen.getByRole('button', { name: 'Integrate 1 Response' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Integrate 1 Response' }),
+    );
 
     await waitFor(() => {
       expect(globalThis.fetch).toHaveBeenCalledWith(
@@ -273,9 +304,7 @@ describe('KBIntegrationReview', () => {
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify({
-            integrations: [
-              { question_id: 'q-1', action: 'new_entry' },
-            ],
+            integrations: [{ question_id: 'q-1', action: 'new_entry' }],
           }),
         }),
       );
@@ -285,7 +314,11 @@ describe('KBIntegrationReview', () => {
       expect(mockToast.success).toHaveBeenCalledWith(
         'KB integration complete: 1 entry created',
       );
-      expect(onIntegrationComplete).toHaveBeenCalledWith({ created: 1, updated: 0, skipped: 0 });
+      expect(onIntegrationComplete).toHaveBeenCalledWith({
+        created: 1,
+        updated: 0,
+        skipped: 0,
+      });
       expect(onOpenChange).toHaveBeenCalledWith(false);
     });
   });
@@ -299,14 +332,18 @@ describe('KBIntegrationReview', () => {
     });
 
     renderReview({
-      candidates: [makeCandidate({
-        question_id: 'q-1',
-        recommendation: 'update_existing',
-        source_content_ids: ['ci-100'],
-      })],
+      candidates: [
+        makeCandidate({
+          question_id: 'q-1',
+          recommendation: 'update_existing',
+          source_content_ids: ['ci-100'],
+        }),
+      ],
     });
 
-    await user.click(screen.getByRole('button', { name: 'Integrate 1 Response' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Integrate 1 Response' }),
+    );
 
     await waitFor(() => {
       expect(globalThis.fetch).toHaveBeenCalledWith(
@@ -314,7 +351,11 @@ describe('KBIntegrationReview', () => {
         expect.objectContaining({
           body: JSON.stringify({
             integrations: [
-              { question_id: 'q-1', action: 'update_existing', target_content_id: 'ci-100' },
+              {
+                question_id: 'q-1',
+                action: 'update_existing',
+                target_content_id: 'ci-100',
+              },
             ],
           }),
         }),
@@ -338,7 +379,9 @@ describe('KBIntegrationReview', () => {
       ],
     });
 
-    await user.click(screen.getByRole('button', { name: 'Integrate 3 Responses' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Integrate 3 Responses' }),
+    );
 
     await waitFor(() => {
       expect(mockToast.success).toHaveBeenCalledWith(
@@ -360,7 +403,9 @@ describe('KBIntegrationReview', () => {
 
     renderReview();
 
-    await user.click(screen.getByRole('button', { name: 'Integrate 1 Response' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Integrate 1 Response' }),
+    );
 
     await waitFor(() => {
       expect(mockToast.error).toHaveBeenCalledWith('Integration failed');
@@ -378,7 +423,9 @@ describe('KBIntegrationReview', () => {
 
     renderReview();
 
-    await user.click(screen.getByRole('button', { name: 'Integrate 1 Response' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Integrate 1 Response' }),
+    );
 
     await waitFor(() => {
       expect(mockToast.error).toHaveBeenCalledWith('Integration failed (500)');
@@ -394,7 +441,9 @@ describe('KBIntegrationReview', () => {
 
     renderReview();
 
-    await user.click(screen.getByRole('button', { name: 'Integrate 1 Response' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Integrate 1 Response' }),
+    );
 
     await waitFor(() => {
       expect(mockToast.error).toHaveBeenCalledWith('Network failure');

@@ -14,14 +14,23 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
-import type { QACreateInput, DetectionSource, DetectionConfidence } from '@/lib/quality/qa-detection';
+import type {
+  QACreateInput,
+  DetectionSource,
+  DetectionConfidence,
+} from '@/lib/quality/qa-detection';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 /** Dedup check status for a single Q&A pair. */
-export type DedupStatus = 'pending' | 'checking' | 'clear' | 'duplicate' | 'error';
+export type DedupStatus =
+  | 'pending'
+  | 'checking'
+  | 'clear'
+  | 'duplicate'
+  | 'error';
 
 /** A match returned from the dedup check endpoint. */
 export interface DedupCheckMatch {
@@ -64,7 +73,9 @@ const ANSWER_PREVIEW_LENGTH = 200;
 // Helper: source badge colours (semantic tokens only)
 // ---------------------------------------------------------------------------
 
-function sourceBadgeVariant(source: DetectionSource): 'default' | 'secondary' | 'outline' {
+function sourceBadgeVariant(
+  source: DetectionSource,
+): 'default' | 'secondary' | 'outline' {
   switch (source) {
     case 'table':
       return 'default';
@@ -238,10 +249,16 @@ function QAPairCard({
             </div>
           ) : (
             <>
-              <p className="text-sm font-medium text-foreground" data-testid={`qa-question-${index}`}>
+              <p
+                className="text-sm font-medium text-foreground"
+                data-testid={`qa-question-${index}`}
+              >
                 {questionText}
               </p>
-              <div className="text-sm text-muted-foreground" data-testid={`qa-answer-${index}`}>
+              <div
+                className="text-sm text-muted-foreground"
+                data-testid={`qa-answer-${index}`}
+              >
                 {expanded || !needsTruncation
                   ? answerText
                   : answerText.slice(0, ANSWER_PREVIEW_LENGTH) + '...'}
@@ -250,15 +267,19 @@ function QAPairCard({
                     type="button"
                     onClick={() => setExpanded(!expanded)}
                     className="ml-1 inline-flex items-center gap-0.5 text-xs font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 rounded-sm"
-                    aria-label={expanded ? 'Show less of answer' : 'Show more of answer'}
+                    aria-label={
+                      expanded ? 'Show less of answer' : 'Show more of answer'
+                    }
                   >
                     {expanded ? (
                       <>
-                        Show less <ChevronUp className="size-3" aria-hidden="true" />
+                        Show less{' '}
+                        <ChevronUp className="size-3" aria-hidden="true" />
                       </>
                     ) : (
                       <>
-                        Show more <ChevronDown className="size-3" aria-hidden="true" />
+                        Show more{' '}
+                        <ChevronDown className="size-3" aria-hidden="true" />
                       </>
                     )}
                   </button>
@@ -269,7 +290,10 @@ function QAPairCard({
 
           {/* Metadata badges */}
           <div className="flex flex-wrap items-center gap-1.5">
-            <Badge variant={sourceBadgeVariant(pair.source)} data-testid={`qa-source-${index}`}>
+            <Badge
+              variant={sourceBadgeVariant(pair.source)}
+              data-testid={`qa-source-${index}`}
+            >
               {pair.source}
             </Badge>
             <Badge
@@ -336,7 +360,12 @@ function QAPairCard({
  * - Focus indicators on all interactive elements
  * - No colour-only meaning (text labels accompany all badges)
  */
-export function QAPreviewList({ pairs: initialPairs, onConfirm, onSkip, onDedupCheck }: QAPreviewListProps) {
+export function QAPreviewList({
+  pairs: initialPairs,
+  onConfirm,
+  onSkip,
+  onDedupCheck,
+}: QAPreviewListProps) {
   // Mutable pair data — inline editing modifies these
   const [pairs, setPairs] = useState<QACreateInput[]>(initialPairs);
 
@@ -352,9 +381,9 @@ export function QAPreviewList({ pairs: initialPairs, onConfirm, onSkip, onDedupC
   const [dedupStatuses, setDedupStatuses] = useState<Map<number, DedupStatus>>(
     () => new Map(initialPairs.map((_, i) => [i, 'pending' as DedupStatus])),
   );
-  const [dedupMatches, setDedupMatches] = useState<Map<number, DedupCheckMatch[]>>(
-    () => new Map(),
-  );
+  const [dedupMatches, setDedupMatches] = useState<
+    Map<number, DedupCheckMatch[]>
+  >(() => new Map());
 
   // Ref to track if dedup checking has been initiated
   const dedupStartedRef = useRef(false);
@@ -397,7 +426,10 @@ export function QAPreviewList({ pairs: initialPairs, onConfirm, onSkip, onDedupC
             setDedupStatuses((prev) => new Map(prev).set(idx, 'error'));
           } else {
             setDedupStatuses((prev) =>
-              new Map(prev).set(idx, result.isDuplicate ? 'duplicate' : 'clear'),
+              new Map(prev).set(
+                idx,
+                result.isDuplicate ? 'duplicate' : 'clear',
+              ),
             );
             if (result.matches.length > 0) {
               setDedupMatches((prev) => new Map(prev).set(idx, result.matches));
@@ -424,9 +456,7 @@ export function QAPreviewList({ pairs: initialPairs, onConfirm, onSkip, onDedupC
   // Selection handlers
   // ---------------------------------------------------------------------------
 
-  const visibleIndices = pairs
-    .map((_, i) => i)
-    .filter((i) => !removed.has(i));
+  const visibleIndices = pairs.map((_, i) => i).filter((i) => !removed.has(i));
 
   const selectedCount = visibleIndices.filter((i) => selected.has(i)).length;
   const totalVisible = visibleIndices.length;
@@ -471,11 +501,15 @@ export function QAPreviewList({ pairs: initialPairs, onConfirm, onSkip, onDedupC
           // Update title (truncated) and content
           pair.title = value.length > 120 ? value.slice(0, 117) + '...' : value;
           // Rebuild content with new question
-          const existingAnswer = pair.content.replace(/^Q:[\s\S]*?\n\nA:\s*/, '');
+          const existingAnswer = pair.content.replace(
+            /^Q:[\s\S]*?\n\nA:\s*/,
+            '',
+          );
           pair.content = `Q: ${value}\n\nA: ${existingAnswer}`;
         } else {
           // Update answer in content
-          const existingQuestion = pair.content.match(/^Q:\s*([\s\S]*?)(?=\n\nA:)/)?.[1] ?? pair.title;
+          const existingQuestion =
+            pair.content.match(/^Q:\s*([\s\S]*?)(?=\n\nA:)/)?.[1] ?? pair.title;
           pair.content = `Q: ${existingQuestion}\n\nA: ${value}`;
         }
 

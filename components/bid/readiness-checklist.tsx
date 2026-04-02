@@ -42,8 +42,13 @@ export function ReadinessChecklist({
     return (
       <div className="rounded-lg border bg-card p-4">
         <div className="flex items-center gap-2">
-          <Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden="true" />
-          <span className="text-sm text-muted-foreground">Checking readiness...</span>
+          <Loader2
+            className="size-4 animate-spin text-muted-foreground"
+            aria-hidden="true"
+          />
+          <span className="text-sm text-muted-foreground">
+            Checking readiness...
+          </span>
         </div>
       </div>
     );
@@ -97,7 +102,8 @@ export function ReadinessChecklist({
                 aria-hidden="true"
               />
               <h2 className="text-sm font-semibold text-[var(--color-status-warning)]">
-                {failedCount} {failedCount === 1 ? 'criterion' : 'criteria'} not met
+                {failedCount} {failedCount === 1 ? 'criterion' : 'criteria'} not
+                met
               </h2>
             </>
           )}
@@ -121,15 +127,28 @@ export function ReadinessChecklist({
 
       {/* Summary stats */}
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        <span>{readiness.summary.answered}/{readiness.summary.total_questions} answered</span>
-        <span>{readiness.summary.approved}/{readiness.summary.total_questions} approved</span>
+        <span>
+          {readiness.summary.answered}/{readiness.summary.total_questions}{' '}
+          answered
+        </span>
+        <span>
+          {readiness.summary.approved}/{readiness.summary.total_questions}{' '}
+          approved
+        </span>
         {readiness.summary.quality_checked > 0 && (
-          <span>{readiness.summary.passing_quality}/{readiness.summary.quality_checked} passing quality</span>
+          <span>
+            {readiness.summary.passing_quality}/
+            {readiness.summary.quality_checked} passing quality
+          </span>
         )}
       </div>
 
       {/* Criteria checklist */}
-      <ul className="mt-3 space-y-1.5" role="list" aria-label="Readiness criteria">
+      <ul
+        className="mt-3 space-y-1.5"
+        role="list"
+        aria-label="Readiness criteria"
+      >
         {readiness.criteria.map((criterion) => (
           <li key={criterion.name} className="flex items-start gap-2">
             {criterion.passed ? (
@@ -144,10 +163,14 @@ export function ReadinessChecklist({
               />
             )}
             <div className="min-w-0">
-              <span className={cn(
-                'text-sm',
-                criterion.passed ? 'text-foreground' : 'font-medium text-foreground',
-              )}>
+              <span
+                className={cn(
+                  'text-sm',
+                  criterion.passed
+                    ? 'text-foreground'
+                    : 'font-medium text-foreground',
+                )}
+              >
                 {criterion.name}
               </span>
               <span className="ml-1.5 text-xs text-muted-foreground">
@@ -173,7 +196,8 @@ export function ReadinessChecklist({
             ) : (
               <ChevronRight className="size-4" aria-hidden="true" />
             )}
-            {issueCount} {issueCount === 1 ? 'question' : 'questions'} with issues
+            {issueCount} {issueCount === 1 ? 'question' : 'questions'} with
+            issues
           </button>
 
           {expandedIssues && (
@@ -184,14 +208,23 @@ export function ReadinessChecklist({
               aria-label="Per-question issues"
             >
               {readiness.issues.map((qi) => (
-                <li key={qi.question_number} className="rounded-md bg-muted/50 px-3 py-2">
+                <li
+                  key={qi.question_number}
+                  className="rounded-md bg-muted/50 px-3 py-2"
+                >
                   <p className="text-sm font-medium text-foreground">
                     Q{qi.question_number}: {qi.question_title}
                   </p>
                   <ul className="mt-1 space-y-0.5" role="list">
                     {qi.issues.map((issue, idx) => (
-                      <li key={idx} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <span className="text-[var(--color-status-error)]" aria-hidden="true">
+                      <li
+                        key={idx}
+                        className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                      >
+                        <span
+                          className="text-[var(--color-status-error)]"
+                          aria-hidden="true"
+                        >
                           &bull;
                         </span>
                         {issue}

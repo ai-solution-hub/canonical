@@ -67,9 +67,11 @@ export function WorkspaceColourPicker({
       const currentIdx = WORKSPACE_COLOURS.findIndex((c) => c.hex === value);
       let nextIdx: number;
       if (e.key === 'ArrowRight') {
-        nextIdx = currentIdx < WORKSPACE_COLOURS.length - 1 ? currentIdx + 1 : 0;
+        nextIdx =
+          currentIdx < WORKSPACE_COLOURS.length - 1 ? currentIdx + 1 : 0;
       } else {
-        nextIdx = currentIdx > 0 ? currentIdx - 1 : WORKSPACE_COLOURS.length - 1;
+        nextIdx =
+          currentIdx > 0 ? currentIdx - 1 : WORKSPACE_COLOURS.length - 1;
       }
 
       onChange(WORKSPACE_COLOURS[nextIdx].hex);
@@ -103,7 +105,9 @@ export function WorkspaceColourPicker({
             <div className="flex flex-wrap gap-2">
               {group.colours.map((colour) => {
                 const selected = value === colour.hex;
-                const globalIdx = WORKSPACE_COLOURS.findIndex((c) => c.hex === colour.hex);
+                const globalIdx = WORKSPACE_COLOURS.findIndex(
+                  (c) => c.hex === colour.hex,
+                );
                 return (
                   <button
                     key={colour.hex}
@@ -120,7 +124,8 @@ export function WorkspaceColourPicker({
                     }}
                     className={cn(
                       'relative size-7 rounded-full transition-all hover:scale-110',
-                      selected && 'ring-2 ring-ring ring-offset-2 ring-offset-background',
+                      selected &&
+                        'ring-2 ring-ring ring-offset-2 ring-offset-background',
                     )}
                     style={{ backgroundColor: colour.hex }}
                   >
@@ -139,7 +144,9 @@ export function WorkspaceColourPicker({
         <div
           className={cn(
             'size-7 shrink-0 rounded-full border',
-            !isPreset && customHex && 'ring-2 ring-ring ring-offset-2 ring-offset-background',
+            !isPreset &&
+              customHex &&
+              'ring-2 ring-ring ring-offset-2 ring-offset-background',
           )}
           style={{
             backgroundColor:

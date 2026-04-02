@@ -14,19 +14,27 @@ test.describe('Browse page', () => {
     await page.goto('/browse');
   });
 
-  test('browse page loads with heading and content', async ({ authenticatedPage: page }) => {
+  test('browse page loads with heading and content', async ({
+    authenticatedPage: page,
+  }) => {
     // Page heading
     await expect(
       page.getByRole('heading', { name: 'Browse Content' }),
     ).toBeVisible();
 
     // Item count text should appear (e.g. "186 items")
-    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({
+      timeout: 10000,
+    });
   });
 
-  test('content grid is displayed by default', async ({ authenticatedPage: page }) => {
+  test('content grid is displayed by default', async ({
+    authenticatedPage: page,
+  }) => {
     // Wait for content to load (item count visible)
-    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({
+      timeout: 10000,
+    });
 
     // The grid view mode button should be active / selected
     // The view toggle group has two buttons — grid and list
@@ -34,8 +42,12 @@ test.describe('Browse page', () => {
     await expect(viewGroup).toBeVisible();
   });
 
-  test('can switch between grid and list views', async ({ authenticatedPage: page }) => {
-    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
+  test('can switch between grid and list views', async ({
+    authenticatedPage: page,
+  }) => {
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({
+      timeout: 10000,
+    });
 
     const viewGroup = page.getByRole('group', { name: 'View mode' });
 
@@ -53,8 +65,12 @@ test.describe('Browse page', () => {
     await page.waitForTimeout(300);
   });
 
-  test('filter button opens the filter panel', async ({ authenticatedPage: page }) => {
-    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
+  test('filter button opens the filter panel', async ({
+    authenticatedPage: page,
+  }) => {
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({
+      timeout: 10000,
+    });
 
     // The filters button has a SlidersHorizontal icon and text "Filters"
     const filtersButton = page.getByRole('button', { name: /filter/i });
@@ -66,13 +82,17 @@ test.describe('Browse page', () => {
     // in the browse content behind it.
     const sheet = page.locator('[role="dialog"]');
     await expect(sheet).toBeVisible({ timeout: 5000 });
-    await expect(
-      sheet.getByRole('heading', { name: 'Filters' }),
-    ).toBeVisible({ timeout: 5000 });
+    await expect(sheet.getByRole('heading', { name: 'Filters' })).toBeVisible({
+      timeout: 5000,
+    });
   });
 
-  test('sort dropdown shows available sort options', async ({ authenticatedPage: page }) => {
-    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
+  test('sort dropdown shows available sort options', async ({
+    authenticatedPage: page,
+  }) => {
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({
+      timeout: 10000,
+    });
 
     // The sort control is a Radix Select inside the "View mode" group area.
     // Its trigger has role="combobox" and is inside the filter bar.
@@ -96,11 +116,18 @@ test.describe('Browse page', () => {
     }
   });
 
-  test('clicking a content item navigates to the detail page', async ({ authenticatedPage: page, workerData }) => {
-    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
+  test('clicking a content item navigates to the detail page', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({
+      timeout: 10000,
+    });
 
     // Content items are rendered as links — try worker-specific items first
-    const workerItemLink = page.getByRole('link', { name: new RegExp(`\\${workerData.prefix}`) }).first();
+    const workerItemLink = page
+      .getByRole('link', { name: new RegExp(`\\${workerData.prefix}`) })
+      .first();
 
     // If worker test items exist, click one
     if (await workerItemLink.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -116,18 +143,24 @@ test.describe('Browse page', () => {
     }
   });
 
-  test('shows item count in footer text', async ({ authenticatedPage: page }) => {
-    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
+  test('shows item count in footer text', async ({
+    authenticatedPage: page,
+  }) => {
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({
+      timeout: 10000,
+    });
 
     // The bottom of the page shows "Showing X of Y items"
-    await expect(
-      page.getByText(/Showing \d+ of/),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/Showing \d+ of/)).toBeVisible({
+      timeout: 10000,
+    });
   });
 });
 
 test.describe('Search', () => {
-  test('compact search bar in header accepts input', async ({ authenticatedPage: page }) => {
+  test('compact search bar in header accepts input', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/browse');
 
     // Use the responsive helper — works on both mobile and desktop
@@ -137,24 +170,32 @@ test.describe('Search', () => {
     await expect(page).toHaveURL(/\/browse\?q=/);
   });
 
-  test('search via browse page loads and shows results for a query', async ({ authenticatedPage: page }) => {
+  test('search via browse page loads and shows results for a query', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/browse?q=IT+support');
 
     // Either search results appear or an empty/no-results message
     const hasResults = page.locator('a[href^="/item/"]').first();
-    const emptyState = page.getByText(/no results/i).or(page.getByText(/try a different/i));
+    const emptyState = page
+      .getByText(/no results/i)
+      .or(page.getByText(/try a different/i));
 
     await expect(hasResults.or(emptyState)).toBeVisible({ timeout: 15000 });
   });
 
-  test('/search redirects to /browse preserving query', async ({ authenticatedPage: page }) => {
+  test('/search redirects to /browse preserving query', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/search?q=SLA');
 
     // Should redirect to browse with query preserved
     await expect(page).toHaveURL(/\/browse\?q=SLA/);
   });
 
-  test('search results link to item detail pages', async ({ authenticatedPage: page }) => {
+  test('search results link to item detail pages', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/browse?q=SLA');
 
     // Wait for results to load
@@ -167,7 +208,9 @@ test.describe('Search', () => {
 
       // Verify we navigated to the correct item
       if (href) {
-        await expect(page).toHaveURL(new RegExp(href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+        await expect(page).toHaveURL(
+          new RegExp(href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+        );
       }
     }
   });

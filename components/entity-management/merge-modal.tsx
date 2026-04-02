@@ -55,12 +55,13 @@ export function MergeModal({
   const [loading, setLoading] = useState(false);
 
   // Pre-fill with the entity that has the most mentions
-  const topEntity = entities.length > 0
-    ? entities.reduce(
-        (best, e) => (e.mention_count > best.mention_count ? e : best),
-        entities[0],
-      )
-    : undefined;
+  const topEntity =
+    entities.length > 0
+      ? entities.reduce(
+          (best, e) => (e.mention_count > best.mention_count ? e : best),
+          entities[0],
+        )
+      : undefined;
 
   // Initialise defaults when modal opens with new entities
   const effectiveTarget = targetName || topEntity?.canonical_name || '';
@@ -96,7 +97,9 @@ export function MergeModal({
       setEntityType('');
       onMergeComplete();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to merge entities');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to merge entities',
+      );
     } finally {
       setLoading(false);
     }
@@ -119,8 +122,8 @@ export function MergeModal({
             Merge Entities
           </DialogTitle>
           <DialogDescription>
-            This will update {totalMentions} mentions across{' '}
-            {entities.length} entities and consolidate relationships.
+            This will update {totalMentions} mentions across {entities.length}{' '}
+            entities and consolidate relationships.
           </DialogDescription>
         </DialogHeader>
 
@@ -129,7 +132,11 @@ export function MergeModal({
           <p className="text-sm font-medium">Entities to merge:</p>
           <div className="flex flex-wrap gap-2">
             {entities.map((e) => (
-              <Badge key={e.canonical_name} variant="outline" className="gap-1.5">
+              <Badge
+                key={e.canonical_name}
+                variant="outline"
+                className="gap-1.5"
+              >
                 {e.canonical_name}
                 <span className="text-muted-foreground">
                   ({e.mention_count})
@@ -138,17 +145,14 @@ export function MergeModal({
             ))}
           </div>
           <p className="text-xs text-muted-foreground">
-            This will update {totalMentions} mentions across {entities.length} entities
-            and consolidate relationships.
+            This will update {totalMentions} mentions across {entities.length}{' '}
+            entities and consolidate relationships.
           </p>
         </div>
 
         {/* Target name */}
         <div className="space-y-1.5">
-          <label
-            htmlFor="merge-target"
-            className="text-sm font-medium"
-          >
+          <label htmlFor="merge-target" className="text-sm font-medium">
             Canonical name for merged entity
           </label>
           <Input
@@ -162,10 +166,7 @@ export function MergeModal({
         {/* Entity type */}
         <div className="space-y-1.5">
           <label className="text-sm font-medium">Entity type</label>
-          <Select
-            value={effectiveType}
-            onValueChange={(v) => setEntityType(v)}
-          >
+          <Select value={effectiveType} onValueChange={(v) => setEntityType(v)}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Select type..." />
             </SelectTrigger>

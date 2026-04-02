@@ -72,7 +72,10 @@ vi.mock('@/lib/reorient', () => ({
 // Mock McpServer that captures registered tool handlers
 // ---------------------------------------------------------------------------
 
-type ToolHandler = (args: Record<string, unknown>, extra: Record<string, unknown>) => Promise<unknown>;
+type ToolHandler = (
+  args: Record<string, unknown>,
+  extra: Record<string, unknown>,
+) => Promise<unknown>;
 
 interface RegisteredTool {
   name: string;
@@ -85,11 +88,20 @@ function createMockMcpServer() {
 
   return {
     tools: tools as unknown as Record<string, RegisteredTool>,
-    registerTool(name: string, config: Record<string, unknown>, handler: ToolHandler) {
-      (tools as unknown as Record<string, RegisteredTool>)[name] = { name, config, handler };
+    registerTool(
+      name: string,
+      config: Record<string, unknown>,
+      handler: ToolHandler,
+    ) {
+      (tools as unknown as Record<string, RegisteredTool>)[name] = {
+        name,
+        config,
+        handler,
+      };
     },
     getHandler(name: string): ToolHandler | undefined {
-      return (tools as unknown as Record<string, RegisteredTool>)[name]?.handler;
+      return (tools as unknown as Record<string, RegisteredTool>)[name]
+        ?.handler;
     },
   };
 }
@@ -150,9 +162,19 @@ describe('MCP tools #14-16', () => {
         error: null,
       });
 
-      const result = await handler({ entity_type: 'certification' }, extra) as {
+      const result = (await handler(
+        { entity_type: 'certification' },
+        extra,
+      )) as {
         content: Array<{ text: string }>;
-        structuredContent: { summaries: Array<{ canonical_name: string; entity_type: string; mention_count: number; content_item_ids: string[] }> };
+        structuredContent: {
+          summaries: Array<{
+            canonical_name: string;
+            entity_type: string;
+            mention_count: number;
+            content_item_ids: string[];
+          }>;
+        };
       };
 
       expect(result.content[0].text).toContain('ISO 27001');
@@ -197,7 +219,7 @@ describe('MCP tools #14-16', () => {
         error: null,
       });
 
-      const result = await handler({ entity_name: 'ISO 27001' }, extra) as {
+      const result = (await handler({ entity_name: 'ISO 27001' }, extra)) as {
         structuredContent: {
           relationships: Array<{
             source_entity: string;
@@ -213,9 +235,13 @@ describe('MCP tools #14-16', () => {
       expect(supabase.rpc).toHaveBeenNthCalledWith(1, 'get_entity_summary', {
         p_entity_name: 'ISO 27001',
       });
-      expect(supabase.rpc).toHaveBeenNthCalledWith(2, 'get_entity_relationships_rpc', {
-        p_entity_name: 'ISO 27001',
-      });
+      expect(supabase.rpc).toHaveBeenNthCalledWith(
+        2,
+        'get_entity_relationships_rpc',
+        {
+          p_entity_name: 'ISO 27001',
+        },
+      );
 
       expect(result.structuredContent.relationships).toHaveLength(1);
       expect(result.structuredContent.relationships[0]).toEqual({
@@ -243,7 +269,10 @@ describe('MCP tools #14-16', () => {
         error: null,
       });
 
-      const result = await handler({ entity_type: 'organisation' }, extra) as {
+      const result = (await handler(
+        { entity_type: 'organisation' },
+        extra,
+      )) as {
         structuredContent: { relationships: unknown[] };
       };
 
@@ -260,7 +289,7 @@ describe('MCP tools #14-16', () => {
         error: { message: 'function not found' },
       });
 
-      const result = await handler({ entity_name: 'Test' }, extra) as {
+      const result = (await handler({ entity_name: 'Test' }, extra)) as {
         content: Array<{ text: string }>;
         isError: boolean;
       };
@@ -278,7 +307,7 @@ describe('MCP tools #14-16', () => {
         error: null,
       });
 
-      const result = await handler({ entity_name: 'NonExistent' }, extra) as {
+      const result = (await handler({ entity_name: 'NonExistent' }, extra)) as {
         content: Array<{ text: string }>;
         structuredContent: { entity_count: number };
       };
@@ -303,7 +332,7 @@ describe('MCP tools #14-16', () => {
         error: null,
       });
 
-      const result = await handler({ entity_type: 'technology' }, extra) as {
+      const result = (await handler({ entity_type: 'technology' }, extra)) as {
         structuredContent: {
           summaries: Array<{
             content_item_ids: string[];
@@ -312,8 +341,12 @@ describe('MCP tools #14-16', () => {
         };
       };
 
-      expect(result.structuredContent.summaries[0].content_item_ids).toEqual([]);
-      expect(result.structuredContent.summaries[0].related_entities).toEqual([]);
+      expect(result.structuredContent.summaries[0].content_item_ids).toEqual(
+        [],
+      );
+      expect(result.structuredContent.summaries[0].related_entities).toEqual(
+        [],
+      );
     });
   });
 
@@ -340,13 +373,16 @@ describe('MCP tools #14-16', () => {
       };
       supabase.from.mockReturnValue(mockChain);
 
-      const result = await handler(
+      const result = (await handler(
         {
           content_item_id: 'item-abc',
           bid_response_id: 'resp-xyz',
         },
         extra,
-      ) as { content: Array<{ text: string }>; structuredContent: Record<string, unknown> };
+      )) as {
+        content: Array<{ text: string }>;
+        structuredContent: Record<string, unknown>;
+      };
 
       expect(supabase.from).toHaveBeenCalledWith('content_citations');
       expect(mockChain.upsert).toHaveBeenCalledWith(
@@ -382,14 +418,14 @@ describe('MCP tools #14-16', () => {
       };
       supabase.from.mockReturnValue(mockChain);
 
-      const result = await handler(
+      const result = (await handler(
         {
           content_item_id: 'item-abc',
           bid_response_id: 'resp-xyz',
           citation_type: 'adapted',
         },
         extra,
-      ) as { content: Array<{ text: string }> };
+      )) as { content: Array<{ text: string }> };
 
       expect(mockChain.upsert).toHaveBeenCalledWith(
         expect.objectContaining({ citation_type: 'adapted' }),
@@ -403,13 +439,13 @@ describe('MCP tools #14-16', () => {
 
       mocks.checkMcpRole.mockResolvedValueOnce(null);
 
-      const result = await handler(
+      const result = (await handler(
         {
           content_item_id: 'item-abc',
           bid_response_id: 'resp-xyz',
         },
         extra,
-      ) as { content: Array<{ text: string }>; isError: boolean };
+      )) as { content: Array<{ text: string }>; isError: boolean };
 
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Permission denied');
@@ -428,13 +464,13 @@ describe('MCP tools #14-16', () => {
       };
       supabase.from.mockReturnValue(mockChain);
 
-      const result = await handler(
+      const result = (await handler(
         {
           content_item_id: 'item-abc',
           bid_response_id: 'resp-xyz',
         },
         extra,
-      ) as { content: Array<{ text: string }>; isError: boolean };
+      )) as { content: Array<{ text: string }>; isError: boolean };
 
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Failed to record citation');
@@ -451,14 +487,22 @@ describe('MCP tools #14-16', () => {
       const handler = mockServer.getHandler('get_content_effectiveness')!;
 
       supabase.rpc.mockResolvedValueOnce({
-        data: [{ total_citations: 10, winning_citations: 7, losing_citations: 3, pending_citations: 0, win_rate: 0.7 }],
+        data: [
+          {
+            total_citations: 10,
+            winning_citations: 7,
+            losing_citations: 3,
+            pending_citations: 0,
+            win_rate: 0.7,
+          },
+        ],
         error: null,
       });
 
-      const result = await handler(
+      const result = (await handler(
         { content_item_id: 'item-001' },
         extra,
-      ) as {
+      )) as {
         content: Array<{ text: string }>;
         structuredContent: {
           content_item_id: string;
@@ -494,10 +538,10 @@ describe('MCP tools #14-16', () => {
         error: null,
       });
 
-      const result = await handler(
+      const result = (await handler(
         { content_item_id: 'item-002' },
         extra,
-      ) as {
+      )) as {
         content: Array<{ text: string }>;
         structuredContent: { total_citations: number; win_rate: number };
       };
@@ -515,11 +559,17 @@ describe('MCP tools #14-16', () => {
         error: null,
       });
 
-      const result = await handler(
+      const result = (await handler(
         { content_item_id: 'item-003' },
         extra,
-      ) as {
-        structuredContent: { total_citations: number; winning_citations: number; losing_citations: number; pending_citations: number; win_rate: number };
+      )) as {
+        structuredContent: {
+          total_citations: number;
+          winning_citations: number;
+          losing_citations: number;
+          pending_citations: number;
+          win_rate: number;
+        };
       };
 
       expect(result.structuredContent.total_citations).toBe(0);
@@ -537,10 +587,10 @@ describe('MCP tools #14-16', () => {
         error: { message: 'function not found' },
       });
 
-      const result = await handler(
+      const result = (await handler(
         { content_item_id: 'item-004' },
         extra,
-      ) as { content: Array<{ text: string }>; isError: boolean };
+      )) as { content: Array<{ text: string }>; isError: boolean };
 
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Effectiveness query failed');
@@ -551,14 +601,22 @@ describe('MCP tools #14-16', () => {
       const handler = mockServer.getHandler('get_content_effectiveness')!;
 
       supabase.rpc.mockResolvedValueOnce({
-        data: [{ total_citations: 8, winning_citations: 1, losing_citations: 7, pending_citations: 0, win_rate: 0.125 }],
+        data: [
+          {
+            total_citations: 8,
+            winning_citations: 1,
+            losing_citations: 7,
+            pending_citations: 0,
+            win_rate: 0.125,
+          },
+        ],
         error: null,
       });
 
-      const result = await handler(
+      const result = (await handler(
         { content_item_id: 'item-005' },
         extra,
-      ) as { content: Array<{ text: string }> };
+      )) as { content: Array<{ text: string }> };
 
       expect(result.content[0].text).toContain('low win rate');
     });
@@ -567,14 +625,22 @@ describe('MCP tools #14-16', () => {
       const handler = mockServer.getHandler('get_content_effectiveness')!;
 
       supabase.rpc.mockResolvedValueOnce({
-        data: [{ total_citations: 4, winning_citations: 0, losing_citations: 0, pending_citations: 4, win_rate: 0 }],
+        data: [
+          {
+            total_citations: 4,
+            winning_citations: 0,
+            losing_citations: 0,
+            pending_citations: 4,
+            win_rate: 0,
+          },
+        ],
         error: null,
       });
 
-      const result = await handler(
+      const result = (await handler(
         { content_item_id: 'item-006' },
         extra,
-      ) as { content: Array<{ text: string }> };
+      )) as { content: Array<{ text: string }> };
 
       expect(result.content[0].text).toContain('Awaiting outcomes');
       expect(result.content[0].text).not.toContain('low win rate');

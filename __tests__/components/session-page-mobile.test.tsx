@@ -24,7 +24,12 @@ const {
   mockUseCitationOrphans,
   mockUseModifierKey,
 } = vi.hoisted(() => ({
-  mockUseUserRole: { role: 'editor' as string | null, canEdit: true, canAdmin: false, loading: false },
+  mockUseUserRole: {
+    role: 'editor' as string | null,
+    canEdit: true,
+    canAdmin: false,
+    loading: false,
+  },
   mockUseStreamCoordination: vi.fn(),
   mockUseContentLibraryDrawer: vi.fn(),
   mockUseCitationOrphans: vi.fn(),
@@ -51,12 +56,21 @@ vi.mock('react', async (importOriginal) => {
 
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: Record<string, unknown>) => (
-    <a href={href as string} {...props}>{children as React.ReactNode}</a>
+    <a href={href as string} {...props}>
+      {children as React.ReactNode}
+    </a>
   ),
 }));
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn(), prefetch: vi.fn().mockResolvedValue(undefined) }),
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+    prefetch: vi.fn().mockResolvedValue(undefined),
+  }),
   usePathname: () => '/bid/test-bid/session',
   useSearchParams: () => new URLSearchParams(),
 }));
@@ -87,23 +101,53 @@ vi.mock('@/lib/utils', () => ({
 }));
 
 vi.mock('@/components/ui/separator', () => ({
-  Separator: ({ orientation, className }: { orientation?: string; className?: string }) => (
-    <div data-slot="separator" data-orientation={orientation ?? 'horizontal'} className={className} />
+  Separator: ({
+    orientation,
+    className,
+  }: {
+    orientation?: string;
+    className?: string;
+  }) => (
+    <div
+      data-slot="separator"
+      data-orientation={orientation ?? 'horizontal'}
+      className={className}
+    />
   ),
 }));
 
 // Stub child components to isolate session page tests
 vi.mock('@/components/bid/question-navigator', () => ({
-  QuestionNavigator: ({ questions, currentIndex, onNavigate }: { questions: unknown[]; currentIndex: number; onNavigate: (i: number) => void }) => (
-    <div data-testid="question-navigator" data-current-index={currentIndex} data-count={questions.length}>
+  QuestionNavigator: ({
+    questions,
+    currentIndex,
+    onNavigate,
+  }: {
+    questions: unknown[];
+    currentIndex: number;
+    onNavigate: (i: number) => void;
+  }) => (
+    <div
+      data-testid="question-navigator"
+      data-current-index={currentIndex}
+      data-count={questions.length}
+    >
       <button onClick={() => onNavigate(0)}>Navigate to 0</button>
     </div>
   ),
 }));
 
 vi.mock('@/components/bid/response-editor', () => ({
-  ResponseEditor: ({ content, placeholder }: { content: string; placeholder: string }) => (
-    <div data-testid="response-editor" data-content={content}>{placeholder}</div>
+  ResponseEditor: ({
+    content,
+    placeholder,
+  }: {
+    content: string;
+    placeholder: string;
+  }) => (
+    <div data-testid="response-editor" data-content={content}>
+      {placeholder}
+    </div>
   ),
 }));
 
@@ -116,7 +160,11 @@ vi.mock('@/components/shared/quality-score', () => ({
 }));
 
 vi.mock('@/components/bid/response-actions', () => ({
-  ResponseActions: ({ nextUnansweredIndex, onNextUnanswered, hasDraft }: {
+  ResponseActions: ({
+    nextUnansweredIndex,
+    onNextUnanswered,
+    hasDraft,
+  }: {
     nextUnansweredIndex?: number;
     onNextUnanswered?: () => void;
     hasDraft?: boolean;
@@ -127,33 +175,48 @@ vi.mock('@/components/bid/response-actions', () => ({
       data-has-draft={hasDraft ? 'true' : 'false'}
     >
       Actions
-      {onNextUnanswered && nextUnansweredIndex !== undefined && nextUnansweredIndex >= 0 && (
-        <button data-testid="next-unanswered-btn" onClick={onNextUnanswered}>
-          Next unanswered
-        </button>
-      )}
+      {onNextUnanswered &&
+        nextUnansweredIndex !== undefined &&
+        nextUnansweredIndex >= 0 && (
+          <button data-testid="next-unanswered-btn" onClick={onNextUnanswered}>
+            Next unanswered
+          </button>
+        )}
     </div>
   ),
 }));
 
 vi.mock('@/components/shared/streaming-phase-indicator', () => ({
-  StreamingPhaseIndicator: () => <div data-testid="streaming-indicator">Streaming</div>,
-}));
-
-vi.mock('@/components/content/content-library-drawer', () => ({
-  ContentLibraryDrawer: () => <div data-testid="content-library-drawer">Library</div>,
-}));
-
-vi.mock('@/components/bid/response-version-history', () => ({
-  ResponseVersionHistory: () => <div data-testid="response-version-history">History</div>,
-}));
-
-vi.mock('@/components/bid/bid-context-provider', () => ({
-  BidContextProvider: ({ children, bidId }: { children: React.ReactNode; bidId: string }) => (
-    <div data-testid="bid-context-provider" data-bid-id={bidId}>{children}</div>
+  StreamingPhaseIndicator: () => (
+    <div data-testid="streaming-indicator">Streaming</div>
   ),
 }));
 
+vi.mock('@/components/content/content-library-drawer', () => ({
+  ContentLibraryDrawer: () => (
+    <div data-testid="content-library-drawer">Library</div>
+  ),
+}));
+
+vi.mock('@/components/bid/response-version-history', () => ({
+  ResponseVersionHistory: () => (
+    <div data-testid="response-version-history">History</div>
+  ),
+}));
+
+vi.mock('@/components/bid/bid-context-provider', () => ({
+  BidContextProvider: ({
+    children,
+    bidId,
+  }: {
+    children: React.ReactNode;
+    bidId: string;
+  }) => (
+    <div data-testid="bid-context-provider" data-bid-id={bidId}>
+      {children}
+    </div>
+  ),
+}));
 
 // Import AFTER mocks
 import BidSessionPage from '@/app/bid/[id]/session/page';
@@ -178,12 +241,25 @@ function makeQuestion(overrides: Record<string, unknown> = {}) {
 function makeStreamCoordinationReturn(overrides: Record<string, unknown> = {}) {
   const questions = (overrides.questions ?? [
     makeQuestion({ id: 'q-1', question_number: 1 }),
-    makeQuestion({ id: 'q-2', question_text: 'What is your quality assurance methodology?', section_name: 'Quality', question_number: 2, word_limit: null }),
-    makeQuestion({ id: 'q-3', question_text: 'Detail your sustainability strategy for this contract', section_name: 'Sustainability', question_number: 3, word_limit: 300 }),
+    makeQuestion({
+      id: 'q-2',
+      question_text: 'What is your quality assurance methodology?',
+      section_name: 'Quality',
+      question_number: 2,
+      word_limit: null,
+    }),
+    makeQuestion({
+      id: 'q-3',
+      question_text: 'Detail your sustainability strategy for this contract',
+      section_name: 'Sustainability',
+      question_number: 3,
+      word_limit: 300,
+    }),
   ]) as Array<Record<string, unknown>>;
 
   const currentIndex = (overrides.currentIndex ?? 0) as number;
-  const currentQuestion = (overrides.currentQuestion ?? questions[currentIndex]) as Record<string, unknown> | null;
+  const currentQuestion = (overrides.currentQuestion ??
+    questions[currentIndex]) as Record<string, unknown> | null;
 
   return {
     bid: overrides.bid ?? { id: 'test-bid', name: 'Test Bid Alpha' },
@@ -195,7 +271,13 @@ function makeStreamCoordinationReturn(overrides: Record<string, unknown> = {}) {
     responseLoading: overrides.responseLoading ?? false,
     editorContent: overrides.editorContent ?? '',
     setEditorContent: overrides.setEditorContent ?? vi.fn(),
-    stream: overrides.stream ?? { phase: 'idle', error: null, qualityScore: null, totalCost: null, cancel: vi.fn() },
+    stream: overrides.stream ?? {
+      phase: 'idle',
+      error: null,
+      qualityScore: null,
+      totalCost: null,
+      cancel: vi.fn(),
+    },
     isStreaming: overrides.isStreaming ?? false,
     actionLoading: overrides.actionLoading ?? false,
     loadingAction: overrides.loadingAction ?? null,
@@ -203,13 +285,15 @@ function makeStreamCoordinationReturn(overrides: Record<string, unknown> = {}) {
     handleAction: overrides.handleAction ?? vi.fn(),
     handleLibraryInsert: overrides.handleLibraryInsert ?? vi.fn(),
     handleCitationClick: overrides.handleCitationClick ?? vi.fn(),
-    navigatorQuestions: overrides.navigatorQuestions ?? questions.map((q) => ({
-      id: q.id,
-      question_text: q.question_text,
-      section_name: q.section_name,
-      confidence_posture: q.confidence_posture,
-      status: q.status,
-    })),
+    navigatorQuestions:
+      overrides.navigatorQuestions ??
+      questions.map((q) => ({
+        id: q.id,
+        question_text: q.question_text,
+        section_name: q.section_name,
+        confidence_posture: q.confidence_posture,
+        status: q.status,
+      })),
     currentQuestion,
     fetchBidData: overrides.fetchBidData ?? vi.fn(),
     fetchResponse: overrides.fetchResponse ?? vi.fn(),
@@ -259,33 +343,47 @@ describe('Session Page Mobile Layout', () => {
       render(<BidSessionPage params={mockParams} />);
 
       // The compact bar has role="navigation" with label "Question navigation"
-      const compactNav = screen.getAllByRole('navigation', { name: 'Question navigation' });
+      const compactNav = screen.getAllByRole('navigation', {
+        name: 'Question navigation',
+      });
       // There should be at least one (the mobile compact bar)
       expect(compactNav.length).toBeGreaterThanOrEqual(1);
 
       const mobileNav = compactNav[0];
 
       // Prev and Next buttons
-      expect(within(mobileNav).getByRole('button', { name: 'Previous question' })).toBeInTheDocument();
-      expect(within(mobileNav).getByRole('button', { name: 'Next question' })).toBeInTheDocument();
+      expect(
+        within(mobileNav).getByRole('button', { name: 'Previous question' }),
+      ).toBeInTheDocument();
+      expect(
+        within(mobileNav).getByRole('button', { name: 'Next question' }),
+      ).toBeInTheDocument();
 
       // Counter text
       expect(within(mobileNav).getByText('Q1/3')).toBeInTheDocument();
 
       // Question text with truncate class
-      const questionSpan = within(mobileNav).getByText('Describe your approach to project management');
+      const questionSpan = within(mobileNav).getByText(
+        'Describe your approach to project management',
+      );
       expect(questionSpan.className).toContain('truncate');
 
       // "All" button
-      expect(within(mobileNav).getByRole('button', { name: 'All' })).toBeInTheDocument();
+      expect(
+        within(mobileNav).getByRole('button', { name: 'All' }),
+      ).toBeInTheDocument();
     });
 
     it('disables prev button at index 0', () => {
       setupDefaults({ currentIndex: 0 });
       render(<BidSessionPage params={mockParams} />);
 
-      const compactNav = screen.getAllByRole('navigation', { name: 'Question navigation' })[0];
-      const prevBtn = within(compactNav).getByRole('button', { name: 'Previous question' });
+      const compactNav = screen.getAllByRole('navigation', {
+        name: 'Question navigation',
+      })[0];
+      const prevBtn = within(compactNav).getByRole('button', {
+        name: 'Previous question',
+      });
       expect(prevBtn).toBeDisabled();
     });
 
@@ -293,8 +391,12 @@ describe('Session Page Mobile Layout', () => {
       setupDefaults({ currentIndex: 2 }); // 3 questions, index 2 is last
       render(<BidSessionPage params={mockParams} />);
 
-      const compactNav = screen.getAllByRole('navigation', { name: 'Question navigation' })[0];
-      const nextBtn = within(compactNav).getByRole('button', { name: 'Next question' });
+      const compactNav = screen.getAllByRole('navigation', {
+        name: 'Question navigation',
+      })[0];
+      const nextBtn = within(compactNav).getByRole('button', {
+        name: 'Next question',
+      });
       expect(nextBtn).toBeDisabled();
     });
 
@@ -302,7 +404,9 @@ describe('Session Page Mobile Layout', () => {
       setupDefaults({ currentIndex: 1 });
       render(<BidSessionPage params={mockParams} />);
 
-      const compactNav = screen.getAllByRole('navigation', { name: 'Question navigation' })[0];
+      const compactNav = screen.getAllByRole('navigation', {
+        name: 'Question navigation',
+      })[0];
       expect(within(compactNav).getByText('Q2/3')).toBeInTheDocument();
     });
 
@@ -312,8 +416,12 @@ describe('Session Page Mobile Layout', () => {
       setupDefaults({ currentIndex: 1, handleNavigate });
       render(<BidSessionPage params={mockParams} />);
 
-      const compactNav = screen.getAllByRole('navigation', { name: 'Question navigation' })[0];
-      const prevBtn = within(compactNav).getByRole('button', { name: 'Previous question' });
+      const compactNav = screen.getAllByRole('navigation', {
+        name: 'Question navigation',
+      })[0];
+      const prevBtn = within(compactNav).getByRole('button', {
+        name: 'Previous question',
+      });
       await user.click(prevBtn);
       expect(handleNavigate).toHaveBeenCalledWith(0); // currentIndex - 1
     });
@@ -324,8 +432,12 @@ describe('Session Page Mobile Layout', () => {
       setupDefaults({ currentIndex: 0, handleNavigate });
       render(<BidSessionPage params={mockParams} />);
 
-      const compactNav = screen.getAllByRole('navigation', { name: 'Question navigation' })[0];
-      const nextBtn = within(compactNav).getByRole('button', { name: 'Next question' });
+      const compactNav = screen.getAllByRole('navigation', {
+        name: 'Question navigation',
+      })[0];
+      const nextBtn = within(compactNav).getByRole('button', {
+        name: 'Next question',
+      });
       await user.click(nextBtn);
       expect(handleNavigate).toHaveBeenCalledWith(1); // currentIndex + 1
     });
@@ -335,7 +447,9 @@ describe('Session Page Mobile Layout', () => {
       setupDefaults();
       render(<BidSessionPage params={mockParams} />);
 
-      const compactNav = screen.getAllByRole('navigation', { name: 'Question navigation' })[0];
+      const compactNav = screen.getAllByRole('navigation', {
+        name: 'Question navigation',
+      })[0];
       const allBtn = within(compactNav).getByRole('button', { name: 'All' });
       await user.click(allBtn);
 
@@ -355,7 +469,9 @@ describe('Session Page Mobile Layout', () => {
 
       // The compact bar is wrapped in a div with lg:hidden
       // Find the navigation element and check its parent wrapper
-      const compactNav = screen.getAllByRole('navigation', { name: 'Question navigation' })[0];
+      const compactNav = screen.getAllByRole('navigation', {
+        name: 'Question navigation',
+      })[0];
       const mobileWrapper = compactNav.closest('div.mt-4');
       expect(mobileWrapper).not.toBeNull();
       expect(mobileWrapper!.className).toContain('lg:hidden');
@@ -366,7 +482,9 @@ describe('Session Page Mobile Layout', () => {
       render(<BidSessionPage params={mockParams} />);
 
       // The desktop sidebar is an aside with aria-label "Question navigation"
-      const asides = document.querySelectorAll('aside[aria-label="Question navigation"]');
+      const asides = document.querySelectorAll(
+        'aside[aria-label="Question navigation"]',
+      );
       expect(asides.length).toBe(1);
       expect(asides[0].className).toContain('hidden');
       expect(asides[0].className).toContain('lg:block');
@@ -392,7 +510,7 @@ describe('Session Page Mobile Layout', () => {
 
       const summaryElements = document.querySelectorAll('summary');
       const currentQuestionSummary = Array.from(summaryElements).find(
-        (s) => s.textContent?.trim() === 'Current question'
+        (s) => s.textContent?.trim() === 'Current question',
       );
       expect(currentQuestionSummary).toBeTruthy();
     });
@@ -406,9 +524,15 @@ describe('Session Page Mobile Layout', () => {
 
       const detailsContent = detailsEl!;
       // Section name
-      expect(within(detailsContent).getByText('Management')).toBeInTheDocument();
+      expect(
+        within(detailsContent).getByText('Management'),
+      ).toBeInTheDocument();
       // Question text
-      expect(within(detailsContent).getByText('Describe your approach to project management')).toBeInTheDocument();
+      expect(
+        within(detailsContent).getByText(
+          'Describe your approach to project management',
+        ),
+      ).toBeInTheDocument();
       // Word count alongside word limit (now uses WordCountIndicator)
       const wordStatus = within(detailsContent).getByRole('status');
       expect(wordStatus).toBeInTheDocument();
@@ -418,13 +542,20 @@ describe('Session Page Mobile Layout', () => {
     it('omits word limit when not present', () => {
       setupDefaults({
         currentIndex: 1,
-        currentQuestion: makeQuestion({ id: 'q-2', question_text: 'What is your QA methodology?', section_name: 'Quality', word_limit: null }),
+        currentQuestion: makeQuestion({
+          id: 'q-2',
+          question_text: 'What is your QA methodology?',
+          section_name: 'Quality',
+          word_limit: null,
+        }),
       });
       render(<BidSessionPage params={mockParams} />);
 
       const detailsEl = document.querySelector('details');
       expect(detailsEl).not.toBeNull();
-      expect(within(detailsEl!).queryByText(/Word limit/)).not.toBeInTheDocument();
+      expect(
+        within(detailsEl!).queryByText(/Word limit/),
+      ).not.toBeInTheDocument();
     });
 
     it('omits section name when not present', () => {
@@ -439,7 +570,11 @@ describe('Session Page Mobile Layout', () => {
 
       // Should not have any "Management" or other section text
       // But should still have the question text
-      expect(within(detailsEl!).getByText('Describe your approach to project management')).toBeInTheDocument();
+      expect(
+        within(detailsEl!).getByText(
+          'Describe your approach to project management',
+        ),
+      ).toBeInTheDocument();
     });
   });
 
@@ -454,11 +589,15 @@ describe('Session Page Mobile Layout', () => {
       render(<BidSessionPage params={mockParams} />);
 
       // Open the sheet
-      const compactNav = screen.getAllByRole('navigation', { name: 'Question navigation' })[0];
+      const compactNav = screen.getAllByRole('navigation', {
+        name: 'Question navigation',
+      })[0];
       await user.click(within(compactNav).getByRole('button', { name: 'All' }));
 
       // The SheetContent renders with data-slot="sheet-content"
-      const sheetContent = document.querySelector('[data-slot="sheet-content"]');
+      const sheetContent = document.querySelector(
+        '[data-slot="sheet-content"]',
+      );
       expect(sheetContent).not.toBeNull();
       expect(sheetContent!.className).toContain('w-[85vw]');
       expect(sheetContent!.className).toContain('max-w-sm');
@@ -470,7 +609,9 @@ describe('Session Page Mobile Layout', () => {
       render(<BidSessionPage params={mockParams} />);
 
       // Open sheet
-      const compactNav = screen.getAllByRole('navigation', { name: 'Question navigation' })[0];
+      const compactNav = screen.getAllByRole('navigation', {
+        name: 'Question navigation',
+      })[0];
       await user.click(within(compactNav).getByRole('button', { name: 'All' }));
 
       // SheetDescription should say "3 questions"
@@ -483,18 +624,22 @@ describe('Session Page Mobile Layout', () => {
       setupDefaults({
         questions: [singleQuestion],
         currentQuestion: singleQuestion,
-        navigatorQuestions: [{
-          id: 'q-only',
-          question_text: singleQuestion.question_text,
-          section_name: singleQuestion.section_name,
-          confidence_posture: singleQuestion.confidence_posture,
-          status: singleQuestion.status,
-        }],
+        navigatorQuestions: [
+          {
+            id: 'q-only',
+            question_text: singleQuestion.question_text,
+            section_name: singleQuestion.section_name,
+            confidence_posture: singleQuestion.confidence_posture,
+            status: singleQuestion.status,
+          },
+        ],
       });
       render(<BidSessionPage params={mockParams} />);
 
       // Open sheet
-      const compactNav = screen.getAllByRole('navigation', { name: 'Question navigation' })[0];
+      const compactNav = screen.getAllByRole('navigation', {
+        name: 'Question navigation',
+      })[0];
       await user.click(within(compactNav).getByRole('button', { name: 'All' }));
 
       expect(screen.getByText('1 question')).toBeInTheDocument();
@@ -507,19 +652,29 @@ describe('Session Page Mobile Layout', () => {
       render(<BidSessionPage params={mockParams} />);
 
       // Open the sheet
-      const compactNav = screen.getAllByRole('navigation', { name: 'Question navigation' })[0];
+      const compactNav = screen.getAllByRole('navigation', {
+        name: 'Question navigation',
+      })[0];
       await user.click(within(compactNav).getByRole('button', { name: 'All' }));
 
       // The sheet content should include "Current Question" text (uppercase in the Sheet)
-      const sheetContent = document.querySelector('[data-slot="sheet-content"]');
+      const sheetContent = document.querySelector(
+        '[data-slot="sheet-content"]',
+      );
       expect(sheetContent).not.toBeNull();
 
       // Inside the sheet, find the "Current Question" label
-      const currentQuestionLabels = within(sheetContent!).getAllByText('Current Question');
+      const currentQuestionLabels = within(sheetContent!).getAllByText(
+        'Current Question',
+      );
       expect(currentQuestionLabels.length).toBeGreaterThanOrEqual(1);
 
       // Also check the question text is present in the sheet
-      expect(within(sheetContent!).getByText('Describe your approach to project management')).toBeInTheDocument();
+      expect(
+        within(sheetContent!).getByText(
+          'Describe your approach to project management',
+        ),
+      ).toBeInTheDocument();
     });
 
     it('Sheet contains QuestionNavigator component', async () => {
@@ -528,11 +683,15 @@ describe('Session Page Mobile Layout', () => {
       render(<BidSessionPage params={mockParams} />);
 
       // Open the sheet
-      const compactNav = screen.getAllByRole('navigation', { name: 'Question navigation' })[0];
+      const compactNav = screen.getAllByRole('navigation', {
+        name: 'Question navigation',
+      })[0];
       await user.click(within(compactNav).getByRole('button', { name: 'All' }));
 
       // The sheet should contain the mocked QuestionNavigator
-      const sheetContent = document.querySelector('[data-slot="sheet-content"]');
+      const sheetContent = document.querySelector(
+        '[data-slot="sheet-content"]',
+      );
       expect(sheetContent).not.toBeNull();
       const navigator = within(sheetContent!).getByTestId('question-navigator');
       expect(navigator).toBeInTheDocument();
@@ -571,7 +730,11 @@ describe('Session Page Mobile Layout', () => {
     });
 
     it('wraps empty state (no questions) in BidContextProvider', () => {
-      setupDefaults({ questions: [], currentQuestion: null, navigatorQuestions: [] });
+      setupDefaults({
+        questions: [],
+        currentQuestion: null,
+        navigatorQuestions: [],
+      });
       render(<BidSessionPage params={mockParams} />);
 
       const provider = screen.getByTestId('bid-context-provider');
@@ -601,21 +764,29 @@ describe('Session Page Mobile Layout', () => {
       // The desktop aside has a word count indicator (role="status")
       const statuses = screen.getAllByRole('status');
       // Should have at least one status element with word count format
-      const wordCountStatus = statuses.find((s) => s.textContent?.includes('/ 500 words'));
+      const wordCountStatus = statuses.find((s) =>
+        s.textContent?.includes('/ 500 words'),
+      );
       expect(wordCountStatus).toBeTruthy();
     });
 
     it('does not display word count indicator when word limit is null', () => {
       setupDefaults({
         currentIndex: 1,
-        currentQuestion: makeQuestion({ id: 'q-2', word_limit: null, question_text: 'No limit question' }),
+        currentQuestion: makeQuestion({
+          id: 'q-2',
+          word_limit: null,
+          question_text: 'No limit question',
+        }),
       });
       render(<BidSessionPage params={mockParams} />);
 
       // Word count indicators (role="status") should not appear in question panels
       // (Note: the editor itself has its own word count, which is separate)
       const statuses = screen.queryAllByRole('status');
-      const questionWordCount = statuses.find((s) => s.textContent?.includes('/ '));
+      const questionWordCount = statuses.find((s) =>
+        s.textContent?.includes('/ '),
+      );
       // Should be from the editor, not the question panels
       expect(questionWordCount).toBeFalsy();
     });
@@ -642,8 +813,18 @@ describe('Session Page Mobile Layout', () => {
       // q-1 is drafted, q-2 is drafted, q-3 is not_started
       const questions = [
         makeQuestion({ id: 'q-1', status: 'drafted', question_number: 1 }),
-        makeQuestion({ id: 'q-2', status: 'drafted', question_number: 2, word_limit: null }),
-        makeQuestion({ id: 'q-3', status: 'not_started', question_number: 3, word_limit: 300 }),
+        makeQuestion({
+          id: 'q-2',
+          status: 'drafted',
+          question_number: 2,
+          word_limit: null,
+        }),
+        makeQuestion({
+          id: 'q-3',
+          status: 'not_started',
+          question_number: 3,
+          word_limit: 300,
+        }),
       ];
       setupDefaults({ questions, currentIndex: 0 });
       render(<BidSessionPage params={mockParams} />);
@@ -703,7 +884,12 @@ describe('Session Page Mobile Layout', () => {
     it('calls handleAction with "save" on Ctrl+S when response exists and has content', () => {
       const handleAction = vi.fn();
       setupDefaults({
-        response: { id: 'resp-1', review_status: 'draft', version: 1, response_text: '<p>Some text</p>' },
+        response: {
+          id: 'resp-1',
+          review_status: 'draft',
+          version: 1,
+          response_text: '<p>Some text</p>',
+        },
         editorContent: '<p>Some content here</p>',
         handleAction,
       });
@@ -716,7 +902,12 @@ describe('Session Page Mobile Layout', () => {
     it('calls handleAction with "save" on Cmd+S (metaKey)', () => {
       const handleAction = vi.fn();
       setupDefaults({
-        response: { id: 'resp-1', review_status: 'draft', version: 1, response_text: '<p>Text</p>' },
+        response: {
+          id: 'resp-1',
+          review_status: 'draft',
+          version: 1,
+          response_text: '<p>Text</p>',
+        },
         editorContent: '<p>Some content here</p>',
         handleAction,
       });
@@ -742,7 +933,12 @@ describe('Session Page Mobile Layout', () => {
     it('does not call handleAction on Ctrl+S when editor content is too short', () => {
       const handleAction = vi.fn();
       setupDefaults({
-        response: { id: 'resp-1', review_status: 'draft', version: 1, response_text: '' },
+        response: {
+          id: 'resp-1',
+          review_status: 'draft',
+          version: 1,
+          response_text: '',
+        },
         editorContent: '<p></p>',
         handleAction,
       });
@@ -756,7 +952,12 @@ describe('Session Page Mobile Layout', () => {
       mockUseUserRole.canEdit = false;
       const handleAction = vi.fn();
       setupDefaults({
-        response: { id: 'resp-1', review_status: 'draft', version: 1, response_text: '<p>Text</p>' },
+        response: {
+          id: 'resp-1',
+          review_status: 'draft',
+          version: 1,
+          response_text: '<p>Text</p>',
+        },
         editorContent: '<p>Some content here</p>',
         handleAction,
       });

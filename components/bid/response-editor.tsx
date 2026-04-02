@@ -131,7 +131,9 @@ export function ResponseEditor({
           {wordCount}
           {wordLimit ? ` / ${wordLimit}` : ''} words
           {isOverLimit && ' — over limit'}
-          {isUnderTarget && wordLimit && ` — ${Math.round((wordCount / wordLimit) * 100)}% of target`}
+          {isUnderTarget &&
+            wordLimit &&
+            ` — ${Math.round((wordCount / wordLimit) * 100)}% of target`}
         </span>
         {!readOnly && (
           <Button onClick={handleSave} size="sm" type="button">

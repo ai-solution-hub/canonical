@@ -76,8 +76,7 @@ function ContentItemCard({ item }: { item: ContentItem }) {
           <Badge variant="outline" className="text-[10px]">
             {getLayerLabel(item.content_layer)}
           </Badge>
-        )
-        }
+        )}
         {item.content_verified_at && (
           <span className="text-[10px] text-muted-foreground" title="Verified">
             Verified
@@ -92,9 +91,16 @@ function ContentItemCard({ item }: { item: ContentItem }) {
 // Guide section component
 // ---------------------------------------------------------------------------
 
-export function GuideSection({ section, sectionNumber, domainFilter, guideName }: GuideSectionProps) {
+export function GuideSection({
+  section,
+  sectionNumber,
+  domainFilter,
+  guideName,
+}: GuideSectionProps) {
   const { getLayerLabel } = useLayerVocabulary();
-  const layerLabel = section.expected_layer ? getLayerLabel(section.expected_layer) : null;
+  const layerLabel = section.expected_layer
+    ? getLayerLabel(section.expected_layer)
+    : null;
   const hasContent = section.content_items.length > 0;
 
   return (
@@ -111,7 +117,10 @@ export function GuideSection({ section, sectionNumber, domainFilter, guideName }
           </Badge>
         )}
         {section.is_required && !hasContent && (
-          <Badge variant="outline" className="text-[10px] text-destructive border-destructive/30">
+          <Badge
+            variant="outline"
+            className="text-[10px] text-destructive border-destructive/30"
+          >
             Required
           </Badge>
         )}

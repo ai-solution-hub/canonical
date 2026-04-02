@@ -19,7 +19,11 @@ import { render, screen, within } from '@testing-library/react';
 // ---------------------------------------------------------------------------
 
 vi.mock('@/lib/format', () => ({
-  getDisplayTitle: ({ suggested_title, title, content }: {
+  getDisplayTitle: ({
+    suggested_title,
+    title,
+    content,
+  }: {
     suggested_title: string | null;
     title: string | null;
     content: string | null;
@@ -36,26 +40,30 @@ vi.mock('next/dynamic', () => ({
 
 vi.mock('@/components/shared/thumbnail', () => ({
   Thumbnail: (props: Record<string, unknown>) => (
-    <div data-testid="thumbnail" data-alt={props.alt}>Thumbnail</div>
+    <div data-testid="thumbnail" data-alt={props.alt}>
+      Thumbnail
+    </div>
   ),
 }));
 
 vi.mock('@/components/item-detail/content-tabs', () => ({
   ContentTabs: (props: Record<string, unknown>) => (
-    <div data-testid="content-tabs" data-can-edit={props.canEdit}>ContentTabs</div>
+    <div data-testid="content-tabs" data-can-edit={props.canEdit}>
+      ContentTabs
+    </div>
   ),
 }));
 
 vi.mock('@/components/item-detail/metadata-sidebar', () => ({
   MetadataSidebar: (props: Record<string, unknown>) => (
-    <div data-testid="metadata-sidebar" data-read-only={props.readOnly}>MetadataSidebar</div>
+    <div data-testid="metadata-sidebar" data-read-only={props.readOnly}>
+      MetadataSidebar
+    </div>
   ),
 }));
 
 vi.mock('@/components/item-detail/entity-badges', () => ({
-  EntityBadges: () => (
-    <div data-testid="entity-badges">EntityBadges</div>
-  ),
+  EntityBadges: () => <div data-testid="entity-badges">EntityBadges</div>,
 }));
 
 vi.mock('@/components/source-document/source-document-info', () => ({
@@ -65,9 +73,7 @@ vi.mock('@/components/source-document/source-document-info', () => ({
 }));
 
 vi.mock('@/components/item-detail/version-history', () => ({
-  VersionHistory: () => (
-    <div data-testid="version-history">VersionHistory</div>
-  ),
+  VersionHistory: () => <div data-testid="version-history">VersionHistory</div>,
 }));
 
 vi.mock('@/components/shared/read-toggle-button', () => ({
@@ -101,7 +107,13 @@ vi.mock('@/components/reader/transcript-reader', () => ({
 }));
 
 vi.mock('@/components/item-detail/collapsible-section', () => ({
-  CollapsibleSection: ({ children, title }: { children: React.ReactNode; title: string }) => (
+  CollapsibleSection: ({
+    children,
+    title,
+  }: {
+    children: React.ReactNode;
+    title: string;
+  }) => (
     <div data-testid={`collapsible-${title.toLowerCase()}`}>{children}</div>
   ),
 }));
@@ -114,11 +126,17 @@ vi.mock('@/components/item-detail/related-content-section', () => ({
 
 vi.mock('@/components/item-detail/qa-provenance-sections', () => ({
   QAUsedInBids: () => <div data-testid="qa-used-in-bids">QAUsedInBids</div>,
-  QARelatedPairs: () => <div data-testid="qa-related-pairs">QARelatedPairs</div>,
+  QARelatedPairs: () => (
+    <div data-testid="qa-related-pairs">QARelatedPairs</div>
+  ),
 }));
 
 vi.mock('@/components/item-detail/item-breadcrumb', () => ({
-  ItemBreadcrumb: () => <nav data-testid="item-breadcrumb" aria-label="Breadcrumb">ItemBreadcrumb</nav>,
+  ItemBreadcrumb: () => (
+    <nav data-testid="item-breadcrumb" aria-label="Breadcrumb">
+      ItemBreadcrumb
+    </nav>
+  ),
 }));
 
 vi.mock('@/components/shared/verification-badge', () => ({
@@ -180,8 +198,12 @@ function createMockItem(overrides: Partial<ItemData> = {}): ItemData {
   };
 }
 
-function createMockData(overrides: Partial<ItemDetailData> = {}): ItemDetailData {
-  const item = createMockItem(overrides.item ? overrides.item as Partial<ItemData> : {});
+function createMockData(
+  overrides: Partial<ItemDetailData> = {},
+): ItemDetailData {
+  const item = createMockItem(
+    overrides.item ? (overrides.item as Partial<ItemData>) : {},
+  );
   return {
     item,
     setItem: vi.fn(),
@@ -289,7 +311,9 @@ describe('ReaderView', () => {
 
     it('renders clean title (h1 heading)', () => {
       render(<ReaderView data={createMockData()} relatedItems={[]} />);
-      expect(screen.getByRole('heading', { level: 1, name: 'Suggested Title' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', { level: 1, name: 'Suggested Title' }),
+      ).toBeInTheDocument();
     });
 
     it('renders content tabs with canEdit=false', () => {
@@ -306,7 +330,9 @@ describe('ReaderView', () => {
 
     it('renders copy content button for non-Q&A items', () => {
       render(<ReaderView data={createMockData()} relatedItems={[]} />);
-      expect(screen.getByLabelText('Copy content to clipboard')).toBeInTheDocument();
+      expect(
+        screen.getByLabelText('Copy content to clipboard'),
+      ).toBeInTheDocument();
     });
 
     it('renders more actions overflow menu', () => {
@@ -329,12 +355,16 @@ describe('ReaderView', () => {
 
     it('does not render layer switcher', () => {
       render(<ReaderView data={createMockData()} relatedItems={[]} />);
-      expect(screen.queryByTestId('layer-switcher-nav')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('layer-switcher-nav'),
+      ).not.toBeInTheDocument();
     });
 
     it('does not render topic layer comparison', () => {
       render(<ReaderView data={createMockData()} relatedItems={[]} />);
-      expect(screen.queryByTestId('topic-layer-comparison')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('topic-layer-comparison'),
+      ).not.toBeInTheDocument();
     });
 
     it('does not render organise section', () => {
@@ -351,12 +381,16 @@ describe('ReaderView', () => {
           relatedItems={[]}
         />,
       );
-      expect(screen.queryByTestId('claude-prompt-button')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('claude-prompt-button'),
+      ).not.toBeInTheDocument();
     });
 
     it('does not render AI processing indicators', () => {
       render(<ReaderView data={createMockData()} relatedItems={[]} />);
-      expect(screen.queryByTestId('ai-processing-indicators')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('ai-processing-indicators'),
+      ).not.toBeInTheDocument();
     });
 
     it('does not render star button', () => {
@@ -376,7 +410,9 @@ describe('ReaderView', () => {
       const toolbar = screen.getByRole('toolbar');
       const editButtons = within(toolbar).queryAllByRole('button');
       const editButton = editButtons.find(
-        (btn) => btn.textContent === 'Edit' && !btn.closest('[data-testid="mode-toggle"]'),
+        (btn) =>
+          btn.textContent === 'Edit' &&
+          !btn.closest('[data-testid="mode-toggle"]'),
       );
       expect(editButton).toBeUndefined();
     });
@@ -388,7 +424,9 @@ describe('ReaderView', () => {
           relatedItems={[]}
         />,
       );
-      expect(screen.queryByTestId('delete-content-dialog')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('delete-content-dialog'),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -421,7 +459,9 @@ describe('ReaderView', () => {
           relatedItems={[]}
         />,
       );
-      expect(screen.queryByTestId('source-document-info')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('source-document-info'),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -444,7 +484,12 @@ describe('ReaderView', () => {
 
   describe('accessibility', () => {
     it('includes screen reader keyboard shortcut help for viewers', () => {
-      render(<ReaderView data={createMockData({ canEdit: false })} relatedItems={[]} />);
+      render(
+        <ReaderView
+          data={createMockData({ canEdit: false })}
+          relatedItems={[]}
+        />,
+      );
       const note = screen.getByRole('note', { name: 'Keyboard shortcuts' });
       expect(note).toBeInTheDocument();
       expect(note.textContent).toContain('M to toggle read');
@@ -453,19 +498,28 @@ describe('ReaderView', () => {
     });
 
     it('includes Shift+D shortcut hint for editors in reader mode', () => {
-      render(<ReaderView data={createMockData({ canEdit: true })} relatedItems={[]} />);
+      render(
+        <ReaderView
+          data={createMockData({ canEdit: true })}
+          relatedItems={[]}
+        />,
+      );
       const note = screen.getByRole('note', { name: 'Keyboard shortcuts' });
       expect(note.textContent).toContain('Shift+D to switch to editor mode');
     });
 
     it('renders article with aria-label', () => {
       render(<ReaderView data={createMockData()} relatedItems={[]} />);
-      expect(screen.getByRole('article', { name: 'Test Item' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('article', { name: 'Test Item' }),
+      ).toBeInTheDocument();
     });
 
     it('renders toolbar with aria-label for action bar', () => {
       render(<ReaderView data={createMockData()} relatedItems={[]} />);
-      expect(screen.getByRole('toolbar', { name: 'Content actions' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('toolbar', { name: 'Content actions' }),
+      ).toBeInTheDocument();
     });
 
     it('renders content section with aria-label', () => {
@@ -547,7 +601,9 @@ describe('ReaderView', () => {
       render(
         <ReaderView
           data={createMockData({
-            item: createMockItem({ thumbnail_url: 'https://example.com/thumb.jpg' }),
+            item: createMockItem({
+              thumbnail_url: 'https://example.com/thumb.jpg',
+            }),
           })}
           relatedItems={[]}
         />,

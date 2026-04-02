@@ -23,7 +23,8 @@ const mockSupabase = createMockSupabaseClient();
 // Import after mock setup
 // ---------------------------------------------------------------------------
 
-const { generateContentSuggestions } = await import('@/lib/content/content-suggestions');
+const { generateContentSuggestions } =
+  await import('@/lib/content/content-suggestions');
 
 // ---------------------------------------------------------------------------
 // Test data factories
@@ -40,7 +41,12 @@ const SUBTOPICS = [
   { id: 'sub-2', name: 'Policies', domain_id: 'dom-1', display_order: 2 },
   { id: 'sub-3', name: 'ISO Standards', domain_id: 'dom-2', display_order: 1 },
   { id: 'sub-4', name: 'GDPR', domain_id: 'dom-2', display_order: 2 },
-  { id: 'sub-5', name: 'Company History', domain_id: 'dom-3', display_order: 1 },
+  {
+    id: 'sub-5',
+    name: 'Company History',
+    domain_id: 'dom-3',
+    display_order: 1,
+  },
   { id: 'sub-6', name: 'Team', domain_id: 'dom-3', display_order: 2 },
 ];
 
@@ -64,7 +70,11 @@ function makeContentItem(
 
 function configureMock(options: {
   contentItems?: Array<ReturnType<typeof makeContentItem>>;
-  activeBids?: Array<{ id: string; name: string; domain_metadata: Record<string, unknown> | null }>;
+  activeBids?: Array<{
+    id: string;
+    name: string;
+    domain_metadata: Record<string, unknown> | null;
+  }>;
   templateGaps?: Array<Record<string, unknown>>;
 }) {
   const { contentItems = [], activeBids = [], templateGaps = [] } = options;
@@ -113,14 +123,18 @@ describe('generateContentSuggestions', () => {
     configureMock({ contentItems: [] });
 
     const result = await generateContentSuggestions({
-      supabase: mockSupabase as unknown as Parameters<typeof generateContentSuggestions>[0]['supabase'],
+      supabase: mockSupabase as unknown as Parameters<
+        typeof generateContentSuggestions
+      >[0]['supabase'],
       maxSuggestions: 20,
     });
 
     expect(result.length).toBeGreaterThan(0);
 
     // All suggestions should be empty_subtopic type
-    const emptySubtopics = result.filter((s) => s.suggestion_type === 'empty_subtopic');
+    const emptySubtopics = result.filter(
+      (s) => s.suggestion_type === 'empty_subtopic',
+    );
     expect(emptySubtopics.length).toBe(6); // All 6 subtopics are empty
     expect(emptySubtopics[0].item_count).toBe(0);
   });
@@ -135,11 +149,15 @@ describe('generateContentSuggestions', () => {
     });
 
     const result = await generateContentSuggestions({
-      supabase: mockSupabase as unknown as Parameters<typeof generateContentSuggestions>[0]['supabase'],
+      supabase: mockSupabase as unknown as Parameters<
+        typeof generateContentSuggestions
+      >[0]['supabase'],
       maxSuggestions: 20,
     });
 
-    const thinSuggestions = result.filter((s) => s.suggestion_type === 'thin_coverage');
+    const thinSuggestions = result.filter(
+      (s) => s.suggestion_type === 'thin_coverage',
+    );
     expect(thinSuggestions.length).toBeGreaterThanOrEqual(1);
 
     const certsThin = thinSuggestions.find(
@@ -159,11 +177,15 @@ describe('generateContentSuggestions', () => {
     });
 
     const result = await generateContentSuggestions({
-      supabase: mockSupabase as unknown as Parameters<typeof generateContentSuggestions>[0]['supabase'],
+      supabase: mockSupabase as unknown as Parameters<
+        typeof generateContentSuggestions
+      >[0]['supabase'],
       maxSuggestions: 20,
     });
 
-    const staleSuggestions = result.filter((s) => s.suggestion_type === 'stale_only');
+    const staleSuggestions = result.filter(
+      (s) => s.suggestion_type === 'stale_only',
+    );
     expect(staleSuggestions.length).toBeGreaterThanOrEqual(1);
 
     const stale = staleSuggestions.find(
@@ -194,12 +216,16 @@ describe('generateContentSuggestions', () => {
     });
 
     const result = await generateContentSuggestions({
-      supabase: mockSupabase as unknown as Parameters<typeof generateContentSuggestions>[0]['supabase'],
+      supabase: mockSupabase as unknown as Parameters<
+        typeof generateContentSuggestions
+      >[0]['supabase'],
       maxSuggestions: 20,
       includeTemplateGaps: true,
     });
 
-    const templateGaps = result.filter((s) => s.suggestion_type === 'template_gap');
+    const templateGaps = result.filter(
+      (s) => s.suggestion_type === 'template_gap',
+    );
     expect(templateGaps.length).toBeGreaterThanOrEqual(1);
     expect(templateGaps[0].priority).toBe('high');
     expect(templateGaps[0].related_template).toBe('Standard SQ');
@@ -220,12 +246,16 @@ describe('generateContentSuggestions', () => {
     });
 
     const result = await generateContentSuggestions({
-      supabase: mockSupabase as unknown as Parameters<typeof generateContentSuggestions>[0]['supabase'],
+      supabase: mockSupabase as unknown as Parameters<
+        typeof generateContentSuggestions
+      >[0]['supabase'],
       maxSuggestions: 20,
       includeTemplateGaps: false,
     });
 
-    const templateGaps = result.filter((s) => s.suggestion_type === 'template_gap');
+    const templateGaps = result.filter(
+      (s) => s.suggestion_type === 'template_gap',
+    );
     expect(templateGaps.length).toBe(0);
   });
 
@@ -245,14 +275,19 @@ describe('generateContentSuggestions', () => {
     });
 
     const result = await generateContentSuggestions({
-      supabase: mockSupabase as unknown as Parameters<typeof generateContentSuggestions>[0]['supabase'],
+      supabase: mockSupabase as unknown as Parameters<
+        typeof generateContentSuggestions
+      >[0]['supabase'],
       maxSuggestions: 20,
     });
 
     // Check that critical comes before high, high before medium
     for (let i = 1; i < result.length; i++) {
-      const prevOrder = ({ critical: 0, high: 1, medium: 2, low: 3 })[result[i - 1].priority] ?? 99;
-      const currOrder = ({ critical: 0, high: 1, medium: 2, low: 3 })[result[i].priority] ?? 99;
+      const prevOrder =
+        { critical: 0, high: 1, medium: 2, low: 3 }[result[i - 1].priority] ??
+        99;
+      const currOrder =
+        { critical: 0, high: 1, medium: 2, low: 3 }[result[i].priority] ?? 99;
       expect(prevOrder).toBeLessThanOrEqual(currOrder);
     }
   });
@@ -261,7 +296,9 @@ describe('generateContentSuggestions', () => {
     configureMock({ contentItems: [] });
 
     const result = await generateContentSuggestions({
-      supabase: mockSupabase as unknown as Parameters<typeof generateContentSuggestions>[0]['supabase'],
+      supabase: mockSupabase as unknown as Parameters<
+        typeof generateContentSuggestions
+      >[0]['supabase'],
       maxSuggestions: 20,
       domainFilter: 'Security',
     });
@@ -278,7 +315,9 @@ describe('generateContentSuggestions', () => {
     configureMock({ contentItems: [] });
 
     const result = await generateContentSuggestions({
-      supabase: mockSupabase as unknown as Parameters<typeof generateContentSuggestions>[0]['supabase'],
+      supabase: mockSupabase as unknown as Parameters<
+        typeof generateContentSuggestions
+      >[0]['supabase'],
       maxSuggestions: 3,
     });
 
@@ -289,14 +328,18 @@ describe('generateContentSuggestions', () => {
     configureMock({ contentItems: [] });
 
     const result1 = await generateContentSuggestions({
-      supabase: mockSupabase as unknown as Parameters<typeof generateContentSuggestions>[0]['supabase'],
+      supabase: mockSupabase as unknown as Parameters<
+        typeof generateContentSuggestions
+      >[0]['supabase'],
       maxSuggestions: 5,
     });
 
     configureMock({ contentItems: [] });
 
     const result2 = await generateContentSuggestions({
-      supabase: mockSupabase as unknown as Parameters<typeof generateContentSuggestions>[0]['supabase'],
+      supabase: mockSupabase as unknown as Parameters<
+        typeof generateContentSuggestions
+      >[0]['supabase'],
       maxSuggestions: 5,
     });
 
@@ -308,7 +351,9 @@ describe('generateContentSuggestions', () => {
     configureMock({ contentItems: [] });
 
     const result = await generateContentSuggestions({
-      supabase: mockSupabase as unknown as Parameters<typeof generateContentSuggestions>[0]['supabase'],
+      supabase: mockSupabase as unknown as Parameters<
+        typeof generateContentSuggestions
+      >[0]['supabase'],
       maxSuggestions: 20,
     });
 
@@ -326,7 +371,9 @@ describe('generateContentSuggestions', () => {
     });
 
     const result = await generateContentSuggestions({
-      supabase: mockSupabase as unknown as Parameters<typeof generateContentSuggestions>[0]['supabase'],
+      supabase: mockSupabase as unknown as Parameters<
+        typeof generateContentSuggestions
+      >[0]['supabase'],
       maxSuggestions: 20,
     });
 
@@ -339,17 +386,19 @@ describe('generateContentSuggestions', () => {
   it('elevates empty subtopics to critical when active bids exist', async () => {
     configureMock({
       contentItems: [],
-      activeBids: [
-        { id: 'bid-1', name: 'Active Bid', domain_metadata: null },
-      ],
+      activeBids: [{ id: 'bid-1', name: 'Active Bid', domain_metadata: null }],
     });
 
     const result = await generateContentSuggestions({
-      supabase: mockSupabase as unknown as Parameters<typeof generateContentSuggestions>[0]['supabase'],
+      supabase: mockSupabase as unknown as Parameters<
+        typeof generateContentSuggestions
+      >[0]['supabase'],
       maxSuggestions: 20,
     });
 
-    const emptySubtopics = result.filter((s) => s.suggestion_type === 'empty_subtopic');
+    const emptySubtopics = result.filter(
+      (s) => s.suggestion_type === 'empty_subtopic',
+    );
     // When there are active bids, empty subtopics should be critical
     for (const s of emptySubtopics) {
       expect(s.priority).toBe('critical');
@@ -365,7 +414,9 @@ describe('generateContentSuggestions', () => {
     });
 
     const result = await generateContentSuggestions({
-      supabase: mockSupabase as unknown as Parameters<typeof generateContentSuggestions>[0]['supabase'],
+      supabase: mockSupabase as unknown as Parameters<
+        typeof generateContentSuggestions
+      >[0]['supabase'],
       maxSuggestions: 20,
     });
 
@@ -398,7 +449,9 @@ describe('generateContentSuggestions', () => {
     });
 
     const result = await generateContentSuggestions({
-      supabase: mockSupabase as unknown as Parameters<typeof generateContentSuggestions>[0]['supabase'],
+      supabase: mockSupabase as unknown as Parameters<
+        typeof generateContentSuggestions
+      >[0]['supabase'],
       maxSuggestions: 20,
       includeTemplateGaps: false,
     });

@@ -65,10 +65,7 @@ export async function PATCH(
       .single();
 
     if (fieldError || !field) {
-      return NextResponse.json(
-        { error: 'Field not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Field not found' }, { status: 404 });
     }
 
     // Update mapped_count on template

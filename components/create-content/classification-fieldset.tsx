@@ -54,10 +54,7 @@ export function ClassificationFieldset({
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="domain">Domain</Label>
-          <Select
-            value={primaryDomain}
-            onValueChange={setPrimaryDomain}
-          >
+          <Select value={primaryDomain} onValueChange={setPrimaryDomain}>
             <SelectTrigger id="domain">
               <SelectValue placeholder="Select domain..." />
             </SelectTrigger>
@@ -81,9 +78,7 @@ export function ClassificationFieldset({
             <SelectTrigger id="subtopic">
               <SelectValue
                 placeholder={
-                  primaryDomain
-                    ? 'Select subtopic...'
-                    : 'Select domain first'
+                  primaryDomain ? 'Select subtopic...' : 'Select domain first'
                 }
               />
             </SelectTrigger>

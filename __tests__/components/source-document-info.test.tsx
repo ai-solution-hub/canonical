@@ -33,17 +33,14 @@ vi.mock('@/lib/format', () => ({
     if (bytes === 0) return '0 B';
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    if (bytes < 1024 * 1024 * 1024)
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
   },
 }));
 
 vi.mock('next/link', () => ({
-  default: ({
-    children,
-    href,
-    ...props
-  }: Record<string, unknown>) => (
+  default: ({ children, href, ...props }: Record<string, unknown>) => (
     <a href={href as string} {...props}>
       {children as React.ReactNode}
     </a>
@@ -52,7 +49,11 @@ vi.mock('next/link', () => ({
 
 // Mock the child SourceDocumentHistory to isolate this component
 vi.mock('@/components/source-document/source-document-history', () => ({
-  SourceDocumentHistory: ({ sourceDocumentId }: { sourceDocumentId: string }) => (
+  SourceDocumentHistory: ({
+    sourceDocumentId,
+  }: {
+    sourceDocumentId: string;
+  }) => (
     <div data-testid="mock-history" data-source-document-id={sourceDocumentId}>
       Mock history
     </div>
@@ -157,7 +158,9 @@ describe('SourceDocumentInfo — error state', () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 500,
-      json: async () => { throw new Error('parse error'); },
+      json: async () => {
+        throw new Error('parse error');
+      },
     });
 
     render(<SourceDocumentInfo sourceDocumentId="doc-bad" />);
@@ -196,7 +199,8 @@ describe('SourceDocumentInfo — successful display', () => {
   it('shows the original filename', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => makeDocument({ original_filename: 'Bid-Response.docx' }),
+      json: async () =>
+        makeDocument({ original_filename: 'Bid-Response.docx' }),
     });
 
     render(<SourceDocumentInfo sourceDocumentId="doc-1" />);
@@ -286,8 +290,7 @@ describe('SourceDocumentInfo — diff link', () => {
   it('shows diff link when document has a parent_id', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () =>
-        makeDocument({ id: 'doc-v2', parent_id: 'doc-v1' }),
+      json: async () => makeDocument({ id: 'doc-v2', parent_id: 'doc-v1' }),
     });
 
     render(<SourceDocumentInfo sourceDocumentId="doc-v2" />);

@@ -1,7 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { Shield, Copy, Check, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
+import {
+  Shield,
+  Copy,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  RefreshCw,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -206,10 +213,13 @@ function CertificationRow({
   cert: CertificationEntry;
   onEdit?: (name: string) => void;
 }) {
-  const needsRenewal = cert.expiry_status === 'expiring_soon' || cert.expiry_status === 'expired';
+  const needsRenewal =
+    cert.expiry_status === 'expiring_soon' || cert.expiry_status === 'expired';
   // Navigate to the first content item for renewal context
   const renewalItemId = cert.content_items?.[0]?.id;
-  const itemLink = cert.content_items?.[0]?.id ? `/item/${cert.content_items[0].id}` : null;
+  const itemLink = cert.content_items?.[0]?.id
+    ? `/item/${cert.content_items[0].id}`
+    : null;
 
   const cardContent = (
     <>
@@ -272,7 +282,8 @@ function CertificationRow({
         className="shrink-0 text-xs text-muted-foreground"
         aria-label={`${cert.content_item_count} linked ${cert.content_item_count === 1 ? 'item' : 'items'}`}
       >
-        {cert.content_item_count} linked {cert.content_item_count === 1 ? 'item' : 'items'}
+        {cert.content_item_count} linked{' '}
+        {cert.content_item_count === 1 ? 'item' : 'items'}
       </span>
     </>
   );
@@ -310,9 +321,12 @@ function RegistrationRow({
   reg: RegistrationEntry;
   onEdit?: (name: string) => void;
 }) {
-  const needsRenewal = reg.expiry_status === 'expiring_soon' || reg.expiry_status === 'expired';
+  const needsRenewal =
+    reg.expiry_status === 'expiring_soon' || reg.expiry_status === 'expired';
   const renewalItemId = reg.content_items?.[0]?.id;
-  const itemLink = reg.content_items?.[0]?.id ? `/item/${reg.content_items[0].id}` : null;
+  const itemLink = reg.content_items?.[0]?.id
+    ? `/item/${reg.content_items[0].id}`
+    : null;
 
   const cardContent = (
     <>
@@ -372,7 +386,8 @@ function RegistrationRow({
         className="shrink-0 text-xs text-muted-foreground"
         aria-label={`${reg.content_item_count} linked ${reg.content_item_count === 1 ? 'item' : 'items'}`}
       >
-        {reg.content_item_count} linked {reg.content_item_count === 1 ? 'item' : 'items'}
+        {reg.content_item_count} linked{' '}
+        {reg.content_item_count === 1 ? 'item' : 'items'}
       </span>
     </>
   );
@@ -447,9 +462,17 @@ function SupplierSection({
               <p className="mb-1 text-xs font-medium text-muted-foreground">
                 {supplierName}
               </p>
-              <div className="space-y-1.5" role="list" aria-label={`${supplierName} certifications`}>
+              <div
+                className="space-y-1.5"
+                role="list"
+                aria-label={`${supplierName} certifications`}
+              >
                 {certs.map((cert) => (
-                  <CertificationRow key={cert.canonical_name} cert={cert} onEdit={onEdit} />
+                  <CertificationRow
+                    key={cert.canonical_name}
+                    cert={cert}
+                    onEdit={onEdit}
+                  />
                 ))}
               </div>
             </div>
@@ -509,7 +532,12 @@ export function CertificationSummaryCard({
         </h3>
         <div className="flex items-center gap-1">
           <ClaudePromptButton
-            prompt={generateCertificationReviewPrompt(certifications.length, expiringCount).prompt}
+            prompt={
+              generateCertificationReviewPrompt(
+                certifications.length,
+                expiringCount,
+              ).prompt
+            }
             label="Review with Claude"
             size="sm"
           />
@@ -522,7 +550,10 @@ export function CertificationSummaryCard({
             aria-label="Copy certification summary to clipboard"
           >
             {copied ? (
-              <Check className="size-3.5 text-freshness-fresh" aria-hidden="true" />
+              <Check
+                className="size-3.5 text-freshness-fresh"
+                aria-hidden="true"
+              />
             ) : (
               <Copy className="size-3.5" aria-hidden="true" />
             )}
@@ -533,7 +564,11 @@ export function CertificationSummaryCard({
 
       {/* Self-held certifications */}
       {certifications.length > 0 && (
-        <div className="mt-3 space-y-1.5" role="list" aria-label="Self-held certifications">
+        <div
+          className="mt-3 space-y-1.5"
+          role="list"
+          aria-label="Self-held certifications"
+        >
           {certifications.map((cert) => (
             <CertificationRow
               key={cert.canonical_name}

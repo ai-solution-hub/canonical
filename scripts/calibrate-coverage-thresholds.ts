@@ -100,8 +100,8 @@ interface CalibrationArgs {
 function parseArgs(): CalibrationArgs {
   const args = process.argv.slice(2);
   let templateName = 'Standard Selection Questionnaire';
-  let min = 0.40;
-  let max = 0.80;
+  let min = 0.4;
+  let max = 0.8;
   let step = 0.05;
 
   for (let i = 0; i < args.length; i++) {
@@ -142,7 +142,9 @@ async function fetchRequirements(
 ): Promise<TemplateRequirement[]> {
   const { data, error } = await supabase
     .from('template_requirements')
-    .select('id, template_name, template_version, template_type, section_ref, section_name, question_number, requirement_text, description, requirement_type, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, matching_keywords, matching_guidance, requirement_embedding, is_mandatory, sector_applicability, word_limit_guidance, display_order')
+    .select(
+      'id, template_name, template_version, template_type, section_ref, section_name, question_number, requirement_text, description, requirement_type, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, matching_keywords, matching_guidance, requirement_embedding, is_mandatory, sector_applicability, word_limit_guidance, display_order',
+    )
     .eq('template_name', templateName)
     .eq('is_current', true)
     .order('display_order');
@@ -167,9 +169,9 @@ async function fetchRequirements(
     matching_keywords: row.matching_keywords as string[] | null,
     matching_guidance: row.matching_guidance as string | null,
     requirement_embedding: row.requirement_embedding
-      ? (typeof row.requirement_embedding === 'string'
-          ? JSON.parse(row.requirement_embedding as string)
-          : row.requirement_embedding as number[])
+      ? typeof row.requirement_embedding === 'string'
+        ? JSON.parse(row.requirement_embedding as string)
+        : (row.requirement_embedding as number[])
       : null,
     is_mandatory: row.is_mandatory as boolean | null,
     sector_applicability: row.sector_applicability as string[] | null,
@@ -183,7 +185,9 @@ async function fetchContent(
 ): Promise<ContentItemForMatching[]> {
   const { data, error } = await supabase
     .from('content_items')
-    .select('id, content, brief, detail, title, suggested_title, primary_domain, primary_subtopic, content_type, ai_keywords, embedding')
+    .select(
+      'id, content, brief, detail, title, suggested_title, primary_domain, primary_subtopic, content_type, ai_keywords, embedding',
+    )
     .is('archived_at', null);
 
   if (error) throw new Error(`Failed to fetch content: ${error.message}`);
@@ -200,9 +204,9 @@ async function fetchContent(
     content_type: row.content_type as string,
     ai_keywords: row.ai_keywords as string[] | null,
     embedding: row.embedding
-      ? (typeof row.embedding === 'string'
-          ? JSON.parse(row.embedding as string)
-          : row.embedding as number[])
+      ? typeof row.embedding === 'string'
+        ? JSON.parse(row.embedding as string)
+        : (row.embedding as number[])
       : null,
   }));
 }
@@ -213,10 +217,14 @@ async function main() {
   const { templateName, min, max, step } = parseArgs();
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseKey =
+    process.env.SUPABASE_SECRET_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
-    console.error('Error: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY must be set.');
+    console.error(
+      'Error: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY must be set.',
+    );
     process.exit(1);
   }
 
@@ -224,7 +232,9 @@ async function main() {
 
   console.log(`\n📐 Template Coverage Threshold Calibration`);
   console.log(`   Template: ${templateName}`);
-  console.log(`   Strong threshold range: ${min.toFixed(2)} → ${max.toFixed(2)} (step ${step.toFixed(2)})`);
+  console.log(
+    `   Strong threshold range: ${min.toFixed(2)} → ${max.toFixed(2)} (step ${step.toFixed(2)})`,
+  );
   console.log(`   Partial threshold = strong − 0.20\n`);
 
   // Fetch data
@@ -238,12 +248,20 @@ async function main() {
 
   console.log('Fetching content items...');
   const content = await fetchContent(supabase);
-  console.log(`  → ${content.length} content items loaded (excluding archived)\n`);
+  console.log(
+    `  → ${content.length} content items loaded (excluding archived)\n`,
+  );
 
   // Check embedding coverage
-  const reqWithEmbeddings = requirements.filter(r => r.requirement_embedding !== null).length;
-  const contentWithEmbeddings = content.filter(c => c.embedding !== null).length;
-  console.log(`Embedding coverage: ${reqWithEmbeddings}/${requirements.length} requirements, ${contentWithEmbeddings}/${content.length} content items\n`);
+  const reqWithEmbeddings = requirements.filter(
+    (r) => r.requirement_embedding !== null,
+  ).length;
+  const contentWithEmbeddings = content.filter(
+    (c) => c.embedding !== null,
+  ).length;
+  console.log(
+    `Embedding coverage: ${reqWithEmbeddings}/${requirements.length} requirements, ${contentWithEmbeddings}/${content.length} content items\n`,
+  );
 
   // Run calibration
   const results: Array<{
@@ -262,7 +280,7 @@ async function main() {
   }
 
   for (const strongT of thresholds) {
-    const partialT = Math.max(0.1, strongT - 0.20);
+    const partialT = Math.max(0.1, strongT - 0.2);
     const coverage = computeTemplateCoverage(
       templateName,
       null,
@@ -302,10 +320,12 @@ async function main() {
 
   console.log(divider);
   console.log(`\nTotal requirements: ${requirements.length}`);
-  console.log(`Current defaults: strong=${SIMILARITY_STRONG_THRESHOLD}, partial=${SIMILARITY_PARTIAL_THRESHOLD}\n`);
+  console.log(
+    `Current defaults: strong=${SIMILARITY_STRONG_THRESHOLD}, partial=${SIMILARITY_PARTIAL_THRESHOLD}\n`,
+  );
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error('Fatal error:', err);
   process.exit(1);
 });

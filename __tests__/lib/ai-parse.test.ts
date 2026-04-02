@@ -129,7 +129,7 @@ describe('extractToolResult', () => {
     const secondInput = {
       domain: 'PRODUCT & DESIGN',
       subtopic: 'UX Research',
-      confidence: 0.70,
+      confidence: 0.7,
     };
     const message = createMockMessage([
       createToolUseBlock('classify_content', firstInput, 'toolu_first'),
@@ -159,10 +159,7 @@ describe('extractToolResult', () => {
       createToolUseBlock('classify_content', input),
     ]);
 
-    const result = extractToolResult<typeof input>(
-      message,
-      'classify_content',
-    );
+    const result = extractToolResult<typeof input>(message, 'classify_content');
 
     expect(result.suggested_title).toBe('How to Build AI Agents');
     expect(result.ai_keywords).toEqual(['AI', 'agents', 'autonomy']);
@@ -184,7 +181,10 @@ describe('extractToolResult', () => {
   });
 
   it('should find correct tool among multiple different tool_use blocks', () => {
-    const summaryInput = { executive: 'A brief summary', model: 'claude-sonnet-4-6' };
+    const summaryInput = {
+      executive: 'A brief summary',
+      model: 'claude-sonnet-4-6',
+    };
     const classifyInput = {
       domain: 'LEADERSHIP & MANAGEMENT',
       subtopic: 'Team Building',
@@ -208,9 +208,9 @@ describe('extractToolResult', () => {
   it('should include the tool name in the error message', () => {
     const message = createMockMessage([createTextBlock('No tools here')]);
 
-    expect(() =>
-      extractToolResult(message, 'my_special_tool'),
-    ).toThrow('my_special_tool');
+    expect(() => extractToolResult(message, 'my_special_tool')).toThrow(
+      'my_special_tool',
+    );
   });
 
   it('should handle empty content array', () => {
@@ -272,7 +272,9 @@ describe('extractToolResult', () => {
     expect(result).toEqual(invalidInput);
     // Should log the validation error
     expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining('AI response validation failed for return_summary'),
+      expect.stringContaining(
+        'AI response validation failed for return_summary',
+      ),
       expect.any(Array),
     );
 
@@ -290,10 +292,7 @@ describe('extractToolResult', () => {
     ]);
 
     // No schema passed — should behave exactly as before
-    const result = extractToolResult<TestSchemaType>(
-      message,
-      'return_summary',
-    );
+    const result = extractToolResult<TestSchemaType>(message, 'return_summary');
 
     expect(result).toEqual(input);
   });

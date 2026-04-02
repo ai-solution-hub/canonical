@@ -85,7 +85,7 @@ export interface BidDetailData {
 }
 
 /** Urgency level derived from days_until_deadline */
-export type Urgency = "overdue" | "urgent" | "approaching" | "normal" | "none";
+export type Urgency = 'overdue' | 'urgent' | 'approaching' | 'normal' | 'none';
 
 /** State for an expanded question within the bid detail */
 export interface ExpandedQuestionState {

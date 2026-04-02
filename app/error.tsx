@@ -20,9 +20,14 @@ export default function Error({
       role="alert"
       className="mx-auto flex max-w-7xl flex-col items-center justify-center gap-4 px-4 py-24 text-center"
     >
-      <AlertTriangle className="size-8 text-muted-foreground" aria-hidden="true" />
+      <AlertTriangle
+        className="size-8 text-muted-foreground"
+        aria-hidden="true"
+      />
       <div>
-        <h2 className="text-lg font-semibold text-foreground">Something went wrong</h2>
+        <h2 className="text-lg font-semibold text-foreground">
+          Something went wrong
+        </h2>
         <p className="mt-1 text-sm text-muted-foreground">
           An unexpected error occurred. Please try again.
         </p>

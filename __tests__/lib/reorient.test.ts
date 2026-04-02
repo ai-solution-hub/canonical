@@ -30,7 +30,8 @@ afterEach(() => {
 vi.mock('@/lib/dashboard', () => ({
   getDeadlineUrgency: vi.fn((deadline: string | null) => {
     if (!deadline) return 'unknown';
-    const diff = (new Date(deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+    const diff =
+      (new Date(deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
     if (diff < 0) return 'overdue';
     if (diff < 3) return 'urgent';
     if (diff < 14) return 'approaching';
@@ -38,7 +39,9 @@ vi.mock('@/lib/dashboard', () => ({
   }),
   getDaysUntilDeadline: vi.fn((deadline: string | null) => {
     if (!deadline) return null;
-    return Math.ceil((new Date(deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    return Math.ceil(
+      (new Date(deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+    );
   }),
 }));
 
@@ -100,21 +103,23 @@ const TEST_USER_ID = 'user-abc-123';
  *      b) fetchActiveBidsWithStats (mocked — returns workspaces + statsMap)
  *   Then auth.getUser() for display name
  */
-function setupDefaultMock(overrides: {
-  lastActivityData?: unknown[];
-  lastReadActivityData?: unknown[];
-  authUser?: Record<string, unknown> | null;
-  teamChangesData?: unknown[];
-  recentWorkData?: unknown[];
-  workspacesData?: unknown[];
-  batchStatsData?: unknown[];
-  freshnessData?: unknown[];
-  governanceCount?: number;
-  qualityFlagsCount?: number;
-  notificationsCount?: number;
-  bidResponseTeamChangesData?: unknown[];
-  bidResponseRecentWorkData?: unknown[];
-} = {}) {
+function setupDefaultMock(
+  overrides: {
+    lastActivityData?: unknown[];
+    lastReadActivityData?: unknown[];
+    authUser?: Record<string, unknown> | null;
+    teamChangesData?: unknown[];
+    recentWorkData?: unknown[];
+    workspacesData?: unknown[];
+    batchStatsData?: unknown[];
+    freshnessData?: unknown[];
+    governanceCount?: number;
+    qualityFlagsCount?: number;
+    notificationsCount?: number;
+    bidResponseTeamChangesData?: unknown[];
+    bidResponseRecentWorkData?: unknown[];
+  } = {},
+) {
   const mock = createMockSupabaseClient();
 
   // Track from() calls sequentially
@@ -126,7 +131,9 @@ function setupDefaultMock(overrides: {
 
   // Call 0: content_history for lastActivity (write)
   fromCalls.push({
-    data: overrides.lastActivityData ?? [{ created_at: '2026-03-08T08:00:00Z' }],
+    data: overrides.lastActivityData ?? [
+      { created_at: '2026-03-08T08:00:00Z' },
+    ],
     error: null,
     count: null,
   });
@@ -194,7 +201,12 @@ function setupDefaultMock(overrides: {
     const freshChain: Record<string, ReturnType<typeof vi.fn>> = {};
 
     for (const key of Object.keys(mock._chain)) {
-      if (key === 'then' || key === 'single' || key === 'maybeSingle' || key === 'csv') {
+      if (
+        key === 'then' ||
+        key === 'single' ||
+        key === 'maybeSingle' ||
+        key === 'csv'
+      ) {
         continue;
       }
       freshChain[key] = vi.fn().mockReturnValue(undefined as never);
@@ -222,18 +234,37 @@ function setupDefaultMock(overrides: {
       order: vi.fn(),
       limit: vi.fn(),
       range: vi.fn(),
-      single: vi.fn().mockResolvedValue({ data: null, error: null, count: null }),
-      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null, count: null }),
+      single: vi
+        .fn()
+        .mockResolvedValue({ data: null, error: null, count: null }),
+      maybeSingle: vi
+        .fn()
+        .mockResolvedValue({ data: null, error: null, count: null }),
       csv: vi.fn().mockResolvedValue({ data: null, error: null, count: null }),
-      then: vi.fn((resolve: (v: unknown) => void) =>
-        resolve(response),
-      ),
+      then: vi.fn((resolve: (v: unknown) => void) => resolve(response)),
     };
 
     const chainable = [
-      'select', 'insert', 'update', 'upsert', 'delete',
-      'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-      'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+      'select',
+      'insert',
+      'update',
+      'upsert',
+      'delete',
+      'eq',
+      'neq',
+      'in',
+      'is',
+      'not',
+      'ilike',
+      'contains',
+      'gte',
+      'lte',
+      'gt',
+      'lt',
+      'or',
+      'order',
+      'limit',
+      'range',
     ] as const;
     for (const m of chainable) {
       c[m].mockReturnValue(c);
@@ -260,8 +291,12 @@ function setupDefaultMock(overrides: {
   });
 
   // Configure the mocked fetchActiveBidsWithStats result
-  const workspacesData = (overrides.workspacesData ?? []) as Array<Record<string, unknown>>;
-  const batchStatsData = (overrides.batchStatsData ?? []) as Array<Record<string, unknown>>;
+  const workspacesData = (overrides.workspacesData ?? []) as Array<
+    Record<string, unknown>
+  >;
+  const batchStatsData = (overrides.batchStatsData ?? []) as Array<
+    Record<string, unknown>
+  >;
   const statsMap = new Map<string, unknown>();
   for (const row of batchStatsData) {
     statsMap.set(row.project_id as string, row);
@@ -272,14 +307,15 @@ function setupDefaultMock(overrides: {
   };
 
   // Configure auth.getUser — called twice (once for fallback, once for display name)
-  const authUser = overrides.authUser !== undefined
-    ? overrides.authUser
-    : {
-        id: TEST_USER_ID,
-        email: 'liam@example.com',
-        user_metadata: { full_name: 'Liam Jones' },
-        last_sign_in_at: '2026-03-07T09:00:00Z',
-      };
+  const authUser =
+    overrides.authUser !== undefined
+      ? overrides.authUser
+      : {
+          id: TEST_USER_ID,
+          email: 'liam@example.com',
+          user_metadata: { full_name: 'Liam Jones' },
+          last_sign_in_at: '2026-03-07T09:00:00Z',
+        };
   mock.auth.getUser.mockResolvedValue({
     data: { user: authUser },
     error: null,
@@ -422,7 +458,10 @@ describe('fetchReorientData', () => {
             change_summary: 'Updated policy',
             created_by: 'other-user-1',
             created_at: '2026-03-08T09:00:00Z',
-            content_items: { title: 'Data Protection Policy', primary_domain: 'Corporate' },
+            content_items: {
+              title: 'Data Protection Policy',
+              primary_domain: 'Corporate',
+            },
           },
         ],
       });
@@ -436,7 +475,9 @@ describe('fetchReorientData', () => {
 
       expect(result.team_changes).toHaveLength(1);
       expect(result.team_changes[0].user_id).toBe('other-user-1');
-      expect(result.team_changes[0].entity_title).toBe('Data Protection Policy');
+      expect(result.team_changes[0].entity_title).toBe(
+        'Data Protection Policy',
+      );
       expect(result.team_changes[0].action).toBe('updated');
       expect(result.team_changes[0].domain).toBe('Corporate');
     });
@@ -468,7 +509,10 @@ describe('fetchReorientData', () => {
             change_summary: 'New item',
             created_by: 'other-user',
             created_at: '2026-03-08T09:00:00Z',
-            content_items: { title: 'New Article', primary_domain: 'Technical' },
+            content_items: {
+              title: 'New Article',
+              primary_domain: 'Technical',
+            },
           },
         ],
       });
@@ -493,7 +537,10 @@ describe('fetchReorientData', () => {
             change_summary: 'Rolled back',
             created_by: 'other-user',
             created_at: '2026-03-08T09:00:00Z',
-            content_items: { title: 'Rolled Back Item', primary_domain: 'Commercial' },
+            content_items: {
+              title: 'Rolled Back Item',
+              primary_domain: 'Commercial',
+            },
           },
         ],
       });
@@ -613,7 +660,11 @@ describe('fetchReorientData', () => {
           {
             id: 'bid-1',
             name: 'Overdue Bid',
-            domain_metadata: { deadline: '2026-03-07T00:00:00Z', buyer: 'Corp A', status: 'active' },
+            domain_metadata: {
+              deadline: '2026-03-07T00:00:00Z',
+              buyer: 'Corp A',
+              status: 'active',
+            },
             is_archived: false,
             updated_at: '2026-03-07T00:00:00Z',
           },
@@ -647,7 +698,7 @@ describe('fetchReorientData', () => {
       expect(result.urgent[0].type).toBe('bid_deadline');
       expect(result.urgent[0].priority).toBe(1);
       // Content expired (priority 2) before review pending (priority 3)
-      const priorities = result.urgent.map(u => u.priority);
+      const priorities = result.urgent.map((u) => u.priority);
       for (let i = 1; i < priorities.length; i++) {
         expect(priorities[i]).toBeGreaterThanOrEqual(priorities[i - 1]);
       }
@@ -665,7 +716,7 @@ describe('fetchReorientData', () => {
         'admin',
       );
 
-      const qualityItem = result.urgent.find(u => u.type === 'quality_flag');
+      const qualityItem = result.urgent.find((u) => u.type === 'quality_flag');
       expect(qualityItem).toBeDefined();
       expect(qualityItem!.title).toContain('4 unresolved quality flags');
       expect(qualityItem!.href).toBe('/browse?quality=flagged');
@@ -684,7 +735,7 @@ describe('fetchReorientData', () => {
         'editor',
       );
 
-      const qualityItem = result.urgent.find(u => u.type === 'quality_flag');
+      const qualityItem = result.urgent.find((u) => u.type === 'quality_flag');
       expect(qualityItem).toBeUndefined();
     });
 
@@ -704,7 +755,9 @@ describe('fetchReorientData', () => {
         'editor',
       );
 
-      const expiredItem = result.urgent.find(u => u.type === 'content_expired');
+      const expiredItem = result.urgent.find(
+        (u) => u.type === 'content_expired',
+      );
       expect(expiredItem).toBeDefined();
       expect(expiredItem!.title).toContain('4 content items');
       expect(expiredItem!.href).toBe('/browse?freshness=stale,expired');
@@ -722,7 +775,7 @@ describe('fetchReorientData', () => {
         'editor',
       );
 
-      const reviewItem = result.urgent.find(u => u.type === 'review_pending');
+      const reviewItem = result.urgent.find((u) => u.type === 'review_pending');
       expect(reviewItem).toBeDefined();
       expect(reviewItem!.title).toContain('7 governance reviews');
       expect(reviewItem!.href).toBe('/review');
@@ -743,7 +796,7 @@ describe('fetchReorientData', () => {
         'admin',
       );
 
-      const notifItem = result.urgent.find(u => u.type === 'notification');
+      const notifItem = result.urgent.find((u) => u.type === 'notification');
       expect(notifItem).toBeDefined();
       expect(notifItem!.title).toContain('8 unread notifications');
       expect(notifItem!.href).toBe('/settings?tab=notifications');
@@ -762,7 +815,7 @@ describe('fetchReorientData', () => {
         'admin',
       );
 
-      const notifItem = result.urgent.find(u => u.type === 'notification');
+      const notifItem = result.urgent.find((u) => u.type === 'notification');
       expect(notifItem).toBeUndefined();
     });
 
@@ -779,10 +832,12 @@ describe('fetchReorientData', () => {
         'editor',
       );
 
-      const expiredItem = result.urgent.find(u => u.type === 'content_expired');
+      const expiredItem = result.urgent.find(
+        (u) => u.type === 'content_expired',
+      );
       expect(expiredItem!.title).toContain('1 content item needs');
 
-      const reviewItem = result.urgent.find(u => u.type === 'review_pending');
+      const reviewItem = result.urgent.find((u) => u.type === 'review_pending');
       expect(reviewItem!.title).toContain('1 governance review pending');
     });
   });
@@ -798,7 +853,11 @@ describe('fetchReorientData', () => {
           {
             id: 'bid-2',
             name: 'Test Bid',
-            domain_metadata: { deadline: '2026-04-01T00:00:00Z', buyer: 'Buyer X', status: 'active' },
+            domain_metadata: {
+              deadline: '2026-04-01T00:00:00Z',
+              buyer: 'Buyer X',
+              status: 'active',
+            },
             is_archived: false,
             updated_at: '2026-03-08T00:00:00Z',
           },
@@ -839,29 +898,59 @@ describe('fetchReorientData', () => {
           {
             id: 'bid-overdue',
             name: 'Overdue Bid',
-            domain_metadata: { deadline: '2026-03-07T00:00:00Z', status: 'active' },
+            domain_metadata: {
+              deadline: '2026-03-07T00:00:00Z',
+              status: 'active',
+            },
             is_archived: false,
             updated_at: '2026-03-07T00:00:00Z',
           },
           {
             id: 'bid-urgent',
             name: 'Urgent Bid',
-            domain_metadata: { deadline: '2026-03-09T00:00:00Z', status: 'active' },
+            domain_metadata: {
+              deadline: '2026-03-09T00:00:00Z',
+              status: 'active',
+            },
             is_archived: false,
             updated_at: '2026-03-08T00:00:00Z',
           },
           {
             id: 'bid-normal',
             name: 'Normal Bid',
-            domain_metadata: { deadline: '2026-05-01T00:00:00Z', status: 'active' },
+            domain_metadata: {
+              deadline: '2026-05-01T00:00:00Z',
+              status: 'active',
+            },
             is_archived: false,
             updated_at: '2026-03-06T00:00:00Z',
           },
         ],
         batchStatsData: [
-          { project_id: 'bid-overdue', total_questions: 5, drafted_count: 1, complete_count: 0, needs_sme_count: 0, no_content_count: 0 },
-          { project_id: 'bid-urgent', total_questions: 10, drafted_count: 5, complete_count: 2, needs_sme_count: 0, no_content_count: 0 },
-          { project_id: 'bid-normal', total_questions: 8, drafted_count: 3, complete_count: 1, needs_sme_count: 0, no_content_count: 0 },
+          {
+            project_id: 'bid-overdue',
+            total_questions: 5,
+            drafted_count: 1,
+            complete_count: 0,
+            needs_sme_count: 0,
+            no_content_count: 0,
+          },
+          {
+            project_id: 'bid-urgent',
+            total_questions: 10,
+            drafted_count: 5,
+            complete_count: 2,
+            needs_sme_count: 0,
+            no_content_count: 0,
+          },
+          {
+            project_id: 'bid-normal',
+            total_questions: 8,
+            drafted_count: 3,
+            complete_count: 1,
+            needs_sme_count: 0,
+            no_content_count: 0,
+          },
         ],
       });
 
@@ -923,24 +1012,47 @@ describe('fetchReorientData', () => {
         const response = (() => {
           if (currentIdx === 1) {
             // First call: content_history for lastActivity (write)
-            return { data: [{ created_at: '2026-03-08T08:00:00Z' }], error: null, count: null };
+            return {
+              data: [{ created_at: '2026-03-08T08:00:00Z' }],
+              error: null,
+              count: null,
+            };
           } else if (currentIdx === 2) {
             // Second call: read_marks for lastActivity (read)
             return { data: [], error: null, count: null };
           } else if (currentIdx === 3) {
             // Third call: content_history for team changes — return error
-            return { data: null, error: { message: 'Query failed' }, count: null };
+            return {
+              data: null,
+              error: { message: 'Query failed' },
+              count: null,
+            };
           } else {
             return { data: [], error: null, count: 0 };
           }
         })();
 
         const c = {
-          select: vi.fn(), insert: vi.fn(), update: vi.fn(), upsert: vi.fn(),
-          delete: vi.fn(), eq: vi.fn(), neq: vi.fn(), in: vi.fn(), is: vi.fn(),
-          not: vi.fn(), ilike: vi.fn(), contains: vi.fn(), gte: vi.fn(),
-          lte: vi.fn(), gt: vi.fn(), lt: vi.fn(), or: vi.fn(), order: vi.fn(),
-          limit: vi.fn(), range: vi.fn(),
+          select: vi.fn(),
+          insert: vi.fn(),
+          update: vi.fn(),
+          upsert: vi.fn(),
+          delete: vi.fn(),
+          eq: vi.fn(),
+          neq: vi.fn(),
+          in: vi.fn(),
+          is: vi.fn(),
+          not: vi.fn(),
+          ilike: vi.fn(),
+          contains: vi.fn(),
+          gte: vi.fn(),
+          lte: vi.fn(),
+          gt: vi.fn(),
+          lt: vi.fn(),
+          or: vi.fn(),
+          order: vi.fn(),
+          limit: vi.fn(),
+          range: vi.fn(),
           single: vi.fn().mockResolvedValue({ data: null, error: null }),
           maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
           csv: vi.fn().mockResolvedValue({ data: null, error: null }),
@@ -949,9 +1061,26 @@ describe('fetchReorientData', () => {
           }),
         };
         const chainable = [
-          'select', 'insert', 'update', 'upsert', 'delete',
-          'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-          'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+          'select',
+          'insert',
+          'update',
+          'upsert',
+          'delete',
+          'eq',
+          'neq',
+          'in',
+          'is',
+          'not',
+          'ilike',
+          'contains',
+          'gte',
+          'lte',
+          'gt',
+          'lt',
+          'or',
+          'order',
+          'limit',
+          'range',
         ] as const;
         for (const m of chainable) {
           (c[m] as ReturnType<typeof vi.fn>).mockReturnValue(c);
@@ -1130,7 +1259,10 @@ describe('fetchReorientData', () => {
             change_summary: 'Updated policy',
             created_by: 'other-user-1',
             created_at: '2026-03-08T09:00:00Z',
-            content_items: { title: 'Data Protection Policy', primary_domain: 'Corporate' },
+            content_items: {
+              title: 'Data Protection Policy',
+              primary_domain: 'Corporate',
+            },
           },
         ],
         bidResponseTeamChangesData: [
@@ -1159,7 +1291,9 @@ describe('fetchReorientData', () => {
       );
 
       expect(result.team_changes).toHaveLength(2);
-      const bidChange = result.team_changes.find(tc => tc.entity_type === 'bid_response');
+      const bidChange = result.team_changes.find(
+        (tc) => tc.entity_type === 'bid_response',
+      );
       expect(bidChange).toBeDefined();
       expect(bidChange!.entity_title).toBe('NHS Digital Bid');
       expect(bidChange!.action).toBe('updated');
@@ -1246,7 +1380,9 @@ describe('fetchReorientData', () => {
 
       expect(result.my_recent_work).toHaveLength(1);
       expect(result.my_recent_work[0].entity_type).toBe('bid_response');
-      expect(result.my_recent_work[0].entity_title).toBe('Describe your security approach');
+      expect(result.my_recent_work[0].entity_title).toBe(
+        'Describe your security approach',
+      );
       expect(result.my_recent_work[0].href).toBe('/bid/bid-2/session');
       expect(result.my_recent_work[0].action).toBe('edited');
       expect(result.my_recent_work[0].workspace_id).toBe('bid-2');
@@ -1254,7 +1390,8 @@ describe('fetchReorientData', () => {
     });
 
     it('truncates long question text in entity_title', async () => {
-      const longQuestion = 'Please provide a detailed description of your organisation\'s approach to information security management including all relevant certifications';
+      const longQuestion =
+        "Please provide a detailed description of your organisation's approach to information security management including all relevant certifications";
       const mock = setupDefaultMock({
         recentWorkData: [],
         bidResponseRecentWorkData: [
@@ -1282,26 +1419,76 @@ describe('fetchReorientData', () => {
         'admin',
       );
 
-      expect(result.my_recent_work[0].entity_title.length).toBeLessThanOrEqual(60);
+      expect(result.my_recent_work[0].entity_title.length).toBeLessThanOrEqual(
+        60,
+      );
       expect(result.my_recent_work[0].entity_title).toMatch(/\.\.\.$/);
     });
 
     it('limits combined recent work to 5 items', async () => {
       const mock = setupDefaultMock({
         recentWorkData: [
-          { id: 'h-1', content_item_id: 'i-1', change_type: 'edit', change_summary: '', created_at: '2026-03-08T09:50:00Z', content_items: { title: 'Item 1' } },
-          { id: 'h-2', content_item_id: 'i-2', change_type: 'edit', change_summary: '', created_at: '2026-03-08T09:40:00Z', content_items: { title: 'Item 2' } },
-          { id: 'h-3', content_item_id: 'i-3', change_type: 'edit', change_summary: '', created_at: '2026-03-08T09:30:00Z', content_items: { title: 'Item 3' } },
-          { id: 'h-4', content_item_id: 'i-4', change_type: 'edit', change_summary: '', created_at: '2026-03-08T09:20:00Z', content_items: { title: 'Item 4' } },
+          {
+            id: 'h-1',
+            content_item_id: 'i-1',
+            change_type: 'edit',
+            change_summary: '',
+            created_at: '2026-03-08T09:50:00Z',
+            content_items: { title: 'Item 1' },
+          },
+          {
+            id: 'h-2',
+            content_item_id: 'i-2',
+            change_type: 'edit',
+            change_summary: '',
+            created_at: '2026-03-08T09:40:00Z',
+            content_items: { title: 'Item 2' },
+          },
+          {
+            id: 'h-3',
+            content_item_id: 'i-3',
+            change_type: 'edit',
+            change_summary: '',
+            created_at: '2026-03-08T09:30:00Z',
+            content_items: { title: 'Item 3' },
+          },
+          {
+            id: 'h-4',
+            content_item_id: 'i-4',
+            change_type: 'edit',
+            change_summary: '',
+            created_at: '2026-03-08T09:20:00Z',
+            content_items: { title: 'Item 4' },
+          },
         ],
         bidResponseRecentWorkData: [
           {
-            id: 'brh-1', response_id: 'r-1', edited_by: TEST_USER_ID, created_at: '2026-03-08T09:45:00Z',
-            bid_responses: { question_id: 'q-1', bid_questions: { project_id: 'b-1', question_text: 'Q1', workspaces: { id: 'b-1', name: 'Bid' } } },
+            id: 'brh-1',
+            response_id: 'r-1',
+            edited_by: TEST_USER_ID,
+            created_at: '2026-03-08T09:45:00Z',
+            bid_responses: {
+              question_id: 'q-1',
+              bid_questions: {
+                project_id: 'b-1',
+                question_text: 'Q1',
+                workspaces: { id: 'b-1', name: 'Bid' },
+              },
+            },
           },
           {
-            id: 'brh-2', response_id: 'r-2', edited_by: TEST_USER_ID, created_at: '2026-03-08T09:35:00Z',
-            bid_responses: { question_id: 'q-2', bid_questions: { project_id: 'b-1', question_text: 'Q2', workspaces: { id: 'b-1', name: 'Bid' } } },
+            id: 'brh-2',
+            response_id: 'r-2',
+            edited_by: TEST_USER_ID,
+            created_at: '2026-03-08T09:35:00Z',
+            bid_responses: {
+              question_id: 'q-2',
+              bid_questions: {
+                project_id: 'b-1',
+                question_text: 'Q2',
+                workspaces: { id: 'b-1', name: 'Bid' },
+              },
+            },
           },
         ],
       });
@@ -1355,8 +1542,12 @@ describe('resolveDisplayNames', () => {
       auth: {
         admin: {
           getUserById: vi.fn().mockImplementation(async (id: string) => {
-            if (id === 'u1') return { data: { user: { user_metadata: { full_name: 'Alice Smith' } } } };
-            if (id === 'u2') return { data: { user: { email: 'bob@test.com' } } };
+            if (id === 'u1')
+              return {
+                data: { user: { user_metadata: { full_name: 'Alice Smith' } } },
+              };
+            if (id === 'u2')
+              return { data: { user: { email: 'bob@test.com' } } };
             return { data: { user: null } };
           }),
         },

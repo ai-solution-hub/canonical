@@ -4,9 +4,17 @@
  * AI-assisted check (Haiku via Structured Outputs) for unsupported claims.
  */
 
-import type { CitationEntry, QualityData, QualityIssueEntry } from '@/types/bid-metadata';
+import type {
+  CitationEntry,
+  QualityData,
+  QualityIssueEntry,
+} from '@/types/bid-metadata';
 import { htmlToPlainText, countWords } from '@/lib/editor-utils';
-import { getAnthropicClient, getModelForTier, estimateCost } from '@/lib/anthropic';
+import {
+  getAnthropicClient,
+  getModelForTier,
+  estimateCost,
+} from '@/lib/anthropic';
 
 /** Minimal question shape for quality checks */
 export interface QualityCheckQuestion {
@@ -100,7 +108,13 @@ async function runAIQualityCheck(
   responseHtml: string,
   citations: CitationEntry[],
   matchedContentCount: number,
-): Promise<{ result: AIQualityResult; tokensUsed: number; inputTokens: number; outputTokens: number; cost: number }> {
+): Promise<{
+  result: AIQualityResult;
+  tokensUsed: number;
+  inputTokens: number;
+  outputTokens: number;
+  cost: number;
+}> {
   const anthropic = getAnthropicClient();
   const model = getModelForTier('quality');
   const plainText = htmlToPlainText(responseHtml);
@@ -136,7 +150,9 @@ Check for:
   const textBlock = aiCheck.content.find((b) => b.type === 'text');
   let aiResult: AIQualityResult = {
     unsupported_claims: [],
-    suggestions: ['Quality check could not parse AI response — manual review recommended'],
+    suggestions: [
+      'Quality check could not parse AI response — manual review recommended',
+    ],
     overall_score: 0,
   };
 
@@ -155,7 +171,8 @@ Check for:
   const cost = estimateCost(model, {
     input_tokens: inputTokens,
     output_tokens: outputTokens,
-    cache_creation_input_tokens: aiCheck.usage.cache_creation_input_tokens ?? undefined,
+    cache_creation_input_tokens:
+      aiCheck.usage.cache_creation_input_tokens ?? undefined,
     cache_read_input_tokens: aiCheck.usage.cache_read_input_tokens ?? undefined,
   });
 
@@ -171,7 +188,13 @@ export async function checkResponseQuality(
   responseHtml: string,
   citations: CitationEntry[],
   matchedContentCount: number,
-): Promise<{ qualityData: QualityData; tokensUsed: number; inputTokens: number; outputTokens: number; cost: number }> {
+): Promise<{
+  qualityData: QualityData;
+  tokensUsed: number;
+  inputTokens: number;
+  outputTokens: number;
+  cost: number;
+}> {
   // Deterministic checks first
   const { wordCount, issues } = runDeterministicChecks(
     responseHtml,
@@ -181,7 +204,13 @@ export async function checkResponseQuality(
   );
 
   // AI-assisted check
-  const { result: aiResult, tokensUsed, inputTokens, outputTokens, cost } = await runAIQualityCheck(
+  const {
+    result: aiResult,
+    tokensUsed,
+    inputTokens,
+    outputTokens,
+    cost,
+  } = await runAIQualityCheck(
     question,
     responseHtml,
     citations,
@@ -200,7 +229,9 @@ export async function checkResponseQuality(
   const qualityData: QualityData = {
     overall_score: aiResult.overall_score,
     word_count: wordCount,
-    word_limit_compliance: question.word_limit ? wordCount <= question.word_limit : true,
+    word_limit_compliance: question.word_limit
+      ? wordCount <= question.word_limit
+      : true,
     citation_count: citations.length,
     unsupported_claims: aiResult.unsupported_claims,
     suggestions: aiResult.suggestions,

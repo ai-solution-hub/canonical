@@ -64,13 +64,11 @@ export function useReviewSession(
     const source_document_id = searchParams.get('source_document_id');
 
     return {
-      status: (
-        ['unverified', 'verified', 'flagged', 'draft', 'all'].includes(
-          status ?? '',
-        )
-          ? (status as ReviewFiltersType['status'])
-          : 'unverified'
-      ),
+      status: ['unverified', 'verified', 'flagged', 'draft', 'all'].includes(
+        status ?? '',
+      )
+        ? (status as ReviewFiltersType['status'])
+        : 'unverified',
       domain: domain.length > 0 ? domain : undefined,
       content_type: content_type.length > 0 ? content_type : undefined,
       source_file: source_file ?? undefined,

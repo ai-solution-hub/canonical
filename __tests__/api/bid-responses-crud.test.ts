@@ -49,16 +49,41 @@ function resetMocks() {
   });
 
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockResolvedValue({ data: null, error: null, count: null });
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null, count: null });
+  mockSupabase._chain.single.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
@@ -77,7 +102,9 @@ describe('GET /api/bids/:id/responses/:rId', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest(`/api/bids/${BID_ID}/responses/${RESPONSE_ID}`);
+    const req = createTestRequest(
+      `/api/bids/${BID_ID}/responses/${RESPONSE_ID}`,
+    );
     const params = createTestParams({ id: BID_ID, rId: RESPONSE_ID });
     const res = await GET(req, { params });
 
@@ -87,7 +114,9 @@ describe('GET /api/bids/:id/responses/:rId', () => {
   });
 
   it('returns 400 for invalid bid UUID', async () => {
-    const req = createTestRequest(`/api/bids/not-a-uuid/responses/${RESPONSE_ID}`);
+    const req = createTestRequest(
+      `/api/bids/not-a-uuid/responses/${RESPONSE_ID}`,
+    );
     const params = createTestParams({ id: 'not-a-uuid', rId: RESPONSE_ID });
     const res = await GET(req, { params });
 
@@ -113,7 +142,9 @@ describe('GET /api/bids/:id/responses/:rId', () => {
       error: { code: 'PGRST116', message: 'No rows found' },
     });
 
-    const req = createTestRequest(`/api/bids/${BID_ID}/responses/${RESPONSE_ID}`);
+    const req = createTestRequest(
+      `/api/bids/${BID_ID}/responses/${RESPONSE_ID}`,
+    );
     const params = createTestParams({ id: BID_ID, rId: RESPONSE_ID });
     const res = await GET(req, { params });
 
@@ -148,7 +179,9 @@ describe('GET /api/bids/:id/responses/:rId', () => {
       error: { code: 'PGRST116', message: 'No rows found' },
     });
 
-    const req = createTestRequest(`/api/bids/${BID_ID}/responses/${RESPONSE_ID}`);
+    const req = createTestRequest(
+      `/api/bids/${BID_ID}/responses/${RESPONSE_ID}`,
+    );
     const params = createTestParams({ id: BID_ID, rId: RESPONSE_ID });
     const res = await GET(req, { params });
 
@@ -189,7 +222,9 @@ describe('GET /api/bids/:id/responses/:rId', () => {
       error: null,
     });
 
-    const req = createTestRequest(`/api/bids/${BID_ID}/responses/${RESPONSE_ID}`);
+    const req = createTestRequest(
+      `/api/bids/${BID_ID}/responses/${RESPONSE_ID}`,
+    );
     const params = createTestParams({ id: BID_ID, rId: RESPONSE_ID });
     const res = await GET(req, { params });
 
@@ -258,7 +293,9 @@ describe('GET /api/bids/:id/responses/:rId', () => {
       error: null,
     });
 
-    const req = createTestRequest(`/api/bids/${BID_ID}/responses/${RESPONSE_ID}`);
+    const req = createTestRequest(
+      `/api/bids/${BID_ID}/responses/${RESPONSE_ID}`,
+    );
     const params = createTestParams({ id: BID_ID, rId: RESPONSE_ID });
     const res = await GET(req, { params });
 
@@ -306,22 +343,25 @@ describe('GET /api/bids/:id/responses/:rId', () => {
       error: null,
     });
     // Then-awaited query for content_items — returns source content
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({
-        data: [
-          {
-            id: sourceId,
-            suggested_title: 'ISO 27001 Policy',
-            content_type: 'policy',
-            primary_domain: 'Information Security',
-            ai_summary: 'Our ISO 27001 certification details',
-          },
-        ],
-        error: null,
-      }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              id: sourceId,
+              suggested_title: 'ISO 27001 Policy',
+              content_type: 'policy',
+              primary_domain: 'Information Security',
+              ai_summary: 'Our ISO 27001 certification details',
+            },
+          ],
+          error: null,
+        }),
     );
 
-    const req = createTestRequest(`/api/bids/${BID_ID}/responses/${RESPONSE_ID}`);
+    const req = createTestRequest(
+      `/api/bids/${BID_ID}/responses/${RESPONSE_ID}`,
+    );
     const params = createTestParams({ id: BID_ID, rId: RESPONSE_ID });
     const res = await GET(req, { params });
 
@@ -345,10 +385,13 @@ describe('PATCH /api/bids/:id/responses/:rId', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest(`/api/bids/${BID_ID}/responses/${RESPONSE_ID}`, {
-      method: 'PATCH',
-      body: { response_text: 'Updated' },
-    });
+    const req = createTestRequest(
+      `/api/bids/${BID_ID}/responses/${RESPONSE_ID}`,
+      {
+        method: 'PATCH',
+        body: { response_text: 'Updated' },
+      },
+    );
     const params = createTestParams({ id: BID_ID, rId: RESPONSE_ID });
     const res = await PATCH(req, { params });
 
@@ -360,10 +403,13 @@ describe('PATCH /api/bids/:id/responses/:rId', () => {
   it('returns 403 for viewer role', async () => {
     configureRole(mockSupabase, 'viewer');
 
-    const req = createTestRequest(`/api/bids/${BID_ID}/responses/${RESPONSE_ID}`, {
-      method: 'PATCH',
-      body: { response_text: 'Updated' },
-    });
+    const req = createTestRequest(
+      `/api/bids/${BID_ID}/responses/${RESPONSE_ID}`,
+      {
+        method: 'PATCH',
+        body: { response_text: 'Updated' },
+      },
+    );
     const params = createTestParams({ id: BID_ID, rId: RESPONSE_ID });
     const res = await PATCH(req, { params });
 
@@ -373,10 +419,13 @@ describe('PATCH /api/bids/:id/responses/:rId', () => {
   it('returns 400 for invalid bid UUID', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const req = createTestRequest(`/api/bids/not-valid/responses/${RESPONSE_ID}`, {
-      method: 'PATCH',
-      body: { response_text: 'Updated' },
-    });
+    const req = createTestRequest(
+      `/api/bids/not-valid/responses/${RESPONSE_ID}`,
+      {
+        method: 'PATCH',
+        body: { response_text: 'Updated' },
+      },
+    );
     const params = createTestParams({ id: 'not-valid', rId: RESPONSE_ID });
     const res = await PATCH(req, { params });
 
@@ -401,10 +450,13 @@ describe('PATCH /api/bids/:id/responses/:rId', () => {
   it('returns 400 for invalid review_status value', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const req = createTestRequest(`/api/bids/${BID_ID}/responses/${RESPONSE_ID}`, {
-      method: 'PATCH',
-      body: { review_status: 'rejected' },
-    });
+    const req = createTestRequest(
+      `/api/bids/${BID_ID}/responses/${RESPONSE_ID}`,
+      {
+        method: 'PATCH',
+        body: { review_status: 'rejected' },
+      },
+    );
     const params = createTestParams({ id: BID_ID, rId: RESPONSE_ID });
     const res = await PATCH(req, { params });
 
@@ -422,10 +474,13 @@ describe('PATCH /api/bids/:id/responses/:rId', () => {
       error: { code: 'PGRST116', message: 'No rows found' },
     });
 
-    const req = createTestRequest(`/api/bids/${BID_ID}/responses/${RESPONSE_ID}`, {
-      method: 'PATCH',
-      body: { response_text: 'Updated' },
-    });
+    const req = createTestRequest(
+      `/api/bids/${BID_ID}/responses/${RESPONSE_ID}`,
+      {
+        method: 'PATCH',
+        body: { response_text: 'Updated' },
+      },
+    );
     const params = createTestParams({ id: BID_ID, rId: RESPONSE_ID });
     const res = await PATCH(req, { params });
 
@@ -448,10 +503,13 @@ describe('PATCH /api/bids/:id/responses/:rId', () => {
       error: null,
     });
 
-    const req = createTestRequest(`/api/bids/${BID_ID}/responses/${RESPONSE_ID}`, {
-      method: 'PATCH',
-      body: { response_text: 'Updated' },
-    });
+    const req = createTestRequest(
+      `/api/bids/${BID_ID}/responses/${RESPONSE_ID}`,
+      {
+        method: 'PATCH',
+        body: { response_text: 'Updated' },
+      },
+    );
     const params = createTestParams({ id: BID_ID, rId: RESPONSE_ID });
     const res = await PATCH(req, { params });
 
@@ -489,10 +547,13 @@ describe('PATCH /api/bids/:id/responses/:rId', () => {
       error: null,
     });
 
-    const req = createTestRequest(`/api/bids/${BID_ID}/responses/${RESPONSE_ID}`, {
-      method: 'PATCH',
-      body: { response_text: '<p>Updated answer</p>' },
-    });
+    const req = createTestRequest(
+      `/api/bids/${BID_ID}/responses/${RESPONSE_ID}`,
+      {
+        method: 'PATCH',
+        body: { response_text: '<p>Updated answer</p>' },
+      },
+    );
     const params = createTestParams({ id: BID_ID, rId: RESPONSE_ID });
     const res = await PATCH(req, { params });
 
@@ -532,10 +593,13 @@ describe('PATCH /api/bids/:id/responses/:rId', () => {
       error: null,
     });
 
-    const req = createTestRequest(`/api/bids/${BID_ID}/responses/${RESPONSE_ID}`, {
-      method: 'PATCH',
-      body: { review_status: 'approved' },
-    });
+    const req = createTestRequest(
+      `/api/bids/${BID_ID}/responses/${RESPONSE_ID}`,
+      {
+        method: 'PATCH',
+        body: { review_status: 'approved' },
+      },
+    );
     const params = createTestParams({ id: BID_ID, rId: RESPONSE_ID });
     const res = await PATCH(req, { params });
 
@@ -569,10 +633,13 @@ describe('PATCH /api/bids/:id/responses/:rId', () => {
       error: { code: '42501', message: 'Permission denied' },
     });
 
-    const req = createTestRequest(`/api/bids/${BID_ID}/responses/${RESPONSE_ID}`, {
-      method: 'PATCH',
-      body: { review_status: 'edited' },
-    });
+    const req = createTestRequest(
+      `/api/bids/${BID_ID}/responses/${RESPONSE_ID}`,
+      {
+        method: 'PATCH',
+        body: { review_status: 'edited' },
+      },
+    );
     const params = createTestParams({ id: BID_ID, rId: RESPONSE_ID });
     const res = await PATCH(req, { params });
 
@@ -610,14 +677,17 @@ describe('PATCH /api/bids/:id/responses/:rId', () => {
       error: null,
     });
 
-    const req = createTestRequest(`/api/bids/${BID_ID}/responses/${RESPONSE_ID}`, {
-      method: 'PATCH',
-      body: {
-        response_text: '<p>Answer</p>',
-        review_status: 'edited',
-        change_reason: 'Improved clarity',
+    const req = createTestRequest(
+      `/api/bids/${BID_ID}/responses/${RESPONSE_ID}`,
+      {
+        method: 'PATCH',
+        body: {
+          response_text: '<p>Answer</p>',
+          review_status: 'edited',
+          change_reason: 'Improved clarity',
+        },
       },
-    });
+    );
     const params = createTestParams({ id: BID_ID, rId: RESPONSE_ID });
     const res = await PATCH(req, { params });
 
@@ -658,10 +728,13 @@ describe('PATCH /api/bids/:id/responses/:rId', () => {
       error: null,
     });
 
-    const req = createTestRequest(`/api/bids/${BID_ID}/responses/${RESPONSE_ID}`, {
-      method: 'PATCH',
-      body: { review_status: 'approved' },
-    });
+    const req = createTestRequest(
+      `/api/bids/${BID_ID}/responses/${RESPONSE_ID}`,
+      {
+        method: 'PATCH',
+        body: { review_status: 'approved' },
+      },
+    );
     const params = createTestParams({ id: BID_ID, rId: RESPONSE_ID });
     const res = await PATCH(req, { params });
 

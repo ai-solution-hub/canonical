@@ -15,7 +15,12 @@ import userEvent from '@testing-library/user-event';
 
 const { mockFetch, mockToast, mockSupabaseFrom } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
-  mockToast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
+  mockToast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  },
   mockSupabaseFrom: vi.fn(),
 }));
 
@@ -100,7 +105,9 @@ describe('GovernanceSection', () => {
     render(<GovernanceSection />);
 
     await waitFor(() => {
-      expect(screen.getByText('No governance rules configured')).toBeInTheDocument();
+      expect(
+        screen.getByText('No governance rules configured'),
+      ).toBeInTheDocument();
     });
   });
 
@@ -140,14 +147,22 @@ describe('GovernanceSection', () => {
     // First call: GET configs. Second: POST new config. Third: re-fetch.
     mockFetch
       .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve([]) })
-      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ success: true }) })
-      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve([createGovernanceConfig()]) });
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve([createGovernanceConfig()]),
+      });
 
     const user = userEvent.setup();
     render(<GovernanceSection />);
 
     await waitFor(() => {
-      expect(screen.getByText('No governance rules configured')).toBeInTheDocument();
+      expect(
+        screen.getByText('No governance rules configured'),
+      ).toBeInTheDocument();
     });
 
     // Click "Add Domain" button
@@ -181,7 +196,9 @@ describe('GovernanceSection', () => {
       );
     });
 
-    expect(mockToast.success).toHaveBeenCalledWith('Governance configuration saved');
+    expect(mockToast.success).toHaveBeenCalledWith(
+      'Governance configuration saved',
+    );
   });
 
   it('displays auto-flag indicators on config entries when enabled', async () => {
@@ -215,14 +232,20 @@ describe('GovernanceSection', () => {
       .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve([]) })
       .mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ updated: 42, recalculated_at: '2025-03-15T12:00:00Z' }),
+        json: () =>
+          Promise.resolve({
+            updated: 42,
+            recalculated_at: '2025-03-15T12:00:00Z',
+          }),
       });
 
     const user = userEvent.setup();
     render(<GovernanceSection />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Recalculate Now' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Recalculate Now' }),
+      ).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole('button', { name: 'Recalculate Now' }));
@@ -234,6 +257,8 @@ describe('GovernanceSection', () => {
       );
     });
 
-    expect(mockToast.success).toHaveBeenCalledWith('Freshness recalculated: 42 items updated');
+    expect(mockToast.success).toHaveBeenCalledWith(
+      'Freshness recalculated: 42 items updated',
+    );
   });
 });

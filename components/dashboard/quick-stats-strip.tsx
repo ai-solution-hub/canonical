@@ -27,7 +27,10 @@ function StatItem({ label, value }: { label: string; value: number }) {
   return (
     <div className="flex items-center gap-1.5">
       {dotClass && (
-        <span className={`size-2 rounded-full ${dotClass}`} aria-hidden="true" />
+        <span
+          className={`size-2 rounded-full ${dotClass}`}
+          aria-hidden="true"
+        />
       )}
       <span className="text-sm font-semibold text-foreground">{value}</span>
       <span className="text-xs text-muted-foreground">{label}</span>
@@ -55,7 +58,8 @@ export function QuickStatsStrip({
     };
   }, [router]);
 
-  const hasUnhealthyContent = freshness.aging > 0 || freshness.stale > 0 || freshness.expired > 0;
+  const hasUnhealthyContent =
+    freshness.aging > 0 || freshness.stale > 0 || freshness.expired > 0;
 
   return (
     <section
@@ -69,19 +73,33 @@ export function QuickStatsStrip({
         <StatItem label="Fresh" value={freshness.fresh} />
         {hasUnhealthyContent ? (
           <>
-            {freshness.aging > 0 && <StatItem label="Aging" value={freshness.aging} />}
-            {freshness.stale > 0 && <StatItem label="Stale" value={freshness.stale} />}
-            {freshness.expired > 0 && <StatItem label="Expired" value={freshness.expired} />}
+            {freshness.aging > 0 && (
+              <StatItem label="Aging" value={freshness.aging} />
+            )}
+            {freshness.stale > 0 && (
+              <StatItem label="Stale" value={freshness.stale} />
+            )}
+            {freshness.expired > 0 && (
+              <StatItem label="Expired" value={freshness.expired} />
+            )}
           </>
         ) : (
-          <span className="text-xs text-muted-foreground self-center">All content is fresh</span>
+          <span className="text-xs text-muted-foreground self-center">
+            All content is fresh
+          </span>
         )}
-        <div className="hidden h-4 w-px bg-border sm:block" aria-hidden="true" />
+        <div
+          className="hidden h-4 w-px bg-border sm:block"
+          aria-hidden="true"
+        />
         <StatItem
           label={activeBidCount === 1 ? 'Active bid' : 'Active bids'}
           value={activeBidCount}
         />
-        <StatItem label="Unread notifications" value={unreadNotificationCount} />
+        <StatItem
+          label="Unread notifications"
+          value={unreadNotificationCount}
+        />
       </div>
     </section>
   );

@@ -22,9 +22,20 @@ vi.mock('@/hooks/use-display-names', () => ({
 
 // Mock ReviewHistorySection to isolate ReviewCard tests
 vi.mock('@/components/review/review-history-section', () => ({
-  ReviewHistorySection: ({ history, isLoading }: { history: unknown[]; isLoading?: boolean }) => (
-    <div data-testid="review-history-section" data-loading={isLoading ? 'true' : 'false'}>
-      {history.length > 0 && <span data-testid="history-count">{history.length} entries</span>}
+  ReviewHistorySection: ({
+    history,
+    isLoading,
+  }: {
+    history: unknown[];
+    isLoading?: boolean;
+  }) => (
+    <div
+      data-testid="review-history-section"
+      data-loading={isLoading ? 'true' : 'false'}
+    >
+      {history.length > 0 && (
+        <span data-testid="history-count">{history.length} entries</span>
+      )}
     </div>
   ),
 }));
@@ -33,7 +44,9 @@ import { ReviewCard } from '@/components/review/review-card';
 import type { ReviewQueueItem } from '@/types/review';
 import type { ReviewHistoryEntry } from '@/hooks/review/use-review-history';
 
-function makeReviewItem(overrides: Partial<ReviewQueueItem> = {}): ReviewQueueItem {
+function makeReviewItem(
+  overrides: Partial<ReviewQueueItem> = {},
+): ReviewQueueItem {
   return {
     id: 'item-1',
     title: 'Default Title',
@@ -197,7 +210,9 @@ describe('ReviewCard', () => {
       />,
     );
     // Source file may appear in context summary and/or provenance section
-    expect(screen.getAllByText('client-qa.docx').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('client-qa.docx').length).toBeGreaterThanOrEqual(
+      1,
+    );
   });
 
   it('has correct aria-label for accessibility', () => {
@@ -209,7 +224,9 @@ describe('ReviewCard', () => {
       />,
     );
     expect(
-      screen.getByRole('article', { name: 'Review item 2 of 8: Accessible Title' }),
+      screen.getByRole('article', {
+        name: 'Review item 2 of 8: Accessible Title',
+      }),
     ).toBeInTheDocument();
   });
 
@@ -321,7 +338,9 @@ describe('ReviewCard — low-confidence indicator', () => {
 
 // ─── Review history prop tests ──────────────────────────────────────────────
 
-function makeHistoryEntry(overrides: Partial<ReviewHistoryEntry> = {}): ReviewHistoryEntry {
+function makeHistoryEntry(
+  overrides: Partial<ReviewHistoryEntry> = {},
+): ReviewHistoryEntry {
   return {
     id: 'history-1',
     flag_type: 'review_needed',
@@ -372,15 +391,11 @@ describe('ReviewCard — review history props', () => {
   });
 
   it('does not render history section when reviewHistory is undefined', () => {
-    render(
-      <ReviewCard
-        item={makeReviewItem()}
-        position={1}
-        total={5}
-      />,
-    );
+    render(<ReviewCard item={makeReviewItem()} position={1} total={5} />);
 
-    expect(screen.queryByTestId('review-history-section')).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('review-history-section'),
+    ).not.toBeInTheDocument();
   });
 
   it('does not render history section when reviewHistory is empty and not loading', () => {
@@ -394,7 +409,9 @@ describe('ReviewCard — review history props', () => {
       />,
     );
 
-    expect(screen.queryByTestId('review-history-section')).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('review-history-section'),
+    ).not.toBeInTheDocument();
   });
 
   it('passes history data through to ReviewHistorySection correctly', () => {

@@ -111,10 +111,9 @@ describe('useEntityDetail', () => {
         json: () => Promise.resolve(MOCK_ENTITY_DETAIL),
       });
 
-      const { result } = renderHook(
-        () => useEntityDetail('ISO 27001', true),
-        { wrapper: createQueryWrapper().Wrapper },
-      );
+      const { result } = renderHook(() => useEntityDetail('ISO 27001', true), {
+        wrapper: createQueryWrapper().Wrapper,
+      });
 
       // Initially loading
       expect(result.current.isLoading).toBe(true);
@@ -141,10 +140,9 @@ describe('useEntityDetail', () => {
         json: () => Promise.resolve({ error: 'Internal server error' }),
       });
 
-      const { result } = renderHook(
-        () => useEntityDetail('ISO 27001', true),
-        { wrapper: createQueryWrapper().Wrapper },
-      );
+      const { result } = renderHook(() => useEntityDetail('ISO 27001', true), {
+        wrapper: createQueryWrapper().Wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -163,10 +161,9 @@ describe('useEntityDetail', () => {
         json: () => Promise.resolve({}),
       });
 
-      const { result } = renderHook(
-        () => useEntityDetail('ISO 27001', true),
-        { wrapper: createQueryWrapper().Wrapper },
-      );
+      const { result } = renderHook(() => useEntityDetail('ISO 27001', true), {
+        wrapper: createQueryWrapper().Wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -187,10 +184,9 @@ describe('useEntityDetail', () => {
         json: () => Promise.resolve(MOCK_ENTITY_DETAIL),
       });
 
-      const { result } = renderHook(
-        () => useEntityDetail('ISO 27001', true),
-        { wrapper: createQueryWrapper().Wrapper },
-      );
+      const { result } = renderHook(() => useEntityDetail('ISO 27001', true), {
+        wrapper: createQueryWrapper().Wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -249,10 +245,9 @@ describe('useEntityDetail', () => {
         json: () => Promise.resolve(MOCK_ENTITY_DETAIL),
       });
 
-      const { result } = renderHook(
-        () => useEntityDetail('ISO 27001', true),
-        { wrapper: createQueryWrapper().Wrapper },
-      );
+      const { result } = renderHook(() => useEntityDetail('ISO 27001', true), {
+        wrapper: createQueryWrapper().Wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -289,10 +284,9 @@ describe('useEntityDetail', () => {
         json: () => Promise.resolve(MOCK_ENTITY_DETAIL),
       });
 
-      const { result } = renderHook(
-        () => useEntityDetail('ISO 27001', true),
-        { wrapper: createQueryWrapper().Wrapper },
-      );
+      const { result } = renderHook(() => useEntityDetail('ISO 27001', true), {
+        wrapper: createQueryWrapper().Wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);

@@ -74,14 +74,11 @@ describe('ManagePresetsDialog', () => {
 
   // 3. Shows empty state when no user presets exist
   it('shows empty state when no user presets exist', () => {
-    render(
-      <ManagePresetsDialog
-        {...defaultProps}
-        presets={[systemPreset]}
-      />,
-    );
+    render(<ManagePresetsDialog {...defaultProps} presets={[systemPreset]} />);
     expect(
-      screen.getByText('No custom presets yet. Save your current filters from the browse page.'),
+      screen.getByText(
+        'No custom presets yet. Save your current filters from the browse page.',
+      ),
     ).toBeInTheDocument();
   });
 
@@ -89,7 +86,9 @@ describe('ManagePresetsDialog', () => {
   it('clicking edit icon enables inline editing', async () => {
     const user = userEvent.setup();
     render(<ManagePresetsDialog {...defaultProps} />);
-    const editButton = screen.getByLabelText('Rename preset: Corporate content');
+    const editButton = screen.getByLabelText(
+      'Rename preset: Corporate content',
+    );
     await user.click(editButton);
     const input = screen.getByDisplayValue('Corporate content');
     expect(input).toBeInTheDocument();
@@ -99,19 +98,26 @@ describe('ManagePresetsDialog', () => {
   it('pressing Enter confirms rename', async () => {
     const user = userEvent.setup();
     render(<ManagePresetsDialog {...defaultProps} />);
-    const editButton = screen.getByLabelText('Rename preset: Corporate content');
+    const editButton = screen.getByLabelText(
+      'Rename preset: Corporate content',
+    );
     await user.click(editButton);
     const input = screen.getByDisplayValue('Corporate content');
     await user.clear(input);
     await user.type(input, 'Renamed preset{Enter}');
-    expect(defaultProps.onRename).toHaveBeenCalledWith('u_abc123', 'Renamed preset');
+    expect(defaultProps.onRename).toHaveBeenCalledWith(
+      'u_abc123',
+      'Renamed preset',
+    );
   });
 
   // 6. Pressing Escape cancels rename
   it('pressing Escape cancels rename', async () => {
     const user = userEvent.setup();
     render(<ManagePresetsDialog {...defaultProps} />);
-    const editButton = screen.getByLabelText('Rename preset: Corporate content');
+    const editButton = screen.getByLabelText(
+      'Rename preset: Corporate content',
+    );
     await user.click(editButton);
     const input = screen.getByDisplayValue('Corporate content');
     await user.clear(input);
@@ -125,7 +131,9 @@ describe('ManagePresetsDialog', () => {
   it('clicking delete button calls onDelete with preset ID', async () => {
     const user = userEvent.setup();
     render(<ManagePresetsDialog {...defaultProps} />);
-    const deleteButton = screen.getByLabelText('Delete preset: Corporate content');
+    const deleteButton = screen.getByLabelText(
+      'Delete preset: Corporate content',
+    );
     await user.click(deleteButton);
     expect(defaultProps.onDelete).toHaveBeenCalledWith('u_abc123');
   });

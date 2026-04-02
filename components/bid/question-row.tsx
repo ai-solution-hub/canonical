@@ -80,7 +80,12 @@ function StatusIndicator({ status }: { status: QuestionStatus }) {
   const Icon = config.icon;
 
   return (
-    <span className={cn('inline-flex items-center gap-1 text-xs font-medium', config.className)}>
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 text-xs font-medium',
+        config.className,
+      )}
+    >
       <Icon className="size-3.5" aria-hidden={true} />
       <span>{config.label}</span>
     </span>
@@ -139,7 +144,9 @@ export function QuestionRow({
         body: JSON.stringify({
           question_text: editValues.question_text.trim(),
           section_name: editValues.section_name.trim() || null,
-          word_limit: editValues.word_limit ? parseInt(editValues.word_limit, 10) : null,
+          word_limit: editValues.word_limit
+            ? parseInt(editValues.word_limit, 10)
+            : null,
         }),
       });
 
@@ -152,7 +159,8 @@ export function QuestionRow({
       setEditing(false);
       onUpdated();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to save question';
+      const message =
+        err instanceof Error ? err.message : 'Failed to save question';
       toast.error(message);
     } finally {
       setSaving(false);
@@ -174,7 +182,8 @@ export function QuestionRow({
       toast.success('Question deleted');
       onDeleted();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to delete question';
+      const message =
+        err instanceof Error ? err.message : 'Failed to delete question';
       toast.error(message);
     } finally {
       setDeleting(false);
@@ -199,7 +208,9 @@ export function QuestionRow({
       role="listitem"
       className={cn(
         'rounded-md border transition-colors',
-        expanded ? 'border-border bg-muted/30' : 'border-transparent hover:bg-muted/20',
+        expanded
+          ? 'border-border bg-muted/30'
+          : 'border-transparent hover:bg-muted/20',
       )}
     >
       {/* Compact row */}
@@ -233,7 +244,10 @@ export function QuestionRow({
 
         {/* Confidence badge */}
         {question.confidence_posture && (
-          <ConfidenceBadge posture={question.confidence_posture} compact={true} />
+          <ConfidenceBadge
+            posture={question.confidence_posture}
+            compact={true}
+          />
         )}
 
         {/* Status indicator */}
@@ -272,7 +286,11 @@ export function QuestionRow({
                   </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button variant="outline" size="xs" className="text-destructive hover:text-destructive">
+                      <Button
+                        variant="outline"
+                        size="xs"
+                        className="text-destructive hover:text-destructive"
+                      >
                         <Trash2 className="size-3" aria-hidden="true" />
                         Delete
                       </Button>
@@ -281,12 +299,15 @@ export function QuestionRow({
                       <AlertDialogHeader>
                         <AlertDialogTitle>Delete Question</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Are you sure you want to delete this question? This action cannot be undone.
-                          Any associated responses will also be removed.
+                          Are you sure you want to delete this question? This
+                          action cannot be undone. Any associated responses will
+                          also be removed.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+                        <AlertDialogCancel disabled={deleting}>
+                          Cancel
+                        </AlertDialogCancel>
                         <AlertDialogAction
                           onClick={handleDelete}
                           disabled={deleting}
@@ -294,7 +315,10 @@ export function QuestionRow({
                         >
                           {deleting ? (
                             <>
-                              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                              <Loader2
+                                className="size-4 animate-spin"
+                                aria-hidden="true"
+                              />
                               Deleting...
                             </>
                           ) : (
@@ -313,13 +337,18 @@ export function QuestionRow({
           {editing && (
             <div className="space-y-3 pl-9">
               <div className="space-y-2">
-                <Label htmlFor={`edit-text-${question.id}`}>Question Text</Label>
+                <Label htmlFor={`edit-text-${question.id}`}>
+                  Question Text
+                </Label>
                 <Textarea
                   id={`edit-text-${question.id}`}
                   rows={4}
                   value={editValues.question_text}
                   onChange={(e) =>
-                    setEditValues((prev) => ({ ...prev, question_text: e.target.value }))
+                    setEditValues((prev) => ({
+                      ...prev,
+                      question_text: e.target.value,
+                    }))
                   }
                   disabled={saving}
                 />
@@ -327,25 +356,35 @@ export function QuestionRow({
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label htmlFor={`edit-section-${question.id}`}>Section Name</Label>
+                  <Label htmlFor={`edit-section-${question.id}`}>
+                    Section Name
+                  </Label>
                   <Input
                     id={`edit-section-${question.id}`}
                     value={editValues.section_name}
                     onChange={(e) =>
-                      setEditValues((prev) => ({ ...prev, section_name: e.target.value }))
+                      setEditValues((prev) => ({
+                        ...prev,
+                        section_name: e.target.value,
+                      }))
                     }
                     disabled={saving}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor={`edit-wordlimit-${question.id}`}>Word Limit</Label>
+                  <Label htmlFor={`edit-wordlimit-${question.id}`}>
+                    Word Limit
+                  </Label>
                   <Input
                     id={`edit-wordlimit-${question.id}`}
                     type="number"
                     min={0}
                     value={editValues.word_limit}
                     onChange={(e) =>
-                      setEditValues((prev) => ({ ...prev, word_limit: e.target.value }))
+                      setEditValues((prev) => ({
+                        ...prev,
+                        word_limit: e.target.value,
+                      }))
                     }
                     disabled={saving}
                   />
@@ -356,7 +395,10 @@ export function QuestionRow({
                 <Button size="sm" onClick={handleSave} disabled={saving}>
                   {saving ? (
                     <>
-                      <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                      <Loader2
+                        className="size-4 animate-spin"
+                        aria-hidden="true"
+                      />
                       Saving...
                     </>
                   ) : (
@@ -366,7 +408,12 @@ export function QuestionRow({
                     </>
                   )}
                 </Button>
-                <Button variant="outline" size="sm" onClick={cancelEditing} disabled={saving}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={cancelEditing}
+                  disabled={saving}
+                >
                   <X className="size-4" aria-hidden="true" />
                   Cancel
                 </Button>

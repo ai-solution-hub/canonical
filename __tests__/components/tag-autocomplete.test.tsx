@@ -15,7 +15,9 @@ import { TagAutocomplete } from '@/components/shared/tag-autocomplete';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function createMockFetch(suggestions: Array<{ tag: string; count: number }> = []) {
+function createMockFetch(
+  suggestions: Array<{ tag: string; count: number }> = [],
+) {
   return vi.fn().mockResolvedValue({
     ok: true,
     json: () => Promise.resolve(suggestions),
@@ -73,7 +75,11 @@ describe('TagAutocomplete', () => {
 
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(
-      <TagAutocomplete type="user" onSelect={vi.fn()} excludeTags={['security']} />,
+      <TagAutocomplete
+        type="user"
+        onSelect={vi.fn()}
+        excludeTags={['security']}
+      />,
     );
 
     await user.type(screen.getByRole('combobox'), 'se');
@@ -116,9 +122,7 @@ describe('TagAutocomplete', () => {
   });
 
   it('Enter selects highlighted suggestion', async () => {
-    const mockFetch = createMockFetch([
-      { tag: 'alpha', count: 5 },
-    ]);
+    const mockFetch = createMockFetch([{ tag: 'alpha', count: 5 }]);
     vi.stubGlobal('fetch', mockFetch);
 
     const onSelect = vi.fn();
@@ -153,9 +157,7 @@ describe('TagAutocomplete', () => {
   });
 
   it('Escape closes dropdown', async () => {
-    const mockFetch = createMockFetch([
-      { tag: 'alpha', count: 5 },
-    ]);
+    const mockFetch = createMockFetch([{ tag: 'alpha', count: 5 }]);
     vi.stubGlobal('fetch', mockFetch);
 
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
@@ -173,9 +175,7 @@ describe('TagAutocomplete', () => {
   });
 
   it('click on suggestion calls onSelect', async () => {
-    const mockFetch = createMockFetch([
-      { tag: 'alpha', count: 5 },
-    ]);
+    const mockFetch = createMockFetch([{ tag: 'alpha', count: 5 }]);
     vi.stubGlobal('fetch', mockFetch);
 
     const onSelect = vi.fn();
@@ -194,9 +194,7 @@ describe('TagAutocomplete', () => {
   });
 
   it('click outside closes dropdown', async () => {
-    const mockFetch = createMockFetch([
-      { tag: 'alpha', count: 5 },
-    ]);
+    const mockFetch = createMockFetch([{ tag: 'alpha', count: 5 }]);
     vi.stubGlobal('fetch', mockFetch);
 
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });

@@ -13,11 +13,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock setup — must be before imports
 // ---------------------------------------------------------------------------
 
-const { mockCreateMcpClient, mockGetMcpUserId, mockCheckMcpRole } = vi.hoisted(() => ({
-  mockCreateMcpClient: vi.fn(),
-  mockGetMcpUserId: vi.fn(),
-  mockCheckMcpRole: vi.fn(),
-}));
+const { mockCreateMcpClient, mockGetMcpUserId, mockCheckMcpRole } = vi.hoisted(
+  () => ({
+    mockCreateMcpClient: vi.fn(),
+    mockGetMcpUserId: vi.fn(),
+    mockCheckMcpRole: vi.fn(),
+  }),
+);
 
 vi.mock('@/lib/mcp/auth', () => ({
   createMcpClient: mockCreateMcpClient,
@@ -63,7 +65,10 @@ const ITEM_ID_2 = '00000000-0000-4000-8000-000000000011';
 interface ToolRegistration {
   name: string;
   config: Record<string, unknown>;
-  handler: (args: Record<string, unknown>, extra: Record<string, unknown>) => Promise<{
+  handler: (
+    args: Record<string, unknown>,
+    extra: Record<string, unknown>,
+  ) => Promise<{
     content: Array<{ type: string; text: string }>;
     isError?: boolean;
     structuredContent?: Record<string, unknown>;
@@ -76,9 +81,15 @@ const registeredTools: ToolRegistration[] = [];
 function createMockServer() {
   registeredTools.length = 0;
   return {
-    registerTool: vi.fn((name: string, config: Record<string, unknown>, handler: ToolRegistration['handler']) => {
-      registeredTools.push({ name, config, handler });
-    }),
+    registerTool: vi.fn(
+      (
+        name: string,
+        config: Record<string, unknown>,
+        handler: ToolRegistration['handler'],
+      ) => {
+        registeredTools.push({ name, config, handler });
+      },
+    ),
   };
 }
 
@@ -86,7 +97,12 @@ function getAssignOwnerTool(): ToolRegistration | undefined {
   return registeredTools.find((t) => t.name === 'assign_content_owner');
 }
 
-function createMockExtra(authInfo = { token: 'test-token', extra: { userId: ADMIN_USER_ID, role: 'admin' } }) {
+function createMockExtra(
+  authInfo = {
+    token: 'test-token',
+    extra: { userId: ADMIN_USER_ID, role: 'admin' },
+  },
+) {
   return { authInfo };
 }
 
@@ -133,7 +149,9 @@ describe('assign_content_owner MCP tool', () => {
     );
 
     expect(result.isError).toBeUndefined();
-    expect(result.content[0].text).toContain('Successfully assigned ownership of 2 items');
+    expect(result.content[0].text).toContain(
+      'Successfully assigned ownership of 2 items',
+    );
     expect(result.content[0].text).toContain(OWNER_ID);
 
     // Verify RPC called correctly
@@ -172,7 +190,10 @@ describe('assign_content_owner MCP tool', () => {
     const tool = getAssignOwnerTool()!;
     const result = await tool.handler(
       { item_ids: [ITEM_ID_1], owner_id: OWNER_ID },
-      createMockExtra({ token: 'test-token', extra: { userId: 'editor-id', role: 'editor' } }),
+      createMockExtra({
+        token: 'test-token',
+        extra: { userId: 'editor-id', role: 'editor' },
+      }),
     );
 
     expect(result.isError).toBe(true);
@@ -204,7 +225,9 @@ describe('assign_content_owner MCP tool', () => {
     );
 
     expect(result.isError).toBeUndefined();
-    expect(result.content[0].text).toContain('Successfully assigned ownership of 1 item to');
+    expect(result.content[0].text).toContain(
+      'Successfully assigned ownership of 1 item to',
+    );
   });
 
   it('handles missing auth gracefully', async () => {

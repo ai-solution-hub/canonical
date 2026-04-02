@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedClient, unauthorisedResponse, getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import {
+  getAuthenticatedClient,
+  unauthorisedResponse,
+  getAuthorisedClient,
+  authFailureResponse,
+} from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody, parseSearchParams } from '@/lib/validation';
 import { guideCreateSchema } from '@/lib/validation/guide-schemas';
@@ -33,13 +38,22 @@ export async function GET(request: NextRequest) {
     if (!auth) return unauthorisedResponse();
     const { supabase } = auth;
 
-    const parsed = parseSearchParams(GuideListParamsSchema, request.nextUrl.searchParams);
+    const parsed = parseSearchParams(
+      GuideListParamsSchema,
+      request.nextUrl.searchParams,
+    );
     if (!parsed.success) return parsed.response;
-    const { type: typeFilter, include_unpublished: includeUnpublished, include } = parsed.data;
+    const {
+      type: typeFilter,
+      include_unpublished: includeUnpublished,
+      include,
+    } = parsed.data;
 
     let query = supabase
       .from('guides')
-      .select('id, slug, name, description, guide_type, domain_filter, icon, color, display_order, is_published, created_by, created_at, updated_at')
+      .select(
+        'id, slug, name, description, guide_type, domain_filter, icon, color, display_order, is_published, created_by, created_at, updated_at',
+      )
       .order('display_order')
       .order('name');
 
@@ -69,15 +83,19 @@ export async function GET(request: NextRequest) {
     // because all seeded sections have subtopic_filter = NULL).
     const includeStats = include === 'stats';
     if (includeStats && data && data.length > 0) {
-      const { data: coverageRows, error: covErr } = await supabase.rpc('get_guide_coverage');
+      const { data: coverageRows, error: covErr } =
+        await supabase.rpc('get_guide_coverage');
 
       if (!covErr && coverageRows) {
-        const statsMap = new Map<string, {
-          total_sections: number;
-          populated_sections: number;
-          required_sections: number;
-          populated_required: number;
-        }>();
+        const statsMap = new Map<
+          string,
+          {
+            total_sections: number;
+            populated_sections: number;
+            required_sections: number;
+            populated_required: number;
+          }
+        >();
 
         for (const row of coverageRows as unknown as GuideSectionRow[]) {
           const existing = statsMap.get(row.guide_id) ?? {
@@ -90,7 +108,8 @@ export async function GET(request: NextRequest) {
           existing.total_sections += 1;
           if (row.content_count > 0) existing.populated_sections += 1;
           if (row.is_required) existing.required_sections += 1;
-          if (row.is_required && row.content_count > 0) existing.populated_required += 1;
+          if (row.is_required && row.content_count > 0)
+            existing.populated_required += 1;
 
           statsMap.set(row.guide_id, existing);
         }

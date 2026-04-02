@@ -20,9 +20,7 @@ describe('Coverage Error Boundary', () => {
 
   it('renders the heading text', () => {
     render(<CoverageError error={error} reset={reset} />);
-    expect(
-      screen.getByText(/couldn.*t load this page/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/couldn.*t load this page/i)).toBeInTheDocument();
   });
 
   it('renders a contextual icon with aria-hidden', () => {
@@ -55,12 +53,14 @@ describe('Coverage Loading Skeleton', () => {
     render(<CoverageLoading />);
     expect(screen.getByRole('status')).toHaveAttribute(
       'aria-label',
-      'Loading coverage analysis'
+      'Loading coverage analysis',
     );
   });
 
   it('contains screen-reader text', () => {
     render(<CoverageLoading />);
-    expect(screen.getByText('Loading coverage analysis...')).toBeInTheDocument();
+    expect(
+      screen.getByText('Loading coverage analysis...'),
+    ).toBeInTheDocument();
   });
 });

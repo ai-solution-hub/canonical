@@ -70,7 +70,7 @@ describe('Root Loading Skeleton', () => {
     render(<DashboardLoading />);
     expect(screen.getByRole('status')).toHaveAttribute(
       'aria-label',
-      'Loading dashboard'
+      'Loading dashboard',
     );
   });
 

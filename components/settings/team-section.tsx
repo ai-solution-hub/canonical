@@ -117,9 +117,7 @@ function InviteUserDialog({ onInvited }: { onInvited: () => void }) {
       setOpen(false);
       onInvited();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Failed to invite user',
-      );
+      toast.error(err instanceof Error ? err.message : 'Failed to invite user');
     } finally {
       setSubmitting(false);
     }
@@ -164,10 +162,7 @@ function InviteUserDialog({ onInvited }: { onInvited: () => void }) {
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="invite-role">Role</Label>
-            <Select
-              value={role}
-              onValueChange={(v) => setRole(v as UserRole)}
-            >
+            <Select value={role} onValueChange={(v) => setRole(v as UserRole)}>
               <SelectTrigger id="invite-role">
                 <SelectValue />
               </SelectTrigger>
@@ -178,7 +173,8 @@ function InviteUserDialog({ onInvited }: { onInvited: () => void }) {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Viewers can read. Editors can read and write. Admins have full access.
+              Viewers can read. Editors can read and write. Admins have full
+              access.
             </p>
           </div>
           <DialogFooter>
@@ -236,7 +232,9 @@ export function TeamSection() {
   useEffect(() => {
     fetchUsers();
     async function loadCurrentUser() {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (user) setCurrentUserId(user.id);
     }
     loadCurrentUser();
@@ -258,9 +256,7 @@ export function TeamSection() {
       );
       toast.success('Role updated');
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Failed to update role',
-      );
+      toast.error(err instanceof Error ? err.message : 'Failed to update role');
     }
   }
 
@@ -305,8 +301,13 @@ export function TeamSection() {
       <Card>
         {users.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
-            <Users className="size-8 text-muted-foreground/50" aria-hidden="true" />
-            <p className="text-sm font-medium text-foreground">No team members found</p>
+            <Users
+              className="size-8 text-muted-foreground/50"
+              aria-hidden="true"
+            />
+            <p className="text-sm font-medium text-foreground">
+              No team members found
+            </p>
             <p className="text-xs text-muted-foreground">
               Invite team members to collaborate on your knowledge base.
             </p>
@@ -343,7 +344,8 @@ export function TeamSection() {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium uppercase text-muted-foreground">
-                              {getDisplayFallback(user)[0]?.toUpperCase() ?? '?'}
+                              {getDisplayFallback(user)[0]?.toUpperCase() ??
+                                '?'}
                             </div>
                             <p className="truncate text-sm font-medium">
                               {getDisplayFallback(user)}
@@ -372,7 +374,10 @@ export function TeamSection() {
                                 handleRoleChange(user.id, v as UserRole)
                               }
                             >
-                              <SelectTrigger size="sm" className="h-7 w-[100px]">
+                              <SelectTrigger
+                                size="sm"
+                                className="h-7 w-[100px]"
+                              >
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -443,14 +448,14 @@ export function TeamSection() {
             </div>
 
             {/* Mobile: card layout — aria-hidden so screen readers use the semantic table above */}
-            <div className="divide-y divide-border sm:hidden" aria-hidden="true">
+            <div
+              className="divide-y divide-border sm:hidden"
+              aria-hidden="true"
+            >
               {users.map((user) => {
                 const isSelf = user.id === currentUserId;
                 return (
-                  <div
-                    key={user.id}
-                    className="flex flex-col gap-2 px-4 py-3"
-                  >
+                  <div key={user.id} className="flex flex-col gap-2 px-4 py-3">
                     {/* Name + email */}
                     <div className="flex items-center gap-2">
                       <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium uppercase text-muted-foreground">

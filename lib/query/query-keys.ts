@@ -124,33 +124,47 @@ export const queryKeys = {
     profiles: {
       all: ['intelligence', 'profiles'] as const,
       list: ['intelligence', 'profiles', 'list'] as const,
-      detail: (id: string) => ['intelligence', 'profiles', 'detail', id] as const,
+      detail: (id: string) =>
+        ['intelligence', 'profiles', 'detail', id] as const,
     },
     workspaces: {
       all: ['intelligence', 'workspaces'] as const,
       list: ['intelligence', 'workspaces', 'list'] as const,
-      detail: (id: string) => ['intelligence', 'workspaces', 'detail', id] as const,
+      detail: (id: string) =>
+        ['intelligence', 'workspaces', 'detail', id] as const,
     },
     sources: {
-      all: (workspaceId: string) => ['intelligence', 'sources', workspaceId] as const,
-      list: (workspaceId: string) => ['intelligence', 'sources', workspaceId, 'list'] as const,
+      all: (workspaceId: string) =>
+        ['intelligence', 'sources', workspaceId] as const,
+      list: (workspaceId: string) =>
+        ['intelligence', 'sources', workspaceId, 'list'] as const,
       detail: (workspaceId: string, sourceId: string) =>
         ['intelligence', 'sources', workspaceId, 'detail', sourceId] as const,
     },
     articles: {
-      all: (workspaceId: string) => ['intelligence', 'articles', workspaceId] as const,
+      all: (workspaceId: string) =>
+        ['intelligence', 'articles', workspaceId] as const,
       list: (workspaceId: string, filters: Record<string, unknown>) =>
         ['intelligence', 'articles', workspaceId, 'list', filters] as const,
     },
     prompts: {
-      all: (workspaceId: string) => ['intelligence', 'prompts', workspaceId] as const,
-      list: (workspaceId: string) => ['intelligence', 'prompts', workspaceId, 'list'] as const,
+      all: (workspaceId: string) =>
+        ['intelligence', 'prompts', workspaceId] as const,
+      list: (workspaceId: string) =>
+        ['intelligence', 'prompts', workspaceId, 'list'] as const,
     },
     metrics: {
       summary: (workspaceId: string, period?: string) =>
         ['intelligence', 'metrics', workspaceId, period ?? '30d'] as const,
       trend: (workspaceId: string, granularity: string, period?: string) =>
-        ['intelligence', 'metrics', workspaceId, 'trend', granularity, period ?? '90d'] as const,
+        [
+          'intelligence',
+          'metrics',
+          workspaceId,
+          'trend',
+          granularity,
+          period ?? '90d',
+        ] as const,
       promptPerformance: (workspaceId: string) =>
         ['intelligence', 'metrics', workspaceId, 'prompt-performance'] as const,
     },
@@ -214,7 +228,8 @@ export const queryKeys = {
   // Q&A Provenance
   qaProvenance: {
     all: ['qa-provenance'] as const,
-    workspaces: (itemId: string) => ['qa-provenance', 'workspaces', itemId] as const,
+    workspaces: (itemId: string) =>
+      ['qa-provenance', 'workspaces', itemId] as const,
     related: (itemId: string, sourceFile: string) =>
       ['qa-provenance', 'related', itemId, sourceFile] as const,
     layers: (itemId: string) => ['qa-provenance', 'layers', itemId] as const,

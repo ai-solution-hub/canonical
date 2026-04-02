@@ -9,7 +9,11 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody, parseSearchParams } from '@/lib/validation';
-import { BidCreateBodySchema, BidListParamsSchema, parseBidMetadata } from '@/lib/validation/schemas';
+import {
+  BidCreateBodySchema,
+  BidListParamsSchema,
+  parseBidMetadata,
+} from '@/lib/validation/schemas';
 
 export const maxDuration = 30;
 
@@ -20,7 +24,10 @@ export async function GET(request: NextRequest) {
     if (!auth) return unauthorisedResponse();
     const { supabase } = auth;
 
-    const parsed = parseSearchParams(BidListParamsSchema, request.nextUrl.searchParams);
+    const parsed = parseSearchParams(
+      BidListParamsSchema,
+      request.nextUrl.searchParams,
+    );
     if (!parsed.success) return parsed.response;
     const { status, limit, offset } = parsed.data;
 
@@ -67,9 +74,12 @@ export async function GET(request: NextRequest) {
         );
         const fallbackResults = await Promise.all(
           bidIds.map(async (bidId) => {
-            const { data: stats } = await supabase.rpc('get_bid_question_stats', {
-              p_project_id: bidId,
-            });
+            const { data: stats } = await supabase.rpc(
+              'get_bid_question_stats',
+              {
+                p_project_id: bidId,
+              },
+            );
             return { bidId, stats: stats?.[0] ?? null };
           }),
         );
@@ -85,7 +95,9 @@ export async function GET(request: NextRequest) {
 
     const bids = (workspaces ?? []).map((workspace) => ({
       ...workspace,
-      domain_metadata: parseBidMetadata(workspace.domain_metadata) ?? workspace.domain_metadata,
+      domain_metadata:
+        parseBidMetadata(workspace.domain_metadata) ??
+        workspace.domain_metadata,
       question_stats: statsMap.get(workspace.id) ?? null,
     }));
 
@@ -117,8 +129,15 @@ export async function POST(request: NextRequest) {
     const parsed = parseBody(BidCreateBodySchema, raw);
     if (!parsed.success) return parsed.response;
 
-    const { name, description, buyer, deadline, reference_number, estimated_value, notes } =
-      parsed.data;
+    const {
+      name,
+      description,
+      buyer,
+      deadline,
+      reference_number,
+      estimated_value,
+      notes,
+    } = parsed.data;
 
     const domainMetadata = {
       buyer,

@@ -8,10 +8,7 @@ import { IntelligenceWorkspaceUpdateSchema } from '@/lib/validation/schemas';
 type RouteContext = { params: Promise<{ id: string }> };
 
 /** GET /api/intelligence/workspaces/:id — get a single intelligence workspace */
-export async function GET(
-  _request: NextRequest,
-  context: RouteContext,
-) {
+export async function GET(_request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
     const auth = await getAuthorisedClient(['admin', 'editor']);
@@ -27,7 +24,10 @@ export async function GET(
       .single();
 
     if (error || !workspace) {
-      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Workspace not found' },
+        { status: 404 },
+      );
     }
 
     // Fetch linked company profile name
@@ -57,10 +57,7 @@ export async function GET(
 }
 
 /** PATCH /api/intelligence/workspaces/:id — update a workspace */
-export async function PATCH(
-  request: NextRequest,
-  context: RouteContext,
-) {
+export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
     const auth = await getAuthorisedClient(['admin', 'editor']);
@@ -73,7 +70,10 @@ export async function PATCH(
 
     const updateData = parsed.data;
     if (Object.keys(updateData).length === 0) {
-      return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'No fields to update' },
+        { status: 400 },
+      );
     }
 
     const { data, error } = await supabase
@@ -86,7 +86,10 @@ export async function PATCH(
       .single();
 
     if (error || !data) {
-      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Workspace not found' },
+        { status: 404 },
+      );
     }
 
     return NextResponse.json(data);

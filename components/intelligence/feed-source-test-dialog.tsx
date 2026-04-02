@@ -64,10 +64,7 @@ export function FeedSourceTestDialog({
                   </p>
                   <ul className="space-y-1">
                     {result.sampleTitles.map((title, i) => (
-                      <li
-                        key={i}
-                        className="text-sm text-foreground"
-                      >
+                      <li key={i} className="text-sm text-foreground">
                         {title}
                       </li>
                     ))}
@@ -90,7 +87,8 @@ export function FeedSourceTestDialog({
                 <p className="text-sm text-muted-foreground">{result.error}</p>
               )}
               <p className="text-xs text-muted-foreground">
-                Check that the URL is correct and the feed is publicly accessible.
+                Check that the URL is correct and the feed is publicly
+                accessible.
               </p>
             </div>
           ) : null}

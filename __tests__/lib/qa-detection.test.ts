@@ -17,10 +17,7 @@ import {
 // Helper to build HTML table strings for tests
 // ---------------------------------------------------------------------------
 
-function buildTable(
-  headers: string[],
-  rows: string[][],
-): string {
+function buildTable(headers: string[], rows: string[][]): string {
   const headerRow = headers.map((h) => `<th>${h}</th>`).join('');
   const dataRows = rows
     .map((row) => `<tr>${row.map((c) => `<td>${c}</td>`).join('')}</tr>`)
@@ -113,19 +110,50 @@ describe('normaliseHeader', () => {
   it('handles at least 30 common header variants', () => {
     // Verify the map has sufficient coverage
     const uniqueInputs = [
-      'question', 'questions', 'query', 'requirement', 'requirements',
-      'standard response', 'standard answer', 'response', 'answer',
-      'supplier response', 'your response', 'your answer',
-      'tenderer response', "tenderer's response", 'bidder response',
-      'advanced response', 'advanced answer', 'enhanced response',
-      'section', 'category', 'topic', 'area',
-      'no', 'no.', '#', 'number', 'ref', 'id',
-      'notes', 'comments', 'guidance', 'guidance notes',
+      'question',
+      'questions',
+      'query',
+      'requirement',
+      'requirements',
+      'standard response',
+      'standard answer',
+      'response',
+      'answer',
+      'supplier response',
+      'your response',
+      'your answer',
+      'tenderer response',
+      "tenderer's response",
+      'bidder response',
+      'advanced response',
+      'advanced answer',
+      'enhanced response',
+      'section',
+      'category',
+      'topic',
+      'area',
+      'no',
+      'no.',
+      '#',
+      'number',
+      'ref',
+      'id',
+      'notes',
+      'comments',
+      'guidance',
+      'guidance notes',
     ];
     // All should map to a known canonical name
     for (const input of uniqueInputs) {
       const result = normaliseHeader(input);
-      expect(['question', 'standard', 'advanced', 'section', 'number', 'notes']).toContain(result);
+      expect([
+        'question',
+        'standard',
+        'advanced',
+        'section',
+        'number',
+        'notes',
+      ]).toContain(result);
     }
     expect(uniqueInputs.length).toBeGreaterThanOrEqual(30);
   });
@@ -156,10 +184,31 @@ describe('detectQAPairs — table extraction', () => {
 
   it('extracts pairs from a 6-column audit format table', () => {
     const html = buildTable(
-      ['No', 'Section', 'Question', 'Standard Response', 'Advanced Response', 'Notes'],
       [
-        ['1', 'Quality', 'What is your QMS?', 'ISO 9001', 'ISO 9001 + TQM', 'See annex'],
-        ['2', 'Quality', 'How do you audit?', 'Annual audits', 'Quarterly audits', ''],
+        'No',
+        'Section',
+        'Question',
+        'Standard Response',
+        'Advanced Response',
+        'Notes',
+      ],
+      [
+        [
+          '1',
+          'Quality',
+          'What is your QMS?',
+          'ISO 9001',
+          'ISO 9001 + TQM',
+          'See annex',
+        ],
+        [
+          '2',
+          'Quality',
+          'How do you audit?',
+          'Annual audits',
+          'Quarterly audits',
+          '',
+        ],
       ],
     );
 
@@ -177,7 +226,13 @@ describe('detectQAPairs — table extraction', () => {
     const html = buildTable(
       ['No', 'Section', 'Question', 'Standard Response', 'Notes'],
       [
-        ['1', 'H&S', 'Describe your H&S policy', 'We have a comprehensive H&S policy...', 'Mandatory'],
+        [
+          '1',
+          'H&S',
+          'Describe your H&S policy',
+          'We have a comprehensive H&S policy...',
+          'Mandatory',
+        ],
       ],
     );
 
@@ -191,9 +246,23 @@ describe('detectQAPairs — table extraction', () => {
 
   it('extracts pairs from a numbered 6-column format (section after question)', () => {
     const html = buildTable(
-      ['No', 'Question', 'Standard Answer', 'Advanced Answer', 'Section', 'Notes'],
       [
-        ['1', 'What certifications do you hold?', 'ISO 9001, ISO 14001', 'All ISO plus OHSAS', 'Compliance', ''],
+        'No',
+        'Question',
+        'Standard Answer',
+        'Advanced Answer',
+        'Section',
+        'Notes',
+      ],
+      [
+        [
+          '1',
+          'What certifications do you hold?',
+          'ISO 9001, ISO 14001',
+          'All ISO plus OHSAS',
+          'Compliance',
+          '',
+        ],
       ],
     );
 
@@ -209,14 +278,19 @@ describe('detectQAPairs — table extraction', () => {
     const html = buildTable(
       ['Requirement', 'Supplier Response'],
       [
-        ['Provide evidence of insurance', 'We hold public liability insurance of 10M...'],
+        [
+          'Provide evidence of insurance',
+          'We hold public liability insurance of 10M...',
+        ],
       ],
     );
 
     const pairs = detectQAPairs(html);
     expect(pairs).toHaveLength(1);
     expect(pairs[0].question).toBe('Provide evidence of insurance');
-    expect(pairs[0].answer).toBe('We hold public liability insurance of 10M...');
+    expect(pairs[0].answer).toBe(
+      'We hold public liability insurance of 10M...',
+    );
   });
 
   it('skips empty question rows', () => {
@@ -250,10 +324,7 @@ describe('detectQAPairs — table extraction', () => {
   });
 
   it('handles mixed tables (one Q&A, one non-Q&A)', () => {
-    const nonQA = buildTable(
-      ['Name', 'Role'],
-      [['Alice', 'Manager']],
-    );
+    const nonQA = buildTable(['Name', 'Role'], [['Alice', 'Manager']]);
     const qa = buildTable(
       ['Question', 'Answer'],
       [['What services do you provide?', 'Consulting and development.']],
@@ -288,14 +359,20 @@ describe('detectQAPairs — table extraction', () => {
     const html = buildTable(
       ['Question', 'Standard Response', 'Advanced Response'],
       [
-        ['How do you ensure quality?', 'We use checklists.', 'We use automated testing + checklists.'],
+        [
+          'How do you ensure quality?',
+          'We use checklists.',
+          'We use automated testing + checklists.',
+        ],
       ],
     );
 
     const pairs = detectQAPairs(html);
     expect(pairs).toHaveLength(1);
     expect(pairs[0].answer).toBe('We use checklists.');
-    expect(pairs[0].answerAdvanced).toBe('We use automated testing + checklists.');
+    expect(pairs[0].answerAdvanced).toBe(
+      'We use automated testing + checklists.',
+    );
   });
 
   it('handles tables with paragraph elements inside cells', () => {
@@ -345,7 +422,9 @@ describe('detectQAPairs — numbered list extraction', () => {
     const pairs = detectQAPairs(html);
     expect(pairs).toHaveLength(2);
     expect(pairs[0].question).toBe('What is your company history?');
-    expect(pairs[0].answer).toBe('Founded in 2005, we have grown to 200 employees.');
+    expect(pairs[0].answer).toBe(
+      'Founded in 2005, we have grown to 200 employees.',
+    );
     expect(pairs[0].source).toBe('list');
     expect(pairs[0].confidence).toBe('medium');
     expect(pairs[1].question).toBe('What are your core competencies?');
@@ -415,7 +494,9 @@ describe('detectQAPairs — heading-paragraph extraction', () => {
 
     const pairs = detectQAPairs(html);
     expect(pairs).toHaveLength(1);
-    expect(pairs[0].question).toBe('Please describe your approach to data protection');
+    expect(pairs[0].question).toBe(
+      'Please describe your approach to data protection',
+    );
   });
 
   it('ignores non-question headings', () => {
@@ -561,7 +642,8 @@ describe('detectQAPairs — edge cases', () => {
   });
 
   it('handles malformed HTML gracefully', () => {
-    const malformed = '<table><tr><th>Question<th>Answer</tr><tr><td>Test?<td>Yes</table>';
+    const malformed =
+      '<table><tr><th>Question<th>Answer</tr><tr><td>Test?<td>Yes</table>';
     // Should not throw — may or may not extract depending on parser tolerance
     expect(() => detectQAPairs(malformed)).not.toThrow();
   });
@@ -616,7 +698,9 @@ describe('splitIntoQAPairs', () => {
     );
     expect(result[0].contentType).toBe('q_a_pair');
     expect(result[0].sectionName).toBe('Quality');
-    expect(result[0].answerAdvanced).toBe('In addition to ISO 9001, we implement TQM principles.');
+    expect(result[0].answerAdvanced).toBe(
+      'In addition to ISO 9001, we implement TQM principles.',
+    );
     expect(result[0].source).toBe('table');
     expect(result[0].confidence).toBe('high');
   });
@@ -818,12 +902,14 @@ describe('detectQAPairs — real-world HTML patterns', () => {
 
 describe('document-diff exports', () => {
   it('extractStructuredPairs is exported', async () => {
-    const { extractStructuredPairs } = await import('@/lib/source-documents/document-diff');
+    const { extractStructuredPairs } =
+      await import('@/lib/source-documents/document-diff');
     expect(typeof extractStructuredPairs).toBe('function');
   });
 
   it('extractTablePairs is exported', async () => {
-    const { extractTablePairs } = await import('@/lib/source-documents/document-diff');
+    const { extractTablePairs } =
+      await import('@/lib/source-documents/document-diff');
     expect(typeof extractTablePairs).toBe('function');
   });
 });
@@ -900,7 +986,9 @@ Answer: We operate a zero-waste-to-landfill policy across all sites.</div>`;
     const pairs = detectQAPairs(html);
     expect(pairs.length).toBeGreaterThanOrEqual(1);
 
-    const wastePair = pairs.find((p) => p.question.includes('waste management'));
+    const wastePair = pairs.find((p) =>
+      p.question.includes('waste management'),
+    );
     expect(wastePair).toBeDefined();
     expect(wastePair!.source).toBe('text');
     expect(wastePair!.confidence).toBe('medium');

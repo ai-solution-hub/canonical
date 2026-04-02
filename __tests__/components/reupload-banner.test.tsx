@@ -16,11 +16,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
 vi.mock('next/link', () => ({
-  default: ({
-    children,
-    href,
-    ...props
-  }: Record<string, unknown>) => (
+  default: ({ children, href, ...props }: Record<string, unknown>) => (
     <a href={href as string} {...props}>
       {children as React.ReactNode}
     </a>
@@ -106,9 +102,7 @@ describe('ReuploadBanner — new version', () => {
       />,
     );
 
-    expect(
-      screen.getByText('Updated document detected'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Updated document detected')).toBeInTheDocument();
   });
 
   it('shows the incremented version number', () => {

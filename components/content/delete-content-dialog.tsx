@@ -46,9 +46,7 @@ export function DeleteContentDialog({
       setOpen(false);
       router.push('/browse');
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Failed to delete item',
-      );
+      toast.error(err instanceof Error ? err.message : 'Failed to delete item');
       setIsDeleting(false);
     }
   };

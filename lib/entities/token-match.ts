@@ -26,13 +26,54 @@ export interface TokenMatchResult {
  * These add noise to token overlap scoring without contributing to entity identification.
  */
 const STOP_WORDS = new Set([
-  'the', 'a', 'an', 'is', 'was', 'are', 'were', 'be', 'been', 'being',
-  'our', 'their', 'its', 'his', 'her', 'my', 'your',
-  'of', 'in', 'on', 'at', 'to', 'for', 'with', 'by', 'from',
-  'and', 'or', 'but', 'not',
-  'this', 'that', 'these', 'those',
-  'has', 'have', 'had', 'do', 'does', 'did',
-  'will', 'would', 'shall', 'should', 'may', 'might', 'can', 'could',
+  'the',
+  'a',
+  'an',
+  'is',
+  'was',
+  'are',
+  'were',
+  'be',
+  'been',
+  'being',
+  'our',
+  'their',
+  'its',
+  'his',
+  'her',
+  'my',
+  'your',
+  'of',
+  'in',
+  'on',
+  'at',
+  'to',
+  'for',
+  'with',
+  'by',
+  'from',
+  'and',
+  'or',
+  'but',
+  'not',
+  'this',
+  'that',
+  'these',
+  'those',
+  'has',
+  'have',
+  'had',
+  'do',
+  'does',
+  'did',
+  'will',
+  'would',
+  'shall',
+  'should',
+  'may',
+  'might',
+  'can',
+  'could',
 ]);
 
 /**
@@ -42,12 +83,12 @@ const STOP_WORDS = new Set([
  */
 const ABBREVIATION_EXPANSIONS: Record<string, string[]> = {
   'ce+': ['cyber', 'essentials', 'plus'],
-  'ce': ['cyber', 'essentials'],
-  'iso': ['iso'], // ISO stays as-is (it is the canonical token)
-  'gdpr': ['gdpr'],
-  'pci': ['pci'],
-  'soc2': ['soc', '2'],
-  'soc': ['soc'],
+  ce: ['cyber', 'essentials'],
+  iso: ['iso'], // ISO stays as-is (it is the canonical token)
+  gdpr: ['gdpr'],
+  pci: ['pci'],
+  soc2: ['soc', '2'],
+  soc: ['soc'],
 };
 
 /**
@@ -62,16 +103,18 @@ const ABBREVIATION_EXPANSIONS: Record<string, string[]> = {
  * @returns Array of lowercase tokens (not deduplicated — callers convert to Set as needed)
  */
 export function tokenise(text: string): string[] {
-  return text
-    .toLowerCase()
-    // Split on whitespace, punctuation, hyphens, and common separators
-    .split(/[\s,;:()\[\]{}"'.\-/]+/)
-    // Filter out empty strings, stop words, and very short non-numeric tokens
-    .filter((token) => {
-      if (!token) return false;
-      if (STOP_WORDS.has(token)) return false;
-      return true;
-    });
+  return (
+    text
+      .toLowerCase()
+      // Split on whitespace, punctuation, hyphens, and common separators
+      .split(/[\s,;:()\[\]{}"'.\-/]+/)
+      // Filter out empty strings, stop words, and very short non-numeric tokens
+      .filter((token) => {
+        if (!token) return false;
+        if (STOP_WORDS.has(token)) return false;
+        return true;
+      })
+  );
 }
 
 /**
@@ -109,7 +152,10 @@ function expandAbbreviations(tokens: string[]): string[] {
  * @param canonicalName - The entity canonical name (e.g. "ISO 27001")
  * @returns Match result with confidence score
  */
-export function tokenMatch(context: string, canonicalName: string): TokenMatchResult {
+export function tokenMatch(
+  context: string,
+  canonicalName: string,
+): TokenMatchResult {
   if (!context || !canonicalName) {
     return { match: false, confidence: 0, coverage: 0 };
   }
@@ -157,7 +203,9 @@ export function tokenMatch(context: string, canonicalName: string): TokenMatchRe
  * @param duration - ISO 8601 duration string (e.g. "P3Y", "P6M", "P1Y6M")
  * @returns Parsed components or null if not a valid duration
  */
-export function parseDuration(duration: string): { years: number; months: number; days: number } | null {
+export function parseDuration(
+  duration: string,
+): { years: number; months: number; days: number } | null {
   if (!duration || !duration.startsWith('P')) return null;
 
   const match = duration.match(/^P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)D)?$/);
@@ -190,7 +238,10 @@ export function isDuration(date: string): boolean {
  * @param duration - ISO 8601 duration string (e.g. "P3Y", "P6M", "P1Y6M")
  * @returns ISO 8601 date string, or null if the duration cannot be parsed
  */
-export function addDurationToDate(startDate: string, duration: string): string | null {
+export function addDurationToDate(
+  startDate: string,
+  duration: string,
+): string | null {
   const parsed = parseDuration(duration);
   if (!parsed) return null;
 

@@ -112,16 +112,12 @@ export function SearchBar({
     switch (e.key) {
       case 'ArrowDown': {
         e.preventDefault();
-        setActiveIndex((prev) =>
-          prev < allItems.length - 1 ? prev + 1 : 0,
-        );
+        setActiveIndex((prev) => (prev < allItems.length - 1 ? prev + 1 : 0));
         break;
       }
       case 'ArrowUp': {
         e.preventDefault();
-        setActiveIndex((prev) =>
-          prev > 0 ? prev - 1 : allItems.length - 1,
-        );
+        setActiveIndex((prev) => (prev > 0 ? prev - 1 : allItems.length - 1));
         break;
       }
       case 'Enter': {
@@ -170,11 +166,7 @@ export function SearchBar({
     let itemIndex = -1;
 
     return (
-      <div
-        id={listboxId}
-        role="listbox"
-        aria-label="Search suggestions"
-      >
+      <div id={listboxId} role="listbox" aria-label="Search suggestions">
         {recentList.length > 0 && (
           <>
             <p className="mb-1 px-2 text-xs font-medium text-muted-foreground">
@@ -225,7 +217,9 @@ export function SearchBar({
                     onClick={() => handleSelectRecent(kw)}
                     onMouseEnter={() => setActiveIndex(idx)}
                     className={`cursor-pointer rounded-full border border-border px-2.5 py-1 text-xs text-foreground transition-colors ${
-                      activeIndex === idx ? 'bg-accent' : 'bg-muted hover:bg-accent'
+                      activeIndex === idx
+                        ? 'bg-accent'
+                        : 'bg-muted hover:bg-accent'
                     }`}
                   >
                     {kw}
@@ -251,7 +245,9 @@ export function SearchBar({
               placeholder={placeholder}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              onMouseDown={() => { isAutoFocusing.current = false; }}
+              onMouseDown={() => {
+                isAutoFocusing.current = false;
+              }}
               onFocus={() => {
                 if (isAutoFocusing.current) return;
                 loadRecent();

@@ -132,7 +132,8 @@ async function main(): Promise<void> {
   const { limit, dryRun, batchSize } = parseArgs();
 
   // Validate env
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl =
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey =
     process.env.SUPABASE_SECRET_KEY ??
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
@@ -153,7 +154,9 @@ async function main(): Promise<void> {
 
   // ── Fetch items needing summaries ──
 
-  console.log(`\nFetching content items without summaries (limit ${limit})...\n`);
+  console.log(
+    `\nFetching content items without summaries (limit ${limit})...\n`,
+  );
 
   const { data: items, error: fetchError } = await supabase
     .from('content_items')
@@ -176,7 +179,10 @@ async function main(): Promise<void> {
   // Filter out items with empty content, sort by content type priority, then take limit
   const candidates = (items as ContentRow[])
     .filter((item) => item.content && item.content.trim().length > 0)
-    .sort((a, b) => contentTypeSortKey(a.content_type) - contentTypeSortKey(b.content_type))
+    .sort(
+      (a, b) =>
+        contentTypeSortKey(a.content_type) - contentTypeSortKey(b.content_type),
+    )
     .slice(0, limit);
 
   if (candidates.length === 0) {
@@ -210,8 +216,12 @@ async function main(): Promise<void> {
   console.log(`  Items to process:     ${candidates.length}`);
   console.log(`  Model:                ${model}`);
   console.log(`  Batch size:           ${batchSize} concurrent`);
-  console.log(`  Est. input tokens:    ${estimatedInputTokens.toLocaleString()}`);
-  console.log(`  Est. output tokens:   ${estimatedOutputTokens.toLocaleString()}`);
+  console.log(
+    `  Est. input tokens:    ${estimatedInputTokens.toLocaleString()}`,
+  );
+  console.log(
+    `  Est. output tokens:   ${estimatedOutputTokens.toLocaleString()}`,
+  );
   console.log(`  Est. cost:            ${formatCost(estimatedCost)}`);
   console.log('');
   console.log('  Content type breakdown:');
@@ -244,7 +254,11 @@ async function main(): Promise<void> {
   let errorCount = 0;
   const startTime = Date.now();
 
-  for (let batchStart = 0; batchStart < candidates.length; batchStart += batchSize) {
+  for (
+    let batchStart = 0;
+    batchStart < candidates.length;
+    batchStart += batchSize
+  ) {
     const batch = candidates.slice(batchStart, batchStart + batchSize);
 
     if (batchStart > 0) {
@@ -258,12 +272,13 @@ async function main(): Promise<void> {
         const displayTitle = item.suggested_title || item.title || 'Untitled';
 
         try {
-          const { summaryData, inputTokens, outputTokens } = await callSummaryAI({
-            content: item.content!,
-            title: displayTitle,
-            contentType: item.content_type || 'article',
-            domain: item.primary_domain || 'unknown',
-          });
+          const { summaryData, inputTokens, outputTokens } =
+            await callSummaryAI({
+              content: item.content!,
+              title: displayTitle,
+              contentType: item.content_type || 'article',
+              domain: item.primary_domain || 'unknown',
+            });
 
           // Store in Supabase (cast to bypass JSONB typing)
           // Also sync ai_summary with the higher-quality executive summary
@@ -321,7 +336,9 @@ async function main(): Promise<void> {
   console.log(`  Time:               ${elapsed}s`);
   console.log(`  Input tokens:       ${totalInputTokens.toLocaleString()}`);
   console.log(`  Output tokens:      ${totalOutputTokens.toLocaleString()}`);
-  console.log(`  Total tokens:       ${(totalInputTokens + totalOutputTokens).toLocaleString()}`);
+  console.log(
+    `  Total tokens:       ${(totalInputTokens + totalOutputTokens).toLocaleString()}`,
+  );
   console.log(`  Total cost:         ${formatCost(actualCost)}`);
   console.log('='.repeat(60));
 }

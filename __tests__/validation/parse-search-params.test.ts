@@ -4,8 +4,16 @@ import { parseSearchParams } from '@/lib/validation';
 
 // Simple schema for testing coercion/defaults
 const TestSchema = z.object({
-  limit: z.number().int().default(20).transform(v => Math.max(1, Math.min(100, v))),
-  offset: z.number().int().default(0).transform(v => Math.max(0, v)),
+  limit: z
+    .number()
+    .int()
+    .default(20)
+    .transform((v) => Math.max(1, Math.min(100, v))),
+  offset: z
+    .number()
+    .int()
+    .default(0)
+    .transform((v) => Math.max(0, v)),
   query: z.string().optional(),
   flag: z.preprocess((v) => v === 'true' || v === true, z.boolean()).optional(),
 });

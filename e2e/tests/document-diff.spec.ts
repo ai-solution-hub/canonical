@@ -35,7 +35,8 @@ async function createTestDiffPair(prefix: string): Promise<{
     .limit(1)
     .single();
 
-  const uploadedBy = adminRole?.user_id ?? '00000000-0000-0000-0000-000000000000';
+  const uploadedBy =
+    adminRole?.user_id ?? '00000000-0000-0000-0000-000000000000';
 
   // Create old document (v1)
   const { data: oldDoc } = await supabase
@@ -46,7 +47,8 @@ async function createTestDiffPair(prefix: string): Promise<{
       storage_path: `e2e-test/${prefix}_v1.docx`,
       content_hash: `hash_old_${Date.now()}`,
       file_size: 1024,
-      mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      mime_type:
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       uploaded_by: uploadedBy,
       version: 1,
       status: 'processed',
@@ -66,7 +68,8 @@ async function createTestDiffPair(prefix: string): Promise<{
       storage_path: `e2e-test/${prefix}_v2.docx`,
       content_hash: `hash_new_${Date.now()}`,
       file_size: 2048,
-      mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      mime_type:
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       uploaded_by: uploadedBy,
       version: 2,
       status: 'processed',
@@ -106,7 +109,8 @@ async function createTestDiffPair(prefix: string): Promise<{
       diff_type: 'modified',
       diff_mode: 'full_text',
       old_content: 'Our approach to data protection follows GDPR guidelines.',
-      new_content: 'Our approach to data protection follows GDPR and UK DPA 2018 guidelines.',
+      new_content:
+        'Our approach to data protection follows GDPR and UK DPA 2018 guidelines.',
       similarity_score: 0.85,
       status: 'pending_review',
     },
@@ -176,7 +180,9 @@ test.describe('Document diff page', () => {
       // briefly render two section[aria-label="Document diff review"] elements
       // (e.g. error state + content state during hydration/navigation). Using
       // .first() targets the visible one reliably.
-      const diffSection = page.locator('section[aria-label="Document diff review"]').first();
+      const diffSection = page
+        .locator('section[aria-label="Document diff review"]')
+        .first();
       await expect(diffSection).toBeVisible({ timeout: 15000 });
 
       // Heading "Document Diff Review" is visible
@@ -185,7 +191,9 @@ test.describe('Document diff page', () => {
       ).toBeVisible();
 
       // Filename text is visible in the header (matches 2 elements: link + description)
-      await expect(diffSection.getByText('_test_doc.docx').first()).toBeVisible();
+      await expect(
+        diffSection.getByText('_test_doc.docx').first(),
+      ).toBeVisible();
 
       // Version indicators are visible
       await expect(diffSection.getByText(/v1/)).toBeVisible();
@@ -206,7 +214,9 @@ test.describe('Document diff page', () => {
     try {
       await page.goto(`/documents/${oldDocId}/diff`);
 
-      const diffSection = page.locator('section[aria-label="Document diff review"]').first();
+      const diffSection = page
+        .locator('section[aria-label="Document diff review"]')
+        .first();
       await expect(diffSection).toBeVisible({ timeout: 15000 });
 
       // Summary counts are visible (scoped within diffSection to avoid duplicate elements)
@@ -238,7 +248,9 @@ test.describe('Document diff page', () => {
     try {
       await page.goto(`/documents/${oldDocId}/diff`);
 
-      const diffSection = page.locator('section[aria-label="Document diff review"]').first();
+      const diffSection = page
+        .locator('section[aria-label="Document diff review"]')
+        .first();
       await expect(diffSection).toBeVisible({ timeout: 15000 });
 
       // The "All" tab is selected by default (scoped within diffSection)
@@ -246,7 +258,9 @@ test.describe('Document diff page', () => {
       await expect(allTab).toHaveAttribute('aria-selected', 'true');
 
       // Count visible entry cards with "All" filter (unchanged hidden by default)
-      const entryFeed = diffSection.locator('[role="feed"][aria-label="Diff review entries"]');
+      const entryFeed = diffSection.locator(
+        '[role="feed"][aria-label="Diff review entries"]',
+      );
       await expect(entryFeed).toBeVisible();
 
       // Click "Added" filter tab
@@ -258,7 +272,9 @@ test.describe('Document diff page', () => {
       await expect(addedBadge.first()).toBeVisible();
 
       // Removed/Modified badges should NOT be visible
-      const removedBadge = diffSection.locator('[aria-label="Diff type: Removed"]');
+      const removedBadge = diffSection.locator(
+        '[aria-label="Diff type: Removed"]',
+      );
       await expect(removedBadge).not.toBeVisible();
 
       // Click "All" tab to restore
@@ -280,15 +296,21 @@ test.describe('Document diff page', () => {
     try {
       await page.goto(`/documents/${oldDocId}/diff`);
 
-      const diffSection = page.locator('section[aria-label="Document diff review"]').first();
+      const diffSection = page
+        .locator('section[aria-label="Document diff review"]')
+        .first();
       await expect(diffSection).toBeVisible({ timeout: 15000 });
 
       // Find a modified entry card (scoped within diffSection)
-      const modifiedBadge = diffSection.locator('[aria-label="Diff type: Modified"]');
+      const modifiedBadge = diffSection.locator(
+        '[aria-label="Diff type: Modified"]',
+      );
       await expect(modifiedBadge.first()).toBeVisible();
 
       // Status badge should show "Needs Review"
-      const statusBadge = diffSection.locator('[aria-label="Status: Needs Review"]');
+      const statusBadge = diffSection.locator(
+        '[aria-label="Status: Needs Review"]',
+      );
       await expect(statusBadge.first()).toBeVisible();
 
       // NOTE: Similarity score is only rendered by the Q&A mode DiffEntryCard,
@@ -321,17 +343,28 @@ test.describe('Document diff page', () => {
     try {
       await page.goto(`/documents/${oldDocId}/diff`);
 
-      const diffSection = page.locator('section[aria-label="Document diff review"]').first();
+      const diffSection = page
+        .locator('section[aria-label="Document diff review"]')
+        .first();
       await expect(diffSection).toBeVisible({ timeout: 15000 });
 
       // Capture the initial pending count from the bulk toolbar
-      const toolbar = diffSection.locator('[role="toolbar"][aria-label="Bulk review actions"]');
+      const toolbar = diffSection.locator(
+        '[role="toolbar"][aria-label="Bulk review actions"]',
+      );
       await expect(toolbar).toBeVisible();
-      const initialStatusText = await toolbar.locator('[aria-live="polite"]').textContent();
-      const initialPending = parseInt(initialStatusText?.match(/(\d+) pending/)?.[1] ?? '0', 10);
+      const initialStatusText = await toolbar
+        .locator('[aria-live="polite"]')
+        .textContent();
+      const initialPending = parseInt(
+        initialStatusText?.match(/(\d+) pending/)?.[1] ?? '0',
+        10,
+      );
 
       // Find the first Apply button (scoped within diffSection)
-      const applyButton = diffSection.locator('[aria-label="Apply this change"]').first();
+      const applyButton = diffSection
+        .locator('[aria-label="Apply this change"]')
+        .first();
       await expect(applyButton).toBeVisible();
 
       // Click Apply
@@ -368,17 +401,28 @@ test.describe('Document diff page', () => {
     try {
       await page.goto(`/documents/${oldDocId}/diff`);
 
-      const diffSection = page.locator('section[aria-label="Document diff review"]').first();
+      const diffSection = page
+        .locator('section[aria-label="Document diff review"]')
+        .first();
       await expect(diffSection).toBeVisible({ timeout: 15000 });
 
       // Capture the initial pending count from the bulk toolbar
-      const toolbar = diffSection.locator('[role="toolbar"][aria-label="Bulk review actions"]');
+      const toolbar = diffSection.locator(
+        '[role="toolbar"][aria-label="Bulk review actions"]',
+      );
       await expect(toolbar).toBeVisible();
-      const initialStatusText = await toolbar.locator('[aria-live="polite"]').textContent();
-      const initialPending = parseInt(initialStatusText?.match(/(\d+) pending/)?.[1] ?? '0', 10);
+      const initialStatusText = await toolbar
+        .locator('[aria-live="polite"]')
+        .textContent();
+      const initialPending = parseInt(
+        initialStatusText?.match(/(\d+) pending/)?.[1] ?? '0',
+        10,
+      );
 
       // Find the first Dismiss button (scoped within diffSection)
-      const dismissButton = diffSection.locator('[aria-label="Dismiss this change"]').first();
+      const dismissButton = diffSection
+        .locator('[aria-label="Dismiss this change"]')
+        .first();
       await expect(dismissButton).toBeVisible();
 
       // Click Dismiss
@@ -415,25 +459,35 @@ test.describe('Document diff page', () => {
     try {
       await page.goto(`/documents/${oldDocId}/diff`);
 
-      const diffSection = page.locator('section[aria-label="Document diff review"]').first();
+      const diffSection = page
+        .locator('section[aria-label="Document diff review"]')
+        .first();
       await expect(diffSection).toBeVisible({ timeout: 15000 });
 
       // Bulk actions toolbar should be visible (scoped within diffSection)
-      const toolbar = diffSection.locator('[role="toolbar"][aria-label="Bulk review actions"]');
+      const toolbar = diffSection.locator(
+        '[role="toolbar"][aria-label="Bulk review actions"]',
+      );
       await expect(toolbar).toBeVisible();
 
       // "Accept All Pending" button should be visible and enabled
-      const acceptAllButton = toolbar.locator('[aria-label="Accept all pending changes"]');
+      const acceptAllButton = toolbar.locator(
+        '[aria-label="Accept all pending changes"]',
+      );
       await expect(acceptAllButton).toBeVisible();
       await expect(acceptAllButton).toBeEnabled();
 
       // "Dismiss All Pending" button should be visible and enabled
-      const dismissAllButton = toolbar.locator('[aria-label="Dismiss all pending changes"]');
+      const dismissAllButton = toolbar.locator(
+        '[aria-label="Dismiss all pending changes"]',
+      );
       await expect(dismissAllButton).toBeVisible();
       await expect(dismissAllButton).toBeEnabled();
 
       // Status text shows pending count for actionable entries only (non-unchanged = 3)
-      await expect(toolbar.getByText(/3 pending, 0 applied, 0 dismissed/)).toBeVisible();
+      await expect(
+        toolbar.getByText(/3 pending, 0 applied, 0 dismissed/),
+      ).toBeVisible();
     } finally {
       await cleanupTestDiffPair(oldDocId, newDocId, diffEntryIds);
     }
@@ -450,7 +504,9 @@ test.describe('Document diff page', () => {
     try {
       await page.goto(`/documents/${oldDocId}/diff`);
 
-      const diffSection = page.locator('section[aria-label="Document diff review"]').first();
+      const diffSection = page
+        .locator('section[aria-label="Document diff review"]')
+        .first();
       await expect(diffSection).toBeVisible({ timeout: 15000 });
 
       // Full-text entries should use "Added:", "Removed:", "Old version:", "New version:" labels
@@ -463,7 +519,9 @@ test.describe('Document diff page', () => {
       await expect(addedEntry.getByText('Added:')).toBeVisible();
 
       // For a modified entry, "Old version:" and "New version:" labels should be present
-      const modifiedCard = diffSection.locator('[aria-label="modified text block"]');
+      const modifiedCard = diffSection.locator(
+        '[aria-label="modified text block"]',
+      );
       await expect(modifiedCard).toBeVisible({ timeout: 5000 });
       await expect(modifiedCard.getByText('Old version:')).toBeVisible();
       await expect(modifiedCard.getByText('New version:')).toBeVisible();

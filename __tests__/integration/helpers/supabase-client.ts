@@ -7,7 +7,10 @@
  * For mock-based tests, re-exports the mock client factory from the shared helpers.
  * For live DB tests (when env vars are available), provides a real Supabase client.
  */
-import { createMockSupabaseClient, type MockSupabaseClient } from '../../helpers/mock-supabase';
+import {
+  createMockSupabaseClient,
+  type MockSupabaseClient,
+} from '../../helpers/mock-supabase';
 
 // Re-export mock helpers for use in integration tests
 export { createMockSupabaseClient, type MockSupabaseClient };
@@ -18,8 +21,7 @@ export { createMockSupabaseClient, type MockSupabaseClient };
  */
 export function hasLiveDbCredentials(): boolean {
   return !!(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    process.env.SUPABASE_SECRET_KEY
+    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SECRET_KEY
   );
 }
 

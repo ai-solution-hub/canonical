@@ -76,4 +76,3 @@ export interface DigestGenerateRequest {
 export interface DigestGenerateResponse {
   digest: Digest;
 }
-

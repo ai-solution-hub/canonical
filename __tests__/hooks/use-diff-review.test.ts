@@ -84,10 +84,9 @@ describe('useDiffReview', () => {
   // ─── Initial state ───
 
   it('initialises entries and summary from props', () => {
-    const { result } = renderHook(
-      () => useDiffReview(DOC_ID, MOCK_ENTRIES),
-      { wrapper: createWrapper() },
-    );
+    const { result } = renderHook(() => useDiffReview(DOC_ID, MOCK_ENTRIES), {
+      wrapper: createWrapper(),
+    });
 
     expect(result.current.entries).toEqual(MOCK_ENTRIES);
     expect(result.current.localSummary).toEqual({
@@ -130,10 +129,9 @@ describe('useDiffReview', () => {
   // ─── P4: Memoised affectedItemIds ───
 
   it('computes affectedItemIds from entries with affected_item', () => {
-    const { result } = renderHook(
-      () => useDiffReview(DOC_ID, MOCK_ENTRIES),
-      { wrapper: createWrapper() },
-    );
+    const { result } = renderHook(() => useDiffReview(DOC_ID, MOCK_ENTRIES), {
+      wrapper: createWrapper(),
+    });
 
     // Only e2 has an affected_item and is not unchanged
     expect(result.current.affectedItemIds).toEqual(['item-a']);
@@ -146,10 +144,9 @@ describe('useDiffReview', () => {
       makeEntry({ id: 'e2', diff_type: 'modified' }),
     ];
 
-    const { result } = renderHook(
-      () => useDiffReview(DOC_ID, entries),
-      { wrapper: createWrapper() },
-    );
+    const { result } = renderHook(() => useDiffReview(DOC_ID, entries), {
+      wrapper: createWrapper(),
+    });
 
     expect(result.current.affectedItemIds).toEqual([]);
     expect(result.current.hasAffectedItems).toBe(false);
@@ -158,10 +155,9 @@ describe('useDiffReview', () => {
   // ─── Status change (single) ───
 
   it('optimistically updates entry status on handleStatusChange', async () => {
-    const { result } = renderHook(
-      () => useDiffReview(DOC_ID, MOCK_ENTRIES),
-      { wrapper: createWrapper() },
-    );
+    const { result } = renderHook(() => useDiffReview(DOC_ID, MOCK_ENTRIES), {
+      wrapper: createWrapper(),
+    });
 
     await act(async () => {
       result.current.handleStatusChange('e1', 'applied');
@@ -181,10 +177,9 @@ describe('useDiffReview', () => {
   // ─── Bulk status change ───
 
   it('handles bulk status change', async () => {
-    const { result } = renderHook(
-      () => useDiffReview(DOC_ID, MOCK_ENTRIES),
-      { wrapper: createWrapper() },
-    );
+    const { result } = renderHook(() => useDiffReview(DOC_ID, MOCK_ENTRIES), {
+      wrapper: createWrapper(),
+    });
 
     await act(async () => {
       result.current.handleBulkStatusChange(['e1', 'e2'], 'dismissed');
@@ -197,10 +192,9 @@ describe('useDiffReview', () => {
   });
 
   it('skips bulk change when ids array is empty', () => {
-    const { result } = renderHook(
-      () => useDiffReview(DOC_ID, MOCK_ENTRIES),
-      { wrapper: createWrapper() },
-    );
+    const { result } = renderHook(() => useDiffReview(DOC_ID, MOCK_ENTRIES), {
+      wrapper: createWrapper(),
+    });
 
     // Clear any calls made by previous tests
     mockFetch.mockClear();
@@ -221,10 +215,9 @@ describe('useDiffReview', () => {
       json: async () => ({ error: 'Server error' }),
     });
 
-    const { result } = renderHook(
-      () => useDiffReview(DOC_ID, MOCK_ENTRIES),
-      { wrapper: createWrapper() },
-    );
+    const { result } = renderHook(() => useDiffReview(DOC_ID, MOCK_ENTRIES), {
+      wrapper: createWrapper(),
+    });
 
     await act(async () => {
       result.current.handleStatusChange('e1', 'applied');
@@ -244,10 +237,9 @@ describe('useDiffReview', () => {
   // ─── Note handling ───
 
   it('tracks pending notes via handleNoteChange', () => {
-    const { result } = renderHook(
-      () => useDiffReview(DOC_ID, MOCK_ENTRIES),
-      { wrapper: createWrapper() },
-    );
+    const { result } = renderHook(() => useDiffReview(DOC_ID, MOCK_ENTRIES), {
+      wrapper: createWrapper(),
+    });
 
     act(() => {
       result.current.handleNoteChange('e1', 'This is a note');
@@ -277,10 +269,9 @@ describe('useDiffReview', () => {
       });
     });
 
-    const { result } = renderHook(
-      () => useDiffReview(DOC_ID, MOCK_ENTRIES),
-      { wrapper: createWrapper() },
-    );
+    const { result } = renderHook(() => useDiffReview(DOC_ID, MOCK_ENTRIES), {
+      wrapper: createWrapper(),
+    });
 
     await act(async () => {
       result.current.handleSendToReview();
@@ -290,9 +281,7 @@ describe('useDiffReview', () => {
       expect(result.current.sendToReviewState).toBe('error');
     });
 
-    expect(result.current.sendToReviewError).toBe(
-      'Review service unavailable',
-    );
+    expect(result.current.sendToReviewError).toBe('Review service unavailable');
     expect(toast.error).toHaveBeenCalledWith(
       'Failed to send items to review queue',
     );
@@ -321,10 +310,9 @@ describe('useDiffReview', () => {
       });
     });
 
-    const { result } = renderHook(
-      () => useDiffReview(DOC_ID, MOCK_ENTRIES),
-      { wrapper: createWrapper() },
-    );
+    const { result } = renderHook(() => useDiffReview(DOC_ID, MOCK_ENTRIES), {
+      wrapper: createWrapper(),
+    });
 
     await act(async () => {
       result.current.handleSendToReview();
@@ -347,10 +335,9 @@ describe('useDiffReview', () => {
       json: async () => ({ error: 'fail' }),
     });
 
-    const { result } = renderHook(
-      () => useDiffReview(DOC_ID, MOCK_ENTRIES),
-      { wrapper: createWrapper() },
-    );
+    const { result } = renderHook(() => useDiffReview(DOC_ID, MOCK_ENTRIES), {
+      wrapper: createWrapper(),
+    });
 
     await act(async () => {
       result.current.handleStatusChange('e1', 'applied');

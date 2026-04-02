@@ -33,7 +33,10 @@ export function formatDeleteContent(data: DeleteContentResult): string {
   }
 
   if (data.mode === 'delete') {
-    lines.push('', '> This item and all associated history have been permanently removed.');
+    lines.push(
+      '',
+      '> This item and all associated history have been permanently removed.',
+    );
   }
 
   return lines.join('\n');
@@ -58,7 +61,9 @@ export interface GovernanceStatusUpdateResult {
   items: GovernanceStatusItemResult[];
 }
 
-export function formatGovernanceStatusUpdate(result: GovernanceStatusUpdateResult): string {
+export function formatGovernanceStatusUpdate(
+  result: GovernanceStatusUpdateResult,
+): string {
   const verb = result.action === 'publish' ? 'Published' : 'Set to draft';
   const lines: string[] = [
     `# Governance Status Update`,
@@ -70,15 +75,17 @@ export function formatGovernanceStatusUpdate(result: GovernanceStatusUpdateResul
 
   if (result.failed > 0) {
     lines.push('## Failures', '');
-    for (const item of result.items.filter(i => !i.success)) {
-      lines.push(`- **${item.title}** (${item.id}): ${item.error ?? 'Unknown error'}`);
+    for (const item of result.items.filter((i) => !i.success)) {
+      lines.push(
+        `- **${item.title}** (${item.id}): ${item.error ?? 'Unknown error'}`,
+      );
     }
     lines.push('');
   }
 
   if (result.succeeded > 0) {
     lines.push(`## ${verb}`, '');
-    for (const item of result.items.filter(i => i.success)) {
+    for (const item of result.items.filter((i) => i.success)) {
       lines.push(`- ${item.title} (${item.id})`);
     }
   }

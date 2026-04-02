@@ -112,20 +112,12 @@ describe('generateSingleFieldChangeSummary', () => {
   });
 
   it('summarises priority being set from null', () => {
-    const result = generateSingleFieldChangeSummary(
-      'priority',
-      null,
-      'high',
-    );
+    const result = generateSingleFieldChangeSummary('priority', null, 'high');
     expect(result).toBe('Priority changed from unset to high');
   });
 
   it('summarises priority being cleared', () => {
-    const result = generateSingleFieldChangeSummary(
-      'priority',
-      'low',
-      null,
-    );
+    const result = generateSingleFieldChangeSummary('priority', 'low', null);
     expect(result).toBe('Priority changed from low to unset');
   });
 

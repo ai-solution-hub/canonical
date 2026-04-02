@@ -92,7 +92,9 @@ const validEntity: ExpiringEntityMention = {
   expiry_status: 'expiring_soon',
 };
 
-function buildData(overrides?: Partial<ExpiringContentData>): ExpiringContentData {
+function buildData(
+  overrides?: Partial<ExpiringContentData>,
+): ExpiringContentData {
   return {
     content_items: [expiringItem, urgentItem],
     entity_mentions: [expiringEntity],
@@ -130,19 +132,25 @@ describe('formatExpiringContent', () => {
   });
 
   it('shows URGENT for items within 7 days', () => {
-    const result = formatExpiringContent(buildData({ content_items: [urgentItem] }));
+    const result = formatExpiringContent(
+      buildData({ content_items: [urgentItem] }),
+    );
     expect(result).toContain('URGENT');
     expect(result).toContain('Cyber Essentials Certificate');
   });
 
   it('shows OVERDUE for items past expiry', () => {
-    const result = formatExpiringContent(buildData({ content_items: [overdueItem] }));
+    const result = formatExpiringContent(
+      buildData({ content_items: [overdueItem] }),
+    );
     expect(result).toContain('OVERDUE');
     expect(result).toContain('5 overdue');
   });
 
   it('shows UPCOMING for items beyond 30 days', () => {
-    const result = formatExpiringContent(buildData({ content_items: [upcomingItem], days_ahead: 60 }));
+    const result = formatExpiringContent(
+      buildData({ content_items: [upcomingItem], days_ahead: 60 }),
+    );
     expect(result).toContain('UPCOMING');
   });
 
@@ -152,7 +160,9 @@ describe('formatExpiringContent', () => {
   });
 
   it('includes entity mention details in the table', () => {
-    const result = formatExpiringContent(buildData({ entity_mentions: [expiringEntity, validEntity] }));
+    const result = formatExpiringContent(
+      buildData({ entity_mentions: [expiringEntity, validEntity] }),
+    );
     expect(result).toContain('ISO 27001');
     expect(result).toContain('certification');
     expect(result).toContain('ICO Registration');
@@ -160,7 +170,9 @@ describe('formatExpiringContent', () => {
   });
 
   it('shows expired entity mentions', () => {
-    const result = formatExpiringContent(buildData({ entity_mentions: [expiredEntity] }));
+    const result = formatExpiringContent(
+      buildData({ entity_mentions: [expiredEntity] }),
+    );
     expect(result).toContain('Cyber Essentials Plus');
     expect(result).toContain('OVERDUE');
     expect(result).toContain('2 overdue');
@@ -173,16 +185,22 @@ describe('formatExpiringContent', () => {
 
   it('returns empty state when no entity mentions are expiring', () => {
     const result = formatExpiringContent(buildData({ entity_mentions: [] }));
-    expect(result).toContain('No certifications or registrations expiring within this period.');
+    expect(result).toContain(
+      'No certifications or registrations expiring within this period.',
+    );
   });
 
   it('returns empty state for both sections when nothing is expiring', () => {
-    const result = formatExpiringContent(buildData({
-      content_items: [],
-      entity_mentions: [],
-    }));
+    const result = formatExpiringContent(
+      buildData({
+        content_items: [],
+        entity_mentions: [],
+      }),
+    );
     expect(result).toContain('No content items expiring within this period.');
-    expect(result).toContain('No certifications or registrations expiring within this period.');
+    expect(result).toContain(
+      'No certifications or registrations expiring within this period.',
+    );
   });
 
   it('respects custom days_ahead parameter in display', () => {
@@ -191,9 +209,11 @@ describe('formatExpiringContent', () => {
   });
 
   it('handles items from different domains', () => {
-    const result = formatExpiringContent(buildData({
-      content_items: [expiringItem, differentDomainItem],
-    }));
+    const result = formatExpiringContent(
+      buildData({
+        content_items: [expiringItem, differentDomainItem],
+      }),
+    );
     expect(result).toContain('Information Governance');
     expect(result).toContain('Health & Safety');
   });
@@ -203,32 +223,44 @@ describe('formatExpiringContent', () => {
       ...expiringItem,
       domain: null,
     };
-    const result = formatExpiringContent(buildData({ content_items: [noDomainItem] }));
+    const result = formatExpiringContent(
+      buildData({ content_items: [noDomainItem] }),
+    );
     expect(result).toContain('Unclassified');
   });
 
   it('includes table headers for content items', () => {
     const result = formatExpiringContent(buildData());
-    expect(result).toContain('| Item | Domain | Expiry Date | Days Remaining | Urgency |');
+    expect(result).toContain(
+      '| Item | Domain | Expiry Date | Days Remaining | Urgency |',
+    );
   });
 
   it('includes table headers for entity mentions', () => {
     const result = formatExpiringContent(buildData());
-    expect(result).toContain('| Name | Type | Expiry Date | Days Remaining | Status |');
+    expect(result).toContain(
+      '| Name | Type | Expiry Date | Days Remaining | Status |',
+    );
   });
 
   it('excludes entity mentions section when include_entities would be false (empty array)', () => {
     const result = formatExpiringContent(buildData({ entity_mentions: [] }));
     // Should NOT have a table of entity mentions
-    expect(result).not.toContain('| Name | Type | Expiry Date | Days Remaining | Status |');
-    expect(result).toContain('No certifications or registrations expiring within this period.');
+    expect(result).not.toContain(
+      '| Name | Type | Expiry Date | Days Remaining | Status |',
+    );
+    expect(result).toContain(
+      'No certifications or registrations expiring within this period.',
+    );
   });
 
   it('correctly handles a mix of urgency levels', () => {
-    const result = formatExpiringContent(buildData({
-      content_items: [overdueItem, urgentItem, expiringItem, upcomingItem],
-      days_ahead: 60,
-    }));
+    const result = formatExpiringContent(
+      buildData({
+        content_items: [overdueItem, urgentItem, expiringItem, upcomingItem],
+        days_ahead: 60,
+      }),
+    );
     expect(result).toContain('OVERDUE');
     expect(result).toContain('URGENT');
     expect(result).toContain('SOON');

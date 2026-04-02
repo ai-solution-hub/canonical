@@ -2,9 +2,9 @@ import type { ConfidencePosture } from '@/types/bid';
 
 // Configurable similarity thresholds
 export const MATCH_THRESHOLDS = {
-  strong: 0.70,  // 2+ results above this
-  partial: 0.50, // 1+ results above this
-  minimal: 0.30, // Below this = no content
+  strong: 0.7, // 2+ results above this
+  partial: 0.5, // 1+ results above this
+  minimal: 0.3, // Below this = no content
 };
 
 export interface MatchResult {
@@ -18,12 +18,17 @@ export interface MatchResult {
  * Assess confidence posture based on search result similarity scores.
  */
 export function assessConfidence(matches: MatchResult[]): ConfidencePosture {
-  const strongMatches = matches.filter(m => m.similarity >= MATCH_THRESHOLDS.strong);
-  const partialMatches = matches.filter(m => m.similarity >= MATCH_THRESHOLDS.partial);
+  const strongMatches = matches.filter(
+    (m) => m.similarity >= MATCH_THRESHOLDS.strong,
+  );
+  const partialMatches = matches.filter(
+    (m) => m.similarity >= MATCH_THRESHOLDS.partial,
+  );
 
   if (strongMatches.length >= 2) return 'strong_match';
   if (partialMatches.length >= 1) return 'partial_match';
-  if (matches.length > 0 && matches[0].similarity >= MATCH_THRESHOLDS.minimal) return 'needs_sme';
+  if (matches.length > 0 && matches[0].similarity >= MATCH_THRESHOLDS.minimal)
+    return 'needs_sme';
   return 'no_content';
 }
 
@@ -40,4 +45,3 @@ export function deduplicateResults(results: MatchResult[]): MatchResult[] {
   }
   return Array.from(seen.values()).sort((a, b) => b.similarity - a.similarity);
 }
-

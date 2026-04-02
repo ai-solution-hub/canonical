@@ -82,9 +82,7 @@ describe('ReviewSessionSummary', () => {
       skipped: 0,
     };
 
-    render(
-      <ReviewSessionSummary {...defaultProps} stats={zeroStats} />,
-    );
+    render(<ReviewSessionSummary {...defaultProps} stats={zeroStats} />);
 
     // All four stat values should show 0
     const zeros = screen.getAllByText('0');
@@ -99,9 +97,7 @@ describe('ReviewSessionSummary', () => {
       skipped: 100,
     };
 
-    render(
-      <ReviewSessionSummary {...defaultProps} stats={largeStats} />,
-    );
+    render(<ReviewSessionSummary {...defaultProps} stats={largeStats} />);
 
     // en-GB locale formats 1500 as "1,500"
     expect(screen.getByText('1,500')).toBeInTheDocument();
@@ -112,17 +108,15 @@ describe('ReviewSessionSummary', () => {
     const onOpenChange = vi.fn();
 
     render(
-      <ReviewSessionSummary
-        {...defaultProps}
-        onOpenChange={onOpenChange}
-      />,
+      <ReviewSessionSummary {...defaultProps} onOpenChange={onOpenChange} />,
     );
 
     // There are two "Close" buttons (X icon + text button). Get the text one in the footer.
     const closeButtons = screen.getAllByRole('button', { name: /Close/i });
     // The explicit "Close" text button is the one without the sr-only class
     const footerClose = closeButtons.find(
-      (btn) => btn.textContent?.trim() === 'Close' && !btn.querySelector('.sr-only'),
+      (btn) =>
+        btn.textContent?.trim() === 'Close' && !btn.querySelector('.sr-only'),
     );
     expect(footerClose).toBeTruthy();
     fireEvent.click(footerClose!);
@@ -134,23 +128,22 @@ describe('ReviewSessionSummary', () => {
     // Spy on createElement to intercept anchor creation, but still let it work
     const mockClick = vi.fn();
     const originalCreateElement = document.createElement.bind(document);
-    vi.spyOn(document, 'createElement').mockImplementation((tag: string, ...args: unknown[]) => {
-      const el = originalCreateElement(tag, ...args as []);
-      if (tag === 'a') {
-        // Override click to capture it
-        el.click = mockClick;
-      }
-      return el;
-    });
-
-    render(
-      <ReviewSessionSummary
-        {...defaultProps}
-        sessionDuration={60000}
-      />,
+    vi.spyOn(document, 'createElement').mockImplementation(
+      (tag: string, ...args: unknown[]) => {
+        const el = originalCreateElement(tag, ...(args as []));
+        if (tag === 'a') {
+          // Override click to capture it
+          el.click = mockClick;
+        }
+        return el;
+      },
     );
 
-    const downloadButton = screen.getByRole('button', { name: /Download summary/i });
+    render(<ReviewSessionSummary {...defaultProps} sessionDuration={60000} />);
+
+    const downloadButton = screen.getByRole('button', {
+      name: /Download summary/i,
+    });
     fireEvent.click(downloadButton);
 
     expect(mockCreateObjectURL).toHaveBeenCalledTimes(1);
@@ -160,12 +153,7 @@ describe('ReviewSessionSummary', () => {
   });
 
   it('does not render when open is false', () => {
-    render(
-      <ReviewSessionSummary
-        {...defaultProps}
-        open={false}
-      />,
-    );
+    render(<ReviewSessionSummary {...defaultProps} open={false} />);
 
     expect(screen.queryByText('Session summary')).not.toBeInTheDocument();
   });

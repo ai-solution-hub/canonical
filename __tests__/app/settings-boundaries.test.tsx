@@ -37,9 +37,7 @@ describe('Settings Error Boundary', () => {
 
   it('renders the heading text', () => {
     render(<SettingsError error={error} reset={reset} />);
-    expect(
-      screen.getByText(/couldn.*t load settings/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/couldn.*t load settings/i)).toBeInTheDocument();
   });
 
   it('renders a contextual icon with aria-hidden', () => {
@@ -60,7 +58,7 @@ describe('Settings Error Boundary', () => {
     render(<SettingsError error={error} reset={reset} />);
     expect(screen.getByRole('link', { name: /return home/i })).toHaveAttribute(
       'href',
-      '/'
+      '/',
     );
   });
 
@@ -80,7 +78,7 @@ describe('Settings Loading Skeleton', () => {
     render(<SettingsLoading />);
     expect(screen.getByRole('status')).toHaveAttribute(
       'aria-label',
-      'Loading settings'
+      'Loading settings',
     );
   });
 

@@ -60,16 +60,41 @@ function resetMocks() {
   });
 
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockResolvedValue({ data: null, error: null, count: null });
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null, count: null });
+  mockSupabase._chain.single.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
@@ -491,9 +516,7 @@ describe('Tags New API Routes', () => {
     it('returns legacy format without any filter params', async () => {
       configureRole(mockSupabase, 'viewer');
 
-      const mockData = [
-        { tag: 'compliance', count: 12, source: 'user' },
-      ];
+      const mockData = [{ tag: 'compliance', count: 12, source: 'user' }];
       mockSupabase.rpc.mockResolvedValueOnce({ data: mockData, error: null });
 
       const request = createTestRequest('/api/tags');
@@ -511,7 +534,13 @@ describe('Tags New API Routes', () => {
       mockSupabase.rpc.mockResolvedValueOnce({ data: [], error: null });
 
       const request = createTestRequest('/api/tags', {
-        searchParams: { type: 'ai', min_count: '3', search: 'iso', limit: '20', offset: '10' },
+        searchParams: {
+          type: 'ai',
+          min_count: '3',
+          search: 'iso',
+          limit: '20',
+          offset: '10',
+        },
       });
       await getTags(request);
 

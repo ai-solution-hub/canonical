@@ -6,7 +6,7 @@ import { execFileSync } from 'child_process';
 
 const FIXTURE_PATH = path.resolve(
   __dirname,
-  '../../docs/client-documentation/DRAFT 2026 Tender and Bid Library Template for example-client - Security and Compliance  - Copy.docx'
+  '../../docs/client-documentation/DRAFT 2026 Tender and Bid Library Template for example-client - Security and Compliance  - Copy.docx',
 );
 
 describe('mammoth Track Changes handling', () => {
@@ -32,11 +32,11 @@ describe('mammoth Track Changes handling', () => {
 
   it('matches pandoc ground truth for Track Changes resolution', async () => {
     // Generate ground truth with pandoc
-    const pandocHtml = execFileSync('/opt/homebrew/bin/pandoc', [
-      '--track-changes=accept',
-      '-t', 'html',
-      FIXTURE_PATH,
-    ], { encoding: 'utf-8', timeout: 30_000 });
+    const pandocHtml = execFileSync(
+      '/opt/homebrew/bin/pandoc',
+      ['--track-changes=accept', '-t', 'html', FIXTURE_PATH],
+      { encoding: 'utf-8', timeout: 30_000 },
+    );
 
     // Generate mammoth output
     const buffer = fs.readFileSync(FIXTURE_PATH);

@@ -38,7 +38,9 @@ interface ExtractedQuestionEntry {
 }
 
 /** Flatten ExtractionResult sections into a flat array for QuestionReview */
-function flattenSections(sections: ExtractedSection[]): ExtractedQuestionEntry[] {
+function flattenSections(
+  sections: ExtractedSection[],
+): ExtractedQuestionEntry[] {
   return sections.flatMap((section) =>
     section.questions.map((q) => ({
       section_name: section.section_name,
@@ -51,9 +53,17 @@ function flattenSections(sections: ExtractedSection[]): ExtractedQuestionEntry[]
   );
 }
 
-const STEP_LABELS = ['Bid Details', 'Upload Document', 'Review Questions'] as const;
+const STEP_LABELS = [
+  'Bid Details',
+  'Upload Document',
+  'Review Questions',
+] as const;
 
-export function BidCreationWizard({ open, onOpenChange, onCreated }: BidCreationWizardProps) {
+export function BidCreationWizard({
+  open,
+  onOpenChange,
+  onCreated,
+}: BidCreationWizardProps) {
   // Step state
   const [currentStep, setCurrentStep] = useState<WizardStep>(1);
 
@@ -68,12 +78,18 @@ export function BidCreationWizard({ open, onOpenChange, onCreated }: BidCreation
   const [error, setError] = useState<string | null>(null);
 
   // Created bid reference
-  const [createdBid, setCreatedBid] = useState<{ id: string; name: string } | null>(null);
+  const [createdBid, setCreatedBid] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   // Step 2-3: Extraction results
   const [, setExtractionResult] = useState<ExtractionResult | null>(null);
-  const [extractedMetadata, setExtractedMetadata] = useState<TenderExtractedMetadata | null>(null);
-  const [flatQuestions, setFlatQuestions] = useState<ExtractedQuestionEntry[]>([]);
+  const [extractedMetadata, setExtractedMetadata] =
+    useState<TenderExtractedMetadata | null>(null);
+  const [flatQuestions, setFlatQuestions] = useState<ExtractedQuestionEntry[]>(
+    [],
+  );
 
   function resetWizard() {
     setCurrentStep(1);
@@ -113,7 +129,8 @@ export function BidCreationWizard({ open, onOpenChange, onCreated }: BidCreation
       if (deadline) {
         body.deadline = `${deadline}T17:00:00Z`;
       }
-      if (referenceNumber.trim()) body.reference_number = referenceNumber.trim();
+      if (referenceNumber.trim())
+        body.reference_number = referenceNumber.trim();
       if (estimatedValue.trim()) body.estimated_value = estimatedValue.trim();
       if (notes.trim()) body.notes = notes.trim();
 
@@ -125,7 +142,9 @@ export function BidCreationWizard({ open, onOpenChange, onCreated }: BidCreation
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || `Failed to create bid (${response.status})`);
+        throw new Error(
+          data.error || `Failed to create bid (${response.status})`,
+        );
       }
 
       const created = await response.json();
@@ -156,7 +175,9 @@ export function BidCreationWizard({ open, onOpenChange, onCreated }: BidCreation
         // from the API response even though the ExtractionResult type doesn't declare it)
         const resultAny = result as unknown as Record<string, unknown>;
         if (resultAny?.extracted_metadata) {
-          setExtractedMetadata(resultAny.extracted_metadata as TenderExtractedMetadata);
+          setExtractedMetadata(
+            resultAny.extracted_metadata as TenderExtractedMetadata,
+          );
         }
 
         setCurrentStep(3);
@@ -191,7 +212,9 @@ export function BidCreationWizard({ open, onOpenChange, onCreated }: BidCreation
         onOpenChange(isOpen);
       }}
     >
-      <DialogContent className={cn(dialogSizeClass, 'max-h-[90vh] overflow-y-auto')}>
+      <DialogContent
+        className={cn(dialogSizeClass, 'max-h-[90vh] overflow-y-auto')}
+      >
         <DialogHeader>
           <DialogTitle>
             {currentStep === 1 && 'Create New Bid'}
@@ -199,9 +222,12 @@ export function BidCreationWizard({ open, onOpenChange, onCreated }: BidCreation
             {currentStep === 3 && 'Review Extracted Questions'}
           </DialogTitle>
           <DialogDescription>
-            {currentStep === 1 && 'Set up a new bid workspace with your bid details.'}
-            {currentStep === 2 && 'Upload a tender document to extract questions automatically.'}
-            {currentStep === 3 && 'Review and confirm the questions extracted from the tender document.'}
+            {currentStep === 1 &&
+              'Set up a new bid workspace with your bid details.'}
+            {currentStep === 2 &&
+              'Upload a tender document to extract questions automatically.'}
+            {currentStep === 3 &&
+              'Review and confirm the questions extracted from the tender document.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -232,7 +258,8 @@ export function BidCreationWizard({ open, onOpenChange, onCreated }: BidCreation
 
             <div className="space-y-1.5">
               <Label htmlFor="wizard-bid-buyer">
-                Buyer / Issuing Organisation <span className="text-destructive">*</span>
+                Buyer / Issuing Organisation{' '}
+                <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="wizard-bid-buyer"
@@ -306,7 +333,9 @@ export function BidCreationWizard({ open, onOpenChange, onCreated }: BidCreation
                 size="sm"
                 className="text-muted-foreground"
                 disabled={saving || !name.trim() || !buyer.trim()}
-                onClick={(e) => handleCreateBid(e as unknown as FormEvent, false)}
+                onClick={(e) =>
+                  handleCreateBid(e as unknown as FormEvent, false)
+                }
               >
                 Create Without Document
               </Button>
@@ -322,10 +351,16 @@ export function BidCreationWizard({ open, onOpenChange, onCreated }: BidCreation
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={saving || !name.trim() || !buyer.trim()}>
+                <Button
+                  type="submit"
+                  disabled={saving || !name.trim() || !buyer.trim()}
+                >
                   {saving ? (
                     <>
-                      <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                      <Loader2
+                        className="size-4 animate-spin"
+                        aria-hidden="true"
+                      />
                       Creating...
                     </>
                   ) : (
@@ -345,10 +380,7 @@ export function BidCreationWizard({ open, onOpenChange, onCreated }: BidCreation
               onUploadComplete={handleUploadComplete}
             />
             <div className="flex justify-end">
-              <Button
-                variant="outline"
-                onClick={navigateToBid}
-              >
+              <Button variant="outline" onClick={navigateToBid}>
                 Skip
               </Button>
             </div>
@@ -407,7 +439,9 @@ function StepIndicator({ currentStep }: { currentStep: WizardStep }) {
                     'flex size-6 items-center justify-center rounded-full text-xs font-medium',
                     isComplete && 'bg-primary text-primary-foreground',
                     isCurrent && 'border-2 border-primary text-primary',
-                    !isComplete && !isCurrent && 'border border-border text-muted-foreground',
+                    !isComplete &&
+                      !isCurrent &&
+                      'border border-border text-muted-foreground',
                   )}
                   aria-current={isCurrent ? 'step' : undefined}
                 >

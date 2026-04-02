@@ -5,22 +5,40 @@ import { z } from 'zod';
 // ──────────────────────────────────────────
 
 export const TEMPLATE_STATUSES = [
-  'uploaded', 'analysing', 'analysed', 'analysis_failed',
-  'filling', 'completed', 'fill_failed',
+  'uploaded',
+  'analysing',
+  'analysed',
+  'analysis_failed',
+  'filling',
+  'completed',
+  'fill_failed',
 ] as const;
 
-export type TemplateStatus = typeof TEMPLATE_STATUSES[number];
+export type TemplateStatus = (typeof TEMPLATE_STATUSES)[number];
 
-export const FIELD_TYPES = ['empty_cell', 'placeholder', 'highlighted'] as const;
-export type FieldType = typeof FIELD_TYPES[number];
+export const FIELD_TYPES = [
+  'empty_cell',
+  'placeholder',
+  'highlighted',
+] as const;
+export type FieldType = (typeof FIELD_TYPES)[number];
 
 export const MAPPING_STATUSES = [
-  'unreviewed', 'confirmed', 'rejected', 'manual', 'unmapped',
+  'unreviewed',
+  'confirmed',
+  'rejected',
+  'manual',
+  'unmapped',
 ] as const;
-export type MappingStatus = typeof MAPPING_STATUSES[number];
+export type MappingStatus = (typeof MAPPING_STATUSES)[number];
 
-export const FILL_STATUSES = ['pending', 'filled', 'skipped', 'failed'] as const;
-export type FillStatus = typeof FILL_STATUSES[number];
+export const FILL_STATUSES = [
+  'pending',
+  'filled',
+  'skipped',
+  'failed',
+] as const;
+export type FillStatus = (typeof FILL_STATUSES)[number];
 
 // ──────────────────────────────────────────
 // Template Upload
@@ -50,11 +68,15 @@ export type FieldMappingUpdate = z.infer<typeof FieldMappingUpdateSchema>;
 // ──────────────────────────────────────────
 
 export const BulkFieldMappingSchema = z.object({
-  mappings: z.array(z.object({
-    field_id: z.string().uuid(),
-    question_id: z.string().uuid().nullable(),
-    mapping_status: z.enum(['confirmed', 'rejected', 'manual', 'unmapped']),
-  })).min(1, 'At least one mapping required'),
+  mappings: z
+    .array(
+      z.object({
+        field_id: z.string().uuid(),
+        question_id: z.string().uuid().nullable(),
+        mapping_status: z.enum(['confirmed', 'rejected', 'manual', 'unmapped']),
+      }),
+    )
+    .min(1, 'At least one mapping required'),
 });
 
 export type BulkFieldMapping = z.infer<typeof BulkFieldMappingSchema>;

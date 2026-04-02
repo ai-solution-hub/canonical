@@ -37,7 +37,10 @@ vi.mock('next/headers', () => ({
 // Import route handlers AFTER mocks
 // ---------------------------------------------------------------------------
 
-import { GET as listGET, POST as listPOST } from '@/app/api/intelligence/workspaces/route';
+import {
+  GET as listGET,
+  POST as listPOST,
+} from '@/app/api/intelligence/workspaces/route';
 import {
   GET as detailGET,
   PATCH as detailPATCH,
@@ -89,9 +92,8 @@ function resetMocks() {
     data: null,
     error: null,
   });
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 }
 
@@ -118,17 +120,18 @@ describe('Intelligence Workspaces API', () => {
       // Profile query
       mockSupabase._chain.then.mockImplementationOnce(
         (resolve: (v: unknown) => void) =>
-          resolve({ data: [{ id: PROFILE_UUID, name: 'example-client Design' }], error: null }),
+          resolve({
+            data: [{ id: PROFILE_UUID, name: 'example-client Design' }],
+            error: null,
+          }),
       );
       // Source counts query
       mockSupabase._chain.then.mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: [], error: null }),
+        (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
       );
       // Article counts query
       mockSupabase._chain.then.mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: [], error: null }),
+        (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
       );
 
       const response = await listGET();
@@ -143,8 +146,7 @@ describe('Intelligence Workspaces API', () => {
     it('returns empty array when no workspaces', async () => {
       configureRole(mockSupabase, 'admin');
       mockSupabase._chain.then.mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: [], error: null }),
+        (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
       );
 
       const response = await listGET();
@@ -196,13 +198,11 @@ describe('Intelligence Workspaces API', () => {
       });
       // Guide sections insert (returns via then)
       mockSupabase._chain.then.mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: [], error: null }),
+        (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
       );
       // Workspace domain_metadata update (returns via then)
       mockSupabase._chain.then.mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: null, error: null }),
+        (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
       );
 
       const request = createTestRequest('/api/intelligence/workspaces', {
@@ -333,7 +333,9 @@ describe('Intelligence Workspaces API', () => {
         error: null,
       });
 
-      const request = createTestRequest(`/api/intelligence/workspaces/${VALID_UUID}`);
+      const request = createTestRequest(
+        `/api/intelligence/workspaces/${VALID_UUID}`,
+      );
       const params = createTestParams({ id: VALID_UUID });
       const response = await detailGET(request, { params });
       const body = await response.json();
@@ -350,7 +352,9 @@ describe('Intelligence Workspaces API', () => {
         error: { message: 'not found' },
       });
 
-      const request = createTestRequest(`/api/intelligence/workspaces/${VALID_UUID}`);
+      const request = createTestRequest(
+        `/api/intelligence/workspaces/${VALID_UUID}`,
+      );
       const params = createTestParams({ id: VALID_UUID });
       const response = await detailGET(request, { params });
 
@@ -368,10 +372,13 @@ describe('Intelligence Workspaces API', () => {
         error: null,
       });
 
-      const request = createTestRequest(`/api/intelligence/workspaces/${VALID_UUID}`, {
-        method: 'PATCH',
-        body: { name: 'Updated Name' },
-      });
+      const request = createTestRequest(
+        `/api/intelligence/workspaces/${VALID_UUID}`,
+        {
+          method: 'PATCH',
+          body: { name: 'Updated Name' },
+        },
+      );
       const params = createTestParams({ id: VALID_UUID });
       const response = await detailPATCH(request, { params });
       const body = await response.json();
@@ -383,10 +390,13 @@ describe('Intelligence Workspaces API', () => {
     it('returns 400 with no fields to update', async () => {
       configureRole(mockSupabase, 'admin');
 
-      const request = createTestRequest(`/api/intelligence/workspaces/${VALID_UUID}`, {
-        method: 'PATCH',
-        body: {},
-      });
+      const request = createTestRequest(
+        `/api/intelligence/workspaces/${VALID_UUID}`,
+        {
+          method: 'PATCH',
+          body: {},
+        },
+      );
       const params = createTestParams({ id: VALID_UUID });
       const response = await detailPATCH(request, { params });
 
@@ -400,10 +410,13 @@ describe('Intelligence Workspaces API', () => {
         error: null,
       });
 
-      const request = createTestRequest(`/api/intelligence/workspaces/${VALID_UUID}`, {
-        method: 'PATCH',
-        body: { name: 'Updated' },
-      });
+      const request = createTestRequest(
+        `/api/intelligence/workspaces/${VALID_UUID}`,
+        {
+          method: 'PATCH',
+          body: { name: 'Updated' },
+        },
+      );
       const params = createTestParams({ id: VALID_UUID });
       const response = await detailPATCH(request, { params });
 

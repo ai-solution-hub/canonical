@@ -10,7 +10,8 @@ export async function GET(request: NextRequest) {
   const rawNext = searchParams.get('next') ?? '/';
 
   // Validate: must start with exactly one slash and not be a protocol-relative URL
-  const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/';
+  const next =
+    rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/';
 
   if (code) {
     const supabase = await createClient();

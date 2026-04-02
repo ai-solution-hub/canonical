@@ -34,7 +34,12 @@ async function getDashboardData() {
   const isAdmin = roleData?.role === 'admin';
   const role = roleData?.role ?? 'viewer';
 
-  const unified = await fetchUnifiedDashboardData(supabase, user.id, isAdmin, role);
+  const unified = await fetchUnifiedDashboardData(
+    supabase,
+    user.id,
+    isAdmin,
+    role,
+  );
   return { unified };
 }
 
@@ -116,14 +121,16 @@ async function DashboardContent() {
   const reorientData: ReorientData = {
     last_active_at: unified.reorient.last_active_at,
     last_active_relative: unified.reorient.last_active_relative,
-    urgent: [],  // Empty — urgent items are now in the attention model
+    urgent: [], // Empty — urgent items are now in the attention model
     team_changes: unified.reorient.team_changes,
     my_recent_work: unified.reorient.my_recent_work,
     bid_summary: unified.reorient.bid_summary,
     counts: {
       unread_notifications: unified.attention_sources.unread_notification_count,
       pending_reviews: unified.attention_sources.governance_review_count,
-      stale_or_expired: unified.attention_sources.stale_content_count + unified.attention_sources.expired_content_count,
+      stale_or_expired:
+        unified.attention_sources.stale_content_count +
+        unified.attention_sources.expired_content_count,
       quality_flags: unified.attention_sources.quality_flag_count,
     },
     generated_at: new Date().toISOString(),
@@ -163,7 +170,9 @@ async function DashboardContent() {
         <QuickStatsStrip
           freshness={unified.freshness_summary}
           activeBidCount={unified.active_bids.length}
-          unreadNotificationCount={unified.attention_sources.unread_notification_count}
+          unreadNotificationCount={
+            unified.attention_sources.unread_notification_count
+          }
         />
       </div>
 
@@ -173,7 +182,10 @@ async function DashboardContent() {
       </div>
 
       {/* Recent Activity */}
-      <section className="mt-6 rounded-lg border bg-card p-4" aria-label="Recent activity">
+      <section
+        className="mt-6 rounded-lg border bg-card p-4"
+        aria-label="Recent activity"
+      >
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Recent Activity
         </h2>

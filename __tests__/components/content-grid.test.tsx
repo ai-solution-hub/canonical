@@ -31,12 +31,20 @@ vi.mock('@tanstack/react-virtual', () => ({
 }));
 
 vi.mock('@/components/content/content-card', () => ({
-  ContentCard: ({ item, isRead, hasQualityFlag }: {
+  ContentCard: ({
+    item,
+    isRead,
+    hasQualityFlag,
+  }: {
     item: ContentListItem;
     isRead?: boolean;
     hasQualityFlag?: boolean;
   }) => (
-    <div data-testid={`card-${item.id}`} data-is-read={isRead} data-quality-flag={hasQualityFlag}>
+    <div
+      data-testid={`card-${item.id}`}
+      data-is-read={isRead}
+      data-quality-flag={hasQualityFlag}
+    >
       {item.title}
     </div>
   ),
@@ -176,17 +184,25 @@ describe('ContentGrid', () => {
         onToggleSelect={vi.fn()}
       />,
     );
-    expect(screen.getByRole('checkbox', { name: 'Deselect' })).toBeInTheDocument();
-    expect(screen.getByRole('checkbox', { name: 'Select' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('checkbox', { name: 'Deselect' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('checkbox', { name: 'Select' }),
+    ).toBeInTheDocument();
   });
 
   it('passes isRead prop from readItemIds Set', () => {
     const items = createItems(2);
-    render(
-      <ContentGrid items={items} readItemIds={new Set(['item-0'])} />,
+    render(<ContentGrid items={items} readItemIds={new Set(['item-0'])} />);
+    expect(screen.getByTestId('card-item-0')).toHaveAttribute(
+      'data-is-read',
+      'true',
     );
-    expect(screen.getByTestId('card-item-0')).toHaveAttribute('data-is-read', 'true');
-    expect(screen.getByTestId('card-item-1')).toHaveAttribute('data-is-read', 'false');
+    expect(screen.getByTestId('card-item-1')).toHaveAttribute(
+      'data-is-read',
+      'false',
+    );
   });
 
   it('passes hasQualityFlag from qualityFlaggedIds Set', () => {
@@ -194,7 +210,13 @@ describe('ContentGrid', () => {
     render(
       <ContentGrid items={items} qualityFlaggedIds={new Set(['item-1'])} />,
     );
-    expect(screen.getByTestId('card-item-0')).toHaveAttribute('data-quality-flag', 'false');
-    expect(screen.getByTestId('card-item-1')).toHaveAttribute('data-quality-flag', 'true');
+    expect(screen.getByTestId('card-item-0')).toHaveAttribute(
+      'data-quality-flag',
+      'false',
+    );
+    expect(screen.getByTestId('card-item-1')).toHaveAttribute(
+      'data-quality-flag',
+      'true',
+    );
   });
 });

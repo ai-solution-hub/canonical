@@ -187,7 +187,9 @@ export function CommandPalette() {
                   </Command.Item>
                   <Command.Item
                     value="Workspaces manage collections"
-                    onSelect={() => runCommand(() => router.push('/workspaces'))}
+                    onSelect={() =>
+                      runCommand(() => router.push('/workspaces'))
+                    }
                     className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
                   >
                     <FolderOpen className="size-4 text-muted-foreground" />
@@ -211,7 +213,9 @@ export function CommandPalette() {
                   </Command.Item>
                   <Command.Item
                     value="Settings preferences profile"
-                    onSelect={() => runCommand(() => router.push('/settings?section=profile'))}
+                    onSelect={() =>
+                      runCommand(() => router.push('/settings?section=profile'))
+                    }
                     className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
                   >
                     <Settings className="size-4 text-muted-foreground" />
@@ -221,7 +225,11 @@ export function CommandPalette() {
                     <>
                       <Command.Item
                         value="Settings taxonomy domains subtopics"
-                        onSelect={() => runCommand(() => router.push('/settings?section=taxonomy'))}
+                        onSelect={() =>
+                          runCommand(() =>
+                            router.push('/settings?section=taxonomy'),
+                          )
+                        }
                         className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
                       >
                         <Settings className="size-4 text-muted-foreground" />
@@ -229,7 +237,11 @@ export function CommandPalette() {
                       </Command.Item>
                       <Command.Item
                         value="Settings team users members"
-                        onSelect={() => runCommand(() => router.push('/settings?section=team'))}
+                        onSelect={() =>
+                          runCommand(() =>
+                            router.push('/settings?section=team'),
+                          )
+                        }
                         className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
                       >
                         <Settings className="size-4 text-muted-foreground" />
@@ -237,7 +249,11 @@ export function CommandPalette() {
                       </Command.Item>
                       <Command.Item
                         value="Settings governance review posture"
-                        onSelect={() => runCommand(() => router.push('/settings?section=governance'))}
+                        onSelect={() =>
+                          runCommand(() =>
+                            router.push('/settings?section=governance'),
+                          )
+                        }
                         className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
                       >
                         <Settings className="size-4 text-muted-foreground" />
@@ -245,7 +261,11 @@ export function CommandPalette() {
                       </Command.Item>
                       <Command.Item
                         value="Settings tags keywords"
-                        onSelect={() => runCommand(() => router.push('/settings?section=tags'))}
+                        onSelect={() =>
+                          runCommand(() =>
+                            router.push('/settings?section=tags'),
+                          )
+                        }
                         className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
                       >
                         <Settings className="size-4 text-muted-foreground" />
@@ -253,7 +273,11 @@ export function CommandPalette() {
                       </Command.Item>
                       <Command.Item
                         value="Settings layers depth levels"
-                        onSelect={() => runCommand(() => router.push('/settings?section=layers'))}
+                        onSelect={() =>
+                          runCommand(() =>
+                            router.push('/settings?section=layers'),
+                          )
+                        }
                         className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
                       >
                         <Settings className="size-4 text-muted-foreground" />
@@ -261,7 +285,11 @@ export function CommandPalette() {
                       </Command.Item>
                       <Command.Item
                         value="Settings entities organisations people"
-                        onSelect={() => runCommand(() => router.push('/settings?section=entities'))}
+                        onSelect={() =>
+                          runCommand(() =>
+                            router.push('/settings?section=entities'),
+                          )
+                        }
                         className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
                       >
                         <Settings className="size-4 text-muted-foreground" />
@@ -269,7 +297,11 @@ export function CommandPalette() {
                       </Command.Item>
                       <Command.Item
                         value="Settings guides reading paths"
-                        onSelect={() => runCommand(() => router.push('/settings?section=guides'))}
+                        onSelect={() =>
+                          runCommand(() =>
+                            router.push('/settings?section=guides'),
+                          )
+                        }
                         className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
                       >
                         <Settings className="size-4 text-muted-foreground" />
@@ -277,7 +309,11 @@ export function CommandPalette() {
                       </Command.Item>
                       <Command.Item
                         value="Settings integrations connections claude mcp"
-                        onSelect={() => runCommand(() => router.push('/settings?section=integrations'))}
+                        onSelect={() =>
+                          runCommand(() =>
+                            router.push('/settings?section=integrations'),
+                          )
+                        }
                         className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
                       >
                         <Settings className="size-4 text-muted-foreground" />
@@ -285,7 +321,11 @@ export function CommandPalette() {
                       </Command.Item>
                       <Command.Item
                         value="Settings activity log"
-                        onSelect={() => runCommand(() => router.push('/settings?section=activity'))}
+                        onSelect={() =>
+                          runCommand(() =>
+                            router.push('/settings?section=activity'),
+                          )
+                        }
                         className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
                       >
                         <Settings className="size-4 text-muted-foreground" />

@@ -1,6 +1,7 @@
 # CLAUDE.md
 
-**This project uses a 1M context window — optimise for completeness over compression in all persisted outputs.**
+**This project uses a 1M context window — optimise for completeness over
+compression in all persisted outputs.**
 
 This file provides guidance to Claude Code (claude.ai/code) when working with
 code in this repository.
@@ -8,45 +9,47 @@ code in this repository.
 ## Project Overview
 
 Knowledge Hub is a knowledge base platform where the core value is high-quality,
-structured data accessible by AI. The first domain applications are bid management and intelligence (research pipelines) for UK SMBs. The knowledge base is the foundation for these and future applications.
+structured data accessible by AI. The first domain applications are bid
+management and intelligence (research pipelines) for UK SMBs. The knowledge base
+is the foundation for these and future applications.
 
 **Team:** Liam (product owner, zero development experience) + Claude Code as
 development partner. All code is written through human-AI collaboration.
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `bun install` | Install Node dependencies |
-| `bun dev` | Start Next.js dev server (Turbopack) - default port is localhost:3000 |
-| `bun build` | Production build |
-| `bun run test` | Run Vitest tests (NOT `bun test` — see Gotchas) |
-| `bun lint` | ESLint |
-| `pip install -r requirements.txt` | Install Python pipeline dependencies |
-| `python3 scripts/ingest.py <url>` | Ingest a single URL (extract, dedup, classify, embed, store) |
-| `python3 scripts/ingest.py --file urls.txt` | Batch ingest from file |
-| `python3 scripts/ingest_markdown.py <dir>` | Ingest .md files from directory (--dry-run, --limit, --skip-existing, --tag, --author) |
-| `bun run scripts/kb-search.ts "query"` | Semantic search CLI (--limit, --domain, --full, --json) |
-| `bun run scripts/batch-generate-summaries.ts` | Batch AI summary generation |
-| `bun run scripts/backfill-reader-html.ts` | Backfill reader HTML for articles/blogs (--limit, --dry-run) |
-| `python3 scripts/import_bid_library.py <dir>` | Import Q&A pairs from client .docx files (--dry-run, --batch-tag) |
-| `python3 scripts/extract_docx_tables.py <file>` | Extract tables from .docx files |
-| `python3 -m pytest scripts/tests/` | Run Python tests |
-| `bun run format` | Prettier format all files |
-| `bun run format:check` | Check Prettier formatting |
-| `bun run build:mcp-apps` | Build MCP Apps (Vite) + generate inline bundles for Vercel |
-| `bun run build:plugin` | Regenerate plugin ZIP bundle (`lib/mcp/plugin-bundle.ts`) — commit after |
-| `bun run test:e2e` | Run Playwright E2E tests |
-| `bun run test:watch` | Vitest in watch mode |
-| `bun run sync:taxonomy` | Full taxonomy sync (classification prompt + snapshot + plugin + rebuild) |
-| `bun run test:mcp-eval` | Run MCP eval Layer 1 (protocol compliance, 42 checks) |
-| `bun run test:mcp-eval:rq` | Run MCP eval Layer 3 (response quality, 17 checks) |
-| `bun run test:mcp-eval:fc` | Run MCP eval Layer 4 (functional correctness, 37 checks, live DB) |
-| `/opt/homebrew/bin/supabase migration new <name>` | Create local migration file |
-| `/opt/homebrew/bin/supabase db push` | Push local migrations to remote |
-| `/opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts` | Regenerate TypeScript types from live schema |
-| `bun run stats` | Generate codebase statistics to `docs/generated/` (run end-of-session when file counts change) |
-| `bun run generate:mcp-inventory` | Generate MCP tool/resource/prompt inventory to `docs/generated/` (run when MCP registrations change) |
+| Command                                                                                                                                | Description                                                                                          |
+| -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `bun install`                                                                                                                          | Install Node dependencies                                                                            |
+| `bun dev`                                                                                                                              | Start Next.js dev server (Turbopack) - default port is localhost:3000                                |
+| `bun build`                                                                                                                            | Production build                                                                                     |
+| `bun run test`                                                                                                                         | Run Vitest tests (NOT `bun test` — see Gotchas)                                                      |
+| `bun lint`                                                                                                                             | ESLint                                                                                               |
+| `pip install -r requirements.txt`                                                                                                      | Install Python pipeline dependencies                                                                 |
+| `python3 scripts/ingest.py <url>`                                                                                                      | Ingest a single URL (extract, dedup, classify, embed, store)                                         |
+| `python3 scripts/ingest.py --file urls.txt`                                                                                            | Batch ingest from file                                                                               |
+| `python3 scripts/ingest_markdown.py <dir>`                                                                                             | Ingest .md files from directory (--dry-run, --limit, --skip-existing, --tag, --author)               |
+| `bun run scripts/kb-search.ts "query"`                                                                                                 | Semantic search CLI (--limit, --domain, --full, --json)                                              |
+| `bun run scripts/batch-generate-summaries.ts`                                                                                          | Batch AI summary generation                                                                          |
+| `bun run scripts/backfill-reader-html.ts`                                                                                              | Backfill reader HTML for articles/blogs (--limit, --dry-run)                                         |
+| `python3 scripts/import_bid_library.py <dir>`                                                                                          | Import Q&A pairs from client .docx files (--dry-run, --batch-tag)                                    |
+| `python3 scripts/extract_docx_tables.py <file>`                                                                                        | Extract tables from .docx files                                                                      |
+| `python3 -m pytest scripts/tests/`                                                                                                     | Run Python tests                                                                                     |
+| `bun run format`                                                                                                                       | Prettier format all files                                                                            |
+| `bun run format:check`                                                                                                                 | Check Prettier formatting                                                                            |
+| `bun run build:mcp-apps`                                                                                                               | Build MCP Apps (Vite) + generate inline bundles for Vercel                                           |
+| `bun run build:plugin`                                                                                                                 | Regenerate plugin ZIP bundle (`lib/mcp/plugin-bundle.ts`) — commit after                             |
+| `bun run test:e2e`                                                                                                                     | Run Playwright E2E tests                                                                             |
+| `bun run test:watch`                                                                                                                   | Vitest in watch mode                                                                                 |
+| `bun run sync:taxonomy`                                                                                                                | Full taxonomy sync (classification prompt + snapshot + plugin + rebuild)                             |
+| `bun run test:mcp-eval`                                                                                                                | Run MCP eval Layer 1 (protocol compliance, 42 checks)                                                |
+| `bun run test:mcp-eval:rq`                                                                                                             | Run MCP eval Layer 3 (response quality, 17 checks)                                                   |
+| `bun run test:mcp-eval:fc`                                                                                                             | Run MCP eval Layer 4 (functional correctness, 37 checks, live DB)                                    |
+| `/opt/homebrew/bin/supabase migration new <name>`                                                                                      | Create local migration file                                                                          |
+| `/opt/homebrew/bin/supabase db push`                                                                                                   | Push local migrations to remote                                                                      |
+| `/opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts` | Regenerate TypeScript types from live schema                                                         |
+| `bun run stats`                                                                                                                        | Generate codebase statistics to `docs/generated/` (run end-of-session when file counts change)       |
+| `bun run generate:mcp-inventory`                                                                                                       | Generate MCP tool/resource/prompt inventory to `docs/generated/` (run when MCP registrations change) |
 
 ## Architecture
 
@@ -54,22 +57,23 @@ Full directory layout with file-level detail: `.planning/codebase/STRUCTURE.md`
 
 Key directories:
 
-Key file: `proxy.ts` — Next.js 16 convention file (auto-discovered, not imported) — auth middleware, `publicRoutes` allowlist
+Key file: `proxy.ts` — Next.js 16 convention file (auto-discovered, not
+imported) — auth middleware, `publicRoutes` allowlist
 
-| Directory | Contents |
-|-----------|----------|
-| `app/` | Next.js 16 App Router — API routes, page routes |
-| `mcp-apps/` | MCP App UIs (Vite single-file builds for Claude Desktop/Claude.ai) |
-| `components/` | 20 domain subdirs — new components go in their domain dir, never at root |
-| `contexts/` | React contexts (read-marks, taxonomy, client-features, layer-vocabulary) |
-| `hooks/` | Custom React hooks — 5 domain subdirs (bid, browse, review, streaming, ui) + general hooks at root |
-| `lib/` | Core modules — `ai/`, `mcp/` (tools, resources, prompts), `bid/`, `content/`, `coverage/`, `digest/`, `entities/`, `extraction/`, `quality/`, `source-documents/`, `supabase/`, `taxonomy/`, `templates/`, `validation/`, plus standalone utils |
-| `types/` | TypeScript types (content, bid, bid-metadata, digest, review, template, owner, reorient, unified-gap, filter-preset, css.d) |
-| `scripts/` | Python pipeline (`kb_pipeline/`), ingestion CLIs, search CLI, batch scripts |
-| `supabase/` | Migrations + auto-generated types (`database.types.ts` — never edit manually) |
-| `__tests__/` | Vitest tests — mirrors source structure (api, app, components, contexts, hooks, lib, mcp, scripts, validation) |
-| `e2e/` | Playwright E2E specs. Config: `playwright.config.ts` |
-| `docs/` | Reference docs, continuation prompts, design system |
+| Directory     | Contents                                                                                                                                                                                                                                        |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/`        | Next.js 16 App Router — API routes, page routes                                                                                                                                                                                                 |
+| `mcp-apps/`   | MCP App UIs (Vite single-file builds for Claude Desktop/Claude.ai)                                                                                                                                                                              |
+| `components/` | 20 domain subdirs — new components go in their domain dir, never at root                                                                                                                                                                        |
+| `contexts/`   | React contexts (read-marks, taxonomy, client-features, layer-vocabulary)                                                                                                                                                                        |
+| `hooks/`      | Custom React hooks — 5 domain subdirs (bid, browse, review, streaming, ui) + general hooks at root                                                                                                                                              |
+| `lib/`        | Core modules — `ai/`, `mcp/` (tools, resources, prompts), `bid/`, `content/`, `coverage/`, `digest/`, `entities/`, `extraction/`, `quality/`, `source-documents/`, `supabase/`, `taxonomy/`, `templates/`, `validation/`, plus standalone utils |
+| `types/`      | TypeScript types (content, bid, bid-metadata, digest, review, template, owner, reorient, unified-gap, filter-preset, css.d)                                                                                                                     |
+| `scripts/`    | Python pipeline (`kb_pipeline/`), ingestion CLIs, search CLI, batch scripts                                                                                                                                                                     |
+| `supabase/`   | Migrations + auto-generated types (`database.types.ts` — never edit manually)                                                                                                                                                                   |
+| `__tests__/`  | Vitest tests — mirrors source structure (api, app, components, contexts, hooks, lib, mcp, scripts, validation)                                                                                                                                  |
+| `e2e/`        | Playwright E2E specs. Config: `playwright.config.ts`                                                                                                                                                                                            |
+| `docs/`       | Reference docs, continuation prompts, design system                                                                                                                                                                                             |
 
 Current counts (routes, components, hooks, tools, migrations, tests):
 `docs/generated/codebase-stats.md` and `docs/generated/mcp-inventory.md`
@@ -116,10 +120,12 @@ columns use CHECK constraints. Canonical constants: `lib/validation/schemas.ts`.
 
 - **Framework:** Vitest — run via `bun run test`
 - **Coverage:** `bun run test:coverage` (via `@vitest/coverage-v8`)
-- **Location:** `__tests__/` — see `docs/generated/codebase-stats.md` for current counts
+- **Location:** `__tests__/` — see `docs/generated/codebase-stats.md` for
+  current counts
 - **Mock pattern:** Shared `createMockSupabaseClient()` in
   `__tests__/helpers/mock-supabase.ts` — all API tests use this
-- **Integration testing:** Integrate with Supabase DB for testing real data flows
+- **Integration testing:** Integrate with Supabase DB for testing real data
+  flows
 - **Python tests:** `python3 -m pytest scripts/tests/`
 - **E2E:** Playwright — specs in `e2e/tests/`. Worker-scoped fixtures,
   multi-role auth (admin/editor/viewer).
@@ -137,18 +143,20 @@ columns use CHECK constraints. Canonical constants: `lib/validation/schemas.ts`.
   record per topic, multiple views for different audiences (the Wikipedia
   principle)
 - **"Helping you get organised, not learning from you"** — AI is invisible
-  infrastructure, **not** a visible product feature - see `docs/reference/ai-visibility-policy.md` for guidance when creating/updating UI
+  infrastructure, **not** a visible product feature - see
+  `docs/reference/ai-visibility-policy.md` for guidance when creating/updating
+  UI
 - **Programmatic where possible** — save AI for response generation and
   classification. Use deterministic functions for deterministic tasks
 - **Generic over specific** — containers, workflows, lifecycle machines should
   be reusable across use cases, not bid-specific
-- **UK English throughout** — DD/MM/YYYY, "colour" not "color",
-  "organisation" not "organization"
+- **UK English throughout** — DD/MM/YYYY, "colour" not "color", "organisation"
+  not "organization"
 - **WCAG 2.1 AA** — never colour alone for meaning
 - **Package manager: bun** (NOT npm/yarn) — `bun install`, `bun dev`,
   `bun run test`, `bun build`
-- **The KB is the product** — bids and intelligence are the first applications, not the only
-  ones. Data quality is of the utmost importance
+- **The KB is the product** — bids and intelligence are the first applications,
+  not the only ones. Data quality is of the utmost importance
 
 ## Design Context
 
@@ -157,34 +165,35 @@ columns use CHECK constraints. Canonical constants: `lib/validation/schemas.ts`.
 - **Philosophy:** `docs/design/warm-meridian-philosophy.md`
 - **Implementation spec:** `docs/design/warm-meridian-implementation-spec.md`
 - **Visual reference:** `docs/design/warm-meridian-identity.pdf`
-- **Token reference:** `docs/design/warm-meridian-implementation-spec.md` §Semantic Tokens
+- **Token reference:** `docs/design/warm-meridian-implementation-spec.md`
+  §Semantic Tokens
 - **Quality checks:** `.claude/checks/` (design-system, accessibility, etc.)
 
 Consult these references when adding or modifying UI elements.
 
 ## Key Reference Documents
 
-| Document | Location |
-|----------|----------|
-| State of the Product | `docs/reference/state-of-the-product.md` |
-| Codebase mapping (7 docs) | `.planning/codebase/` |
-| Quality checks (10 files) | `.claude/checks/` |
-| Schema quick reference | `docs/reference/SCHEMA-QUICK-REFERENCE.md` |
-| Auto-generated stats | `docs/generated/codebase-stats.md`, `docs/generated/mcp-inventory.md` |
-| Documentation inventory | `docs/reference/documentation-inventory.md` |
-| Session handoffs | `docs/continuation-prompts/` |
-| Classification prompt | `docs/reference/classification-prompt.md` |
-| Classification architecture | `docs/reference/classification-architecture.md` |
-| Field-consumer dependency map | `docs/reference/field-consumer-dependency-map.md` |
-| Data entry points | `docs/reference/data-entry-points.md` |
-| Taxonomy change runbook | `docs/reference/taxonomy-change-runbook.md` |
-| Roadmap | `docs/reference/post-mvp-roadmap.md` |
-| AI integration strategy | `docs/reference/ai-integration-strategy.md` |
-| AI visibility policy | `docs/reference/ai-visibility-policy.md` |
-| Sector intelligence pathway | `docs/reference/sector-intelligence-pathway.md` |
-| Client personas | `docs/reference/client-personas.md` |
-| Product differentiation audit | `docs/reference/product-differentiation-audit.md` |
-| Pipeline parity spec | `docs/specs/pipeline-parity-spec.md` |
+| Document                      | Location                                                              |
+| ----------------------------- | --------------------------------------------------------------------- |
+| State of the Product          | `docs/reference/state-of-the-product.md`                              |
+| Codebase mapping (7 docs)     | `.planning/codebase/`                                                 |
+| Quality checks (10 files)     | `.claude/checks/`                                                     |
+| Schema quick reference        | `docs/reference/SCHEMA-QUICK-REFERENCE.md`                            |
+| Auto-generated stats          | `docs/generated/codebase-stats.md`, `docs/generated/mcp-inventory.md` |
+| Documentation inventory       | `docs/reference/documentation-inventory.md`                           |
+| Session handoffs              | `docs/continuation-prompts/`                                          |
+| Classification prompt         | `docs/reference/classification-prompt.md`                             |
+| Classification architecture   | `docs/reference/classification-architecture.md`                       |
+| Field-consumer dependency map | `docs/reference/field-consumer-dependency-map.md`                     |
+| Data entry points             | `docs/reference/data-entry-points.md`                                 |
+| Taxonomy change runbook       | `docs/reference/taxonomy-change-runbook.md`                           |
+| Roadmap                       | `docs/reference/post-mvp-roadmap.md`                                  |
+| AI integration strategy       | `docs/reference/ai-integration-strategy.md`                           |
+| AI visibility policy          | `docs/reference/ai-visibility-policy.md`                              |
+| Sector intelligence pathway   | `docs/reference/sector-intelligence-pathway.md`                       |
+| Client personas               | `docs/reference/client-personas.md`                                   |
+| Product differentiation audit | `docs/reference/product-differentiation-audit.md`                     |
+| Pipeline parity spec          | `docs/specs/pipeline-parity-spec.md`                                  |
 
 Historical planning documents are in `.planning/.archive/.specs/`.
 
@@ -196,8 +205,8 @@ findings before merge, sequential merges only.
 
 **Parallel agent isolation:** Use `isolation: "worktree"` on Agent tool calls
 for parallel implementation work. This auto-creates a git worktree, runs the
-agent there, and returns changes on a branch. Merge sequentially on main —
-check `git status` for leaked files before each merge. Reserve manual worktree
+agent there, and returns changes on a branch. Merge sequentially on main — check
+`git status` for leaked files before each merge. Reserve manual worktree
 management only for merge-conflict-prone work requiring interactive resolution.
 
 ## Gotchas
@@ -206,24 +215,23 @@ management only for merge-conflict-prone work requiring interactive resolution.
 
 - **Embedding vector serialisation:** `JSON.stringify(embedding)` for Supabase
   RPC vector params, not raw array.
-- **Metadata double-serialisation:** Pass metadata as dict not `json.dumps()`
-  — Supabase serialises it again.
+- **Metadata double-serialisation:** Pass metadata as dict not `json.dumps()` —
+  Supabase serialises it again.
 - **REST PATCH on wrong UUID:** Returns 200 OK with 0 rows (silent no-op).
   Always verify updates by re-querying.
 - **RLS requires user_roles entry:** New users cannot write until seeded.
-- **notifications_type_check:** Valid types listed in schema reference
-  (§29 CHECK Constraints). Other values fail the DB constraint.
+- **notifications_type_check:** Valid types listed in schema reference (§29
+  CHECK Constraints). Other values fail the DB constraint.
 - **CLI in Claude Code sandbox:** The CLI uses direct Postgres connections via
-  the pooler hostname (`aws-1-eu-west-2.pooler.supabase.com`) which the
-  sandbox blocks. Run `supabase migration new`, `supabase db push`, and
+  the pooler hostname (`aws-1-eu-west-2.pooler.supabase.com`) which the sandbox
+  blocks. Run `supabase migration new`, `supabase db push`, and
   `supabase gen types` with `dangerouslyDisableSandbox: true`.
   `SUPABASE_DB_PASSWORD` must be set as a shell env var (source from `.env`).
-- **Empty migration files from worktree cherry-picks:** When cherry-picking
-  from worktrees, migration files may arrive as 0-byte files. Supabase CLI
-  marks them as "applied" even though no SQL ran. Always verify migration
-  file content after cherry-pick. If an empty migration was already
-  recorded, the SQL must be applied directly via `execute_sql` and the
-  local file backfilled.
+- **Empty migration files from worktree cherry-picks:** When cherry-picking from
+  worktrees, migration files may arrive as 0-byte files. Supabase CLI marks them
+  as "applied" even though no SQL ran. Always verify migration file content
+  after cherry-pick. If an empty migration was already recorded, the SQL must be
+  applied directly via `execute_sql` and the local file backfilled.
 
 ### Testing
 
@@ -236,13 +244,13 @@ management only for merge-conflict-prone work requiring interactive resolution.
 - **Zod UUID validation is strict:** `z.string().uuid()` enforces RFC 4122
   (version nibble = 4, variant nibble in `[89ab]`). Test UUIDs like
   `00000000-0000-0000-0000-000000000001` will fail — use v4-compliant values.
-- **Date-sensitive tests need pinned time:** Tests that compute "days ago"
-  must use `vi.spyOn(Date, 'now')` with a fixed timestamp or the `daysAgo()`
-  buffer pattern — `setDate()` rounding causes midnight-boundary flakiness.
+- **Date-sensitive tests need pinned time:** Tests that compute "days ago" must
+  use `vi.spyOn(Date, 'now')` with a fixed timestamp or the `daysAgo()` buffer
+  pattern — `setDate()` rounding causes midnight-boundary flakiness.
 - **Agent escalation rule:** When test agents encounter unexpected production
   behaviour (e.g. a component renders incorrectly, a function returns wrong
-  data, dead code paths, or tests that can only pass by not actually testing
-  the real logic), **they MUST escalate these findings to the main session**.
+  data, dead code paths, or tests that can only pass by not actually testing the
+  real logic), **they MUST escalate these findings to the main session**.
 
 ### E2E / Playwright
 
@@ -269,8 +277,9 @@ management only for merge-conflict-prone work requiring interactive resolution.
 
 ### Data & Architecture
 
-- **Data fetching:** TanStack Query exclusively. Keys in `lib/query/query-keys.ts`,
-  fetchers in `lib/query/fetchers.ts`. No SWR or raw fetch in hooks.
+- **Data fetching:** TanStack Query exclusively. Keys in
+  `lib/query/query-keys.ts`, fetchers in `lib/query/fetchers.ts`. No SWR or raw
+  fetch in hooks.
 - **`getAuthorisedClient()` discriminated union:** Returns
   `{ success: boolean }` — check `auth.success` not `auth.authorised`.
 - **No barrel re-exports:** Always use direct file imports
@@ -282,11 +291,12 @@ management only for merge-conflict-prone work requiring interactive resolution.
   domains or subtopics via admin UI, run `sync:taxonomy` to regenerate the
   classification prompt and plugin files. DB is the single source of truth.
 - **Content review vs governance review:** `/review` = content quality (speed
-  review cards). `/api/governance/review` = freshness/ownership. Separate workflows.
+  review cards). `/api/governance/review` = freshness/ownership. Separate
+  workflows.
 - **"Change Reports" not "Digest":** User-facing label is "Change Reports".
   Internal code, types, routes, and file names still use "digest".
-- **Entity classification: false positives, not type errors:** S140 eval
-  showed 99.2% type accuracy but 45.7% precision. The problem is extracting
+- **Entity classification: false positives, not type errors:** S140 eval showed
+  99.2% type accuracy but 45.7% precision. The problem is extracting
   non-entities (policies, generic concepts, job titles), not mistyping real
   ones. Source of truth: `docs/reference/entity-type-taxonomy-spec.md`.
 
@@ -294,15 +304,17 @@ management only for merge-conflict-prone work requiring interactive resolution.
 
 - **No raw Tailwind colours:** Always use semantic tokens. Define new ones in
   `app/globals.css`. See `docs/design/warm-meridian-implementation-spec.md`.
-- **Tailwind v4 dark mode is class-based:** `@custom-variant dark (&:is(.dark *))` in `globals.css` — without it, `dark:` compiles to a media query and class-based toggling (next-themes) breaks.
+- **Tailwind v4 dark mode is class-based:**
+  `@custom-variant dark (&:is(.dark *))` in `globals.css` — without it, `dark:`
+  compiles to a media query and class-based toggling (next-themes) breaks.
 - **Tailwind v4 scans ALL files:** Never put wildcard class patterns in
   backticks in any project file (including docs). Use `{name}` not `*`.
 - **Tailwind v4 removed default border-color preflight:** Bare `border` uses
   `currentColor` not `--border`. The base rule in `globals.css`
-  (`*, ::after, ::before { border-color: var(--border) }`) restores the
-  expected behaviour. Never remove it.
-- **React compiler memoisation:** Destructure nested properties before using
-  in `useCallback` deps (e.g. `const { fn } = data;` not `data.fn`).
+  (`*, ::after, ::before { border-color: var(--border) }`) restores the expected
+  behaviour. Never remove it.
+- **React compiler memoisation:** Destructure nested properties before using in
+  `useCallback` deps (e.g. `const { fn } = data;` not `data.fn`).
 
 ### General
 
@@ -314,7 +326,8 @@ management only for merge-conflict-prone work requiring interactive resolution.
   other's files. Use `isolation: "worktree"` for parallel agents, or sequence
   sessions.
 - **Worktree merges leak files:** After merging worktree branches (including
-  `isolation: worktree` agent branches), run `git status` on main and clean
-  with `git checkout -- .` and `git clean -fd`.
+  `isolation: worktree` agent branches), run `git status` on main and clean with
+  `git checkout -- .` and `git clean -fd`.
 - **Proxy blocks non-API public routes:** New public endpoints must be added to
-  `publicRoutes` in `proxy.ts` (project root) or they silently redirect to `/login`.
+  `publicRoutes` in `proxy.ts` (project root) or they silently redirect to
+  `/login`.

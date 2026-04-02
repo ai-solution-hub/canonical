@@ -22,13 +22,16 @@ import { registerTools } from '@/lib/mcp/tools';
 import { registerResources, registerPrompts } from '@/lib/mcp/resources';
 
 const RESOURCE_URL =
-  process.env.NEXT_PUBLIC_APP_URL ?? 'https://knowledge-hub-seven-kappa.vercel.app';
+  process.env.NEXT_PUBLIC_APP_URL ??
+  'https://knowledge-hub-seven-kappa.vercel.app';
 
 // ---------------------------------------------------------------------------
 // Auth — verify Supabase OAuth bearer tokens
 // ---------------------------------------------------------------------------
 
-async function verifyToken(bearerToken?: string): Promise<AuthInfo | undefined> {
+async function verifyToken(
+  bearerToken?: string,
+): Promise<AuthInfo | undefined> {
   if (!bearerToken) return undefined;
 
   try {
@@ -127,10 +130,10 @@ export async function GET(request: Request) {
     return await handleMcpRequest(request);
   } catch (err) {
     console.error('MCP GET handler error:', err);
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } },
-    );
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 }
 export async function POST(request: Request) {
@@ -138,10 +141,10 @@ export async function POST(request: Request) {
     return await handleMcpRequest(request);
   } catch (err) {
     console.error('MCP POST handler error:', err);
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } },
-    );
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 }
 export async function DELETE(request: Request) {
@@ -149,9 +152,9 @@ export async function DELETE(request: Request) {
     return await handleMcpRequest(request);
   } catch (err) {
     console.error('MCP DELETE handler error:', err);
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } },
-    );
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 }

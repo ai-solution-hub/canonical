@@ -133,10 +133,10 @@ export function SummaryTabs({
     contentType === 'transcript' &&
     !!transcriptChapters &&
     transcriptChapters.length > 0;
-  const hasPlatformCard =
-    isNewsletter || isTranscript;
+  const hasPlatformCard = isNewsletter || isTranscript;
   const canIframe = !!frameable && !!sourceUrl;
-  const hasReaderContent = !!readerHtml || hasPlatformCard || canIframe || !!sourceUrl;
+  const hasReaderContent =
+    !!readerHtml || hasPlatformCard || canIframe || !!sourceUrl;
 
   // Reader rendering helper — dispatches to platform-specific cards, generic ReaderView, iframe fallback, or "open in new tab"
   const renderReader = () => {
@@ -188,9 +188,7 @@ export function SummaryTabs({
   // Loading state
   if (isGenerating) {
     return (
-      <div
-        className={cn('rounded-xl border bg-card p-6', className)}
-      >
+      <div className={cn('rounded-xl border bg-card p-6', className)}>
         <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" />
           <span>Generating summary...</span>
@@ -211,7 +209,10 @@ export function SummaryTabs({
     const hasQuickFallback = !!aiSummary;
     return (
       <div className={cn('rounded-xl border bg-card', className)}>
-        <Tabs defaultValue={hasQuickFallback ? 'quick' : 'fulltext'} className="gap-0">
+        <Tabs
+          defaultValue={hasQuickFallback ? 'quick' : 'fulltext'}
+          className="gap-0"
+        >
           <TabsList className="w-full justify-start rounded-b-none border-b border-border bg-muted/50 px-1">
             <TabsTrigger
               value="quick"
@@ -235,7 +236,10 @@ export function SummaryTabs({
               Takeaways
             </TabsTrigger>
             {!hideFullText && (
-              <TabsTrigger value="fulltext" className="min-h-[44px] px-4 text-sm">
+              <TabsTrigger
+                value="fulltext"
+                className="min-h-[44px] px-4 text-sm"
+              >
                 {fullTextLabel}
               </TabsTrigger>
             )}
@@ -358,7 +362,14 @@ export function SummaryTabs({
       <div className="border-t border-border px-4 py-2.5 text-xs text-muted-foreground">
         Last updated {formatDate(summaryData.generated_at)}
         {summaryData.tokens_used != null && (
-          <> &middot; ~{Math.round(summaryData.tokens_used / 1.3).toLocaleString('en-GB')} words analysed</>
+          <>
+            {' '}
+            &middot; ~
+            {Math.round(summaryData.tokens_used / 1.3).toLocaleString(
+              'en-GB',
+            )}{' '}
+            words analysed
+          </>
         )}
       </div>
     </div>

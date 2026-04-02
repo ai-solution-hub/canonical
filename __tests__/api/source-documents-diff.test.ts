@@ -25,9 +25,8 @@ vi.mock('next/headers', () => ({
 }));
 
 // Import route AFTER mocks are registered
-const { POST, PATCH } = await import(
-  '@/app/api/source-documents/[id]/diff/route'
-);
+const { POST, PATCH } =
+  await import('@/app/api/source-documents/[id]/diff/route');
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -54,19 +53,42 @@ beforeEach(() => {
   });
 
   const chainable = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const m of chainable) {
     mockSupabase._chain[m].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockReset().mockResolvedValue({ data: null, error: null });
-  mockSupabase._chain.maybeSingle.mockReset().mockResolvedValue({ data: null, error: null });
-  mockSupabase._chain.then.mockReset().mockImplementation(
-    (resolve: (v: unknown) => void) => resolve({ data: [], error: null, count: 0 }),
-  );
+  mockSupabase._chain.single
+    .mockReset()
+    .mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.maybeSingle
+    .mockReset()
+    .mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.then
+    .mockReset()
+    .mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({ data: [], error: null, count: 0 }),
+    );
 });
 
 // ---------------------------------------------------------------------------
@@ -258,9 +280,9 @@ describe('POST /api/source-documents/[id]/diff', () => {
     expect(body.old_document_id).toBe(OLD_DOC_ID);
     expect(body.new_document_id).toBe(NEW_DOC_ID);
     expect(body.summary).toBeDefined();
-    expect(body.summary.modified).toBe(1);    // company name answer changed
-    expect(body.summary.unchanged).toBe(1);   // employees unchanged
-    expect(body.summary.added).toBe(1);       // ISO 27001 added
+    expect(body.summary.modified).toBe(1); // company name answer changed
+    expect(body.summary.unchanged).toBe(1); // employees unchanged
+    expect(body.summary.added).toBe(1); // ISO 27001 added
     expect(body.entries).toHaveLength(3);
   });
 
@@ -371,7 +393,10 @@ describe('POST /api/source-documents/[id]/diff', () => {
     configureRole(mockSupabase, 'editor');
 
     // Create a request with non-JSON body
-    const url = new URL(`/api/source-documents/${OLD_DOC_ID}/diff`, 'http://localhost:3000');
+    const url = new URL(
+      `/api/source-documents/${OLD_DOC_ID}/diff`,
+      'http://localhost:3000',
+    );
     const req = new (await import('next/server')).NextRequest(url, {
       method: 'POST',
       body: 'not-json',
@@ -529,7 +554,10 @@ describe('PATCH /api/source-documents/[id]/diff', () => {
     // Verification query: both entries belong to this document
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
-        resolve({ data: [{ id: ENTRY_ID_1 }, { id: ENTRY_ID_2 }], error: null }),
+        resolve({
+          data: [{ id: ENTRY_ID_1 }, { id: ENTRY_ID_2 }],
+          error: null,
+        }),
     );
 
     // Update succeeds (one batch since same status)
@@ -541,10 +569,7 @@ describe('PATCH /api/source-documents/[id]/diff', () => {
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
-          data: [
-            { status: 'dismissed' },
-            { status: 'dismissed' },
-          ],
+          data: [{ status: 'dismissed' }, { status: 'dismissed' }],
           error: null,
         }),
     );
@@ -643,7 +668,9 @@ describe('PATCH /api/source-documents/[id]/diff', () => {
     const longNote = 'a'.repeat(501);
     const req = createTestRequest(`/api/source-documents/${OLD_DOC_ID}/diff`, {
       method: 'PATCH',
-      body: { entries: [{ id: ENTRY_ID_1, status: 'applied', note: longNote }] },
+      body: {
+        entries: [{ id: ENTRY_ID_1, status: 'applied', note: longNote }],
+      },
     });
     const params = createTestParams({ id: OLD_DOC_ID });
     const res = await PATCH(req, { params });
@@ -677,7 +704,9 @@ describe('PATCH /api/source-documents/[id]/diff', () => {
 
     const req = createTestRequest(`/api/source-documents/${OLD_DOC_ID}/diff`, {
       method: 'PATCH',
-      body: { entries: [{ id: ENTRY_ID_1, status: 'applied', note: exactNote }] },
+      body: {
+        entries: [{ id: ENTRY_ID_1, status: 'applied', note: exactNote }],
+      },
     });
     const params = createTestParams({ id: OLD_DOC_ID });
     const res = await PATCH(req, { params });
@@ -707,7 +736,9 @@ describe('PATCH /api/source-documents/[id]/diff', () => {
     const req = createTestRequest(`/api/source-documents/${OLD_DOC_ID}/diff`, {
       method: 'PATCH',
       body: {
-        entries: [{ id: ENTRY_ID_1, status: 'applied', note: 'Checked by legal team' }],
+        entries: [
+          { id: ENTRY_ID_1, status: 'applied', note: 'Checked by legal team' },
+        ],
       },
     });
     const params = createTestParams({ id: OLD_DOC_ID });

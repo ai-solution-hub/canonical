@@ -88,7 +88,8 @@ export function GuideFormDialog({
         slug: slug.trim(),
         description: description.trim() || undefined,
         guide_type: guideType,
-        domain_filter: domainFilter && domainFilter !== 'none' ? domainFilter : undefined,
+        domain_filter:
+          domainFilter && domainFilter !== 'none' ? domainFilter : undefined,
       };
 
       const res = guide
@@ -133,7 +134,10 @@ export function GuideFormDialog({
 
         <div className="space-y-4 py-2">
           <div>
-            <label htmlFor="guide-name" className="text-xs font-medium text-muted-foreground">
+            <label
+              htmlFor="guide-name"
+              className="text-xs font-medium text-muted-foreground"
+            >
               Name
             </label>
             <Input
@@ -146,7 +150,10 @@ export function GuideFormDialog({
           </div>
 
           <div>
-            <label htmlFor="guide-slug" className="text-xs font-medium text-muted-foreground">
+            <label
+              htmlFor="guide-slug"
+              className="text-xs font-medium text-muted-foreground"
+            >
               Slug
             </label>
             <Input
@@ -162,7 +169,10 @@ export function GuideFormDialog({
           </div>
 
           <div>
-            <label htmlFor="guide-description" className="text-xs font-medium text-muted-foreground">
+            <label
+              htmlFor="guide-description"
+              className="text-xs font-medium text-muted-foreground"
+            >
               Description
             </label>
             <Input
@@ -175,7 +185,10 @@ export function GuideFormDialog({
           </div>
 
           <div>
-            <label htmlFor="guide-type" className="text-xs font-medium text-muted-foreground">
+            <label
+              htmlFor="guide-type"
+              className="text-xs font-medium text-muted-foreground"
+            >
               Type
             </label>
             <Select value={guideType} onValueChange={setGuideType}>
@@ -193,7 +206,10 @@ export function GuideFormDialog({
           </div>
 
           <div>
-            <label htmlFor="guide-domain" className="text-xs font-medium text-muted-foreground">
+            <label
+              htmlFor="guide-domain"
+              className="text-xs font-medium text-muted-foreground"
+            >
               Domain Filter
             </label>
             <Select value={domainFilter} onValueChange={setDomainFilter}>
@@ -213,7 +229,11 @@ export function GuideFormDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={saving}
+          >
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={saving}>

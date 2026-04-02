@@ -98,7 +98,12 @@ export default async function DocumentDiffPage({
   }
 
   // Determine the diff pair: this document could be either the old or new side.
-  let oldDoc: { id: string; filename: string; version: number; created_at: string } = doc;
+  let oldDoc: {
+    id: string;
+    filename: string;
+    version: number;
+    created_at: string;
+  } = doc;
   let newDoc: typeof oldDoc | null = null;
 
   // Try as old_document_id first
@@ -136,7 +141,12 @@ export default async function DocumentDiffPage({
         .single();
 
       if (parent) {
-        newDoc = { id: doc.id, filename: doc.filename, version: doc.version, created_at: doc.created_at };
+        newDoc = {
+          id: doc.id,
+          filename: doc.filename,
+          version: doc.version,
+          created_at: doc.created_at,
+        };
         oldDoc = parent;
       }
     }
@@ -158,7 +168,10 @@ export default async function DocumentDiffPage({
 
   if (entriesErr) {
     return (
-      <section aria-label="Document diff review" className="container px-4 py-8">
+      <section
+        aria-label="Document diff review"
+        className="container px-4 py-8"
+      >
         <div className="mx-auto max-w-4xl rounded-lg border border-destructive/30 bg-destructive/5 p-8 text-center">
           <p className="text-sm text-destructive">
             Failed to load diff entries: {entriesErr.message}
@@ -209,8 +222,7 @@ export default async function DocumentDiffPage({
     affected_item: entry.affected_content_item_id
       ? {
           id: entry.affected_content_item_id,
-          title:
-            affectedTitles[entry.affected_content_item_id] ?? 'Untitled',
+          title: affectedTitles[entry.affected_content_item_id] ?? 'Untitled',
         }
       : undefined,
     status: entry.status,

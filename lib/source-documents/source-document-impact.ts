@@ -62,7 +62,9 @@ export async function analyseDocumentImpact(
   // 2. Get diff entries for this document pair (modified and removed only)
   const { data: diffs } = await supabase
     .from('source_document_diffs')
-    .select('id, diff_type, old_question, old_content, new_question, new_content')
+    .select(
+      'id, diff_type, old_question, old_content, new_question, new_content',
+    )
     .eq('old_document_id', previousVersionId)
     .eq('new_document_id', newDocumentId)
     .in('diff_type', ['modified', 'removed']);
@@ -159,7 +161,10 @@ function findMatchingContentItem(
   // Second pass: title contains question or question contains title
   for (const item of items) {
     const title = item.title?.toLowerCase().trim() ?? '';
-    if (title && (title.includes(questionText) || questionText.includes(title))) {
+    if (
+      title &&
+      (title.includes(questionText) || questionText.includes(title))
+    ) {
       return { id: item.id, title: item.title };
     }
   }

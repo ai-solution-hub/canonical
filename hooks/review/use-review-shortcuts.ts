@@ -36,7 +36,16 @@ export function useReviewShortcuts(options: UseReviewShortcutsOptions): {
   showHelp: boolean;
   setShowHelp: (show: boolean) => void;
 } {
-  const { onVerify, onFlag, onSkip, onBack, onExit, onEdit, onTogglePanel, enabled } = options;
+  const {
+    onVerify,
+    onFlag,
+    onSkip,
+    onBack,
+    onExit,
+    onEdit,
+    onTogglePanel,
+    enabled,
+  } = options;
   const [showHelp, setShowHelp] = useState(false);
 
   const handleKeyDown = useCallback(
@@ -84,7 +93,13 @@ export function useReviewShortcuts(options: UseReviewShortcutsOptions): {
       }
 
       // f -- Flag
-      if (e.key === 'f' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+      if (
+        e.key === 'f' &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.shiftKey
+      ) {
         e.preventDefault();
         onFlag();
         return;
@@ -105,20 +120,42 @@ export function useReviewShortcuts(options: UseReviewShortcutsOptions): {
       }
 
       // e -- Edit (open in new tab)
-      if (e.key === 'e' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+      if (
+        e.key === 'e' &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.shiftKey
+      ) {
         e.preventDefault();
         onEdit();
         return;
       }
 
       // l -- Toggle review queue panel
-      if (e.key === 'l' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+      if (
+        e.key === 'l' &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.shiftKey
+      ) {
         e.preventDefault();
         onTogglePanel?.();
         return;
       }
     },
-    [enabled, onVerify, onFlag, onSkip, onBack, onExit, onEdit, onTogglePanel, showHelp],
+    [
+      enabled,
+      onVerify,
+      onFlag,
+      onSkip,
+      onBack,
+      onExit,
+      onEdit,
+      onTogglePanel,
+      showHelp,
+    ],
   );
 
   useEffect(() => {

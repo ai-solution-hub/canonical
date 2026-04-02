@@ -42,18 +42,16 @@ export function LayerSwitcherNav({
   return (
     <nav aria-label="Content depth" className="mb-4">
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-xs font-medium text-muted-foreground mr-1">Depth:</span>
+        <span className="text-xs font-medium text-muted-foreground mr-1">
+          Depth:
+        </span>
         {uniqueLayers.map((layerItem) => {
           const isCurrent = layerItem.id === currentItemId;
           const label = layerItem.layer
             ? getLayerLabel(layerItem.layer)
-            : layerItem.title ?? 'Untitled';
+            : (layerItem.title ?? 'Untitled');
           return isCurrent ? (
-            <Badge
-              key={layerItem.id}
-              variant="default"
-              className="text-xs"
-            >
+            <Badge key={layerItem.id} variant="default" className="text-xs">
               {label}
             </Badge>
           ) : (

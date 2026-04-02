@@ -31,7 +31,10 @@ describe('certification expiry count extraction', () => {
    * query 11 results. Extracted here for isolated testing.
    */
   function countExpiringCerts(
-    data: { canonical_name: string; metadata: Record<string, unknown> | null }[],
+    data: {
+      canonical_name: string;
+      metadata: Record<string, unknown> | null;
+    }[],
   ): number {
     const now = new Date();
     const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
@@ -173,7 +176,8 @@ describe('coverage gap count extraction', () => {
         .map((item) => item.primary_subtopic)
         .filter((s): s is string => s !== null),
     );
-    return activeSubtopics.filter((st) => !coveredSubtopics.has(st.name)).length;
+    return activeSubtopics.filter((st) => !coveredSubtopics.has(st.name))
+      .length;
   }
 
   it('counts subtopics with zero content items', () => {
@@ -198,10 +202,7 @@ describe('coverage gap count extraction', () => {
       { id: '2', name: 'B', domain_id: 'd1' },
     ];
 
-    const contentItems = [
-      { primary_subtopic: 'A' },
-      { primary_subtopic: 'B' },
-    ];
+    const contentItems = [{ primary_subtopic: 'A' }, { primary_subtopic: 'B' }];
 
     expect(countCoverageGaps(subtopics, contentItems)).toBe(0);
   });
@@ -221,9 +222,7 @@ describe('coverage gap count extraction', () => {
   });
 
   it('ignores content items with null primary_subtopic', () => {
-    const subtopics = [
-      { id: '1', name: 'A', domain_id: 'd1' },
-    ];
+    const subtopics = [{ id: '1', name: 'A', domain_id: 'd1' }];
 
     const contentItems = [
       { primary_subtopic: null },

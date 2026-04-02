@@ -23,7 +23,8 @@ export async function PATCH(
     const { id } = await params;
 
     // Validate item ID format
-    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const UUID_RE =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!UUID_RE.test(id)) {
       return NextResponse.json({ error: 'Invalid item ID' }, { status: 400 });
     }
@@ -47,7 +48,9 @@ export async function PATCH(
         return NextResponse.json({ error: 'Item not found' }, { status: 404 });
       }
       return NextResponse.json(
-        { error: safeErrorMessage(fetchError, 'Failed to update content owner') },
+        {
+          error: safeErrorMessage(fetchError, 'Failed to update content owner'),
+        },
         { status: 500 },
       );
     }
@@ -73,7 +76,12 @@ export async function PATCH(
 
     if (updateError || !updated) {
       return NextResponse.json(
-        { error: safeErrorMessage(updateError, 'Failed to update content owner') },
+        {
+          error: safeErrorMessage(
+            updateError,
+            'Failed to update content owner',
+          ),
+        },
         { status: 500 },
       );
     }

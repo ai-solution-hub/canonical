@@ -199,16 +199,18 @@ function defaultParams() {
  * in patchTracker/postTracker for assertions. This mock persists throughout
  * each test to prevent cascading refetches from hanging.
  */
-function setupDefaultFetch(opts: {
-  patchOk?: boolean;
-  postOk?: boolean;
-  bidOverride?: () => {
-    ok: boolean;
-    status?: number;
-    json?: () => Promise<unknown>;
-  };
-  questionsOverride?: unknown[];
-} = {}) {
+function setupDefaultFetch(
+  opts: {
+    patchOk?: boolean;
+    postOk?: boolean;
+    bidOverride?: () => {
+      ok: boolean;
+      status?: number;
+      json?: () => Promise<unknown>;
+    };
+    questionsOverride?: unknown[];
+  } = {},
+) {
   patchTracker.length = 0;
   postTracker.length = 0;
 
@@ -222,7 +224,10 @@ function setupDefaultFetch(opts: {
       const body = init?.body ? JSON.parse(init.body as string) : {};
       patchTracker.push({ url, body });
       if (!patchOk) {
-        return { ok: false, json: async () => ({ error: 'Failed to save response' }) };
+        return {
+          ok: false,
+          json: async () => ({ error: 'Failed to save response' }),
+        };
       }
       return { ok: true, json: async () => ({}) };
     }
@@ -598,9 +603,7 @@ describe('useStreamCoordination', () => {
       expect(result.current.actionLoading).toBe(false);
       expect(patchTracker.length).toBeGreaterThanOrEqual(1);
       expect(patchTracker[0].body.review_status).toBe('needs_review');
-      expect(toast.success).toHaveBeenCalledWith(
-        'Response flagged for review',
-      );
+      expect(toast.success).toHaveBeenCalledWith('Response flagged for review');
     });
 
     it('handleAction shows error toast when save fails', async () => {
@@ -762,7 +765,10 @@ describe('useStreamCoordination', () => {
     it('questions endpoint failure does not crash the hook', async () => {
       mockFetch.mockImplementation(async (url: string) => {
         if (typeof url === 'string' && url.includes('/questions'))
-          return { ok: false, json: async () => ({ error: 'Questions failed' }) };
+          return {
+            ok: false,
+            json: async () => ({ error: 'Questions failed' }),
+          };
         if (typeof url === 'string' && url.includes('/bids/'))
           return mockBidResponse();
         return { ok: false, json: async () => ({}) };

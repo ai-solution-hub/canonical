@@ -4,7 +4,10 @@ import { Mail } from 'lucide-react';
 import { ReaderView } from '@/components/reader/reader-view';
 import { ContentRenderer } from '@/components/item-detail/content-renderer';
 import { cn } from '@/lib/utils';
-import type { ReaderFontSize, ReaderMaxWidth } from '@/hooks/ui/use-reader-preferences';
+import type {
+  ReaderFontSize,
+  ReaderMaxWidth,
+} from '@/hooks/ui/use-reader-preferences';
 
 interface NewsletterReaderCardProps {
   content: string | null;
@@ -29,12 +32,7 @@ export function NewsletterReaderCard({
   const displayName = newsletterName || emailFrom;
 
   return (
-    <div
-      className={cn(
-        'rounded-lg border bg-card overflow-hidden',
-        className,
-      )}
-    >
+    <div className={cn('rounded-lg border bg-card overflow-hidden', className)}>
       {/* Newsletter header */}
       <div className="border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">

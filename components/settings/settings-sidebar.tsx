@@ -1,6 +1,18 @@
 'use client';
 
-import { User, Users, ShieldCheck, Activity, FolderTree, Menu, Plug, Terminal, Network, BookOpen, UserCheck } from 'lucide-react';
+import {
+  User,
+  Users,
+  ShieldCheck,
+  Activity,
+  FolderTree,
+  Menu,
+  Plug,
+  Terminal,
+  Network,
+  BookOpen,
+  UserCheck,
+} from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -39,14 +51,39 @@ interface SectionDef {
 const ALL_SECTIONS: SectionDef[] = [
   { id: 'profile', label: 'Profile', icon: User, group: 'personal' },
   { id: 'connections', label: 'Connections', icon: Plug, group: 'personal' },
-  { id: 'content-organisation', label: 'Content Organisation', icon: FolderTree, group: 'content' },
-  { id: 'content-owners', label: 'Content Owners', icon: UserCheck, group: 'content' },
-  { id: 'entities', label: 'Organisations & People', icon: Network, group: 'content' },
+  {
+    id: 'content-organisation',
+    label: 'Content Organisation',
+    icon: FolderTree,
+    group: 'content',
+  },
+  {
+    id: 'content-owners',
+    label: 'Content Owners',
+    icon: UserCheck,
+    group: 'content',
+  },
+  {
+    id: 'entities',
+    label: 'Organisations & People',
+    icon: Network,
+    group: 'content',
+  },
   { id: 'guides', label: 'Guides', icon: BookOpen, group: 'content' },
   { id: 'team', label: 'Team', icon: Users, group: 'system' },
-  { id: 'governance', label: 'Quality Review', icon: ShieldCheck, group: 'system' },
+  {
+    id: 'governance',
+    label: 'Quality Review',
+    icon: ShieldCheck,
+    group: 'system',
+  },
   { id: 'activity', label: 'Activity', icon: Activity, group: 'system' },
-  { id: 'developer-setup', label: 'Developer Setup', icon: Terminal, group: 'system' },
+  {
+    id: 'developer-setup',
+    label: 'Developer Setup',
+    icon: Terminal,
+    group: 'system',
+  },
 ];
 
 const GROUP_LABELS: Record<string, string> = {
@@ -79,7 +116,8 @@ export function getValidSection(
   isAdmin: boolean,
 ): SettingsSection {
   // Map legacy section IDs to their new equivalents
-  const resolved = param && LEGACY_SECTION_MAP[param] ? LEGACY_SECTION_MAP[param] : param;
+  const resolved =
+    param && LEGACY_SECTION_MAP[param] ? LEGACY_SECTION_MAP[param] : param;
   const visible = getVisibleSections(isAdmin);
   const match = visible.find((s) => s.id === resolved);
   return match?.id ?? 'profile';
@@ -98,9 +136,7 @@ function SidebarNav({
   activeSection: SettingsSection;
   onSelect: (section: SettingsSection) => void;
 }) {
-  const groups = GROUP_ORDER.filter((g) =>
-    sections.some((s) => s.group === g),
-  );
+  const groups = GROUP_ORDER.filter((g) => sections.some((s) => s.group === g));
 
   return (
     <nav aria-label="Settings navigation" className="flex flex-col gap-1">
@@ -108,9 +144,7 @@ function SidebarNav({
         const groupSections = sections.filter((s) => s.group === group);
         return (
           <div key={group}>
-            {groupIdx > 0 && (
-              <div className="my-2 border-t border-border" />
-            )}
+            {groupIdx > 0 && <div className="my-2 border-t border-border" />}
             <div role="group" aria-label={GROUP_LABELS[group]}>
               <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 {GROUP_LABELS[group]}
@@ -163,7 +197,10 @@ export function SettingsSidebar({
   if (sections.length <= 1) return null;
 
   return (
-    <aside className="hidden w-56 shrink-0 md:block" aria-label="Settings navigation">
+    <aside
+      className="hidden w-56 shrink-0 md:block"
+      aria-label="Settings navigation"
+    >
       <SidebarNav
         sections={sections}
         activeSection={activeSection}

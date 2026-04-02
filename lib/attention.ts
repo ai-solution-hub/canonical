@@ -43,7 +43,12 @@ export interface AttentionItem {
   severity: 'critical' | 'high' | 'medium' | 'info';
 
   /** Entity reference for linking */
-  entity_type: 'content_item' | 'workspace' | 'entity' | 'source_document' | 'aggregate';
+  entity_type:
+    | 'content_item'
+    | 'workspace'
+    | 'entity'
+    | 'source_document'
+    | 'aggregate';
   entity_id: string;
 
   /** Human-readable summary */
@@ -225,7 +230,9 @@ export function produceUnverifiedItems(count: number): AttentionItem[] {
  * Active bid deadlines — severity varies by urgency.
  * Visible to all roles.
  */
-export function produceBidDeadlineItems(bids: ActiveBidSummary[]): AttentionItem[] {
+export function produceBidDeadlineItems(
+  bids: ActiveBidSummary[],
+): AttentionItem[] {
   const items: AttentionItem[] = [];
 
   for (const bid of bids) {
@@ -241,17 +248,19 @@ export function produceBidDeadlineItems(bids: ActiveBidSummary[]): AttentionItem
     };
 
     const severity = severityMap[urgency] ?? 'medium';
-    const daysText = bid.days_until_deadline !== null
-      ? bid.days_until_deadline < 0
-        ? `${Math.abs(bid.days_until_deadline)} ${Math.abs(bid.days_until_deadline) === 1 ? 'day' : 'days'} overdue`
-        : bid.days_until_deadline === 0
-          ? 'due today'
-          : `${bid.days_until_deadline} ${bid.days_until_deadline === 1 ? 'day' : 'days'} remaining`
-      : 'deadline approaching';
+    const daysText =
+      bid.days_until_deadline !== null
+        ? bid.days_until_deadline < 0
+          ? `${Math.abs(bid.days_until_deadline)} ${Math.abs(bid.days_until_deadline) === 1 ? 'day' : 'days'} overdue`
+          : bid.days_until_deadline === 0
+            ? 'due today'
+            : `${bid.days_until_deadline} ${bid.days_until_deadline === 1 ? 'day' : 'days'} remaining`
+        : 'deadline approaching';
 
-    const progress = bid.total_questions > 0
-      ? `${bid.answered_questions}/${bid.total_questions} questions answered`
-      : '';
+    const progress =
+      bid.total_questions > 0
+        ? `${bid.answered_questions}/${bid.total_questions} questions answered`
+        : '';
 
     items.push({
       id: `attention-bid-${bid.id}`,
@@ -282,7 +291,9 @@ export function produceBidDeadlineItems(bids: ActiveBidSummary[]): AttentionItem
  * Expiring certifications — info severity for approaching, critical for expired.
  * Visible to all roles.
  */
-export function produceExpiringCertItems(expiringCount: number): AttentionItem[] {
+export function produceExpiringCertItems(
+  expiringCount: number,
+): AttentionItem[] {
   if (expiringCount <= 0) return [];
 
   return [
@@ -306,7 +317,9 @@ export function produceExpiringCertItems(expiringCount: number): AttentionItem[]
  * Content with approaching expiry dates — medium severity.
  * Visible to all roles.
  */
-export function produceExpiringContentDateItems(count: number): AttentionItem[] {
+export function produceExpiringContentDateItems(
+  count: number,
+): AttentionItem[] {
   if (count <= 0) return [];
 
   return [
@@ -387,7 +400,8 @@ export function produceCoverageGapItems(gapCount: number): AttentionItem[] {
 export function sortAttentionItems(items: AttentionItem[]): AttentionItem[] {
   return [...items].sort((a, b) => {
     // Primary sort: severity
-    const severityDiff = SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity];
+    const severityDiff =
+      SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity];
     if (severityDiff !== 0) return severityDiff;
 
     // Secondary sort: deadline proximity (items with deadlines come first,
@@ -409,7 +423,10 @@ export function sortAttentionItems(items: AttentionItem[]): AttentionItem[] {
  * Filter attention items by user role.
  * An item is visible if the role appears in its role_visibility array.
  */
-export function filterByRole(items: AttentionItem[], role: string): AttentionItem[] {
+export function filterByRole(
+  items: AttentionItem[],
+  role: string,
+): AttentionItem[] {
   return items.filter((item) =>
     item.role_visibility.includes(role as 'admin' | 'editor' | 'viewer'),
   );
@@ -423,10 +440,15 @@ export function filterByRole(items: AttentionItem[], role: string): AttentionIte
  * Build the complete attention items list from raw source data.
  * Runs all producers, concatenates results, and sorts by severity.
  */
-export function buildAttentionItems(data: AttentionSourceData): AttentionItem[] {
+export function buildAttentionItems(
+  data: AttentionSourceData,
+): AttentionItem[] {
   const allItems: AttentionItem[] = [
     ...produceGovernanceReviewItems(data.governance_review_count),
-    ...produceStaleContentItems(data.stale_content_count, data.expired_content_count),
+    ...produceStaleContentItems(
+      data.stale_content_count,
+      data.expired_content_count,
+    ),
     ...produceQualityFlagItems(data.quality_flag_count),
     ...produceUnverifiedItems(data.unverified_count),
     ...produceBidDeadlineItems(data.active_bids),

@@ -53,7 +53,9 @@ function makeItem(overrides: Partial<ItemData> = {}): ItemData {
   };
 }
 
-function makeProps(overrides: Partial<QAAnswerDisplayProps> = {}): QAAnswerDisplayProps {
+function makeProps(
+  overrides: Partial<QAAnswerDisplayProps> = {},
+): QAAnswerDisplayProps {
   return {
     item: makeItem(),
     isEditing: false,
@@ -94,9 +96,7 @@ describe('QAAnswerDisplay — verification border', () => {
 
   it('shows green (success) left border when item is verified', () => {
     const item = makeItem({ verified_at: '2026-03-20T10:00:00Z' });
-    const { container } = render(
-      <QAAnswerDisplay {...makeProps({ item })} />,
-    );
+    const { container } = render(<QAAnswerDisplay {...makeProps({ item })} />);
     const cards = container.querySelectorAll('.rounded-xl');
     expect(cards.length).toBeGreaterThanOrEqual(2);
     for (const card of cards) {
@@ -107,9 +107,7 @@ describe('QAAnswerDisplay — verification border', () => {
 
   it('defaults to unverified styling when verified_at is null', () => {
     const item = makeItem({ verified_at: null });
-    const { container } = render(
-      <QAAnswerDisplay {...makeProps({ item })} />,
-    );
+    const { container } = render(<QAAnswerDisplay {...makeProps({ item })} />);
     const cards = container.querySelectorAll('.rounded-xl');
     for (const card of cards) {
       expect(card).toHaveClass('border-l-[var(--color-status-warning)]');
@@ -119,9 +117,7 @@ describe('QAAnswerDisplay — verification border', () => {
   it('defaults to unverified styling when verified_at is undefined', () => {
     const item = makeItem();
     delete (item as unknown as Record<string, unknown>).verified_at;
-    const { container } = render(
-      <QAAnswerDisplay {...makeProps({ item })} />,
-    );
+    const { container } = render(<QAAnswerDisplay {...makeProps({ item })} />);
     const cards = container.querySelectorAll('.rounded-xl');
     for (const card of cards) {
       expect(card).toHaveClass('border-l-[var(--color-status-warning)]');
@@ -201,9 +197,7 @@ describe('QAAnswerDisplay — copy button', () => {
 
   it('calls handleCopyAnswer with "standard" when standard copy is clicked', () => {
     const handleCopyAnswer = vi.fn();
-    render(
-      <QAAnswerDisplay {...makeProps({ handleCopyAnswer })} />,
-    );
+    render(<QAAnswerDisplay {...makeProps({ handleCopyAnswer })} />);
     const copyButtons = screen.getAllByRole('button', { name: /copy/i });
     fireEvent.click(copyButtons[0]);
     expect(handleCopyAnswer).toHaveBeenCalledWith('standard');
@@ -211,26 +205,20 @@ describe('QAAnswerDisplay — copy button', () => {
 
   it('calls handleCopyAnswer with "advanced" when advanced copy is clicked', () => {
     const handleCopyAnswer = vi.fn();
-    render(
-      <QAAnswerDisplay {...makeProps({ handleCopyAnswer })} />,
-    );
+    render(<QAAnswerDisplay {...makeProps({ handleCopyAnswer })} />);
     const copyButtons = screen.getAllByRole('button', { name: /copy/i });
     fireEvent.click(copyButtons[1]);
     expect(handleCopyAnswer).toHaveBeenCalledWith('advanced');
   });
 
   it('hides copy buttons when editing', () => {
-    render(
-      <QAAnswerDisplay {...makeProps({ isEditing: true })} />,
-    );
+    render(<QAAnswerDisplay {...makeProps({ isEditing: true })} />);
     const copyButtons = screen.queryAllByRole('button', { name: /copy/i });
     expect(copyButtons).toHaveLength(0);
   });
 
   it('still shows verification badges when editing', () => {
-    render(
-      <QAAnswerDisplay {...makeProps({ isEditing: true })} />,
-    );
+    render(<QAAnswerDisplay {...makeProps({ isEditing: true })} />);
     const badges = screen.getAllByText('Unverified');
     expect(badges).toHaveLength(2);
   });
@@ -273,9 +261,7 @@ describe('QAAnswerDisplay — empty and fallback states', () => {
       answer_advanced: null,
       content: 'Fallback content.',
     });
-    const { container } = render(
-      <QAAnswerDisplay {...makeProps({ item })} />,
-    );
+    const { container } = render(<QAAnswerDisplay {...makeProps({ item })} />);
     const cards = container.querySelectorAll('.rounded-xl');
     expect(cards).toHaveLength(1);
     expect(cards[0]).not.toHaveClass('border-l-[var(--color-status-warning)]');
@@ -288,9 +274,7 @@ describe('QAAnswerDisplay — empty and fallback states', () => {
       answer_advanced: null,
       content: null,
     });
-    const { container } = render(
-      <QAAnswerDisplay {...makeProps({ item })} />,
-    );
+    const { container } = render(<QAAnswerDisplay {...makeProps({ item })} />);
     const cards = container.querySelectorAll('.rounded-xl');
     expect(cards).toHaveLength(1);
     expect(cards[0]).not.toHaveClass('border-l-[var(--color-status-warning)]');
@@ -329,7 +313,11 @@ describe('QAAnswerDisplay — answer card labels', () => {
         })}
       />,
     );
-    expect(screen.getByPlaceholderText('Standard answer...')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Advanced answer...')).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText('Standard answer...'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText('Advanced answer...'),
+    ).toBeInTheDocument();
   });
 });

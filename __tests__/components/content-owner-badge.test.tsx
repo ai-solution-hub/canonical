@@ -40,9 +40,7 @@ describe('ContentOwnerBadge', () => {
   });
 
   it('applies custom className', () => {
-    render(
-      <ContentOwnerBadge ownerName="Test" className="my-custom-class" />,
-    );
+    render(<ContentOwnerBadge ownerName="Test" className="my-custom-class" />);
     const el = screen.getByText('Test').parentElement;
     expect(el?.className).toContain('my-custom-class');
   });

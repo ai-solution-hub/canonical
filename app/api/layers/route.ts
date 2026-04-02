@@ -20,7 +20,9 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from('layer_vocabulary')
-      .select('id, key, label, description, display_order, is_active, created_at, updated_at')
+      .select(
+        'id, key, label, description, display_order, is_active, created_at, updated_at',
+      )
       .order('display_order', { ascending: true });
 
     if (error) {
@@ -77,7 +79,9 @@ export async function POST(request: NextRequest) {
         display_order: order,
         is_active: true,
       })
-      .select('id, key, label, description, display_order, is_active, created_at, updated_at')
+      .select(
+        'id, key, label, description, display_order, is_active, created_at, updated_at',
+      )
       .single();
 
     if (error) {

@@ -53,7 +53,9 @@ const FIXED_NOW = new Date('2026-02-15T12:00:00.000Z').getTime();
 function daysAgo(days: number): string {
   // Subtract an extra 2 hours so Math.floor always produces exactly `days`.
   const buffer = 2 * 60 * 60 * 1000;
-  return new Date(FIXED_NOW - days * 24 * 60 * 60 * 1000 - buffer).toISOString();
+  return new Date(
+    FIXED_NOW - days * 24 * 60 * 60 * 1000 - buffer,
+  ).toISOString();
 }
 
 function makeMockItem(overrides: Record<string, unknown> = {}) {
@@ -111,16 +113,41 @@ function resetMocks() {
   });
 
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockResolvedValue({ data: null, error: null, count: null });
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null, count: null });
+  mockSupabase._chain.single.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
@@ -162,11 +189,13 @@ describe('GET /api/review/cadence', () => {
 
     // First .then = content_items query, second .then = governance_config query
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) return resolve({ data: [], error: null });
-      return resolve({ data: [], error: null });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) return resolve({ data: [], error: null });
+        return resolve({ data: [], error: null });
+      },
+    );
 
     const res = await GET();
     expect(res.status).toBe(200);
@@ -176,11 +205,13 @@ describe('GET /api/review/cadence', () => {
     configureRole(mockSupabase, 'admin');
 
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) return resolve({ data: [], error: null });
-      return resolve({ data: [], error: null });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) return resolve({ data: [], error: null });
+        return resolve({ data: [], error: null });
+      },
+    );
 
     const res = await GET();
     expect(res.status).toBe(200);
@@ -192,11 +223,13 @@ describe('GET /api/review/cadence', () => {
     configureRole(mockSupabase, 'editor');
 
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) return resolve({ data: [], error: null });
-      return resolve({ data: [], error: null });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) return resolve({ data: [], error: null });
+        return resolve({ data: [], error: null });
+      },
+    );
 
     const res = await GET();
     expect(res.status).toBe(200);
@@ -227,15 +260,21 @@ describe('GET /api/review/cadence', () => {
 
     const items = [
       makeMockItem({ id: UUID_1, verified_at: null }),
-      makeMockItem({ id: UUID_2, verified_at: null, primary_domain: 'Operations' }),
+      makeMockItem({
+        id: UUID_2,
+        verified_at: null,
+        primary_domain: 'Operations',
+      }),
     ];
 
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) return resolve({ data: items, error: null });
-      return resolve({ data: [], error: null });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) return resolve({ data: items, error: null });
+        return resolve({ data: [], error: null });
+      },
+    );
 
     const res = await GET();
     const json = await res.json();
@@ -256,18 +295,20 @@ describe('GET /api/review/cadence', () => {
     configureRole(mockSupabase, 'editor');
 
     const items = [
-      makeMockItem({ id: UUID_1, verified_at: daysAgo(3) }),   // within 7d
-      makeMockItem({ id: UUID_2, verified_at: daysAgo(15) }),  // within 30d
-      makeMockItem({ id: UUID_3, verified_at: daysAgo(60) }),  // within 90d
+      makeMockItem({ id: UUID_1, verified_at: daysAgo(3) }), // within 7d
+      makeMockItem({ id: UUID_2, verified_at: daysAgo(15) }), // within 30d
+      makeMockItem({ id: UUID_3, verified_at: daysAgo(60) }), // within 90d
       makeMockItem({ id: UUID_4, verified_at: daysAgo(120) }), // overdue (>90d)
     ];
 
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) return resolve({ data: items, error: null });
-      return resolve({ data: [], error: null });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) return resolve({ data: items, error: null });
+        return resolve({ data: [], error: null });
+      },
+    );
 
     const res = await GET();
     const json = await res.json();
@@ -290,11 +331,13 @@ describe('GET /api/review/cadence', () => {
     ];
 
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) return resolve({ data: items, error: null });
-      return resolve({ data: [], error: null });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) return resolve({ data: items, error: null });
+        return resolve({ data: [], error: null });
+      },
+    );
 
     const res = await GET();
     const json = await res.json();
@@ -310,17 +353,31 @@ describe('GET /api/review/cadence', () => {
     configureRole(mockSupabase, 'editor');
 
     const items = [
-      makeMockItem({ id: UUID_1, primary_domain: 'Technology', verified_at: daysAgo(5) }),
-      makeMockItem({ id: UUID_2, primary_domain: 'Technology', verified_at: null }),
-      makeMockItem({ id: UUID_3, primary_domain: 'Operations', verified_at: daysAgo(100) }),
+      makeMockItem({
+        id: UUID_1,
+        primary_domain: 'Technology',
+        verified_at: daysAgo(5),
+      }),
+      makeMockItem({
+        id: UUID_2,
+        primary_domain: 'Technology',
+        verified_at: null,
+      }),
+      makeMockItem({
+        id: UUID_3,
+        primary_domain: 'Operations',
+        verified_at: daysAgo(100),
+      }),
     ];
 
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) return resolve({ data: items, error: null });
-      return resolve({ data: [], error: null });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) return resolve({ data: items, error: null });
+        return resolve({ data: [], error: null });
+      },
+    );
 
     const res = await GET();
     const json = await res.json();
@@ -344,11 +401,13 @@ describe('GET /api/review/cadence', () => {
     ];
 
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) return resolve({ data: items, error: null });
-      return resolve({ data: [], error: null });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) return resolve({ data: items, error: null });
+        return resolve({ data: [], error: null });
+      },
+    );
 
     const res = await GET();
     const json = await res.json();
@@ -363,17 +422,27 @@ describe('GET /api/review/cadence', () => {
     configureRole(mockSupabase, 'editor');
 
     const items = [
-      makeMockItem({ id: UUID_1, verified_at: daysAgo(120), suggested_title: 'Old' }),
+      makeMockItem({
+        id: UUID_1,
+        verified_at: daysAgo(120),
+        suggested_title: 'Old',
+      }),
       makeMockItem({ id: UUID_2, verified_at: null, suggested_title: 'Never' }),
-      makeMockItem({ id: UUID_3, verified_at: daysAgo(200), suggested_title: 'Oldest' }),
+      makeMockItem({
+        id: UUID_3,
+        verified_at: daysAgo(200),
+        suggested_title: 'Oldest',
+      }),
     ];
 
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) return resolve({ data: items, error: null });
-      return resolve({ data: [], error: null });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) return resolve({ data: items, error: null });
+        return resolve({ data: [], error: null });
+      },
+    );
 
     const res = await GET();
     const json = await res.json();
@@ -393,11 +462,14 @@ describe('GET /api/review/cadence', () => {
     configureRole(mockSupabase, 'editor');
 
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) return resolve({ data: null, error: { message: 'DB error' } });
-      return resolve({ data: [], error: null });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1)
+          return resolve({ data: null, error: { message: 'DB error' } });
+        return resolve({ data: [], error: null });
+      },
+    );
 
     const res = await GET();
     expect(res.status).toBe(500);
@@ -413,12 +485,14 @@ describe('GET /api/review/cadence', () => {
     ];
 
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) return resolve({ data: items, error: null });
-      // governance_config query fails
-      return resolve({ data: null, error: { message: 'Config error' } });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) return resolve({ data: items, error: null });
+        // governance_config query fails
+        return resolve({ data: null, error: { message: 'Config error' } });
+      },
+    );
 
     const res = await GET();
     const json = await res.json();
@@ -434,17 +508,34 @@ describe('GET /api/review/cadence', () => {
     configureRole(mockSupabase, 'editor');
 
     const items = [
-      makeMockItem({ id: UUID_1, verified_at: null, suggested_title: 'Suggested', title: 'Title' }),
-      makeMockItem({ id: UUID_2, verified_at: null, suggested_title: null, title: 'Fallback Title' }),
-      makeMockItem({ id: UUID_3, verified_at: null, suggested_title: null, title: null }),
+      makeMockItem({
+        id: UUID_1,
+        verified_at: null,
+        suggested_title: 'Suggested',
+        title: 'Title',
+      }),
+      makeMockItem({
+        id: UUID_2,
+        verified_at: null,
+        suggested_title: null,
+        title: 'Fallback Title',
+      }),
+      makeMockItem({
+        id: UUID_3,
+        verified_at: null,
+        suggested_title: null,
+        title: null,
+      }),
     ];
 
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) return resolve({ data: items, error: null });
-      return resolve({ data: [], error: null });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) return resolve({ data: items, error: null });
+        return resolve({ data: [], error: null });
+      },
+    );
 
     const res = await GET();
     const json = await res.json();

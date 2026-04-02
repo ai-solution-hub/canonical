@@ -1,10 +1,19 @@
 'use client';
 
 import Link from 'next/link';
-import { Folder, Archive, ArchiveRestore, Pencil, ArrowUpRight } from 'lucide-react';
+import {
+  Folder,
+  Archive,
+  ArchiveRestore,
+  Pencil,
+  ArrowUpRight,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ICON_MAP, type WorkspaceIconName } from '@/components/workspace/workspace-icon-picker';
+import {
+  ICON_MAP,
+  type WorkspaceIconName,
+} from '@/components/workspace/workspace-icon-picker';
 import { formatRelativeDate } from '@/lib/format';
 import { getWorkspaceType } from '@/lib/workspace-types';
 import { cn } from '@/lib/utils';
@@ -59,7 +68,10 @@ export function WorkspaceCard({
               {workspace.name}
             </h3>
             {typeConfig && (
-              <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0">
+              <Badge
+                variant="outline"
+                className="shrink-0 text-[10px] px-1.5 py-0"
+              >
                 {typeConfig.label}
               </Badge>
             )}

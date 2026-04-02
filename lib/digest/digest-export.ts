@@ -40,18 +40,17 @@ export interface DigestExportOptions {
  */
 export function digestToMarkdown(
   digest: Digest,
-  options?: DigestExportOptions
+  options?: DigestExportOptions,
 ): string {
   const lines: string[] = [];
 
   // Title
-  const title =
-    `${digestTypeLabel(digest.digest_type)}: ${formatDate(digest.period_start)} -- ${formatDate(digest.period_end)}`;
+  const title = `${digestTypeLabel(digest.digest_type)}: ${formatDate(digest.period_start)} -- ${formatDate(digest.period_end)}`;
 
   lines.push(`# ${title}`);
   lines.push('');
   lines.push(
-    `*${digest.item_count} items | Generated ${formatDate(digest.generated_at)}*`
+    `*${digest.item_count} items | Generated ${formatDate(digest.generated_at)}*`,
   );
   lines.push('');
 
@@ -97,15 +96,9 @@ export function digestToMarkdown(
     const gs = digest.governance_summary;
     lines.push('## KB Health');
     lines.push('');
-    lines.push(
-      `- **Items Modified:** ${gs.items_modified}`,
-    );
-    lines.push(
-      `- **Items Verified:** ${gs.items_verified}`,
-    );
-    lines.push(
-      `- **Items Flagged:** ${gs.items_flagged}`,
-    );
+    lines.push(`- **Items Modified:** ${gs.items_modified}`);
+    lines.push(`- **Items Verified:** ${gs.items_verified}`);
+    lines.push(`- **Items Flagged:** ${gs.items_flagged}`);
     if (gs.freshness_breakdown) {
       const fb = gs.freshness_breakdown;
       lines.push(
@@ -121,7 +114,7 @@ export function digestToMarkdown(
     lines.push('');
     for (const cluster of digest.theme_clusters) {
       lines.push(
-        `- **${cluster.theme}** (${cluster.item_count} items) -- ${cluster.description}`
+        `- **${cluster.theme}** (${cluster.item_count} items) -- ${cluster.description}`,
       );
     }
     lines.push('');
@@ -217,10 +210,10 @@ function inlineRuns(text: string): TextRun[] {
           text: match[3],
           color: '2563EB',
           underline: { type: 'single' as const },
-        })
+        }),
       );
       runs.push(
-        new TextRun({ text: ` (${match[4]})`, color: '6B7280', size: 18 })
+        new TextRun({ text: ` (${match[4]})`, color: '6B7280', size: 18 }),
       );
     }
 
@@ -247,7 +240,7 @@ function inlineRuns(text: string): TextRun[] {
  */
 async function generateDigestDocx(
   digest: Digest,
-  options?: DigestExportOptions
+  options?: DigestExportOptions,
 ): Promise<Blob> {
   const md = digestToMarkdown(digest, options);
   const blocks = parseMarkdown(md);
@@ -260,11 +253,9 @@ async function generateDigestDocx(
         paragraphs.push(
           new Paragraph({
             heading: HeadingLevel.HEADING_1,
-            children: [
-              new TextRun({ text: block.text, bold: true, size: 36 }),
-            ],
+            children: [new TextRun({ text: block.text, bold: true, size: 36 })],
             spacing: { after: 200 },
-          })
+          }),
         );
         break;
 
@@ -272,11 +263,9 @@ async function generateDigestDocx(
         paragraphs.push(
           new Paragraph({
             heading: HeadingLevel.HEADING_2,
-            children: [
-              new TextRun({ text: block.text, bold: true, size: 28 }),
-            ],
+            children: [new TextRun({ text: block.text, bold: true, size: 28 })],
             spacing: { before: 300, after: 150 },
-          })
+          }),
         );
         break;
 
@@ -284,11 +273,9 @@ async function generateDigestDocx(
         paragraphs.push(
           new Paragraph({
             heading: HeadingLevel.HEADING_3,
-            children: [
-              new TextRun({ text: block.text, bold: true, size: 24 }),
-            ],
+            children: [new TextRun({ text: block.text, bold: true, size: 24 })],
             spacing: { before: 200, after: 100 },
-          })
+          }),
         );
         break;
 
@@ -298,7 +285,7 @@ async function generateDigestDocx(
             bullet: { level: 0 },
             children: inlineRuns(block.text),
             spacing: { after: 60 },
-          })
+          }),
         );
         break;
 
@@ -307,7 +294,7 @@ async function generateDigestDocx(
           new Paragraph({
             children: [new TextRun({ text: block.text, italics: true })],
             spacing: { after: 100 },
-          })
+          }),
         );
         break;
 
@@ -323,7 +310,7 @@ async function generateDigestDocx(
               },
             },
             spacing: { before: 200, after: 200 },
-          })
+          }),
         );
         break;
 
@@ -332,7 +319,7 @@ async function generateDigestDocx(
           new Paragraph({
             children: inlineRuns(block.text),
             spacing: { after: 120 },
-          })
+          }),
         );
         break;
     }
@@ -370,7 +357,7 @@ async function generateDigestDocx(
  */
 export async function downloadDigestDocx(
   digest: Digest,
-  options?: DigestExportOptions
+  options?: DigestExportOptions,
 ): Promise<void> {
   const blob = await generateDigestDocx(digest, options);
 

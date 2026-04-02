@@ -15,7 +15,14 @@ import { getDisplayTitle } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { ReviewQueueItem } from '@/types/review';
 
-export type QueueSortField = 'default' | 'flagged' | 'domain' | 'content_type' | 'confidence' | 'quality_score' | 'date';
+export type QueueSortField =
+  | 'default'
+  | 'flagged'
+  | 'domain'
+  | 'content_type'
+  | 'confidence'
+  | 'quality_score'
+  | 'date';
 
 interface ReviewQueuePanelProps {
   items: ReviewQueueItem[];
@@ -36,14 +43,20 @@ export function ReviewQueuePanel({
 
   // Auto-scroll to current item
   useEffect(() => {
-    currentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    currentRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+    });
   }, [currentIndex]);
 
   return (
     <div className="flex h-full flex-col">
       {/* Sort controls */}
       <div className="border-b border-border px-3 py-2">
-        <Select value={sortBy} onValueChange={(v) => onSortChange(v as QueueSortField)}>
+        <Select
+          value={sortBy}
+          onValueChange={(v) => onSortChange(v as QueueSortField)}
+        >
           <SelectTrigger className="h-8 text-xs">
             <SelectValue placeholder="Sort by..." />
           </SelectTrigger>

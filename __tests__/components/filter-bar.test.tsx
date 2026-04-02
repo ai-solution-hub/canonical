@@ -68,14 +68,24 @@ function makeProps(overrides: FilterBarTestProps = {}) {
 describe('FilterBar', () => {
   it('renders view mode toggle buttons', () => {
     render(<FilterBar {...makeProps()} />);
-    expect(screen.getByRole('button', { name: 'Grid view' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'List view' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Grid view' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'List view' }),
+    ).toBeInTheDocument();
   });
 
   it('marks the active view mode button as pressed', () => {
     render(<FilterBar {...makeProps({ viewMode: 'list' })} />);
-    expect(screen.getByRole('button', { name: 'List view' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: 'Grid view' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'List view' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByRole('button', { name: 'Grid view' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
   });
 
   it('calls onViewChange when grid button clicked', async () => {
@@ -98,7 +108,9 @@ describe('FilterBar', () => {
 
   it('renders the Filters button', () => {
     render(<FilterBar {...makeProps()} />);
-    expect(screen.getByRole('button', { name: /Filters/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Filters/i }),
+    ).toBeInTheDocument();
   });
 
   it('calls onOpenFilters when Filters button clicked', async () => {
@@ -123,12 +135,16 @@ describe('FilterBar', () => {
 
   it('renders the view mode group with correct role', () => {
     render(<FilterBar {...makeProps()} />);
-    expect(screen.getByRole('group', { name: 'View mode' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('group', { name: 'View mode' }),
+    ).toBeInTheDocument();
   });
 
   it('renders the More options overflow menu trigger', () => {
     render(<FilterBar {...makeProps()} />);
-    expect(screen.getByRole('button', { name: 'More options' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'More options' }),
+    ).toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------

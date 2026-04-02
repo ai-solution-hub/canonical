@@ -19,7 +19,10 @@ export class ApiError extends Error {
 }
 
 /** Fetch JSON from an API route, throwing ApiError on non-OK responses. */
-export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+export async function fetchJson<T>(
+  url: string,
+  init?: RequestInit,
+): Promise<T> {
   const res = await fetch(url, init);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));

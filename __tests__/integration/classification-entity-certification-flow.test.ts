@@ -9,7 +9,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createMockSupabaseClient, type MockSupabaseClient } from '../helpers/mock-supabase';
+import {
+  createMockSupabaseClient,
+  type MockSupabaseClient,
+} from '../helpers/mock-supabase';
 
 // ── Mock Claude API and dependencies ────────────────────────────────
 
@@ -35,7 +38,8 @@ vi.mock('@/lib/ai/skills/loader', () => ({
 }));
 
 vi.mock('@/lib/entities/entity-aliases', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/entities/entity-aliases')>();
+  const actual =
+    await importOriginal<typeof import('@/lib/entities/entity-aliases')>();
   return {
     ...actual,
     loadAliases: vi.fn().mockResolvedValue({}),
@@ -45,7 +49,8 @@ vi.mock('@/lib/entities/entity-aliases', async (importOriginal) => {
 // Mock the bridge function to verify it's called, but also test real logic in dedicated suite
 const mockBridge = vi.fn();
 vi.mock('@/lib/entities/entity-metadata-bridge', () => ({
-  bridgeTemporalReferencesToEntities: (...args: unknown[]) => mockBridge(...args),
+  bridgeTemporalReferencesToEntities: (...args: unknown[]) =>
+    mockBridge(...args),
 }));
 
 import { classifyContent } from '@/lib/ai/classify';
@@ -92,7 +97,8 @@ const baseClassificationInput = {
   ai_summary: 'Document about ISO 27001 certification.',
   suggested_title: 'ISO 27001 Certification Overview',
   classification_confidence: 0.95,
-  classification_reasoning: 'Content discusses ISO 27001 certification details.',
+  classification_reasoning:
+    'Content discusses ISO 27001 certification details.',
 };
 
 const itemId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
@@ -110,7 +116,8 @@ describe('classification → entity → certification flow', () => {
       data: {
         id: itemId,
         title: 'ISO 27001 Certification',
-        content: 'Our organisation holds ISO 27001 certification awarded in January 2024, expiring June 2025. We also hold Cyber Essentials Plus.',
+        content:
+          'Our organisation holds ISO 27001 certification awarded in January 2024, expiring June 2025. We also hold Cyber Essentials Plus.',
         content_type: 'article',
         classified_at: null,
         primary_domain: null,
@@ -141,10 +148,18 @@ describe('classification → entity → certification flow', () => {
       createToolUseResponse({
         ...baseClassificationInput,
         entities: [
-          { name: 'ISO 27001', type: 'certification', canonical_name: 'ISO 27001' },
+          {
+            name: 'ISO 27001',
+            type: 'certification',
+            canonical_name: 'ISO 27001',
+          },
         ],
         temporal_references: [
-          { date: '2025-06-30', context: 'ISO 27001 certification expiry', context_type: 'expiry' },
+          {
+            date: '2025-06-30',
+            context: 'ISO 27001 certification expiry',
+            context_type: 'expiry',
+          },
         ],
       }),
     );
@@ -176,10 +191,18 @@ describe('classification → entity → certification flow', () => {
       createToolUseResponse({
         ...baseClassificationInput,
         entities: [
-          { name: 'ISO 27001', type: 'certification', canonical_name: 'ISO 27001' },
+          {
+            name: 'ISO 27001',
+            type: 'certification',
+            canonical_name: 'ISO 27001',
+          },
         ],
         temporal_references: [
-          { date: '2025-06-30', context: 'ISO 27001 expiry', context_type: 'expiry' },
+          {
+            date: '2025-06-30',
+            context: 'ISO 27001 expiry',
+            context_type: 'expiry',
+          },
         ],
       }),
     );
@@ -206,7 +229,11 @@ describe('classification → entity → certification flow', () => {
       createToolUseResponse({
         ...baseClassificationInput,
         temporal_references: [
-          { date: '2025-06-30', context: 'ISO 27001 certification expiry', context_type: 'expiry' },
+          {
+            date: '2025-06-30',
+            context: 'ISO 27001 certification expiry',
+            context_type: 'expiry',
+          },
         ],
       }),
     );
@@ -224,7 +251,11 @@ describe('classification → entity → certification flow', () => {
     const updateData = updateCall[0] as Record<string, unknown>;
     const metadataField = updateData.metadata as Record<string, unknown>;
     expect(metadataField.ai_temporal_references).toEqual([
-      { date: '2025-06-30', context: 'ISO 27001 certification expiry', context_type: 'expiry' },
+      {
+        date: '2025-06-30',
+        context: 'ISO 27001 certification expiry',
+        context_type: 'expiry',
+      },
     ]);
   });
 
@@ -236,8 +267,16 @@ describe('classification → entity → certification flow', () => {
       createToolUseResponse({
         ...baseClassificationInput,
         entities: [
-          { name: 'ISO 27001', type: 'certification', canonical_name: 'ISO 27001' },
-          { name: 'Cyber Essentials Plus', type: 'certification', canonical_name: 'Cyber Essentials Plus' },
+          {
+            name: 'ISO 27001',
+            type: 'certification',
+            canonical_name: 'ISO 27001',
+          },
+          {
+            name: 'Cyber Essentials Plus',
+            type: 'certification',
+            canonical_name: 'Cyber Essentials Plus',
+          },
         ],
       }),
     );
@@ -262,13 +301,17 @@ describe('classification → entity → certification flow', () => {
     expect(canonicalNames).toContain('cyber essentials plus');
 
     // Verify entity_type for all rows
-    expect(entityRows.every((r) => r.entity_type === 'certification')).toBe(true);
+    expect(entityRows.every((r) => r.entity_type === 'certification')).toBe(
+      true,
+    );
 
     // Verify content_item_id is set correctly for all rows
     expect(entityRows.every((r) => r.content_item_id === itemId)).toBe(true);
 
     // Verify each row has a context_snippet (populated by extractEntityContext)
-    expect(entityRows.every((r) => typeof r.context_snippet === 'string')).toBe(true);
+    expect(entityRows.every((r) => typeof r.context_snippet === 'string')).toBe(
+      true,
+    );
   });
 
   // T2.4b: Covered by real DB integration tests in
@@ -280,7 +323,8 @@ describe('classification → entity → certification flow', () => {
       data: {
         id: itemId,
         title: 'ISO 27001 Certification',
-        content: 'Our ISO 27001 certification was renewed, now expiring December 2026.',
+        content:
+          'Our ISO 27001 certification was renewed, now expiring December 2026.',
         content_type: 'article',
         classified_at: '2024-01-01T00:00:00Z',
         primary_domain: 'security',
@@ -294,7 +338,11 @@ describe('classification → entity → certification flow', () => {
         classification_reasoning: 'Old reasoning',
         metadata: {
           ai_temporal_references: [
-            { date: '2025-06-30', context: 'ISO 27001 expiry', context_type: 'expiry' },
+            {
+              date: '2025-06-30',
+              context: 'ISO 27001 expiry',
+              context_type: 'expiry',
+            },
           ],
         },
       },
@@ -306,10 +354,18 @@ describe('classification → entity → certification flow', () => {
       createToolUseResponse({
         ...baseClassificationInput,
         entities: [
-          { name: 'ISO 27001', type: 'certification', canonical_name: 'ISO 27001' },
+          {
+            name: 'ISO 27001',
+            type: 'certification',
+            canonical_name: 'ISO 27001',
+          },
         ],
         temporal_references: [
-          { date: '2026-12-31', context: 'ISO 27001 expiry after renewal', context_type: 'expiry' },
+          {
+            date: '2026-12-31',
+            context: 'ISO 27001 expiry after renewal',
+            context_type: 'expiry',
+          },
         ],
       }),
     );
@@ -323,7 +379,11 @@ describe('classification → entity → certification flow', () => {
 
     // Verify the classification result contains the UPDATED temporal references (not old ones)
     expect(result.temporal_references).toEqual([
-      { date: '2026-12-31', context: 'ISO 27001 expiry after renewal', context_type: 'expiry' },
+      {
+        date: '2026-12-31',
+        context: 'ISO 27001 expiry after renewal',
+        context_type: 'expiry',
+      },
     ]);
     expect(result.temporal_references).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ date: '2025-06-30' })]),

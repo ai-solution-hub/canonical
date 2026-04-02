@@ -56,7 +56,9 @@ export function useBidReadiness(bidId: string): UseBidReadinessReturn {
   });
 
   const refresh = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.bids.readiness(bidId) });
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.bids.readiness(bidId),
+    });
   }, [queryClient, bidId]);
 
   return {

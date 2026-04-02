@@ -44,7 +44,10 @@ vi.mock('@/lib/mcp/resources', () => ({
   registerPrompts: vi.fn(),
 }));
 
-type ToolHandler = (args: Record<string, unknown>, extra: Record<string, unknown>) => Promise<unknown>;
+type ToolHandler = (
+  args: Record<string, unknown>,
+  extra: Record<string, unknown>,
+) => Promise<unknown>;
 
 interface ToolResult {
   content: Array<{ type: string; text: string }>;
@@ -56,7 +59,11 @@ function createMockMcpServer() {
   const tools: Record<string, ToolHandler> = {};
   return {
     tools,
-    registerTool(name: string, config: Record<string, unknown>, handler: ToolHandler) {
+    registerTool(
+      name: string,
+      config: Record<string, unknown>,
+      handler: ToolHandler,
+    ) {
       tools[name] = handler;
     },
     getHandler(name: string): ToolHandler | undefined {
@@ -78,7 +85,7 @@ const baseReorientData = {
       entity_id: 'item-1',
       entity_title: 'Title',
       created_at: '2026-03-01T12:00:00Z',
-    }
+    },
   ],
   my_recent_work: [],
   bid_summary: [],
@@ -101,7 +108,7 @@ describe('show_reorient_me trigger tool', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     mockServer = createMockMcpServer();
-    
+
     const { registerTools } = await import('@/lib/mcp/tools');
     await registerTools(mockServer as never);
   });
@@ -111,8 +118,8 @@ describe('show_reorient_me trigger tool', () => {
     mocks.fetchReorientData.mockResolvedValue(baseReorientData);
     mocks.resolveDisplayNames.mockResolvedValue(new Map());
 
-    const result = await handler({}, extra) as ToolResult;
-    
+    const result = (await handler({}, extra)) as ToolResult;
+
     expect(result.structuredContent).toBeDefined();
     expect(result.structuredContent.last_active_relative).toBe('10 days ago');
   });
@@ -120,12 +127,12 @@ describe('show_reorient_me trigger tool', () => {
   it('resolves display names', async () => {
     const handler = mockServer.getHandler('show_reorient_me')!;
     mocks.fetchReorientData.mockResolvedValue(baseReorientData);
-    
+
     const nameMap = new Map([['user-456', 'Alice']]);
     mocks.resolveDisplayNames.mockResolvedValue(nameMap);
 
-    const result = await handler({}, extra) as ToolResult;
-    
+    const result = (await handler({}, extra)) as ToolResult;
+
     expect(result.structuredContent.team_changes[0].user_name).toBe('Alice');
   });
 
@@ -134,7 +141,7 @@ describe('show_reorient_me trigger tool', () => {
     mocks.fetchReorientData.mockResolvedValue(baseReorientData);
     mocks.resolveDisplayNames.mockResolvedValue(new Map());
 
-    const result = await handler({}, extra) as ToolResult;
+    const result = (await handler({}, extra)) as ToolResult;
     expect(result.content[0].type).toBe('text');
     expect(result.content[0].text).toContain('# Reorient Me Briefing');
   });
@@ -143,7 +150,7 @@ describe('show_reorient_me trigger tool', () => {
     const handler = mockServer.getHandler('show_reorient_me')!;
     mocks.fetchReorientData.mockRejectedValue(new Error('Test error'));
 
-    const result = await handler({}, extra) as ToolResult;
+    const result = (await handler({}, extra)) as ToolResult;
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain('Test error');
   });

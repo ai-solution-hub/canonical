@@ -57,31 +57,31 @@ export function AuthorFilter({
         />
         {/* Suggestions dropdown */}
         {showSuggestions && (
-            <div
-              id="author-suggestions"
-              role="listbox"
-              className="mt-1 max-h-48 overflow-y-auto rounded-md border border-border bg-popover p-1"
-            >
-              {authorSuggestions.map((a) => (
-                <button
-                  key={a.name}
-                  type="button"
-                  role="option"
-                  aria-selected={false}
-                  className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-                  onClick={() => {
-                    onAddAuthor(a.name);
-                    onAuthorSearchChange('');
-                  }}
-                >
-                  <span className="truncate">{a.name}</span>
-                  <span className="ml-2 shrink-0 text-xs tabular-nums text-muted-foreground">
-                    {a.count}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
+          <div
+            id="author-suggestions"
+            role="listbox"
+            className="mt-1 max-h-48 overflow-y-auto rounded-md border border-border bg-popover p-1"
+          >
+            {authorSuggestions.map((a) => (
+              <button
+                key={a.name}
+                type="button"
+                role="option"
+                aria-selected={false}
+                className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                onClick={() => {
+                  onAddAuthor(a.name);
+                  onAuthorSearchChange('');
+                }}
+              >
+                <span className="truncate">{a.name}</span>
+                <span className="ml-2 shrink-0 text-xs tabular-nums text-muted-foreground">
+                  {a.count}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
         {!showSuggestions && (
           <div id="author-suggestions" role="listbox" hidden />
         )}

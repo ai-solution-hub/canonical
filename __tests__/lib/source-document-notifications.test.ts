@@ -103,7 +103,9 @@ describe('sendSourceDocumentUpdateNotifications', () => {
     expect(mockCreateNotification).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: 'owner-1',
-        message: expect.stringContaining('1 of your KB item may need reviewing.'),
+        message: expect.stringContaining(
+          '1 of your KB item may need reviewing.',
+        ),
       }),
     );
 
@@ -111,7 +113,9 @@ describe('sendSourceDocumentUpdateNotifications', () => {
     expect(mockCreateNotification).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: 'owner-2',
-        message: expect.stringContaining('1 of your KB item may need reviewing.'),
+        message: expect.stringContaining(
+          '1 of your KB item may need reviewing.',
+        ),
       }),
     );
   });
@@ -133,10 +137,7 @@ describe('sendSourceDocumentUpdateNotifications', () => {
     mockClient._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
-          data: [
-            { user_id: 'admin-1' },
-            { user_id: 'admin-2' },
-          ],
+          data: [{ user_id: 'admin-1' }, { user_id: 'admin-2' }],
           error: null,
         }),
     );
@@ -203,7 +204,9 @@ describe('sendSourceDocumentUpdateNotifications', () => {
 
     expect(mockCreateNotification).toHaveBeenCalledWith(
       expect.objectContaining({
-        message: expect.stringContaining('1 of your KB item may need reviewing.'),
+        message: expect.stringContaining(
+          '1 of your KB item may need reviewing.',
+        ),
       }),
     );
     // Should NOT contain "items" (plural) — note: "items" should not appear before the period

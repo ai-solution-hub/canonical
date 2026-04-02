@@ -21,7 +21,7 @@ describe('Library Error Boundary', () => {
   it('renders the heading text', () => {
     render(<LibraryError error={error} reset={reset} />);
     expect(
-      screen.getByText(/couldn.*t load the q&a library/i)
+      screen.getByText(/couldn.*t load the q&a library/i),
     ).toBeInTheDocument();
   });
 
@@ -55,7 +55,7 @@ describe('Library Loading Skeleton', () => {
     render(<LibraryLoading />);
     expect(screen.getByRole('status')).toHaveAttribute(
       'aria-label',
-      'Loading Q&A library'
+      'Loading Q&A library',
     );
   });
 

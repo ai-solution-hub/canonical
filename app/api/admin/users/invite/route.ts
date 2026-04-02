@@ -17,10 +17,7 @@ export async function POST(request: NextRequest) {
     try {
       raw = await request.json();
     } catch {
-      return NextResponse.json(
-        { error: 'Invalid JSON body' },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
     const parsed = parseBody(UserInviteBodySchema, raw);
@@ -61,12 +58,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Pre-create the user_roles entry (Option B from spec)
-    const { error: roleError } = await serviceClient
-      .from('user_roles')
-      .insert({
-        user_id: inviteData.user.id,
-        role,
-      });
+    const { error: roleError } = await serviceClient.from('user_roles').insert({
+      user_id: inviteData.user.id,
+      role,
+    });
 
     if (roleError) {
       console.error('Failed to set user role:', roleError);

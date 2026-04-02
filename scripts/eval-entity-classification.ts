@@ -195,14 +195,12 @@ async function fetchEntitiesForItems(
 
 // ── Scoring ─────────────────────────────────────────────────────────
 
-function scoreItem(
-  gold: GoldStandardItem,
-  extracted: DbEntity[],
-): ItemScore {
+function scoreItem(gold: GoldStandardItem, extracted: DbEntity[]): ItemScore {
   const truePositives: string[] = [];
   const falsePositives: string[] = [];
   const falseNegatives: string[] = [];
-  const typeErrors: Array<{ name: string; expected: string; actual: string }> = [];
+  const typeErrors: Array<{ name: string; expected: string; actual: string }> =
+    [];
   const exclusionFailures: string[] = [];
 
   // Track which extracted entities have been matched
@@ -254,9 +252,7 @@ function scoreItem(
       }
 
       // It is a false positive whether it is in the excluded list or not
-      falsePositives.push(
-        `${ext.entity_name} [${ext.entity_type}]`,
-      );
+      falsePositives.push(`${ext.entity_name} [${ext.entity_type}]`);
     }
   }
 
@@ -322,15 +318,13 @@ function aggregateScores(
     const s = scores[i];
     const g = goldStandard[i];
 
-    totalExtracted +=
-      s.true_positives.length + s.false_positives.length;
+    totalExtracted += s.true_positives.length + s.false_positives.length;
     totalExpected += g.expected_entities.length;
     totalExcludedExpected += g.excluded_entities.length;
     totalTruePositives += s.true_positives.length;
     totalFalsePositives += s.false_positives.length;
     totalFalseNegatives += s.false_negatives.length;
-    totalCorrectlyTyped +=
-      s.true_positives.length - s.type_errors.length;
+    totalCorrectlyTyped += s.true_positives.length - s.type_errors.length;
     totalTypeErrors += s.type_errors.length;
     totalExclusionFailures += s.exclusion_failures.length;
     totalExclusionSuccesses +=
@@ -339,16 +333,13 @@ function aggregateScores(
 
   const precision =
     totalExtracted > 0 ? totalTruePositives / totalExtracted : 0;
-  const recall =
-    totalExpected > 0 ? totalTruePositives / totalExpected : 0;
+  const recall = totalExpected > 0 ? totalTruePositives / totalExpected : 0;
   const f1 =
     precision + recall > 0
       ? (2 * precision * recall) / (precision + recall)
       : 0;
   const typeAccuracy =
-    totalTruePositives > 0
-      ? totalCorrectlyTyped / totalTruePositives
-      : 0;
+    totalTruePositives > 0 ? totalCorrectlyTyped / totalTruePositives : 0;
   const exclusionCompliance =
     totalExcludedExpected > 0
       ? totalExclusionSuccesses / totalExcludedExpected
@@ -377,9 +368,10 @@ function aggregateScores(
 
 // ── Cross-Item Consistency ──────────────────────────────────────────
 
-function measureCrossItemConsistency(
-  entityMap: Map<string, DbEntity[]>,
-): { consistency: number; inconsistencies: Array<{ name: string; types: string[] }> } {
+function measureCrossItemConsistency(entityMap: Map<string, DbEntity[]>): {
+  consistency: number;
+  inconsistencies: Array<{ name: string; types: string[] }>;
+} {
   // Group all entity mentions by canonical_name across all items
   const entityTypes = new Map<string, Set<string>>();
 
@@ -416,7 +408,10 @@ function measureCrossItemConsistency(
 function printReport(
   scores: ItemScore[],
   aggregate: AggregateScore,
-  consistency: { consistency: number; inconsistencies: Array<{ name: string; types: string[] }> },
+  consistency: {
+    consistency: number;
+    inconsistencies: Array<{ name: string; types: string[] }>;
+  },
   verbose: boolean,
 ): void {
   console.log('\n' + '='.repeat(72));
@@ -425,15 +420,9 @@ function printReport(
 
   // Aggregate summary
   console.log('\n--- AGGREGATE SCORES ---\n');
-  console.log(
-    `  Items evaluated:          ${aggregate.total_items}`,
-  );
-  console.log(
-    `  Total extracted:          ${aggregate.total_extracted}`,
-  );
-  console.log(
-    `  Total expected:           ${aggregate.total_expected}`,
-  );
+  console.log(`  Items evaluated:          ${aggregate.total_items}`);
+  console.log(`  Total extracted:          ${aggregate.total_extracted}`);
+  console.log(`  Total expected:           ${aggregate.total_expected}`);
   console.log(
     `  Total excluded expected:  ${aggregate.total_excluded_expected}`,
   );
@@ -532,17 +521,13 @@ function printReport(
   if (consistency.inconsistencies.length > 0) {
     console.log('\n--- CROSS-ITEM TYPE INCONSISTENCIES ---\n');
     for (const inc of consistency.inconsistencies) {
-      console.log(
-        `  "${inc.name}": appears as [${inc.types.join(', ')}]`,
-      );
+      console.log(`  "${inc.name}": appears as [${inc.types.join(', ')}]`);
     }
   }
 
   // Worst-performing items
   const failingItems = scores
-    .filter(
-      (s) => s.false_positives.length > 0 || s.false_negatives.length > 0,
-    )
+    .filter((s) => s.false_positives.length > 0 || s.false_negatives.length > 0)
     .sort(
       (a, b) =>
         b.false_positives.length +
@@ -557,14 +542,10 @@ function printReport(
         `  ${item.title.slice(0, 60).padEnd(62)} P=${(item.precision * 100).toFixed(0)}%  R=${(item.recall * 100).toFixed(0)}%  ExCmpl=${(item.exclusion_compliance * 100).toFixed(0)}%`,
       );
       if (item.false_positives.length > 0) {
-        console.log(
-          `    FP: ${item.false_positives.join(', ')}`,
-        );
+        console.log(`    FP: ${item.false_positives.join(', ')}`);
       }
       if (item.false_negatives.length > 0) {
-        console.log(
-          `    FN: ${item.false_negatives.join(', ')}`,
-        );
+        console.log(`    FN: ${item.false_negatives.join(', ')}`);
       }
     }
   }
@@ -573,32 +554,22 @@ function printReport(
   if (verbose) {
     console.log('\n--- PER-ITEM DETAIL ---\n');
     for (const s of scores) {
-      console.log(
-        `\n  [${s.content_item_id}] ${s.title.slice(0, 70)}`,
-      );
+      console.log(`\n  [${s.content_item_id}] ${s.title.slice(0, 70)}`);
       console.log(
         `    P=${(s.precision * 100).toFixed(0)}%  R=${(s.recall * 100).toFixed(0)}%  TA=${(s.type_accuracy * 100).toFixed(0)}%  EC=${(s.exclusion_compliance * 100).toFixed(0)}%`,
       );
       if (s.true_positives.length > 0)
-        console.log(
-          `    TP: ${s.true_positives.join(', ')}`,
-        );
+        console.log(`    TP: ${s.true_positives.join(', ')}`);
       if (s.false_positives.length > 0)
-        console.log(
-          `    FP: ${s.false_positives.join(', ')}`,
-        );
+        console.log(`    FP: ${s.false_positives.join(', ')}`);
       if (s.false_negatives.length > 0)
-        console.log(
-          `    FN: ${s.false_negatives.join(', ')}`,
-        );
+        console.log(`    FN: ${s.false_negatives.join(', ')}`);
       if (s.type_errors.length > 0)
         console.log(
           `    TE: ${s.type_errors.map((e) => `${e.name}: ${e.expected}->${e.actual}`).join(', ')}`,
         );
       if (s.exclusion_failures.length > 0)
-        console.log(
-          `    EF: ${s.exclusion_failures.join(', ')}`,
-        );
+        console.log(`    EF: ${s.exclusion_failures.join(', ')}`);
     }
   }
 
@@ -640,9 +611,7 @@ async function main() {
 
   // Filter to single item if requested
   if (itemFilter) {
-    goldStandard = goldStandard.filter(
-      (g) => g.content_item_id === itemFilter,
-    );
+    goldStandard = goldStandard.filter((g) => g.content_item_id === itemFilter);
     if (goldStandard.length === 0) {
       console.error(`Item ${itemFilter} not found in gold standard`);
       process.exit(1);

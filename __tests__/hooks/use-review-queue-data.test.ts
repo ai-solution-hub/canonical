@@ -3,9 +3,7 @@ import { renderHook } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { buildQueueParams } from '@/hooks/review/use-review-queue-data';
-import type {
-  ReviewQueueResponse,
-} from '@/types/review';
+import type { ReviewQueueResponse } from '@/types/review';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -35,11 +33,7 @@ function createWrapper(queryClient?: QueryClient) {
   return {
     queryClient: qc,
     Wrapper({ children }: { children: React.ReactNode }) {
-      return React.createElement(
-        QueryClientProvider,
-        { client: qc },
-        children,
-      );
+      return React.createElement(QueryClientProvider, { client: qc }, children);
     },
   };
 }
@@ -78,7 +72,11 @@ describe('useReviewQueueData', () => {
     });
 
     it('includes source_file filter when provided', () => {
-      const params = buildQueueParams({ source_file: 'report.docx' }, undefined, 0);
+      const params = buildQueueParams(
+        { source_file: 'report.docx' },
+        undefined,
+        0,
+      );
       expect(params.get('source_file')).toBe('report.docx');
     });
 

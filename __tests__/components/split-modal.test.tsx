@@ -96,7 +96,9 @@ describe('SplitModal', () => {
     renderModal();
 
     // Initially: no variants selected and no name entered
-    const splitButton = screen.getByRole('button', { name: /split 0 variant/i });
+    const splitButton = screen.getByRole('button', {
+      name: /split 0 variant/i,
+    });
     expect(splitButton).toBeDisabled();
   });
 
@@ -115,7 +117,9 @@ describe('SplitModal', () => {
     );
     await user.type(input, 'ISO 27001');
 
-    const splitButton = screen.getByRole('button', { name: /split 1 variant/i });
+    const splitButton = screen.getByRole('button', {
+      name: /split 1 variant/i,
+    });
     expect(splitButton).toBeDisabled();
   });
 
@@ -133,7 +137,13 @@ describe('SplitModal', () => {
       }),
     });
 
-    renderModal(true, 'ISO 27001', defaultVariants, onOpenChange, onSplitComplete);
+    renderModal(
+      true,
+      'ISO 27001',
+      defaultVariants,
+      onOpenChange,
+      onSplitComplete,
+    );
 
     const user = userEvent.setup();
 
@@ -149,7 +159,9 @@ describe('SplitModal', () => {
     await user.type(input, 'ISO 27001:2022');
 
     // Click split button
-    const splitButton = screen.getByRole('button', { name: /split 2 variants/i });
+    const splitButton = screen.getByRole('button', {
+      name: /split 2 variants/i,
+    });
     expect(splitButton).not.toBeDisabled();
     await user.click(splitButton);
 
@@ -191,9 +203,7 @@ describe('SplitModal', () => {
       screen.getByLabelText(/new canonical name for split variants/i),
       'ISO 27001:2022',
     );
-    await user.click(
-      screen.getByRole('button', { name: /split 1 variant/i }),
-    );
+    await user.click(screen.getByRole('button', { name: /split 1 variant/i }));
 
     await waitFor(() => {
       expect(mockToast.success).toHaveBeenCalledWith(
@@ -207,7 +217,9 @@ describe('SplitModal', () => {
   it('shows toast on error', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
-      json: async () => ({ error: 'No matching variant mentions found to split' }),
+      json: async () => ({
+        error: 'No matching variant mentions found to split',
+      }),
     });
 
     renderModal();
@@ -220,9 +232,7 @@ describe('SplitModal', () => {
       screen.getByLabelText(/new canonical name for split variants/i),
       'New Entity Name',
     );
-    await user.click(
-      screen.getByRole('button', { name: /split 1 variant/i }),
-    );
+    await user.click(screen.getByRole('button', { name: /split 1 variant/i }));
 
     await waitFor(() => {
       expect(mockToast.error).toHaveBeenCalledWith(

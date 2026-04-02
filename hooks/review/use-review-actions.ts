@@ -9,10 +9,7 @@ import {
 import { toast } from 'sonner';
 import { queryKeys } from '@/lib/query/query-keys';
 import { mutationFetchJson } from '@/lib/query/fetchers';
-import type {
-  ReviewQueueItem,
-  ReviewProgress,
-} from '@/types/review';
+import type { ReviewQueueItem, ReviewProgress } from '@/types/review';
 import type { ReviewQueuePage } from '@/hooks/review/use-review-queue-data';
 
 // ---------------------------------------------------------------------------
@@ -107,15 +104,19 @@ export function useReviewActions(
       }),
     onMutate: async ({ itemId, action }) => {
       await queryClient.cancelQueries({ queryKey: queueQueryKey });
-      const snapshot = queryClient.getQueryData<InfiniteQueueData>(queueQueryKey);
+      const snapshot =
+        queryClient.getQueryData<InfiniteQueueData>(queueQueryKey);
       const prevProgress = { ...progress };
 
       // Roll back progress
       setProgress((prev) => ({
         ...prev,
         verified:
-          action === 'unverify' ? Math.max(0, prev.verified - 1) : prev.verified,
-        flagged: action === 'unflag' ? Math.max(0, prev.flagged - 1) : prev.flagged,
+          action === 'unverify'
+            ? Math.max(0, prev.verified - 1)
+            : prev.verified,
+        flagged:
+          action === 'unflag' ? Math.max(0, prev.flagged - 1) : prev.flagged,
         sessionReviewed: Math.max(0, prev.sessionReviewed - 1),
       }));
 
@@ -167,13 +168,7 @@ export function useReviewActions(
   // -----------------------------------------------------------------------
 
   const verifyMutation = useMutation({
-    mutationFn: async ({
-      itemId,
-      note,
-    }: {
-      itemId: string;
-      note?: string;
-    }) =>
+    mutationFn: async ({ itemId, note }: { itemId: string; note?: string }) =>
       mutationFetchJson('/api/review/action', {
         item_id: itemId,
         action: 'verify',
@@ -321,8 +316,7 @@ export function useReviewActions(
       });
 
       // Clamp index to new bounds
-      const totalItems =
-        queue.filter((i) => i.id !== itemId).length;
+      const totalItems = queue.filter((i) => i.id !== itemId).length;
       const maxIndex = Math.max(0, totalItems - 1);
       setCurrentIndex((idx) => Math.min(idx, maxIndex));
 
@@ -347,10 +341,13 @@ export function useReviewActions(
   // Destructure stable mutate/mutateAsync functions from mutation objects
   // -----------------------------------------------------------------------
 
-  const { mutateAsync: verifyMutateAsync, isPending: isVerifyPending } = verifyMutation;
+  const { mutateAsync: verifyMutateAsync, isPending: isVerifyPending } =
+    verifyMutation;
   const { mutate: undoMutate } = undoMutation;
-  const { mutateAsync: flagMutateAsync, isPending: isFlagPending } = flagMutation;
-  const { mutateAsync: publishMutateAsync, isPending: isPublishPending } = publishMutation;
+  const { mutateAsync: flagMutateAsync, isPending: isFlagPending } =
+    flagMutation;
+  const { mutateAsync: publishMutateAsync, isPending: isPublishPending } =
+    publishMutation;
 
   // -----------------------------------------------------------------------
   // Handler wrappers — toast fires BEFORE mutate (S126 #2)
@@ -497,10 +494,7 @@ export function useReviewActions(
   // Derived state
   // -----------------------------------------------------------------------
 
-  const isActioning =
-    isVerifyPending ||
-    isFlagPending ||
-    isPublishPending;
+  const isActioning = isVerifyPending || isFlagPending || isPublishPending;
 
   // -----------------------------------------------------------------------
   // Return

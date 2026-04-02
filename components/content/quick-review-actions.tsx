@@ -2,9 +2,16 @@
 
 import { useState } from 'react';
 import { ShieldCheck, Flag, Loader2 } from 'lucide-react';
-import { useQuickReview, type OnOptimisticUpdate } from '@/hooks/review/use-quick-review';
+import {
+  useQuickReview,
+  type OnOptimisticUpdate,
+} from '@/hooks/review/use-quick-review';
 import { useUserRole } from '@/hooks/use-user-role';
-import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -52,8 +59,14 @@ export function QuickReviewActions({
   const { canEdit: canEditFromHook } = useUserRole();
   const canEdit = canEditProp !== undefined ? canEditProp : canEditFromHook;
 
-  const { quickVerify, quickUnverify, quickFlag, quickUnflag, isPending, pendingItems } =
-    useQuickReview({ onOptimisticUpdate });
+  const {
+    quickVerify,
+    quickUnverify,
+    quickFlag,
+    quickUnflag,
+    isPending,
+    pendingItems,
+  } = useQuickReview({ onOptimisticUpdate });
 
   const [flagPopoverOpen, setFlagPopoverOpen] = useState(false);
   const [flagReason, setFlagReason] = useState('');
@@ -64,7 +77,8 @@ export function QuickReviewActions({
   const isVerified = Boolean(verifiedAt);
   const isFlagged = Boolean(hasQualityFlag);
   const pendingAction = pendingItems.get(itemId);
-  const verifyPending = pendingAction === 'verify' || pendingAction === 'unverify';
+  const verifyPending =
+    pendingAction === 'verify' || pendingAction === 'unverify';
   const flagPending = pendingAction === 'flag' || pendingAction === 'unflag';
   const anyPending = Boolean(pendingAction);
 
@@ -126,7 +140,10 @@ export function QuickReviewActions({
         onClick={handleVerifyClick}
       >
         {verifyPending ? (
-          <Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden="true" />
+          <Loader2
+            className="size-4 animate-spin text-muted-foreground"
+            aria-hidden="true"
+          />
         ) : (
           <ShieldCheck
             className={cn(
@@ -151,7 +168,10 @@ export function QuickReviewActions({
           onClick={handleFlagClick}
         >
           {flagPending ? (
-            <Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden="true" />
+            <Loader2
+              className="size-4 animate-spin text-muted-foreground"
+              aria-hidden="true"
+            />
           ) : (
             <Flag
               className="size-4 text-quality-severity-warning transition-colors"
@@ -175,7 +195,10 @@ export function QuickReviewActions({
               }}
             >
               {flagPending ? (
-                <Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden="true" />
+                <Loader2
+                  className="size-4 animate-spin text-muted-foreground"
+                  aria-hidden="true"
+                />
               ) : (
                 <Flag
                   className="size-4 text-muted-foreground transition-colors hover:text-quality-severity-warning"
@@ -192,7 +215,10 @@ export function QuickReviewActions({
             onPointerDown={(e) => e.stopPropagation()}
           >
             <div className="flex flex-col gap-2">
-              <label htmlFor={`flag-reason-${itemId}`} className="text-sm font-medium text-foreground">
+              <label
+                htmlFor={`flag-reason-${itemId}`}
+                className="text-sm font-medium text-foreground"
+              >
                 Reason (optional):
               </label>
               <Input
@@ -214,11 +240,7 @@ export function QuickReviewActions({
                 >
                   Cancel
                 </Button>
-                <Button
-                  size="sm"
-                  className="h-8"
-                  onClick={handleFlagSubmit}
-                >
+                <Button size="sm" className="h-8" onClick={handleFlagSubmit}>
                   Submit
                 </Button>
               </div>

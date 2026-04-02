@@ -103,12 +103,14 @@ export function CompanyProfileCard({
           {profile.services.length > 0 && (
             <span className="flex items-center gap-1">
               <Briefcase className="size-3" aria-hidden="true" />
-              {profile.services.length} service{profile.services.length !== 1 ? 's' : ''}
+              {profile.services.length} service
+              {profile.services.length !== 1 ? 's' : ''}
             </span>
           )}
           <span className="flex items-center gap-1">
             <Tag className="size-3" aria-hidden="true" />
-            {profile.key_topics.length} topic{profile.key_topics.length !== 1 ? 's' : ''}
+            {profile.key_topics.length} topic
+            {profile.key_topics.length !== 1 ? 's' : ''}
           </span>
           <span className="ml-auto">
             Updated {formatDate(profile.updated_at)}

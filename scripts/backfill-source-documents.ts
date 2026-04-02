@@ -38,7 +38,10 @@ function loadEnv() {
           const eq = trimmed.indexOf('=');
           if (eq === -1) continue;
           const key = trimmed.slice(0, eq).trim();
-          const val = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, '');
+          const val = trimmed
+            .slice(eq + 1)
+            .trim()
+            .replace(/^["']|["']$/g, '');
           if (!process.env[key]) process.env[key] = val;
         }
       }
@@ -101,14 +104,17 @@ function inferMimeType(filename: string): string {
   const ext = path.extname(filename).toLowerCase();
   const mimeMap: Record<string, string> = {
     '.pdf': 'application/pdf',
-    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.docx':
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     '.doc': 'application/msword',
     '.md': 'text/markdown',
     '.txt': 'text/plain',
     '.csv': 'text/csv',
-    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.xlsx':
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     '.xls': 'application/vnd.ms-excel',
-    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    '.pptx':
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     '.html': 'text/html',
     '.json': 'application/json',
   };
@@ -123,7 +129,10 @@ function md5Hash(text: string): string {
 /** Resolve the filename from available metadata */
 function resolveFilename(item: ContentItemRow): string {
   const metadata = item.metadata as Record<string, unknown> | null;
-  if (metadata?.original_filename && typeof metadata.original_filename === 'string') {
+  if (
+    metadata?.original_filename &&
+    typeof metadata.original_filename === 'string'
+  ) {
     return metadata.original_filename;
   }
   if (item.source_file) {
@@ -162,7 +171,9 @@ async function main() {
   console.log('='.repeat(60));
   console.log('Source Documents Backfill');
   console.log('='.repeat(60));
-  console.log(`  Mode:   ${DRY_RUN ? 'DRY RUN (use --apply to write)' : 'APPLY'}`);
+  console.log(
+    `  Mode:   ${DRY_RUN ? 'DRY RUN (use --apply to write)' : 'APPLY'}`,
+  );
   console.log(`  Limit:  ${LIMIT || 'all'}`);
   console.log();
 
@@ -173,7 +184,9 @@ async function main() {
   // filter in code.
   const { data: items, error } = await supabase
     .from('content_items')
-    .select('id, content, content_type, metadata, file_path, created_by, created_at, source_file')
+    .select(
+      'id, content, content_type, metadata, file_path, created_by, created_at, source_file',
+    )
     .is('source_document_id', null)
     .order('created_at', { ascending: true })
     .limit(5000);
@@ -194,14 +207,17 @@ async function main() {
     return (
       item.source_file ||
       (metadata?.source_file && typeof metadata.source_file === 'string') ||
-      (metadata?.original_filename && typeof metadata.original_filename === 'string') ||
+      (metadata?.original_filename &&
+        typeof metadata.original_filename === 'string') ||
       item.file_path
     );
   }) as ContentItemRow[];
 
   console.log(`Found ${items.length} items without source_document_id`);
   console.log(`  With provenance data: ${eligible.length}`);
-  console.log(`  Without provenance:   ${items.length - eligible.length} (skipped)`);
+  console.log(
+    `  Without provenance:   ${items.length - eligible.length} (skipped)`,
+  );
   console.log();
 
   if (eligible.length === 0) {
@@ -233,7 +249,9 @@ async function main() {
 
   console.log(`Grouped into ${groups.length} unique source documents:`);
   for (const group of groups) {
-    console.log(`  ${group.filename} (${group.items.length} item${group.items.length === 1 ? '' : 's'})`);
+    console.log(
+      `  ${group.filename} (${group.items.length} item${group.items.length === 1 ? '' : 's'})`,
+    );
   }
   console.log();
 
@@ -257,7 +275,8 @@ async function main() {
 
     // Use the earliest item's created_by as uploaded_by
     const uploadedBy =
-      group.items.find((item) => item.created_by)?.created_by || FALLBACK_ADMIN_ID;
+      group.items.find((item) => item.created_by)?.created_by ||
+      FALLBACK_ADMIN_ID;
 
     // Resolve storage path from first item's file_path if available
     const storagePath =
@@ -275,7 +294,10 @@ async function main() {
         : combinedContent;
 
     // Determine file size from metadata or content length
-    const firstMetadata = group.items[0].metadata as Record<string, unknown> | null;
+    const firstMetadata = group.items[0].metadata as Record<
+      string,
+      unknown
+    > | null;
     const fileSize =
       (firstMetadata?.file_size && typeof firstMetadata.file_size === 'number'
         ? firstMetadata.file_size
@@ -300,9 +322,13 @@ async function main() {
     };
 
     if (DRY_RUN) {
-      console.log(`         Would create source_documents row: ${group.filename}`);
+      console.log(
+        `         Would create source_documents row: ${group.filename}`,
+      );
       console.log(`         Would link ${group.items.length} content item(s)`);
-      console.log(`         MIME: ${sourceDoc.mime_type}, hash: ${contentHash.slice(0, 12)}...`);
+      console.log(
+        `         MIME: ${sourceDoc.mime_type}, hash: ${contentHash.slice(0, 12)}...`,
+      );
       created++;
       linked += group.items.length;
       continue;
@@ -316,7 +342,9 @@ async function main() {
       .single();
 
     if (insertError || !inserted) {
-      console.error(`         ERROR creating source document: ${insertError?.message}`);
+      console.error(
+        `         ERROR creating source document: ${insertError?.message}`,
+      );
       errors++;
       continue;
     }
@@ -347,8 +375,12 @@ async function main() {
   console.log('='.repeat(60));
   console.log('BACKFILL COMPLETE');
   console.log('='.repeat(60));
-  console.log(`  Source documents created: ${created}${DRY_RUN ? ' (dry run)' : ''}`);
-  console.log(`  Content items linked:    ${linked}${DRY_RUN ? ' (dry run)' : ''}`);
+  console.log(
+    `  Source documents created: ${created}${DRY_RUN ? ' (dry run)' : ''}`,
+  );
+  console.log(
+    `  Content items linked:    ${linked}${DRY_RUN ? ' (dry run)' : ''}`,
+  );
   console.log(`  Errors:                  ${errors}`);
   if (DRY_RUN) {
     console.log();

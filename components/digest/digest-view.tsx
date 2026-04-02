@@ -11,7 +11,10 @@ import type { Digest, DigestGovernanceSummary } from '@/types/digest';
 import { cn } from '@/lib/utils';
 
 const DigestExportMenu = dynamic(
-  () => import('@/components/digest/digest-export-menu').then((mod) => mod.DigestExportMenu),
+  () =>
+    import('@/components/digest/digest-export-menu').then(
+      (mod) => mod.DigestExportMenu,
+    ),
   { ssr: false },
 );
 
@@ -131,28 +134,20 @@ function GovernanceSection({ summary }: { summary: DigestGovernanceSummary }) {
       </div>
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-lg border bg-background p-4 text-center">
-          <p className="text-2xl font-bold text-foreground">
-            {items_modified}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Items Modified
-          </p>
+          <p className="text-2xl font-bold text-foreground">{items_modified}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Items Modified</p>
         </div>
         <div className="rounded-lg border bg-background p-4 text-center">
           <p className="text-2xl font-bold text-quality-good">
             {items_verified}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Items Verified
-          </p>
+          <p className="mt-1 text-xs text-muted-foreground">Items Verified</p>
         </div>
         <div className="rounded-lg border bg-background p-4 text-center">
           <p className="text-2xl font-bold text-status-warning">
             {items_flagged}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Items Flagged
-          </p>
+          <p className="mt-1 text-xs text-muted-foreground">Items Flagged</p>
         </div>
       </div>
       {freshness_breakdown && (

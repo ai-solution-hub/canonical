@@ -28,25 +28,27 @@ export async function PATCH(
 
     const updates: Record<string, unknown> = {};
     if (parsed.data.label !== undefined) updates.label = parsed.data.label;
-    if (parsed.data.description !== undefined) updates.description = parsed.data.description;
-    if (parsed.data.display_order !== undefined) updates.display_order = parsed.data.display_order;
-    if (parsed.data.is_active !== undefined) updates.is_active = parsed.data.is_active;
+    if (parsed.data.description !== undefined)
+      updates.description = parsed.data.description;
+    if (parsed.data.display_order !== undefined)
+      updates.display_order = parsed.data.display_order;
+    if (parsed.data.is_active !== undefined)
+      updates.is_active = parsed.data.is_active;
     updates.updated_at = new Date().toISOString();
 
     const { data, error } = await supabase
       .from('layer_vocabulary')
       .update(updates)
       .eq('id', id)
-      .select('id, key, label, description, display_order, is_active, created_at, updated_at')
+      .select(
+        'id, key, label, description, display_order, is_active, created_at, updated_at',
+      )
       .single();
 
     if (error) {
       // PGRST116 = no rows found
       if (error.code === 'PGRST116') {
-        return NextResponse.json(
-          { error: 'Layer not found' },
-          { status: 404 },
-        );
+        return NextResponse.json({ error: 'Layer not found' }, { status: 404 });
       }
       return NextResponse.json(
         { error: safeErrorMessage(error, 'Failed to update layer') },
@@ -55,10 +57,7 @@ export async function PATCH(
     }
 
     if (!data) {
-      return NextResponse.json(
-        { error: 'Layer not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Layer not found' }, { status: 404 });
     }
 
     return NextResponse.json(data);
@@ -94,10 +93,7 @@ export async function DELETE(
       .single();
 
     if (lookupError || !layer) {
-      return NextResponse.json(
-        { error: 'Layer not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Layer not found' }, { status: 404 });
     }
 
     // Check if any content items use this layer key

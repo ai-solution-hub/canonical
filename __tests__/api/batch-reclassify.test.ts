@@ -76,9 +76,7 @@ describe('batch_reclassify helpers', () => {
       });
 
       it('matches a word repeated 4+ times with hyphens', () => {
-        expect(
-          GARBLED_KEYWORD_REGEX.test('data-data-data-data'),
-        ).toBe(true);
+        expect(GARBLED_KEYWORD_REGEX.test('data-data-data-data')).toBe(true);
       });
     });
 
@@ -99,15 +97,11 @@ describe('batch_reclassify helpers', () => {
       });
 
       it('does not match two occurrences (needs 3+)', () => {
-        expect(
-          GARBLED_KEYWORD_REGEX.test('data-data'),
-        ).toBe(false);
+        expect(GARBLED_KEYWORD_REGEX.test('data-data')).toBe(false);
       });
 
       it('does not match normal multi-word keywords', () => {
-        expect(GARBLED_KEYWORD_REGEX.test('cyber security policy')).toBe(
-          false,
-        );
+        expect(GARBLED_KEYWORD_REGEX.test('cyber security policy')).toBe(false);
       });
 
       it('does not match an empty string', () => {
@@ -141,28 +135,21 @@ describe('batch_reclassify helpers', () => {
     });
 
     it('returns false for clean keywords', () => {
-      expect(
-        hasGarbledKeywords(['ISO 27001', 'data protection', 'GDPR']),
-      ).toBe(false);
+      expect(hasGarbledKeywords(['ISO 27001', 'data protection', 'GDPR'])).toBe(
+        false,
+      );
     });
 
     it('returns true when any keyword is garbled', () => {
       expect(
-        hasGarbledKeywords([
-          'ISO 27001',
-          'security-security-security',
-          'GDPR',
-        ]),
+        hasGarbledKeywords(['ISO 27001', 'security-security-security', 'GDPR']),
       ).toBe(true);
     });
 
     it('returns true when all keywords are garbled', () => {
-      expect(
-        hasGarbledKeywords([
-          'data-data-data',
-          'cloud-cloud-cloud',
-        ]),
-      ).toBe(true);
+      expect(hasGarbledKeywords(['data-data-data', 'cloud-cloud-cloud'])).toBe(
+        true,
+      );
     });
   });
 
@@ -196,9 +183,9 @@ describe('batch_reclassify helpers', () => {
     });
 
     it('matches "[EDITORIAL NOTE]"', () => {
-      expect(hasEditorialNotes('[EDITORIAL NOTE] remove before publishing')).toBe(
-        true,
-      );
+      expect(
+        hasEditorialNotes('[EDITORIAL NOTE] remove before publishing'),
+      ).toBe(true);
     });
 
     it('matches "ACTION: ..."', () => {

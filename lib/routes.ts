@@ -8,7 +8,11 @@
  * Note: /.well-known is an API-like route handled separately in proxy.ts
  * and does not need UI-level guards.
  */
-export const PUBLIC_ROUTES = ['/login', '/auth/callback', '/oauth/consent'] as const;
+export const PUBLIC_ROUTES = [
+  '/login',
+  '/auth/callback',
+  '/oauth/consent',
+] as const;
 
 /** Check whether a pathname matches a public (unauthenticated) route. */
 export function isPublicRoute(pathname: string): boolean {

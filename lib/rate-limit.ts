@@ -73,7 +73,11 @@ export function checkRateLimit(
   }
 
   record.count++;
-  return { allowed: true, remaining: limit - record.count, resetAt: record.resetTime };
+  return {
+    allowed: true,
+    remaining: limit - record.count,
+    resetAt: record.resetTime,
+  };
 }
 
 /**

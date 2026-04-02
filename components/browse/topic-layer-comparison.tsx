@@ -6,7 +6,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ExternalLink } from 'lucide-react';
-import { getLayerLabel, getOrderedLayers } from '@/lib/validation/layer-schemas';
+import {
+  getLayerLabel,
+  getOrderedLayers,
+} from '@/lib/validation/layer-schemas';
 import { cn } from '@/lib/utils';
 import type { LayerItem } from '@/hooks/use-topic-layer-content';
 

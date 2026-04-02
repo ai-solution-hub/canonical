@@ -21,7 +21,9 @@ import { useItemDetailShortcuts } from '@/hooks/use-item-detail-shortcuts';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function createParams(overrides: Partial<Parameters<typeof useItemDetailShortcuts>[0]> = {}) {
+function createParams(
+  overrides: Partial<Parameters<typeof useItemDetailShortcuts>[0]> = {},
+) {
   return {
     itemId: 'item-1',
     toggleRead: vi.fn(),
@@ -39,7 +41,14 @@ function createParams(overrides: Partial<Parameters<typeof useItemDetailShortcut
     setEditStandard: vi.fn(),
     setEditAdvanced: vi.fn(),
     setEditDirty: vi.fn(),
-    router: { push: vi.fn(), replace: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn(), prefetch: vi.fn() } as Parameters<typeof useItemDetailShortcuts>[0]['router'],
+    router: {
+      push: vi.fn(),
+      replace: vi.fn(),
+      back: vi.fn(),
+      forward: vi.fn(),
+      refresh: vi.fn(),
+      prefetch: vi.fn(),
+    } as Parameters<typeof useItemDetailShortcuts>[0]['router'],
     detailMode: 'editor' as const,
     toggleDetailMode: vi.fn(),
     ...overrides,
@@ -66,7 +75,9 @@ describe('useItemDetailShortcuts', () => {
     fireEvent.keyDown(window, { key: 'm' });
 
     expect(params.toggleRead).toHaveBeenCalledWith('item-1');
-    expect(mockToast).toHaveBeenCalledWith('Read state toggled', { duration: 1500 });
+    expect(mockToast).toHaveBeenCalledWith('Read state toggled', {
+      duration: 1500,
+    });
   });
 
   it('does not call toggleRead when meta key is held', () => {

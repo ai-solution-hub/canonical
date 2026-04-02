@@ -5,7 +5,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ExternalLink, Flag, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { FeedArticle, ArticleTab } from '@/hooks/intelligence/use-feed-articles';
+import type {
+  FeedArticle,
+  ArticleTab,
+} from '@/hooks/intelligence/use-feed-articles';
 
 interface ArticleCardProps {
   article: FeedArticle;
@@ -26,9 +29,12 @@ function formatDate(dateString: string | null): string {
 
 function getRelevanceColourClass(score: number | null): string {
   if (score === null) return '';
-  if (score >= 0.8) return 'bg-[var(--color-relevance-high)] text-[var(--color-relevance-high-text)]';
-  if (score >= 0.5) return 'bg-[var(--color-relevance-medium)] text-[var(--color-relevance-medium-text)]';
-  if (score >= 0.2) return 'bg-[var(--color-relevance-low)] text-[var(--color-relevance-low-text)]';
+  if (score >= 0.8)
+    return 'bg-[var(--color-relevance-high)] text-[var(--color-relevance-high-text)]';
+  if (score >= 0.5)
+    return 'bg-[var(--color-relevance-medium)] text-[var(--color-relevance-medium-text)]';
+  if (score >= 0.2)
+    return 'bg-[var(--color-relevance-low)] text-[var(--color-relevance-low-text)]';
   return 'bg-[var(--color-relevance-irrelevant)] text-[var(--color-relevance-irrelevant-text)]';
 }
 
@@ -45,7 +51,8 @@ export function ArticleCard({
 }: ArticleCardProps) {
   const [expanded, setExpanded] = useState(false);
 
-  const reasoning = tab === 'passed' ? article.ai_summary : article.relevance_reasoning;
+  const reasoning =
+    tab === 'passed' ? article.ai_summary : article.relevance_reasoning;
   const reasoningLabel = tab === 'passed' ? 'Summary' : 'Relevance reasoning';
 
   return (

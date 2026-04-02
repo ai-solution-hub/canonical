@@ -12,7 +12,22 @@
     "app_url": "http://localhost:6100/search",
     "taxonomy": {
       "domains": ["security", "compliance", "implementation", "support", "corporate", "product-feature", "methodology"],
-      "content_types": ["article", "blog", "pdf", "note", "research", "other", "q_a_pair", "case_study", "policy", "certification", "compliance", "methodology", "capability", "product_description"]
+      "content_types": [
+        "article",
+        "blog",
+        "pdf",
+        "note",
+        "research",
+        "other",
+        "q_a_pair",
+        "case_study",
+        "policy",
+        "certification",
+        "compliance",
+        "methodology",
+        "capability",
+        "product_description"
+      ]
     },
     "notes": "All test cases use realistic UK bid management search queries. Default threshold is 0.35. The hybrid_search RPC combines embedding similarity (70%) + title match (15%) + keyword match (10%) + summary/author (5%) + recency (5%). Content is primarily Q&A pairs from bid libraries."
   },

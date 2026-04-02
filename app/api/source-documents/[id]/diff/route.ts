@@ -7,7 +7,10 @@ import {
 } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
-import { DiffRequestBodySchema, DiffReviewUpdateBodySchema } from '@/lib/validation/schemas';
+import {
+  DiffRequestBodySchema,
+  DiffReviewUpdateBodySchema,
+} from '@/lib/validation/schemas';
 import { computeDocumentDiff } from '@/lib/source-documents/document-diff';
 
 export const maxDuration = 30;
@@ -59,7 +62,12 @@ export async function GET(
 
     // Determine the diff pair: this document could be either the old or new side.
     // Try as old_document_id first (this is the parent, looking for diffs with a child).
-    type DocInfo = { id: string; filename: string; version: number; created_at: string };
+    type DocInfo = {
+      id: string;
+      filename: string;
+      version: number;
+      created_at: string;
+    };
     let oldDoc: DocInfo = doc;
     let newDoc: DocInfo | null = null;
 
@@ -113,38 +121,35 @@ export async function GET(
     }
 
     // Fetch all diff entries for this document pair
-    const { data: entries, error: entriesErr } = await supabase
+    const { data: entries, error: entriesErr } = (await supabase
       .from('source_document_diffs')
       .select(
         'id, diff_type, diff_mode, old_question, new_question, old_content, new_content, similarity_score, section_header, affected_content_item_id, status, reviewer_note',
       )
       .eq('old_document_id', oldDoc.id)
       .eq('new_document_id', newDoc.id)
-      .order('diff_type') as unknown as {
-        data: Array<{
-          id: string;
-          diff_type: string;
-          diff_mode: string | null;
-          old_question: string | null;
-          new_question: string | null;
-          old_content: string | null;
-          new_content: string | null;
-          similarity_score: number | null;
-          section_header: string | null;
-          affected_content_item_id: string | null;
-          status: string;
-          reviewer_note: string | null;
-        }> | null;
-        error: { message: string; code?: string } | null;
-      };
+      .order('diff_type')) as unknown as {
+      data: Array<{
+        id: string;
+        diff_type: string;
+        diff_mode: string | null;
+        old_question: string | null;
+        new_question: string | null;
+        old_content: string | null;
+        new_content: string | null;
+        similarity_score: number | null;
+        section_header: string | null;
+        affected_content_item_id: string | null;
+        status: string;
+        reviewer_note: string | null;
+      }> | null;
+      error: { message: string; code?: string } | null;
+    };
 
     if (entriesErr) {
       return NextResponse.json(
         {
-          error: safeErrorMessage(
-            entriesErr,
-            'Failed to fetch diff entries',
-          ),
+          error: safeErrorMessage(entriesErr, 'Failed to fetch diff entries'),
         },
         { status: 500 },
       );
@@ -197,8 +202,7 @@ export async function GET(
       affected_item: entry.affected_content_item_id
         ? {
             id: entry.affected_content_item_id,
-            title:
-              affectedTitles[entry.affected_content_item_id] ?? 'Untitled',
+            title: affectedTitles[entry.affected_content_item_id] ?? 'Untitled',
           }
         : undefined,
       status: entry.status,
@@ -266,10 +270,7 @@ export async function POST(
     try {
       raw = await request.json();
     } catch {
-      return NextResponse.json(
-        { error: 'Invalid JSON body' },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
     const parsed = parseBody(DiffRequestBodySchema, raw);
     if (!parsed.success) return parsed.response;
@@ -401,10 +402,7 @@ export async function PATCH(
     try {
       raw = await request.json();
     } catch {
-      return NextResponse.json(
-        { error: 'Invalid JSON body' },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
     const parsed = parseBody(DiffReviewUpdateBodySchema, raw);
     if (!parsed.success) return parsed.response;
@@ -424,7 +422,9 @@ export async function PATCH(
 
     if (missingIds.length > 0) {
       return NextResponse.json(
-        { error: `Entry IDs do not belong to this document: ${missingIds.join(', ')}` },
+        {
+          error: `Entry IDs do not belong to this document: ${missingIds.join(', ')}`,
+        },
         { status: 404 },
       );
     }
@@ -442,7 +442,11 @@ export async function PATCH(
     }
 
     const now = new Date().toISOString();
-    const updatedResults: Array<{ id: string; status: string; updated_at: string }> = [];
+    const updatedResults: Array<{
+      id: string;
+      status: string;
+      updated_at: string;
+    }> = [];
 
     for (const [status, ids] of Object.entries(byStatus)) {
       const isReviewed = status !== 'pending_review';

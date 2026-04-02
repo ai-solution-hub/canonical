@@ -47,10 +47,14 @@ export async function GET(request: NextRequest) {
 
   try {
     const supabase = createServiceClient();
-    const batchSize = parseInt(process.env.CLASSIFICATION_BATCH_SIZE ?? '', 10) || DEFAULT_BATCH_SIZE;
+    const batchSize =
+      parseInt(process.env.CLASSIFICATION_BATCH_SIZE ?? '', 10) ||
+      DEFAULT_BATCH_SIZE;
 
     // Calculate the date threshold for stale classifications
-    const staleDate = new Date(Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    const staleDate = new Date(
+      Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000,
+    ).toISOString();
 
     // Also consider taxonomy changes (spec §10b.5)
     const { data: latestTaxonomy } = await supabase
@@ -66,7 +70,9 @@ export async function GET(request: NextRequest) {
     // Also include items classified before the latest taxonomy change
     const { data: candidates, error: queryError } = await supabase
       .from('content_items')
-      .select('id, title, primary_domain, primary_subtopic, classification_confidence, classified_at')
+      .select(
+        'id, title, primary_domain, primary_subtopic, classification_confidence, classified_at',
+      )
       .is('archived_at', null)
       .or(
         `classification_confidence.lt.${CONFIDENCE_THRESHOLD},classified_at.is.null,classified_at.lt.${staleDate}${taxonomyDate ? `,classified_at.lt.${taxonomyDate}` : ''}`,
@@ -115,7 +121,9 @@ export async function GET(request: NextRequest) {
     for (const item of items) {
       // Check timeout
       if (Date.now() - startTime > TIMEOUT_BUFFER_MS) {
-        console.warn(`Classification quality: timeout approaching after ${results.length} items`);
+        console.warn(
+          `Classification quality: timeout approaching after ${results.length} items`,
+        );
         break;
       }
 
@@ -216,7 +224,10 @@ export async function GET(request: NextRequest) {
         console.error(`Classification failed for ${item.id}:`, errMsg);
 
         // Stop on rate limit
-        if (errMsg.includes('429') || errMsg.toLowerCase().includes('rate limit')) {
+        if (
+          errMsg.includes('429') ||
+          errMsg.toLowerCase().includes('rate limit')
+        ) {
           console.warn('Claude API rate limited — stopping batch');
           results.push({
             itemId: item.id,
@@ -252,12 +263,17 @@ export async function GET(request: NextRequest) {
         })),
       );
 
-      const { error: bulkError } = await createBulkNotifications(supabase, notifications);
+      const { error: bulkError } = await createBulkNotifications(
+        supabase,
+        notifications,
+      );
       if (!bulkError) notificationsCreated = notifications.length;
     }
 
     // Log to pipeline_runs
-    const autoUpdated = results.filter((r) => r.action === 'auto_updated').length;
+    const autoUpdated = results.filter(
+      (r) => r.action === 'auto_updated',
+    ).length;
     const unchanged = results.filter((r) => r.action === 'unchanged').length;
     const errors = results.filter((r) => r.action === 'error').length;
 

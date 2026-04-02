@@ -109,7 +109,8 @@ export async function POST(
     );
 
     // Update the response (overall_score written to both column and metadata for backward compat)
-    const overallScore = draftResult.metadata.quality_data?.overall_score ?? null;
+    const overallScore =
+      draftResult.metadata.quality_data?.overall_score ?? null;
     const { data: updated, error: updateError } = await supabase
       .from('bid_responses')
       .update({

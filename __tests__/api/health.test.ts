@@ -17,7 +17,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const { mockSelect, mockSupabaseDirectClient } = vi.hoisted(() => {
   const mockSelect = vi.fn();
-  const mockSupabaseDirectClient = { from: vi.fn().mockReturnValue({ select: mockSelect }) };
+  const mockSupabaseDirectClient = {
+    from: vi.fn().mockReturnValue({ select: mockSelect }),
+  };
   return { mockSelect, mockSupabaseDirectClient };
 });
 

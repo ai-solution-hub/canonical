@@ -8,10 +8,7 @@ import { FeedArticleListParamsSchema } from '@/lib/validation/schemas';
 type RouteContext = { params: Promise<{ id: string }> };
 
 /** GET /api/intelligence/workspaces/:id/articles — list articles (passed or filtered) */
-export async function GET(
-  request: NextRequest,
-  context: RouteContext,
-) {
+export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
     const auth = await getAuthorisedClient(['admin', 'editor']);

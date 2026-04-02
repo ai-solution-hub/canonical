@@ -27,8 +27,9 @@ describe('bridgeTemporalReferencesToEntities', () => {
 
   function setupEntityMentions(mentions: unknown[]) {
     // Second call: entity_mentions query (resolves via then)
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (value: unknown) => void) =>
-      resolve({ data: mentions, error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (value: unknown) => void) =>
+        resolve({ data: mentions, error: null }),
     );
   }
 

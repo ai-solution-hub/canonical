@@ -113,7 +113,7 @@ function parseInlineFormatting(html: string): TextRun[] {
             bold: bold || undefined,
             italics: italic || undefined,
             underline: underline ? { type: 'single' as const } : undefined,
-          })
+          }),
         );
       }
     } else {
@@ -197,7 +197,7 @@ function htmlToDocxParagraphs(html: string): Paragraph[] {
             }),
           ],
           spacing: { before: 200, after: 100 },
-        })
+        }),
       );
       continue;
     }
@@ -217,7 +217,7 @@ function htmlToDocxParagraphs(html: string): Paragraph[] {
             ...listProps,
             children: parseInlineFormatting(trimmed),
             spacing: { after: 60 },
-          })
+          }),
         );
       }
       continue;
@@ -230,7 +230,7 @@ function htmlToDocxParagraphs(html: string): Paragraph[] {
         new Paragraph({
           children: parseInlineFormatting(trimmed),
           spacing: { after: 120 },
-        })
+        }),
       );
     }
   }
@@ -270,9 +270,7 @@ function groupBySection(questions: ExportQuestion[]): GroupedSection[] {
   const sections = Array.from(sectionMap.values());
   sections.sort((a, b) => a.sequence - b.sequence);
   for (const section of sections) {
-    section.questions.sort(
-      (a, b) => a.question_sequence - b.question_sequence
-    );
+    section.questions.sort((a, b) => a.question_sequence - b.question_sequence);
   }
 
   return sections;
@@ -287,7 +285,7 @@ function groupBySection(questions: ExportQuestion[]): GroupedSection[] {
  */
 function buildCoverSection(
   metadata: ExportBidMetadata,
-  companyName: string
+  companyName: string,
 ): ISectionOptions {
   const children: Paragraph[] = [];
 
@@ -307,7 +305,7 @@ function buildCoverSection(
         }),
       ],
       spacing: { after: 200 },
-    })
+    }),
   );
 
   // Bid title
@@ -324,7 +322,7 @@ function buildCoverSection(
         }),
       ],
       spacing: { after: 400 },
-    })
+    }),
   );
 
   // Buyer name
@@ -340,7 +338,7 @@ function buildCoverSection(
         }),
       ],
       spacing: { after: 600 },
-    })
+    }),
   );
 
   // Metadata items
@@ -351,7 +349,7 @@ function buildCoverSection(
   if (metadata.deadline) {
     const deadlineDate = new Date(metadata.deadline);
     metaItems.push(
-      `Deadline: ${format(deadlineDate, 'dd/MM/yyyy', { locale: enGB })}`
+      `Deadline: ${format(deadlineDate, 'dd/MM/yyyy', { locale: enGB })}`,
     );
   }
   if (metadata.estimated_value) {
@@ -371,7 +369,7 @@ function buildCoverSection(
           }),
         ],
         spacing: { after: 100 },
-      })
+      }),
     );
   }
 
@@ -389,7 +387,7 @@ function buildCoverSection(
         }),
       ],
       spacing: { before: 400 },
-    })
+    }),
   );
 
   return {
@@ -451,7 +449,7 @@ function buildTocSection(): ISectionOptions {
  */
 function buildQuestionParagraphs(
   question: ExportQuestion,
-  opts: { includeCitations: boolean; useAdvancedVariant: boolean }
+  opts: { includeCitations: boolean; useAdvancedVariant: boolean },
 ): Paragraph[] {
   const paragraphs: Paragraph[] = [];
 
@@ -469,7 +467,7 @@ function buildQuestionParagraphs(
         }),
       ],
       spacing: { before: 200, after: 100 },
-    })
+    }),
   );
 
   // Metadata row
@@ -481,7 +479,7 @@ function buildQuestionParagraphs(
     metaParts.push(`Weight: ${question.evaluation_weight}%`);
   }
   metaParts.push(
-    `Status: ${formatStatus(question.review_status || question.status)}`
+    `Status: ${formatStatus(question.review_status || question.status)}`,
   );
 
   paragraphs.push(
@@ -496,7 +494,7 @@ function buildQuestionParagraphs(
         }),
       ],
       spacing: { after: 120 },
-    })
+    }),
   );
 
   // Response content
@@ -519,7 +517,7 @@ function buildQuestionParagraphs(
           }),
         ],
         spacing: { after: 120 },
-      })
+      }),
     );
   }
 
@@ -551,7 +549,7 @@ function buildQuestionParagraphs(
         }),
       ],
       spacing: { after: 60 },
-    })
+    }),
   );
 
   // Citation references
@@ -573,7 +571,7 @@ function buildQuestionParagraphs(
           }),
         ],
         spacing: { after: 100 },
-      })
+      }),
     );
   }
 
@@ -589,7 +587,7 @@ function buildQuestionParagraphs(
         },
       },
       spacing: { before: 200, after: 200 },
-    })
+    }),
   );
 
   return paragraphs;
@@ -600,7 +598,7 @@ function buildQuestionParagraphs(
  */
 function buildResponsesSection(
   sections: GroupedSection[],
-  opts: { includeCitations: boolean; useAdvancedVariant: boolean }
+  opts: { includeCitations: boolean; useAdvancedVariant: boolean },
 ): ISectionOptions {
   const children: (Paragraph | TableOfContents)[] = [];
 
@@ -620,7 +618,7 @@ function buildResponsesSection(
         ],
         spacing: { before: 300, after: 150 },
         pageBreakBefore: true,
-      })
+      }),
     );
 
     for (const question of section.questions) {
@@ -688,7 +686,7 @@ function buildExportSummary(sections: GroupedSection[]): Paragraph[] {
   const allQuestions = sections.flatMap((s) => s.questions);
   const totalQuestions = allQuestions.length;
   const responsesCompleted = allQuestions.filter(
-    (q) => q.review_status === 'approved' || q.review_status === 'edited'
+    (q) => q.review_status === 'approved' || q.review_status === 'edited',
   ).length;
   const responsesPending = totalQuestions - responsesCompleted;
 
@@ -708,7 +706,7 @@ function buildExportSummary(sections: GroupedSection[]): Paragraph[] {
         }),
       ],
       spacing: { after: 300 },
-    })
+    }),
   );
 
   // Calculate average confidence
@@ -719,15 +717,15 @@ function buildExportSummary(sections: GroupedSection[]): Paragraph[] {
     no_content: 0,
   };
   const questionsWithConfidence = allQuestions.filter(
-    (q) => q.confidence_posture && q.confidence_posture in confidenceScores
+    (q) => q.confidence_posture && q.confidence_posture in confidenceScores,
   );
   const averageConfidence =
     questionsWithConfidence.length > 0
       ? Math.round(
           questionsWithConfidence.reduce(
             (sum, q) => sum + (confidenceScores[q.confidence_posture!] ?? 0),
-            0
-          ) / questionsWithConfidence.length
+            0,
+          ) / questionsWithConfidence.length,
         )
       : 0;
 
@@ -751,7 +749,7 @@ function buildExportSummary(sections: GroupedSection[]): Paragraph[] {
           }),
         ],
         spacing: { after: 60 },
-      })
+      }),
     );
   }
 
@@ -773,7 +771,7 @@ function buildExportSummary(sections: GroupedSection[]): Paragraph[] {
 export async function generateBidDocx(
   metadata: ExportBidMetadata,
   questions: ExportQuestion[],
-  options: DocxExportOptions = {}
+  options: DocxExportOptions = {},
 ): Promise<Buffer> {
   const {
     includeCover = true,
@@ -807,7 +805,7 @@ export async function generateBidDocx(
     buildResponsesSection(sections, {
       includeCitations,
       useAdvancedVariant,
-    })
+    }),
   );
 
   const doc = new Document({

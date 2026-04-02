@@ -27,7 +27,10 @@ export async function GET(
       );
     }
 
-    const parsed = parseSearchParams(WorkspaceItemsParamsSchema, request.nextUrl.searchParams);
+    const parsed = parseSearchParams(
+      WorkspaceItemsParamsSchema,
+      request.nextUrl.searchParams,
+    );
     if (!parsed.success) return parsed.response;
     const { limit } = parsed.data;
 

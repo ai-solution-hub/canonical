@@ -31,7 +31,11 @@ vi.mock('@/lib/client-config', () => ({
 }));
 
 vi.mock('@/lib/format', () => ({
-  getDisplayTitle: ({ suggested_title, title, content }: {
+  getDisplayTitle: ({
+    suggested_title,
+    title,
+    content,
+  }: {
     suggested_title: string | null;
     title: string | null;
     content: string | null;
@@ -40,24 +44,32 @@ vi.mock('@/lib/format', () => ({
 
 vi.mock('@/lib/claude-prompts', () => ({
   generateIngestUrlPrompt: (url: string) => ({ prompt: `Ingest: ${url}` }),
-  generateSummariseAndIngestPrompt: (title: string) => ({ prompt: `Summarise: ${title}` }),
+  generateSummariseAndIngestPrompt: (title: string) => ({
+    prompt: `Summarise: ${title}`,
+  }),
 }));
 
 vi.mock('@/components/shared/thumbnail', () => ({
   Thumbnail: (props: Record<string, unknown>) => (
-    <div data-testid="thumbnail" data-alt={props.alt}>Thumbnail</div>
+    <div data-testid="thumbnail" data-alt={props.alt}>
+      Thumbnail
+    </div>
   ),
 }));
 
 vi.mock('@/components/item-detail/content-tabs', () => ({
   ContentTabs: (props: Record<string, unknown>) => (
-    <div data-testid="content-tabs" data-can-edit={props.canEdit}>ContentTabs</div>
+    <div data-testid="content-tabs" data-can-edit={props.canEdit}>
+      ContentTabs
+    </div>
   ),
 }));
 
 vi.mock('@/components/item-detail/metadata-sidebar', () => ({
   MetadataSidebar: (props: Record<string, unknown>) => (
-    <div data-testid="metadata-sidebar" data-read-only={props.readOnly}>MetadataSidebar</div>
+    <div data-testid="metadata-sidebar" data-read-only={props.readOnly}>
+      MetadataSidebar
+    </div>
   ),
 }));
 
@@ -68,9 +80,7 @@ vi.mock('@/components/item-detail/organise-section', () => ({
 }));
 
 vi.mock('@/components/item-detail/entity-badges', () => ({
-  EntityBadges: () => (
-    <div data-testid="entity-badges">EntityBadges</div>
-  ),
+  EntityBadges: () => <div data-testid="entity-badges">EntityBadges</div>,
 }));
 
 vi.mock('@/components/source-document/source-document-info', () => ({
@@ -80,9 +90,7 @@ vi.mock('@/components/source-document/source-document-info', () => ({
 }));
 
 vi.mock('@/components/item-detail/version-history', () => ({
-  VersionHistory: () => (
-    <div data-testid="version-history">VersionHistory</div>
-  ),
+  VersionHistory: () => <div data-testid="version-history">VersionHistory</div>,
 }));
 
 vi.mock('@/components/item-detail/item-action-bar', () => ({
@@ -109,7 +117,13 @@ vi.mock('@/components/browse/topic-layer-comparison', () => ({
 }));
 
 vi.mock('@/components/item-detail/collapsible-section', () => ({
-  CollapsibleSection: ({ children, title }: { children: React.ReactNode; title: string }) => (
+  CollapsibleSection: ({
+    children,
+    title,
+  }: {
+    children: React.ReactNode;
+    title: string;
+  }) => (
     <div data-testid={`collapsible-${title.toLowerCase()}`}>{children}</div>
   ),
 }));
@@ -122,11 +136,16 @@ vi.mock('@/components/item-detail/related-content-section', () => ({
 
 vi.mock('@/components/item-detail/qa-provenance-sections', () => ({
   QAUsedInBids: () => <div data-testid="qa-used-in-bids">QAUsedInBids</div>,
-  QARelatedPairs: () => <div data-testid="qa-related-pairs">QARelatedPairs</div>,
+  QARelatedPairs: () => (
+    <div data-testid="qa-related-pairs">QARelatedPairs</div>
+  ),
 }));
 
 vi.mock('@/components/item-detail/content-body', () => ({
-  ContentBody: (props: { contentTabsElement?: React.ReactNode; canEdit?: boolean }) => (
+  ContentBody: (props: {
+    contentTabsElement?: React.ReactNode;
+    canEdit?: boolean;
+  }) => (
     <div data-testid="content-body" data-can-edit={props.canEdit}>
       {props.contentTabsElement}
       ContentBody
@@ -135,15 +154,23 @@ vi.mock('@/components/item-detail/content-body', () => ({
 }));
 
 vi.mock('@/components/item-detail/layer-switcher-nav', () => ({
-  LayerSwitcherNav: () => <div data-testid="layer-switcher-nav">LayerSwitcherNav</div>,
+  LayerSwitcherNav: () => (
+    <div data-testid="layer-switcher-nav">LayerSwitcherNav</div>
+  ),
 }));
 
 vi.mock('@/components/item-detail/item-title-section', () => ({
-  ItemTitleSection: () => <div data-testid="item-title-section">ItemTitleSection</div>,
+  ItemTitleSection: () => (
+    <div data-testid="item-title-section">ItemTitleSection</div>
+  ),
 }));
 
 vi.mock('@/components/item-detail/item-breadcrumb', () => ({
-  ItemBreadcrumb: () => <nav data-testid="item-breadcrumb" aria-label="Breadcrumb">ItemBreadcrumb</nav>,
+  ItemBreadcrumb: () => (
+    <nav data-testid="item-breadcrumb" aria-label="Breadcrumb">
+      ItemBreadcrumb
+    </nav>
+  ),
 }));
 
 import { EditorView } from '@/components/item-detail/editor-view';
@@ -189,8 +216,12 @@ function createMockItem(overrides: Partial<ItemData> = {}): ItemData {
   };
 }
 
-function createMockData(overrides: Partial<ItemDetailData> = {}): ItemDetailData {
-  const item = createMockItem(overrides.item ? overrides.item as Partial<ItemData> : {});
+function createMockData(
+  overrides: Partial<ItemDetailData> = {},
+): ItemDetailData {
+  const item = createMockItem(
+    overrides.item ? (overrides.item as Partial<ItemData>) : {},
+  );
   return {
     item,
     setItem: vi.fn(),
@@ -375,7 +406,9 @@ describe('EditorView', () => {
           relatedItems={[]}
         />,
       );
-      expect(screen.queryByTestId('claude-prompt-button')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('claude-prompt-button'),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -413,7 +446,9 @@ describe('EditorView', () => {
 
     it('renders article with aria-label', () => {
       render(<EditorView data={createMockData()} relatedItems={[]} />);
-      expect(screen.getByRole('article', { name: 'Test Item' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('article', { name: 'Test Item' }),
+      ).toBeInTheDocument();
     });
   });
 
@@ -456,7 +491,9 @@ describe('EditorView', () => {
           relatedItems={[]}
         />,
       );
-      expect(screen.queryByTestId('source-document-info')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('source-document-info'),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -465,7 +502,9 @@ describe('EditorView', () => {
       render(
         <EditorView
           data={createMockData({
-            item: createMockItem({ thumbnail_url: 'https://example.com/thumb.jpg' }),
+            item: createMockItem({
+              thumbnail_url: 'https://example.com/thumb.jpg',
+            }),
           })}
           relatedItems={[]}
         />,

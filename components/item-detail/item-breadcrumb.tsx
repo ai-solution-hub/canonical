@@ -24,7 +24,10 @@ export function ItemBreadcrumb({
       <nav aria-label="Breadcrumb" className="mb-4">
         <ol className="flex items-center gap-1.5 text-sm text-muted-foreground">
           <li>
-            <Link href="/library" className="hover:text-foreground transition-colors">
+            <Link
+              href="/library"
+              className="hover:text-foreground transition-colors"
+            >
               Q&A Library
             </Link>
           </li>
@@ -40,10 +43,6 @@ export function ItemBreadcrumb({
   }
 
   return (
-    <BreadcrumbNav
-      domain={primaryDomain}
-      title={title}
-      className="mb-4"
-    />
+    <BreadcrumbNav domain={primaryDomain} title={title} className="mb-4" />
   );
 }

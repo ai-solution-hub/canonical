@@ -104,7 +104,10 @@ function LayerFormDialog({
 
           <div className="space-y-4 py-4">
             <div>
-              <label htmlFor="layer-label" className="text-xs font-medium text-muted-foreground">
+              <label
+                htmlFor="layer-label"
+                className="text-xs font-medium text-muted-foreground"
+              >
                 Label
               </label>
               <Input
@@ -118,7 +121,10 @@ function LayerFormDialog({
             </div>
 
             <div>
-              <label htmlFor="layer-key" className="text-xs font-medium text-muted-foreground">
+              <label
+                htmlFor="layer-key"
+                className="text-xs font-medium text-muted-foreground"
+              >
                 Key
               </label>
               <Input
@@ -138,7 +144,10 @@ function LayerFormDialog({
             </div>
 
             <div>
-              <label htmlFor="layer-description" className="text-xs font-medium text-muted-foreground">
+              <label
+                htmlFor="layer-description"
+                className="text-xs font-medium text-muted-foreground"
+              >
                 Description
               </label>
               <Input
@@ -151,7 +160,10 @@ function LayerFormDialog({
             </div>
 
             <div>
-              <label htmlFor="layer-order" className="text-xs font-medium text-muted-foreground">
+              <label
+                htmlFor="layer-order"
+                className="text-xs font-medium text-muted-foreground"
+              >
                 Display Order
               </label>
               <Input
@@ -167,7 +179,12 @@ function LayerFormDialog({
           </div>
 
           <DialogFooter>
-            <Button variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={saving}>
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => onOpenChange(false)}
+              disabled={saving}
+            >
               Cancel
             </Button>
             <Button type="submit" disabled={saving}>
@@ -213,11 +230,12 @@ function LayerRow({
           <span className="text-sm font-medium text-foreground">
             {layer.label}
           </span>
-          <code className="text-xs text-muted-foreground">
-            {layer.key}
-          </code>
+          <code className="text-xs text-muted-foreground">{layer.key}</code>
           {!layer.is_active && (
-            <Badge variant="outline" className="text-[10px] text-muted-foreground">
+            <Badge
+              variant="outline"
+              className="text-[10px] text-muted-foreground"
+            >
               Inactive
             </Badge>
           )}
@@ -313,10 +331,10 @@ export function LayersSection() {
                 </TooltipTrigger>
                 <TooltipContent side="right" className="max-w-xs">
                   Examples: &ldquo;Summary&rdquo; for a one-paragraph overview,
-                  &ldquo;Standard&rdquo; for a typical article,
-                  &ldquo;Technical Detail&rdquo; for in-depth specifications.
-                  Depth levels help users find the right level of detail for
-                  their needs. Items can only have one depth level.
+                  &ldquo;Standard&rdquo; for a typical article, &ldquo;Technical
+                  Detail&rdquo; for in-depth specifications. Depth levels help
+                  users find the right level of detail for their needs. Items
+                  can only have one depth level.
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -326,11 +344,7 @@ export function LayersSection() {
             to full technical specification.
           </p>
         </div>
-        <Button
-          size="sm"
-          className="gap-1.5"
-          onClick={admin.openAddLayer}
-        >
+        <Button size="sm" className="gap-1.5" onClick={admin.openAddLayer}>
           <Plus className="size-3.5" />
           Add Layer
         </Button>
@@ -350,9 +364,13 @@ export function LayersSection() {
 
         {!admin.loading && admin.layers.length === 0 && (
           <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border px-6 py-12 text-center">
-            <Layers className="size-8 text-muted-foreground/50" aria-hidden="true" />
+            <Layers
+              className="size-8 text-muted-foreground/50"
+              aria-hidden="true"
+            />
             <p className="mt-3 text-sm text-muted-foreground">
-              No layers defined yet. Add your first content layer to get started.
+              No layers defined yet. Add your first content layer to get
+              started.
             </p>
           </div>
         )}
@@ -389,8 +407,8 @@ export function LayersSection() {
 
       <p className="mt-6 rounded-md border bg-muted/50 p-3 text-xs text-muted-foreground">
         New layers added here will appear in the UI immediately. However, API
-        validation for metadata updates uses a static fallback list. After adding
-        a new layer, update the <code>FALLBACK_LAYERS</code> array in{' '}
+        validation for metadata updates uses a static fallback list. After
+        adding a new layer, update the <code>FALLBACK_LAYERS</code> array in{' '}
         <code>lib/client-config.ts</code> and redeploy for full API support.
       </p>
     </div>

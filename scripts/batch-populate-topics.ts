@@ -103,7 +103,8 @@ async function main(): Promise<void> {
   const { limit, dryRun, batchSize } = parseArgs();
 
   // Validate env
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl =
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SECRET_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
@@ -112,7 +113,10 @@ async function main(): Promise<void> {
   }
 
   const supabase = createClient<Database>(supabaseUrl, supabaseKey, {
-    global: { fetch: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(300_000) }) },
+    global: {
+      fetch: (url, init) =>
+        fetch(url, { ...init, signal: AbortSignal.timeout(300_000) }),
+    },
   });
 
   // ── Step 1: Fetch all active items ──
@@ -154,10 +158,12 @@ async function main(): Promise<void> {
 
   // Filter to items that have both domain and subtopic (required for topic grouping)
   const candidates = itemsWithoutTopic
-    .filter(item => item.primary_domain && item.primary_subtopic)
+    .filter((item) => item.primary_domain && item.primary_subtopic)
     .slice(0, limit);
 
-  const skipped = itemsWithoutTopic.filter(item => !item.primary_domain || !item.primary_subtopic);
+  const skipped = itemsWithoutTopic.filter(
+    (item) => !item.primary_domain || !item.primary_subtopic,
+  );
   if (skipped.length > 0) {
     console.log(`  Skipped (no domain/subtopic): ${skipped.length}`);
   }
@@ -227,9 +233,10 @@ async function main(): Promise<void> {
     // Also check if there are existing items (already-fetched) in this domain+subtopic
     // that don't have a topic_id
     const existingUngrouped = itemsWithoutTopic.filter(
-      i => i.primary_domain === domain &&
-           i.primary_subtopic === subtopic &&
-           !items.some(c => c.id === i.id) // exclude current candidates already in items
+      (i) =>
+        i.primary_domain === domain &&
+        i.primary_subtopic === subtopic &&
+        !items.some((c) => c.id === i.id), // exclude current candidates already in items
     );
 
     const allInGroup = [...items, ...existingUngrouped];
@@ -290,11 +297,15 @@ async function main(): Promise<void> {
   console.log('\n' + '='.repeat(70));
   console.log(`  Assignments:             ${assignments.length}`);
   console.log(`  New topic groups:        ${newTopicGroups.length}`);
-  console.log(`  Existing groups matched: ${topicSummary.size - newTopicGroups.length}`);
+  console.log(
+    `  Existing groups matched: ${topicSummary.size - newTopicGroups.length}`,
+  );
   console.log('='.repeat(70));
 
   if (assignments.length === 0) {
-    console.log('\nNo assignments to make. All items either lack domain/subtopic or are singletons.');
+    console.log(
+      '\nNo assignments to make. All items either lack domain/subtopic or are singletons.',
+    );
     return;
   }
 
@@ -303,7 +314,9 @@ async function main(): Promise<void> {
   const sortedTopics = [...topicSummary.entries()].sort((a, b) => b[1] - a[1]);
   for (const [topicId, count] of sortedTopics) {
     const isNew = newTopicGroups.includes(topicId) ? ' (NEW)' : '';
-    console.log(`  ${topicId.padEnd(45)} ${String(count).padStart(3)} items${isNew}`);
+    console.log(
+      `  ${topicId.padEnd(45)} ${String(count).padStart(3)} items${isNew}`,
+    );
   }
 
   if (dryRun) {
@@ -329,7 +342,7 @@ async function main(): Promise<void> {
 
     // Small delay between batches to avoid connection pool exhaustion
     if (i > 0) {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
 
     const results = await Promise.allSettled(
@@ -341,7 +354,9 @@ async function main(): Promise<void> {
         });
 
         if (rpcErr) {
-          throw new Error(`RPC failed for ${assignment.itemId}: ${rpcErr.message}`);
+          throw new Error(
+            `RPC failed for ${assignment.itemId}: ${rpcErr.message}`,
+          );
         }
       }),
     );

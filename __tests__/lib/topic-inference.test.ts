@@ -11,7 +11,9 @@ import {
 
 type SuggestTopicParams = Parameters<typeof suggestTopic>[1];
 
-function baseParams(overrides: Partial<SuggestTopicParams> = {}): SuggestTopicParams {
+function baseParams(
+  overrides: Partial<SuggestTopicParams> = {},
+): SuggestTopicParams {
   return {
     primaryDomain: 'Compliance',
     primarySubtopic: 'Certification',
@@ -83,29 +85,28 @@ describe('suggestTopic — Pass 1: Existing topic groups', () => {
 
   it('finds existing topic group with matching domain/subtopic where suggested layer is missing', async () => {
     // Configure chain to return items with topic_id set
-    mockClient._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({
-          data: [
-            {
-              id: 'item-1',
-              title: 'ISO Certification Guide',
-              layer: 'sales_brief',
-              metadata: {
-                topic_id: 'compliance-certification',
-              },
+    mockClient._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({
+        data: [
+          {
+            id: 'item-1',
+            title: 'ISO Certification Guide',
+            layer: 'sales_brief',
+            metadata: {
+              topic_id: 'compliance-certification',
             },
-            {
-              id: 'item-2',
-              title: 'Certification Policy',
-              layer: 'company_reference',
-              metadata: {
-                topic_id: 'compliance-certification',
-              },
+          },
+          {
+            id: 'item-2',
+            title: 'Certification Policy',
+            layer: 'company_reference',
+            metadata: {
+              topic_id: 'compliance-certification',
             },
-          ],
-          error: null,
-        }),
+          },
+        ],
+        error: null,
+      }),
     );
 
     const result = await suggestTopic(asSupabase(mockClient), baseParams());
@@ -123,29 +124,28 @@ describe('suggestTopic — Pass 1: Existing topic groups', () => {
 
   it('finds group but suggested layer already exists — still suggests if gaps remain', async () => {
     // The group has sales_brief and bid_detail, suggested is bid_detail (already present)
-    mockClient._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({
-          data: [
-            {
-              id: 'item-1',
-              title: 'Brief Version',
-              layer: 'sales_brief',
-              metadata: {
-                topic_id: 'compliance-certification',
-              },
+    mockClient._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({
+        data: [
+          {
+            id: 'item-1',
+            title: 'Brief Version',
+            layer: 'sales_brief',
+            metadata: {
+              topic_id: 'compliance-certification',
             },
-            {
-              id: 'item-2',
-              title: 'Detail Version',
-              layer: 'bid_detail',
-              metadata: {
-                topic_id: 'compliance-certification',
-              },
+          },
+          {
+            id: 'item-2',
+            title: 'Detail Version',
+            layer: 'bid_detail',
+            metadata: {
+              topic_id: 'compliance-certification',
             },
-          ],
-          error: null,
-        }),
+          },
+        ],
+        error: null,
+      }),
     );
 
     const result = await suggestTopic(asSupabase(mockClient), baseParams());
@@ -161,45 +161,44 @@ describe('suggestTopic — Pass 1: Existing topic groups', () => {
 
   it('returns null when all layers are already present in the group', async () => {
     // All four layers present — no gap to fill
-    mockClient._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({
-          data: [
-            {
-              id: 'item-1',
-              title: 'Brief',
-              layer: 'sales_brief',
-              metadata: {
-                topic_id: 'compliance-certification',
-              },
+    mockClient._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({
+        data: [
+          {
+            id: 'item-1',
+            title: 'Brief',
+            layer: 'sales_brief',
+            metadata: {
+              topic_id: 'compliance-certification',
             },
-            {
-              id: 'item-2',
-              title: 'Detail',
-              layer: 'bid_detail',
-              metadata: {
-                topic_id: 'compliance-certification',
-              },
+          },
+          {
+            id: 'item-2',
+            title: 'Detail',
+            layer: 'bid_detail',
+            metadata: {
+              topic_id: 'compliance-certification',
             },
-            {
-              id: 'item-3',
-              title: 'Reference',
-              layer: 'company_reference',
-              metadata: {
-                topic_id: 'compliance-certification',
-              },
+          },
+          {
+            id: 'item-3',
+            title: 'Reference',
+            layer: 'company_reference',
+            metadata: {
+              topic_id: 'compliance-certification',
             },
-            {
-              id: 'item-4',
-              title: 'Research',
-              layer: 'research',
-              metadata: {
-                topic_id: 'compliance-certification',
-              },
+          },
+          {
+            id: 'item-4',
+            title: 'Research',
+            layer: 'research',
+            metadata: {
+              topic_id: 'compliance-certification',
             },
-          ],
-          error: null,
-        }),
+          },
+        ],
+        error: null,
+      }),
     );
 
     const result = await suggestTopic(asSupabase(mockClient), baseParams());
@@ -210,31 +209,30 @@ describe('suggestTopic — Pass 1: Existing topic groups', () => {
 
   it('selects the group where suggested layer is missing over group where it exists', async () => {
     // Two groups: group-a has bid_detail, group-b does not
-    mockClient._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({
-          data: [
-            {
-              id: 'item-a1',
-              title: 'Group A Brief',
-              layer: 'sales_brief',
-              metadata: { topic_id: 'group-a', layer: 'sales_brief' },
-            },
-            {
-              id: 'item-a2',
-              title: 'Group A Detail',
-              layer: 'bid_detail',
-              metadata: { topic_id: 'group-a', layer: 'bid_detail' },
-            },
-            {
-              id: 'item-b1',
-              title: 'Group B Brief',
-              layer: 'sales_brief',
-              metadata: { topic_id: 'group-b', layer: 'sales_brief' },
-            },
-          ],
-          error: null,
-        }),
+    mockClient._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({
+        data: [
+          {
+            id: 'item-a1',
+            title: 'Group A Brief',
+            layer: 'sales_brief',
+            metadata: { topic_id: 'group-a', layer: 'sales_brief' },
+          },
+          {
+            id: 'item-a2',
+            title: 'Group A Detail',
+            layer: 'bid_detail',
+            metadata: { topic_id: 'group-a', layer: 'bid_detail' },
+          },
+          {
+            id: 'item-b1',
+            title: 'Group B Brief',
+            layer: 'sales_brief',
+            metadata: { topic_id: 'group-b', layer: 'sales_brief' },
+          },
+        ],
+        error: null,
+      }),
     );
 
     const result = await suggestTopic(asSupabase(mockClient), baseParams());
@@ -246,9 +244,8 @@ describe('suggestTopic — Pass 1: Existing topic groups', () => {
 
   it('no topic groups exist — falls through to Pass 2', async () => {
     // Pass 1 returns no items
-    mockClient._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+    mockClient._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({ data: [], error: null }),
     );
 
     // No embedding provided — so Pass 2 also skips
@@ -261,19 +258,18 @@ describe('suggestTopic — Pass 1: Existing topic groups', () => {
   });
 
   it('handles items with topic_id but no layer gracefully', async () => {
-    mockClient._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({
-          data: [
-            {
-              id: 'item-1',
-              title: 'No Layer Item',
-              metadata: { topic_id: 'compliance-certification' },
-              // No layer key in metadata
-            },
-          ],
-          error: null,
-        }),
+    mockClient._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({
+        data: [
+          {
+            id: 'item-1',
+            title: 'No Layer Item',
+            metadata: { topic_id: 'compliance-certification' },
+            // No layer key in metadata
+          },
+        ],
+        error: null,
+      }),
     );
 
     const result = await suggestTopic(asSupabase(mockClient), baseParams());
@@ -298,8 +294,7 @@ describe('suggestTopic — Pass 2: Similarity search', () => {
   it('finds similar item without topic_id and suggests new group', async () => {
     // Pass 1: no items with topic_id (mockImplementationOnce so it's consumed)
     mockClient._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     // Pass 2 — RPC returns similar items
@@ -361,8 +356,7 @@ describe('suggestTopic — Pass 2: Similarity search', () => {
   it('returns null when similar items are in a different domain', async () => {
     // Pass 1: empty (mockImplementationOnce so it's consumed first)
     mockClient._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     // Pass 2 — RPC returns a similar item
@@ -411,8 +405,7 @@ describe('suggestTopic — Pass 2: Similarity search', () => {
   it('returns null when no similar items exist', async () => {
     // Pass 1: empty (mockImplementationOnce so it's consumed first)
     mockClient._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     // Pass 2 — RPC returns nothing
@@ -432,8 +425,7 @@ describe('suggestTopic — Pass 2: Similarity search', () => {
   it('skips similar items that already have a topic_id', async () => {
     // Pass 1: empty (mockImplementationOnce so it's consumed first)
     mockClient._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     // Pass 2 — RPC returns a similar item
@@ -442,7 +434,7 @@ describe('suggestTopic — Pass 2: Similarity search', () => {
         {
           id: 'has-topic',
           title: 'Already Grouped',
-          similarity: 0.90,
+          similarity: 0.9,
           content_type: 'article',
           content: 'Some content...',
           platform: 'web',
@@ -483,8 +475,7 @@ describe('suggestTopic — Pass 2: Similarity search', () => {
   it('handles similar item without a layer (unassigned)', async () => {
     // Pass 1: empty (mockImplementationOnce so it's consumed first)
     mockClient._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     // Pass 2 — RPC returns a similar item
@@ -535,9 +526,8 @@ describe('suggestTopic — Pass 2: Similarity search', () => {
 
   it('skips Pass 2 when no embedding is provided', async () => {
     // Pass 1: empty
-    mockClient._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+    mockClient._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({ data: [], error: null }),
     );
 
     const result = await suggestTopic(
@@ -552,9 +542,8 @@ describe('suggestTopic — Pass 2: Similarity search', () => {
 
   it('skips Pass 2 when embedding array is empty', async () => {
     // Pass 1: empty
-    mockClient._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+    mockClient._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({ data: [], error: null }),
     );
 
     const result = await suggestTopic(
@@ -600,12 +589,11 @@ describe('suggestTopic — Edge cases', () => {
   });
 
   it('handles database error in Pass 1 gracefully', async () => {
-    mockClient._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({
-          data: null,
-          error: { message: 'Connection failed' },
-        }),
+    mockClient._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({
+        data: null,
+        error: { message: 'Connection failed' },
+      }),
     );
 
     const result = await suggestTopic(
@@ -619,9 +607,8 @@ describe('suggestTopic — Edge cases', () => {
 
   it('handles RPC error in Pass 2 gracefully', async () => {
     // Pass 1: empty
-    mockClient._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+    mockClient._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({ data: [], error: null }),
     );
 
     // Pass 2 — RPC fails
@@ -640,31 +627,30 @@ describe('suggestTopic — Edge cases', () => {
 
   it('prefers group with more existing layers when both are missing the suggested layer', async () => {
     // Two groups both missing bid_detail, but group-a has 2 items vs group-b has 1
-    mockClient._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({
-          data: [
-            {
-              id: 'a1',
-              title: 'Group A - Brief',
-              layer: 'sales_brief',
-              metadata: { topic_id: 'group-a', layer: 'sales_brief' },
-            },
-            {
-              id: 'a2',
-              title: 'Group A - Reference',
-              layer: 'company_reference',
-              metadata: { topic_id: 'group-a', layer: 'company_reference' },
-            },
-            {
-              id: 'b1',
-              title: 'Group B - Brief',
-              layer: 'sales_brief',
-              metadata: { topic_id: 'group-b', layer: 'sales_brief' },
-            },
-          ],
-          error: null,
-        }),
+    mockClient._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({
+        data: [
+          {
+            id: 'a1',
+            title: 'Group A - Brief',
+            layer: 'sales_brief',
+            metadata: { topic_id: 'group-a', layer: 'sales_brief' },
+          },
+          {
+            id: 'a2',
+            title: 'Group A - Reference',
+            layer: 'company_reference',
+            metadata: { topic_id: 'group-a', layer: 'company_reference' },
+          },
+          {
+            id: 'b1',
+            title: 'Group B - Brief',
+            layer: 'sales_brief',
+            metadata: { topic_id: 'group-b', layer: 'sales_brief' },
+          },
+        ],
+        error: null,
+      }),
     );
 
     const result = await suggestTopic(asSupabase(mockClient), baseParams());

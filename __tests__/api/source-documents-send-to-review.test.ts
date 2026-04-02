@@ -34,9 +34,8 @@ vi.mock('@/lib/notifications', () => ({
 }));
 
 // Import route AFTER mocks are registered
-const { POST } = await import(
-  '@/app/api/source-documents/[id]/send-to-review/route'
-);
+const { POST } =
+  await import('@/app/api/source-documents/[id]/send-to-review/route');
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -64,19 +63,42 @@ beforeEach(() => {
   });
 
   const chainable = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const m of chainable) {
     mockSupabase._chain[m].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockReset().mockResolvedValue({ data: null, error: null });
-  mockSupabase._chain.maybeSingle.mockReset().mockResolvedValue({ data: null, error: null });
-  mockSupabase._chain.then.mockReset().mockImplementation(
-    (resolve: (v: unknown) => void) => resolve({ data: [], error: null, count: 0 }),
-  );
+  mockSupabase._chain.single
+    .mockReset()
+    .mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.maybeSingle
+    .mockReset()
+    .mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.then
+    .mockReset()
+    .mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({ data: [], error: null, count: 0 }),
+    );
 });
 
 // ---------------------------------------------------------------------------
@@ -119,7 +141,12 @@ describe('POST /api/source-documents/[id]/send-to-review', () => {
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
-            { id: ITEM_ID_1, governance_review_status: null, content_owner_id: 'owner-1', title: 'Item One' },
+            {
+              id: ITEM_ID_1,
+              governance_review_status: null,
+              content_owner_id: 'owner-1',
+              title: 'Item One',
+            },
           ],
           error: null,
         }),
@@ -190,8 +217,18 @@ describe('POST /api/source-documents/[id]/send-to-review', () => {
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
-            { id: ITEM_ID_1, governance_review_status: null, content_owner_id: 'owner-1', title: 'Item One' },
-            { id: ITEM_ID_2, governance_review_status: 'approved', content_owner_id: 'owner-2', title: 'Item Two' },
+            {
+              id: ITEM_ID_1,
+              governance_review_status: null,
+              content_owner_id: 'owner-1',
+              title: 'Item One',
+            },
+            {
+              id: ITEM_ID_2,
+              governance_review_status: 'approved',
+              content_owner_id: 'owner-2',
+              title: 'Item Two',
+            },
           ],
           error: null,
         }),
@@ -232,7 +269,12 @@ describe('POST /api/source-documents/[id]/send-to-review', () => {
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
-            { id: ITEM_ID_1, governance_review_status: 'pending', content_owner_id: 'owner-1', title: 'Item One' },
+            {
+              id: ITEM_ID_1,
+              governance_review_status: 'pending',
+              content_owner_id: 'owner-1',
+              title: 'Item One',
+            },
           ],
           error: null,
         }),
@@ -263,7 +305,12 @@ describe('POST /api/source-documents/[id]/send-to-review', () => {
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
-            { id: ITEM_ID_1, governance_review_status: 'draft', content_owner_id: null, title: 'Draft Item' },
+            {
+              id: ITEM_ID_1,
+              governance_review_status: 'draft',
+              content_owner_id: null,
+              title: 'Draft Item',
+            },
           ],
           error: null,
         }),
@@ -294,10 +341,30 @@ describe('POST /api/source-documents/[id]/send-to-review', () => {
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
-            { id: ITEM_ID_1, governance_review_status: null, content_owner_id: 'owner-1', title: 'Eligible' },
-            { id: ITEM_ID_2, governance_review_status: 'pending', content_owner_id: 'owner-2', title: 'Already Pending' },
-            { id: ITEM_ID_3, governance_review_status: 'draft', content_owner_id: null, title: 'Draft' },
-            { id: ITEM_ID_4, governance_review_status: 'changes_requested', content_owner_id: 'owner-3', title: 'Changes Req' },
+            {
+              id: ITEM_ID_1,
+              governance_review_status: null,
+              content_owner_id: 'owner-1',
+              title: 'Eligible',
+            },
+            {
+              id: ITEM_ID_2,
+              governance_review_status: 'pending',
+              content_owner_id: 'owner-2',
+              title: 'Already Pending',
+            },
+            {
+              id: ITEM_ID_3,
+              governance_review_status: 'draft',
+              content_owner_id: null,
+              title: 'Draft',
+            },
+            {
+              id: ITEM_ID_4,
+              governance_review_status: 'changes_requested',
+              content_owner_id: 'owner-3',
+              title: 'Changes Req',
+            },
           ],
           error: null,
         }),
@@ -344,7 +411,12 @@ describe('POST /api/source-documents/[id]/send-to-review', () => {
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
-            { id: ITEM_ID_1, governance_review_status: null, content_owner_id: 'owner-1', title: 'Item' },
+            {
+              id: ITEM_ID_1,
+              governance_review_status: null,
+              content_owner_id: 'owner-1',
+              title: 'Item',
+            },
           ],
           error: null,
         }),
@@ -384,8 +456,18 @@ describe('POST /api/source-documents/[id]/send-to-review', () => {
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
-            { id: ITEM_ID_1, governance_review_status: null, content_owner_id: 'owner-1', title: 'Item One' },
-            { id: ITEM_ID_2, governance_review_status: 'approved', content_owner_id: 'owner-2', title: 'Item Two' },
+            {
+              id: ITEM_ID_1,
+              governance_review_status: null,
+              content_owner_id: 'owner-1',
+              title: 'Item One',
+            },
+            {
+              id: ITEM_ID_2,
+              governance_review_status: 'approved',
+              content_owner_id: 'owner-2',
+              title: 'Item Two',
+            },
           ],
           error: null,
         }),

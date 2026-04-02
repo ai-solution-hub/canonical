@@ -16,9 +16,11 @@ export function useClaudeConnected(): boolean | null {
   const { data } = useQuery({
     queryKey: queryKeys.user.claudeConnected,
     queryFn: async (): Promise<boolean> => {
-      const result = await fetchJson<{ grants: Array<{ client?: { name?: string } }> }>(
-        '/api/oauth/grants',
-      ).catch(() => ({ grants: [] as Array<{ client?: { name?: string } }> }));
+      const result = await fetchJson<{
+        grants: Array<{ client?: { name?: string } }>;
+      }>('/api/oauth/grants').catch(() => ({
+        grants: [] as Array<{ client?: { name?: string } }>,
+      }));
 
       const grants = result.grants ?? [];
       return grants.some(

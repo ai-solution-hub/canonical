@@ -17,7 +17,9 @@ import { mockTaxonomyContext } from '../helpers/mock-contexts';
 const { mockFetch, mockTaxonomy } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
   mockTaxonomy: {
-    value: null as ReturnType<typeof import('../helpers/mock-contexts').mockTaxonomyContext> | null,
+    value: null as ReturnType<
+      typeof import('../helpers/mock-contexts').mockTaxonomyContext
+    > | null,
   },
 }));
 
@@ -29,7 +31,9 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: Record<string, unknown>) => (
-    <a href={href as string} {...props}>{children as React.ReactNode}</a>
+    <a href={href as string} {...props}>
+      {children as React.ReactNode}
+    </a>
   ),
 }));
 
@@ -47,15 +51,30 @@ vi.mock('@/components/coverage/coverage-summary-cards', () => ({
 }));
 
 vi.mock('@/components/coverage/coverage-domain-section', () => ({
-  CoverageDomainSection: ({ domainName, defaultExpanded }: { domainName: string; defaultExpanded: boolean }) => (
-    <div data-testid={`domain-section-${domainName}`} data-expanded={defaultExpanded}>
+  CoverageDomainSection: ({
+    domainName,
+    defaultExpanded,
+  }: {
+    domainName: string;
+    defaultExpanded: boolean;
+  }) => (
+    <div
+      data-testid={`domain-section-${domainName}`}
+      data-expanded={defaultExpanded}
+    >
       Domain: {domainName}
     </div>
   ),
 }));
 
 vi.mock('@/components/coverage/coverage-heatmap-view', () => ({
-  CoverageHeatmapView: ({ matrix, orderedDomains }: { matrix: unknown[]; orderedDomains: string[] }) => (
+  CoverageHeatmapView: ({
+    matrix,
+    orderedDomains,
+  }: {
+    matrix: unknown[];
+    orderedDomains: string[];
+  }) => (
     <div data-testid="coverage-heatmap-view">
       Heatmap: {matrix.length} cells, {orderedDomains.length} domains
     </div>
@@ -63,11 +82,22 @@ vi.mock('@/components/coverage/coverage-heatmap-view', () => ({
 }));
 
 vi.mock('@/hooks/use-coverage-targets', () => ({
-  useCoverageTargets: () => ({ targets: [], loading: false, error: null, saveTargets: vi.fn(), refetch: vi.fn() }),
+  useCoverageTargets: () => ({
+    targets: [],
+    loading: false,
+    error: null,
+    saveTargets: vi.fn(),
+    refetch: vi.fn(),
+  }),
 }));
 
 vi.mock('@/hooks/use-user-role', () => ({
-  useUserRole: () => ({ role: 'admin', canAdmin: true, canEdit: true, loading: false }),
+  useUserRole: () => ({
+    role: 'admin',
+    canAdmin: true,
+    canEdit: true,
+    loading: false,
+  }),
 }));
 
 vi.mock('@/components/coverage/coverage-target-progress', () => ({
@@ -79,7 +109,13 @@ vi.mock('@/components/coverage/coverage-target-editor', () => ({
 }));
 
 vi.mock('@/components/browse/coverage-layer-filter', () => ({
-  CoverageLayerFilter: ({ value, onLayerChange }: { value: string | null; onLayerChange: (v: string | null) => void }) => (
+  CoverageLayerFilter: ({
+    value,
+    onLayerChange,
+  }: {
+    value: string | null;
+    onLayerChange: (v: string | null) => void;
+  }) => (
     <select
       data-testid="layer-filter"
       value={value ?? ''}
@@ -97,10 +133,12 @@ import { CoverageContent } from '@/app/coverage/coverage-content';
 // Factories
 // ---------------------------------------------------------------------------
 
-function createCoverageResponse(overrides: Partial<{
-  matrix: unknown[];
-  summary: unknown[];
-}> = {}) {
+function createCoverageResponse(
+  overrides: Partial<{
+    matrix: unknown[];
+    summary: unknown[];
+  }> = {},
+) {
   return {
     matrix: overrides.matrix ?? [
       {
@@ -166,7 +204,9 @@ describe('CoverageContent', () => {
 
     render(<CoverageContent />);
 
-    expect(screen.getByRole('status', { name: /loading coverage data/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('status', { name: /loading coverage data/i }),
+    ).toBeInTheDocument();
   });
 
   it('shows error message and retry button on fetch failure', async () => {
@@ -195,7 +235,9 @@ describe('CoverageContent', () => {
     await waitFor(() => {
       expect(screen.getByText('No taxonomy configured')).toBeInTheDocument();
     });
-    expect(screen.getByRole('link', { name: /go to settings/i })).toHaveAttribute('href', '/settings');
+    expect(
+      screen.getByRole('link', { name: /go to settings/i }),
+    ).toHaveAttribute('href', '/settings');
   });
 
   it('renders summary cards and domain sections on success', async () => {
@@ -279,7 +321,9 @@ describe('CoverageContent', () => {
     render(<CoverageContent />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /export csv/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /export csv/i }),
+      ).toBeInTheDocument();
     });
   });
 
@@ -316,11 +360,17 @@ describe('CoverageContent', () => {
       render(<CoverageContent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('coverage-summary-cards')).toBeInTheDocument();
+        expect(
+          screen.getByTestId('coverage-summary-cards'),
+        ).toBeInTheDocument();
       });
 
-      expect(screen.getByRole('button', { name: /cards/i })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /heatmap/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /cards/i }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /heatmap/i }),
+      ).toBeInTheDocument();
     });
 
     it('defaults to Cards view (domain sections visible, heatmap not)', async () => {
@@ -333,15 +383,23 @@ describe('CoverageContent', () => {
       render(<CoverageContent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('coverage-summary-cards')).toBeInTheDocument();
+        expect(
+          screen.getByTestId('coverage-summary-cards'),
+        ).toBeInTheDocument();
       });
 
       // Card view renders domain sections
-      expect(screen.getByTestId('domain-section-Corporate')).toBeInTheDocument();
-      expect(screen.getByTestId('domain-section-Technical')).toBeInTheDocument();
+      expect(
+        screen.getByTestId('domain-section-Corporate'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByTestId('domain-section-Technical'),
+      ).toBeInTheDocument();
 
       // Heatmap should not be rendered
-      expect(screen.queryByTestId('coverage-heatmap-view')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('coverage-heatmap-view'),
+      ).not.toBeInTheDocument();
     });
 
     it('switches to heatmap view when Heatmap button is clicked', async () => {
@@ -355,7 +413,9 @@ describe('CoverageContent', () => {
       render(<CoverageContent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('coverage-summary-cards')).toBeInTheDocument();
+        expect(
+          screen.getByTestId('coverage-summary-cards'),
+        ).toBeInTheDocument();
       });
 
       await user.click(screen.getByRole('button', { name: /heatmap/i }));
@@ -364,8 +424,12 @@ describe('CoverageContent', () => {
       expect(screen.getByTestId('coverage-heatmap-view')).toBeInTheDocument();
 
       // Domain sections should no longer be visible
-      expect(screen.queryByTestId('domain-section-Corporate')).not.toBeInTheDocument();
-      expect(screen.queryByTestId('domain-section-Technical')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('domain-section-Corporate'),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('domain-section-Technical'),
+      ).not.toBeInTheDocument();
     });
 
     it('switches back to card view when Cards button is clicked', async () => {
@@ -379,7 +443,9 @@ describe('CoverageContent', () => {
       render(<CoverageContent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('coverage-summary-cards')).toBeInTheDocument();
+        expect(
+          screen.getByTestId('coverage-summary-cards'),
+        ).toBeInTheDocument();
       });
 
       // Switch to heatmap first
@@ -390,11 +456,17 @@ describe('CoverageContent', () => {
       await user.click(screen.getByRole('button', { name: /cards/i }));
 
       // Domain sections should be back
-      expect(screen.getByTestId('domain-section-Corporate')).toBeInTheDocument();
-      expect(screen.getByTestId('domain-section-Technical')).toBeInTheDocument();
+      expect(
+        screen.getByTestId('domain-section-Corporate'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByTestId('domain-section-Technical'),
+      ).toBeInTheDocument();
 
       // Heatmap should be gone
-      expect(screen.queryByTestId('coverage-heatmap-view')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('coverage-heatmap-view'),
+      ).not.toBeInTheDocument();
     });
 
     it('persists view mode to localStorage', async () => {
@@ -408,7 +480,9 @@ describe('CoverageContent', () => {
       render(<CoverageContent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('coverage-summary-cards')).toBeInTheDocument();
+        expect(
+          screen.getByTestId('coverage-summary-cards'),
+        ).toBeInTheDocument();
       });
 
       // Default persists 'cards'
@@ -433,12 +507,16 @@ describe('CoverageContent', () => {
       render(<CoverageContent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('coverage-summary-cards')).toBeInTheDocument();
+        expect(
+          screen.getByTestId('coverage-summary-cards'),
+        ).toBeInTheDocument();
       });
 
       // Should render heatmap view, not card view
       expect(screen.getByTestId('coverage-heatmap-view')).toBeInTheDocument();
-      expect(screen.queryByTestId('domain-section-Corporate')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('domain-section-Corporate'),
+      ).not.toBeInTheDocument();
     });
 
     it('toggle buttons have correct aria-pressed attributes', async () => {
@@ -452,7 +530,9 @@ describe('CoverageContent', () => {
       render(<CoverageContent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('coverage-summary-cards')).toBeInTheDocument();
+        expect(
+          screen.getByTestId('coverage-summary-cards'),
+        ).toBeInTheDocument();
       });
 
       const cardsBtn = screen.getByRole('button', { name: /cards/i });

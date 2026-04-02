@@ -15,7 +15,9 @@ describe('DraftRecoveryDialog', () => {
     vi.useRealTimers();
   });
 
-  function renderDialog(overrides: Partial<Parameters<typeof DraftRecoveryDialog>[0]> = {}) {
+  function renderDialog(
+    overrides: Partial<Parameters<typeof DraftRecoveryDialog>[0]> = {},
+  ) {
     const props = {
       hasDraft: true,
       lastSavedAt: new Date('2026-03-26T10:30:00.000Z'),

@@ -9,13 +9,18 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ContentListItem } from '@/types/content';
 
-import { CollapsibleGroup, groupItems } from '@/components/shell/collapsible-group';
+import {
+  CollapsibleGroup,
+  groupItems,
+} from '@/components/shell/collapsible-group';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function createQAItem(overrides: Partial<ContentListItem> = {}): ContentListItem {
+function createQAItem(
+  overrides: Partial<ContentListItem> = {},
+): ContentListItem {
   return {
     id: overrides.id ?? 'item-1',
     title: overrides.title ?? 'Test Q&A',
@@ -46,8 +51,12 @@ function createQAItem(overrides: Partial<ContentListItem> = {}): ContentListItem
 // ---------------------------------------------------------------------------
 
 describe('CollapsibleGroup', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
-  afterEach(() => { vi.unstubAllGlobals(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it('renders label and count badge', () => {
     render(
@@ -95,9 +104,21 @@ describe('CollapsibleGroup', () => {
 describe('groupItems', () => {
   it('groups by source (source_file column)', () => {
     const items = [
-      createQAItem({ id: '1', source_file: 'doc-a.docx', metadata: { source_file: 'doc-a.docx' } }),
-      createQAItem({ id: '2', source_file: 'doc-a.docx', metadata: { source_file: 'doc-a.docx' } }),
-      createQAItem({ id: '3', source_file: 'doc-b.docx', metadata: { source_file: 'doc-b.docx' } }),
+      createQAItem({
+        id: '1',
+        source_file: 'doc-a.docx',
+        metadata: { source_file: 'doc-a.docx' },
+      }),
+      createQAItem({
+        id: '2',
+        source_file: 'doc-a.docx',
+        metadata: { source_file: 'doc-a.docx' },
+      }),
+      createQAItem({
+        id: '3',
+        source_file: 'doc-b.docx',
+        metadata: { source_file: 'doc-b.docx' },
+      }),
     ];
     const groups = groupItems(items, 'source');
     expect(groups.get('doc-a.docx')).toHaveLength(2);

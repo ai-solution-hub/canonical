@@ -96,9 +96,8 @@ function resetMocks() {
     data: null,
     error: null,
   });
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 }
 
@@ -137,8 +136,7 @@ describe('Intelligence Feed Sources API', () => {
     it('returns empty array when no sources', async () => {
       configureRole(mockSupabase, 'admin');
       mockSupabase._chain.then.mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: [], error: null }),
+        (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
       );
 
       const request = createTestRequest(
@@ -275,7 +273,10 @@ describe('Intelligence Feed Sources API', () => {
       const request = createTestRequest(
         `/api/intelligence/workspaces/${WORKSPACE_UUID}/sources/${SOURCE_UUID}`,
       );
-      const params = createTestParams({ id: WORKSPACE_UUID, sourceId: SOURCE_UUID });
+      const params = createTestParams({
+        id: WORKSPACE_UUID,
+        sourceId: SOURCE_UUID,
+      });
       const response = await detailGET(request, { params });
       const body = await response.json();
 
@@ -293,7 +294,10 @@ describe('Intelligence Feed Sources API', () => {
       const request = createTestRequest(
         `/api/intelligence/workspaces/${WORKSPACE_UUID}/sources/${SOURCE_UUID}`,
       );
-      const params = createTestParams({ id: WORKSPACE_UUID, sourceId: SOURCE_UUID });
+      const params = createTestParams({
+        id: WORKSPACE_UUID,
+        sourceId: SOURCE_UUID,
+      });
       const response = await detailGET(request, { params });
 
       expect(response.status).toBe(404);
@@ -314,7 +318,10 @@ describe('Intelligence Feed Sources API', () => {
         `/api/intelligence/workspaces/${WORKSPACE_UUID}/sources/${SOURCE_UUID}`,
         { method: 'PATCH', body: { name: 'Updated Feed' } },
       );
-      const params = createTestParams({ id: WORKSPACE_UUID, sourceId: SOURCE_UUID });
+      const params = createTestParams({
+        id: WORKSPACE_UUID,
+        sourceId: SOURCE_UUID,
+      });
       const response = await detailPATCH(request, { params });
       const body = await response.json();
 
@@ -333,7 +340,10 @@ describe('Intelligence Feed Sources API', () => {
         `/api/intelligence/workspaces/${WORKSPACE_UUID}/sources/${SOURCE_UUID}`,
         { method: 'PATCH', body: { name: 'Updated' } },
       );
-      const params = createTestParams({ id: WORKSPACE_UUID, sourceId: SOURCE_UUID });
+      const params = createTestParams({
+        id: WORKSPACE_UUID,
+        sourceId: SOURCE_UUID,
+      });
       const response = await detailPATCH(request, { params });
 
       expect(response.status).toBe(404);
@@ -354,7 +364,10 @@ describe('Intelligence Feed Sources API', () => {
         `/api/intelligence/workspaces/${WORKSPACE_UUID}/sources/${SOURCE_UUID}`,
         { method: 'DELETE' },
       );
-      const params = createTestParams({ id: WORKSPACE_UUID, sourceId: SOURCE_UUID });
+      const params = createTestParams({
+        id: WORKSPACE_UUID,
+        sourceId: SOURCE_UUID,
+      });
       const response = await detailDELETE(request, { params });
       const body = await response.json();
 
@@ -366,15 +379,17 @@ describe('Intelligence Feed Sources API', () => {
     it('hard-deletes source with confirm param', async () => {
       configureRole(mockSupabase, 'admin');
       mockSupabase._chain.then.mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: null, error: null }),
+        (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
       );
 
       const request = createTestRequest(
         `/api/intelligence/workspaces/${WORKSPACE_UUID}/sources/${SOURCE_UUID}`,
         { method: 'DELETE', searchParams: { confirm: 'hard_delete' } },
       );
-      const params = createTestParams({ id: WORKSPACE_UUID, sourceId: SOURCE_UUID });
+      const params = createTestParams({
+        id: WORKSPACE_UUID,
+        sourceId: SOURCE_UUID,
+      });
       const response = await detailDELETE(request, { params });
       const body = await response.json();
 
@@ -390,7 +405,10 @@ describe('Intelligence Feed Sources API', () => {
         `/api/intelligence/workspaces/${WORKSPACE_UUID}/sources/${SOURCE_UUID}`,
         { method: 'DELETE' },
       );
-      const params = createTestParams({ id: WORKSPACE_UUID, sourceId: SOURCE_UUID });
+      const params = createTestParams({
+        id: WORKSPACE_UUID,
+        sourceId: SOURCE_UUID,
+      });
       const response = await detailDELETE(request, { params });
 
       expect(response.status).toBe(403);
@@ -403,7 +421,10 @@ describe('Intelligence Feed Sources API', () => {
         `/api/intelligence/workspaces/${WORKSPACE_UUID}/sources/${SOURCE_UUID}`,
         { method: 'DELETE' },
       );
-      const params = createTestParams({ id: WORKSPACE_UUID, sourceId: SOURCE_UUID });
+      const params = createTestParams({
+        id: WORKSPACE_UUID,
+        sourceId: SOURCE_UUID,
+      });
       const response = await detailDELETE(request, { params });
 
       expect(response.status).toBe(401);
@@ -420,7 +441,10 @@ describe('Intelligence Feed Sources API', () => {
         `/api/intelligence/workspaces/${WORKSPACE_UUID}/sources/${SOURCE_UUID}`,
         { method: 'DELETE' },
       );
-      const params = createTestParams({ id: WORKSPACE_UUID, sourceId: SOURCE_UUID });
+      const params = createTestParams({
+        id: WORKSPACE_UUID,
+        sourceId: SOURCE_UUID,
+      });
       const response = await detailDELETE(request, { params });
 
       expect(response.status).toBe(404);

@@ -84,7 +84,8 @@ function hashToAngle(str: string): number {
 }
 
 /** Default sizes hint for the browse grid (1-4 columns within max-w-7xl). */
-const GRID_SIZES = '(max-width: 640px) calc(100vw - 2rem), (max-width: 1024px) calc(50vw - 3rem), (max-width: 1280px) calc(33vw - 3rem), calc(25vw - 3rem)';
+const GRID_SIZES =
+  '(max-width: 640px) calc(100vw - 2rem), (max-width: 1024px) calc(50vw - 3rem), (max-width: 1280px) calc(33vw - 3rem), calc(25vw - 3rem)';
 
 interface ThumbnailProps {
   src: string | null;
@@ -155,7 +156,9 @@ export function Thumbnail({
   }
 
   return (
-    <div className={`${aspectClass} relative overflow-hidden rounded-lg ${className}`}>
+    <div
+      className={`${aspectClass} relative overflow-hidden rounded-lg ${className}`}
+    >
       <Image
         src={src}
         alt={alt}

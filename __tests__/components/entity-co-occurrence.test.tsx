@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { EntityCoOccurrence, type CoOccurrencePair } from '@/components/item-detail/entity-co-occurrence';
+import {
+  EntityCoOccurrence,
+  type CoOccurrencePair,
+} from '@/components/item-detail/entity-co-occurrence';
 
 // ---------------------------------------------------------------------------
 // Mock fetch globally
@@ -72,7 +75,9 @@ describe('EntityCoOccurrence', () => {
 
     render(<EntityCoOccurrence show defaultOpen />);
 
-    expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('status', { name: /loading/i }),
+    ).toBeInTheDocument();
   });
 
   it('renders entity pairs after successful fetch', async () => {
@@ -178,7 +183,9 @@ describe('EntityCoOccurrence', () => {
     });
 
     // Check the list structure
-    const list = screen.getByRole('list', { name: /co-occurring entity pairs/i });
+    const list = screen.getByRole('list', {
+      name: /co-occurring entity pairs/i,
+    });
     expect(list).toBeInTheDocument();
 
     const items = screen.getAllByRole('listitem');

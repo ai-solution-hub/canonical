@@ -23,7 +23,9 @@ import type { CoverageSummaryRow } from '@/components/coverage/coverage-summary-
 const DOMAIN_UUID = '00000000-0000-4000-8000-000000000001';
 const DOMAIN_UUID_2 = '00000000-0000-4000-8000-000000000002';
 
-function makeTarget(overrides: Partial<CoverageTargetRow> = {}): CoverageTargetRow {
+function makeTarget(
+  overrides: Partial<CoverageTargetRow> = {},
+): CoverageTargetRow {
   return {
     id: '00000000-0000-4000-8000-000000000010',
     domain_id: DOMAIN_UUID,
@@ -34,7 +36,9 @@ function makeTarget(overrides: Partial<CoverageTargetRow> = {}): CoverageTargetR
   };
 }
 
-function makeCoverage(overrides: Partial<CoverageSummaryRow> = {}): CoverageSummaryRow {
+function makeCoverage(
+  overrides: Partial<CoverageSummaryRow> = {},
+): CoverageSummaryRow {
   return {
     domain_name: 'Compliance',
     domain_colour: 'corporate',
@@ -137,8 +141,19 @@ describe('CoverageTargetProgress', () => {
     render(
       <CoverageTargetProgress
         targets={[
-          makeTarget({ domain_id: DOMAIN_UUID, domain_name: 'Compliance', metric_name: 'item_count', target_value: 10 }),
-          makeTarget({ id: '00000000-0000-4000-8000-000000000020', domain_id: DOMAIN_UUID_2, domain_name: 'HR', metric_name: 'item_count', target_value: 5 }),
+          makeTarget({
+            domain_id: DOMAIN_UUID,
+            domain_name: 'Compliance',
+            metric_name: 'item_count',
+            target_value: 10,
+          }),
+          makeTarget({
+            id: '00000000-0000-4000-8000-000000000020',
+            domain_id: DOMAIN_UUID_2,
+            domain_name: 'HR',
+            metric_name: 'item_count',
+            target_value: 5,
+          }),
         ]}
         coverageData={[
           makeCoverage({ domain_name: 'Compliance', total_items: 15 }),
@@ -173,7 +188,9 @@ describe('CoverageTargetProgress', () => {
     );
 
     // No domain cards should render
-    expect(container.querySelectorAll('[class*="rounded-lg border"]')).toHaveLength(0);
+    expect(
+      container.querySelectorAll('[class*="rounded-lg border"]'),
+    ).toHaveLength(0);
   });
 
   it('has accessible aria labels on progress bars', () => {

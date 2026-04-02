@@ -52,7 +52,9 @@ import { ContentCard } from '@/components/content/content-card';
 // Mock data factory
 // ---------------------------------------------------------------------------
 
-function makeContentItem(overrides: Partial<ContentListItem> = {}): ContentListItem {
+function makeContentItem(
+  overrides: Partial<ContentListItem> = {},
+): ContentListItem {
   return {
     id: 'item-1',
     title: 'Default Article Title',
@@ -87,7 +89,9 @@ function makeContentItem(overrides: Partial<ContentListItem> = {}): ContentListI
 describe('ContentCard', () => {
   it('renders the title', () => {
     render(<ContentCard item={makeContentItem()} />);
-    expect(screen.getAllByText('Default Article Title').length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getAllByText('Default Article Title').length,
+    ).toBeGreaterThanOrEqual(1);
   });
 
   it('prefers suggested_title over title', () => {
@@ -96,7 +100,9 @@ describe('ContentCard', () => {
         item={makeContentItem({ suggested_title: 'Better Title' })}
       />,
     );
-    expect(screen.getAllByText('Better Title').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Better Title').length).toBeGreaterThanOrEqual(
+      1,
+    );
   });
 
   // ── Q&A pair card ──
@@ -125,7 +131,9 @@ describe('ContentCard', () => {
       />,
     );
     expect(screen.getByText(/A:/)).toBeInTheDocument();
-    expect(screen.getByText(/The answer is clearly defined/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/The answer is clearly defined/),
+    ).toBeInTheDocument();
   });
 
   it('shows source document for Q&A pair cards', () => {
@@ -202,22 +210,12 @@ describe('ContentCard', () => {
   // ── Quality flag indicator ──
 
   it('shows quality flag when hasQualityFlag is true', () => {
-    render(
-      <ContentCard
-        item={makeContentItem()}
-        hasQualityFlag={true}
-      />,
-    );
+    render(<ContentCard item={makeContentItem()} hasQualityFlag={true} />);
     expect(screen.getByText('Quality')).toBeInTheDocument();
   });
 
   it('does not show quality flag when hasQualityFlag is false', () => {
-    render(
-      <ContentCard
-        item={makeContentItem()}
-        hasQualityFlag={false}
-      />,
-    );
+    render(<ContentCard item={makeContentItem()} hasQualityFlag={false} />);
     expect(screen.queryByText('Quality')).not.toBeInTheDocument();
   });
 
@@ -248,9 +246,7 @@ describe('ContentCard', () => {
 
   it('renders domain badge with correct domain name', () => {
     render(
-      <ContentCard
-        item={makeContentItem({ primary_domain: 'Technical' })}
-      />,
+      <ContentCard item={makeContentItem({ primary_domain: 'Technical' })} />,
     );
     expect(screen.getByText('Technical')).toBeInTheDocument();
   });
@@ -299,9 +295,7 @@ describe('ContentCard', () => {
   });
 
   it('shows full breakdown tooltip when simplifiedQuality is omitted', () => {
-    const { container } = render(
-      <ContentCard item={makeContentItem()} />,
-    );
+    const { container } = render(<ContentCard item={makeContentItem()} />);
     // Default (no simplified prop) should show full breakdown
     const qualityBadge = container.querySelector('[title^="Freshness:"]');
     expect(qualityBadge).toBeInTheDocument();

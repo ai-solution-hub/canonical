@@ -77,12 +77,12 @@ export function ReuploadBanner({
         <p
           className={cn(
             'text-sm font-medium',
-            isIdentical
-              ? 'text-freshness-aging'
-              : 'text-primary',
+            isIdentical ? 'text-freshness-aging' : 'text-primary',
           )}
         >
-          {isIdentical ? 'Duplicate file detected' : 'Updated document detected'}
+          {isIdentical
+            ? 'Duplicate file detected'
+            : 'Updated document detected'}
         </p>
         <p className="mt-1 text-sm text-muted-foreground">
           {isIdentical

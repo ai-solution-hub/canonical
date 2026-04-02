@@ -49,16 +49,41 @@ function resetMocks() {
   });
 
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockResolvedValue({ data: null, error: null, count: null });
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null, count: null });
+  mockSupabase._chain.single.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
@@ -115,9 +140,7 @@ describe('POST /api/items/batch-review', () => {
     const json = await res.json();
     expect(json.error).toBe('Validation failed');
     expect(json.details).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ field: 'item_ids' }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ field: 'item_ids' })]),
     );
   });
 
@@ -162,9 +185,7 @@ describe('POST /api/items/batch-review', () => {
     const json = await res.json();
     expect(json.error).toBe('Validation failed');
     expect(json.details).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ field: 'status' }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ field: 'status' })]),
     );
   });
 
@@ -172,11 +193,12 @@ describe('POST /api/items/batch-review', () => {
     configureRole(mockSupabase, 'editor');
 
     // update().in().select() resolves with matched rows
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({
-        data: [{ id: VALID_UUID_1 }, { id: VALID_UUID_2 }],
-        error: null,
-      }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [{ id: VALID_UUID_1 }, { id: VALID_UUID_2 }],
+          error: null,
+        }),
     );
 
     const req = createTestRequest('/api/items/batch-review', {
@@ -193,17 +215,25 @@ describe('POST /api/items/batch-review', () => {
     expect(mockSupabase._chain.update).toHaveBeenCalledWith({
       governance_review_status: 'pending',
     });
-    expect(mockSupabase._chain.in).toHaveBeenCalledWith('id', [VALID_UUID_1, VALID_UUID_2]);
+    expect(mockSupabase._chain.in).toHaveBeenCalledWith('id', [
+      VALID_UUID_1,
+      VALID_UUID_2,
+    ]);
   });
 
   it('updates items and returns count for admin', async () => {
     configureRole(mockSupabase, 'admin');
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({
-        data: [{ id: VALID_UUID_1 }, { id: VALID_UUID_2 }, { id: VALID_UUID_3 }],
-        error: null,
-      }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            { id: VALID_UUID_1 },
+            { id: VALID_UUID_2 },
+            { id: VALID_UUID_3 },
+          ],
+          error: null,
+        }),
     );
 
     const req = createTestRequest('/api/items/batch-review', {
@@ -223,8 +253,9 @@ describe('POST /api/items/batch-review', () => {
   it('returns 500 when Supabase update fails', async () => {
     configureRole(mockSupabase, 'editor');
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { message: 'DB error' } }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: { message: 'DB error' } }),
     );
 
     const req = createTestRequest('/api/items/batch-review', {
@@ -241,8 +272,8 @@ describe('POST /api/items/batch-review', () => {
   it('returns 0 updated when no items match the IDs', async () => {
     configureRole(mockSupabase, 'editor');
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const req = createTestRequest('/api/items/batch-review', {

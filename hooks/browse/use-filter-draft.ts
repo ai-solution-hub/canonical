@@ -76,7 +76,9 @@ export function useFilterDraft({
   onClose,
   onClearAuthorSearch,
 }: UseFilterDraftParams) {
-  const [draft, setDraft] = useState<FilterDraft>(() => filtersTodraft(filters));
+  const [draft, setDraft] = useState<FilterDraft>(() =>
+    filtersTodraft(filters),
+  );
 
   // Sync draft when filters change externally (e.g. badge removal)
   useEffect(() => {

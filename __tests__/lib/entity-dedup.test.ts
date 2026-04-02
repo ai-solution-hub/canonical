@@ -132,7 +132,9 @@ describe('canonicalise', () => {
 
   describe('plural normalisation (type-aware)', () => {
     it('Access Controls → Access Control (capability)', () => {
-      expect(canonicalise('Access Controls', 'capability')).toBe('Access Control');
+      expect(canonicalise('Access Controls', 'capability')).toBe(
+        'Access Control',
+      );
     });
 
     it('does not strip plural without entity type', () => {
@@ -140,7 +142,9 @@ describe('canonicalise', () => {
     });
 
     it('does not strip plural for organisation type', () => {
-      expect(canonicalise('Williams Corp', 'organisation')).toBe('Williams Corp');
+      expect(canonicalise('Williams Corp', 'organisation')).toBe(
+        'Williams Corp',
+      );
     });
 
     it('does not strip from single-word names', () => {
@@ -156,15 +160,21 @@ describe('canonicalise', () => {
     });
 
     it('converts -ies → -y (Policies → Policy)', () => {
-      expect(canonicalise('Compliance Policies', 'regulation')).toBe('Compliance Policy');
+      expect(canonicalise('Compliance Policies', 'regulation')).toBe(
+        'Compliance Policy',
+      );
     });
 
     it('converts -ies → -y (Libraries → Library)', () => {
-      expect(canonicalise('Third Party Libraries', 'technology')).toBe('Third Party Library');
+      expect(canonicalise('Third Party Libraries', 'technology')).toBe(
+        'Third Party Library',
+      );
     });
 
     it('preserves Cyber Essentials Plus (certification)', () => {
-      expect(canonicalise('Cyber Essentials Plus', 'certification')).toBe('Cyber Essentials Plus');
+      expect(canonicalise('Cyber Essentials Plus', 'certification')).toBe(
+        'Cyber Essentials Plus',
+      );
     });
   });
 
@@ -196,19 +206,27 @@ describe('canonicalise', () => {
     });
 
     it('preserves text after "Cyber Essentials": "Cyber Essentials Plus"', () => {
-      expect(canonicalise('cyber essentials Plus')).toBe('Cyber Essentials Plus');
+      expect(canonicalise('cyber essentials Plus')).toBe(
+        'Cyber Essentials Plus',
+      );
     });
 
     it('normalises "CYBER ESSENTIALS PLUS" to "Cyber Essentials Plus"', () => {
-      expect(canonicalise('CYBER ESSENTIALS PLUS')).toBe('Cyber Essentials Plus');
+      expect(canonicalise('CYBER ESSENTIALS PLUS')).toBe(
+        'Cyber Essentials Plus',
+      );
     });
 
     it('normalises "cyber essentials plus" (all lowercase) to "Cyber Essentials Plus"', () => {
-      expect(canonicalise('cyber essentials plus')).toBe('Cyber Essentials Plus');
+      expect(canonicalise('cyber essentials plus')).toBe(
+        'Cyber Essentials Plus',
+      );
     });
 
     it('Cyber Essentials PLUS → Cyber Essentials Plus', () => {
-      expect(canonicalise('Cyber Essentials PLUS')).toBe('Cyber Essentials Plus');
+      expect(canonicalise('Cyber Essentials PLUS')).toBe(
+        'Cyber Essentials Plus',
+      );
     });
   });
 

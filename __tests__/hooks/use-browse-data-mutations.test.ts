@@ -40,7 +40,9 @@ vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
     from: mockFrom,
     rpc: mockRpc,
-    auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }) },
+    auth: {
+      getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
+    },
   }),
 }));
 
@@ -58,7 +60,9 @@ vi.mock('@/hooks/browse/use-browse-filters', () => ({
 
 vi.mock('@/lib/browse-helpers', () => ({
   getCursorFromItem: vi.fn(() => '2026-01-01'),
-  isOffsetSort: vi.fn((sort: string) => sort === 'freshness' || sort === 'quality_score'),
+  isOffsetSort: vi.fn(
+    (sort: string) => sort === 'freshness' || sort === 'quality_score',
+  ),
 }));
 
 vi.mock('@/lib/supabase/escape', () => ({
@@ -85,7 +89,11 @@ function createQueryChain(
   resolvedCount: number | null = null,
   resolvedError: unknown = null,
 ) {
-  const result = { data: resolvedData, count: resolvedCount, error: resolvedError };
+  const result = {
+    data: resolvedData,
+    count: resolvedCount,
+    error: resolvedError,
+  };
 
   const handler: ProxyHandler<object> = {
     get(_target, prop) {
@@ -103,7 +111,12 @@ function createQueryChain(
 
 const MOCK_ITEMS = [
   { id: 'item-1', title: 'First', verified_at: null, content_type: 'article' },
-  { id: 'item-2', title: 'Second', verified_at: '2026-01-01T00:00:00Z', content_type: 'article' },
+  {
+    id: 'item-2',
+    title: 'Second',
+    verified_at: '2026-01-01T00:00:00Z',
+    content_type: 'article',
+  },
   { id: 'item-3', title: 'Third', verified_at: null, content_type: 'article' },
 ];
 
@@ -139,7 +152,9 @@ describe('useBrowseData mutations', () => {
     expect(result.current.items[0].verified_at).toBeNull();
 
     act(() => {
-      result.current.updateItemLocally('item-1', { verified_at: '2026-03-24T00:00:00Z' });
+      result.current.updateItemLocally('item-1', {
+        verified_at: '2026-03-24T00:00:00Z',
+      });
     });
 
     await waitFor(() => {
@@ -156,7 +171,9 @@ describe('useBrowseData mutations', () => {
     });
 
     act(() => {
-      result.current.updateItemLocally('item-1', { verified_at: '2026-03-24T00:00:00Z' });
+      result.current.updateItemLocally('item-1', {
+        verified_at: '2026-03-24T00:00:00Z',
+      });
     });
 
     await waitFor(() => {

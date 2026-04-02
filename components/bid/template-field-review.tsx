@@ -30,14 +30,23 @@ interface TemplateFieldReviewProps {
   fields: TemplateField[];
   bidQuestions: BidQuestion[];
   summary: TemplateSummary;
-  onMappingUpdate: (fieldId: string, questionId: string | null, status: string) => Promise<void>;
+  onMappingUpdate: (
+    fieldId: string,
+    questionId: string | null,
+    status: string,
+  ) => Promise<void>;
   onAutoMap: () => Promise<void>;
   onFill: () => void;
   onBulkAccept: () => Promise<void>;
   onBulkReject?: (fieldIds: string[]) => Promise<void>;
 }
 
-type FilterStatus = 'all' | 'unreviewed' | 'confirmed' | 'unmapped' | 'rejected';
+type FilterStatus =
+  | 'all'
+  | 'unreviewed'
+  | 'confirmed'
+  | 'unmapped'
+  | 'rejected';
 type SortField = 'sequence' | 'section' | 'confidence' | 'status';
 type SortDirection = 'asc' | 'desc';
 
@@ -76,7 +85,8 @@ const STATUS_CONFIG = {
 
 function StatusBadge({ status }: { status: string }) {
   const config = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG];
-  if (!config) return <span className="text-xs text-muted-foreground">{status}</span>;
+  if (!config)
+    return <span className="text-xs text-muted-foreground">{status}</span>;
   const Icon = config.icon;
   return (
     <span
@@ -95,9 +105,11 @@ function ConfidenceBadge({ confidence }: { confidence: number | null }) {
   if (confidence === null) return null;
   const pct = Math.round(confidence * 100);
   const colour =
-    pct >= 90 ? 'text-confidence-strong' :
-    pct >= 70 ? 'text-confidence-partial' :
-    'text-freshness-stale';
+    pct >= 90
+      ? 'text-confidence-strong'
+      : pct >= 70
+        ? 'text-confidence-partial'
+        : 'text-freshness-stale';
   const label = pct >= 90 ? 'High' : pct >= 70 ? 'Medium' : 'Low';
   return (
     <span
@@ -151,7 +163,10 @@ export function TemplateFieldReview({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const filteredFields = useMemo(() => {
-    const result = filter === 'all' ? [...fields] : fields.filter((f) => f.mapping_status === filter);
+    const result =
+      filter === 'all'
+        ? [...fields]
+        : fields.filter((f) => f.mapping_status === filter);
 
     // Apply sorting
     result.sort((a, b) => {
@@ -167,7 +182,9 @@ export function TemplateFieldReview({
           cmp = (a.mapping_confidence ?? -1) - (b.mapping_confidence ?? -1);
           break;
         case 'status':
-          cmp = (STATUS_ORDER[a.mapping_status] ?? 99) - (STATUS_ORDER[b.mapping_status] ?? 99);
+          cmp =
+            (STATUS_ORDER[a.mapping_status] ?? 99) -
+            (STATUS_ORDER[b.mapping_status] ?? 99);
           break;
       }
       return sortDirection === 'asc' ? cmp : -cmp;
@@ -178,7 +195,8 @@ export function TemplateFieldReview({
 
   const confirmedCount = summary.confirmed_fields;
   const totalMappable = summary.total_fields - summary.rejected_fields;
-  const progressPct = totalMappable > 0 ? (confirmedCount / totalMappable) * 100 : 0;
+  const progressPct =
+    totalMappable > 0 ? (confirmedCount / totalMappable) * 100 : 0;
 
   const handleConfirm = useCallback(
     async (field: TemplateField) => {
@@ -312,14 +330,17 @@ export function TemplateFieldReview({
       if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
       if (target?.isContentEditable) return;
       const role = target?.getAttribute('role');
-      if (role === 'textbox' || role === 'searchbox' || role === 'combobox') return;
+      if (role === 'textbox' || role === 'searchbox' || role === 'combobox')
+        return;
 
       switch (e.key) {
         case 'j': {
           e.preventDefault();
           setFocusedIndex((prev) => {
             const next = Math.min(prev + 1, filteredFields.length - 1);
-            rowRefs.current.get(next)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            rowRefs.current
+              .get(next)
+              ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
             return next;
           });
           break;
@@ -328,7 +349,9 @@ export function TemplateFieldReview({
           e.preventDefault();
           setFocusedIndex((prev) => {
             const next = Math.max(prev - 1, 0);
-            rowRefs.current.get(next)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            rowRefs.current
+              .get(next)
+              ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
             return next;
           });
           break;
@@ -336,19 +359,28 @@ export function TemplateFieldReview({
         case 'n': {
           e.preventDefault();
           const nextUnreviewed = filteredFields.findIndex(
-            (f, i) => i > focusedIndex && (f.mapping_status === 'unreviewed' || f.mapping_status === 'unmapped'),
+            (f, i) =>
+              i > focusedIndex &&
+              (f.mapping_status === 'unreviewed' ||
+                f.mapping_status === 'unmapped'),
           );
           if (nextUnreviewed !== -1) {
             setFocusedIndex(nextUnreviewed);
-            rowRefs.current.get(nextUnreviewed)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            rowRefs.current
+              .get(nextUnreviewed)
+              ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
           } else {
             // Wrap around from beginning
             const fromStart = filteredFields.findIndex(
-              (f) => f.mapping_status === 'unreviewed' || f.mapping_status === 'unmapped',
+              (f) =>
+                f.mapping_status === 'unreviewed' ||
+                f.mapping_status === 'unmapped',
             );
             if (fromStart !== -1) {
               setFocusedIndex(fromStart);
-              rowRefs.current.get(fromStart)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+              rowRefs.current
+                .get(fromStart)
+                ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
             }
           }
           break;
@@ -356,7 +388,11 @@ export function TemplateFieldReview({
         case 'Enter': {
           if (focusedIndex < 0 || focusedIndex >= filteredFields.length) return;
           const field = filteredFields[focusedIndex];
-          if (field.question_id && (field.mapping_status === 'unreviewed' || field.mapping_status === 'unmapped')) {
+          if (
+            field.question_id &&
+            (field.mapping_status === 'unreviewed' ||
+              field.mapping_status === 'unmapped')
+          ) {
             e.preventDefault();
             handleConfirm(field);
           }
@@ -390,10 +426,15 @@ export function TemplateFieldReview({
 
   const SortIcon = useCallback(
     ({ field }: { field: SortField }) => {
-      if (sortField !== field) return <ArrowUpDown className="ml-1 inline size-3.5 text-muted-foreground/50" />;
-      return sortDirection === 'asc'
-        ? <ArrowUp className="ml-1 inline size-3.5" />
-        : <ArrowDown className="ml-1 inline size-3.5" />;
+      if (sortField !== field)
+        return (
+          <ArrowUpDown className="ml-1 inline size-3.5 text-muted-foreground/50" />
+        );
+      return sortDirection === 'asc' ? (
+        <ArrowUp className="ml-1 inline size-3.5" />
+      ) : (
+        <ArrowDown className="ml-1 inline size-3.5" />
+      );
     },
     [sortField, sortDirection],
   );
@@ -408,9 +449,12 @@ export function TemplateFieldReview({
         <div className="space-y-1">
           <p className="text-sm text-muted-foreground">
             {summary.total_fields} fields found
-            {summary.confirmed_fields > 0 && ` · ${summary.confirmed_fields} confirmed`}
-            {summary.rejected_fields > 0 && ` · ${summary.rejected_fields} rejected`}
-            {summary.unmapped_fields > 0 && ` · ${summary.unmapped_fields} unmapped`}
+            {summary.confirmed_fields > 0 &&
+              ` · ${summary.confirmed_fields} confirmed`}
+            {summary.rejected_fields > 0 &&
+              ` · ${summary.rejected_fields} rejected`}
+            {summary.unmapped_fields > 0 &&
+              ` · ${summary.unmapped_fields} unmapped`}
           </p>
           <Progress
             value={progressPct}
@@ -455,14 +499,24 @@ export function TemplateFieldReview({
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Filter fields by status">
-        {(['all', 'unreviewed', 'confirmed', 'unmapped', 'rejected'] as const).map((f) => {
+      <div
+        className="flex gap-1 rounded-lg bg-muted p-1"
+        role="tablist"
+        aria-label="Filter fields by status"
+      >
+        {(
+          ['all', 'unreviewed', 'confirmed', 'unmapped', 'rejected'] as const
+        ).map((f) => {
           const count =
-            f === 'unreviewed' ? summary.unreviewed_fields :
-            f === 'confirmed' ? summary.confirmed_fields :
-            f === 'unmapped' ? summary.unmapped_fields :
-            f === 'rejected' ? summary.rejected_fields :
-            null;
+            f === 'unreviewed'
+              ? summary.unreviewed_fields
+              : f === 'confirmed'
+                ? summary.confirmed_fields
+                : f === 'unmapped'
+                  ? summary.unmapped_fields
+                  : f === 'rejected'
+                    ? summary.rejected_fields
+                    : null;
 
           return (
             <button
@@ -494,32 +548,54 @@ export function TemplateFieldReview({
               {onBulkReject && (
                 <th className="px-2 py-2 w-8">
                   <Checkbox
-                    checked={filteredFields.length > 0 && filteredFields.filter((f) => f.mapping_status !== 'rejected').every((f) => selectedIds.has(f.id))}
+                    checked={
+                      filteredFields.length > 0 &&
+                      filteredFields
+                        .filter((f) => f.mapping_status !== 'rejected')
+                        .every((f) => selectedIds.has(f.id))
+                    }
                     onCheckedChange={() => toggleSelectAll()}
                     aria-label="Select all fields"
                   />
                 </th>
               )}
               <th className="px-3 py-2 text-left font-medium w-8">
-                <button className="inline-flex items-center" onClick={() => toggleSort('sequence')}>
+                <button
+                  className="inline-flex items-center"
+                  onClick={() => toggleSort('sequence')}
+                >
                   #<SortIcon field="sequence" />
                 </button>
               </th>
               <th className="px-3 py-2 text-left font-medium">
-                <button className="inline-flex items-center" onClick={() => toggleSort('section')}>
-                  Section<SortIcon field="section" />
+                <button
+                  className="inline-flex items-center"
+                  onClick={() => toggleSort('section')}
+                >
+                  Section
+                  <SortIcon field="section" />
                 </button>
               </th>
-              <th className="px-3 py-2 text-left font-medium">Question (from template)</th>
+              <th className="px-3 py-2 text-left font-medium">
+                Question (from template)
+              </th>
               <th className="px-3 py-2 text-left font-medium">Mapped To</th>
               <th className="px-3 py-2 text-left font-medium w-28">
-                <button className="inline-flex items-center" onClick={() => toggleSort('confidence')}>
-                  Confidence<SortIcon field="confidence" />
+                <button
+                  className="inline-flex items-center"
+                  onClick={() => toggleSort('confidence')}
+                >
+                  Confidence
+                  <SortIcon field="confidence" />
                 </button>
               </th>
               <th className="px-3 py-2 text-left font-medium w-28">
-                <button className="inline-flex items-center" onClick={() => toggleSort('status')}>
-                  Status<SortIcon field="status" />
+                <button
+                  className="inline-flex items-center"
+                  onClick={() => toggleSort('status')}
+                >
+                  Status
+                  <SortIcon field="status" />
                 </button>
               </th>
               <th className="px-3 py-2 text-left font-medium w-32">Actions</th>
@@ -529,7 +605,9 @@ export function TemplateFieldReview({
             {filteredFields.map((field, idx) => (
               <tr
                 key={field.id}
-                ref={(el) => { if (el) rowRefs.current.set(idx, el); }}
+                ref={(el) => {
+                  if (el) rowRefs.current.set(idx, el);
+                }}
                 className={cn(
                   'border-b last:border-0 transition-colors',
                   field.mapping_status === 'rejected' && 'opacity-50',
@@ -548,7 +626,9 @@ export function TemplateFieldReview({
                     )}
                   </td>
                 )}
-                <td className="px-3 py-2 text-muted-foreground">{field.sequence + 1}</td>
+                <td className="px-3 py-2 text-muted-foreground">
+                  {field.sequence + 1}
+                </td>
                 <td
                   className="px-3 py-2 text-xs text-muted-foreground max-w-[120px] truncate"
                   title={field.section_name ?? ''}
@@ -578,7 +658,8 @@ export function TemplateFieldReview({
                       className="w-full rounded border bg-card px-2 py-1 text-xs"
                       defaultValue=""
                       onChange={(e) => {
-                        if (e.target.value) handleManualMap(field.id, e.target.value);
+                        if (e.target.value)
+                          handleManualMap(field.id, e.target.value);
                       }}
                       autoFocus
                       aria-label={`Select a bid question to map to field ${field.sequence + 1}`}
@@ -607,7 +688,8 @@ export function TemplateFieldReview({
                 </td>
                 <td className="px-3 py-2">
                   <div className="flex gap-1">
-                    {(field.mapping_status === 'unreviewed' || field.mapping_status === 'unmapped') &&
+                    {(field.mapping_status === 'unreviewed' ||
+                      field.mapping_status === 'unmapped') &&
                       field.question_id && (
                         <Button
                           variant="ghost"
@@ -636,8 +718,12 @@ export function TemplateFieldReview({
             ))}
             {filteredFields.length === 0 && (
               <tr>
-                <td colSpan={onBulkReject ? 8 : 7} className="px-3 py-8 text-center text-sm text-muted-foreground">
-                  No fields match the current filter. Try adjusting your selection.
+                <td
+                  colSpan={onBulkReject ? 8 : 7}
+                  className="px-3 py-8 text-center text-sm text-muted-foreground"
+                >
+                  No fields match the current filter. Try adjusting your
+                  selection.
                 </td>
               </tr>
             )}
@@ -647,10 +733,16 @@ export function TemplateFieldReview({
 
       {/* Keyboard shortcuts hint */}
       <p className="text-xs text-muted-foreground">
-        Keyboard: <kbd className="rounded border px-1 font-mono text-[10px]">j</kbd>/<kbd className="rounded border px-1 font-mono text-[10px]">k</kbd> navigate
-        · <kbd className="rounded border px-1 font-mono text-[10px]">Enter</kbd> confirm
-        · <kbd className="rounded border px-1 font-mono text-[10px]">r</kbd> reject
-        · <kbd className="rounded border px-1 font-mono text-[10px]">n</kbd> next unreviewed
+        Keyboard:{' '}
+        <kbd className="rounded border px-1 font-mono text-[10px]">j</kbd>/
+        <kbd className="rounded border px-1 font-mono text-[10px]">k</kbd>{' '}
+        navigate ·{' '}
+        <kbd className="rounded border px-1 font-mono text-[10px]">Enter</kbd>{' '}
+        confirm ·{' '}
+        <kbd className="rounded border px-1 font-mono text-[10px]">r</kbd>{' '}
+        reject ·{' '}
+        <kbd className="rounded border px-1 font-mono text-[10px]">n</kbd> next
+        unreviewed
       </p>
     </div>
   );

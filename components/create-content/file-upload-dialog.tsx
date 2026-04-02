@@ -33,7 +33,10 @@ interface FileUploadDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-export function FileUploadDialog({ open, onOpenChange }: FileUploadDialogProps) {
+export function FileUploadDialog({
+  open,
+  onOpenChange,
+}: FileUploadDialogProps) {
   const { layers, getLayerLabel } = useLayerVocabulary();
 
   const {
@@ -65,9 +68,7 @@ export function FileUploadDialog({ open, onOpenChange }: FileUploadDialogProps) 
         `${doneCount} file${doneCount !== 1 ? 's' : ''} uploaded successfully`,
       );
     } else if (doneCount > 0 && errorCount > 0) {
-      toast.warning(
-        `${doneCount} uploaded, ${errorCount} failed`,
-      );
+      toast.warning(`${doneCount} uploaded, ${errorCount} failed`);
     } else if (errorCount > 0) {
       toast.error(
         `${errorCount} file${errorCount !== 1 ? 's' : ''} failed to upload`,
@@ -76,29 +77,32 @@ export function FileUploadDialog({ open, onOpenChange }: FileUploadDialogProps) 
   }, [rawHandleUpload]);
 
   // Layer application handler (requires layer vocabulary context)
-  const handleApplyLayer = useCallback(async (fileId: string, layerKey: string) => {
-    const file = files.find((f) => f.id === fileId);
-    const resultId = file?.resultId;
-    if (!resultId) return;
+  const handleApplyLayer = useCallback(
+    async (fileId: string, layerKey: string) => {
+      const file = files.find((f) => f.id === fileId);
+      const resultId = file?.resultId;
+      if (!resultId) return;
 
-    try {
-      const res = await fetch(`/api/items/${resultId}/metadata`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ layer: layerKey }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Failed to update layer');
+      try {
+        const res = await fetch(`/api/items/${resultId}/metadata`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ layer: layerKey }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'Failed to update layer');
+        }
+        handleSetLayerMode(fileId, 'applied');
+        toast.success(`Layer set to ${getLayerLabel(layerKey)}`);
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : 'Failed to update layer',
+        );
       }
-      handleSetLayerMode(fileId, 'applied');
-      toast.success(`Layer set to ${getLayerLabel(layerKey)}`);
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Failed to update layer',
-      );
-    }
-  }, [files, getLayerLabel, handleSetLayerMode]);
+    },
+    [files, getLayerLabel, handleSetLayerMode],
+  );
 
   const handleClose = (isOpen: boolean) => {
     if (!isOpen && isUploading) return; // Prevent closing during upload
@@ -143,43 +147,66 @@ export function FileUploadDialog({ open, onOpenChange }: FileUploadDialogProps) 
                       {f.file.name}
                     </p>
                     <IngestionProgress
-                      compact={files.filter((x) => x.status !== 'pending').length > 1}
+                      compact={
+                        files.filter((x) => x.status !== 'pending').length > 1
+                      }
                       steps={state.steps}
-                      warnings={f.status === 'done' ? state.warnings : undefined}
+                      warnings={
+                        f.status === 'done' ? state.warnings : undefined
+                      }
                     />
                     {/* Re-upload detection banner per file */}
                     {f.status === 'done' && state.reuploadInfo && (
                       <ReuploadBanner
                         matchType={state.reuploadInfo.matchType}
                         previousVersion={state.reuploadInfo.previousVersion}
-                        previousDocumentId={state.reuploadInfo.previousDocumentId}
+                        previousDocumentId={
+                          state.reuploadInfo.previousDocumentId
+                        }
                         diffAvailable={state.reuploadInfo.diffAvailable}
                         diffDocumentId={state.reuploadInfo.newDocumentId}
                       />
                     )}
                     {/* Dedup warning per file */}
-                    {state.showDedupWarning && state.dedupMatches.length > 0 && (
-                      <DedupWarning
-                        matches={state.dedupMatches}
-                        onViewMatch={(id) => window.open(`/item/${id}`, '_blank')}
-                        onDismiss={() => handleDismissDedupWarning(f.id)}
-                      />
-                    )}
+                    {state.showDedupWarning &&
+                      state.dedupMatches.length > 0 && (
+                        <DedupWarning
+                          matches={state.dedupMatches}
+                          onViewMatch={(id) =>
+                            window.open(`/item/${id}`, '_blank')
+                          }
+                          onDismiss={() => handleDismissDedupWarning(f.id)}
+                        />
+                      )}
                     {/* Layer suggestion per file */}
                     {f.status === 'done' && state.suggestedLayer && (
-                      <div className="flex flex-wrap items-center gap-1.5 text-xs" data-testid={`layer-suggestion-${f.id}`}>
-                        <Layers className="size-3 text-primary" aria-hidden="true" />
+                      <div
+                        className="flex flex-wrap items-center gap-1.5 text-xs"
+                        data-testid={`layer-suggestion-${f.id}`}
+                      >
+                        <Layers
+                          className="size-3 text-primary"
+                          aria-hidden="true"
+                        />
                         {state.layerMode === 'applied' ? (
                           <span className="text-muted-foreground">
-                            Layer: <span className="font-medium text-foreground">{state.appliedLayerLabel}</span>
+                            Layer:{' '}
+                            <span className="font-medium text-foreground">
+                              {state.appliedLayerLabel}
+                            </span>
                           </span>
                         ) : state.layerMode === 'change' ? (
                           <>
                             <Select
                               value={state.selectedLayer}
-                              onValueChange={(val) => handleSetSelectedLayer(f.id, val)}
+                              onValueChange={(val) =>
+                                handleSetSelectedLayer(f.id, val)
+                              }
                             >
-                              <SelectTrigger className="h-6 w-36 text-xs" aria-label="Select a layer">
+                              <SelectTrigger
+                                className="h-6 w-36 text-xs"
+                                aria-label="Select a layer"
+                              >
                                 <SelectValue placeholder="Select layer..." />
                               </SelectTrigger>
                               <SelectContent>
@@ -194,7 +221,9 @@ export function FileUploadDialog({ open, onOpenChange }: FileUploadDialogProps) 
                               size="sm"
                               variant="outline"
                               className="h-6 gap-1 px-1.5 text-xs"
-                              onClick={() => handleApplyLayer(f.id, state.selectedLayer)}
+                              onClick={() =>
+                                handleApplyLayer(f.id, state.selectedLayer)
+                              }
                             >
                               <Check className="size-3" aria-hidden="true" />
                               Apply
@@ -203,7 +232,9 @@ export function FileUploadDialog({ open, onOpenChange }: FileUploadDialogProps) 
                               size="sm"
                               variant="ghost"
                               className="h-6 px-1.5 text-xs"
-                              onClick={() => handleSetLayerMode(f.id, 'suggest')}
+                              onClick={() =>
+                                handleSetLayerMode(f.id, 'suggest')
+                              }
                             >
                               Cancel
                             </Button>
@@ -213,7 +244,9 @@ export function FileUploadDialog({ open, onOpenChange }: FileUploadDialogProps) 
                             <span className="text-muted-foreground">
                               Layer:{' '}
                               <span className="font-medium text-foreground">
-                                {getLayerLabel(state.suggestedLayer.suggestedLayer)}
+                                {getLayerLabel(
+                                  state.suggestedLayer.suggestedLayer,
+                                )}
                               </span>
                             </span>
                             <Button
@@ -223,7 +256,10 @@ export function FileUploadDialog({ open, onOpenChange }: FileUploadDialogProps) 
                               onClick={() => handleSetLayerMode(f.id, 'change')}
                               aria-label="Change layer"
                             >
-                              <ChevronDown className="size-3" aria-hidden="true" />
+                              <ChevronDown
+                                className="size-3"
+                                aria-hidden="true"
+                              />
                               Change
                             </Button>
                           </>
@@ -239,10 +275,7 @@ export function FileUploadDialog({ open, onOpenChange }: FileUploadDialogProps) 
         <DialogFooter className="flex-col gap-2 sm:flex-col">
           <div className="flex w-full items-center justify-end gap-2">
             {hasResults && !isUploading && (
-              <Button
-                variant="outline"
-                onClick={() => reset()}
-              >
+              <Button variant="outline" onClick={() => reset()}>
                 Clear
               </Button>
             )}

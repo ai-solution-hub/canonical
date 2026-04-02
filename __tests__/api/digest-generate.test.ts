@@ -70,7 +70,11 @@ const MOCK_DIGEST = {
       },
     ],
     theme_clusters: [
-      { theme: 'AI Adoption', description: 'Multiple items on AI', item_count: 3 },
+      {
+        theme: 'AI Adoption',
+        description: 'Multiple items on AI',
+        item_count: 3,
+      },
     ],
     narrative_summary: 'You captured 5 items this week.',
     generated_at: '2026-03-07T12:00:00.000Z',
@@ -91,16 +95,41 @@ function resetMocks() {
   });
 
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockResolvedValue({ data: null, error: null, count: null });
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null, count: null });
+  mockSupabase._chain.single.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
@@ -302,7 +331,10 @@ describe('POST /api/digest/generate', () => {
   it('returns AIServiceError status when AI service throws domain error', async () => {
     configureRole(mockSupabase, 'editor');
     mockGenerateDigest.mockRejectedValue(
-      new AIServiceError('No content items found for the selected filters and period', 400),
+      new AIServiceError(
+        'No content items found for the selected filters and period',
+        400,
+      ),
     );
 
     const req = createTestRequest('/api/digest/generate', {
@@ -314,13 +346,18 @@ describe('POST /api/digest/generate', () => {
     expect(res.status).toBe(400);
 
     const json = await res.json();
-    expect(json.error).toBe('No content items found for the selected filters and period');
+    expect(json.error).toBe(
+      'No content items found for the selected filters and period',
+    );
   });
 
   it('returns 413 when content is too long for digest', async () => {
     configureRole(mockSupabase, 'editor');
     mockGenerateDigest.mockRejectedValue(
-      new AIServiceError('Content too long for digest generation — response was truncated', 413),
+      new AIServiceError(
+        'Content too long for digest generation — response was truncated',
+        413,
+      ),
     );
 
     const req = createTestRequest('/api/digest/generate', {
@@ -337,7 +374,9 @@ describe('POST /api/digest/generate', () => {
 
   it('returns 500 on unexpected error', async () => {
     configureRole(mockSupabase, 'editor');
-    mockGenerateDigest.mockRejectedValue(new Error('Unexpected network failure'));
+    mockGenerateDigest.mockRejectedValue(
+      new Error('Unexpected network failure'),
+    );
 
     const req = createTestRequest('/api/digest/generate', {
       method: 'POST',

@@ -104,7 +104,9 @@ describe('isInternalDocument', () => {
 
   it('statutory allowlist is case-insensitive', () => {
     expect(isInternalDocument('wales safeguarding procedure')).toBe(false);
-    expect(isInternalDocument('GOVERNMENT SECURITY CLASSIFICATION POLICY')).toBe(false);
+    expect(
+      isInternalDocument('GOVERNMENT SECURITY CLASSIFICATION POLICY'),
+    ).toBe(false);
   });
 });
 
@@ -281,18 +283,17 @@ describe('isInsuranceOrContract', () => {
     expect(isInsuranceOrContract(name)).toBe(true);
   });
 
-  it.each([
-    'ISO 27001',
-    'GDPR',
-    'Cyber Essentials',
-    'AWS',
-    'NHS',
-  ])('does not exclude real entity: %s', (name) => {
-    expect(isInsuranceOrContract(name)).toBe(false);
-  });
+  it.each(['ISO 27001', 'GDPR', 'Cyber Essentials', 'AWS', 'NHS'])(
+    'does not exclude real entity: %s',
+    (name) => {
+      expect(isInsuranceOrContract(name)).toBe(false);
+    },
+  );
 
   it('is case-insensitive', () => {
-    expect(isInsuranceOrContract('Professional Indemnity Insurance')).toBe(true);
+    expect(isInsuranceOrContract('Professional Indemnity Insurance')).toBe(
+      true,
+    );
   });
 });
 
@@ -314,15 +315,12 @@ describe('isManagementSystemAcronym', () => {
     expect(isManagementSystemAcronym(name)).toBe(true);
   });
 
-  it.each([
-    'ISO 27001',
-    'ISO 9001',
-    'ISO 14001',
-    'Cyber Essentials',
-    'ITIL',
-  ])('does not exclude certifications/frameworks: %s', (name) => {
-    expect(isManagementSystemAcronym(name)).toBe(false);
-  });
+  it.each(['ISO 27001', 'ISO 9001', 'ISO 14001', 'Cyber Essentials', 'ITIL'])(
+    'does not exclude certifications/frameworks: %s',
+    (name) => {
+      expect(isManagementSystemAcronym(name)).toBe(false);
+    },
+  );
 });
 
 // ──────────────────────────────────────────
@@ -347,14 +345,12 @@ describe('isGdprArtefact', () => {
     expect(isGdprArtefact(name)).toBe(true);
   });
 
-  it.each([
-    'GDPR',
-    'Data Protection Act 2018',
-    'ICO',
-    'PECR',
-  ])('does not exclude real regulations: %s', (name) => {
-    expect(isGdprArtefact(name)).toBe(false);
-  });
+  it.each(['GDPR', 'Data Protection Act 2018', 'ICO', 'PECR'])(
+    'does not exclude real regulations: %s',
+    (name) => {
+      expect(isGdprArtefact(name)).toBe(false);
+    },
+  );
 });
 
 // ──────────────────────────────────────────
@@ -362,7 +358,11 @@ describe('isGdprArtefact', () => {
 // ──────────────────────────────────────────
 
 describe('shouldExcludeEntity', () => {
-  function entity(name: string, type: string, canonical_name?: string): ExtractedEntity {
+  function entity(
+    name: string,
+    type: string,
+    canonical_name?: string,
+  ): ExtractedEntity {
     return {
       name,
       type: type as ExtractedEntity['type'],
@@ -371,19 +371,31 @@ describe('shouldExcludeEntity', () => {
   }
 
   it('excludes internal documents', () => {
-    expect(shouldExcludeEntity(entity('Information Security Policy', 'framework'))).toBe(true);
-    expect(shouldExcludeEntity(entity('Business Continuity Plan', 'capability'))).toBe(true);
+    expect(
+      shouldExcludeEntity(entity('Information Security Policy', 'framework')),
+    ).toBe(true);
+    expect(
+      shouldExcludeEntity(entity('Business Continuity Plan', 'capability')),
+    ).toBe(true);
   });
 
   it('excludes generic concepts', () => {
-    expect(shouldExcludeEntity(entity('information security', 'capability'))).toBe(true);
-    expect(shouldExcludeEntity(entity('data protection', 'regulation'))).toBe(true);
+    expect(
+      shouldExcludeEntity(entity('information security', 'capability')),
+    ).toBe(true);
+    expect(shouldExcludeEntity(entity('data protection', 'regulation'))).toBe(
+      true,
+    );
   });
 
   it('excludes role titles only when type is person', () => {
-    expect(shouldExcludeEntity(entity('Managing Director', 'person'))).toBe(true);
+    expect(shouldExcludeEntity(entity('Managing Director', 'person'))).toBe(
+      true,
+    );
     // Not excluded as a non-person type (though still might be wrong type)
-    expect(shouldExcludeEntity(entity('Managing Director', 'capability'))).toBe(false);
+    expect(shouldExcludeEntity(entity('Managing Director', 'capability'))).toBe(
+      false,
+    );
   });
 
   it('excludes protocols and formats', () => {
@@ -393,49 +405,81 @@ describe('shouldExcludeEntity', () => {
   });
 
   it('excludes insurance and contract types', () => {
-    expect(shouldExcludeEntity(entity('Professional Indemnity Insurance', 'product'))).toBe(true);
-    expect(shouldExcludeEntity(entity('Non-Disclosure Agreement', 'standard'))).toBe(true);
+    expect(
+      shouldExcludeEntity(
+        entity('Professional Indemnity Insurance', 'product'),
+      ),
+    ).toBe(true);
+    expect(
+      shouldExcludeEntity(entity('Non-Disclosure Agreement', 'standard')),
+    ).toBe(true);
   });
 
   it('excludes management system acronyms', () => {
     expect(shouldExcludeEntity(entity('ISMS', 'framework'))).toBe(true);
-    expect(shouldExcludeEntity(entity('Quality Management System', 'certification'))).toBe(true);
+    expect(
+      shouldExcludeEntity(entity('Quality Management System', 'certification')),
+    ).toBe(true);
   });
 
   it('excludes GDPR artefacts', () => {
-    expect(shouldExcludeEntity(entity('Records of Processing Activity', 'framework'))).toBe(true);
-    expect(shouldExcludeEntity(entity('Data Subject Access Request', 'regulation'))).toBe(true);
+    expect(
+      shouldExcludeEntity(
+        entity('Records of Processing Activity', 'framework'),
+      ),
+    ).toBe(true);
+    expect(
+      shouldExcludeEntity(entity('Data Subject Access Request', 'regulation')),
+    ).toBe(true);
   });
 
   it('does not exclude real entities', () => {
-    expect(shouldExcludeEntity(entity('ISO 27001', 'certification'))).toBe(false);
+    expect(shouldExcludeEntity(entity('ISO 27001', 'certification'))).toBe(
+      false,
+    );
     expect(shouldExcludeEntity(entity('GDPR', 'regulation'))).toBe(false);
     expect(shouldExcludeEntity(entity('NHS', 'organisation'))).toBe(false);
     expect(shouldExcludeEntity(entity('OWASP', 'framework'))).toBe(false);
     expect(shouldExcludeEntity(entity('Agile', 'methodology'))).toBe(false);
     expect(shouldExcludeEntity(entity('AWS', 'technology'))).toBe(false);
     expect(shouldExcludeEntity(entity('ITIL', 'framework'))).toBe(false);
-    expect(shouldExcludeEntity(entity('Cyber Essentials Plus', 'certification'))).toBe(false);
-    expect(shouldExcludeEntity(entity('Matthew Burgess', 'person'))).toBe(false);
+    expect(
+      shouldExcludeEntity(entity('Cyber Essentials Plus', 'certification')),
+    ).toBe(false);
+    expect(shouldExcludeEntity(entity('Matthew Burgess', 'person'))).toBe(
+      false,
+    );
     expect(shouldExcludeEntity(entity('Public Sector', 'sector'))).toBe(false);
     expect(shouldExcludeEntity(entity('BS 5839', 'standard'))).toBe(false);
     expect(shouldExcludeEntity(entity('PRINCE2', 'methodology'))).toBe(false);
   });
 
   it('excludes identifier patterns via isExcludedEntity', () => {
-    expect(shouldExcludeEntity(entity('SIC Code 62012', 'organisation'))).toBe(true);
-    expect(shouldExcludeEntity(entity('VAT Registration', 'certification'))).toBe(true);
+    expect(shouldExcludeEntity(entity('SIC Code 62012', 'organisation'))).toBe(
+      true,
+    );
+    expect(
+      shouldExcludeEntity(entity('VAT Registration', 'certification')),
+    ).toBe(true);
   });
 
   it('checks both name and canonical_name for internal documents', () => {
     expect(
-      shouldExcludeEntity(entity('our security policy', 'framework', 'Information Security Policy')),
+      shouldExcludeEntity(
+        entity(
+          'our security policy',
+          'framework',
+          'Information Security Policy',
+        ),
+      ),
     ).toBe(true);
   });
 
   it('checks canonical_name for generic concepts', () => {
     expect(
-      shouldExcludeEntity(entity('info sec', 'capability', 'information security')),
+      shouldExcludeEntity(
+        entity('info sec', 'capability', 'information security'),
+      ),
     ).toBe(true);
   });
 });

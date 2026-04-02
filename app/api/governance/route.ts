@@ -21,7 +21,9 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from('governance_config')
-      .select('id, domain, posture, reviewer_id, timeout_days, quality_score_threshold, auto_flag_on_quality_drop, auto_flag_on_freshness_transition, auto_flag_cooldown_days, created_at, created_by, updated_at, updated_by')
+      .select(
+        'id, domain, posture, reviewer_id, timeout_days, quality_score_threshold, auto_flag_on_quality_drop, auto_flag_on_freshness_transition, auto_flag_cooldown_days, created_at, created_by, updated_at, updated_by',
+      )
       .order('domain', { ascending: true });
 
     if (error) {
@@ -78,16 +80,21 @@ export async function POST(request: NextRequest) {
     if (existing) {
       // Update existing
       const updatePayload: Record<string, unknown> = {
-          posture,
-          reviewer_id: reviewer_id ?? null,
-          timeout_days: timeout_days ?? 7,
-          updated_by: user.id,
-          updated_at: new Date().toISOString(),
-        };
-      if (quality_score_threshold !== undefined) updatePayload.quality_score_threshold = quality_score_threshold;
-      if (auto_flag_on_quality_drop !== undefined) updatePayload.auto_flag_on_quality_drop = auto_flag_on_quality_drop;
-      if (auto_flag_on_freshness_transition !== undefined) updatePayload.auto_flag_on_freshness_transition = auto_flag_on_freshness_transition;
-      if (auto_flag_cooldown_days !== undefined) updatePayload.auto_flag_cooldown_days = auto_flag_cooldown_days;
+        posture,
+        reviewer_id: reviewer_id ?? null,
+        timeout_days: timeout_days ?? 7,
+        updated_by: user.id,
+        updated_at: new Date().toISOString(),
+      };
+      if (quality_score_threshold !== undefined)
+        updatePayload.quality_score_threshold = quality_score_threshold;
+      if (auto_flag_on_quality_drop !== undefined)
+        updatePayload.auto_flag_on_quality_drop = auto_flag_on_quality_drop;
+      if (auto_flag_on_freshness_transition !== undefined)
+        updatePayload.auto_flag_on_freshness_transition =
+          auto_flag_on_freshness_transition;
+      if (auto_flag_cooldown_days !== undefined)
+        updatePayload.auto_flag_cooldown_days = auto_flag_cooldown_days;
 
       const { error } = await supabase
         .from('governance_config')
@@ -112,10 +119,18 @@ export async function POST(request: NextRequest) {
         timeout_days: timeout_days ?? 7,
         created_by: user.id,
         updated_by: user.id,
-        ...(quality_score_threshold !== undefined && { quality_score_threshold }),
-        ...(auto_flag_on_quality_drop !== undefined && { auto_flag_on_quality_drop }),
-        ...(auto_flag_on_freshness_transition !== undefined && { auto_flag_on_freshness_transition }),
-        ...(auto_flag_cooldown_days !== undefined && { auto_flag_cooldown_days }),
+        ...(quality_score_threshold !== undefined && {
+          quality_score_threshold,
+        }),
+        ...(auto_flag_on_quality_drop !== undefined && {
+          auto_flag_on_quality_drop,
+        }),
+        ...(auto_flag_on_freshness_transition !== undefined && {
+          auto_flag_on_freshness_transition,
+        }),
+        ...(auto_flag_cooldown_days !== undefined && {
+          auto_flag_cooldown_days,
+        }),
       });
 
       if (error) {

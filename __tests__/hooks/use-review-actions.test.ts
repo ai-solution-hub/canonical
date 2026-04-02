@@ -2,10 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type {
-  ReviewQueueItem,
-  ReviewProgress,
-} from '@/types/review';
+import type { ReviewQueueItem, ReviewProgress } from '@/types/review';
 
 // ---------------------------------------------------------------------------
 // Mocks — vi.hoisted ensures these are available when vi.mock factories run
@@ -27,13 +24,19 @@ vi.mock('@/lib/query/fetchers', () => ({
   mutationFetchJson: (...args: unknown[]) => mockMutationFetchJson(...args),
 }));
 
-import { useReviewActions, type UseReviewActionsParams } from '@/hooks/review/use-review-actions';
+import {
+  useReviewActions,
+  type UseReviewActionsParams,
+} from '@/hooks/review/use-review-actions';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeQueueItem(overrides: Partial<ReviewQueueItem> = {}, index = 0): ReviewQueueItem {
+function makeQueueItem(
+  overrides: Partial<ReviewQueueItem> = {},
+  index = 0,
+): ReviewQueueItem {
   return {
     id: overrides.id ?? `item-${index}`,
     title: overrides.title ?? `Item ${index}`,
@@ -90,7 +93,13 @@ function makeDefaultParams(
     currentItem: items[0] ?? null,
     queueFiltersKey: { status: 'unverified' },
     queryClient,
-    progress: { verified: 5, flagged: 2, skipped: 0, total: 100, sessionReviewed: 3 },
+    progress: {
+      verified: 5,
+      flagged: 2,
+      skipped: 0,
+      total: 100,
+      sessionReviewed: 3,
+    },
     setProgress: vi.fn(),
     advanceToNext: vi.fn(),
     setCurrentIndex: vi.fn(),
@@ -179,7 +188,9 @@ describe('useReviewActions', () => {
         await result.current.handleVerify();
       });
 
-      expect(callOrder.indexOf('toast')).toBeLessThan(callOrder.indexOf('mutate'));
+      expect(callOrder.indexOf('toast')).toBeLessThan(
+        callOrder.indexOf('mutate'),
+      );
     });
 
     it('sets verified_at optimistically in the infinite cache', async () => {
@@ -189,8 +200,18 @@ describe('useReviewActions', () => {
         pages: [
           {
             items: [
-              { id: 'item-0', title: 'First', verified_at: null, verified_by: null },
-              { id: 'item-1', title: 'Second', verified_at: null, verified_by: null },
+              {
+                id: 'item-0',
+                title: 'First',
+                verified_at: null,
+                verified_by: null,
+              },
+              {
+                id: 'item-1',
+                title: 'Second',
+                verified_at: null,
+                verified_by: null,
+              },
             ],
             total: 2,
             verified_count: 0,
@@ -224,9 +245,13 @@ describe('useReviewActions', () => {
 
       // After mutation completes, check the cache was optimistically updated
       const cacheData = queryClient.getQueryData<{
-        pages: Array<{ items: Array<{ id: string; verified_at: string | null }> }>;
+        pages: Array<{
+          items: Array<{ id: string; verified_at: string | null }>;
+        }>;
       }>(queueQueryKey);
-      const updatedItem = cacheData?.pages[0]?.items.find((i) => i.id === 'item-0');
+      const updatedItem = cacheData?.pages[0]?.items.find(
+        (i) => i.id === 'item-0',
+      );
       expect(updatedItem?.verified_at).not.toBeNull();
       expect(updatedItem?.verified_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     });
@@ -257,7 +282,9 @@ describe('useReviewActions', () => {
       });
 
       expect(setProgress).toHaveBeenCalled();
-      const updaterFn = setProgress.mock.calls[0][0] as (prev: ReviewProgress) => ReviewProgress;
+      const updaterFn = setProgress.mock.calls[0][0] as (
+        prev: ReviewProgress,
+      ) => ReviewProgress;
       const updated = updaterFn({
         verified: 5,
         flagged: 2,
@@ -292,7 +319,9 @@ describe('useReviewActions', () => {
         await result.current.handleVerify();
       });
 
-      const updaterFn = setProgress.mock.calls[0][0] as (prev: ReviewProgress) => ReviewProgress;
+      const updaterFn = setProgress.mock.calls[0][0] as (
+        prev: ReviewProgress,
+      ) => ReviewProgress;
       const updated = updaterFn({
         verified: 5,
         flagged: 2,
@@ -369,7 +398,9 @@ describe('useReviewActions', () => {
         await result.current.handleFlagSubmit();
       });
 
-      const updaterFn = setProgress.mock.calls[0][0] as (prev: ReviewProgress) => ReviewProgress;
+      const updaterFn = setProgress.mock.calls[0][0] as (
+        prev: ReviewProgress,
+      ) => ReviewProgress;
       const updated = updaterFn({
         verified: 5,
         flagged: 2,
@@ -389,7 +420,11 @@ describe('useReviewActions', () => {
   describe('handlePublish', () => {
     it('calls PATCH on the item endpoint to clear governance status', async () => {
       const items = [
-        makeQueueItem({ id: 'pub-1', title: 'Draft Item', governance_review_status: 'draft' }),
+        makeQueueItem({
+          id: 'pub-1',
+          title: 'Draft Item',
+          governance_review_status: 'draft',
+        }),
       ];
       const params = makeDefaultParams(queryClient, {
         queue: items,
@@ -417,7 +452,11 @@ describe('useReviewActions', () => {
         pages: [
           {
             items: [
-              { id: 'pub-1', title: 'Draft', governance_review_status: 'draft' },
+              {
+                id: 'pub-1',
+                title: 'Draft',
+                governance_review_status: 'draft',
+              },
               { id: 'pub-2', title: 'Other' },
             ],
             total: 2,
@@ -431,7 +470,11 @@ describe('useReviewActions', () => {
       mockMutationFetchJson.mockResolvedValue({});
 
       const items = [
-        makeQueueItem({ id: 'pub-1', title: 'Draft', governance_review_status: 'draft' }),
+        makeQueueItem({
+          id: 'pub-1',
+          title: 'Draft',
+          governance_review_status: 'draft',
+        }),
         makeQueueItem({ id: 'pub-2', title: 'Other' }, 1),
       ];
       const params = makeDefaultParams(queryClient, {
@@ -514,7 +557,12 @@ describe('useReviewActions', () => {
         pages: [
           {
             items: [
-              { id: 'item-0', title: 'First', verified_at: '2026-01-01T00:00:00Z', verified_by: 'user' },
+              {
+                id: 'item-0',
+                title: 'First',
+                verified_at: '2026-01-01T00:00:00Z',
+                verified_by: 'user',
+              },
             ],
             total: 1,
             has_more: false,
@@ -530,7 +578,13 @@ describe('useReviewActions', () => {
         currentItem: items[0],
         setProgress,
         queueFiltersKey,
-        progress: { verified: 1, flagged: 0, skipped: 0, total: 100, sessionReviewed: 0 },
+        progress: {
+          verified: 1,
+          flagged: 0,
+          skipped: 0,
+          total: 100,
+          sessionReviewed: 0,
+        },
       });
 
       const { result } = renderHook(() => useReviewActions(params), {
@@ -556,7 +610,9 @@ describe('useReviewActions', () => {
       if (setProgress.mock.calls.length > 0) {
         const undoUpdater = setProgress.mock.calls[0][0];
         if (typeof undoUpdater === 'function') {
-          const undoResult = (undoUpdater as (prev: ReviewProgress) => ReviewProgress)({
+          const undoResult = (
+            undoUpdater as (prev: ReviewProgress) => ReviewProgress
+          )({
             verified: 1,
             flagged: 0,
             skipped: 0,

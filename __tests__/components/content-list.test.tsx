@@ -16,7 +16,17 @@ import type { ContentListItem } from '@/types/content';
 const { mockVirtualizer } = vi.hoisted(() => ({
   mockVirtualizer: {
     getTotalSize: vi.fn(() => 640),
-    getVirtualItems: vi.fn(() => [] as Array<{ index: number; start: number; size: number; key: string; end: number; lane: number }>),
+    getVirtualItems: vi.fn(
+      () =>
+        [] as Array<{
+          index: number;
+          start: number;
+          size: number;
+          key: string;
+          end: number;
+          lane: number;
+        }>,
+    ),
     scrollToIndex: vi.fn(),
     measureElement: vi.fn(),
     options: { scrollMargin: 0 },
@@ -28,12 +38,20 @@ vi.mock('@tanstack/react-virtual', () => ({
 }));
 
 vi.mock('@/components/content/content-row', () => ({
-  ContentRow: ({ item, isRead, hasQualityFlag }: {
+  ContentRow: ({
+    item,
+    isRead,
+    hasQualityFlag,
+  }: {
     item: ContentListItem;
     isRead?: boolean;
     hasQualityFlag?: boolean;
   }) => (
-    <div data-testid={`row-${item.id}`} data-is-read={isRead} data-quality-flag={hasQualityFlag}>
+    <div
+      data-testid={`row-${item.id}`}
+      data-is-read={isRead}
+      data-quality-flag={hasQualityFlag}
+    >
       {item.title}
     </div>
   ),
@@ -99,7 +117,12 @@ describe('ContentList', () => {
     // Virtualizer must return items for them to render
     mockVirtualizer.getVirtualItems.mockReturnValue(
       items.map((_, i) => ({
-        index: i, start: i * 64, size: 64, key: String(i), end: (i + 1) * 64, lane: 0,
+        index: i,
+        start: i * 64,
+        size: 64,
+        key: String(i),
+        end: (i + 1) * 64,
+        lane: 0,
       })),
     );
     render(<ContentList items={items} />);
@@ -111,7 +134,12 @@ describe('ContentList', () => {
     const items = createItems(2);
     mockVirtualizer.getVirtualItems.mockReturnValue(
       items.map((_, i) => ({
-        index: i, start: i * 64, size: 64, key: String(i), end: (i + 1) * 64, lane: 0,
+        index: i,
+        start: i * 64,
+        size: 64,
+        key: String(i),
+        end: (i + 1) * 64,
+        lane: 0,
       })),
     );
     render(
@@ -130,7 +158,12 @@ describe('ContentList', () => {
     const items = createItems(3);
     mockVirtualizer.getVirtualItems.mockReturnValue(
       items.map((_, i) => ({
-        index: i, start: i * 64, size: 64, key: String(i), end: (i + 1) * 64, lane: 0,
+        index: i,
+        start: i * 64,
+        size: 64,
+        key: String(i),
+        end: (i + 1) * 64,
+        lane: 0,
       })),
     );
     render(<ContentList items={items} />);
@@ -144,7 +177,12 @@ describe('ContentList', () => {
     const items = createItems(2);
     mockVirtualizer.getVirtualItems.mockReturnValue(
       items.map((_, i) => ({
-        index: i, start: i * 64, size: 64, key: String(i), end: (i + 1) * 64, lane: 0,
+        index: i,
+        start: i * 64,
+        size: 64,
+        key: String(i),
+        end: (i + 1) * 64,
+        lane: 0,
       })),
     );
     render(
@@ -154,7 +192,13 @@ describe('ContentList', () => {
         qualityFlaggedIds={new Set(['item-1'])}
       />,
     );
-    expect(screen.getByTestId('row-item-0')).toHaveAttribute('data-is-read', 'true');
-    expect(screen.getByTestId('row-item-1')).toHaveAttribute('data-quality-flag', 'true');
+    expect(screen.getByTestId('row-item-0')).toHaveAttribute(
+      'data-is-read',
+      'true',
+    );
+    expect(screen.getByTestId('row-item-1')).toHaveAttribute(
+      'data-quality-flag',
+      'true',
+    );
   });
 });

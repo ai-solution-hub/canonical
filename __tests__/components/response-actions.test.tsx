@@ -24,7 +24,9 @@ import { ResponseActions } from '@/components/bid/response-actions';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function defaultProps(overrides: Partial<Parameters<typeof ResponseActions>[0]> = {}) {
+function defaultProps(
+  overrides: Partial<Parameters<typeof ResponseActions>[0]> = {},
+) {
   return {
     onAction: vi.fn(),
     reviewStatus: null as string | null,
@@ -50,12 +52,16 @@ describe('ResponseActions', () => {
 
   it('renders the toolbar with aria-label', () => {
     render(<ResponseActions {...defaultProps()} />);
-    expect(screen.getByRole('toolbar', { name: 'Response actions' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('toolbar', { name: 'Response actions' }),
+    ).toBeInTheDocument();
   });
 
   it('renders Regenerate button when no draft exists', () => {
     render(<ResponseActions {...defaultProps()} />);
-    expect(screen.getByRole('button', { name: /Regenerate/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Regenerate/ }),
+    ).toBeInTheDocument();
   });
 
   it('renders More button when no draft exists', () => {
@@ -68,13 +74,23 @@ describe('ResponseActions', () => {
   // ========================================================================
 
   it('renders Accept button when hasDraft and not approved', () => {
-    render(<ResponseActions {...defaultProps({ hasDraft: true, reviewStatus: 'draft' })} />);
+    render(
+      <ResponseActions
+        {...defaultProps({ hasDraft: true, reviewStatus: 'draft' })}
+      />,
+    );
     expect(screen.getByRole('button', { name: /Accept/ })).toBeInTheDocument();
   });
 
   it('does not render Accept button when approved', () => {
-    render(<ResponseActions {...defaultProps({ hasDraft: true, reviewStatus: 'approved' })} />);
-    expect(screen.queryByRole('button', { name: /Accept/ })).not.toBeInTheDocument();
+    render(
+      <ResponseActions
+        {...defaultProps({ hasDraft: true, reviewStatus: 'approved' })}
+      />,
+    );
+    expect(
+      screen.queryByRole('button', { name: /Accept/ }),
+    ).not.toBeInTheDocument();
   });
 
   it('renders Save button when hasDraft', () => {
@@ -84,7 +100,9 @@ describe('ResponseActions', () => {
 
   it('does not render Save button when no draft', () => {
     render(<ResponseActions {...defaultProps({ hasDraft: false })} />);
-    expect(screen.queryByRole('button', { name: /Save/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Save/ }),
+    ).not.toBeInTheDocument();
   });
 
   // ========================================================================
@@ -96,7 +114,9 @@ describe('ResponseActions', () => {
       <ResponseActions {...defaultProps({ hasDraft: true })} />,
     );
     // Separators use data-slot="separator" with orientation="vertical"
-    const separators = container.querySelectorAll('[data-slot="separator"][data-orientation="vertical"]');
+    const separators = container.querySelectorAll(
+      '[data-slot="separator"][data-orientation="vertical"]',
+    );
     expect(separators.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -104,7 +124,9 @@ describe('ResponseActions', () => {
     const { container } = render(
       <ResponseActions {...defaultProps({ hasDraft: false })} />,
     );
-    const separators = container.querySelectorAll('[data-slot="separator"][data-orientation="vertical"]');
+    const separators = container.querySelectorAll(
+      '[data-slot="separator"][data-orientation="vertical"]',
+    );
     expect(separators.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -140,7 +162,8 @@ describe('ResponseActions', () => {
     // There should be no button with "Next unanswered" or just "Next" (excluding nav buttons)
     const buttons = screen.getAllByRole('button');
     const nextUnansweredBtn = buttons.find(
-      (b) => b.textContent?.includes('Next unanswered') || b.textContent === 'Next',
+      (b) =>
+        b.textContent?.includes('Next unanswered') || b.textContent === 'Next',
     );
     expect(nextUnansweredBtn).toBeUndefined();
   });
@@ -155,8 +178,8 @@ describe('ResponseActions', () => {
       />,
     );
     const buttons = screen.getAllByRole('button');
-    const nextUnansweredBtn = buttons.find(
-      (b) => b.textContent?.includes('Next unanswered'),
+    const nextUnansweredBtn = buttons.find((b) =>
+      b.textContent?.includes('Next unanswered'),
     );
     expect(nextUnansweredBtn).toBeUndefined();
   });
@@ -201,7 +224,9 @@ describe('ResponseActions', () => {
     const user = userEvent.setup();
     const onAction = vi.fn();
     render(
-      <ResponseActions {...defaultProps({ onAction, hasDraft: true, reviewStatus: 'draft' })} />,
+      <ResponseActions
+        {...defaultProps({ onAction, hasDraft: true, reviewStatus: 'draft' })}
+      />,
     );
     await user.click(screen.getByRole('button', { name: /Accept/ }));
     expect(onAction).toHaveBeenCalledWith('accept');
@@ -210,9 +235,7 @@ describe('ResponseActions', () => {
   it('calls onAction with "save" when Save is clicked', async () => {
     const user = userEvent.setup();
     const onAction = vi.fn();
-    render(
-      <ResponseActions {...defaultProps({ onAction, hasDraft: true })} />,
-    );
+    render(<ResponseActions {...defaultProps({ onAction, hasDraft: true })} />);
     await user.click(screen.getByRole('button', { name: /Save/ }));
     expect(onAction).toHaveBeenCalledWith('save');
   });
@@ -226,7 +249,9 @@ describe('ResponseActions', () => {
     render(<ResponseActions {...defaultProps()} />);
 
     await user.click(screen.getByRole('button', { name: /Regenerate/ }));
-    expect(screen.getByLabelText('Regeneration instructions')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Regeneration instructions'),
+    ).toBeInTheDocument();
   });
 
   it('sends instructions on second Regenerate click', async () => {
@@ -249,10 +274,14 @@ describe('ResponseActions', () => {
     render(<ResponseActions {...defaultProps()} />);
 
     await user.click(screen.getByRole('button', { name: /Regenerate/ }));
-    expect(screen.getByLabelText('Regeneration instructions')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Regeneration instructions'),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /Cancel/ }));
-    expect(screen.queryByLabelText('Regeneration instructions')).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Regeneration instructions'),
+    ).not.toBeInTheDocument();
   });
 
   // ========================================================================

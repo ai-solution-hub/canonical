@@ -33,7 +33,9 @@ export function ArticleList({ workspaceId }: ArticleListProps) {
   const [page, setPage] = useState(1);
   const [sourceId, setSourceId] = useState<string | undefined>(undefined);
   const [flagDialogOpen, setFlagDialogOpen] = useState(false);
-  const [flaggingArticle, setFlaggingArticle] = useState<FeedArticle | null>(null);
+  const [flaggingArticle, setFlaggingArticle] = useState<FeedArticle | null>(
+    null,
+  );
   const [flaggedIds, setFlaggedIds] = useState<Set<string>>(new Set());
 
   const limit = 20;
@@ -113,7 +115,10 @@ export function ArticleList({ workspaceId }: ArticleListProps) {
         {/* Source filter */}
         {sources && sources.length > 0 && (
           <div className="flex items-center gap-2">
-            <Filter className="size-3.5 text-muted-foreground" aria-hidden="true" />
+            <Filter
+              className="size-3.5 text-muted-foreground"
+              aria-hidden="true"
+            />
             <Select
               value={sourceId ?? 'all'}
               onValueChange={handleSourceChange}

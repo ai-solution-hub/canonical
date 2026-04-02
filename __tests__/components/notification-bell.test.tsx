@@ -29,19 +29,21 @@ const {
     refresh: vi.fn(),
     prefetch: vi.fn().mockResolvedValue(undefined),
   },
-  mockNotifications: { value: [] as Array<{
-    id: string;
-    user_id: string;
-    type: string;
-    entity_type: string;
-    entity_id: string;
-    title: string;
-    message: string | null;
-    read_at: string | null;
-    dismissed_at: string | null;
-    expires_at: string | null;
-    created_at: string | null;
-  }> },
+  mockNotifications: {
+    value: [] as Array<{
+      id: string;
+      user_id: string;
+      type: string;
+      entity_type: string;
+      entity_id: string;
+      title: string;
+      message: string | null;
+      read_at: string | null;
+      dismissed_at: string | null;
+      expires_at: string | null;
+      created_at: string | null;
+    }>,
+  },
   mockUnreadCount: { value: 0 },
   mockLoading: { value: false },
   mockMarkAsRead: vi.fn(),
@@ -78,19 +80,21 @@ import { NotificationBell } from '@/components/shell/notification-bell';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function createNotification(overrides: Partial<{
-  id: string;
-  user_id: string;
-  type: string;
-  entity_type: string;
-  entity_id: string;
-  title: string;
-  message: string | null;
-  read_at: string | null;
-  dismissed_at: string | null;
-  expires_at: string | null;
-  created_at: string | null;
-}> = {}) {
+function createNotification(
+  overrides: Partial<{
+    id: string;
+    user_id: string;
+    type: string;
+    entity_type: string;
+    entity_id: string;
+    title: string;
+    message: string | null;
+    read_at: string | null;
+    dismissed_at: string | null;
+    expires_at: string | null;
+    created_at: string | null;
+  }> = {},
+) {
   return {
     id: overrides.id ?? 'n-1',
     user_id: overrides.user_id ?? 'user-1',
@@ -130,7 +134,9 @@ describe('NotificationBell', () => {
 
     render(<NotificationBell />);
 
-    const button = screen.getByRole('button', { name: 'Notifications (3 unread)' });
+    const button = screen.getByRole('button', {
+      name: 'Notifications (3 unread)',
+    });
     expect(button).toBeInTheDocument();
     expect(screen.getByText('3')).toBeInTheDocument();
   });
@@ -156,13 +162,17 @@ describe('NotificationBell', () => {
 
   it('opens popover on click and shows notification list', async () => {
     const user = userEvent.setup();
-    const notification = createNotification({ title: 'ISO 27001 review needed' });
+    const notification = createNotification({
+      title: 'ISO 27001 review needed',
+    });
     mockNotifications.value = [notification];
     mockUnreadCount.value = 1;
 
     render(<NotificationBell />);
 
-    const button = screen.getByRole('button', { name: 'Notifications (1 unread)' });
+    const button = screen.getByRole('button', {
+      name: 'Notifications (1 unread)',
+    });
     await user.click(button);
 
     await waitFor(() => {
@@ -181,10 +191,14 @@ describe('NotificationBell', () => {
 
     render(<NotificationBell />);
 
-    await user.click(screen.getByRole('button', { name: 'Notifications (1 unread)' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Notifications (1 unread)' }),
+    );
 
     await waitFor(() => {
-      expect(screen.getByText('Security policy document is now stale')).toBeInTheDocument();
+      expect(
+        screen.getByText('Security policy document is now stale'),
+      ).toBeInTheDocument();
     });
   });
 
@@ -199,7 +213,9 @@ describe('NotificationBell', () => {
 
     await waitFor(() => {
       expect(screen.getByText('All clear')).toBeInTheDocument();
-      expect(screen.getByText('No new notifications to review.')).toBeInTheDocument();
+      expect(
+        screen.getByText('No new notifications to review.'),
+      ).toBeInTheDocument();
     });
   });
 
@@ -216,7 +232,9 @@ describe('NotificationBell', () => {
     render(<NotificationBell />);
 
     // Open popover
-    await user.click(screen.getByRole('button', { name: 'Notifications (1 unread)' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Notifications (1 unread)' }),
+    );
 
     await waitFor(() => {
       expect(screen.getByText('Review required')).toBeInTheDocument();
@@ -243,7 +261,9 @@ describe('NotificationBell', () => {
 
     render(<NotificationBell />);
 
-    await user.click(screen.getByRole('button', { name: 'Notifications (1 unread)' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Notifications (1 unread)' }),
+    );
 
     await waitFor(() => {
       expect(screen.getByText('Source document updated')).toBeInTheDocument();
@@ -252,20 +272,28 @@ describe('NotificationBell', () => {
     await user.click(screen.getByText('Source document updated'));
 
     expect(mockMarkAsRead).toHaveBeenCalledWith(['n-doc-1']);
-    expect(mockRouter.push).toHaveBeenCalledWith('/documents/doc-uuid-123/diff');
+    expect(mockRouter.push).toHaveBeenCalledWith(
+      '/documents/doc-uuid-123/diff',
+    );
   });
 
   it('shows "Mark all as read" button when there are unread notifications', async () => {
     const user = userEvent.setup();
     mockNotifications.value = [
       createNotification({ id: 'n-1', read_at: null }),
-      createNotification({ id: 'n-2', read_at: null, title: 'Another notification' }),
+      createNotification({
+        id: 'n-2',
+        read_at: null,
+        title: 'Another notification',
+      }),
     ];
     mockUnreadCount.value = 2;
 
     render(<NotificationBell />);
 
-    await user.click(screen.getByRole('button', { name: 'Notifications (2 unread)' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Notifications (2 unread)' }),
+    );
 
     await waitFor(() => {
       expect(screen.getByText('Mark all as read')).toBeInTheDocument();
@@ -309,16 +337,15 @@ describe('NotificationBell — icon mapping correctness', () => {
   ];
 
   // INVALID types that used to be in the icon map (Finding 7 bug)
-  const INVALID_TYPES = [
-    'governance_request_update',
-    'governance_reject',
-  ];
+  const INVALID_TYPES = ['governance_request_update', 'governance_reject'];
 
   it.each(VALID_GOVERNANCE_TYPES)(
     'renders without error for governance type: %s',
     async (type) => {
       const user = userEvent.setup();
-      mockNotifications.value = [createNotification({ type, title: `Type: ${type}` })];
+      mockNotifications.value = [
+        createNotification({ type, title: `Type: ${type}` }),
+      ];
       mockUnreadCount.value = 1;
 
       render(<NotificationBell />);
@@ -334,7 +361,9 @@ describe('NotificationBell — icon mapping correctness', () => {
     'renders without error for non-governance type: %s',
     async (type) => {
       const user = userEvent.setup();
-      mockNotifications.value = [createNotification({ type, title: `Type: ${type}` })];
+      mockNotifications.value = [
+        createNotification({ type, title: `Type: ${type}` }),
+      ];
       mockUnreadCount.value = 1;
 
       render(<NotificationBell />);
@@ -350,7 +379,9 @@ describe('NotificationBell — icon mapping correctness', () => {
     'renders gracefully for previously-invalid type: %s (falls back to default icon)',
     async (type) => {
       const user = userEvent.setup();
-      mockNotifications.value = [createNotification({ type, title: `Fallback: ${type}` })];
+      mockNotifications.value = [
+        createNotification({ type, title: `Fallback: ${type}` }),
+      ];
       mockUnreadCount.value = 1;
 
       render(<NotificationBell />);

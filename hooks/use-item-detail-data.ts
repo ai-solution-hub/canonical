@@ -144,7 +144,12 @@ export interface TabEditConfig {
 }
 
 type TabField = 'brief' | 'detail' | 'reference' | 'content';
-const tabFields: readonly TabField[] = ['brief', 'detail', 'reference', 'content'] as const;
+const tabFields: readonly TabField[] = [
+  'brief',
+  'detail',
+  'reference',
+  'content',
+] as const;
 
 // ---------------------------------------------------------------------------
 // Hook
@@ -240,7 +245,9 @@ export function useItemDetailData({
       }));
     }, []),
   });
-  const visionAnalysis = item.metadata?.vision_analysis as VisionAnalysisResult | undefined;
+  const visionAnalysis = item.metadata?.vision_analysis as
+    | VisionAnalysisResult
+    | undefined;
 
   // --- Q&A provenance ---
   const qaProvenance = useQAProvenance({
@@ -248,7 +255,11 @@ export function useItemDetailData({
     isQAPair,
     metadata: item.metadata,
     onMetadataUpdate: useCallback(
-      (updater: (prev: Record<string, unknown> | null) => Record<string, unknown> | null) => {
+      (
+        updater: (
+          prev: Record<string, unknown> | null,
+        ) => Record<string, unknown> | null,
+      ) => {
         setItem((prev) => {
           const newMetadata = updater(prev.metadata);
           return {
@@ -262,10 +273,8 @@ export function useItemDetailData({
   });
 
   // --- Topic layer content ---
-  const { layerContent, isLoading: isLayerContentLoading } = useTopicLayerContent(
-    qaProvenance.topicLayers,
-    item.id as string,
-  );
+  const { layerContent, isLoading: isLayerContentLoading } =
+    useTopicLayerContent(qaProvenance.topicLayers, item.id as string);
 
   // --- Read marks ---
   const { toggleRead, loadReadMarks, checkReadStatus } = useReadMarks();
@@ -342,7 +351,9 @@ export function useItemDetailData({
       return { previousPriority };
     },
     onSuccess: (next) => {
-      toast(next ? `Priority: ${next}` : 'Priority cleared', { duration: 1500 });
+      toast(next ? `Priority: ${next}` : 'Priority cleared', {
+        duration: 1500,
+      });
       queryClient.invalidateQueries({ queryKey: queryKeys.contentItems.all });
     },
     onError: (_err, _next, context) => {
@@ -383,7 +394,8 @@ export function useItemDetailData({
           toast.success(label);
         } else {
           toast(label, {
-            description: 'Unverified \u2014 consider reviewing before submitting',
+            description:
+              'Unverified \u2014 consider reviewing before submitting',
             duration: 4000,
           });
         }
@@ -391,7 +403,12 @@ export function useItemDetailData({
         toast.error('Failed to copy answer');
       }
     },
-    [item.content, item.answer_standard, item.answer_advanced, item.verified_at],
+    [
+      item.content,
+      item.answer_standard,
+      item.answer_advanced,
+      item.verified_at,
+    ],
   );
 
   // --- Active tab content (for TableOfContents) ---
@@ -416,15 +433,19 @@ export function useItemDetailData({
   const transcriptChapters =
     item.metadata &&
     Array.isArray((item.metadata as Record<string, unknown>).chapters)
-      ? ((item.metadata as Record<string, unknown>).chapters as TranscriptChapter[])
+      ? ((item.metadata as Record<string, unknown>)
+          .chapters as TranscriptChapter[])
       : undefined;
 
   // --- Derived: has reader content ---
-  const hasReaderContent = !!(item.metadata?.reader_html) && !isQAPair;
+  const hasReaderContent = !!item.metadata?.reader_html && !isQAPair;
 
   // --- Bridged inline edit helpers ---
   const startEdit = (field: string) => {
-    inlineEdit.startEdit(field, (item as unknown as Record<string, unknown>)[field]);
+    inlineEdit.startEdit(
+      field,
+      (item as unknown as Record<string, unknown>)[field],
+    );
   };
   const cancelEdit = inlineEdit.cancelEdit;
   const saveEdit = inlineEdit.saveEdit;

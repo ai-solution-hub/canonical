@@ -50,16 +50,41 @@ function resetMocks() {
   });
 
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockResolvedValue({ data: null, error: null, count: null });
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null, count: null });
+  mockSupabase._chain.single.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
@@ -117,15 +142,17 @@ describe('GET /api/notifications', () => {
 
     // Both queries resolve via Promise.all — list then count
     let callCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      callCount++;
-      if (callCount === 1) {
-        // List query
-        return resolve({ data: mockNotifications, error: null });
-      }
-      // Count query
-      return resolve({ data: null, error: null, count: 2 });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        callCount++;
+        if (callCount === 1) {
+          // List query
+          return resolve({ data: mockNotifications, error: null });
+        }
+        // Count query
+        return resolve({ data: null, error: null, count: 2 });
+      },
+    );
 
     const res = await getNotifications();
 
@@ -154,14 +181,16 @@ describe('GET /api/notifications', () => {
     }));
 
     let callCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      callCount++;
-      if (callCount === 1) {
-        return resolve({ data: cappedList, error: null });
-      }
-      // Server-side count returns the true total: 73
-      return resolve({ data: null, error: null, count: 73 });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        callCount++;
+        if (callCount === 1) {
+          return resolve({ data: cappedList, error: null });
+        }
+        // Server-side count returns the true total: 73
+        return resolve({ data: null, error: null, count: 73 });
+      },
+    );
 
     const res = await getNotifications();
 
@@ -172,45 +201,54 @@ describe('GET /api/notifications', () => {
   });
 
   it('returns notifications scoped to the current user', async () => {
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null, count: 0 }),
     );
 
     await getNotifications();
 
     expect(mockSupabase.from).toHaveBeenCalledWith('notifications');
-    expect(mockSupabase._chain.eq).toHaveBeenCalledWith('user_id', 'test-user-id');
+    expect(mockSupabase._chain.eq).toHaveBeenCalledWith(
+      'user_id',
+      'test-user-id',
+    );
     expect(mockSupabase._chain.is).toHaveBeenCalledWith('dismissed_at', null);
-    expect(mockSupabase._chain.order).toHaveBeenCalledWith('created_at', { ascending: false });
+    expect(mockSupabase._chain.order).toHaveBeenCalledWith('created_at', {
+      ascending: false,
+    });
     expect(mockSupabase._chain.limit).toHaveBeenCalledWith(50);
   });
 
   it('issues a head-only count query for unread notifications', async () => {
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null, count: 0 }),
     );
 
     await getNotifications();
 
     // The count query uses select('*', { count: 'exact', head: true })
     // and filters for read_at IS NULL
-    expect(mockSupabase._chain.select).toHaveBeenCalledWith(
-      '*',
-      { count: 'exact', head: true },
-    );
+    expect(mockSupabase._chain.select).toHaveBeenCalledWith('*', {
+      count: 'exact',
+      head: true,
+    });
     // read_at IS NULL filter for the count query
     expect(mockSupabase._chain.is).toHaveBeenCalledWith('read_at', null);
   });
 
   it('returns empty notifications with zero unreadCount when none exist', async () => {
     let callCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      callCount++;
-      if (callCount === 1) {
-        return resolve({ data: [], error: null });
-      }
-      return resolve({ data: null, error: null, count: 0 });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        callCount++;
+        if (callCount === 1) {
+          return resolve({ data: [], error: null });
+        }
+        return resolve({ data: null, error: null, count: 0 });
+      },
+    );
 
     const res = await getNotifications();
 
@@ -222,13 +260,15 @@ describe('GET /api/notifications', () => {
 
   it('returns empty notifications when data is null', async () => {
     let callCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      callCount++;
-      if (callCount === 1) {
-        return resolve({ data: null, error: null });
-      }
-      return resolve({ data: null, error: null, count: 0 });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        callCount++;
+        if (callCount === 1) {
+          return resolve({ data: null, error: null });
+        }
+        return resolve({ data: null, error: null, count: 0 });
+      },
+    );
 
     const res = await getNotifications();
 
@@ -240,13 +280,18 @@ describe('GET /api/notifications', () => {
 
   it('returns 500 on list query database error', async () => {
     let callCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      callCount++;
-      if (callCount === 1) {
-        return resolve({ data: null, error: { message: 'Database connection failed' } });
-      }
-      return resolve({ data: null, error: null, count: 0 });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        callCount++;
+        if (callCount === 1) {
+          return resolve({
+            data: null,
+            error: { message: 'Database connection failed' },
+          });
+        }
+        return resolve({ data: null, error: null, count: 0 });
+      },
+    );
 
     const res = await getNotifications();
 
@@ -258,26 +303,48 @@ describe('GET /api/notifications', () => {
   it('falls back to client-side count when count query fails', async () => {
     const mixedNotifications = [
       {
-        id: VALID_UUID_1, title: 'Unread', message: null, type: 'freshness',
-        entity_type: 'content_item', entity_id: VALID_UUID_2, user_id: 'test-user-id',
-        read_at: null, dismissed_at: null, expires_at: null, created_at: '2026-03-01T10:00:00Z',
+        id: VALID_UUID_1,
+        title: 'Unread',
+        message: null,
+        type: 'freshness',
+        entity_type: 'content_item',
+        entity_id: VALID_UUID_2,
+        user_id: 'test-user-id',
+        read_at: null,
+        dismissed_at: null,
+        expires_at: null,
+        created_at: '2026-03-01T10:00:00Z',
       },
       {
-        id: VALID_UUID_2, title: 'Read', message: null, type: 'quality',
-        entity_type: 'content_item', entity_id: VALID_UUID_1, user_id: 'test-user-id',
-        read_at: '2026-03-01T11:00:00Z', dismissed_at: null, expires_at: null, created_at: '2026-03-01T09:00:00Z',
+        id: VALID_UUID_2,
+        title: 'Read',
+        message: null,
+        type: 'quality',
+        entity_type: 'content_item',
+        entity_id: VALID_UUID_1,
+        user_id: 'test-user-id',
+        read_at: '2026-03-01T11:00:00Z',
+        dismissed_at: null,
+        expires_at: null,
+        created_at: '2026-03-01T09:00:00Z',
       },
     ];
 
     let callCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      callCount++;
-      if (callCount === 1) {
-        return resolve({ data: mixedNotifications, error: null });
-      }
-      // Count query fails
-      return resolve({ data: null, error: { message: 'Count failed' }, count: null });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        callCount++;
+        if (callCount === 1) {
+          return resolve({ data: mixedNotifications, error: null });
+        }
+        // Count query fails
+        return resolve({
+          data: null,
+          error: { message: 'Count failed' },
+          count: null,
+        });
+      },
+    );
 
     const res = await getNotifications();
 
@@ -312,8 +379,8 @@ describe('POST /api/notifications/read', () => {
   });
 
   it('returns 200 on successful mark-as-read', async () => {
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest('/api/notifications/read', {
@@ -333,8 +400,14 @@ describe('POST /api/notifications/read', () => {
     expect(mockSupabase._chain.update).toHaveBeenCalledWith(
       expect.objectContaining({ read_at: expect.any(String) }),
     );
-    expect(mockSupabase._chain.eq).toHaveBeenCalledWith('user_id', 'test-user-id');
-    expect(mockSupabase._chain.in).toHaveBeenCalledWith('id', [VALID_UUID_1, VALID_UUID_2]);
+    expect(mockSupabase._chain.eq).toHaveBeenCalledWith(
+      'user_id',
+      'test-user-id',
+    );
+    expect(mockSupabase._chain.in).toHaveBeenCalledWith('id', [
+      VALID_UUID_1,
+      VALID_UUID_2,
+    ]);
     expect(mockSupabase._chain.is).toHaveBeenCalledWith('read_at', null);
   });
 
@@ -378,8 +451,9 @@ describe('POST /api/notifications/read', () => {
   });
 
   it('returns 500 on database error during mark-as-read', async () => {
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { message: 'Update failed' } }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: { message: 'Update failed' } }),
     );
 
     const req = createTestRequest('/api/notifications/read', {

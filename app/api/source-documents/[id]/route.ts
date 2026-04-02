@@ -22,7 +22,8 @@ export async function GET(
     }
     const { id } = await params;
 
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(id)) {
       return NextResponse.json(
         { error: 'Invalid document ID format' },
@@ -49,7 +50,9 @@ export async function GET(
     // Fetch linked content items
     const { data: items } = await serviceClient
       .from('content_items')
-      .select('id, title, content_type, primary_domain, primary_subtopic, freshness, created_at')
+      .select(
+        'id, title, content_type, primary_domain, primary_subtopic, freshness, created_at',
+      )
       .eq('source_document_id', id)
       .is('archived_at', null)
       .order('created_at', { ascending: false });

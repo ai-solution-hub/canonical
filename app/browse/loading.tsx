@@ -1,6 +1,10 @@
 export default function BrowseLoading() {
   return (
-    <div role="status" aria-label="Loading knowledge base" className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+    <div
+      role="status"
+      aria-label="Loading knowledge base"
+      className="mx-auto max-w-7xl px-4 py-8 sm:px-6"
+    >
       <span className="sr-only">Loading knowledge base...</span>
 
       {/* Header skeleton */}

@@ -23,7 +23,12 @@ const { mockRouter, mockPathname, mockUserRole } = vi.hoisted(() => ({
     prefetch: vi.fn().mockResolvedValue(undefined),
   },
   mockPathname: { value: '/' },
-  mockUserRole: { role: 'editor' as string | null, loading: false, canEdit: true, canAdmin: false },
+  mockUserRole: {
+    role: 'editor' as string | null,
+    loading: false,
+    canEdit: true,
+    canAdmin: false,
+  },
 }));
 
 vi.mock('next/navigation', () => ({
@@ -33,7 +38,11 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('next/link', () => ({
-  default: ({ children, href, ...props }: Record<string, unknown>) => <a href={href as string} {...props}>{children as React.ReactNode}</a>,
+  default: ({ children, href, ...props }: Record<string, unknown>) => (
+    <a href={href as string} {...props}>
+      {children as React.ReactNode}
+    </a>
+  ),
 }));
 
 vi.mock('@/hooks/use-user-role', () => ({
@@ -43,13 +52,19 @@ vi.mock('@/hooks/use-user-role', () => ({
 // Stub complex child components to isolate SiteHeader logic
 vi.mock('@/components/browse/search-bar', () => ({
   SearchBar: ({ variant }: { variant?: string }) => (
-    <div data-testid="search-bar" data-variant={variant}>Search Bar</div>
+    <div data-testid="search-bar" data-variant={variant}>
+      Search Bar
+    </div>
   ),
 }));
 
 vi.mock('@/components/shell/notification-bell', () => ({
   NotificationBell: ({ mobile }: { mobile?: boolean }) => (
-    <div data-testid={mobile ? 'notification-bell-mobile' : 'notification-bell'}>NotificationBell</div>
+    <div
+      data-testid={mobile ? 'notification-bell-mobile' : 'notification-bell'}
+    >
+      NotificationBell
+    </div>
   ),
 }));
 
@@ -104,7 +119,10 @@ describe('SiteHeader', () => {
     expect(coverageLinks[0].closest('a')).toHaveAttribute('href', '/coverage');
 
     const workspacesLinks = screen.getAllByText('Workspaces');
-    expect(workspacesLinks[0].closest('a')).toHaveAttribute('href', '/workspaces');
+    expect(workspacesLinks[0].closest('a')).toHaveAttribute(
+      'href',
+      '/workspaces',
+    );
 
     const reviewLinks = screen.getAllByText('Review');
     expect(reviewLinks[0].closest('a')).toHaveAttribute('href', '/review');

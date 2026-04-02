@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse, rateLimitResponse } from '@/lib/auth';
+import {
+  getAuthorisedClient,
+  authFailureResponse,
+  rateLimitResponse,
+} from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import { parseSearchParams } from '@/lib/validation';
@@ -12,7 +16,8 @@ export const maxDuration = 30;
 type ContentItemRow = Database['public']['Tables']['content_items']['Row'];
 
 /** Columns needed by mapToReviewQueueItem — excludes embedding, summary_data, reader_html and other large/unused fields */
-const REVIEW_COLUMNS = 'id, title, suggested_title, ai_summary, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, platform, author_name, source_domain, thumbnail_url, captured_date, ai_keywords, classification_confidence, quality_score, priority, user_tags, metadata, content, source_url, verified_at, verified_by, freshness, governance_review_status, created_at';
+const REVIEW_COLUMNS =
+  'id, title, suggested_title, ai_summary, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, platform, author_name, source_domain, thumbnail_url, captured_date, ai_keywords, classification_confidence, quality_score, priority, user_tags, metadata, content, source_url, verified_at, verified_by, freshness, governance_review_status, created_at';
 
 /**
  * GET /api/review/queue — fetch content items for the review workflow.
@@ -38,8 +43,14 @@ export async function GET(request: NextRequest) {
     const { status, limit, offset, sort } = validated.data;
     // Use getAll for repeated params (domain=a&domain=b) and fall back to
     // comma-separated single values (domain=a,b) for backwards compatibility.
-    const domainParams = searchParams.getAll('domain').flatMap(v => v.split(',')).filter(Boolean);
-    const contentTypeParams = searchParams.getAll('content_type').flatMap(v => v.split(',')).filter(Boolean);
+    const domainParams = searchParams
+      .getAll('domain')
+      .flatMap((v) => v.split(','))
+      .filter(Boolean);
+    const contentTypeParams = searchParams
+      .getAll('content_type')
+      .flatMap((v) => v.split(','))
+      .filter(Boolean);
     const sourceFileParam = searchParams.get('source_file');
     const sourceDocumentIdParam = searchParams.get('source_document_id');
 
@@ -47,8 +58,13 @@ export async function GET(request: NextRequest) {
     // This requires a two-step query: first find flagged IDs, then fetch items.
     if (status === 'flagged') {
       return await handleFlaggedQuery(
-        supabase, limit, offset,
-        domainParams, contentTypeParams, sourceFileParam, sourceDocumentIdParam,
+        supabase,
+        limit,
+        offset,
+        domainParams,
+        contentTypeParams,
+        sourceFileParam,
+        sourceDocumentIdParam,
         sort,
       );
     }
@@ -62,7 +78,9 @@ export async function GET(request: NextRequest) {
     if (status === 'draft') {
       query = query.eq('governance_review_status', 'draft');
     } else {
-      query = query.or('governance_review_status.is.null,governance_review_status.neq.draft');
+      query = query.or(
+        'governance_review_status.is.null,governance_review_status.neq.draft',
+      );
     }
 
     // Apply verification status filter
@@ -92,9 +110,15 @@ export async function GET(request: NextRequest) {
 
     // Apply sort order
     if (sort === 'confidence_asc') {
-      query = query.order('classification_confidence', { ascending: true, nullsFirst: true });
+      query = query.order('classification_confidence', {
+        ascending: true,
+        nullsFirst: true,
+      });
     } else if (sort === 'quality_score_asc') {
-      query = query.order('quality_score', { ascending: true, nullsFirst: true });
+      query = query.order('quality_score', {
+        ascending: true,
+        nullsFirst: true,
+      });
     } else {
       query = query.order('created_at', { ascending: false });
     }
@@ -184,9 +208,13 @@ async function handleFlaggedQuery(
     );
   }
 
-  const itemIds = [...new Set(
-    (flaggedIds ?? []).map((r: { content_item_id: string }) => r.content_item_id),
-  )];
+  const itemIds = [
+    ...new Set(
+      (flaggedIds ?? []).map(
+        (r: { content_item_id: string }) => r.content_item_id,
+      ),
+    ),
+  ];
 
   if (itemIds.length === 0) {
     const response: ReviewQueueResponse = {
@@ -223,7 +251,10 @@ async function handleFlaggedQuery(
 
   // Apply sort order
   if (sort === 'confidence_asc') {
-    query = query.order('classification_confidence', { ascending: true, nullsFirst: true });
+    query = query.order('classification_confidence', {
+      ascending: true,
+      nullsFirst: true,
+    });
   } else if (sort === 'quality_score_asc') {
     query = query.order('quality_score', { ascending: true, nullsFirst: true });
   } else {
@@ -298,7 +329,10 @@ async function fetchLastReviewedDates(
 
   if (data) {
     // Take the first (most recent) entry per item
-    for (const row of data as Array<{ content_item_id: string; performed_at: string }>) {
+    for (const row of data as Array<{
+      content_item_id: string;
+      performed_at: string;
+    }>) {
       if (!result.has(row.content_item_id)) {
         result.set(row.content_item_id, row.performed_at);
       }

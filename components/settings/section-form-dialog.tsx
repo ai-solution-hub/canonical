@@ -80,8 +80,10 @@ export function SectionFormDialog({
       const body = {
         section_name: sectionName.trim(),
         description: description.trim() || null,
-        expected_layer: expectedLayer && expectedLayer !== 'none' ? expectedLayer : null,
-        subtopic_filter: subtopicFilter && subtopicFilter !== 'none' ? subtopicFilter : null,
+        expected_layer:
+          expectedLayer && expectedLayer !== 'none' ? expectedLayer : null,
+        subtopic_filter:
+          subtopicFilter && subtopicFilter !== 'none' ? subtopicFilter : null,
         display_order: displayOrder,
         is_required: isRequired,
       };
@@ -124,7 +126,10 @@ export function SectionFormDialog({
 
         <div className="space-y-4 py-2">
           <div>
-            <label htmlFor="section-name" className="text-xs font-medium text-muted-foreground">
+            <label
+              htmlFor="section-name"
+              className="text-xs font-medium text-muted-foreground"
+            >
               Section Name
             </label>
             <Input
@@ -137,7 +142,10 @@ export function SectionFormDialog({
           </div>
 
           <div>
-            <label htmlFor="section-description" className="text-xs font-medium text-muted-foreground">
+            <label
+              htmlFor="section-description"
+              className="text-xs font-medium text-muted-foreground"
+            >
               Description
             </label>
             <Input
@@ -150,7 +158,10 @@ export function SectionFormDialog({
           </div>
 
           <div>
-            <label htmlFor="section-layer" className="text-xs font-medium text-muted-foreground">
+            <label
+              htmlFor="section-layer"
+              className="text-xs font-medium text-muted-foreground"
+            >
               Expected Layer
             </label>
             <Select value={expectedLayer} onValueChange={setExpectedLayer}>
@@ -169,7 +180,10 @@ export function SectionFormDialog({
           </div>
 
           <div>
-            <label htmlFor="section-subtopic" className="text-xs font-medium text-muted-foreground">
+            <label
+              htmlFor="section-subtopic"
+              className="text-xs font-medium text-muted-foreground"
+            >
               Subtopic Filter
             </label>
             <Select value={subtopicFilter} onValueChange={setSubtopicFilter}>
@@ -188,7 +202,10 @@ export function SectionFormDialog({
           </div>
 
           <div>
-            <label htmlFor="section-order" className="text-xs font-medium text-muted-foreground">
+            <label
+              htmlFor="section-order"
+              className="text-xs font-medium text-muted-foreground"
+            >
               Display Order
             </label>
             <Input
@@ -196,7 +213,9 @@ export function SectionFormDialog({
               type="number"
               min={0}
               value={displayOrder}
-              onChange={(e) => setDisplayOrder(parseInt(e.target.value, 10) || 0)}
+              onChange={(e) =>
+                setDisplayOrder(parseInt(e.target.value, 10) || 0)
+              }
               className="mt-1"
             />
           </div>
@@ -209,14 +228,21 @@ export function SectionFormDialog({
               onChange={(e) => setIsRequired(e.target.checked)}
               className="size-4 rounded border-border"
             />
-            <label htmlFor="section-required" className="text-sm text-foreground">
+            <label
+              htmlFor="section-required"
+              className="text-sm text-foreground"
+            >
               Required section
             </label>
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={saving}
+          >
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={saving}>

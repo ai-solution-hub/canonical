@@ -31,11 +31,24 @@ function validateMagicBytes(buffer: ArrayBuffer, mimeType: string): boolean {
   const bytes = new Uint8Array(buffer).slice(0, 4);
   if (mimeType === 'application/pdf') {
     // %PDF (hex: 25 50 44 46)
-    return bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46;
+    return (
+      bytes[0] === 0x25 &&
+      bytes[1] === 0x50 &&
+      bytes[2] === 0x44 &&
+      bytes[3] === 0x46
+    );
   }
-  if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+  if (
+    mimeType ===
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  ) {
     // PK\x03\x04 — ZIP archive signature (DOCX is a ZIP container)
-    return bytes[0] === 0x50 && bytes[1] === 0x4B && bytes[2] === 0x03 && bytes[3] === 0x04;
+    return (
+      bytes[0] === 0x50 &&
+      bytes[1] === 0x4b &&
+      bytes[2] === 0x03 &&
+      bytes[3] === 0x04
+    );
   }
   return false;
 }
@@ -83,10 +96,7 @@ export async function POST(
     }
 
     if (file.size === 0) {
-      return NextResponse.json(
-        { error: 'File is empty.' },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: 'File is empty.' }, { status: 400 });
     }
 
     // Validate MIME type
@@ -108,10 +118,7 @@ export async function POST(
       .single();
 
     if (bidError || !bid) {
-      return NextResponse.json(
-        { error: 'Bid not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
     }
 
     // Upload to Supabase Storage
@@ -162,7 +169,10 @@ export async function POST(
     }
 
     // Update bid's domain_metadata.tender_document_ids array
-    const currentMetadata = parseBidMetadata(bid.domain_metadata) ?? (bid.domain_metadata as Record<string, unknown> ?? {});
+    const currentMetadata =
+      parseBidMetadata(bid.domain_metadata) ??
+      (bid.domain_metadata as Record<string, unknown>) ??
+      {};
     const existingDocIds = Array.isArray(currentMetadata.tender_document_ids)
       ? (currentMetadata.tender_document_ids as string[])
       : [];

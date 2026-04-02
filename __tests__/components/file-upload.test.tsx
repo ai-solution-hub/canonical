@@ -14,7 +14,10 @@ vi.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 
-import { FileUpload, type UploadFile } from '@/components/create-content/file-upload';
+import {
+  FileUpload,
+  type UploadFile,
+} from '@/components/create-content/file-upload';
 
 // ---------------------------------------------------------------------------
 // Factories
@@ -23,7 +26,9 @@ import { FileUpload, type UploadFile } from '@/components/create-content/file-up
 function createUploadFile(overrides: Partial<UploadFile> = {}): UploadFile {
   return {
     id: overrides.id ?? 'file-1',
-    file: overrides.file ?? new File(['content'], 'document.pdf', { type: 'application/pdf' }),
+    file:
+      overrides.file ??
+      new File(['content'], 'document.pdf', { type: 'application/pdf' }),
     status: overrides.status ?? 'pending',
     progress: overrides.progress ?? 0,
     error: overrides.error,
@@ -58,8 +63,16 @@ describe('FileUpload', () => {
 
   it('shows file type badge for each file', () => {
     const files = [
-      createUploadFile({ id: '1', file: new File([''], 'report.pdf', { type: 'application/pdf' }) }),
-      createUploadFile({ id: '2', file: new File([''], 'notes.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }) }),
+      createUploadFile({
+        id: '1',
+        file: new File([''], 'report.pdf', { type: 'application/pdf' }),
+      }),
+      createUploadFile({
+        id: '2',
+        file: new File([''], 'notes.docx', {
+          type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        }),
+      }),
     ];
 
     render(<FileUpload {...defaultProps} files={files} />);
@@ -69,7 +82,9 @@ describe('FileUpload', () => {
   });
 
   it('shows formatted file size', () => {
-    const file = new File(['x'.repeat(2048)], 'test.pdf', { type: 'application/pdf' });
+    const file = new File(['x'.repeat(2048)], 'test.pdf', {
+      type: 'application/pdf',
+    });
     const files = [createUploadFile({ file })];
 
     render(<FileUpload {...defaultProps} files={files} />);
@@ -79,8 +94,17 @@ describe('FileUpload', () => {
 
   it('shows status text for each file status', () => {
     const files = [
-      createUploadFile({ id: '1', status: 'done', file: new File([''], 'a.pdf') }),
-      createUploadFile({ id: '2', status: 'error', error: 'Upload failed', file: new File([''], 'b.pdf') }),
+      createUploadFile({
+        id: '1',
+        status: 'done',
+        file: new File([''], 'a.pdf'),
+      }),
+      createUploadFile({
+        id: '2',
+        status: 'error',
+        error: 'Upload failed',
+        file: new File([''], 'b.pdf'),
+      }),
     ];
 
     render(<FileUpload {...defaultProps} files={files} />);
@@ -91,7 +115,13 @@ describe('FileUpload', () => {
 
   it('shows remove button for pending files', async () => {
     const user = userEvent.setup();
-    const files = [createUploadFile({ id: 'f1', status: 'pending', file: new File([''], 'doc.pdf') })];
+    const files = [
+      createUploadFile({
+        id: 'f1',
+        status: 'pending',
+        file: new File([''], 'doc.pdf'),
+      }),
+    ];
 
     render(<FileUpload {...defaultProps} files={files} />);
 

@@ -11,26 +11,40 @@ import { getSettingsNav, isMobileViewport } from '../helpers/responsive';
  */
 
 test.describe('Viewer role restrictions', () => {
-  test('viewer cannot see Review in navigation', async ({ viewerPage: page }) => {
+  test('viewer cannot see Review in navigation', async ({
+    viewerPage: page,
+  }) => {
     // On mobile, open hamburger first
     if (isMobileViewport(page)) {
-      const hamburger = page.getByRole('button', { name: 'Open navigation menu' });
+      const hamburger = page.getByRole('button', {
+        name: 'Open navigation menu',
+      });
       if (await hamburger.isVisible({ timeout: 3000 }).catch(() => false)) {
         await hamburger.click();
-        const mobileNav = page.getByRole('navigation', { name: 'Mobile navigation' });
+        const mobileNav = page.getByRole('navigation', {
+          name: 'Mobile navigation',
+        });
         await expect(mobileNav).toBeVisible();
-        await expect(mobileNav.getByRole('link', { name: 'Review' })).not.toBeVisible();
+        await expect(
+          mobileNav.getByRole('link', { name: 'Review' }),
+        ).not.toBeVisible();
       }
     } else {
       const mainNav = page.getByRole('navigation', { name: 'Main navigation' });
       // Viewer should not see Review link (requires editor+ role)
-      await expect(mainNav.getByRole('link', { name: 'Review' })).not.toBeVisible();
+      await expect(
+        mainNav.getByRole('link', { name: 'Review' }),
+      ).not.toBeVisible();
     }
   });
 
-  test('viewer sees limited settings sections', async ({ viewerPage: page }) => {
+  test('viewer sees limited settings sections', async ({
+    viewerPage: page,
+  }) => {
     await page.goto('/settings');
-    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({
+      timeout: 10000,
+    });
 
     const settingsNav = await getSettingsNav(page);
 
@@ -54,9 +68,13 @@ test.describe('Editor role access', () => {
     ).toBeVisible({ timeout: 10000 });
   });
 
-  test('editor sees content management but not system settings', async ({ editorPage: page }) => {
+  test('editor sees content management but not system settings', async ({
+    editorPage: page,
+  }) => {
     await page.goto('/settings');
-    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({
+      timeout: 10000,
+    });
 
     const settingsNav = await getSettingsNav(page);
 
@@ -70,7 +88,9 @@ test.describe('Editor role access', () => {
 });
 
 test.describe('Admin role full access', () => {
-  test('admin can access the review page', async ({ authenticatedPage: page }) => {
+  test('admin can access the review page', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/review');
 
     // Admin should see the review queue heading
@@ -79,9 +99,13 @@ test.describe('Admin role full access', () => {
     ).toBeVisible({ timeout: 10000 });
   });
 
-  test('admin sees all settings sections', async ({ authenticatedPage: page }) => {
+  test('admin sees all settings sections', async ({
+    authenticatedPage: page,
+  }) => {
     await page.goto('/settings');
-    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({
+      timeout: 10000,
+    });
 
     const settingsNav = await getSettingsNav(page);
 

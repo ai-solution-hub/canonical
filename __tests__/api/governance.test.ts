@@ -30,7 +30,10 @@ vi.spyOn(console, 'error').mockImplementation(() => {});
 // Import handlers under test (AFTER mocks)
 // ---------------------------------------------------------------------------
 
-import { GET as getConfig, POST as postConfig } from '@/app/api/governance/route';
+import {
+  GET as getConfig,
+  POST as postConfig,
+} from '@/app/api/governance/route';
 import {
   GET as getReview,
   POST as postReview,
@@ -52,16 +55,41 @@ function resetMocks() {
   });
 
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockResolvedValue({ data: null, error: null, count: null });
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null, count: null });
+  mockSupabase._chain.single.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
@@ -103,8 +131,9 @@ describe('GET /api/governance', () => {
       },
     ];
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: mockConfigs, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: mockConfigs, error: null }),
     );
 
     const res = await getConfig();
@@ -117,8 +146,9 @@ describe('GET /api/governance', () => {
   });
 
   it('returns 500 when Supabase query fails', async () => {
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { message: 'DB error' } }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: { message: 'DB error' } }),
     );
 
     const res = await getConfig();
@@ -129,8 +159,8 @@ describe('GET /api/governance', () => {
   });
 
   it('returns empty array when no config exists', async () => {
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const res = await getConfig();
@@ -199,9 +229,7 @@ describe('POST /api/governance', () => {
     const json = await res.json();
     expect(json.error).toBe('Validation failed');
     expect(json.details).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ field: 'domain' }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ field: 'domain' })]),
     );
   });
 
@@ -218,9 +246,7 @@ describe('POST /api/governance', () => {
     const json = await res.json();
     expect(json.error).toBe('Validation failed');
     expect(json.details).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ field: 'posture' }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ field: 'posture' })]),
     );
   });
 
@@ -235,8 +261,8 @@ describe('POST /api/governance', () => {
     });
 
     // insert chain resolves
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest('/api/governance', {
@@ -271,8 +297,8 @@ describe('POST /api/governance', () => {
     });
 
     // update chain resolves
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest('/api/governance', {
@@ -304,8 +330,9 @@ describe('POST /api/governance', () => {
     });
 
     // insert fails
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { message: 'Insert failed' } }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: { message: 'Insert failed' } }),
     );
 
     const req = createTestRequest('/api/governance', {
@@ -328,8 +355,8 @@ describe('POST /api/governance', () => {
       error: { code: 'PGRST116', message: 'No rows found' },
     });
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest('/api/governance', {
@@ -367,8 +394,8 @@ describe('POST /api/governance', () => {
       error: { code: 'PGRST116', message: 'No rows found' },
     });
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest('/api/governance', {
@@ -431,8 +458,8 @@ describe('POST /api/governance', () => {
       error: null,
     });
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest('/api/governance', {
@@ -481,8 +508,9 @@ describe('GET /api/governance/review', () => {
 
   it('returns count when count_only=true', async () => {
     // No role needed — just authenticated
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null, count: 7 }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: null, count: 7 }),
     );
 
     const req = createTestRequest('/api/governance/review', {
@@ -496,8 +524,9 @@ describe('GET /api/governance/review', () => {
   });
 
   it('returns count 0 on Supabase error when count_only=true', async () => {
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { message: 'DB error' }, count: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: { message: 'DB error' }, count: null }),
     );
 
     const req = createTestRequest('/api/governance/review', {
@@ -525,8 +554,9 @@ describe('GET /api/governance/review', () => {
       },
     ];
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: mockItems, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: mockItems, error: null }),
     );
 
     const req = createTestRequest('/api/governance/review');
@@ -540,8 +570,9 @@ describe('GET /api/governance/review', () => {
   });
 
   it('returns 500 when full list query fails', async () => {
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { message: 'DB error' } }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: { message: 'DB error' } }),
     );
 
     const req = createTestRequest('/api/governance/review');
@@ -599,9 +630,7 @@ describe('POST /api/governance/review', () => {
     const json = await res.json();
     expect(json.error).toBe('Validation failed');
     expect(json.details).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ field: 'item_id' }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ field: 'item_id' })]),
     );
   });
 
@@ -618,9 +647,7 @@ describe('POST /api/governance/review', () => {
     const json = await res.json();
     expect(json.error).toBe('Validation failed');
     expect(json.details).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ field: 'action' }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ field: 'action' })]),
     );
   });
 
@@ -674,9 +701,11 @@ describe('POST /api/governance/review', () => {
     });
 
     // Update chain resolves OK
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      return resolve({ data: null, error: null });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        return resolve({ data: null, error: null });
+      },
+    );
 
     // Notification lookup: different user updated the item
     mockSupabase._chain.single.mockResolvedValueOnce({
@@ -713,8 +742,8 @@ describe('POST /api/governance/review', () => {
       error: null,
     });
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     // Notification lookup: same user — no notification
@@ -754,8 +783,8 @@ describe('POST /api/governance/review', () => {
       error: null,
     });
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     mockSupabase._chain.single.mockResolvedValueOnce({
@@ -806,6 +835,8 @@ describe('POST /api/governance/review', () => {
 
     expect(res.status).toBe(500);
     const json = await res.json();
-    expect(json.error).toBe('Item not found or governance review update failed');
+    expect(json.error).toBe(
+      'Item not found or governance review update failed',
+    );
   });
 });

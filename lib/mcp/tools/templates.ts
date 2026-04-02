@@ -28,9 +28,15 @@ export async function registerTemplateTools(server: McpServer): Promise<void> {
     'list_templates',
     {
       title: 'List Templates',
-      description: 'List available bid template definitions with requirement counts. Use to see which templates can be checked for coverage. Templates include Standard Selection Questionnaire, G-Cloud applications, and other procurement templates.',
+      description:
+        'List available bid template definitions with requirement counts. Use to see which templates can be checked for coverage. Templates include Standard Selection Questionnaire, G-Cloud applications, and other procurement templates.',
       inputSchema: {
-        template_type: z.string().optional().describe('Filter by template type: sq, rfp, eqq, gcloud, method_statement, dos, dps, framework, other'),
+        template_type: z
+          .string()
+          .optional()
+          .describe(
+            'Filter by template type: sq, rfp, eqq, gcloud, method_statement, dos, dps, framework, other',
+          ),
       },
       annotations: {
         readOnlyHint: true,
@@ -41,11 +47,15 @@ export async function registerTemplateTools(server: McpServer): Promise<void> {
     async (args, extra: ToolExtra) => {
       try {
         const supabase = createMcpClient(extra.authInfo);
-        const { listAvailableTemplates } = await import('@/lib/templates/template-coverage');
-        const templates = await listAvailableTemplates(supabase, args.template_type);
+        const { listAvailableTemplates } =
+          await import('@/lib/templates/template-coverage');
+        const templates = await listAvailableTemplates(
+          supabase,
+          args.template_type,
+        );
 
         const result: TemplateListData = {
-          templates: templates.map(t => ({
+          templates: templates.map((t) => ({
             template_name: t.template_name,
             template_version: t.template_version,
             template_type: t.template_type,
@@ -62,7 +72,12 @@ export async function registerTemplateTools(server: McpServer): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Failed to list templates: ${message}.` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Failed to list templates: ${message}.`,
+            },
+          ],
           isError: true,
         };
       }
@@ -76,10 +91,20 @@ export async function registerTemplateTools(server: McpServer): Promise<void> {
     'get_template_coverage',
     {
       title: 'Template Coverage',
-      description: 'Check how well the knowledge base covers a specific bid template. Returns per-section coverage status (strong/partial/gap) and an overall completeness score. Use to understand readiness for a specific template type. Use list_templates first to see available templates.',
+      description:
+        'Check how well the knowledge base covers a specific bid template. Returns per-section coverage status (strong/partial/gap) and an overall completeness score. Use to understand readiness for a specific template type. Use list_templates first to see available templates.',
       inputSchema: {
-        template_name: z.string().describe('The template name (e.g. "Standard Selection Questionnaire")'),
-        template_version: z.string().optional().describe('Specific version (e.g. "PPN 03/24"). Defaults to current version.'),
+        template_name: z
+          .string()
+          .describe(
+            'The template name (e.g. "Standard Selection Questionnaire")',
+          ),
+        template_version: z
+          .string()
+          .optional()
+          .describe(
+            'Specific version (e.g. "PPN 03/24"). Defaults to current version.',
+          ),
       },
       annotations: {
         readOnlyHint: true,
@@ -90,16 +115,26 @@ export async function registerTemplateTools(server: McpServer): Promise<void> {
     async (args, extra: ToolExtra) => {
       try {
         const supabase = createMcpClient(extra.authInfo);
-        const { fetchTemplateRequirements, fetchContentForMatching, computeTemplateCoverage } =
-          await import('@/lib/templates/template-coverage');
+        const {
+          fetchTemplateRequirements,
+          fetchContentForMatching,
+          computeTemplateCoverage,
+        } = await import('@/lib/templates/template-coverage');
 
         const requirements = await fetchTemplateRequirements(
-          supabase, args.template_name, args.template_version,
+          supabase,
+          args.template_name,
+          args.template_version,
         );
 
         if (requirements.length === 0) {
           return {
-            content: [{ type: 'text' as const, text: `No requirements found for template "${args.template_name}"${args.template_version ? ` version ${args.template_version}` : ''}. Use list_templates to see available templates.` }],
+            content: [
+              {
+                type: 'text' as const,
+                text: `No requirements found for template "${args.template_name}"${args.template_version ? ` version ${args.template_version}` : ''}. Use list_templates to see available templates.`,
+              },
+            ],
             isError: true,
           };
         }
@@ -123,7 +158,12 @@ export async function registerTemplateTools(server: McpServer): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Template coverage query failed: ${message}.` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Template coverage query failed: ${message}.`,
+            },
+          ],
           isError: true,
         };
       }
@@ -137,11 +177,22 @@ export async function registerTemplateTools(server: McpServer): Promise<void> {
     'get_template_gaps',
     {
       title: 'Template Gaps',
-      description: 'Show only the gaps and partial matches for a template — requirements where the knowledge base is missing or has insufficient content. Use this when planning what content to create next.',
+      description:
+        'Show only the gaps and partial matches for a template — requirements where the knowledge base is missing or has insufficient content. Use this when planning what content to create next.',
       inputSchema: {
-        template_name: z.string().describe('The template name (e.g. "Standard Selection Questionnaire")'),
-        template_version: z.string().optional().describe('Specific version. Defaults to current version.'),
-        include_partial: z.boolean().optional().describe('Include partial matches alongside gaps (default: true)'),
+        template_name: z
+          .string()
+          .describe(
+            'The template name (e.g. "Standard Selection Questionnaire")',
+          ),
+        template_version: z
+          .string()
+          .optional()
+          .describe('Specific version. Defaults to current version.'),
+        include_partial: z
+          .boolean()
+          .optional()
+          .describe('Include partial matches alongside gaps (default: true)'),
       },
       annotations: {
         readOnlyHint: true,
@@ -152,16 +203,26 @@ export async function registerTemplateTools(server: McpServer): Promise<void> {
     async (args, extra: ToolExtra) => {
       try {
         const supabase = createMcpClient(extra.authInfo);
-        const { fetchTemplateRequirements, fetchContentForMatching, computeTemplateCoverage } =
-          await import('@/lib/templates/template-coverage');
+        const {
+          fetchTemplateRequirements,
+          fetchContentForMatching,
+          computeTemplateCoverage,
+        } = await import('@/lib/templates/template-coverage');
 
         const requirements = await fetchTemplateRequirements(
-          supabase, args.template_name, args.template_version,
+          supabase,
+          args.template_name,
+          args.template_version,
         );
 
         if (requirements.length === 0) {
           return {
-            content: [{ type: 'text' as const, text: `No requirements found for template "${args.template_name}"${args.template_version ? ` version ${args.template_version}` : ''}. Use list_templates to see available templates.` }],
+            content: [
+              {
+                type: 'text' as const,
+                text: `No requirements found for template "${args.template_name}"${args.template_version ? ` version ${args.template_version}` : ''}. Use list_templates to see available templates.`,
+              },
+            ],
             isError: true,
           };
         }
@@ -178,14 +239,18 @@ export async function registerTemplateTools(server: McpServer): Promise<void> {
         );
 
         // Flatten all requirements, filter to gaps (and optionally partial)
-        const allReqs = coverage.sections.flatMap(s => s.requirements);
-        const gapReqs = allReqs.filter(r =>
-          r.coverage_status === 'gap' || (includePartial && r.coverage_status === 'partial'),
+        const allReqs = coverage.sections.flatMap((s) => s.requirements);
+        const gapReqs = allReqs.filter(
+          (r) =>
+            r.coverage_status === 'gap' ||
+            (includePartial && r.coverage_status === 'partial'),
         );
 
-        const gapCount = allReqs.filter(r => r.coverage_status === 'gap').length;
+        const gapCount = allReqs.filter(
+          (r) => r.coverage_status === 'gap',
+        ).length;
         const partialCount = includePartial
-          ? allReqs.filter(r => r.coverage_status === 'partial').length
+          ? allReqs.filter((r) => r.coverage_status === 'partial').length
           : 0;
 
         const result: TemplateGapsData = {
@@ -206,7 +271,12 @@ export async function registerTemplateTools(server: McpServer): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Template gaps query failed: ${message}.` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Template gaps query failed: ${message}.`,
+            },
+          ],
           isError: true,
         };
       }

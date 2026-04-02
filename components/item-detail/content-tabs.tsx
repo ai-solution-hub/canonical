@@ -1,7 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { FileText, RefreshCw, CheckCircle2, Loader2, Pencil, Flag, Check } from 'lucide-react';
+import {
+  FileText,
+  RefreshCw,
+  CheckCircle2,
+  Loader2,
+  Pencil,
+  Flag,
+  Check,
+} from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,8 +32,14 @@ import type {
 } from '@/types/content';
 
 const ContentEditor = dynamic(
-  () => import('@/components/item-detail/content-editor').then((mod) => mod.ContentEditor),
-  { ssr: false, loading: () => <div className="h-48 animate-pulse rounded-lg bg-accent" /> },
+  () =>
+    import('@/components/item-detail/content-editor').then(
+      (mod) => mod.ContentEditor,
+    ),
+  {
+    ssr: false,
+    loading: () => <div className="h-48 animate-pulse rounded-lg bg-accent" />,
+  },
 );
 
 // ---------------------------------------------------------------------------
@@ -163,7 +177,9 @@ export function ContentTabs({
   showSourceToggle = true,
   className,
 }: ContentTabsProps) {
-  const [summaryData, setSummaryData] = useState<SummaryData | null>(initialData);
+  const [summaryData, setSummaryData] = useState<SummaryData | null>(
+    initialData,
+  );
   const [isGenerating, setIsGenerating] = useState(false);
 
   // Flag summary for review state
@@ -270,7 +286,13 @@ export function ContentTabs({
   // Inline edit helpers
   const isEditing = (field: string) => editConfig?.editingField === field;
 
-  function EditButton({ field, label }: { field: 'brief' | 'detail' | 'reference' | 'content'; label?: string }) {
+  function EditButton({
+    field,
+    label,
+  }: {
+    field: 'brief' | 'detail' | 'reference' | 'content';
+    label?: string;
+  }) {
     if (!canEdit || !editConfig || isEditing(field)) return null;
     return (
       <Button
@@ -285,7 +307,11 @@ export function ContentTabs({
     );
   }
 
-  function InlineTextEditor({ field }: { field: 'brief' | 'detail' | 'reference' }) {
+  function InlineTextEditor({
+    field,
+  }: {
+    field: 'brief' | 'detail' | 'reference';
+  }) {
     if (!editConfig || !isEditing(field)) return null;
     return (
       <div className="space-y-2">
@@ -438,39 +464,60 @@ export function ContentTabs({
       <Tabs defaultValue={defaultTab} className="gap-0">
         <TabsList className="w-full justify-center items-center rounded-b-none border-b border-border bg-muted/50 px-1 h-14 min-h-14">
           {hasBrief && (
-            <TabsTrigger value="brief" className="px-6 text-sm hover:text-primary hover:bg-primary/10 data-[state=active]:text-primary data-[state=active]:bg-primary/10">
+            <TabsTrigger
+              value="brief"
+              className="px-6 text-sm hover:text-primary hover:bg-primary/10 data-[state=active]:text-primary data-[state=active]:bg-primary/10"
+            >
               Summary
             </TabsTrigger>
           )}
           {hasDetail && (
-            <TabsTrigger value="detail" className="px-6 text-sm hover:text-primary hover:bg-primary/10 data-[state=active]:text-primary data-[state=active]:bg-primary/10">
+            <TabsTrigger
+              value="detail"
+              className="px-6 text-sm hover:text-primary hover:bg-primary/10 data-[state=active]:text-primary data-[state=active]:bg-primary/10"
+            >
               In Depth
             </TabsTrigger>
           )}
           {hasTakeaways && (
-            <TabsTrigger value="takeaways" className="px-6 text-sm hover:text-primary hover:bg-primary/10 data-[state=active]:text-primary data-[state=active]:bg-primary/10">
+            <TabsTrigger
+              value="takeaways"
+              className="px-6 text-sm hover:text-primary hover:bg-primary/10 data-[state=active]:text-primary data-[state=active]:bg-primary/10"
+            >
               Takeaways
             </TabsTrigger>
           )}
           {hasFullText && (
-            <TabsTrigger value="fulltext" className="px-6 text-sm hover:text-primary hover:bg-primary/10 data-[state=active]:text-primary data-[state=active]:bg-primary/10">
+            <TabsTrigger
+              value="fulltext"
+              className="px-6 text-sm hover:text-primary hover:bg-primary/10 data-[state=active]:text-primary data-[state=active]:bg-primary/10"
+            >
               {isQAPair ? 'Full Answer' : 'Original Text'}
             </TabsTrigger>
           )}
           {hasReaderContent && (
-            <TabsTrigger value="reader" className="px-6 text-sm hover:text-primary hover:bg-primary/10 data-[state=active]:text-primary data-[state=active]:bg-primary/10">
+            <TabsTrigger
+              value="reader"
+              className="px-6 text-sm hover:text-primary hover:bg-primary/10 data-[state=active]:text-primary data-[state=active]:bg-primary/10"
+            >
               Reader
             </TabsTrigger>
           )}
           {hasReference && (
-            <TabsTrigger value="reference" className="px-6 text-sm hover:text-primary hover:bg-primary/10 data-[state=active]:text-primary data-[state=active]:bg-primary/10">
+            <TabsTrigger
+              value="reference"
+              className="px-6 text-sm hover:text-primary hover:bg-primary/10 data-[state=active]:text-primary data-[state=active]:bg-primary/10"
+            >
               Supporting Detail
             </TabsTrigger>
           )}
           {/* Fallback: no content yet — show disabled placeholders */}
           {!hasBrief && !hasFullText && !hasDetail && (
             <>
-              <TabsTrigger value="brief" className="px-6 text-sm hover:text-primary hover:bg-primary/10 data-[state=active]:text-primary data-[state=active]:bg-primary/10">
+              <TabsTrigger
+                value="brief"
+                className="px-6 text-sm hover:text-primary hover:bg-primary/10 data-[state=active]:text-primary data-[state=active]:bg-primary/10"
+              >
                 Summary
               </TabsTrigger>
               <TabsTrigger value="detail" className="px-6 text-sm" disabled>
@@ -493,11 +540,15 @@ export function ContentTabs({
                     onToggle={setBriefViewMode}
                   />
                 )}
-                {hasBriefHuman && (showSourceToggle ? briefViewMode === 'human' : true) ? (
+                {hasBriefHuman &&
+                (showSourceToggle ? briefViewMode === 'human' : true) ? (
                   <>
                     <div className="mb-2 flex items-center justify-between">
                       <span className="text-xs text-muted-foreground" />
-                      <EditButton field="brief" label={brief ? 'Edit' : 'Write Summary'} />
+                      <EditButton
+                        field="brief"
+                        label={brief ? 'Edit' : 'Write Summary'}
+                      />
                     </div>
                     <ContentRenderer content={brief!} />
                   </>
@@ -519,7 +570,10 @@ export function ContentTabs({
                 ) : (
                   // Empty state
                   <div className="flex flex-col items-center gap-3 py-8 text-center">
-                    <FileText className="size-6 text-muted-foreground/50" aria-hidden="true" />
+                    <FileText
+                      className="size-6 text-muted-foreground/50"
+                      aria-hidden="true"
+                    />
                     <p className="text-sm text-muted-foreground">
                       No summary yet for this item.
                     </p>
@@ -554,7 +608,8 @@ export function ContentTabs({
                     onToggle={setDetailViewMode}
                   />
                 )}
-                {hasDetailHuman && (showSourceToggle ? detailViewMode === 'human' : true) ? (
+                {hasDetailHuman &&
+                (showSourceToggle ? detailViewMode === 'human' : true) ? (
                   <>
                     <div className="mb-2 flex items-center justify-between">
                       <span className="text-xs text-muted-foreground" />
@@ -562,7 +617,8 @@ export function ContentTabs({
                     </div>
                     <ContentRenderer content={detail!} />
                   </>
-                ) : hasDetailAI && (detailViewMode === 'ai' || !hasDetailHuman) ? (
+                ) : hasDetailAI &&
+                  (detailViewMode === 'ai' || !hasDetailHuman) ? (
                   <>
                     <div className="mb-2 flex items-center justify-between">
                       <span className="text-xs text-muted-foreground" />
@@ -662,21 +718,28 @@ export function ContentTabs({
                 Generate summary
               </Button>
             )}
-            {canEdit && showSourceToggle && summaryData && !flagged && !showFlagForm && (
-              <Button
-                onClick={() => setShowFlagForm(true)}
-                variant="ghost"
-                size="sm"
-                className="gap-1.5 text-xs"
-                aria-label="Flag summary for review"
-              >
-                <Flag className="size-3.5" aria-hidden="true" />
-                Flag for review
-              </Button>
-            )}
+            {canEdit &&
+              showSourceToggle &&
+              summaryData &&
+              !flagged &&
+              !showFlagForm && (
+                <Button
+                  onClick={() => setShowFlagForm(true)}
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5 text-xs"
+                  aria-label="Flag summary for review"
+                >
+                  <Flag className="size-3.5" aria-hidden="true" />
+                  Flag for review
+                </Button>
+              )}
             {canEdit && showSourceToggle && summaryData && flagged && (
               <>
-                <span className="flex items-center gap-1.5 text-xs text-muted-foreground" role="status">
+                <span
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                  role="status"
+                >
                   <Check className="size-3.5" aria-hidden="true" />
                   Flagged for review
                 </span>

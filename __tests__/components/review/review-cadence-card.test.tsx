@@ -17,7 +17,9 @@ import type { ReviewCadenceResponse } from '@/app/api/review/cadence/route';
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-function makeCadenceData(overrides: Partial<ReviewCadenceResponse> = {}): ReviewCadenceResponse {
+function makeCadenceData(
+  overrides: Partial<ReviewCadenceResponse> = {},
+): ReviewCadenceResponse {
   return {
     summary: {
       total_items: 100,
@@ -48,9 +50,24 @@ function makeCadenceData(overrides: Partial<ReviewCadenceResponse> = {}): Review
       },
     ],
     by_domain: overrides.by_domain ?? {
-      Technology: { total: 50, never_reviewed: 10, average_days: 40, overdue: 12 },
-      Operations: { total: 30, never_reviewed: 8, average_days: 55, overdue: 10 },
-      'HR & People': { total: 20, never_reviewed: 2, average_days: 30, overdue: 3 },
+      Technology: {
+        total: 50,
+        never_reviewed: 10,
+        average_days: 40,
+        overdue: 12,
+      },
+      Operations: {
+        total: 30,
+        never_reviewed: 8,
+        average_days: 55,
+        overdue: 10,
+      },
+      'HR & People': {
+        total: 20,
+        never_reviewed: 2,
+        average_days: 30,
+        overdue: 3,
+      },
     },
   };
 }
@@ -91,7 +108,9 @@ describe('ReviewCadenceCard', () => {
 
     render(<ReviewCadenceCard />);
 
-    expect(screen.getByRole('status', { name: /loading review health/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('status', { name: /loading review health/i }),
+    ).toBeInTheDocument();
     expect(screen.getByText('Review Health')).toBeInTheDocument();
   });
 
@@ -121,7 +140,9 @@ describe('ReviewCadenceCard', () => {
     });
 
     // Check the metric labels render (some appear in both metrics and table)
-    expect(screen.getAllByText('Never reviewed').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Never reviewed').length).toBeGreaterThanOrEqual(
+      1,
+    );
     expect(screen.getByText('Avg. days since review')).toBeInTheDocument();
     expect(screen.getAllByText('Overdue').length).toBeGreaterThanOrEqual(1);
   });
@@ -190,7 +211,9 @@ describe('ReviewCadenceCard', () => {
       expect(screen.getByText('Technology')).toBeInTheDocument();
     });
 
-    const table = screen.getByRole('table', { name: /review cadence by domain/i });
+    const table = screen.getByRole('table', {
+      name: /review cadence by domain/i,
+    });
     expect(table).toBeInTheDocument();
 
     // Check domain names
@@ -206,7 +229,9 @@ describe('ReviewCadenceCard', () => {
     render(<ReviewCadenceCard />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /overdue/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /overdue/i }),
+      ).toBeInTheDocument();
     });
 
     const toggle = screen.getByRole('button', { name: /overdue/i });
@@ -220,7 +245,9 @@ describe('ReviewCadenceCard', () => {
     render(<ReviewCadenceCard />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /overdue/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /overdue/i }),
+      ).toBeInTheDocument();
     });
 
     const toggle = screen.getByRole('button', { name: /overdue/i });
@@ -243,7 +270,9 @@ describe('ReviewCadenceCard', () => {
     render(<ReviewCadenceCard />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /overdue/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /overdue/i }),
+      ).toBeInTheDocument();
     });
 
     // Before expanding: "Never reviewed" appears once (metric label)
@@ -264,7 +293,9 @@ describe('ReviewCadenceCard', () => {
     render(<ReviewCadenceCard />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /overdue/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /overdue/i }),
+      ).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole('button', { name: /overdue/i }));
@@ -277,7 +308,9 @@ describe('ReviewCadenceCard', () => {
   it('passes through className prop', async () => {
     mockSuccessResponse();
 
-    const { container } = render(<ReviewCadenceCard className="custom-class" />);
+    const { container } = render(
+      <ReviewCadenceCard className="custom-class" />,
+    );
 
     await waitFor(() => {
       expect(screen.getByText('Review Health')).toBeInTheDocument();
@@ -310,6 +343,8 @@ describe('ReviewCadenceCard', () => {
       expect(screen.getByText('Review Health')).toBeInTheDocument();
     });
 
-    expect(screen.queryByRole('button', { name: /overdue/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /overdue/i }),
+    ).not.toBeInTheDocument();
   });
 });

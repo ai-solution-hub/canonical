@@ -22,8 +22,12 @@ import type {
 } from '@/types/content';
 
 const ImageGallery = dynamic(
-  () => import('@/components/reader/image-gallery').then((mod) => mod.ImageGallery),
-  { ssr: false, loading: () => <div className="h-32 animate-pulse rounded-lg bg-accent" /> },
+  () =>
+    import('@/components/reader/image-gallery').then((mod) => mod.ImageGallery),
+  {
+    ssr: false,
+    loading: () => <div className="h-32 animate-pulse rounded-lg bg-accent" />,
+  },
 );
 
 export interface ContentBodyProps {
@@ -92,10 +96,7 @@ export function ContentBody({
 
       {/* AI processing indicators (classify / summarise — not for Q&A pairs) */}
       {canEdit && item.content && !isQAPair && (
-        <AiProcessingIndicators
-          item={item}
-          onItemUpdated={setItem}
-        />
+        <AiProcessingIndicators item={item} onItemUpdated={setItem} />
       )}
 
       {/* Content display — Q&A pair gets dedicated layout, others get tabs */}
@@ -127,25 +128,24 @@ export function ContentBody({
             {visionAnalysis.analysis}
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Analysed {new Date(visionAnalysis.analysed_at).toLocaleDateString('en-GB')} · {visionAnalysis.model} · {visionAnalysis.tokens_used.toLocaleString()} tokens
+            Analysed{' '}
+            {new Date(visionAnalysis.analysed_at).toLocaleDateString('en-GB')} ·{' '}
+            {visionAnalysis.model} ·{' '}
+            {visionAnalysis.tokens_used.toLocaleString()} tokens
           </p>
         </section>
       )}
 
       {/* Extracted images gallery (PDF items) */}
-      {item.content_type === 'pdf' &&
-        (item.file_path || item.source_url) && (
-          <ImageGallery
-            itemId={item.id}
-            hasExtractedImages={
-              Array.isArray(
-                (item.metadata as Record<string, unknown> | null)
-                  ?.extracted_images,
-              )
-            }
-            className="mb-6"
-          />
-        )}
+      {item.content_type === 'pdf' && (item.file_path || item.source_url) && (
+        <ImageGallery
+          itemId={item.id}
+          hasExtractedImages={Array.isArray(
+            (item.metadata as Record<string, unknown> | null)?.extracted_images,
+          )}
+          className="mb-6"
+        />
+      )}
 
       {/* Transcript reader (for transcripts with chapters) */}
       {item.content &&
@@ -199,7 +199,10 @@ function DraftToggle({
           onClick={async () => {
             const isDraft = item.governance_review_status === 'draft';
             const newStatus = isDraft ? null : 'draft';
-            setItem((prev) => ({ ...prev, governance_review_status: newStatus }));
+            setItem((prev) => ({
+              ...prev,
+              governance_review_status: newStatus,
+            }));
             try {
               const supabase = createClient();
               const { error } = await supabase
@@ -210,7 +213,10 @@ function DraftToggle({
               toast.success(isDraft ? 'Published' : 'Marked as draft');
             } catch (err) {
               console.error('Failed to update governance review status:', err);
-              setItem((prev) => ({ ...prev, governance_review_status: isDraft ? 'draft' : null }));
+              setItem((prev) => ({
+                ...prev,
+                governance_review_status: isDraft ? 'draft' : null,
+              }));
               toast.error('Failed to update status');
             }
           }}
@@ -222,9 +228,13 @@ function DraftToggle({
           )}
         >
           {item.governance_review_status === 'draft' ? (
-            <><ToggleLeft className="size-4" /> Draft — click to publish</>
+            <>
+              <ToggleLeft className="size-4" /> Draft — click to publish
+            </>
           ) : (
-            <><ToggleRight className="size-4" /> Published — click to draft</>
+            <>
+              <ToggleRight className="size-4" /> Published — click to draft
+            </>
           )}
         </button>
       </div>

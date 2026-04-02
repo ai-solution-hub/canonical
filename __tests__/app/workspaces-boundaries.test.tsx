@@ -20,9 +20,7 @@ describe('Workspaces Error Boundary', () => {
 
   it('renders the heading text', () => {
     render(<WorkspacesError error={error} reset={reset} />);
-    expect(
-      screen.getByText(/couldn.*t load this page/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/couldn.*t load this page/i)).toBeInTheDocument();
   });
 
   it('renders a contextual icon with aria-hidden', () => {
@@ -55,7 +53,7 @@ describe('Workspaces Loading Skeleton', () => {
     render(<WorkspacesLoading />);
     expect(screen.getByRole('status')).toHaveAttribute(
       'aria-label',
-      'Loading workspaces'
+      'Loading workspaces',
     );
   });
 

@@ -12,7 +12,11 @@ import { LayersSection } from '@/components/settings/layers-section';
 
 export type ContentOrganisationTab = 'categories' | 'tags' | 'depth-levels';
 
-const VALID_TABS: ContentOrganisationTab[] = ['categories', 'tags', 'depth-levels'];
+const VALID_TABS: ContentOrganisationTab[] = [
+  'categories',
+  'tags',
+  'depth-levels',
+];
 
 interface ContentOrganisationSectionProps {
   defaultTab?: ContentOrganisationTab;

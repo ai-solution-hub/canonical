@@ -35,11 +35,12 @@ describe('Source Document Version Chain API', () => {
   });
 
   it('returns 400 for invalid UUID', async () => {
-    const { GET } = await import(
-      '@/app/api/source-documents/[id]/versions/route'
-    );
+    const { GET } =
+      await import('@/app/api/source-documents/[id]/versions/route');
 
-    const request = new Request('http://localhost/api/source-documents/not-a-uuid/versions') as unknown as NextRequest;
+    const request = new Request(
+      'http://localhost/api/source-documents/not-a-uuid/versions',
+    ) as unknown as NextRequest;
     const response = await GET(request, {
       params: Promise.resolve({ id: 'not-a-uuid' }),
     });
@@ -50,9 +51,8 @@ describe('Source Document Version Chain API', () => {
   });
 
   it('returns 404 when document not found', async () => {
-    const { GET } = await import(
-      '@/app/api/source-documents/[id]/versions/route'
-    );
+    const { GET } =
+      await import('@/app/api/source-documents/[id]/versions/route');
 
     mockServiceClient.rpc.mockResolvedValueOnce({
       data: [],
@@ -71,9 +71,8 @@ describe('Source Document Version Chain API', () => {
   });
 
   it('returns version chain for valid document', async () => {
-    const { GET } = await import(
-      '@/app/api/source-documents/[id]/versions/route'
-    );
+    const { GET } =
+      await import('@/app/api/source-documents/[id]/versions/route');
 
     const mockVersions = [
       {
@@ -122,9 +121,7 @@ describe('Source Document Detail API', () => {
   });
 
   it('returns 400 for invalid UUID', async () => {
-    const { GET } = await import(
-      '@/app/api/source-documents/[id]/route'
-    );
+    const { GET } = await import('@/app/api/source-documents/[id]/route');
 
     const request = new Request('http://localhost/api/source-documents/bad-id');
     const response = await GET(request as unknown as NextRequest, {
@@ -135,9 +132,7 @@ describe('Source Document Detail API', () => {
   });
 
   it('returns 404 when document not found', async () => {
-    const { GET } = await import(
-      '@/app/api/source-documents/[id]/route'
-    );
+    const { GET } = await import('@/app/api/source-documents/[id]/route');
 
     mockServiceClient._chain.single.mockResolvedValueOnce({
       data: null,
@@ -156,9 +151,7 @@ describe('Source Document Detail API', () => {
   });
 
   it('returns document with linked content items', async () => {
-    const { GET } = await import(
-      '@/app/api/source-documents/[id]/route'
-    );
+    const { GET } = await import('@/app/api/source-documents/[id]/route');
 
     const mockDoc = {
       id: '00000000-0000-0000-0000-000000000001',
@@ -180,8 +173,9 @@ describe('Source Document Detail API', () => {
     });
 
     // Second call: fetch linked items (uses .then via chain)
-    mockServiceClient._chain.then.mockImplementationOnce((resolve: (val: unknown) => void) =>
-      resolve({ data: mockItems, error: null }),
+    mockServiceClient._chain.then.mockImplementationOnce(
+      (resolve: (val: unknown) => void) =>
+        resolve({ data: mockItems, error: null }),
     );
 
     const docId = '00000000-0000-0000-0000-000000000001';

@@ -29,7 +29,9 @@ import {
 // ---------------------------------------------------------------------------
 
 /** Render the hook with a QueryClientProvider wrapper */
-function renderUploadHook(options: Parameters<typeof useFileUploadPipeline>[0] = {}) {
+function renderUploadHook(
+  options: Parameters<typeof useFileUploadPipeline>[0] = {},
+) {
   const { Wrapper } = createQueryWrapper();
   return renderHook(() => useFileUploadPipeline(options), { wrapper: Wrapper });
 }
@@ -187,7 +189,10 @@ describe('useFileUploadPipeline', () => {
       const { result } = renderUploadHook();
 
       act(() => {
-        result.current.handleFilesAdded([createTestFile(), createTestFile('doc2.pdf')]);
+        result.current.handleFilesAdded([
+          createTestFile(),
+          createTestFile('doc2.pdf'),
+        ]);
       });
 
       expect(result.current.pendingCount).toBe(2);
@@ -231,7 +236,10 @@ describe('useFileUploadPipeline', () => {
       const { result } = renderUploadHook();
 
       act(() => {
-        result.current.handleFilesAdded([createTestFile(), createTestFile('doc2.pdf')]);
+        result.current.handleFilesAdded([
+          createTestFile(),
+          createTestFile('doc2.pdf'),
+        ]);
       });
 
       expect(result.current.pendingCount).toBe(2);
@@ -292,21 +300,27 @@ describe('useFileUploadPipeline', () => {
         uploadResult = await result.current.handleUpload();
       });
 
-      expect(uploadResult).toEqual(expect.objectContaining({
-        successfulItems: expect.arrayContaining([
-          expect.objectContaining({
-            id: 'item-uuid-1',
-            title: 'Test Document',
-          }),
-        ]),
-        errorCount: 0,
-      }));
+      expect(uploadResult).toEqual(
+        expect.objectContaining({
+          successfulItems: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'item-uuid-1',
+              title: 'Test Document',
+            }),
+          ]),
+          errorCount: 0,
+        }),
+      );
     });
 
     it('uploads multiple files in parallel', async () => {
       mockFetch
-        .mockResolvedValueOnce(successResponse({ id: 'item-1', title: 'Doc 1' }))
-        .mockResolvedValueOnce(successResponse({ id: 'item-2', title: 'Doc 2' }));
+        .mockResolvedValueOnce(
+          successResponse({ id: 'item-1', title: 'Doc 1' }),
+        )
+        .mockResolvedValueOnce(
+          successResponse({ id: 'item-2', title: 'Doc 2' }),
+        );
 
       const { result } = renderUploadHook();
 
@@ -317,9 +331,12 @@ describe('useFileUploadPipeline', () => {
         ]);
       });
 
-      let uploadResult: { successfulItems: unknown[]; errorCount: number } | undefined;
+      let uploadResult:
+        | { successfulItems: unknown[]; errorCount: number }
+        | undefined;
       await act(async () => {
-        uploadResult = (await result.current.handleUpload()) as typeof uploadResult;
+        uploadResult =
+          (await result.current.handleUpload()) as typeof uploadResult;
       });
 
       expect(mockFetch).toHaveBeenCalledTimes(2);
@@ -503,7 +520,8 @@ describe('useFileUploadPipeline', () => {
 
       let uploadResult: { skipReview: boolean } | undefined;
       await act(async () => {
-        uploadResult = (await result.current.handleUpload()) as typeof uploadResult;
+        uploadResult =
+          (await result.current.handleUpload()) as typeof uploadResult;
       });
 
       expect(uploadResult?.skipReview).toBe(true);
@@ -519,7 +537,8 @@ describe('useFileUploadPipeline', () => {
 
       let uploadResult: { skipReview: boolean } | undefined;
       await act(async () => {
-        uploadResult = (await result.current.handleUpload()) as typeof uploadResult;
+        uploadResult =
+          (await result.current.handleUpload()) as typeof uploadResult;
       });
 
       expect(uploadResult?.skipReview).toBe(false);
@@ -664,9 +683,12 @@ describe('useFileUploadPipeline', () => {
         result.current.handleFilesAdded([createTestFile()]);
       });
 
-      let uploadResult: { errorCount: number; successfulItems: unknown[] } | undefined;
+      let uploadResult:
+        | { errorCount: number; successfulItems: unknown[] }
+        | undefined;
       await act(async () => {
-        uploadResult = (await result.current.handleUpload()) as typeof uploadResult;
+        uploadResult =
+          (await result.current.handleUpload()) as typeof uploadResult;
       });
 
       expect(uploadResult?.errorCount).toBe(1);
@@ -687,9 +709,12 @@ describe('useFileUploadPipeline', () => {
         ]);
       });
 
-      let uploadResult: { errorCount: number; successfulItems: unknown[] } | undefined;
+      let uploadResult:
+        | { errorCount: number; successfulItems: unknown[] }
+        | undefined;
       await act(async () => {
-        uploadResult = (await result.current.handleUpload()) as typeof uploadResult;
+        uploadResult =
+          (await result.current.handleUpload()) as typeof uploadResult;
       });
 
       expect(uploadResult?.successfulItems).toHaveLength(1);
@@ -721,7 +746,11 @@ describe('useFileUploadPipeline', () => {
     it('stores classification data from the API response', async () => {
       mockFetch.mockResolvedValue(
         successResponse({
-          classification: { domain: 'Technical', subtopic: 'Architecture', confidence: 0.85 },
+          classification: {
+            domain: 'Technical',
+            subtopic: 'Architecture',
+            confidence: 0.85,
+          },
         }),
       );
       const { result } = renderUploadHook();
@@ -785,7 +814,9 @@ describe('useFileUploadPipeline', () => {
       });
 
       expect(result.current.fileStates[fileId].dedupMatches).toHaveLength(1);
-      expect(result.current.fileStates[fileId].dedupMatches[0].id).toBe('dup-1');
+      expect(result.current.fileStates[fileId].dedupMatches[0].id).toBe(
+        'dup-1',
+      );
       expect(result.current.fileStates[fileId].showDedupWarning).toBe(true);
     });
 
@@ -859,18 +890,21 @@ describe('useFileUploadPipeline', () => {
         result.current.handleFilesAdded([createTestFile()]);
       });
 
-      let uploadResult: {
-        successfulItems: Array<{
-          id: string;
-          title: string;
-          contentType: string;
-          classification?: object;
-          aiSummary?: string;
-        }>;
-      } | undefined;
+      let uploadResult:
+        | {
+            successfulItems: Array<{
+              id: string;
+              title: string;
+              contentType: string;
+              classification?: object;
+              aiSummary?: string;
+            }>;
+          }
+        | undefined;
 
       await act(async () => {
-        uploadResult = (await result.current.handleUpload()) as typeof uploadResult;
+        uploadResult =
+          (await result.current.handleUpload()) as typeof uploadResult;
       });
 
       const item = uploadResult?.successfulItems[0];
@@ -891,15 +925,22 @@ describe('useFileUploadPipeline', () => {
       const { result } = renderUploadHook();
 
       act(() => {
-        result.current.handleFilesAdded([createTestFile('my-important-doc.pdf')]);
+        result.current.handleFilesAdded([
+          createTestFile('my-important-doc.pdf'),
+        ]);
       });
 
-      let uploadResult: { successfulItems: Array<{ title: string }> } | undefined;
+      let uploadResult:
+        | { successfulItems: Array<{ title: string }> }
+        | undefined;
       await act(async () => {
-        uploadResult = (await result.current.handleUpload()) as typeof uploadResult;
+        uploadResult =
+          (await result.current.handleUpload()) as typeof uploadResult;
       });
 
-      expect(uploadResult?.successfulItems[0]?.title).toBe('my-important-doc.pdf');
+      expect(uploadResult?.successfulItems[0]?.title).toBe(
+        'my-important-doc.pdf',
+      );
     });
   });
 
@@ -958,7 +999,11 @@ describe('useFileUploadPipeline', () => {
     it('handleSetLayerMode updates the layer mode for a file', async () => {
       mockFetch.mockResolvedValue(
         successResponse({
-          suggested_layer: { suggestedLayer: 'reference', reason: 'Test', confidence: 'high' },
+          suggested_layer: {
+            suggestedLayer: 'reference',
+            reason: 'Test',
+            confidence: 'high',
+          },
         }),
       );
       const { result } = renderUploadHook();
@@ -1006,7 +1051,9 @@ describe('useFileUploadPipeline', () => {
     it('handleDismissDedupWarning hides the dedup warning', async () => {
       mockFetch.mockResolvedValue(
         successResponse({
-          duplicate_matches: [{ id: 'dup-1', title: 'Existing', similarity: 0.9 }],
+          duplicate_matches: [
+            { id: 'dup-1', title: 'Existing', similarity: 0.9 },
+          ],
         }),
       );
       const { result } = renderUploadHook();

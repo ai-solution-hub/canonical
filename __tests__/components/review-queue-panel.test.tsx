@@ -8,7 +8,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
-import { ReviewQueuePanel, type QueueSortField } from '@/components/review/review-queue-panel';
+import {
+  ReviewQueuePanel,
+  type QueueSortField,
+} from '@/components/review/review-queue-panel';
 import type { ReviewQueueItem } from '@/types/review';
 
 // ---------------------------------------------------------------------------
@@ -37,7 +40,10 @@ vi.mock('@/contexts/taxonomy-context', () => ({
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeItem(id: string, overrides: Partial<ReviewQueueItem> = {}): ReviewQueueItem {
+function makeItem(
+  id: string,
+  overrides: Partial<ReviewQueueItem> = {},
+): ReviewQueueItem {
   return {
     id,
     title: `Item ${id}`,
@@ -120,7 +126,10 @@ describe('ReviewQueuePanel', () => {
   });
 
   it('renders item titles in the queue list', () => {
-    const items = [makeItem('a', { title: 'First Item' }), makeItem('b', { title: 'Second Item' })];
+    const items = [
+      makeItem('a', { title: 'First Item' }),
+      makeItem('b', { title: 'Second Item' }),
+    ];
 
     render(
       <ReviewQueuePanel
@@ -137,7 +146,10 @@ describe('ReviewQueuePanel', () => {
   });
 
   it('highlights the current item with aria-current', () => {
-    const items = [makeItem('a', { title: 'Current' }), makeItem('b', { title: 'Other' })];
+    const items = [
+      makeItem('a', { title: 'Current' }),
+      makeItem('b', { title: 'Other' }),
+    ];
 
     render(
       <ReviewQueuePanel
@@ -161,7 +173,10 @@ describe('ReviewQueuePanel', () => {
     const user = userEvent.setup();
     const onSelectItem = vi.fn();
 
-    const items = [makeItem('a', { title: 'First' }), makeItem('b', { title: 'Second' })];
+    const items = [
+      makeItem('a', { title: 'First' }),
+      makeItem('b', { title: 'Second' }),
+    ];
 
     render(
       <ReviewQueuePanel
@@ -179,7 +194,15 @@ describe('ReviewQueuePanel', () => {
 
   it('accepts QueueSortField values including confidence', () => {
     // Verify the component renders without error with each sort value
-    const sortValues: QueueSortField[] = ['default', 'flagged', 'domain', 'content_type', 'confidence', 'quality_score', 'date'];
+    const sortValues: QueueSortField[] = [
+      'default',
+      'flagged',
+      'domain',
+      'content_type',
+      'confidence',
+      'quality_score',
+      'date',
+    ];
 
     for (const sortBy of sortValues) {
       const { unmount } = render(

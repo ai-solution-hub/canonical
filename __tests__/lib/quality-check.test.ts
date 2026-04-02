@@ -99,7 +99,9 @@ describe('runDeterministicChecks', () => {
       5,
     );
 
-    const citationIssue = result.issues.find((i) => i.type === 'unsupported_claim');
+    const citationIssue = result.issues.find(
+      (i) => i.type === 'unsupported_claim',
+    );
     expect(citationIssue).toBeDefined();
     expect(citationIssue?.severity).toBe('warning');
     expect(citationIssue?.message).toContain('no citations');
@@ -113,7 +115,9 @@ describe('runDeterministicChecks', () => {
       0,
     );
 
-    const citationIssue = result.issues.find((i) => i.type === 'unsupported_claim');
+    const citationIssue = result.issues.find(
+      (i) => i.type === 'unsupported_claim',
+    );
     expect(citationIssue).toBeUndefined();
   });
 
@@ -138,7 +142,8 @@ describe('runDeterministicChecks', () => {
     );
 
     const citationIssue = result.issues.find(
-      (i) => i.type === 'unsupported_claim' && i.message.includes('no citations'),
+      (i) =>
+        i.type === 'unsupported_claim' && i.message.includes('no citations'),
     );
     expect(citationIssue).toBeUndefined();
   });
@@ -188,7 +193,9 @@ describe('runDeterministicChecks', () => {
     );
 
     const wordIssue = result.issues.find((i) => i.type === 'word_limit');
-    const citationIssue = result.issues.find((i) => i.type === 'unsupported_claim');
+    const citationIssue = result.issues.find(
+      (i) => i.type === 'unsupported_claim',
+    );
     expect(wordIssue).toBeDefined();
     expect(citationIssue).toBeDefined();
   });

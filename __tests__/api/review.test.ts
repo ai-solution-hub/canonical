@@ -51,16 +51,41 @@ function resetMocks() {
   });
 
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockResolvedValue({ data: null, error: null, count: null });
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null, count: null });
+  mockSupabase._chain.single.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
@@ -132,19 +157,21 @@ describe('GET /api/review/queue', () => {
     ];
 
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) {
-        return resolve({ data: mockItems, error: null, count: 1 });
-      }
-      if (thenCallCount === 2) {
-        return resolve({ data: null, error: null, count: 5 });
-      }
-      if (thenCallCount === 3) {
-        return resolve({ data: null, error: null, count: 2 });
-      }
-      return resolve({ data: [], error: null, count: 0 });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) {
+          return resolve({ data: mockItems, error: null, count: 1 });
+        }
+        if (thenCallCount === 2) {
+          return resolve({ data: null, error: null, count: 5 });
+        }
+        if (thenCallCount === 3) {
+          return resolve({ data: null, error: null, count: 2 });
+        }
+        return resolve({ data: [], error: null, count: 0 });
+      },
+    );
 
     const req = createTestRequest('/api/review/queue');
     const res = await getQueue(req);
@@ -211,9 +238,7 @@ describe('POST /api/review/action', () => {
     const json = await res.json();
     expect(json.error).toBe('Validation failed');
     expect(json.details).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ field: 'action' }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ field: 'action' })]),
     );
   });
 
@@ -231,9 +256,7 @@ describe('POST /api/review/action', () => {
     const json = await res.json();
     expect(json.error).toBe('Validation failed');
     expect(json.details).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ field: 'item_id' }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ field: 'item_id' })]),
     );
   });
 
@@ -280,8 +303,8 @@ describe('POST /api/review/action', () => {
       error: null,
     });
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest('/api/review/action', {
@@ -336,8 +359,8 @@ describe('POST /api/review/action', () => {
       error: null,
     });
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest('/api/review/action', {
@@ -375,8 +398,8 @@ describe('POST /api/review/action', () => {
       error: null,
     });
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest('/api/review/action', {

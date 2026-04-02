@@ -25,7 +25,9 @@ import type { UseQAEditModeParams } from '@/hooks/use-qa-edit-mode';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function defaultParams(overrides: Partial<UseQAEditModeParams> = {}): UseQAEditModeParams {
+function defaultParams(
+  overrides: Partial<UseQAEditModeParams> = {},
+): UseQAEditModeParams {
   return {
     itemId: 'item-1',
     title: 'Original Title',
@@ -90,8 +92,12 @@ describe('useQAEditMode', () => {
   });
 
   it('handles null answerStandard and answerAdvanced', () => {
-    const { result } = renderHook(() =>
-      useQAEditMode(defaultParams({ answerStandard: null, answerAdvanced: null })), {
+    const { result } = renderHook(
+      () =>
+        useQAEditMode(
+          defaultParams({ answerStandard: null, answerAdvanced: null }),
+        ),
+      {
         wrapper: createQueryWrapper().Wrapper,
       },
     );
@@ -132,8 +138,9 @@ describe('useQAEditMode', () => {
 
   it('saves changed title via PATCH', async () => {
     const onFieldSaved = vi.fn();
-    const { result } = renderHook(() =>
-      useQAEditMode(defaultParams({ isQAPair: false, onFieldSaved })), {
+    const { result } = renderHook(
+      () => useQAEditMode(defaultParams({ isQAPair: false, onFieldSaved })),
+      {
         wrapper: createQueryWrapper().Wrapper,
       },
     );
@@ -161,8 +168,9 @@ describe('useQAEditMode', () => {
   });
 
   it('does not PATCH unchanged title', async () => {
-    const { result } = renderHook(() =>
-      useQAEditMode(defaultParams({ isQAPair: false })), {
+    const { result } = renderHook(
+      () => useQAEditMode(defaultParams({ isQAPair: false })),
+      {
         wrapper: createQueryWrapper().Wrapper,
       },
     );
@@ -182,8 +190,9 @@ describe('useQAEditMode', () => {
 
   it('saves changed Q&A fields for QA pairs', async () => {
     const onFieldSaved = vi.fn();
-    const { result } = renderHook(() =>
-      useQAEditMode(defaultParams({ onFieldSaved })), {
+    const { result } = renderHook(
+      () => useQAEditMode(defaultParams({ onFieldSaved })),
+      {
         wrapper: createQueryWrapper().Wrapper,
       },
     );
@@ -202,13 +211,20 @@ describe('useQAEditMode', () => {
 
     // Title unchanged, so only 2 calls for standard + advanced
     expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(onFieldSaved).toHaveBeenCalledWith('answer_standard', 'Updated standard');
-    expect(onFieldSaved).toHaveBeenCalledWith('answer_advanced', 'Updated advanced');
+    expect(onFieldSaved).toHaveBeenCalledWith(
+      'answer_standard',
+      'Updated standard',
+    );
+    expect(onFieldSaved).toHaveBeenCalledWith(
+      'answer_advanced',
+      'Updated advanced',
+    );
   });
 
   it('does not save Q&A fields when isQAPair is false', async () => {
-    const { result } = renderHook(() =>
-      useQAEditMode(defaultParams({ isQAPair: false })), {
+    const { result } = renderHook(
+      () => useQAEditMode(defaultParams({ isQAPair: false })),
+      {
         wrapper: createQueryWrapper().Wrapper,
       },
     );
@@ -246,13 +262,16 @@ describe('useQAEditMode', () => {
       await result.current.handleSaveAll();
     });
 
-    expect(mockToast.error).toHaveBeenCalledWith('Failed to save — please try again');
+    expect(mockToast.error).toHaveBeenCalledWith(
+      'Failed to save — please try again',
+    );
   });
 
   it('passes null for empty Q&A answer fields', async () => {
     const onFieldSaved = vi.fn();
-    const { result } = renderHook(() =>
-      useQAEditMode(defaultParams({ onFieldSaved })), {
+    const { result } = renderHook(
+      () => useQAEditMode(defaultParams({ onFieldSaved })),
+      {
         wrapper: createQueryWrapper().Wrapper,
       },
     );

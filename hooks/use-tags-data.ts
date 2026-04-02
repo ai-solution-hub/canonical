@@ -38,26 +38,17 @@ export function useTagsData() {
 
   // ─── Queries ───
 
-  const {
-    data: tags = [],
-    isLoading: tagsLoading,
-  } = useQuery({
+  const { data: tags = [], isLoading: tagsLoading } = useQuery({
     queryKey: queryKeys.tags.list,
     queryFn: () => fetchJson<TagCount[]>('/api/tags'),
   });
 
-  const {
-    data: duplicates = [],
-    isLoading: duplicatesLoading,
-  } = useQuery({
+  const { data: duplicates = [], isLoading: duplicatesLoading } = useQuery({
     queryKey: queryKeys.tags.duplicates,
     queryFn: () => fetchJson<DuplicateGroup[]>('/api/tags/duplicates?type=ai'),
   });
 
-  const {
-    data: domainGroups = [],
-    isLoading: domainGroupsLoading,
-  } = useQuery({
+  const { data: domainGroups = [], isLoading: domainGroupsLoading } = useQuery({
     queryKey: queryKeys.tags.byDomain,
     queryFn: () => fetchJson<DomainTagGroup[]>('/api/tags/by-domain?type=ai'),
   });

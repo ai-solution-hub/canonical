@@ -6,9 +6,7 @@
  * stored metadata.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import {
-  createMockSupabaseClient,
-} from '../helpers/mock-supabase';
+import { createMockSupabaseClient } from '../helpers/mock-supabase';
 
 // ---------------------------------------------------------------------------
 // Shared mock client
@@ -31,7 +29,8 @@ vi.mock('next/headers', () => ({
 // Mock content suggestions engine
 const mockGenerateContentSuggestions = vi.fn();
 vi.mock('@/lib/content/content-suggestions', () => ({
-  generateContentSuggestions: (...args: unknown[]) => mockGenerateContentSuggestions(...args),
+  generateContentSuggestions: (...args: unknown[]) =>
+    mockGenerateContentSuggestions(...args),
 }));
 
 // Mock Anthropic client
@@ -56,13 +55,18 @@ vi.mock('@/lib/ai-parse', () => ({
     ],
     narrative_summary: 'You captured 3 items this week.',
     theme_clusters: [
-      { theme: 'AI Adoption', description: 'Multiple items on AI', item_count: 2 },
+      {
+        theme: 'AI Adoption',
+        description: 'Multiple items on AI',
+        item_count: 2,
+      },
     ],
     content_opportunities: [
       {
         domain: 'Compliance',
         subtopic: 'ISO 27001',
-        suggestion: 'Create a policy document covering ISO 27001 certification scope.',
+        suggestion:
+          'Create a policy document covering ISO 27001 certification scope.',
         priority: 'high',
       },
     ],
@@ -160,9 +164,26 @@ function resetMocks() {
   });
 
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
@@ -365,7 +386,9 @@ describe('Digest Content Suggestions Integration', () => {
     const metadata = insertedRow.metadata as Record<string, unknown>;
 
     expect(metadata).toHaveProperty('content_opportunities');
-    const opportunities = metadata.content_opportunities as Array<{ domain: string }>;
+    const opportunities = metadata.content_opportunities as Array<{
+      domain: string;
+    }>;
     expect(opportunities).toHaveLength(1);
     expect(opportunities[0].domain).toBe('Compliance');
   });

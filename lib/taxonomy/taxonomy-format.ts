@@ -62,7 +62,10 @@ export function formatSubtopic(subtopic: string): string {
 }
 
 /** Format a domain name for display. Uses displayName if provided, otherwise converts kebab-case to Title Case. */
-export function formatDomainName(domain: string, displayName?: string | null): string {
+export function formatDomainName(
+  domain: string,
+  displayName?: string | null,
+): string {
   if (displayName) return displayName;
   return domain
     .split('-')

@@ -27,7 +27,9 @@ vi.mock('sonner', () => ({
 // Test data
 // ---------------------------------------------------------------------------
 
-function makeCert(overrides: Partial<CertificationEntry> = {}): CertificationEntry {
+function makeCert(
+  overrides: Partial<CertificationEntry> = {},
+): CertificationEntry {
   return {
     canonical_name: 'ISO 27001',
     entity_type: 'certification',
@@ -50,7 +52,9 @@ function makeCert(overrides: Partial<CertificationEntry> = {}): CertificationEnt
   };
 }
 
-function makeSupplierCert(overrides: Partial<CertificationEntry> = {}): CertificationEntry {
+function makeSupplierCert(
+  overrides: Partial<CertificationEntry> = {},
+): CertificationEntry {
   return {
     canonical_name: 'ISO 9001',
     entity_type: 'certification',
@@ -68,7 +72,9 @@ function makeSupplierCert(overrides: Partial<CertificationEntry> = {}): Certific
   };
 }
 
-function makeRegistration(overrides: Partial<RegistrationEntry> = {}): RegistrationEntry {
+function makeRegistration(
+  overrides: Partial<RegistrationEntry> = {},
+): RegistrationEntry {
   return {
     canonical_name: 'ICO Registration',
     entity_type: 'regulation',
@@ -169,7 +175,9 @@ describe('CertificationSummaryCard', () => {
         registrations={[]}
       />,
     );
-    expect(screen.getByText('Scope: SaaS development and hosting')).toBeInTheDocument();
+    expect(
+      screen.getByText('Scope: SaaS development and hosting'),
+    ).toBeInTheDocument();
   });
 
   it('renders linked items count', () => {
@@ -275,7 +283,10 @@ describe('CertificationSummaryCard', () => {
       <CertificationSummaryCard
         certifications={[
           makeCert({ expiry_status: 'valid' }),
-          makeCert({ canonical_name: 'Cyber Essentials', expiry_status: 'expiring_soon' }),
+          makeCert({
+            canonical_name: 'Cyber Essentials',
+            expiry_status: 'expiring_soon',
+          }),
         ]}
         supplierCertifications={[]}
         registrations={[]}
@@ -305,7 +316,9 @@ describe('CertificationSummaryCard', () => {
       />,
     );
 
-    const copyButton = screen.getByLabelText('Copy certification summary to clipboard');
+    const copyButton = screen.getByLabelText(
+      'Copy certification summary to clipboard',
+    );
     fireEvent.click(copyButton);
 
     await waitFor(() => {
@@ -327,7 +340,9 @@ describe('CertificationSummaryCard', () => {
       />,
     );
 
-    const copyButton = screen.getByLabelText('Copy certification summary to clipboard');
+    const copyButton = screen.getByLabelText(
+      'Copy certification summary to clipboard',
+    );
     fireEvent.click(copyButton);
 
     await waitFor(() => {
@@ -401,7 +416,9 @@ describe('CertificationSummaryCard', () => {
       />,
     );
 
-    expect(screen.queryByText(/Supplier Certifications/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Supplier Certifications/),
+    ).not.toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------
@@ -428,7 +445,9 @@ describe('CertificationSummaryCard', () => {
     const onEdit = vi.fn();
     render(
       <CertificationSummaryCard
-        certifications={[makeCert({ content_items: [], content_item_count: 0 })]}
+        certifications={[
+          makeCert({ content_items: [], content_item_count: 0 }),
+        ]}
         supplierCertifications={[]}
         registrations={[]}
         onEditEntity={onEdit}

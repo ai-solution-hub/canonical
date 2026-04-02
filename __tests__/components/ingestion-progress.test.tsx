@@ -11,7 +11,9 @@ import {
   type IngestionStep,
 } from '@/components/create-content/ingestion-progress';
 
-function makeSteps(overrides: Partial<Record<number, Partial<IngestionStep>>> = {}): IngestionStep[] {
+function makeSteps(
+  overrides: Partial<Record<number, Partial<IngestionStep>>> = {},
+): IngestionStep[] {
   const defaults: IngestionStep[] = [
     { label: 'Uploading', status: 'done' },
     { label: 'Extracting text', status: 'done' },

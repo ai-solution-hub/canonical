@@ -16,8 +16,12 @@ import { CollapsibleSection } from '@/components/item-detail/collapsible-section
 // ---------------------------------------------------------------------------
 
 describe('CollapsibleSection', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
-  afterEach(() => { vi.unstubAllGlobals(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it('renders title text', () => {
     render(

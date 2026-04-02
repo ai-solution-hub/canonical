@@ -1,13 +1,6 @@
 'use client';
 
-import {
-  Clock,
-  FileText,
-  Mail,
-  Play,
-  Subtitles,
-  User,
-} from 'lucide-react';
+import { Clock, FileText, Mail, Play, Subtitles, User } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { formatDuration } from '@/lib/format';
 
@@ -80,19 +73,13 @@ function NewsletterHeader({
         </div>
       )}
       {emailSubject && (
-        <div className="mt-1 text-sm text-muted-foreground">
-          {emailSubject}
-        </div>
+        <div className="mt-1 text-sm text-muted-foreground">{emailSubject}</div>
       )}
     </div>
   );
 }
 
-function PdfHeader({
-  metadata,
-}: {
-  metadata: Record<string, unknown> | null;
-}) {
+function PdfHeader({ metadata }: { metadata: Record<string, unknown> | null }) {
   const pageCount = metadata?.page_count as number | undefined;
 
   return (

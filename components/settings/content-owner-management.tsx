@@ -1,7 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Users, Loader2, UserPlus, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import {
+  Users,
+  Loader2,
+  UserPlus,
+  AlertTriangle,
+  CheckCircle2,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
@@ -176,7 +182,9 @@ export function ContentOwnerManagement() {
       resetAssignForm();
       await fetchStats();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to assign content');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to assign content',
+      );
     } finally {
       setSaving(false);
     }
@@ -211,7 +219,9 @@ export function ContentOwnerManagement() {
       setUnownedOwnerId('');
       await fetchStats();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to assign unowned content');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to assign unowned content',
+      );
     } finally {
       setSaving(false);
     }
@@ -325,7 +335,9 @@ export function ContentOwnerManagement() {
                       <SelectItem value="policy">Policy</SelectItem>
                       <SelectItem value="guide">Guide</SelectItem>
                       <SelectItem value="case_study">Case Study</SelectItem>
-                      <SelectItem value="certification">Certification</SelectItem>
+                      <SelectItem value="certification">
+                        Certification
+                      </SelectItem>
                       <SelectItem value="compliance">Compliance</SelectItem>
                       <SelectItem value="document">Document</SelectItem>
                     </SelectContent>
@@ -430,8 +442,9 @@ export function ContentOwnerManagement() {
 
       {/* Description */}
       <p className="text-sm text-muted-foreground">
-        Content owners receive targeted notifications when their content becomes stale or needs
-        governance review. Assign owners to ensure the right person is notified.
+        Content owners receive targeted notifications when their content becomes
+        stale or needs governance review. Assign owners to ensure the right
+        person is notified.
       </p>
 
       {/* Owner stats table */}
@@ -445,20 +458,36 @@ export function ContentOwnerManagement() {
             No content owners assigned yet
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Use the actions above to assign content owners by domain or assign all unowned items.
+            Use the actions above to assign content owners by domain or assign
+            all unowned items.
           </p>
         </Card>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm" aria-label="Content owner statistics">
+          <table
+            className="w-full text-sm"
+            aria-label="Content owner statistics"
+          >
             <thead>
               <tr className="border-b border-border text-left">
-                <th className="pb-2 pr-4 font-medium text-muted-foreground">Owner</th>
-                <th className="pb-2 pr-4 text-right font-medium text-muted-foreground">Total</th>
-                <th className="pb-2 pr-4 text-right font-medium text-muted-foreground">Fresh</th>
-                <th className="pb-2 pr-4 text-right font-medium text-muted-foreground">Ageing</th>
-                <th className="pb-2 pr-4 text-right font-medium text-muted-foreground">Stale</th>
-                <th className="pb-2 text-right font-medium text-muted-foreground">Expired</th>
+                <th className="pb-2 pr-4 font-medium text-muted-foreground">
+                  Owner
+                </th>
+                <th className="pb-2 pr-4 text-right font-medium text-muted-foreground">
+                  Total
+                </th>
+                <th className="pb-2 pr-4 text-right font-medium text-muted-foreground">
+                  Fresh
+                </th>
+                <th className="pb-2 pr-4 text-right font-medium text-muted-foreground">
+                  Ageing
+                </th>
+                <th className="pb-2 pr-4 text-right font-medium text-muted-foreground">
+                  Stale
+                </th>
+                <th className="pb-2 text-right font-medium text-muted-foreground">
+                  Expired
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -491,17 +520,22 @@ export function ContentOwnerManagement() {
                       </Badge>
                     </td>
                     <td className="py-3 pr-4 text-right">
-                      <Badge variant="outline">
-                        {owner.aging_count}
-                      </Badge>
+                      <Badge variant="outline">{owner.aging_count}</Badge>
                     </td>
                     <td className="py-3 pr-4 text-right">
-                      <Badge variant={freshnessVariant(owner.stale_count, 'stale')}>
+                      <Badge
+                        variant={freshnessVariant(owner.stale_count, 'stale')}
+                      >
                         {owner.stale_count}
                       </Badge>
                     </td>
                     <td className="py-3 text-right">
-                      <Badge variant={freshnessVariant(owner.expired_count, 'expired')}>
+                      <Badge
+                        variant={freshnessVariant(
+                          owner.expired_count,
+                          'expired',
+                        )}
+                      >
                         {owner.expired_count}
                       </Badge>
                     </td>

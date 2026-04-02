@@ -74,8 +74,16 @@ describe('cleanup-tags', () => {
   describe('identifySingletonQATags', () => {
     it('identifies a 3+ word singleton tag on a q_a_pair', () => {
       const items = [
-        { id: '1', ai_keywords: ['very specific long tag', 'GDPR'], content_type: 'q_a_pair' },
-        { id: '2', ai_keywords: ['GDPR', 'data protection'], content_type: 'q_a_pair' },
+        {
+          id: '1',
+          ai_keywords: ['very specific long tag', 'GDPR'],
+          content_type: 'q_a_pair',
+        },
+        {
+          id: '2',
+          ai_keywords: ['GDPR', 'data protection'],
+          content_type: 'q_a_pair',
+        },
       ];
       const result = identifySingletonQATags(items);
       expect(result.has('very specific long tag')).toBe(true);
@@ -92,7 +100,11 @@ describe('cleanup-tags', () => {
 
     it('does not flag singleton tags used on non-q_a_pair items', () => {
       const items = [
-        { id: '1', ai_keywords: ['very specific long tag'], content_type: 'article' },
+        {
+          id: '1',
+          ai_keywords: ['very specific long tag'],
+          content_type: 'article',
+        },
       ];
       const result = identifySingletonQATags(items);
       expect(result.has('very specific long tag')).toBe(false);
@@ -109,8 +121,16 @@ describe('cleanup-tags', () => {
 
     it('does not flag a 3+ word singleton used on both q_a_pair and another type', () => {
       const items = [
-        { id: '1', ai_keywords: ['very specific long tag'], content_type: 'q_a_pair' },
-        { id: '2', ai_keywords: ['very specific long tag'], content_type: 'article' },
+        {
+          id: '1',
+          ai_keywords: ['very specific long tag'],
+          content_type: 'q_a_pair',
+        },
+        {
+          id: '2',
+          ai_keywords: ['very specific long tag'],
+          content_type: 'article',
+        },
       ];
       // Tag appears twice so it's not a singleton
       const result = identifySingletonQATags(items);
@@ -119,7 +139,11 @@ describe('cleanup-tags', () => {
 
     it('returns empty set when no items match criteria', () => {
       const items = [
-        { id: '1', ai_keywords: ['GDPR', 'ISO 27001'], content_type: 'q_a_pair' },
+        {
+          id: '1',
+          ai_keywords: ['GDPR', 'ISO 27001'],
+          content_type: 'q_a_pair',
+        },
       ];
       const result = identifySingletonQATags(items);
       expect(result.size).toBe(0);
@@ -127,7 +151,11 @@ describe('cleanup-tags', () => {
 
     it('handles items with null content_type', () => {
       const items = [
-        { id: '1', ai_keywords: ['very specific long tag'], content_type: null },
+        {
+          id: '1',
+          ai_keywords: ['very specific long tag'],
+          content_type: null,
+        },
       ];
       const result = identifySingletonQATags(items);
       // content_type is null -> maps to 'unknown', not 'q_a_pair'
@@ -192,8 +220,12 @@ describe('cleanup-tags', () => {
       expect(SYNONYM_MERGES['regulatory compliance']).toBe('compliance');
       expect(SYNONYM_MERGES['policy compliance']).toBe('compliance');
       expect(SYNONYM_MERGES['data protection officer']).toBe('data protection');
-      expect(SYNONYM_MERGES['data protection impact assessment']).toBe('data protection');
-      expect(SYNONYM_MERGES['information security policy']).toBe('information security');
+      expect(SYNONYM_MERGES['data protection impact assessment']).toBe(
+        'data protection',
+      );
+      expect(SYNONYM_MERGES['information security policy']).toBe(
+        'information security',
+      );
       expect(SYNONYM_MERGES['ISO 27001:2022']).toBe('ISO 27001');
       expect(SYNONYM_MERGES['Cyber Essentials']).toBe('Cyber Essentials Plus');
     });

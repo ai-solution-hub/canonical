@@ -15,7 +15,8 @@ describe('responseToHtml', () => {
   });
 
   it('passes through TipTap-style HTML unchanged', () => {
-    const html = '<h2>Section</h2><p>Content with <em>emphasis</em></p><ul><li>Item</li></ul>';
+    const html =
+      '<h2>Section</h2><p>Content with <em>emphasis</em></p><ul><li>Item</li></ul>';
     expect(responseToHtml(html)).toBe(html);
   });
 

@@ -64,10 +64,7 @@ export async function POST(
       .single();
 
     if (bidError || !bid) {
-      return NextResponse.json(
-        { error: 'Bid not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
     }
 
     // Fetch questions to match
@@ -102,9 +99,11 @@ export async function POST(
     }
 
     // Match a single question: generate search queries, embed, search, deduplicate
-    async function matchQuestion(
-      question: { id: string; question_text: string; confidence_posture: string | null },
-    ): Promise<QuestionMatchResult> {
+    async function matchQuestion(question: {
+      id: string;
+      question_text: string;
+      confidence_posture: string | null;
+    }): Promise<QuestionMatchResult> {
       // Generate search queries using Claude
       const searchQueries = await generateSearchQueries(question.question_text);
 

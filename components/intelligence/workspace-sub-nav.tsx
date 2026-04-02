@@ -2,7 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Rss, FileText, BarChart3, Settings2 } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Rss,
+  FileText,
+  BarChart3,
+  Settings2,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface WorkspaceSubNavProps {
@@ -22,10 +28,7 @@ export function WorkspaceSubNav({ workspaceId }: WorkspaceSubNavProps) {
   const basePath = `/intelligence/${workspaceId}`;
 
   return (
-    <nav
-      aria-label="Workspace sections"
-      className="flex gap-1 border-b pb-px"
-    >
+    <nav aria-label="Workspace sections" className="flex gap-1 border-b pb-px">
       {SUB_NAV_ITEMS.map(({ segment, label, icon: Icon }) => {
         const href = `${basePath}${segment}`;
         const isActive =

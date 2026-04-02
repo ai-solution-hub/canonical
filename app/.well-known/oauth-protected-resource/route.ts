@@ -10,7 +10,8 @@ import {
 } from 'mcp-handler';
 
 const RESOURCE_URL =
-  process.env.NEXT_PUBLIC_APP_URL ?? 'https://knowledge-hub-seven-kappa.vercel.app';
+  process.env.NEXT_PUBLIC_APP_URL ??
+  'https://knowledge-hub-seven-kappa.vercel.app';
 
 const handler = protectedResourceHandler({
   authServerUrls: [`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1`],

@@ -64,7 +64,8 @@ function parseArgs(): CliArgs {
     if (args[i] === '--apply') apply = true;
     else if (args[i] === '--verbose') verbose = true;
     else if (args[i] === '--report') report = true;
-    else if (args[i] === '--dry-run') apply = false; // explicit dry run
+    else if (args[i] === '--dry-run')
+      apply = false; // explicit dry run
     else if (args[i] === '--type' && args[i + 1]) {
       type = args[i + 1];
       i++;
@@ -127,14 +128,20 @@ async function main() {
   // Load entity aliases from DB before normalisation
   await loadAliases(supabase);
 
-  console.log(cli.apply ? '🔧 APPLY mode — changes will be written' : '👀 DRY RUN — no changes will be made');
+  console.log(
+    cli.apply
+      ? '🔧 APPLY mode — changes will be written'
+      : '👀 DRY RUN — no changes will be made',
+  );
   console.log('');
 
   // ── 1. Fetch all entity_mentions ──────────────────────────────────────────
 
   let query = supabase
     .from('entity_mentions')
-    .select('id, canonical_name, entity_type, entity_name, content_item_id, confidence, created_at');
+    .select(
+      'id, canonical_name, entity_type, entity_name, content_item_id, confidence, created_at',
+    );
 
   if (cli.type) {
     query = query.eq('entity_type', cli.type);
@@ -188,7 +195,9 @@ async function main() {
 
   if (cli.verbose) {
     for (const c of changes) {
-      console.log(`  "${c.oldCanonical}" → "${c.newCanonical}" (${c.entityType})`);
+      console.log(
+        `  "${c.oldCanonical}" → "${c.newCanonical}" (${c.entityType})`,
+      );
     }
   }
 
@@ -233,13 +242,20 @@ async function main() {
     });
   }
 
-  const totalDeleteCount = mergeGroups.reduce((sum, g) => sum + g.deleteIds.length, 0);
-  console.log(`\nMerge groups: ${mergeGroups.length} (${totalDeleteCount} duplicate rows to remove)`);
+  const totalDeleteCount = mergeGroups.reduce(
+    (sum, g) => sum + g.deleteIds.length,
+    0,
+  );
+  console.log(
+    `\nMerge groups: ${mergeGroups.length} (${totalDeleteCount} duplicate rows to remove)`,
+  );
 
   if (cli.verbose && mergeGroups.length > 0) {
     for (const g of mergeGroups) {
       const origNames = g.rows.map((r) => `"${r.entity_name}"`).join(', ');
-      console.log(`  ${g.newCanonical} (${g.entityType}): merging ${g.rows.length} rows — keeping ${g.keepId}, deleting ${g.deleteIds.length}. Original names: ${origNames}`);
+      console.log(
+        `  ${g.newCanonical} (${g.entityType}): merging ${g.rows.length} rows — keeping ${g.keepId}, deleting ${g.deleteIds.length}. Original names: ${origNames}`,
+      );
     }
   }
 
@@ -271,10 +287,20 @@ async function main() {
     const newTarget = normalise(rel.target_entity);
 
     if (newSource !== rel.source_entity) {
-      relChanges.push({ id: rel.id, field: 'source_entity', oldValue: rel.source_entity, newValue: newSource });
+      relChanges.push({
+        id: rel.id,
+        field: 'source_entity',
+        oldValue: rel.source_entity,
+        newValue: newSource,
+      });
     }
     if (newTarget !== rel.target_entity) {
-      relChanges.push({ id: rel.id, field: 'target_entity', oldValue: rel.target_entity, newValue: newTarget });
+      relChanges.push({
+        id: rel.id,
+        field: 'target_entity',
+        oldValue: rel.target_entity,
+        newValue: newTarget,
+      });
     }
   }
 
@@ -290,11 +316,15 @@ async function main() {
 
   if (cli.report) {
     // Count unique canonical names before and after
-    const beforeSet = new Set(rows.map((r) => `${r.canonical_name}|${r.entity_type}`));
-    const afterSet = new Set(rows.map((r) => {
-      const newCan = normalise(r.canonical_name, r.entity_type);
-      return `${newCan}|${r.entity_type}`;
-    }));
+    const beforeSet = new Set(
+      rows.map((r) => `${r.canonical_name}|${r.entity_type}`),
+    );
+    const afterSet = new Set(
+      rows.map((r) => {
+        const newCan = normalise(r.canonical_name, r.entity_type);
+        return `${newCan}|${r.entity_type}`;
+      }),
+    );
 
     console.log('\n══════════════════════════════════════════════');
     console.log('         NORMALISATION REPORT');
@@ -321,7 +351,9 @@ async function main() {
 
     if (mergeSummary.size > 0) {
       console.log('\nChange summary (old → new):');
-      const sorted = [...mergeSummary.entries()].sort((a, b) => b[1].count - a[1].count);
+      const sorted = [...mergeSummary.entries()].sort(
+        (a, b) => b[1].count - a[1].count,
+      );
       for (const [mapping, info] of sorted) {
         console.log(`  ${mapping} (${info.type}) × ${info.count}`);
       }
@@ -351,12 +383,16 @@ async function main() {
       mentionUpdateCount++;
     }
   }
-  console.log(`  Updated ${mentionUpdateCount}/${changes.length} entity_mentions rows`);
+  console.log(
+    `  Updated ${mentionUpdateCount}/${changes.length} entity_mentions rows`,
+  );
 
   // 6b. Update normalisation_version on unchanged rows (mark as processed)
   if (unchanged.length > 0) {
     const unchangedIds = rows
-      .filter((r) => normalise(r.canonical_name, r.entity_type) === r.canonical_name)
+      .filter(
+        (r) => normalise(r.canonical_name, r.entity_type) === r.canonical_name,
+      )
       .map((r) => r.id);
 
     // Batch in chunks of 500
@@ -367,7 +403,9 @@ async function main() {
         .update({ normalisation_version: 2 })
         .in('id', chunk);
     }
-    console.log(`  Marked ${unchangedIds.length} unchanged rows as normalisation_version=2`);
+    console.log(
+      `  Marked ${unchangedIds.length} unchanged rows as normalisation_version=2`,
+    );
   }
 
   // 6c. Delete duplicate rows from merge groups
@@ -381,15 +419,22 @@ async function main() {
         .in('id', chunk);
 
       if (error) {
-        console.error(`  ❌ Failed to delete duplicate mentions: ${error.message}`);
+        console.error(
+          `  ❌ Failed to delete duplicate mentions: ${error.message}`,
+        );
       }
     }
-    console.log(`  Deleted ${allDeleteIds.length} duplicate entity_mentions rows`);
+    console.log(
+      `  Deleted ${allDeleteIds.length} duplicate entity_mentions rows`,
+    );
   }
 
   // 6d. Update entity_relationships
   // Group by id to batch source + target changes together
-  const relUpdateMap = new Map<string, { source_entity?: string; target_entity?: string }>();
+  const relUpdateMap = new Map<
+    string,
+    { source_entity?: string; target_entity?: string }
+  >();
   for (const rc of relChanges) {
     const existing = relUpdateMap.get(rc.id) ?? {};
     existing[rc.field] = rc.newValue;
@@ -404,12 +449,16 @@ async function main() {
       .eq('id', id);
 
     if (error) {
-      console.error(`  ❌ Failed to update relationship ${id}: ${error.message}`);
+      console.error(
+        `  ❌ Failed to update relationship ${id}: ${error.message}`,
+      );
     } else {
       relUpdateCount++;
     }
   }
-  console.log(`  Updated ${relUpdateCount}/${relUpdateMap.size} entity_relationships rows`);
+  console.log(
+    `  Updated ${relUpdateCount}/${relUpdateMap.size} entity_relationships rows`,
+  );
 
   console.log('\n✅ Backfill complete.');
 }

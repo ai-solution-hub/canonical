@@ -41,15 +41,33 @@ describe('getTrustLevel', () => {
   });
 
   it('returns 2 (Verified) when verified but trust data is partial', () => {
-    expect(getTrustLevel(true, { brief: 'brief', detail: null, content_owner_id: 'user-1' })).toBe(2);
+    expect(
+      getTrustLevel(true, {
+        brief: 'brief',
+        detail: null,
+        content_owner_id: 'user-1',
+      }),
+    ).toBe(2);
   });
 
   it('returns 2 (Verified) when verified but brief is empty string', () => {
-    expect(getTrustLevel(true, { brief: '', detail: 'detail', content_owner_id: 'user-1' })).toBe(2);
+    expect(
+      getTrustLevel(true, {
+        brief: '',
+        detail: 'detail',
+        content_owner_id: 'user-1',
+      }),
+    ).toBe(2);
   });
 
   it('returns 2 (Verified) when verified but content_owner_id is null', () => {
-    expect(getTrustLevel(true, { brief: 'brief', detail: 'detail', content_owner_id: null })).toBe(2);
+    expect(
+      getTrustLevel(true, {
+        brief: 'brief',
+        detail: 'detail',
+        content_owner_id: null,
+      }),
+    ).toBe(2);
   });
 
   it('returns 3 (Curated) when verified with all trust data present', () => {
@@ -176,9 +194,7 @@ describe('VerificationBadge', () => {
 
   // Verified with date but no name
   it('shows "Verified X days ago" with date but no name', () => {
-    render(
-      <VerificationBadge verified verifiedAt="2026-03-22T12:00:00Z" />,
-    );
+    render(<VerificationBadge verified verifiedAt="2026-03-22T12:00:00Z" />);
     expect(screen.getByText('Verified 3 days ago')).toBeInTheDocument();
   });
 
@@ -230,9 +246,7 @@ describe('VerificationBadge', () => {
         }}
       />,
     );
-    expect(
-      screen.getByText('Curated by Alice, 1 day ago'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Curated by Alice, 1 day ago')).toBeInTheDocument();
   });
 
   // tooltipOnly mode
@@ -249,10 +263,7 @@ describe('VerificationBadge', () => {
     expect(screen.getByText('Verified')).toBeInTheDocument();
     // Full label in title attribute (role is "img" by default)
     const badge = screen.getByRole('img');
-    expect(badge).toHaveAttribute(
-      'title',
-      'Verified by Bob, 3 days ago',
-    );
+    expect(badge).toHaveAttribute('title', 'Verified by Bob, 3 days ago');
   });
 
   // tooltipOnly with no extra info
@@ -345,9 +356,14 @@ describe('VerificationBadge', () => {
           verifiedAt="2026-03-24T12:00:00Z"
         />,
       );
-      expect(screen.getByText('Verified by Jane, 1 day ago')).toBeInTheDocument();
+      expect(
+        screen.getByText('Verified by Jane, 1 day ago'),
+      ).toBeInTheDocument();
       const badge = screen.getByRole('img');
-      expect(badge).toHaveAttribute('aria-label', 'Verified by Jane, 1 day ago');
+      expect(badge).toHaveAttribute(
+        'aria-label',
+        'Verified by Jane, 1 day ago',
+      );
     });
   });
 });

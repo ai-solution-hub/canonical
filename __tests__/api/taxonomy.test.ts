@@ -41,7 +41,10 @@ vi.mock('next/headers', () => ({
 // Import route handlers AFTER mocks are declared
 // ---------------------------------------------------------------------------
 
-import { GET as domainsGET, POST as domainsPOST } from '@/app/api/taxonomy/domains/route';
+import {
+  GET as domainsGET,
+  POST as domainsPOST,
+} from '@/app/api/taxonomy/domains/route';
 import { PATCH as domainPATCH } from '@/app/api/taxonomy/domains/[id]/route';
 import { POST as subtopicsPOST } from '@/app/api/taxonomy/subtopics/route';
 import { POST as reorderPOST } from '@/app/api/taxonomy/reorder/route';
@@ -65,9 +68,8 @@ function resetMocks() {
     data: null,
     error: null,
   });
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 }
 

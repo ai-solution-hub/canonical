@@ -21,14 +21,18 @@ export const selectors = {
     settingsButton: 'button[aria-label="Settings"]',
     searchButton: 'button[aria-label="Search"]',
     mobileMenuButton: 'button[aria-label="Open navigation menu"]',
-    notificationBell: '[data-testid="notification-bell"], button[aria-label*="notification" i]',
-    aiAssistantButton: 'button[aria-label="Open AI assistant"], button[aria-label="Close AI assistant"]',
+    notificationBell:
+      '[data-testid="notification-bell"], button[aria-label*="notification" i]',
+    aiAssistantButton:
+      'button[aria-label="Open AI assistant"], button[aria-label="Close AI assistant"]',
   },
 
   /** Search components */
   search: {
-    heroSearchBar: '[data-testid="hero-search"], input[placeholder*="Search" i]',
-    compactSearchBar: '[data-testid="compact-search"], header input[placeholder*="Search" i]',
+    heroSearchBar:
+      '[data-testid="hero-search"], input[placeholder*="Search" i]',
+    compactSearchBar:
+      '[data-testid="compact-search"], header input[placeholder*="Search" i]',
     searchResults: '[data-testid="search-results"]',
     searchResultItem: '[data-testid="search-result-item"]',
   },
@@ -69,15 +73,18 @@ export const selectors = {
     documentsTab: '[data-testid="documents-tab"], button:has-text("Documents")',
     overviewTab: '[data-testid="overview-tab"], button:has-text("Overview")',
     exportButton: 'button:has-text("Export")',
-    exportDocx: 'button:has-text("Export as Word"), [data-testid="export-docx"]',
-    exportXlsx: 'button:has-text("Export as Excel"), [data-testid="export-xlsx"]',
+    exportDocx:
+      'button:has-text("Export as Word"), [data-testid="export-docx"]',
+    exportXlsx:
+      'button:has-text("Export as Excel"), [data-testid="export-xlsx"]',
   },
 
   /** Q&A Library */
   library: {
     qaList: '[data-testid="qa-list"]',
     qaItem: '[data-testid="qa-item"]',
-    searchInput: '[data-testid="library-search"], input[placeholder*="Search" i]',
+    searchInput:
+      '[data-testid="library-search"], input[placeholder*="Search" i]',
     domainFilter: '[data-testid="library-domain-filter"]',
   },
 
@@ -105,7 +112,8 @@ export const selectors = {
 
   /** Theme/appearance settings (site header dialog) */
   theme: {
-    settingsButton: '[data-testid="theme-settings"], button[aria-label*="theme" i]',
+    settingsButton:
+      '[data-testid="theme-settings"], button[aria-label*="theme" i]',
     darkModeToggle: '[data-testid="dark-mode"]',
     lightModeToggle: '[data-testid="light-mode"]',
     systemModeToggle: '[data-testid="system-mode"]',

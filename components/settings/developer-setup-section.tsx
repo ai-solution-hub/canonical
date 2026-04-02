@@ -1,12 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  Check,
-  Copy,
-  Download,
-  Terminal,
-} from 'lucide-react';
+import { Check, Copy, Download, Terminal } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -79,24 +74,23 @@ export function DeveloperSetupSection() {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <p className="text-sm text-muted-foreground">
-            Download the Knowledge Hub plugin for Claude Code or Cowork.
-            Adds slash commands for searching your knowledge base, checking bid
+            Download the Knowledge Hub plugin for Claude Code or Cowork. Adds
+            slash commands for searching your knowledge base, checking bid
             status, and drafting responses.
           </p>
 
           <div className="flex flex-col gap-3">
-            <Button
-              variant="outline"
-              className="w-fit"
-              asChild
-            >
+            <Button variant="outline" className="w-fit" asChild>
               <a href="/api/plugin/download" download>
                 <Download className="mr-2 size-4" aria-hidden="true" />
                 Download Plugin
               </a>
             </Button>
 
-            <ol className="flex list-none flex-col gap-1.5 text-sm text-muted-foreground" role="list">
+            <ol
+              className="flex list-none flex-col gap-1.5 text-sm text-muted-foreground"
+              role="list"
+            >
               <li className="flex gap-2">
                 <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-foreground">
                   1
@@ -109,9 +103,10 @@ export function DeveloperSetupSection() {
                 </span>
                 <span>
                   Open{' '}
-                  <span className="font-medium text-foreground">Claude Desktop</span>
-                  {' '}or{' '}
-                  <span className="font-medium text-foreground">Cowork</span>
+                  <span className="font-medium text-foreground">
+                    Claude Desktop
+                  </span>{' '}
+                  or <span className="font-medium text-foreground">Cowork</span>
                 </span>
               </li>
               <li className="flex gap-2">
@@ -147,7 +142,16 @@ export function DeveloperSetupSection() {
           </p>
 
           <div className="flex flex-col gap-1.5">
-            <p id="mcp-config-label" className="text-sm font-medium leading-none">MCP configuration (paste into <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">.mcp.json</code>)</p>
+            <p
+              id="mcp-config-label"
+              className="text-sm font-medium leading-none"
+            >
+              MCP configuration (paste into{' '}
+              <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                .mcp.json
+              </code>
+              )
+            </p>
             <div className="flex items-start gap-2">
               <pre
                 aria-labelledby="mcp-config-label"
@@ -171,7 +175,10 @@ export function DeveloperSetupSection() {
             <AccordionItem value="claude-code-setup" className="border-b-0">
               <AccordionTrigger>Step-by-step instructions</AccordionTrigger>
               <AccordionContent>
-                <ol className="flex list-none flex-col gap-3 text-sm text-muted-foreground" role="list">
+                <ol
+                  className="flex list-none flex-col gap-3 text-sm text-muted-foreground"
+                  role="list"
+                >
                   <li className="flex gap-2">
                     <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-foreground">
                       1
@@ -188,9 +195,7 @@ export function DeveloperSetupSection() {
                     <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-foreground">
                       2
                     </span>
-                    <span>
-                      Paste the configuration above
-                    </span>
+                    <span>Paste the configuration above</span>
                   </li>
                   <li className="flex gap-2">
                     <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-foreground">
@@ -208,16 +213,15 @@ export function DeveloperSetupSection() {
                     <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-foreground">
                       4
                     </span>
-                    <span>
-                      Approve the MCP server connection when prompted
-                    </span>
+                    <span>Approve the MCP server connection when prompted</span>
                   </li>
                   <li className="flex gap-2">
                     <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-foreground">
                       5
                     </span>
                     <span>
-                      Authenticate via the browser when the OAuth consent page opens
+                      Authenticate via the browser when the OAuth consent page
+                      opens
                     </span>
                   </li>
                   <li className="flex gap-2">

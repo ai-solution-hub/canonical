@@ -52,7 +52,8 @@ const SAMPLE_SUGGESTIONS = [
     domain: 'Security',
     subtopic: 'Certifications',
     title: 'No content for Certifications',
-    description: 'Security has an active bid but zero content for Certifications.',
+    description:
+      'Security has an active bid but zero content for Certifications.',
     suggested_content_type: 'policy',
     item_count: 0,
   },
@@ -180,7 +181,9 @@ describe('GET /api/content-suggestions', () => {
   });
 
   it('returns 500 on engine error', async () => {
-    mockGenerateContentSuggestions.mockRejectedValue(new Error('DB connection failed'));
+    mockGenerateContentSuggestions.mockRejectedValue(
+      new Error('DB connection failed'),
+    );
 
     const req = createTestRequest('/api/content-suggestions');
     const res = await GET(req);

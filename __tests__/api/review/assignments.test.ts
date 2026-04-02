@@ -49,16 +49,41 @@ function resetMocks() {
   });
 
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockResolvedValue({ data: null, error: null, count: null });
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null, count: null });
+  mockSupabase._chain.single.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
@@ -108,8 +133,9 @@ describe('GET /api/review/assignments', () => {
       },
     ];
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: mockAssignments, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: mockAssignments, error: null }),
     );
 
     const req = createTestRequest('/api/review/assignments');
@@ -121,7 +147,10 @@ describe('GET /api/review/assignments', () => {
     expect(data.assignments[0].notes).toBe('Review H&S items');
 
     // Verify it filtered by reviewer_id for non-admin
-    expect(mockSupabase._chain.eq).toHaveBeenCalledWith('reviewer_id', 'test-user-id');
+    expect(mockSupabase._chain.eq).toHaveBeenCalledWith(
+      'reviewer_id',
+      'test-user-id',
+    );
   });
 
   it('returns all assignments for admin', async () => {
@@ -129,11 +158,16 @@ describe('GET /api/review/assignments', () => {
 
     const mockAssignments = [
       { id: VALID_UUID, reviewer_id: REVIEWER_UUID, status: 'active' },
-      { id: '00000000-0000-4000-8000-000000000003', reviewer_id: 'test-user-id', status: 'active' },
+      {
+        id: '00000000-0000-4000-8000-000000000003',
+        reviewer_id: 'test-user-id',
+        status: 'active',
+      },
     ];
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: mockAssignments, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: mockAssignments, error: null }),
     );
 
     const req = createTestRequest('/api/review/assignments');
@@ -155,8 +189,8 @@ describe('GET /api/review/assignments', () => {
   it('applies status filter', async () => {
     configureRole(mockSupabase, 'admin');
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const req = createTestRequest('/api/review/assignments', {
@@ -171,8 +205,9 @@ describe('GET /api/review/assignments', () => {
   it('returns 500 on database error', async () => {
     configureRole(mockSupabase, 'admin');
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { message: 'DB error' } }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: { message: 'DB error' } }),
     );
 
     const req = createTestRequest('/api/review/assignments');
@@ -243,8 +278,9 @@ describe('POST /api/review/assignments', () => {
     configureRole(mockSupabase, 'admin');
 
     // Mock the count query (head: true returns count)
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null, count: 15 }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: null, count: 15 }),
     );
 
     // Mock the insert + select + single
@@ -268,8 +304,8 @@ describe('POST /api/review/assignments', () => {
     });
 
     // Mock notification insert (non-fatal)
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest('/api/review/assignments', {
@@ -297,8 +333,9 @@ describe('POST /api/review/assignments', () => {
     configureRole(mockSupabase, 'admin');
 
     // Mock count query
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null, count: 42 }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: null, count: 42 }),
     );
 
     // Mock insert
@@ -332,8 +369,9 @@ describe('POST /api/review/assignments', () => {
   it('returns 500 when count query fails', async () => {
     configureRole(mockSupabase, 'admin');
 
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { message: 'Count error' }, count: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: { message: 'Count error' }, count: null }),
     );
 
     const req = createTestRequest('/api/review/assignments', {
@@ -351,8 +389,9 @@ describe('POST /api/review/assignments', () => {
     configureRole(mockSupabase, 'admin');
 
     // Count succeeds
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null, count: 5 }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: null, count: 5 }),
     );
 
     // Insert fails

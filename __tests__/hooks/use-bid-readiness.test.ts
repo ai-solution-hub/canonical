@@ -54,7 +54,11 @@ function createWrapper() {
   });
 
   return function Wrapper({ children }: { children: React.ReactNode }) {
-    return React.createElement(QueryClientProvider, { client: queryClient }, children);
+    return React.createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      children,
+    );
   };
 }
 
@@ -90,7 +94,10 @@ describe('useBidReadiness', () => {
 
     expect(result.current.readiness).toEqual(readyResponse);
     expect(result.current.error).toBeNull();
-    expect(mockFetch).toHaveBeenCalledWith(`/api/bids/${BID_UUID}/readiness`, undefined);
+    expect(mockFetch).toHaveBeenCalledWith(
+      `/api/bids/${BID_UUID}/readiness`,
+      undefined,
+    );
   });
 
   it('handles fetch error', async () => {
@@ -181,7 +188,9 @@ describe('useBidReadiness', () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 403,
-      json: async () => { throw new Error('not JSON'); },
+      json: async () => {
+        throw new Error('not JSON');
+      },
     });
 
     const { result } = renderHook(() => useBidReadiness(BID_UUID), {

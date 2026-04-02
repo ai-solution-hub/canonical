@@ -19,11 +19,18 @@ export async function GET() {
     const { supabase } = auth;
 
     // Call get_content_owner_stats RPC
-    const { data, error: rpcError } = await supabase.rpc('get_content_owner_stats');
+    const { data, error: rpcError } = await supabase.rpc(
+      'get_content_owner_stats',
+    );
 
     if (rpcError) {
       return NextResponse.json(
-        { error: safeErrorMessage(rpcError, 'Failed to fetch content owner stats') },
+        {
+          error: safeErrorMessage(
+            rpcError,
+            'Failed to fetch content owner stats',
+          ),
+        },
         { status: 500 },
       );
     }
@@ -43,9 +50,7 @@ export async function GET() {
       const serviceClient = createServiceClient();
 
       const results = await Promise.allSettled(
-        ownerIds.map((id: string) =>
-          serviceClient.auth.admin.getUserById(id),
-        ),
+        ownerIds.map((id: string) => serviceClient.auth.admin.getUserById(id)),
       );
 
       for (let i = 0; i < ownerIds.length; i++) {

@@ -421,7 +421,9 @@ async function main() {
       questionIds.push('');
     }
   }
-  console.log(`   Created ${dryRun ? TEST_QUESTIONS.length + ' (preview)' : questionIds.filter(Boolean).length} questions.\n`);
+  console.log(
+    `   Created ${dryRun ? TEST_QUESTIONS.length + ' (preview)' : questionIds.filter(Boolean).length} questions.\n`,
+  );
 
   // Step 3: Create draft responses
   console.log('3. Creating draft responses...');
@@ -433,13 +435,11 @@ async function main() {
     );
 
     if (!dryRun && questionIds[resp.questionIndex]) {
-      const { error: rError } = await supabase
-        .from('bid_responses')
-        .insert({
-          question_id: questionIds[resp.questionIndex],
-          response_text: resp.response_text,
-          review_status: resp.review_status,
-        });
+      const { error: rError } = await supabase.from('bid_responses').insert({
+        question_id: questionIds[resp.questionIndex],
+        response_text: resp.response_text,
+        review_status: resp.review_status,
+      });
 
       if (rError) {
         console.error(`   Failed to create response: ${rError.message}`);
@@ -464,9 +464,7 @@ async function main() {
     console.log('\n[DRY RUN] No data was written. Remove --dry-run to seed.');
   } else {
     console.log(`\nTest bid seeded successfully. View at:`);
-    console.log(
-      `  https://knowledge-hub-seven-kappa.vercel.app/bids/${bidId}`,
-    );
+    console.log(`  https://knowledge-hub-seven-kappa.vercel.app/bids/${bidId}`);
   }
 }
 

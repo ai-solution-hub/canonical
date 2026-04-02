@@ -105,7 +105,9 @@ describe('ContentTabs — Flag for review', () => {
         showSourceToggle={true}
       />,
     );
-    expect(screen.getByLabelText('Flag summary for review')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Flag summary for review'),
+    ).toBeInTheDocument();
   });
 
   it('hides "Flag for review" button when canEdit is false', () => {
@@ -118,7 +120,9 @@ describe('ContentTabs — Flag for review', () => {
         showSourceToggle={true}
       />,
     );
-    expect(screen.queryByLabelText('Flag summary for review')).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Flag summary for review'),
+    ).not.toBeInTheDocument();
   });
 
   it('hides "Flag for review" button when showSourceToggle is false', () => {
@@ -131,7 +135,9 @@ describe('ContentTabs — Flag for review', () => {
         showSourceToggle={false}
       />,
     );
-    expect(screen.queryByLabelText('Flag summary for review')).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Flag summary for review'),
+    ).not.toBeInTheDocument();
   });
 
   it('hides "Flag for review" button when summaryData is null', () => {
@@ -144,7 +150,9 @@ describe('ContentTabs — Flag for review', () => {
         showSourceToggle={true}
       />,
     );
-    expect(screen.queryByLabelText('Flag summary for review')).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Flag summary for review'),
+    ).not.toBeInTheDocument();
   });
 
   // -----------------------------------------------------------------------
@@ -168,14 +176,18 @@ describe('ContentTabs — Flag for review', () => {
 
     // Form should be visible with pre-populated note
     expect(screen.getByLabelText('Note for reviewer')).toBeInTheDocument();
-    expect(screen.getByLabelText('Note for reviewer')).toHaveValue('Summary needs improvement');
+    expect(screen.getByLabelText('Note for reviewer')).toHaveValue(
+      'Summary needs improvement',
+    );
 
     // Flag and Cancel buttons should appear
     expect(screen.getByRole('button', { name: /^Flag$/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
 
     // "Flag for review" button should be hidden while form is open
-    expect(screen.queryByLabelText('Flag summary for review')).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Flag summary for review'),
+    ).not.toBeInTheDocument();
   });
 
   it('closes inline form and resets note when Cancel is clicked', async () => {
@@ -204,8 +216,12 @@ describe('ContentTabs — Flag for review', () => {
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
 
     // Form should be hidden, original button back
-    expect(screen.queryByLabelText('Note for reviewer')).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Flag summary for review')).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Note for reviewer'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Flag summary for review'),
+    ).toBeInTheDocument();
   });
 
   // -----------------------------------------------------------------------
@@ -280,7 +296,8 @@ describe('ContentTabs — Flag for review', () => {
           body: JSON.stringify({
             action: 'flag',
             item_id: 'item-99',
-            flag_details: '[Summary feedback] Missing key details about compliance',
+            flag_details:
+              '[Summary feedback] Missing key details about compliance',
           }),
         }),
       );
@@ -313,11 +330,15 @@ describe('ContentTabs — Flag for review', () => {
     await user.click(screen.getByRole('button', { name: /^Flag$/ }));
 
     await waitFor(() => {
-      expect(screen.getByRole('status')).toHaveTextContent('Flagged for review');
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Flagged for review',
+      );
     });
 
     // Success toast should be shown
-    expect(mockToast.success).toHaveBeenCalledWith('Summary flagged for review');
+    expect(mockToast.success).toHaveBeenCalledWith(
+      'Summary flagged for review',
+    );
   });
 
   // -----------------------------------------------------------------------
@@ -355,7 +376,9 @@ describe('ContentTabs — Flag for review', () => {
 
   it('shows generic error toast when flag API throws network error', async () => {
     const user = userEvent.setup();
-    (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('Network error'));
+    (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error('Network error'),
+    );
 
     render(
       <ContentTabs
@@ -402,11 +425,15 @@ describe('ContentTabs — Flag for review', () => {
     await user.click(screen.getByRole('button', { name: /^Flag$/ }));
 
     await waitFor(() => {
-      expect(screen.getByRole('status')).toHaveTextContent('Flagged for review');
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Flagged for review',
+      );
     });
 
     // Regenerate button should be visible
-    expect(screen.getByRole('button', { name: /Regenerate/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Regenerate/ }),
+    ).toBeInTheDocument();
   });
 
   it('calls handleGenerate and resets flagged state when Regenerate is clicked', async () => {
@@ -435,7 +462,9 @@ describe('ContentTabs — Flag for review', () => {
     await user.click(screen.getByRole('button', { name: /^Flag$/ }));
 
     await waitFor(() => {
-      expect(screen.getByRole('status')).toHaveTextContent('Flagged for review');
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Flagged for review',
+      );
     });
 
     // Click Regenerate

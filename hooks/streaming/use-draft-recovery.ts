@@ -72,7 +72,11 @@ function getStoredDraft(key: string): StoredDraft | null {
   }
 }
 
-function writeDraft(key: string, content: string, responseVersion: number | null): Date | null {
+function writeDraft(
+  key: string,
+  content: string,
+  responseVersion: number | null,
+): Date | null {
   if (!isLocalStorageAvailable()) return null;
 
   const now = new Date();
@@ -213,7 +217,11 @@ export function useDraftRecovery(
 
     autoSaveTimerRef.current = setInterval(() => {
       if (latestContentRef.current !== null) {
-        const saved = writeDraft(storageKey, latestContentRef.current, responseVersionRef.current);
+        const saved = writeDraft(
+          storageKey,
+          latestContentRef.current,
+          responseVersionRef.current,
+        );
         if (saved) {
           setWriteSavedAt(saved);
         }
@@ -248,7 +256,11 @@ export function useDraftRecovery(
       }
 
       debounceTimerRef.current = setTimeout(() => {
-        const saved = writeDraft(storageKey, content, responseVersionRef.current);
+        const saved = writeDraft(
+          storageKey,
+          content,
+          responseVersionRef.current,
+        );
         if (saved) {
           setWriteSavedAt(saved);
         }

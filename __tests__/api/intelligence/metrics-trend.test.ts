@@ -42,9 +42,7 @@ import { GET } from '@/app/api/intelligence/workspaces/[id]/metrics/trend/route'
 
 const WORKSPACE_UUID = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 
-function makeArticles(
-  entries: Array<{ date: string; passed: boolean }>,
-) {
+function makeArticles(entries: Array<{ date: string; passed: boolean }>) {
   return entries.map((e) => ({
     ingested_at: `${e.date}T12:00:00Z`,
     passed: e.passed,
@@ -287,9 +285,7 @@ describe('GET /api/intelligence/workspaces/:id/metrics/trend', () => {
   it('each data point has required fields', async () => {
     configureRole(mockSupabase, 'admin');
 
-    const articles = makeArticles([
-      { date: '2026-03-01', passed: true },
-    ]);
+    const articles = makeArticles([{ date: '2026-03-01', passed: true }]);
 
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>

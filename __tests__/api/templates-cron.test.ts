@@ -76,33 +76,24 @@ vi.mock('@/lib/templates/template-coverage', () => ({
 }));
 
 // Import route handlers AFTER all vi.mock() calls
-const { POST: autoMapPost } = await import(
-  '@/app/api/bids/[id]/templates/[templateId]/auto-map/route'
-);
-const { PATCH: fieldPatch } = await import(
-  '@/app/api/bids/[id]/templates/[templateId]/fields/[fieldId]/route'
-);
-const { POST: bulkUpdatePost } = await import(
-  '@/app/api/bids/[id]/templates/[templateId]/fields/bulk-update/route'
-);
-const { POST: fillPost } = await import(
-  '@/app/api/bids/[id]/templates/[templateId]/fill/route'
-);
-const { PATCH: subtopicPatch } = await import(
-  '@/app/api/taxonomy/subtopics/[id]/route'
-);
-const { GET: freshnessGet } = await import(
-  '@/app/api/cron/freshness-transitions/route'
-);
-const { GET: classificationGet } = await import(
-  '@/app/api/cron/classification-quality/route'
-);
-const { GET: coverageGet } = await import(
-  '@/app/api/cron/coverage-alerts/route'
-);
-const { GET: contentGapsGet } = await import(
-  '@/app/api/cron/content-gaps/route'
-);
+const { POST: autoMapPost } =
+  await import('@/app/api/bids/[id]/templates/[templateId]/auto-map/route');
+const { PATCH: fieldPatch } =
+  await import('@/app/api/bids/[id]/templates/[templateId]/fields/[fieldId]/route');
+const { POST: bulkUpdatePost } =
+  await import('@/app/api/bids/[id]/templates/[templateId]/fields/bulk-update/route');
+const { POST: fillPost } =
+  await import('@/app/api/bids/[id]/templates/[templateId]/fill/route');
+const { PATCH: subtopicPatch } =
+  await import('@/app/api/taxonomy/subtopics/[id]/route');
+const { GET: freshnessGet } =
+  await import('@/app/api/cron/freshness-transitions/route');
+const { GET: classificationGet } =
+  await import('@/app/api/cron/classification-quality/route');
+const { GET: coverageGet } =
+  await import('@/app/api/cron/coverage-alerts/route');
+const { GET: contentGapsGet } =
+  await import('@/app/api/cron/content-gaps/route');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -139,25 +130,47 @@ beforeEach(() => {
 
   // Chainable methods return the chain (including .filter used by freshness route)
   const chainable = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
     'filter',
   ] as const;
   for (const m of chainable) {
-    (mockSupabase._chain as Record<string, ReturnType<typeof vi.fn>>)[m] ??= vi.fn();
-    (mockSupabase._chain as Record<string, ReturnType<typeof vi.fn>>)[m].mockReturnValue(mockSupabase._chain);
+    (mockSupabase._chain as Record<string, ReturnType<typeof vi.fn>>)[m] ??=
+      vi.fn();
+    (mockSupabase._chain as Record<string, ReturnType<typeof vi.fn>>)[
+      m
+    ].mockReturnValue(mockSupabase._chain);
   }
 
   // Terminal methods
   mockSupabase._chain.single.mockReset();
   mockSupabase._chain.single.mockResolvedValue({ data: null, error: null });
   mockSupabase._chain.maybeSingle.mockReset();
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+  });
   mockSupabase._chain.then.mockReset();
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 
   // External dependency defaults
@@ -187,7 +200,6 @@ beforeEach(() => {
   // call configureRole() / configureUnauthenticated() explicitly so
   // that the queued .single() calls are consumed in the correct order.
 });
-
 
 // ═══════════════════════════════════════════════════════════════════════════
 // POST /api/bids/:id/templates/:templateId/auto-map
@@ -223,7 +235,10 @@ describe('POST /api/bids/:id/templates/:templateId/auto-map', () => {
   it('returns 400 for invalid UUID in bid or template ID', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const badParams = createTestParams({ id: 'not-a-uuid', templateId: VALID_UUID_2 });
+    const badParams = createTestParams({
+      id: 'not-a-uuid',
+      templateId: VALID_UUID_2,
+    });
     const req = createTestRequest('/api/bids/not-a-uuid/templates/y/auto-map', {
       method: 'POST',
       body: {},
@@ -301,8 +316,7 @@ describe('POST /api/bids/:id/templates/:templateId/auto-map', () => {
 
     // No unmapped fields returned
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const req = createTestRequest('/api/bids/x/templates/y/auto-map', {
@@ -331,9 +345,7 @@ describe('POST /api/bids/:id/templates/:templateId/auto-map', () => {
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
-          data: [
-            { id: 'field-1', question_text: 'Describe your experience' },
-          ],
+          data: [{ id: 'field-1', question_text: 'Describe your experience' }],
           error: null,
         }),
     );
@@ -372,7 +384,6 @@ describe('POST /api/bids/:id/templates/:templateId/auto-map', () => {
     expect(body.mappings[0].confidence).toBe(0.8);
   });
 });
-
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PATCH /api/bids/:id/templates/:templateId/fields/:fieldId
@@ -534,7 +545,6 @@ describe('PATCH /api/bids/:id/templates/:templateId/fields/:fieldId', () => {
   });
 });
 
-
 // ═══════════════════════════════════════════════════════════════════════════
 // POST /api/bids/:id/templates/:templateId/fields/bulk-update
 // ═══════════════════════════════════════════════════════════════════════════
@@ -544,17 +554,24 @@ describe('POST /api/bids/:id/templates/:templateId/fields/bulk-update', () => {
 
   const validBody = {
     mappings: [
-      { field_id: VALID_UUID_3, question_id: VALID_UUID, mapping_status: 'confirmed' as const },
+      {
+        field_id: VALID_UUID_3,
+        question_id: VALID_UUID,
+        mapping_status: 'confirmed' as const,
+      },
     ],
   };
 
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest('/api/bids/x/templates/y/fields/bulk-update', {
-      method: 'POST',
-      body: validBody,
-    });
+    const req = createTestRequest(
+      '/api/bids/x/templates/y/fields/bulk-update',
+      {
+        method: 'POST',
+        body: validBody,
+      },
+    );
 
     const res = await bulkUpdatePost(req, { params });
     expect(res.status).toBe(401);
@@ -563,10 +580,13 @@ describe('POST /api/bids/:id/templates/:templateId/fields/bulk-update', () => {
   it('returns 403 for viewer role', async () => {
     configureRole(mockSupabase, 'viewer');
 
-    const req = createTestRequest('/api/bids/x/templates/y/fields/bulk-update', {
-      method: 'POST',
-      body: validBody,
-    });
+    const req = createTestRequest(
+      '/api/bids/x/templates/y/fields/bulk-update',
+      {
+        method: 'POST',
+        body: validBody,
+      },
+    );
 
     const res = await bulkUpdatePost(req, { params });
     expect(res.status).toBe(403);
@@ -577,10 +597,13 @@ describe('POST /api/bids/:id/templates/:templateId/fields/bulk-update', () => {
 
     const badParams = createTestParams({ id: 'bad', templateId: VALID_UUID_2 });
 
-    const req = createTestRequest('/api/bids/bad/templates/y/fields/bulk-update', {
-      method: 'POST',
-      body: validBody,
-    });
+    const req = createTestRequest(
+      '/api/bids/bad/templates/y/fields/bulk-update',
+      {
+        method: 'POST',
+        body: validBody,
+      },
+    );
 
     const res = await bulkUpdatePost(req, { params: badParams });
     expect(res.status).toBe(400);
@@ -589,10 +612,13 @@ describe('POST /api/bids/:id/templates/:templateId/fields/bulk-update', () => {
   it('returns 400 for empty mappings array', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const req = createTestRequest('/api/bids/x/templates/y/fields/bulk-update', {
-      method: 'POST',
-      body: { mappings: [] },
-    });
+    const req = createTestRequest(
+      '/api/bids/x/templates/y/fields/bulk-update',
+      {
+        method: 'POST',
+        body: { mappings: [] },
+      },
+    );
 
     const res = await bulkUpdatePost(req, { params });
     expect(res.status).toBe(400);
@@ -610,10 +636,13 @@ describe('POST /api/bids/:id/templates/:templateId/fields/bulk-update', () => {
       error: { message: 'Not found', code: 'PGRST116' },
     });
 
-    const req = createTestRequest('/api/bids/x/templates/y/fields/bulk-update', {
-      method: 'POST',
-      body: validBody,
-    });
+    const req = createTestRequest(
+      '/api/bids/x/templates/y/fields/bulk-update',
+      {
+        method: 'POST',
+        body: validBody,
+      },
+    );
 
     const res = await bulkUpdatePost(req, { params });
     expect(res.status).toBe(404);
@@ -630,8 +659,7 @@ describe('POST /api/bids/:id/templates/:templateId/fields/bulk-update', () => {
 
     // Each field update succeeds (via .then)
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     // Count query for mapped_count
@@ -640,10 +668,13 @@ describe('POST /api/bids/:id/templates/:templateId/fields/bulk-update', () => {
         resolve({ data: null, error: null, count: 3 }),
     );
 
-    const req = createTestRequest('/api/bids/x/templates/y/fields/bulk-update', {
-      method: 'POST',
-      body: validBody,
-    });
+    const req = createTestRequest(
+      '/api/bids/x/templates/y/fields/bulk-update',
+      {
+        method: 'POST',
+        body: validBody,
+      },
+    );
 
     const res = await bulkUpdatePost(req, { params });
     expect(res.status).toBe(200);
@@ -653,7 +684,6 @@ describe('POST /api/bids/:id/templates/:templateId/fields/bulk-update', () => {
     expect(body.mapped_count).toBe(3);
   });
 });
-
 
 // ═══════════════════════════════════════════════════════════════════════════
 // POST /api/bids/:id/templates/:templateId/fill
@@ -723,7 +753,12 @@ describe('POST /api/bids/:id/templates/:templateId/fill', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID_2, project_id: VALID_UUID, storage_path: '/test.docx', status: 'uploaded' },
+      data: {
+        id: VALID_UUID_2,
+        project_id: VALID_UUID,
+        storage_path: '/test.docx',
+        status: 'uploaded',
+      },
       error: null,
     });
 
@@ -744,14 +779,18 @@ describe('POST /api/bids/:id/templates/:templateId/fill', () => {
 
     // Template exists and is analysed
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID_2, project_id: VALID_UUID, storage_path: '/test.docx', status: 'analysed' },
+      data: {
+        id: VALID_UUID_2,
+        project_id: VALID_UUID,
+        storage_path: '/test.docx',
+        status: 'analysed',
+      },
       error: null,
     });
 
     // No confirmed/manual fields
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const req = createTestRequest('/api/bids/x/templates/y/fill', {
@@ -771,7 +810,12 @@ describe('POST /api/bids/:id/templates/:templateId/fill', () => {
 
     // Template exists and is analysed
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID_2, project_id: VALID_UUID, storage_path: '/test.docx', status: 'analysed' },
+      data: {
+        id: VALID_UUID_2,
+        project_id: VALID_UUID,
+        storage_path: '/test.docx',
+        status: 'analysed',
+      },
       error: null,
     });
 
@@ -780,7 +824,15 @@ describe('POST /api/bids/:id/templates/:templateId/fill', () => {
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
-            { id: 'f-1', table_index: 0, row_index: 1, col_index: 1, question_id: 'q-1', word_limit: 200, mapping_status: 'confirmed' },
+            {
+              id: 'f-1',
+              table_index: 0,
+              row_index: 1,
+              col_index: 1,
+              question_id: 'q-1',
+              word_limit: 200,
+              mapping_status: 'confirmed',
+            },
           ],
           error: null,
         }),
@@ -791,7 +843,12 @@ describe('POST /api/bids/:id/templates/:templateId/fill', () => {
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
-            { question_id: 'q-1', response_text: 'Our experience spans 10 years.', review_status: 'approved', version: 1 },
+            {
+              question_id: 'q-1',
+              response_text: 'Our experience spans 10 years.',
+              review_status: 'approved',
+              version: 1,
+            },
           ],
           error: null,
         }),
@@ -822,7 +879,12 @@ describe('POST /api/bids/:id/templates/:templateId/fill', () => {
 
     // Template exists
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID_2, project_id: VALID_UUID, storage_path: '/test.docx', status: 'analysed' },
+      data: {
+        id: VALID_UUID_2,
+        project_id: VALID_UUID,
+        storage_path: '/test.docx',
+        status: 'analysed',
+      },
       error: null,
     });
 
@@ -831,7 +893,15 @@ describe('POST /api/bids/:id/templates/:templateId/fill', () => {
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
-            { id: 'f-1', table_index: 0, row_index: 1, col_index: 1, question_id: 'q-1', word_limit: null, mapping_status: 'confirmed' },
+            {
+              id: 'f-1',
+              table_index: 0,
+              row_index: 1,
+              col_index: 1,
+              question_id: 'q-1',
+              word_limit: null,
+              mapping_status: 'confirmed',
+            },
           ],
           error: null,
         }),
@@ -842,7 +912,12 @@ describe('POST /api/bids/:id/templates/:templateId/fill', () => {
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
-            { question_id: 'q-1', response_text: 'Answer text.', review_status: 'approved', version: 1 },
+            {
+              question_id: 'q-1',
+              response_text: 'Answer text.',
+              review_status: 'approved',
+              version: 1,
+            },
           ],
           error: null,
         }),
@@ -866,7 +941,6 @@ describe('POST /api/bids/:id/templates/:templateId/fill', () => {
     expect(body.error).toMatch(/queue/i);
   });
 });
-
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PATCH /api/taxonomy/subtopics/:id
@@ -1000,7 +1074,6 @@ describe('PATCH /api/taxonomy/subtopics/:id', () => {
   });
 });
 
-
 // ═══════════════════════════════════════════════════════════════════════════
 // GET /api/cron/freshness-transitions
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1020,13 +1093,11 @@ describe('GET /api/cron/freshness-transitions', () => {
   it('returns 200 with zero notifications when no transitions detected', async () => {
     // Governance config query (consumed first by the route)
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
     // Content items query returns no items
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const req = cronRequest('/api/cron/freshness-transitions');
@@ -1052,8 +1123,7 @@ describe('GET /api/cron/freshness-transitions', () => {
 
     // Governance config query
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
     // Content items query
     mockSupabase._chain.then.mockImplementationOnce(
@@ -1092,8 +1162,7 @@ describe('GET /api/cron/freshness-transitions', () => {
 
     // Governance config query
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
     // Content items query
     mockSupabase._chain.then.mockImplementationOnce(
@@ -1133,8 +1202,7 @@ describe('GET /api/cron/freshness-transitions', () => {
 
     // Governance config query
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
     // Content items query
     mockSupabase._chain.then.mockImplementationOnce(
@@ -1157,8 +1225,7 @@ describe('GET /api/cron/freshness-transitions', () => {
   it('returns 500 when freshness query fails', async () => {
     // Governance config query succeeds
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
     // Content items query fails
     mockSupabase._chain.then.mockImplementationOnce(
@@ -1172,7 +1239,6 @@ describe('GET /api/cron/freshness-transitions', () => {
     expect(res.status).toBe(500);
   });
 });
-
 
 // ═══════════════════════════════════════════════════════════════════════════
 // GET /api/cron/classification-quality
@@ -1197,8 +1263,7 @@ describe('GET /api/cron/classification-quality', () => {
 
     // No candidates
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const req = cronRequest('/api/cron/classification-quality');
@@ -1352,8 +1417,22 @@ describe('GET /api/cron/classification-quality', () => {
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
-            { id: 'item-1', title: 'Item 1', primary_domain: 'Eng', primary_subtopic: 'S', classification_confidence: 0.4, classified_at: null },
-            { id: 'item-2', title: 'Item 2', primary_domain: 'Eng', primary_subtopic: 'S', classification_confidence: 0.3, classified_at: null },
+            {
+              id: 'item-1',
+              title: 'Item 1',
+              primary_domain: 'Eng',
+              primary_subtopic: 'S',
+              classification_confidence: 0.4,
+              classified_at: null,
+            },
+            {
+              id: 'item-2',
+              title: 'Item 2',
+              primary_domain: 'Eng',
+              primary_subtopic: 'S',
+              classification_confidence: 0.3,
+              classified_at: null,
+            },
           ],
           error: null,
         }),
@@ -1384,7 +1463,16 @@ describe('GET /api/cron/classification-quality', () => {
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
-          data: [{ id: 'item-1', title: 'Test', primary_domain: null, primary_subtopic: null, classification_confidence: null, classified_at: null }],
+          data: [
+            {
+              id: 'item-1',
+              title: 'Test',
+              primary_domain: null,
+              primary_subtopic: null,
+              classification_confidence: null,
+              classified_at: null,
+            },
+          ],
           error: null,
         }),
     );
@@ -1399,7 +1487,6 @@ describe('GET /api/cron/classification-quality', () => {
     expect(body.skipped_reason).toBe('no_admin_user');
   });
 });
-
 
 // ═══════════════════════════════════════════════════════════════════════════
 // GET /api/cron/coverage-alerts
@@ -1430,7 +1517,14 @@ describe('GET /api/cron/coverage-alerts', () => {
   it('returns 200 with zero alerts when all domains are healthy', async () => {
     mockSupabase.rpc.mockResolvedValueOnce({
       data: [
-        { domain_name: 'Engineering', domain_colour: '#4A90D9', total_items: 10, fresh_pct: 80, gap_count: 0, expired_count: 0 },
+        {
+          domain_name: 'Engineering',
+          domain_colour: '#4A90D9',
+          total_items: 10,
+          fresh_pct: 80,
+          gap_count: 0,
+          expired_count: 0,
+        },
       ],
       error: null,
     });
@@ -1439,7 +1533,12 @@ describe('GET /api/cron/coverage-alerts', () => {
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: {
         result: {
-          Engineering: { total_items: 10, fresh_pct: 80, gap_count: 0, expired_count: 0 },
+          Engineering: {
+            total_items: 10,
+            fresh_pct: 80,
+            gap_count: 0,
+            expired_count: 0,
+          },
         },
       },
       error: null,
@@ -1459,7 +1558,14 @@ describe('GET /api/cron/coverage-alerts', () => {
   it('detects critical gap when a domain has zero fresh content', async () => {
     mockSupabase.rpc.mockResolvedValueOnce({
       data: [
-        { domain_name: 'Engineering', domain_colour: '#4A90D9', total_items: 5, fresh_pct: 0, gap_count: 0, expired_count: 5 },
+        {
+          domain_name: 'Engineering',
+          domain_colour: '#4A90D9',
+          total_items: 5,
+          fresh_pct: 0,
+          gap_count: 0,
+          expired_count: 5,
+        },
       ],
       error: null,
     });
@@ -1475,8 +1581,7 @@ describe('GET /api/cron/coverage-alerts', () => {
 
     // Existing domain alerts title check (returns empty)
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const req = cronRequest('/api/cron/coverage-alerts');
@@ -1491,7 +1596,14 @@ describe('GET /api/cron/coverage-alerts', () => {
   it('detects degradation when fresh percentage drops more than 20 points', async () => {
     mockSupabase.rpc.mockResolvedValueOnce({
       data: [
-        { domain_name: 'Engineering', domain_colour: '#4A90D9', total_items: 10, fresh_pct: 30, gap_count: 0, expired_count: 2 },
+        {
+          domain_name: 'Engineering',
+          domain_colour: '#4A90D9',
+          total_items: 10,
+          fresh_pct: 30,
+          gap_count: 0,
+          expired_count: 2,
+        },
       ],
       error: null,
     });
@@ -1500,7 +1612,12 @@ describe('GET /api/cron/coverage-alerts', () => {
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: {
         result: {
-          Engineering: { total_items: 10, fresh_pct: 60, gap_count: 0, expired_count: 1 },
+          Engineering: {
+            total_items: 10,
+            fresh_pct: 60,
+            gap_count: 0,
+            expired_count: 1,
+          },
         },
       },
       error: null,
@@ -1511,8 +1628,7 @@ describe('GET /api/cron/coverage-alerts', () => {
 
     // Existing domain alerts title check (returns empty)
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const req = cronRequest('/api/cron/coverage-alerts');
@@ -1526,7 +1642,14 @@ describe('GET /api/cron/coverage-alerts', () => {
   it('stores coverage snapshot in pipeline_runs for next comparison', async () => {
     mockSupabase.rpc.mockResolvedValueOnce({
       data: [
-        { domain_name: 'Engineering', domain_colour: '#4A90D9', total_items: 10, fresh_pct: 90, gap_count: 0, expired_count: 0 },
+        {
+          domain_name: 'Engineering',
+          domain_colour: '#4A90D9',
+          total_items: 10,
+          fresh_pct: 90,
+          gap_count: 0,
+          expired_count: 0,
+        },
       ],
       error: null,
     });
@@ -1552,7 +1675,6 @@ describe('GET /api/cron/coverage-alerts', () => {
   });
 });
 
-
 // ═══════════════════════════════════════════════════════════════════════════
 // GET /api/cron/content-gaps
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1570,8 +1692,7 @@ describe('GET /api/cron/content-gaps', () => {
   it('returns 200 with zero templates when none are current', async () => {
     // No templates
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const req = cronRequest('/api/cron/content-gaps');
@@ -1601,7 +1722,11 @@ describe('GET /api/cron/content-gaps', () => {
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
-            { template_name: 'PQQ v1', template_version: '1.0', is_current: true },
+            {
+              template_name: 'PQQ v1',
+              template_version: '1.0',
+              is_current: true,
+            },
           ],
           error: null,
         }),
@@ -1612,7 +1737,13 @@ describe('GET /api/cron/content-gaps', () => {
       data: {
         result: {
           snapshots: [
-            { template: 'PQQ v1', version: '1.0', snapshot_date: '2026-03-07', gaps: ['req-old'], coverage_score: 70 },
+            {
+              template: 'PQQ v1',
+              version: '1.0',
+              snapshot_date: '2026-03-07',
+              gaps: ['req-old'],
+              coverage_score: 70,
+            },
           ],
           consecutive_gap_counts: { 'req-old': 2 },
         },
@@ -1622,7 +1753,11 @@ describe('GET /api/cron/content-gaps', () => {
 
     // fetchContentForMatching
     mockFetchContentForMatching.mockResolvedValue([
-      { id: 'content-1', primary_domain: 'Engineering', primary_subtopic: 'Standards' },
+      {
+        id: 'content-1',
+        primary_domain: 'Engineering',
+        primary_subtopic: 'Standards',
+      },
     ]);
 
     // fetchTemplateRequirements
@@ -1682,7 +1817,13 @@ describe('GET /api/cron/content-gaps', () => {
       data: {
         result: {
           snapshots: [
-            { template: 'ITT', version: '2.0', snapshot_date: '2026-03-07', gaps: ['req-persist'], coverage_score: 80 },
+            {
+              template: 'ITT',
+              version: '2.0',
+              snapshot_date: '2026-03-07',
+              gaps: ['req-persist'],
+              coverage_score: 80,
+            },
           ],
           consecutive_gap_counts: { 'req-persist': 2 },
         },

@@ -39,9 +39,7 @@ test.describe('Bid questions list', () => {
     ).toBeVisible({ timeout: 10000 });
 
     // Section count
-    await expect(
-      page.getByText(/Across 4 sections/),
-    ).toBeVisible();
+    await expect(page.getByText(/Across 4 sections/)).toBeVisible();
   });
 
   test('questions are grouped by section with section headers', async ({
@@ -63,7 +61,12 @@ test.describe('Bid questions list', () => {
     ).toBeVisible({ timeout: 10000 });
 
     // All four section headers should be visible
-    for (const section of ['Technical', 'Experience', 'Social Value', 'Commercial']) {
+    for (const section of [
+      'Technical',
+      'Experience',
+      'Social Value',
+      'Commercial',
+    ]) {
       await expect(
         page.getByRole('button', { name: new RegExp(section) }),
       ).toBeVisible();
@@ -89,7 +92,9 @@ test.describe('Bid questions list', () => {
     ).toBeVisible({ timeout: 10000 });
 
     // Each section has "1 question" text (all sections have exactly 1 question)
-    const sectionButtons = page.getByRole('button').filter({ hasText: /1 question$/ });
+    const sectionButtons = page
+      .getByRole('button')
+      .filter({ hasText: /1 question$/ });
     await expect(sectionButtons).toHaveCount(4);
   });
 
@@ -109,13 +114,13 @@ test.describe('Bid questions list', () => {
 
     // First question text should be visible
     await expect(
-      page.getByText('Describe your approach to providing IT support services.'),
+      page.getByText(
+        'Describe your approach to providing IT support services.',
+      ),
     ).toBeVisible({ timeout: 10000 });
 
     // Word limit displays as "500w" (not "500")
-    await expect(
-      page.getByText('500w'),
-    ).toBeVisible();
+    await expect(page.getByText('500w')).toBeVisible();
   });
 
   test('question row shows status indicator', async ({
@@ -169,7 +174,9 @@ test.describe('Bid question row expansion', () => {
     ).toBeVisible({ timeout: 10000 });
 
     // Click the first question row (it's a button role)
-    const questionRow = page.getByRole('button', { name: /Describe your approach/ });
+    const questionRow = page.getByRole('button', {
+      name: /Describe your approach/,
+    });
     await expect(questionRow).toBeVisible();
     await questionRow.click();
 
@@ -177,14 +184,10 @@ test.describe('Bid question row expansion', () => {
     await expect(questionRow).toHaveAttribute('aria-expanded', 'true');
 
     // Expanded content should show section name
-    await expect(
-      page.getByText('Section: Technical'),
-    ).toBeVisible();
+    await expect(page.getByText('Section: Technical')).toBeVisible();
 
     // Expanded content should show word limit (as number, not "500w")
-    await expect(
-      page.getByText('Word limit: 500'),
-    ).toBeVisible();
+    await expect(page.getByText('Word limit: 500')).toBeVisible();
   });
 
   test('expanded question shows edit and delete buttons for admin', async ({
@@ -206,17 +209,15 @@ test.describe('Bid question row expansion', () => {
     ).toBeVisible({ timeout: 10000 });
 
     // Click to expand first question
-    const questionRow = page.getByRole('button', { name: /Describe your approach/ });
+    const questionRow = page.getByRole('button', {
+      name: /Describe your approach/,
+    });
     await questionRow.click();
 
     // Edit and Delete buttons should be visible
-    await expect(
-      page.getByRole('button', { name: /Edit/ }),
-    ).toBeVisible();
+    await expect(page.getByRole('button', { name: /Edit/ })).toBeVisible();
 
-    await expect(
-      page.getByRole('button', { name: /Delete/ }),
-    ).toBeVisible();
+    await expect(page.getByRole('button', { name: /Delete/ })).toBeVisible();
   });
 
   test('clicking expanded question row collapses it', async ({
@@ -238,7 +239,9 @@ test.describe('Bid question row expansion', () => {
     ).toBeVisible({ timeout: 10000 });
 
     // Expand
-    const questionRow = page.getByRole('button', { name: /Describe your approach/ });
+    const questionRow = page.getByRole('button', {
+      name: /Describe your approach/,
+    });
     await questionRow.click();
     await expect(questionRow).toHaveAttribute('aria-expanded', 'true');
 
@@ -288,7 +291,9 @@ test.describe('Bid add question dialog', () => {
     await expect(dialog.getByLabel('Word Limit')).toBeVisible();
 
     // Submit and cancel buttons
-    await expect(dialog.getByRole('button', { name: 'Add Question' })).toBeVisible();
+    await expect(
+      dialog.getByRole('button', { name: 'Add Question' }),
+    ).toBeVisible();
     await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeVisible();
   });
 
@@ -344,9 +349,7 @@ test.describe('Bid add question dialog', () => {
       ).toBeVisible({ timeout: 10000 });
 
       // New question should appear in the list
-      await expect(
-        page.getByText(uniqueText),
-      ).toBeVisible();
+      await expect(page.getByText(uniqueText)).toBeVisible();
     } finally {
       // Clean up the created question via API
       const supabase = createServiceClient();
@@ -383,7 +386,9 @@ test.describe('Bid question sections', () => {
     ).toBeVisible({ timeout: 10000 });
 
     // Find the Technical section header button
-    const sectionHeader = page.getByRole('button', { name: /Technical/ }).filter({ hasText: /1 question/ });
+    const sectionHeader = page
+      .getByRole('button', { name: /Technical/ })
+      .filter({ hasText: /1 question/ });
     await expect(sectionHeader).toBeVisible();
 
     // Initially expanded (aria-expanded="true")
@@ -395,7 +400,9 @@ test.describe('Bid question sections', () => {
 
     // The question within Technical section should be hidden
     await expect(
-      page.getByText('Describe your approach to providing IT support services.'),
+      page.getByText(
+        'Describe your approach to providing IT support services.',
+      ),
     ).not.toBeVisible();
 
     // Click to expand again
@@ -404,7 +411,9 @@ test.describe('Bid question sections', () => {
 
     // Question should be visible again
     await expect(
-      page.getByText('Describe your approach to providing IT support services.'),
+      page.getByText(
+        'Describe your approach to providing IT support services.',
+      ),
     ).toBeVisible();
   });
 });
@@ -430,7 +439,9 @@ test.describe('Bid questions role gating', () => {
 
     // Wait for questions to load
     await expect(
-      page.getByText('Describe your approach to providing IT support services.'),
+      page.getByText(
+        'Describe your approach to providing IT support services.',
+      ),
     ).toBeVisible({ timeout: 10000 });
 
     // Add Question button should NOT be visible for viewers
@@ -454,11 +465,15 @@ test.describe('Bid questions role gating', () => {
     await tabNav.getByRole('tab', { name: 'Questions' }).click();
 
     await expect(
-      page.getByText('Describe your approach to providing IT support services.'),
+      page.getByText(
+        'Describe your approach to providing IT support services.',
+      ),
     ).toBeVisible({ timeout: 10000 });
 
     // Expand a question
-    const questionRow = page.getByRole('button', { name: /Describe your approach/ });
+    const questionRow = page.getByRole('button', {
+      name: /Describe your approach/,
+    });
     await questionRow.click();
     await expect(questionRow).toHaveAttribute('aria-expanded', 'true');
 
@@ -521,7 +536,9 @@ test.describe('Bid questions tab badge and bulk actions', () => {
     await expect(questionsTab).toBeVisible();
 
     // The tab contains a badge span with the count "4"
-    await expect(questionsTab.locator('span').filter({ hasText: '4' })).toBeVisible();
+    await expect(
+      questionsTab.locator('span').filter({ hasText: '4' }),
+    ).toBeVisible();
   });
 
   test('bulk action buttons are visible when questions have no matches', async ({
@@ -581,13 +598,18 @@ test.describe('Bid questions mobile', () => {
 
     // Verify no horizontal overflow: document scrollWidth should equal clientWidth
     const hasOverflow = await page.evaluate(() => {
-      return document.documentElement.scrollWidth > document.documentElement.clientWidth;
+      return (
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth
+      );
     });
     expect(hasOverflow).toBe(false);
 
     // First question text should be visible on mobile
     await expect(
-      page.getByText('Describe your approach to providing IT support services.'),
+      page.getByText(
+        'Describe your approach to providing IT support services.',
+      ),
     ).toBeVisible();
   });
 });

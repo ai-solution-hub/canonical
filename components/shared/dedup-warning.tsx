@@ -23,7 +23,11 @@ export interface DedupWarningProps {
  * than a modal dialog. "View match" opens the item in a new tab.
  * Uses semantic colour tokens for WCAG 2.1 AA compliance.
  */
-export function DedupWarning({ matches, onViewMatch, onDismiss }: DedupWarningProps) {
+export function DedupWarning({
+  matches,
+  onViewMatch,
+  onDismiss,
+}: DedupWarningProps) {
   if (matches.length === 0) return null;
 
   return (
@@ -39,7 +43,8 @@ export function DedupWarning({ matches, onViewMatch, onDismiss }: DedupWarningPr
           />
           <div>
             <p className="text-sm font-medium text-status-warning">
-              Potential {matches.length === 1 ? 'duplicate' : 'duplicates'} found
+              Potential {matches.length === 1 ? 'duplicate' : 'duplicates'}{' '}
+              found
             </p>
             <ul className="mt-2 space-y-2">
               {matches.map((match) => (

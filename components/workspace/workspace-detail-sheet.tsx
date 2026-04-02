@@ -350,14 +350,8 @@ export function WorkspaceDetailSheet({
             {/* Actions — hidden for read-only users */}
             {!readOnly && (
               <div className="flex items-center justify-between">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleArchive}
-                >
-                  {workspace.is_archived
-                    ? 'Unarchive'
-                    : 'Archive'}
+                <Button variant="outline" size="sm" onClick={handleArchive}>
+                  {workspace.is_archived ? 'Unarchive' : 'Archive'}
                 </Button>
 
                 {isAdmin && (
@@ -390,10 +384,7 @@ export function WorkspaceDetailSheet({
       </Sheet>
 
       {/* Delete confirmation */}
-      <AlertDialog
-        open={showDeleteConfirm}
-        onOpenChange={setShowDeleteConfirm}
-      >
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>

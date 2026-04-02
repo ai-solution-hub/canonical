@@ -17,7 +17,9 @@ interface UseContentLibraryDrawerReturn {
  */
 export function useContentLibraryDrawer(): UseContentLibraryDrawerReturn {
   const [isOpen, setIsOpen] = useState(false);
-  const [questionText, setQuestionText] = useState<string | undefined>(undefined);
+  const [questionText, setQuestionText] = useState<string | undefined>(
+    undefined,
+  );
 
   const open = useCallback((text?: string) => {
     setQuestionText(text);

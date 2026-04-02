@@ -40,7 +40,16 @@ export interface CreateNotificationParams {
  * Defaults to 7-day expiry for cron-generated notifications.
  */
 export async function createNotification(params: CreateNotificationParams) {
-  const { supabase, userId, type, entityType, entityId, title, message, expiresAt } = params;
+  const {
+    supabase,
+    userId,
+    type,
+    entityType,
+    entityId,
+    title,
+    message,
+    expiresAt,
+  } = params;
 
   const { error } = await supabase.from('notifications').insert({
     user_id: userId,
@@ -49,7 +58,8 @@ export async function createNotification(params: CreateNotificationParams) {
     entity_id: entityId,
     title,
     message: message ?? null,
-    expires_at: expiresAt ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    expires_at:
+      expiresAt ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
   });
 
   if (error) {
@@ -76,10 +86,15 @@ export async function createBulkNotifications(
     entity_id: n.entityId,
     title: n.title,
     message: n.message ?? null,
-    expires_at: n.expiresAt ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    expires_at:
+      n.expiresAt ??
+      new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
   }));
 
-  const { data, error } = await supabase.from('notifications').insert(rows).select('id');
+  const { data, error } = await supabase
+    .from('notifications')
+    .insert(rows)
+    .select('id');
 
   return { count: error ? 0 : (data?.length ?? rows.length), error };
 }

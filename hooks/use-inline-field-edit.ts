@@ -10,7 +10,9 @@ import { validateEditableField } from '@/lib/validation';
 // Types
 // ---------------------------------------------------------------------------
 
-export interface UseInlineFieldEditParams<T extends object = Record<string, unknown>> {
+export interface UseInlineFieldEditParams<
+  T extends object = Record<string, unknown>,
+> {
   itemId: string;
   /** Setter to update the parent item state optimistically */
   onItemUpdate: (updater: (prev: T) => T) => void;
@@ -46,7 +48,12 @@ export function useInlineFieldEdit<T extends object = Record<string, unknown>>({
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [saveAnnouncement, setSaveAnnouncement] = useState('');
 
-  const mutation = useMutation<void, Error, SaveEditVariables, { previousValue: unknown }>({
+  const mutation = useMutation<
+    void,
+    Error,
+    SaveEditVariables,
+    { previousValue: unknown }
+  >({
     mutationFn: async ({ field, value }) => {
       if (!validateEditableField(field)) {
         throw new Error(`Field "${field}" is not editable`);
@@ -80,12 +87,16 @@ export function useInlineFieldEdit<T extends object = Record<string, unknown>>({
         setSaveSuccess(null);
         setSaveAnnouncement('');
       }, 1500);
-      queryClient.invalidateQueries({ queryKey: queryKeys.contentItems.detail(itemId) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.contentItems.detail(itemId),
+      });
     },
     onError: (_error, { field }, context) => {
       // Rollback
       if (context) {
-        onItemUpdate((prev) => ({ ...prev, [field]: context.previousValue } as T));
+        onItemUpdate(
+          (prev) => ({ ...prev, [field]: context.previousValue }) as T,
+        );
       }
       setSaveAnnouncement('Save failed');
       setTimeout(() => setSaveAnnouncement(''), 1500);

@@ -34,17 +34,14 @@ vi.mock('@/lib/format', () => ({
     if (bytes === 0) return '0 B';
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    if (bytes < 1024 * 1024 * 1024)
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
   },
 }));
 
 vi.mock('next/link', () => ({
-  default: ({
-    children,
-    href,
-    ...props
-  }: Record<string, unknown>) => (
+  default: ({ children, href, ...props }: Record<string, unknown>) => (
     <a href={href as string} {...props}>
       {children as React.ReactNode}
     </a>
@@ -102,9 +99,7 @@ describe('SourceDocumentHistory — loading state', () => {
 
     render(<SourceDocumentHistory sourceDocumentId="doc-1" />);
 
-    expect(
-      screen.getByText('Loading version history...'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Loading version history...')).toBeInTheDocument();
   });
 });
 
@@ -137,7 +132,9 @@ describe('SourceDocumentHistory — error state', () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 502,
-      json: async () => { throw new Error('parse error'); },
+      json: async () => {
+        throw new Error('parse error');
+      },
     });
 
     render(<SourceDocumentHistory sourceDocumentId="doc-err" />);
@@ -214,9 +211,7 @@ describe('SourceDocumentHistory — single version', () => {
   });
 
   it('renders a single version entry', async () => {
-    const versions = [
-      makeVersion({ id: 'doc-v1', version: 1 }),
-    ];
+    const versions = [makeVersion({ id: 'doc-v1', version: 1 })];
 
     mockFetch.mockResolvedValueOnce({
       ok: true,

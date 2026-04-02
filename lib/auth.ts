@@ -56,7 +56,8 @@ export async function getAuthorisedClient(
     .single();
 
   const role = (data?.role as UserRole) ?? 'viewer';
-  if (!requiredRoles.includes(role)) return { success: false, reason: 'forbidden' };
+  if (!requiredRoles.includes(role))
+    return { success: false, reason: 'forbidden' };
 
   return { success: true, ...auth, role };
 }
@@ -66,7 +67,9 @@ export async function getAuthorisedClient(
  * - `unauthenticated` → 401 Unauthorised (no valid session)
  * - `forbidden` → 403 Forbidden (authenticated but wrong role)
  */
-export function authFailureResponse(result: { reason: 'unauthenticated' | 'forbidden' }) {
+export function authFailureResponse(result: {
+  reason: 'unauthenticated' | 'forbidden';
+}) {
   if (result.reason === 'unauthenticated') {
     return unauthorisedResponse();
   }

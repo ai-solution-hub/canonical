@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedClient, unauthorisedResponse, getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import {
+  getAuthenticatedClient,
+  unauthorisedResponse,
+  getAuthorisedClient,
+  authFailureResponse,
+} from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
-import { ItemWorkspaceBodySchema, WorkspaceCreateBodySchema } from '@/lib/validation/schemas';
+import {
+  ItemWorkspaceBodySchema,
+  WorkspaceCreateBodySchema,
+} from '@/lib/validation/schemas';
 
 export const maxDuration = 30;
 
@@ -126,12 +134,10 @@ export async function POST(
     const { workspace_id, action } = parsed.data;
 
     if (action === 'assign') {
-      const { error } = await supabase
-        .from('content_item_workspaces')
-        .insert({
-          content_item_id: id,
-          workspace_id,
-        });
+      const { error } = await supabase.from('content_item_workspaces').insert({
+        content_item_id: id,
+        workspace_id,
+      });
 
       if (error) {
         if (error.code === '23505') {

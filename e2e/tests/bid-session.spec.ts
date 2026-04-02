@@ -16,7 +16,10 @@ import { isMobileViewport } from '../helpers/responsive';
  * Navigate to the session page and wait for the session layout to render.
  * The session page loads data CLIENT-SIDE so needs generous timeouts.
  */
-async function gotoSession(page: import('@playwright/test').Page, bidId: string) {
+async function gotoSession(
+  page: import('@playwright/test').Page,
+  bidId: string,
+) {
   await page.goto(`/bid/${bidId}/session`);
   // Session page loads data CLIENT-SIDE and may need compilation on first hit.
   // Use a generous timeout to handle both cold starts and data fetching.
@@ -57,7 +60,9 @@ test.describe('Bid session page load', () => {
       const aside = page.locator('aside[aria-label="Question navigation"]');
       await expect(aside).toBeVisible({ timeout: 10000 });
     } else {
-      const compactBar = page.locator('[role="navigation"][aria-label="Question navigation"]');
+      const compactBar = page.locator(
+        '[role="navigation"][aria-label="Question navigation"]',
+      );
       await expect(compactBar).toBeVisible({ timeout: 10000 });
     }
   });
@@ -73,7 +78,9 @@ test.describe('Bid session page load', () => {
     await expect(editorArea).toBeVisible();
 
     // Wait for loading spinner to disappear (response loads async)
-    const loadingSpinner = editorArea.locator('[aria-label="Loading response"]');
+    const loadingSpinner = editorArea.locator(
+      '[aria-label="Loading response"]',
+    );
     await expect(loadingSpinner).not.toBeVisible({ timeout: 15000 });
 
     // After loading, the ProseMirror editor should be rendered inside the editor area.
@@ -93,7 +100,9 @@ test.describe('Bid session page load', () => {
     if (!isMobileViewport(page)) {
       const aside = page.locator('aside[aria-label="Question navigation"]');
       await expect(
-        aside.getByText('Describe your approach to providing IT support services.'),
+        aside.getByText(
+          'Describe your approach to providing IT support services.',
+        ),
       ).toBeVisible({ timeout: 10000 });
     } else {
       // On mobile, the question text is inside a <details> element
@@ -104,7 +113,9 @@ test.describe('Bid session page load', () => {
       // Wait for expansion then check text inside the details element
       const detailsBlock = page.locator('details').first();
       await expect(
-        detailsBlock.getByText('Describe your approach to providing IT support services.'),
+        detailsBlock.getByText(
+          'Describe your approach to providing IT support services.',
+        ),
       ).toBeVisible({ timeout: 10000 });
     }
   });
@@ -199,7 +210,9 @@ test.describe('Bid session question navigation', () => {
 
     // Second question text should appear in the sidebar
     await expect(
-      aside.getByText('What experience does your organisation have in public sector IT?'),
+      aside.getByText(
+        'What experience does your organisation have in public sector IT?',
+      ),
     ).toBeVisible({ timeout: 10000 });
   });
 
@@ -264,9 +277,7 @@ test.describe('Bid session question navigation', () => {
     ).toBeVisible();
 
     // Sheet description shows question count
-    await expect(
-      dialog.getByText(/4 questions/),
-    ).toBeVisible();
+    await expect(dialog.getByText(/4 questions/)).toBeVisible();
   });
 });
 
@@ -286,14 +297,14 @@ test.describe('Bid session response actions', () => {
     await expect(editorArea).toBeVisible();
 
     // Library button should be visible for editors
-    await expect(
-      page.getByRole('button', { name: /Library/i }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('button', { name: /Library/i })).toBeVisible({
+      timeout: 10000,
+    });
 
     // History button should be visible when a response exists (first question has a seeded response)
-    await expect(
-      page.getByRole('button', { name: /History/i }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('button', { name: /History/i })).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test('browse for content link is visible', async ({
@@ -307,7 +318,10 @@ test.describe('Bid session response actions', () => {
     await expect(browseLink).toBeVisible();
 
     // Verify it has the correct href
-    await expect(browseLink).toHaveAttribute('href', new RegExp(`/browse\\?from_bid=${workerData.bidId}`));
+    await expect(browseLink).toHaveAttribute(
+      'href',
+      new RegExp(`/browse\\?from_bid=${workerData.bidId}`),
+    );
   });
 
   test('content library drawer opens on Library button click', async ({
@@ -355,6 +369,8 @@ test.describe('Bid session role gating', () => {
     await expect(backLink).toBeVisible();
     await backLink.click();
 
-    await expect(page).toHaveURL(`/bid/${workerData.bidId}`, { timeout: 10000 });
+    await expect(page).toHaveURL(`/bid/${workerData.bidId}`, {
+      timeout: 10000,
+    });
   });
 });

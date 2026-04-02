@@ -1,11 +1,6 @@
 'use client';
 
-import {
-  createContext,
-  useContext,
-  useCallback,
-  useMemo,
-} from 'react';
+import { createContext, useContext, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { queryKeys } from '@/lib/query/query-keys';
@@ -14,14 +9,15 @@ import {
   formatDomainName as formatDomainNameUtil,
   FALLBACK_COLOUR_MAP,
 } from '@/lib/taxonomy/taxonomy-format';
-import type {
-  TaxonomyDomain,
-  TaxonomySubtopic,
-} from '@/types/taxonomy';
+import type { TaxonomyDomain, TaxonomySubtopic } from '@/types/taxonomy';
 
 // Re-export shared types so existing `import { TaxonomyDomain } from '@/contexts/taxonomy-context'`
 // continues to work (even though no external file currently does this).
-export type { TaxonomyProvenance, TaxonomyDomain, TaxonomySubtopic } from '@/types/taxonomy';
+export type {
+  TaxonomyProvenance,
+  TaxonomyDomain,
+  TaxonomySubtopic,
+} from '@/types/taxonomy';
 
 interface TaxonomyContextValue {
   /** All active taxonomy domains, ordered by display_order */
@@ -54,7 +50,9 @@ async function fetchTaxonomyDomains(): Promise<TaxonomyDomain[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from('taxonomy_domains')
-    .select('id, name, display_name, display_order, colour, is_active, provenance')
+    .select(
+      'id, name, display_name, display_order, colour, is_active, provenance',
+    )
     .eq('is_active', true)
     .order('display_order', { ascending: true });
 
@@ -66,7 +64,9 @@ async function fetchTaxonomySubtopics(): Promise<TaxonomySubtopic[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from('taxonomy_subtopics')
-    .select('id, domain_id, name, display_name, display_order, is_active, provenance, description')
+    .select(
+      'id, domain_id, name, display_name, display_order, is_active, provenance, description',
+    )
     .eq('is_active', true)
     .order('display_order', { ascending: true });
 
@@ -106,7 +106,9 @@ export function TaxonomyProvider({ children }: { children: React.ReactNode }) {
   const loading = domainsLoading || subtopicsLoading;
   const rawError = domainsError ?? subtopicsError;
   const error = rawError
-    ? (rawError instanceof Error ? rawError.message : 'Failed to load taxonomy')
+    ? rawError instanceof Error
+      ? rawError.message
+      : 'Failed to load taxonomy'
     : null;
 
   const refresh = useCallback(() => {
@@ -218,7 +220,6 @@ export function TaxonomyProvider({ children }: { children: React.ReactNode }) {
 
 export function useTaxonomy(): TaxonomyContextValue {
   const ctx = useContext(TaxonomyContext);
-  if (!ctx)
-    throw new Error('useTaxonomy must be used within TaxonomyProvider');
+  if (!ctx) throw new Error('useTaxonomy must be used within TaxonomyProvider');
   return ctx;
 }

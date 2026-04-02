@@ -117,9 +117,7 @@ export function WorkspaceCreateDialog({
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>
-            New {typeConfig?.label ?? 'Workspace'}
-          </DialogTitle>
+          <DialogTitle>New {typeConfig?.label ?? 'Workspace'}</DialogTitle>
           <DialogDescription>
             {typeConfig?.description ?? 'Create a new workspace.'}
           </DialogDescription>
@@ -182,7 +180,9 @@ export function WorkspaceCreateDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={submitting}>
-              {submitting ? 'Creating...' : `Create ${typeConfig?.label ?? 'Workspace'}`}
+              {submitting
+                ? 'Creating...'
+                : `Create ${typeConfig?.label ?? 'Workspace'}`}
             </Button>
           </DialogFooter>
         </form>

@@ -54,10 +54,7 @@ describe('TemplateSelector', () => {
   describe('rendering', () => {
     it('renders all templates plus a Blank option', () => {
       render(
-        <TemplateSelector
-          templates={mockTemplates}
-          onSelect={onSelect}
-        />,
+        <TemplateSelector templates={mockTemplates} onSelect={onSelect} />,
       );
 
       expect(screen.getByText('Blank')).toBeInTheDocument();
@@ -67,10 +64,7 @@ describe('TemplateSelector', () => {
 
     it('displays template descriptions', () => {
       render(
-        <TemplateSelector
-          templates={mockTemplates}
-          onSelect={onSelect}
-        />,
+        <TemplateSelector templates={mockTemplates} onSelect={onSelect} />,
       );
 
       expect(
@@ -83,10 +77,7 @@ describe('TemplateSelector', () => {
 
     it('renders a "Start from a template" label', () => {
       render(
-        <TemplateSelector
-          templates={mockTemplates}
-          onSelect={onSelect}
-        />,
+        <TemplateSelector templates={mockTemplates} onSelect={onSelect} />,
       );
 
       expect(screen.getByText('Start from a template')).toBeInTheDocument();
@@ -94,10 +85,7 @@ describe('TemplateSelector', () => {
 
     it('renders Blank description text', () => {
       render(
-        <TemplateSelector
-          templates={mockTemplates}
-          onSelect={onSelect}
-        />,
+        <TemplateSelector templates={mockTemplates} onSelect={onSelect} />,
       );
 
       expect(screen.getByText('Start with an empty form')).toBeInTheDocument();
@@ -109,10 +97,7 @@ describe('TemplateSelector', () => {
       const user = userEvent.setup();
 
       render(
-        <TemplateSelector
-          templates={mockTemplates}
-          onSelect={onSelect}
-        />,
+        <TemplateSelector templates={mockTemplates} onSelect={onSelect} />,
       );
 
       await user.click(screen.getByText('Policy Document'));
@@ -147,7 +132,9 @@ describe('TemplateSelector', () => {
         />,
       );
 
-      const policyButton = screen.getByText('Policy Document').closest('button');
+      const policyButton = screen
+        .getByText('Policy Document')
+        .closest('button');
       expect(policyButton).toHaveAttribute('aria-checked', 'true');
 
       const caseStudyButton = screen.getByText('Case Study').closest('button');
@@ -156,10 +143,7 @@ describe('TemplateSelector', () => {
 
     it('Blank is selected by default when no selectedId is provided', () => {
       render(
-        <TemplateSelector
-          templates={mockTemplates}
-          onSelect={onSelect}
-        />,
+        <TemplateSelector templates={mockTemplates} onSelect={onSelect} />,
       );
 
       const blankButton = screen.getByText('Blank').closest('button');
@@ -183,10 +167,7 @@ describe('TemplateSelector', () => {
   describe('accessibility', () => {
     it('uses a radiogroup role', () => {
       render(
-        <TemplateSelector
-          templates={mockTemplates}
-          onSelect={onSelect}
-        />,
+        <TemplateSelector templates={mockTemplates} onSelect={onSelect} />,
       );
 
       expect(screen.getByRole('radiogroup')).toBeInTheDocument();
@@ -194,22 +175,19 @@ describe('TemplateSelector', () => {
 
     it('radiogroup has aria-labelledby pointing to the label', () => {
       render(
-        <TemplateSelector
-          templates={mockTemplates}
-          onSelect={onSelect}
-        />,
+        <TemplateSelector templates={mockTemplates} onSelect={onSelect} />,
       );
 
       const radiogroup = screen.getByRole('radiogroup');
-      expect(radiogroup).toHaveAttribute('aria-labelledby', 'template-selector-label');
+      expect(radiogroup).toHaveAttribute(
+        'aria-labelledby',
+        'template-selector-label',
+      );
     });
 
     it('each option has role=radio', () => {
       render(
-        <TemplateSelector
-          templates={mockTemplates}
-          onSelect={onSelect}
-        />,
+        <TemplateSelector templates={mockTemplates} onSelect={onSelect} />,
       );
 
       const radios = screen.getAllByRole('radio');
@@ -219,10 +197,7 @@ describe('TemplateSelector', () => {
 
     it('all buttons have type=button to prevent form submission', () => {
       render(
-        <TemplateSelector
-          templates={mockTemplates}
-          onSelect={onSelect}
-        />,
+        <TemplateSelector templates={mockTemplates} onSelect={onSelect} />,
       );
 
       const radios = screen.getAllByRole('radio');
@@ -237,10 +212,7 @@ describe('TemplateSelector', () => {
       const user = userEvent.setup();
 
       render(
-        <TemplateSelector
-          templates={mockTemplates}
-          onSelect={onSelect}
-        />,
+        <TemplateSelector templates={mockTemplates} onSelect={onSelect} />,
       );
 
       await user.tab();
@@ -248,7 +220,9 @@ describe('TemplateSelector', () => {
       expect(blankButton).toHaveFocus();
 
       await user.tab();
-      const policyButton = screen.getByText('Policy Document').closest('button');
+      const policyButton = screen
+        .getByText('Policy Document')
+        .closest('button');
       expect(policyButton).toHaveFocus();
     });
 
@@ -256,10 +230,7 @@ describe('TemplateSelector', () => {
       const user = userEvent.setup();
 
       render(
-        <TemplateSelector
-          templates={mockTemplates}
-          onSelect={onSelect}
-        />,
+        <TemplateSelector templates={mockTemplates} onSelect={onSelect} />,
       );
 
       // Tab to Blank, then to Policy Document
@@ -274,10 +245,7 @@ describe('TemplateSelector', () => {
       const user = userEvent.setup();
 
       render(
-        <TemplateSelector
-          templates={mockTemplates}
-          onSelect={onSelect}
-        />,
+        <TemplateSelector templates={mockTemplates} onSelect={onSelect} />,
       );
 
       // Tab to Blank
@@ -304,12 +272,7 @@ describe('TemplateSelector', () => {
 
   describe('empty templates', () => {
     it('renders only the Blank option when templates array is empty', () => {
-      render(
-        <TemplateSelector
-          templates={[]}
-          onSelect={onSelect}
-        />,
-      );
+      render(<TemplateSelector templates={[]} onSelect={onSelect} />);
 
       expect(screen.getByText('Blank')).toBeInTheDocument();
       const radios = screen.getAllByRole('radio');

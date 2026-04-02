@@ -24,11 +24,11 @@ import { CLIENT_CONFIG } from '@/lib/client-config';
 
 /** Patterns matching non-entity identifiers that should be excluded from extraction */
 const EXCLUDED_PATTERNS = [
-  /^SIC\s*Code/i,                          // SIC classification codes
-  /^VAT\s*(Registration|Reg)/i,            // VAT registration numbers
-  /^DUNS\s*Number/i,                       // D-U-N-S identifiers
-  /^\d{4,}$/,                              // Pure numeric identifiers
-  /^[A-Z]{2}\s*\d{3}\s*\d{4}\s*\d{2}$/i,  // VAT number format
+  /^SIC\s*Code/i, // SIC classification codes
+  /^VAT\s*(Registration|Reg)/i, // VAT registration numbers
+  /^DUNS\s*Number/i, // D-U-N-S identifiers
+  /^\d{4,}$/, // Pure numeric identifiers
+  /^[A-Z]{2}\s*\d{3}\s*\d{4}\s*\d{2}$/i, // VAT number format
 ];
 
 /** Check whether an entity name matches an excluded identifier pattern */
@@ -42,23 +42,53 @@ export function isExcludedEntity(name: string): boolean {
 
 /** Suffix patterns matching internal company documents (policies, procedures, plans, etc.) */
 const INTERNAL_DOCUMENT_SUFFIXES = [
-  /policy$/i, /procedure$/i, /plan$/i, /register$/i,
-  /schedule$/i, /agreement$/i, /statement$/i, /process$/i,
+  /policy$/i,
+  /procedure$/i,
+  /plan$/i,
+  /register$/i,
+  /schedule$/i,
+  /agreement$/i,
+  /statement$/i,
+  /process$/i,
 ];
 
 /** Abstract concepts and generic terms that should not be extracted as entities */
 const GENERIC_CONCEPTS = new Set([
-  'information security', 'information governance', 'business continuity',
-  'data protection', 'regulatory compliance', 'security best practice',
-  'disaster recovery', 'penetration testing', 'encryption', 'firewalls',
-  'access control', 'two-factor authentication', 'multi-factor authentication',
-  'social value', 'data retention', 'incident response', 'risk management',
-  'vulnerability management', 'patch management', 'change management',
-  'physical security', 'network security', 'endpoint security',
-  'security governance', 'security awareness', 'data wiping',
-  'physical destruction', 'staff vetting', 'data handling',
-  'continuous improvement', 'service delivery', 'information management',
-  'security monitoring', 'threat detection', 'security best practices',
+  'information security',
+  'information governance',
+  'business continuity',
+  'data protection',
+  'regulatory compliance',
+  'security best practice',
+  'disaster recovery',
+  'penetration testing',
+  'encryption',
+  'firewalls',
+  'access control',
+  'two-factor authentication',
+  'multi-factor authentication',
+  'social value',
+  'data retention',
+  'incident response',
+  'risk management',
+  'vulnerability management',
+  'patch management',
+  'change management',
+  'physical security',
+  'network security',
+  'endpoint security',
+  'security governance',
+  'security awareness',
+  'data wiping',
+  'physical destruction',
+  'staff vetting',
+  'data handling',
+  'continuous improvement',
+  'service delivery',
+  'information management',
+  'security monitoring',
+  'threat detection',
+  'security best practices',
 ]);
 
 /** Patterns matching job titles and role descriptions (not person names) */
@@ -66,7 +96,9 @@ const ROLE_TITLES = [
   /^(managing|account|project|customer|technical|operations|quality|it|security|senior|chief|lead)\s+(director|manager|officer|lead|executive|administrator|coordinator|consultant|engineer|developer|analyst|architect)/i,
   /^chief\s+\w+(\s+\w+)?\s+(officer|director)/i,
   /^(ceo|cto|cfo|cio|ciso|dpo|md)$/i,
-  /^director$/i, /^manager$/i, /^officer$/i,
+  /^director$/i,
+  /^manager$/i,
+  /^officer$/i,
   /^data protection officer$/i,
   /^client project lead$/i,
   /^information security officer$/i,
@@ -74,25 +106,61 @@ const ROLE_TITLES = [
 
 /** Protocols, file formats, and cryptographic algorithms that should not be entities */
 const PROTOCOL_FORMATS = new Set([
-  'https', 'http', 'ssh', 'ssl', 'tls', 'ftp', 'sftp', 'smtp', 'dns',
-  'tcp', 'udp', 'ldap', 'saml', 'oauth',
-  'pdf', 'csv', 'html', 'xml', 'json', 'javascript', 'sql', 'css',
-  'aes-256', 'aes', 'sha-256', 'rsa', 'pbkdf2', 'hmac', 'sha256',
-  'pbkdf2-hmac-sha256', 'hmac-sha256', 'aes-128', 'sha-512',
+  'https',
+  'http',
+  'ssh',
+  'ssl',
+  'tls',
+  'ftp',
+  'sftp',
+  'smtp',
+  'dns',
+  'tcp',
+  'udp',
+  'ldap',
+  'saml',
+  'oauth',
+  'pdf',
+  'csv',
+  'html',
+  'xml',
+  'json',
+  'javascript',
+  'sql',
+  'css',
+  'aes-256',
+  'aes',
+  'sha-256',
+  'rsa',
+  'pbkdf2',
+  'hmac',
+  'sha256',
+  'pbkdf2-hmac-sha256',
+  'hmac-sha256',
+  'aes-128',
+  'sha-512',
 ]);
 
 /** Insurance products and contract types that should not be entities */
 const INSURANCE_AND_CONTRACTS = new Set([
-  'professional indemnity insurance', 'public liability insurance',
-  'cyber liability insurance', 'employer liability insurance',
-  'employers liability insurance', 'product liability insurance',
-  'non-disclosure agreement', 'service level agreement',
-  'data processing agreement', 'master services agreement',
+  'professional indemnity insurance',
+  'public liability insurance',
+  'cyber liability insurance',
+  'employer liability insurance',
+  'employers liability insurance',
+  'product liability insurance',
+  'non-disclosure agreement',
+  'service level agreement',
+  'data processing agreement',
+  'master services agreement',
 ]);
 
 /** Management system acronyms — prefer the certification instead */
 const MANAGEMENT_SYSTEM_ACRONYMS = new Set([
-  'isms', 'qms', 'ems', 'ims',
+  'isms',
+  'qms',
+  'ems',
+  'ims',
   'information security management system',
   'quality management system',
   'environmental management system',
@@ -101,16 +169,26 @@ const MANAGEMENT_SYSTEM_ACRONYMS = new Set([
 
 /** GDPR artefacts that are legal concepts, not standalone entities */
 const GDPR_ARTEFACTS = new Set([
-  'records of processing activity', 'record of processing activities',
-  'data processing agreement', 'data protection impact assessment',
+  'records of processing activity',
+  'record of processing activities',
+  'data processing agreement',
+  'data protection impact assessment',
   'data protection by design and default',
   'technical and organisational measures',
-  'consent', 'contractual necessity', 'legal obligation',
-  'legitimate interest', 'vital interest', 'public interest',
-  'lawful basis', 'lawful bases',
-  'data subject access request', 'right to erasure',
-  'right to rectification', 'right to portability',
-  'data subject right', 'data subject rights',
+  'consent',
+  'contractual necessity',
+  'legal obligation',
+  'legitimate interest',
+  'vital interest',
+  'public interest',
+  'lawful basis',
+  'lawful bases',
+  'data subject access request',
+  'right to erasure',
+  'right to rectification',
+  'right to portability',
+  'data subject right',
+  'data subject rights',
 ]);
 
 /** Statutory documents that match suffix patterns but should be retained as regulation entities */
@@ -211,7 +289,9 @@ export function validateDomain(domain: string, validDomains: string[]): string {
   const exact = validDomains.find((d) => d === slug);
   if (exact) return exact;
   // Fuzzy match: find closest valid domain by substring containment
-  const closest = validDomains.find((d) => d.includes(slug) || slug.includes(d));
+  const closest = validDomains.find(
+    (d) => d.includes(slug) || slug.includes(d),
+  );
   return closest ?? validDomains[0]; // Fallback to first domain
 }
 
@@ -299,7 +379,9 @@ export interface ClassifyParams {
  *
  * @throws AIServiceError for domain errors (404, 400, 500 on update)
  */
-export async function classifyContent(params: ClassifyParams): Promise<ClassificationResult> {
+export async function classifyContent(
+  params: ClassifyParams,
+): Promise<ClassificationResult> {
   const { supabase, itemId, force, userId } = params;
 
   // Fetch the content item
@@ -394,8 +476,7 @@ export async function classifyContent(params: ClassifyParams): Promise<Classific
             classification_reasoning: { type: 'string' },
             entities: {
               type: 'array',
-              description:
-                'Named entities extracted from the content',
+              description: 'Named entities extracted from the content',
               items: {
                 type: 'object',
                 properties: {
@@ -433,8 +514,7 @@ export async function classifyContent(params: ClassifyParams): Promise<Classific
             },
             relationships: {
               type: 'array',
-              description:
-                'Relationships between extracted entities',
+              description: 'Relationships between extracted entities',
               items: {
                 type: 'object',
                 properties: {
@@ -474,7 +554,8 @@ export async function classifyContent(params: ClassifyParams): Promise<Classific
                 properties: {
                   date: {
                     type: 'string',
-                    description: 'ISO 8601 date string (YYYY-MM-DD) or ISO 8601 duration (e.g. P1Y, P3M)',
+                    description:
+                      'ISO 8601 date string (YYYY-MM-DD) or ISO 8601 duration (e.g. P1Y, P3M)',
                   },
                   context: {
                     type: 'string',
@@ -601,9 +682,15 @@ Also extract any temporal references (dates, deadlines, expiry dates, renewal da
   // Validate domains against taxonomy slugs
   const validDomainSlugs = (domains ?? []).map((d) => d.name);
   if (validDomainSlugs.length > 0) {
-    result.primary_domain = validateDomain(result.primary_domain, validDomainSlugs);
+    result.primary_domain = validateDomain(
+      result.primary_domain,
+      validDomainSlugs,
+    );
     if (result.secondary_domain) {
-      result.secondary_domain = validateDomain(result.secondary_domain, validDomainSlugs);
+      result.secondary_domain = validateDomain(
+        result.secondary_domain,
+        validDomainSlugs,
+      );
     }
   }
 
@@ -635,7 +722,10 @@ Also extract any temporal references (dates, deadlines, expiry dates, renewal da
     const embedding = await generateEmbedding(embeddingText);
     updateData.embedding = JSON.stringify(embedding);
   } catch (embedErr) {
-    console.error('Embedding regeneration during classification failed:', embedErr);
+    console.error(
+      'Embedding regeneration during classification failed:',
+      embedErr,
+    );
   }
 
   // Store AI-extracted temporal references in item metadata (non-blocking)
@@ -647,7 +737,10 @@ Also extract any temporal references (dates, deadlines, expiry dates, renewal da
         ai_temporal_references: result.temporal_references as unknown as Json,
       };
     } catch (temporalErr) {
-      console.error('Failed to merge temporal references into metadata:', temporalErr);
+      console.error(
+        'Failed to merge temporal references into metadata:',
+        temporalErr,
+      );
     }
   }
 
@@ -658,7 +751,10 @@ Also extract any temporal references (dates, deadlines, expiry dates, renewal da
 
   if (updateError) {
     console.error('Failed to update classification:', updateError);
-    throw new AIServiceError('Classification succeeded but failed to store', 500);
+    throw new AIServiceError(
+      'Classification succeeded but failed to store',
+      500,
+    );
   }
 
   // Store extracted entities (non-blocking — failures must not break classification)
@@ -676,7 +772,9 @@ Also extract any temporal references (dates, deadlines, expiry dates, renewal da
           content_item_id: itemId,
           entity_type: e.type,
           entity_name: e.name,
-          canonical_name: resolveAlias(canonicalise(e.canonical_name, e.type)).toLowerCase(),
+          canonical_name: resolveAlias(
+            canonicalise(e.canonical_name, e.type),
+          ).toLowerCase(),
           confidence: 1.0,
           context_snippet: extractEntityContext(plainText, e.name),
         }));

@@ -176,7 +176,9 @@ describe('createIntelligenceGuide', () => {
     );
 
     const insertedSections = sectionsChain.insert.mock.calls[0][0];
-    const orders = insertedSections.map((s: { display_order: number }) => s.display_order);
+    const orders = insertedSections.map(
+      (s: { display_order: number }) => s.display_order,
+    );
     expect(orders).toEqual([1, 2, 3, 4, 5]);
   });
 
@@ -205,7 +207,10 @@ describe('createIntelligenceGuide', () => {
     guidesChain.single
       .mockResolvedValueOnce({
         data: null,
-        error: { message: 'duplicate key value violates unique constraint', code: '23505' },
+        error: {
+          message: 'duplicate key value violates unique constraint',
+          code: '23505',
+        },
       })
       .mockResolvedValueOnce({
         data: { id: GUIDE_ID },
@@ -234,7 +239,9 @@ describe('createIntelligenceGuide', () => {
 
     // Second insert should use fallback slug with workspace ID fragment
     const secondInsert = guidesChain.insert.mock.calls[1][0];
-    expect(secondInsert.slug).toBe(`intelligence-education-watch-${WORKSPACE_ID.slice(0, 8)}`);
+    expect(secondInsert.slug).toBe(
+      `intelligence-education-watch-${WORKSPACE_ID.slice(0, 8)}`,
+    );
   });
 
   it('returns null if both guide insert attempts fail', async () => {

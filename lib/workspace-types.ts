@@ -177,11 +177,8 @@ export function getValidTypeValues(): [string, ...string[]] {
 /** Format a count string for a workspace type (e.g. "3 active bids") */
 export function formatTypeCount(type: string, count: number): string {
   const config = getWorkspaceType(type);
-  if (!config)
-    return `${count} active workspace${count !== 1 ? 's' : ''}`;
+  if (!config) return `${count} active workspace${count !== 1 ? 's' : ''}`;
   const noun =
-    count === 1
-      ? config.label.toLowerCase()
-      : config.labelPlural.toLowerCase();
+    count === 1 ? config.label.toLowerCase() : config.labelPlural.toLowerCase();
   return `${count} active ${noun}`;
 }

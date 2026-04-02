@@ -34,7 +34,13 @@ const _TENDER_QUESTIONS_SCHEMA = {
                     enum: ['mandatory', 'desirable', 'informational'],
                   },
                 },
-                required: ['question_text', 'question_sequence', 'word_limit', 'evaluation_weight', 'category'] as const,
+                required: [
+                  'question_text',
+                  'question_sequence',
+                  'word_limit',
+                  'evaluation_weight',
+                  'category',
+                ] as const,
                 additionalProperties: false,
               },
             },
@@ -99,13 +105,20 @@ const EXTRACT_QUESTIONS_TOOL = {
                   question_sequence: { type: 'integer' as const },
                   word_limit: { type: 'integer' as const },
                   evaluation_weight: { type: 'number' as const },
-                  category: { type: 'string' as const, enum: ['mandatory', 'desirable', 'informational'] },
+                  category: {
+                    type: 'string' as const,
+                    enum: ['mandatory', 'desirable', 'informational'],
+                  },
                 },
                 required: ['question_text', 'question_sequence'] as string[],
               },
             },
           },
-          required: ['section_name', 'section_sequence', 'questions'] as string[],
+          required: [
+            'section_name',
+            'section_sequence',
+            'questions',
+          ] as string[],
         },
       },
     },
@@ -138,7 +151,7 @@ export interface GeneratedSearchQueries {
  * Shared helper for PDF and DOCX extraction.
  */
 function extractToolResult(response: Anthropic.Message): ExtractedPDFQuestions {
-  const toolBlock = response.content.find(block => block.type === 'tool_use');
+  const toolBlock = response.content.find((block) => block.type === 'tool_use');
   if (!toolBlock || toolBlock.type !== 'tool_use') {
     throw new Error('No tool_use content in response');
   }
@@ -153,14 +166,18 @@ function extractToolResult(response: Anthropic.Message): ExtractedPDFQuestions {
  * future use with the Anthropic Structured Outputs API (output_config) once
  * it is stable in the SDK.
  */
-export async function extractPDFQuestions(pdfBase64: string): Promise<ExtractedPDFQuestions> {
+export async function extractPDFQuestions(
+  pdfBase64: string,
+): Promise<ExtractedPDFQuestions> {
   return extractPDFQuestionsWithToolUse(pdfBase64);
 }
 
 /**
  * Extract questions from a PDF using the tool_use pattern (proven in existing codebase).
  */
-async function extractPDFQuestionsWithToolUse(pdfBase64: string): Promise<ExtractedPDFQuestions> {
+async function extractPDFQuestionsWithToolUse(
+  pdfBase64: string,
+): Promise<ExtractedPDFQuestions> {
   const anthropic = getAnthropicClient();
 
   const response = await anthropic.messages.create({
@@ -205,7 +222,9 @@ You MUST call the extract_questions tool with your results.`,
  * HTML to Claude for structured extraction using the same tool_use schema as
  * the PDF path.
  */
-export async function extractDOCXQuestions(buffer: Buffer): Promise<ExtractedPDFQuestions> {
+export async function extractDOCXQuestions(
+  buffer: Buffer,
+): Promise<ExtractedPDFQuestions> {
   const { value: html } = await mammoth.convertToHtml({ buffer });
 
   if (!html || html.trim().length === 0) {
@@ -259,45 +278,82 @@ You MUST call the extract_questions tool with your results.`,
 /** Tool definition for tender metadata extraction. */
 const TENDER_METADATA_TOOL: Anthropic.Messages.Tool = {
   name: 'extract_tender_metadata',
-  description: 'Extract bid metadata (buyer, deadline, reference, value) from a tender document.',
+  description:
+    'Extract bid metadata (buyer, deadline, reference, value) from a tender document.',
   input_schema: {
     type: 'object' as const,
     properties: {
       buyer_name: {
-        type: ['string', 'null'] as unknown as Anthropic.Messages.Tool.InputSchema['type'],
+        type: [
+          'string',
+          'null',
+        ] as unknown as Anthropic.Messages.Tool.InputSchema['type'],
         description: 'The buying organisation / contracting authority name',
       },
       deadline: {
-        type: ['string', 'null'] as unknown as Anthropic.Messages.Tool.InputSchema['type'],
-        description: 'Submission deadline in ISO 8601 format (e.g., 2026-04-15T17:00:00Z). Convert from UK date formats (DD/MM/YYYY).',
+        type: [
+          'string',
+          'null',
+        ] as unknown as Anthropic.Messages.Tool.InputSchema['type'],
+        description:
+          'Submission deadline in ISO 8601 format (e.g., 2026-04-15T17:00:00Z). Convert from UK date formats (DD/MM/YYYY).',
       },
       reference_number: {
-        type: ['string', 'null'] as unknown as Anthropic.Messages.Tool.InputSchema['type'],
-        description: 'Tender reference number, ITT reference, procurement reference, or contract number',
+        type: [
+          'string',
+          'null',
+        ] as unknown as Anthropic.Messages.Tool.InputSchema['type'],
+        description:
+          'Tender reference number, ITT reference, procurement reference, or contract number',
       },
       estimated_value: {
-        type: ['string', 'null'] as unknown as Anthropic.Messages.Tool.InputSchema['type'],
-        description: 'Contract value or budget (as displayed, e.g., "£500,000" or "£1.2m per annum")',
+        type: [
+          'string',
+          'null',
+        ] as unknown as Anthropic.Messages.Tool.InputSchema['type'],
+        description:
+          'Contract value or budget (as displayed, e.g., "£500,000" or "£1.2m per annum")',
       },
       title: {
-        type: ['string', 'null'] as unknown as Anthropic.Messages.Tool.InputSchema['type'],
-        description: 'The formal tender/contract title from the document cover page or header',
+        type: [
+          'string',
+          'null',
+        ] as unknown as Anthropic.Messages.Tool.InputSchema['type'],
+        description:
+          'The formal tender/contract title from the document cover page or header',
       },
       confidence: {
         type: 'number' as const,
-        description: 'Confidence score 0.0-1.0 for the overall extraction quality',
+        description:
+          'Confidence score 0.0-1.0 for the overall extraction quality',
       },
     },
-    required: ['buyer_name', 'deadline', 'reference_number', 'estimated_value', 'title', 'confidence'],
+    required: [
+      'buyer_name',
+      'deadline',
+      'reference_number',
+      'estimated_value',
+      'title',
+      'confidence',
+    ],
     additionalProperties: false,
   },
 };
 
-function validateExtractedMetadata(raw: TenderExtractedMetadata): TenderExtractedMetadata {
+function validateExtractedMetadata(
+  raw: TenderExtractedMetadata,
+): TenderExtractedMetadata {
   const parsed = TenderExtractedMetadataSchema.safeParse(raw);
   if (!parsed.success) {
     console.warn('Extracted metadata failed validation:', parsed.error.issues);
-    return { buyer_name: null, deadline: null, reference_number: null, estimated_value: null, title: null, confidence: 0 };
+    return {
+      buyer_name: null,
+      deadline: null,
+      reference_number: null,
+      estimated_value: null,
+      title: null,
+      confidence: 0,
+    };
   }
   return parsed.data;
 }
@@ -315,15 +371,23 @@ export async function extractTenderMetadata(
   const messages: Anthropic.Messages.MessageParam[] = [
     {
       role: 'user',
-      content: format === 'pdf_base64'
-        ? [
-            {
-              type: 'document' as const,
-              source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: content },
-            },
-            { type: 'text' as const, text: 'Extract bid metadata from this tender document.' },
-          ]
-        : `Extract bid metadata from this tender document HTML:\n\n${content}`,
+      content:
+        format === 'pdf_base64'
+          ? [
+              {
+                type: 'document' as const,
+                source: {
+                  type: 'base64' as const,
+                  media_type: 'application/pdf' as const,
+                  data: content,
+                },
+              },
+              {
+                type: 'text' as const,
+                text: 'Extract bid metadata from this tender document.',
+              },
+            ]
+          : `Extract bid metadata from this tender document HTML:\n\n${content}`,
     },
   ];
 
@@ -351,13 +415,16 @@ You MUST call the extract_tender_metadata tool with your results.`,
 /**
  * Generate search queries for KB matching using Claude.
  */
-export async function generateSearchQueries(questionText: string): Promise<GeneratedSearchQueries> {
+export async function generateSearchQueries(
+  questionText: string,
+): Promise<GeneratedSearchQueries> {
   const anthropic = getAnthropicClient();
 
   const response = await anthropic.messages.create({
     model: getAIModel(),
     max_tokens: 1024,
-    system: 'You generate search queries to find relevant knowledge base content for bid questions. Return 3-5 diverse search queries that would find relevant answers. Use UK English.',
+    system:
+      'You generate search queries to find relevant knowledge base content for bid questions. Return 3-5 diverse search queries that would find relevant answers. Use UK English.',
     messages: [
       {
         role: 'user',
@@ -388,7 +455,7 @@ export async function generateSearchQueries(questionText: string): Promise<Gener
     tool_choice: { type: 'tool', name: 'search_queries' },
   });
 
-  const toolBlock = response.content.find(block => block.type === 'tool_use');
+  const toolBlock = response.content.find((block) => block.type === 'tool_use');
   if (!toolBlock || toolBlock.type !== 'tool_use') {
     throw new Error('No tool_use content in response');
   }

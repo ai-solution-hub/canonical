@@ -14,7 +14,11 @@ import userEvent from '@testing-library/user-event';
 // ---------------------------------------------------------------------------
 
 const { mockToast } = vi.hoisted(() => ({
-  mockToast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), info: vi.fn() }),
+  mockToast: Object.assign(vi.fn(), {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+  }),
 }));
 
 vi.mock('sonner', () => ({ toast: mockToast }));
@@ -26,8 +30,28 @@ import { WorkspaceSelector } from '@/components/workspace/workspace-selector';
 // ---------------------------------------------------------------------------
 
 const WORKSPACES = [
-  { id: 'ws-1', name: 'Bid Alpha', description: null, color: '#3b82f6', icon: 'folder', type: 'bid', is_archived: false, created_at: '', updated_at: '' },
-  { id: 'ws-2', name: 'Bid Beta', description: null, color: '#ef4444', icon: 'folder', type: 'bid', is_archived: false, created_at: '', updated_at: '' },
+  {
+    id: 'ws-1',
+    name: 'Bid Alpha',
+    description: null,
+    color: '#3b82f6',
+    icon: 'folder',
+    type: 'bid',
+    is_archived: false,
+    created_at: '',
+    updated_at: '',
+  },
+  {
+    id: 'ws-2',
+    name: 'Bid Beta',
+    description: null,
+    color: '#ef4444',
+    icon: 'folder',
+    type: 'bid',
+    is_archived: false,
+    created_at: '',
+    updated_at: '',
+  },
 ];
 
 function setupFetch(
@@ -58,13 +82,19 @@ function setupFetch(
 // ---------------------------------------------------------------------------
 
 describe('WorkspaceSelector', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
-  afterEach(() => { vi.unstubAllGlobals(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it('renders "Assign to..." button when no workspaces assigned', () => {
     setupFetch();
     render(<WorkspaceSelector itemId="item-1" />);
-    expect(screen.getByRole('button', { name: /assign to/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /assign to/i }),
+    ).toBeInTheDocument();
   });
 
   it('renders assigned workspace badges after fetching', async () => {
@@ -73,7 +103,9 @@ describe('WorkspaceSelector', () => {
     render(<WorkspaceSelector itemId="item-1" />);
 
     // Open popover to trigger fetch
-    const trigger = screen.getByRole('button', { name: /manage assignments|assign to/i });
+    const trigger = screen.getByRole('button', {
+      name: /manage assignments|assign to/i,
+    });
     await user.click(trigger);
 
     await waitFor(() => {
@@ -84,7 +116,9 @@ describe('WorkspaceSelector', () => {
 
     // The remove badge button should be present
     await waitFor(() => {
-      expect(screen.getByLabelText('Remove from Bid Alpha')).toBeInTheDocument();
+      expect(
+        screen.getByLabelText('Remove from Bid Alpha'),
+      ).toBeInTheDocument();
     });
   });
 
@@ -94,13 +128,18 @@ describe('WorkspaceSelector', () => {
     render(<WorkspaceSelector itemId="item-1" />);
     await user.click(screen.getByRole('button', { name: /assign to/i }));
     await waitFor(() => {
-      expect(screen.getByPlaceholderText(/search or create/i)).toBeInTheDocument();
+      expect(
+        screen.getByPlaceholderText(/search or create/i),
+      ).toBeInTheDocument();
     });
   });
 
   it('shows loading state while fetching', async () => {
     // Slow fetch that never resolves immediately
-    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => new Promise(() => {})));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(() => new Promise(() => {})),
+    );
     const user = userEvent.setup();
     render(<WorkspaceSelector itemId="item-1" />);
     await user.click(screen.getByRole('button', { name: /assign to/i }));
@@ -154,7 +193,9 @@ describe('WorkspaceSelector', () => {
     await user.click(screen.getByRole('button', { name: /assign to/i }));
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Remove from Bid Alpha')).toBeInTheDocument();
+      expect(
+        screen.getByLabelText('Remove from Bid Alpha'),
+      ).toBeInTheDocument();
     });
 
     await user.click(screen.getByLabelText('Remove from Bid Alpha'));

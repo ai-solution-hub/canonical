@@ -13,10 +13,7 @@ import userEvent from '@testing-library/user-event';
 // vi.hoisted() — mocks referenced in vi.mock() factories
 // ---------------------------------------------------------------------------
 
-const {
-  mockEditor,
-  mockUseEditor,
-} = vi.hoisted(() => {
+const { mockEditor, mockUseEditor } = vi.hoisted(() => {
   const editor = {
     getHTML: vi.fn(() => '<p>Test content</p>'),
     setEditable: vi.fn(),
@@ -44,7 +41,9 @@ const {
 vi.mock('@tiptap/react', () => ({
   useEditor: (...args: unknown[]) => mockUseEditor(...args),
   EditorContent: ({ editor }: { editor: unknown }) => (
-    <div data-testid="editor-content">{editor ? 'Editor loaded' : 'No editor'}</div>
+    <div data-testid="editor-content">
+      {editor ? 'Editor loaded' : 'No editor'}
+    </div>
   ),
 }));
 
@@ -85,7 +84,9 @@ import { ResponseEditor } from '@/components/bid/response-editor';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function defaultProps(overrides: Partial<Parameters<typeof ResponseEditor>[0]> = {}) {
+function defaultProps(
+  overrides: Partial<Parameters<typeof ResponseEditor>[0]> = {},
+) {
   return {
     content: '<p>Test content</p>',
     onChange: vi.fn(),
@@ -131,7 +132,9 @@ describe('ResponseEditor', () => {
 
   it('hides the save button when read-only', () => {
     render(<ResponseEditor {...defaultProps({ readOnly: true })} />);
-    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Save' }),
+    ).not.toBeInTheDocument();
   });
 
   // ---- Word count display ----
@@ -297,19 +300,29 @@ describe('ResponseEditor', () => {
 
   it('syncs content from parent when content prop changes', () => {
     mockEditor.getHTML.mockReturnValue('<p>Old content</p>');
-    const { rerender } = render(<ResponseEditor {...defaultProps({ content: '<p>Old content</p>' })} />);
+    const { rerender } = render(
+      <ResponseEditor {...defaultProps({ content: '<p>Old content</p>' })} />,
+    );
     vi.clearAllMocks();
     mockEditor.getHTML.mockReturnValue('<p>Old content</p>');
-    rerender(<ResponseEditor {...defaultProps({ content: '<p>New content</p>' })} />);
-    expect(mockEditor.commands.setContent).toHaveBeenCalledWith('<p>New content</p>');
+    rerender(
+      <ResponseEditor {...defaultProps({ content: '<p>New content</p>' })} />,
+    );
+    expect(mockEditor.commands.setContent).toHaveBeenCalledWith(
+      '<p>New content</p>',
+    );
   });
 
   it('does not sync content when prop matches editor HTML', () => {
     mockEditor.getHTML.mockReturnValue('<p>Same content</p>');
-    const { rerender } = render(<ResponseEditor {...defaultProps({ content: '<p>Same content</p>' })} />);
+    const { rerender } = render(
+      <ResponseEditor {...defaultProps({ content: '<p>Same content</p>' })} />,
+    );
     vi.clearAllMocks();
     mockEditor.getHTML.mockReturnValue('<p>Same content</p>');
-    rerender(<ResponseEditor {...defaultProps({ content: '<p>Same content</p>' })} />);
+    rerender(
+      <ResponseEditor {...defaultProps({ content: '<p>Same content</p>' })} />,
+    );
     expect(mockEditor.commands.setContent).not.toHaveBeenCalled();
   });
 
@@ -317,7 +330,9 @@ describe('ResponseEditor', () => {
 
   it('syncs editable state when readOnly prop changes', () => {
     mockEditor.isEditable = true;
-    const { rerender } = render(<ResponseEditor {...defaultProps({ readOnly: false })} />);
+    const { rerender } = render(
+      <ResponseEditor {...defaultProps({ readOnly: false })} />,
+    );
     vi.clearAllMocks();
     // isEditable is still true but readOnly is now true, so editor.isEditable === readOnly (true === true)
     mockEditor.isEditable = true;
@@ -330,7 +345,9 @@ describe('ResponseEditor', () => {
   it('fires onChange callback via onUpdate', () => {
     const onChange = vi.fn();
     render(<ResponseEditor {...defaultProps({ onChange })} />);
-    const config = mockUseEditor.mock.calls[0][0] as { onUpdate: (args: { editor: { getHTML: () => string } }) => void };
+    const config = mockUseEditor.mock.calls[0][0] as {
+      onUpdate: (args: { editor: { getHTML: () => string } }) => void;
+    };
     config.onUpdate({ editor: { getHTML: () => '<p>Updated</p>' } });
     expect(onChange).toHaveBeenCalledWith('<p>Updated</p>');
   });
@@ -340,7 +357,13 @@ describe('ResponseEditor', () => {
   it('passes placeholder to useEditor extensions', async () => {
     const PlaceholderMock = await import('@tiptap/extension-placeholder');
     vi.clearAllMocks();
-    render(<ResponseEditor {...defaultProps({ placeholder: 'Custom placeholder text' })} />);
-    expect(PlaceholderMock.default.configure).toHaveBeenCalledWith({ placeholder: 'Custom placeholder text' });
+    render(
+      <ResponseEditor
+        {...defaultProps({ placeholder: 'Custom placeholder text' })}
+      />,
+    );
+    expect(PlaceholderMock.default.configure).toHaveBeenCalledWith({
+      placeholder: 'Custom placeholder text',
+    });
   });
 });

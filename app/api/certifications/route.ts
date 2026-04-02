@@ -106,17 +106,26 @@ export async function GET() {
     }
 
     // Collect unique target entity names from holds relationships
-    const targetEntities = [...new Set(relationships.map((r) => r.target_entity))];
+    const targetEntities = [
+      ...new Set(relationships.map((r) => r.target_entity)),
+    ];
 
     // 2. Get entity_mentions for the target entities with metadata
     const { data: mentions, error: mentionsError } = await supabase
       .from('entity_mentions')
-      .select('canonical_name, entity_type, entity_type_override, content_item_id, metadata')
+      .select(
+        'canonical_name, entity_type, entity_type_override, content_item_id, metadata',
+      )
       .in('canonical_name', targetEntities);
 
     if (mentionsError) {
       return NextResponse.json(
-        { error: safeErrorMessage(mentionsError, 'Failed to fetch entity mentions') },
+        {
+          error: safeErrorMessage(
+            mentionsError,
+            'Failed to fetch entity mentions',
+          ),
+        },
         { status: 500 },
       );
     }
@@ -165,8 +174,15 @@ export async function GET() {
       agg.content_item_ids.add(m.content_item_id);
 
       // Merge metadata — later mentions with metadata override earlier ones
-      if (m.metadata && typeof m.metadata === 'object' && Object.keys(m.metadata as object).length > 0) {
-        agg.metadata = { ...agg.metadata, ...(m.metadata as Record<string, unknown>) };
+      if (
+        m.metadata &&
+        typeof m.metadata === 'object' &&
+        Object.keys(m.metadata as object).length > 0
+      ) {
+        agg.metadata = {
+          ...agg.metadata,
+          ...(m.metadata as Record<string, unknown>),
+        };
       }
     }
 
@@ -238,7 +254,8 @@ export async function GET() {
     const summary = {
       total_certifications: allCerts.length,
       valid: allCerts.filter((c) => c.expiry_status === 'valid').length,
-      expiring_soon: allCerts.filter((c) => c.expiry_status === 'expiring_soon').length,
+      expiring_soon: allCerts.filter((c) => c.expiry_status === 'expiring_soon')
+        .length,
       expired: allCerts.filter((c) => c.expiry_status === 'expired').length,
       unknown: allCerts.filter((c) => c.expiry_status === 'unknown').length,
     };

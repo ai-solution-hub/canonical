@@ -18,8 +18,18 @@ import { createQueryWrapper } from '../helpers/query-wrapper';
 
 const { mockFetch, mockUserRole, mockToast } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
-  mockUserRole: { role: 'admin' as string | null, loading: false, canEdit: true, canAdmin: true },
-  mockToast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
+  mockUserRole: {
+    role: 'admin' as string | null,
+    loading: false,
+    canEdit: true,
+    canAdmin: true,
+  },
+  mockToast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  },
 }));
 
 vi.mock('next/navigation', () => ({
@@ -38,7 +48,9 @@ vi.mock('@/hooks/use-user-role', () => ({
 
 // Stub sub-components to isolate TagsSection
 vi.mock('@/components/settings/duplicate-review', () => ({
-  DuplicateReview: () => <div data-testid="duplicate-review">DuplicateReview</div>,
+  DuplicateReview: () => (
+    <div data-testid="duplicate-review">DuplicateReview</div>
+  ),
 }));
 
 vi.mock('@/components/settings/tag-domain-view', () => ({
@@ -46,7 +58,9 @@ vi.mock('@/components/settings/tag-domain-view', () => ({
 }));
 
 vi.mock('@/components/settings/tag-bulk-actions', () => ({
-  TagBulkActions: () => <div data-testid="tag-bulk-actions">TagBulkActions</div>,
+  TagBulkActions: () => (
+    <div data-testid="tag-bulk-actions">TagBulkActions</div>
+  ),
 }));
 
 // Mock @tanstack/react-virtual to render all items (no virtual scrolling in tests)
@@ -69,7 +83,9 @@ import { TagsSection } from '@/components/settings/tags-section';
 // Factories
 // ---------------------------------------------------------------------------
 
-function createTagData(count = 5): Array<{ tag: string; count: number; source: 'user' | 'ai' }> {
+function createTagData(
+  count = 5,
+): Array<{ tag: string; count: number; source: 'user' | 'ai' }> {
   return Array.from({ length: count }, (_, i) => ({
     tag: `tag-${i + 1}`,
     count: 10 - i * 2,
@@ -84,10 +100,16 @@ function setupFetchResponses(
 ) {
   mockFetch.mockImplementation((url: string) => {
     if (url.includes('/api/tags/duplicates')) {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve(duplicates) });
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(duplicates),
+      });
     }
     if (url.includes('/api/tags/by-domain')) {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve(domainGroups) });
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(domainGroups),
+      });
     }
     if (url.includes('/api/tags')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(tags) });
@@ -152,11 +174,15 @@ describe('TagsSection', () => {
       expect(screen.getByText('Tag Health')).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('tab', { name: /duplicates/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('tab', { name: /duplicates/i }),
+    ).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /by domain/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /all tags/i })).toBeInTheDocument();
     // Admin sees bulk actions tab
-    expect(screen.getByRole('tab', { name: /bulk actions/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('tab', { name: /bulk actions/i }),
+    ).toBeInTheDocument();
   });
 
   it('shows tag list with tag names and counts in All Tags tab', async () => {
@@ -209,6 +235,8 @@ describe('TagsSection', () => {
     await waitFor(() => {
       expect(screen.getByText('Merge Tag')).toBeInTheDocument();
     });
-    expect(screen.getByPlaceholderText('Target tag name...')).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText('Target tag name...'),
+    ).toBeInTheDocument();
   });
 });

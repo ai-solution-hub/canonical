@@ -76,8 +76,7 @@ export function useBidExport({
       toast.success(`${formatLabel} export downloaded`);
     },
     onError: (err) => {
-      const message =
-        err instanceof Error ? err.message : 'Export failed';
+      const message = err instanceof Error ? err.message : 'Export failed';
       toast.error(message);
     },
     onSettled: () => {

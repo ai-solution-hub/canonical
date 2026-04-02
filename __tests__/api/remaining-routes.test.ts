@@ -31,27 +31,19 @@ vi.mock('@/lib/rate-limit', () => ({
 }));
 
 // Import routes AFTER mocks are registered
-const { GET: digestLatestGet } = await import(
-  '@/app/api/digest/latest/route'
-);
+const { GET: digestLatestGet } = await import('@/app/api/digest/latest/route');
 const { GET: digestListGet } = await import('@/app/api/digest/list/route');
 const { GET: tagsSuggestGet } = await import('@/app/api/tags/suggest/route');
-const { GET: coverageGuidesGet } = await import(
-  '@/app/api/coverage/guides/route'
-);
-const { PATCH: guideSectionPatch, DELETE: guideSectionDelete } = await import(
-  '@/app/api/guides/[slug]/sections/[sectionId]/route'
-);
-const { GET: completionDownloadGet } = await import(
-  '@/app/api/bids/[id]/templates/[templateId]/completions/[completionId]/download/route'
-);
-const { POST: oauthDecisionPost } = await import(
-  '@/app/api/oauth/decision/route'
-);
+const { GET: coverageGuidesGet } =
+  await import('@/app/api/coverage/guides/route');
+const { PATCH: guideSectionPatch, DELETE: guideSectionDelete } =
+  await import('@/app/api/guides/[slug]/sections/[sectionId]/route');
+const { GET: completionDownloadGet } =
+  await import('@/app/api/bids/[id]/templates/[templateId]/completions/[completionId]/download/route');
+const { POST: oauthDecisionPost } =
+  await import('@/app/api/oauth/decision/route');
 const { GET: oauthGrantsGet } = await import('@/app/api/oauth/grants/route');
-const { POST: oauthRevokePost } = await import(
-  '@/app/api/oauth/revoke/route'
-);
+const { POST: oauthRevokePost } = await import('@/app/api/oauth/revoke/route');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -134,9 +126,8 @@ beforeEach(() => {
   mockSupabase._chain.csv.mockReset();
   mockSupabase._chain.csv.mockResolvedValue({ data: null, error: null });
   mockSupabase._chain.then.mockReset();
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 
   // Storage mocks — include createSignedUrl for download route
@@ -144,9 +135,7 @@ beforeEach(() => {
     upload: vi
       .fn()
       .mockResolvedValue({ data: { path: 'test-path' }, error: null }),
-    download: vi
-      .fn()
-      .mockResolvedValue({ data: new Blob(), error: null }),
+    download: vi.fn().mockResolvedValue({ data: new Blob(), error: null }),
     remove: vi.fn().mockResolvedValue({ data: [], error: null }),
     list: vi.fn().mockResolvedValue({ data: [], error: null }),
     getPublicUrl: vi
@@ -226,9 +215,7 @@ describe('GET /api/digest/latest', () => {
           domain: 'Engineering',
           item_count: 5,
           summary: 'Engineering summary',
-          top_items: [
-            { id: VALID_UUID_2, title: 'Item 1' },
-          ],
+          top_items: [{ id: VALID_UUID_2, title: 'Item 1' }],
           key_themes: ['testing', 'deployment'],
         },
       ],
@@ -904,8 +891,7 @@ describe('DELETE /api/guides/[slug]/sections/[sectionId]', () => {
 
     // Delete chain resolves (via .then)
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest(

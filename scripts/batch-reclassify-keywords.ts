@@ -83,7 +83,8 @@ async function main(): Promise<void> {
   const { dryRun, batchSize } = parseArgs();
 
   // Validate env
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl =
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SECRET_KEY;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
 
@@ -112,7 +113,9 @@ async function main(): Promise<void> {
   // Query all active items with classification data
   const { data: allItems, error: fetchError } = await supabase
     .from('content_items')
-    .select('id, title, ai_keywords, content_type, classification_confidence, primary_domain, primary_subtopic')
+    .select(
+      'id, title, ai_keywords, content_type, classification_confidence, primary_domain, primary_subtopic',
+    )
     .is('archived_at', null)
     .order('created_at', { ascending: true });
 
@@ -140,7 +143,9 @@ async function main(): Promise<void> {
   });
 
   // Breakdown
-  const nullConfidence = affected.filter((item) => item.classification_confidence === null);
+  const nullConfidence = affected.filter(
+    (item) => item.classification_confidence === null,
+  );
   const twoKeywords = affected.filter((item) => {
     const kw = item.ai_keywords as string[] | null;
     return kw && kw.length === 2 && item.classification_confidence !== null;
@@ -191,7 +196,11 @@ async function main(): Promise<void> {
   // Use admin user ID for the updated_by field
   const systemUserId = '40ea6224-9ca4-4a3c-a013-3f60ec5bd4aa';
 
-  for (let batchStart = 0; batchStart < affected.length; batchStart += batchSize) {
+  for (
+    let batchStart = 0;
+    batchStart < affected.length;
+    batchStart += batchSize
+  ) {
     const batch = affected.slice(batchStart, batchStart + batchSize);
 
     if (batchStart > 0) {
@@ -272,7 +281,9 @@ async function main(): Promise<void> {
   console.log('  RE-CLASSIFICATION COMPLETE');
   console.log('='.repeat(60));
   console.log(`  Succeeded:          ${successCount}`);
-  console.log(`  Domain reverted:    ${revertCount} (governance corrections preserved)`);
+  console.log(
+    `  Domain reverted:    ${revertCount} (governance corrections preserved)`,
+  );
   console.log(`  Failed:             ${errorCount}`);
   console.log(`  Time:               ${elapsed}s`);
   console.log('='.repeat(60));

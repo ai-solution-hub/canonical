@@ -29,9 +29,21 @@ const {
   mockGuidesSection,
   mockDeveloperSetupSection,
 } = vi.hoisted(() => ({
-  mockRouter: { push: vi.fn(), replace: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn(), prefetch: vi.fn().mockResolvedValue(undefined) },
+  mockRouter: {
+    push: vi.fn(),
+    replace: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+    prefetch: vi.fn().mockResolvedValue(undefined),
+  },
   mockSearchParams: { value: new URLSearchParams() },
-  mockUseUserRole: { loading: false, canAdmin: false, canEdit: false, role: 'viewer' as string | null },
+  mockUseUserRole: {
+    loading: false,
+    canAdmin: false,
+    canEdit: false,
+    role: 'viewer' as string | null,
+  },
   mockProfileSection: vi.fn(),
   mockConnectionsSection: vi.fn(),
   mockSettingsSidebar: vi.fn(),
@@ -70,18 +82,45 @@ vi.mock('@/components/settings/connections-section', () => ({
 }));
 
 vi.mock('@/components/settings/settings-sidebar', () => ({
-  SettingsSidebar: ({ isAdmin, activeSection, onSectionChange }: { isAdmin: boolean; activeSection: string; onSectionChange: (s: string) => void }) => {
+  SettingsSidebar: ({
+    isAdmin,
+    activeSection,
+    onSectionChange,
+  }: {
+    isAdmin: boolean;
+    activeSection: string;
+    onSectionChange: (s: string) => void;
+  }) => {
     mockSettingsSidebar();
     return (
-      <div data-testid="settings-sidebar" data-admin={isAdmin} data-active={activeSection}>
+      <div
+        data-testid="settings-sidebar"
+        data-admin={isAdmin}
+        data-active={activeSection}
+      >
         <button onClick={() => onSectionChange('team')}>Team</button>
-        <button onClick={() => onSectionChange('governance')}>Governance</button>
+        <button onClick={() => onSectionChange('governance')}>
+          Governance
+        </button>
       </div>
     );
   },
-  SettingsMobileSidebar: ({ isAdmin, activeSection }: { isAdmin: boolean; activeSection: string; onSectionChange: (s: string) => void }) => {
+  SettingsMobileSidebar: ({
+    isAdmin,
+    activeSection,
+  }: {
+    isAdmin: boolean;
+    activeSection: string;
+    onSectionChange: (s: string) => void;
+  }) => {
     mockSettingsMobileSidebar();
-    return <div data-testid="mobile-sidebar" data-admin={isAdmin} data-active={activeSection} />;
+    return (
+      <div
+        data-testid="mobile-sidebar"
+        data-admin={isAdmin}
+        data-active={activeSection}
+      />
+    );
   },
   getValidSection: (param: string | null, isAdmin: boolean) => {
     const legacyMap: Record<string, string> = {
@@ -91,7 +130,17 @@ vi.mock('@/components/settings/settings-sidebar', () => ({
       integrations: 'connections',
     };
     const resolved = param && legacyMap[param] ? legacyMap[param] : param;
-    const allSections = ['profile', 'connections', 'content-organisation', 'entities', 'guides', 'team', 'governance', 'activity', 'developer-setup'];
+    const allSections = [
+      'profile',
+      'connections',
+      'content-organisation',
+      'entities',
+      'guides',
+      'team',
+      'governance',
+      'activity',
+      'developer-setup',
+    ];
     const personalSections = ['profile', 'connections'];
     const visible = isAdmin ? allSections : personalSections;
     if (resolved && visible.includes(resolved)) return resolved;
@@ -123,7 +172,11 @@ vi.mock('@/components/settings/activity-section', () => ({
 vi.mock('@/components/settings/content-organisation-section', () => ({
   ContentOrganisationSection: () => {
     mockContentOrganisationSection();
-    return <div data-testid="content-organisation-section">ContentOrganisationSection</div>;
+    return (
+      <div data-testid="content-organisation-section">
+        ContentOrganisationSection
+      </div>
+    );
   },
 }));
 
@@ -144,7 +197,9 @@ vi.mock('@/components/settings/guides-section', () => ({
 vi.mock('@/components/settings/developer-setup-section', () => ({
   DeveloperSetupSection: () => {
     mockDeveloperSetupSection();
-    return <div data-testid="developer-setup-section">DeveloperSetupSection</div>;
+    return (
+      <div data-testid="developer-setup-section">DeveloperSetupSection</div>
+    );
   },
 }));
 
@@ -187,7 +242,9 @@ describe('SettingsPage', () => {
       expect(screen.getByText('Settings')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Manage your profile and connections')).toBeInTheDocument();
+    expect(
+      screen.getByText('Manage your profile and connections'),
+    ).toBeInTheDocument();
     expect(screen.getByTestId('profile-section')).toBeInTheDocument();
   });
 
@@ -197,11 +254,16 @@ describe('SettingsPage', () => {
     render(<SettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Manage your profile and system configuration')).toBeInTheDocument();
+      expect(
+        screen.getByText('Manage your profile and system configuration'),
+      ).toBeInTheDocument();
     });
 
     expect(screen.getByTestId('settings-sidebar')).toBeInTheDocument();
-    expect(screen.getByTestId('settings-sidebar')).toHaveAttribute('data-admin', 'true');
+    expect(screen.getByTestId('settings-sidebar')).toHaveAttribute(
+      'data-admin',
+      'true',
+    );
   });
 
   it('defaults to profile section when no URL param is present', async () => {
@@ -236,13 +298,17 @@ describe('SettingsPage', () => {
   });
 
   it('reads ?section=content-organisation and renders ContentOrganisationSection for admins', async () => {
-    mockSearchParams.value = new URLSearchParams('section=content-organisation');
+    mockSearchParams.value = new URLSearchParams(
+      'section=content-organisation',
+    );
     mockUseUserRole.loading = false;
     mockUseUserRole.canAdmin = true;
     render(<SettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId('content-organisation-section')).toBeInTheDocument();
+      expect(
+        screen.getByTestId('content-organisation-section'),
+      ).toBeInTheDocument();
     });
   });
 
@@ -253,7 +319,9 @@ describe('SettingsPage', () => {
     render(<SettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId('content-organisation-section')).toBeInTheDocument();
+      expect(
+        screen.getByTestId('content-organisation-section'),
+      ).toBeInTheDocument();
     });
   });
 

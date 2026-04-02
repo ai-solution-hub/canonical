@@ -13,7 +13,10 @@ export async function GET(request: NextRequest) {
     if (!auth) return unauthorisedResponse();
     const { supabase } = auth;
 
-    const parsed = parseSearchParams(ContentSuggestionsParamsSchema, request.nextUrl.searchParams);
+    const parsed = parseSearchParams(
+      ContentSuggestionsParamsSchema,
+      request.nextUrl.searchParams,
+    );
     if (!parsed.success) return parsed.response;
     const { limit, domain } = parsed.data;
 

@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse, rateLimitResponse } from '@/lib/auth';
+import {
+  getAuthorisedClient,
+  authFailureResponse,
+  rateLimitResponse,
+} from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 
@@ -26,12 +30,15 @@ export interface ReviewCadenceResponse {
     days_since_review: number;
     governance_review_status: string | null;
   }>;
-  by_domain: Record<string, {
-    total: number;
-    never_reviewed: number;
-    average_days: number;
-    overdue: number;
-  }>;
+  by_domain: Record<
+    string,
+    {
+      total: number;
+      never_reviewed: number;
+      average_days: number;
+      overdue: number;
+    }
+  >;
 }
 
 /**
@@ -56,8 +63,12 @@ export async function GET() {
     // Fetch all content items with minimal columns for cadence calculations
     const { data: items, error: itemsError } = await supabase
       .from('content_items')
-      .select('id, title, suggested_title, primary_domain, verified_at, governance_review_status')
-      .or('governance_review_status.is.null,governance_review_status.neq.draft');
+      .select(
+        'id, title, suggested_title, primary_domain, verified_at, governance_review_status',
+      )
+      .or(
+        'governance_review_status.is.null,governance_review_status.neq.draft',
+      );
 
     if (itemsError) {
       console.error('Review cadence items query error:', itemsError);
@@ -85,7 +96,13 @@ export async function GET() {
         // governance_config.timeout_days is for review assignment timeout (default 7).
         // For cadence "overdue" we use a higher threshold — 90 days by default.
         // If a domain has a configured timeout, we use the larger of that and 90.
-        domainTimeouts.set(row.domain, Math.max(row.timeout_days ?? DEFAULT_OVERDUE_DAYS, DEFAULT_OVERDUE_DAYS));
+        domainTimeouts.set(
+          row.domain,
+          Math.max(
+            row.timeout_days ?? DEFAULT_OVERDUE_DAYS,
+            DEFAULT_OVERDUE_DAYS,
+          ),
+        );
       }
     }
 
@@ -104,13 +121,16 @@ export async function GET() {
     const overdueItems: ReviewCadenceResponse['overdue_items'] = [];
 
     // Per-domain accumulators
-    const domainMap = new Map<string, {
-      total: number;
-      never_reviewed: number;
-      total_days: number;
-      reviewed_count: number;
-      overdue: number;
-    }>();
+    const domainMap = new Map<
+      string,
+      {
+        total: number;
+        never_reviewed: number;
+        total_days: number;
+        reviewed_count: number;
+        overdue: number;
+      }
+    >();
 
     for (const item of allItems) {
       const domain = item.primary_domain ?? 'Uncategorised';
@@ -147,7 +167,9 @@ export async function GET() {
       }
 
       const verifiedDate = new Date(item.verified_at);
-      const daysSince = Math.floor((now.getTime() - verifiedDate.getTime()) / (1000 * 60 * 60 * 24));
+      const daysSince = Math.floor(
+        (now.getTime() - verifiedDate.getTime()) / (1000 * 60 * 60 * 24),
+      );
 
       totalDaysSinceReview += daysSince;
       reviewedItemCount++;
@@ -191,9 +213,10 @@ export async function GET() {
       byDomain[domain] = {
         total: stats.total,
         never_reviewed: stats.never_reviewed,
-        average_days: stats.reviewed_count > 0
-          ? Math.round(stats.total_days / stats.reviewed_count)
-          : 0,
+        average_days:
+          stats.reviewed_count > 0
+            ? Math.round(stats.total_days / stats.reviewed_count)
+            : 0,
         overdue: stats.overdue,
       };
     }
@@ -206,9 +229,10 @@ export async function GET() {
         reviewed_last_30_days: reviewedLast30,
         reviewed_last_90_days: reviewedLast90,
         overdue: overdueCount,
-        average_days_since_review: reviewedItemCount > 0
-          ? Math.round(totalDaysSinceReview / reviewedItemCount)
-          : 0,
+        average_days_since_review:
+          reviewedItemCount > 0
+            ? Math.round(totalDaysSinceReview / reviewedItemCount)
+            : 0,
       },
       overdue_items: limitedOverdueItems,
       by_domain: byDomain,

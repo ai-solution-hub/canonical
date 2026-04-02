@@ -7,7 +7,10 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createTestRequest, createTestParams } from '../helpers/mock-next';
-import { createMockSupabaseClient, configureRole as configureRoleHelper } from '../helpers/mock-supabase';
+import {
+  createMockSupabaseClient,
+  configureRole as configureRoleHelper,
+} from '../helpers/mock-supabase';
 
 // ---------------------------------------------------------------------------
 // Shared mock client — lazy references in vi.mock() avoid hoisting issues
@@ -86,16 +89,32 @@ function resetMocks() {
   mockSupabase._chain.single.mockResolvedValue({ data: null, error: null });
 
   mockSupabase._chain.then.mockReset();
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 
   const chain = mockSupabase._chain;
   const chainableMethods: (keyof typeof chain)[] = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ];
   for (const method of chainableMethods) {
     chain[method].mockReturnValue(chain);
@@ -124,7 +143,9 @@ describe('Bid state machine via PATCH /api/bids/[id]', () => {
       body: { status: 'questions_extracted' },
     });
 
-    const response = await PATCH(request, { params: createTestParams({ id: VALID_UUID }) });
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     expect(response.status).toBe(200);
 
     const body = await response.json();
@@ -141,7 +162,9 @@ describe('Bid state machine via PATCH /api/bids/[id]', () => {
       body: { status: 'matching' },
     });
 
-    const response = await PATCH(request, { params: createTestParams({ id: VALID_UUID }) });
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     expect(response.status).toBe(200);
   });
 
@@ -155,7 +178,9 @@ describe('Bid state machine via PATCH /api/bids/[id]', () => {
       body: { status: 'drafting' },
     });
 
-    const response = await PATCH(request, { params: createTestParams({ id: VALID_UUID }) });
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     expect(response.status).toBe(200);
   });
 
@@ -169,7 +194,9 @@ describe('Bid state machine via PATCH /api/bids/[id]', () => {
       body: { status: 'in_review' },
     });
 
-    const response = await PATCH(request, { params: createTestParams({ id: VALID_UUID }) });
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     expect(response.status).toBe(200);
   });
 
@@ -183,7 +210,9 @@ describe('Bid state machine via PATCH /api/bids/[id]', () => {
       body: { status: 'ready_for_export' },
     });
 
-    const response = await PATCH(request, { params: createTestParams({ id: VALID_UUID }) });
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     expect(response.status).toBe(200);
   });
 
@@ -197,7 +226,9 @@ describe('Bid state machine via PATCH /api/bids/[id]', () => {
       body: { status: 'submitted' },
     });
 
-    const response = await PATCH(request, { params: createTestParams({ id: VALID_UUID }) });
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     expect(response.status).toBe(200);
   });
 
@@ -211,7 +242,9 @@ describe('Bid state machine via PATCH /api/bids/[id]', () => {
       body: { status: 'won' },
     });
 
-    const response = await PATCH(request, { params: createTestParams({ id: VALID_UUID }) });
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     expect(response.status).toBe(200);
   });
 
@@ -225,7 +258,9 @@ describe('Bid state machine via PATCH /api/bids/[id]', () => {
       body: { status: 'lost' },
     });
 
-    const response = await PATCH(request, { params: createTestParams({ id: VALID_UUID }) });
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     expect(response.status).toBe(200);
   });
 
@@ -239,7 +274,9 @@ describe('Bid state machine via PATCH /api/bids/[id]', () => {
       body: { status: 'withdrawn' },
     });
 
-    const response = await PATCH(request, { params: createTestParams({ id: VALID_UUID }) });
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     expect(response.status).toBe(200);
   });
 
@@ -254,7 +291,9 @@ describe('Bid state machine via PATCH /api/bids/[id]', () => {
       body: { status: 'submitted' },
     });
 
-    const response = await PATCH(request, { params: createTestParams({ id: VALID_UUID }) });
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     expect(response.status).toBe(400);
 
     const body = await response.json();
@@ -272,7 +311,9 @@ describe('Bid state machine via PATCH /api/bids/[id]', () => {
       body: { status: 'in_review' },
     });
 
-    const response = await PATCH(request, { params: createTestParams({ id: VALID_UUID }) });
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     expect(response.status).toBe(400);
 
     const body = await response.json();
@@ -291,7 +332,9 @@ describe('Bid state machine via PATCH /api/bids/[id]', () => {
       body: { status: 'draft' },
     });
 
-    const response = await PATCH(request, { params: createTestParams({ id: VALID_UUID }) });
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     expect(response.status).toBe(400);
 
     const body = await response.json();
@@ -308,7 +351,9 @@ describe('Bid state machine via PATCH /api/bids/[id]', () => {
       body: { status: 'in_review' },
     });
 
-    const response = await PATCH(request, { params: createTestParams({ id: VALID_UUID }) });
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     expect(response.status).toBe(400);
 
     const body = await response.json();
@@ -324,7 +369,9 @@ describe('Bid state machine via PATCH /api/bids/[id]', () => {
       body: { status: 'draft' },
     });
 
-    const response = await PATCH(request, { params: createTestParams({ id: VALID_UUID }) });
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     expect(response.status).toBe(400);
 
     const body = await response.json();
@@ -343,7 +390,9 @@ describe('Bid state machine via PATCH /api/bids/[id]', () => {
       body: { status: 'drafting' },
     });
 
-    const response = await PATCH(request, { params: createTestParams({ id: VALID_UUID }) });
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     expect(response.status).toBe(200);
   });
 
@@ -357,7 +406,9 @@ describe('Bid state machine via PATCH /api/bids/[id]', () => {
       body: { status: 'in_review' },
     });
 
-    const response = await PATCH(request, { params: createTestParams({ id: VALID_UUID }) });
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     expect(response.status).toBe(200);
   });
 });

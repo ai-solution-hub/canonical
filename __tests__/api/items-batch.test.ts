@@ -22,9 +22,16 @@ const mockSupabase = createMockSupabaseClient();
  * Service client mock — uses a more granular approach where we track
  * which table `from()` is called with and return appropriate chains.
  */
-const { mockServiceClient, mockPipelineChain, mockContentChain, mockHistoryChain } = vi.hoisted(() => {
+const {
+  mockServiceClient,
+  mockPipelineChain,
+  mockContentChain,
+  mockHistoryChain,
+} = vi.hoisted(() => {
   // Create separate chains for different tables
-  function createChain(defaultSingleResult: unknown = { data: null, error: null }) {
+  function createChain(
+    defaultSingleResult: unknown = { data: null, error: null },
+  ) {
     const chain: Record<string, ReturnType<typeof vi.fn>> = {
       select: vi.fn(),
       insert: vi.fn(),
@@ -45,8 +52,14 @@ const { mockServiceClient, mockPipelineChain, mockContentChain, mockHistoryChain
     return chain;
   }
 
-  const pipelineChain = createChain({ data: { id: 'pipeline-run-1' }, error: null });
-  const contentChain = createChain({ data: { id: 'item-1', title: 'Q1?' }, error: null });
+  const pipelineChain = createChain({
+    data: { id: 'pipeline-run-1' },
+    error: null,
+  });
+  const contentChain = createChain({
+    data: { id: 'item-1', title: 'Q1?' },
+    error: null,
+  });
   const historyChain = createChain({ data: null, error: null });
 
   const client = {
@@ -153,9 +166,8 @@ function makeSampleItems(count: number = 2) {
  */
 function configureSuccessFlow(_itemCount: number = 1) {
   // Pipeline chain: token check returns empty via then()
-  mockPipelineChain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockPipelineChain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 
   // Pipeline chain: insert().select().single() for creating pipeline run
@@ -189,9 +201,8 @@ function configureSuccessFlow(_itemCount: number = 1) {
   });
 
   // Content chain: updates succeed silently
-  mockContentChain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockContentChain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 }
 
@@ -210,7 +221,11 @@ describe('POST /api/items/batch', () => {
     });
 
     // Re-chain methods after clearAllMocks
-    for (const chain of [mockPipelineChain, mockContentChain, mockHistoryChain]) {
+    for (const chain of [
+      mockPipelineChain,
+      mockContentChain,
+      mockHistoryChain,
+    ]) {
       for (const key of ['select', 'insert', 'update', 'eq', 'contains']) {
         chain[key].mockReturnValue(chain);
       }
@@ -398,7 +413,9 @@ describe('POST /api/items/batch', () => {
 
       expect(contentItemInsert).toBeDefined();
       if (contentItemInsert) {
-        expect(contentItemInsert[0].metadata.ingestion_source).toBe('upload_autosplit');
+        expect(contentItemInsert[0].metadata.ingestion_source).toBe(
+          'upload_autosplit',
+        );
       }
     });
 
@@ -450,23 +467,23 @@ describe('POST /api/items/batch', () => {
       );
 
       const insertCalls = mockContentChain.insert.mock.calls;
-      const contentItemInsert = insertCalls.find(
-        (call: unknown[]) => {
-          const obj = call[0] as Record<string, unknown>;
-          return (
-            typeof obj === 'object' &&
-            obj !== null &&
-            'metadata' in obj &&
-            typeof obj.metadata === 'object' &&
-            obj.metadata !== null &&
-            'section_name' in (obj.metadata as Record<string, unknown>)
-          );
-        },
-      );
+      const contentItemInsert = insertCalls.find((call: unknown[]) => {
+        const obj = call[0] as Record<string, unknown>;
+        return (
+          typeof obj === 'object' &&
+          obj !== null &&
+          'metadata' in obj &&
+          typeof obj.metadata === 'object' &&
+          obj.metadata !== null &&
+          'section_name' in (obj.metadata as Record<string, unknown>)
+        );
+      });
 
       expect(contentItemInsert).toBeDefined();
       if (contentItemInsert) {
-        const meta = (contentItemInsert[0] as Record<string, Record<string, unknown>>).metadata;
+        const meta = (
+          contentItemInsert[0] as Record<string, Record<string, unknown>>
+        ).metadata;
         expect(meta.section_name).toBe('Quality Management');
       }
     });
@@ -518,7 +535,11 @@ describe('POST /api/items/batch', () => {
           'p_new_data' in call[1] &&
           typeof (call[1] as Record<string, unknown>).p_new_data === 'object' &&
           (call[1] as Record<string, unknown>).p_new_data !== null &&
-          'layer' in ((call[1] as Record<string, unknown>).p_new_data as Record<string, unknown>),
+          'layer' in
+            ((call[1] as Record<string, unknown>).p_new_data as Record<
+              string,
+              unknown
+            >),
       );
       expect(layerRpcCalls).toHaveLength(0);
 

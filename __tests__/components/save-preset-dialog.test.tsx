@@ -29,7 +29,9 @@ describe('SavePresetDialog', () => {
     render(<SavePresetDialog {...defaultProps} />);
     expect(screen.getByText('Save filter preset')).toBeInTheDocument();
     expect(screen.getByLabelText('Preset name')).toBeInTheDocument();
-    expect(screen.getByText('3 active filters will be saved.')).toBeInTheDocument();
+    expect(
+      screen.getByText('3 active filters will be saved.'),
+    ).toBeInTheDocument();
   });
 
   // 2. Save button disabled when input is empty

@@ -16,7 +16,9 @@ import type { ProgressiveDepthFieldsetProps } from '@/components/create-content/
 // Helpers
 // ---------------------------------------------------------------------------
 
-function createDefaultProps(overrides: Partial<ProgressiveDepthFieldsetProps> = {}): ProgressiveDepthFieldsetProps {
+function createDefaultProps(
+  overrides: Partial<ProgressiveDepthFieldsetProps> = {},
+): ProgressiveDepthFieldsetProps {
   return {
     brief: '',
     setBrief: vi.fn(),
@@ -33,14 +35,24 @@ function createDefaultProps(overrides: Partial<ProgressiveDepthFieldsetProps> = 
 // ---------------------------------------------------------------------------
 
 describe('ProgressiveDepthFieldset', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
-  afterEach(() => { vi.unstubAllGlobals(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it('renders brief, detail, and reference textareas', () => {
     render(<ProgressiveDepthFieldset {...createDefaultProps()} />);
-    expect(screen.getByLabelText('Summary (executive summary)')).toBeInTheDocument();
-    expect(screen.getByLabelText('In Depth (expanded explanation)')).toBeInTheDocument();
-    expect(screen.getByLabelText('Supporting Detail (technical/source detail)')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Summary (executive summary)'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('In Depth (expanded explanation)'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Supporting Detail (technical/source detail)'),
+    ).toBeInTheDocument();
   });
 
   it('shows character counts for each textarea', () => {
@@ -60,9 +72,15 @@ describe('ProgressiveDepthFieldset', () => {
 
   it('textareas have correct maxLength attributes', () => {
     render(<ProgressiveDepthFieldset {...createDefaultProps()} />);
-    expect(screen.getByLabelText('Summary (executive summary)')).toHaveAttribute('maxlength', '5000');
-    expect(screen.getByLabelText('In Depth (expanded explanation)')).toHaveAttribute('maxlength', '50000');
-    expect(screen.getByLabelText('Supporting Detail (technical/source detail)')).toHaveAttribute('maxlength', '50000');
+    expect(
+      screen.getByLabelText('Summary (executive summary)'),
+    ).toHaveAttribute('maxlength', '5000');
+    expect(
+      screen.getByLabelText('In Depth (expanded explanation)'),
+    ).toHaveAttribute('maxlength', '50000');
+    expect(
+      screen.getByLabelText('Supporting Detail (technical/source detail)'),
+    ).toHaveAttribute('maxlength', '50000');
   });
 
   it('onChange calls correct setter', async () => {
@@ -83,7 +101,9 @@ describe('ProgressiveDepthFieldset', () => {
     const detailLabel = screen.getByText(/In Depth \(expanded explanation\)/i);
     expect(detailLabel).toHaveAttribute('for', 'detail');
 
-    const refLabel = screen.getByText(/Supporting Detail \(technical\/source detail\)/i);
+    const refLabel = screen.getByText(
+      /Supporting Detail \(technical\/source detail\)/i,
+    );
     expect(refLabel).toHaveAttribute('for', 'reference');
   });
 });

@@ -30,13 +30,21 @@ const {
   mockLoadReadMarks: vi.fn(),
   mockGetDomainNames: vi.fn(() => ['Corporate', 'Technical', 'Commercial']),
   mockFetch: vi.fn(),
-  mockToast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
-  mockFormatDate: vi.fn((d: string) => d ? d.slice(0, 10) : ''),
+  mockToast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  },
+  mockFormatDate: vi.fn((d: string) => (d ? d.slice(0, 10) : '')),
   mockDigestTypeLabel: vi.fn((t: string) => {
     switch (t) {
-      case 'weekly': return 'Weekly Change Report';
-      case 'daily': return 'Daily Change Report';
-      default: return 'Custom Change Report';
+      case 'weekly':
+        return 'Weekly Change Report';
+      case 'daily':
+        return 'Daily Change Report';
+      default:
+        return 'Custom Change Report';
     }
   }),
 }));
@@ -130,13 +138,15 @@ function makePastDigestEntry(overrides: Record<string, unknown> = {}) {
 /**
  * Configure mockFetch to respond to the digest API endpoints.
  */
-function setupFetch(options: {
-  latest?: Record<string, unknown> | null;
-  list?: Record<string, unknown>[];
-  detail?: Record<string, unknown> | null;
-  generateResult?: Record<string, unknown> | null;
-  generateError?: string | null;
-} = {}) {
+function setupFetch(
+  options: {
+    latest?: Record<string, unknown> | null;
+    list?: Record<string, unknown>[];
+    detail?: Record<string, unknown> | null;
+    generateResult?: Record<string, unknown> | null;
+    generateError?: string | null;
+  } = {},
+) {
   mockFetch.mockImplementation(async (url: string) => {
     const urlStr = typeof url === 'string' ? url : String(url);
 
@@ -254,7 +264,9 @@ describe('DigestPage', () => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('button', { name: /Generate Report/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Generate Report/i }),
+    ).toBeInTheDocument();
   });
 
   // 5. Daily mode
@@ -316,7 +328,9 @@ describe('DigestPage', () => {
     expect(screen.getByText('claude')).toBeInTheDocument();
 
     // Remove the 'claude' keyword badge
-    const removeButton = screen.getByRole('button', { name: 'Remove keyword filter: claude' });
+    const removeButton = screen.getByRole('button', {
+      name: 'Remove keyword filter: claude',
+    });
     await user.click(removeButton);
 
     expect(screen.queryByText('claude')).not.toBeInTheDocument();
@@ -334,7 +348,9 @@ describe('DigestPage', () => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
-    const generateButton = screen.getByRole('button', { name: /Generate Report/i });
+    const generateButton = screen.getByRole('button', {
+      name: /Generate Report/i,
+    });
     await user.click(generateButton);
 
     await waitFor(() => {
@@ -365,7 +381,9 @@ describe('DigestPage', () => {
     await user.clear(keywordsInput);
     await user.type(keywordsInput, 'ai agents');
 
-    const generateButton = screen.getByRole('button', { name: /Generate Custom Report/i });
+    const generateButton = screen.getByRole('button', {
+      name: /Generate Custom Report/i,
+    });
     await user.click(generateButton);
 
     await waitFor(() => {
@@ -402,7 +420,9 @@ describe('DigestPage', () => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
-    const generateButton = screen.getByRole('button', { name: /Generate Report/i });
+    const generateButton = screen.getByRole('button', {
+      name: /Generate Report/i,
+    });
     await user.click(generateButton);
 
     await waitFor(() => {
@@ -421,27 +441,37 @@ describe('DigestPage', () => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
-    const generateButton = screen.getByRole('button', { name: /Generate Report/i });
+    const generateButton = screen.getByRole('button', {
+      name: /Generate Report/i,
+    });
     await user.click(generateButton);
 
     await waitFor(() => {
       expect(screen.getByTestId('digest-view')).toBeInTheDocument();
     });
 
-    expect(mockToast.success).toHaveBeenCalledWith('Report generated successfully');
+    expect(mockToast.success).toHaveBeenCalledWith(
+      'Report generated successfully',
+    );
   });
 
   // 12. Generation error
   it('shows toast error when generation fails', async () => {
     const user = userEvent.setup();
-    setupFetch({ latest: null, list: [], generateError: 'Insufficient content' });
+    setupFetch({
+      latest: null,
+      list: [],
+      generateError: 'Insufficient content',
+    });
     renderDigestPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
-    const generateButton = screen.getByRole('button', { name: /Generate Report/i });
+    const generateButton = screen.getByRole('button', {
+      name: /Generate Report/i,
+    });
     await user.click(generateButton);
 
     await waitFor(() => {
@@ -460,7 +490,9 @@ describe('DigestPage', () => {
     });
 
     // Bar variant shows "Generate New Report"
-    expect(screen.getByRole('button', { name: /Generate New Report/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Generate New Report/i }),
+    ).toBeInTheDocument();
   });
 
   // 14. Mark all as read
@@ -474,7 +506,9 @@ describe('DigestPage', () => {
       expect(screen.getByTestId('digest-view')).toBeInTheDocument();
     });
 
-    const markAllButton = screen.getByRole('button', { name: /Mark all as read/i });
+    const markAllButton = screen.getByRole('button', {
+      name: /Mark all as read/i,
+    });
     await user.click(markAllButton);
 
     await waitFor(() => {
@@ -584,7 +618,9 @@ describe('DigestPage', () => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('region', { name: 'Change reports' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', { name: 'Change reports' }),
+    ).toBeInTheDocument();
   });
 
   // 20. Mode switching works correctly
@@ -598,17 +634,32 @@ describe('DigestPage', () => {
     });
 
     // Start in preset mode
-    expect(screen.getByRole('tab', { name: /Period/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /Period/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
 
     // Switch to daily
     await user.click(screen.getByRole('tab', { name: /Daily/i }));
-    expect(screen.getByRole('tab', { name: /Daily/i })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: /Period/i })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByRole('tab', { name: /Daily/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByRole('tab', { name: /Period/i })).toHaveAttribute(
+      'aria-selected',
+      'false',
+    );
 
     // Switch to custom
     await user.click(screen.getByRole('tab', { name: /Custom/i }));
-    expect(screen.getByRole('tab', { name: /Custom/i })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: /Daily/i })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByRole('tab', { name: /Custom/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByRole('tab', { name: /Daily/i })).toHaveAttribute(
+      'aria-selected',
+      'false',
+    );
   });
 
   // 21. loadReadMarks is called on mount
@@ -678,11 +729,15 @@ describe('DigestPage', () => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
-    const generateButton = screen.getByRole('button', { name: /Generate Report/i });
+    const generateButton = screen.getByRole('button', {
+      name: /Generate Report/i,
+    });
     await user.click(generateButton);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Generating/i })).toBeDisabled();
+      expect(
+        screen.getByRole('button', { name: /Generating/i }),
+      ).toBeDisabled();
     });
   });
 
@@ -709,13 +764,17 @@ describe('DigestPage', () => {
       expect(screen.getByTestId('digest-view')).toBeInTheDocument();
     });
 
-    const markAllButton = screen.getByRole('button', { name: /Mark all as read/i });
+    const markAllButton = screen.getByRole('button', {
+      name: /Mark all as read/i,
+    });
     expect(markAllButton).toBeInTheDocument();
 
     // The button should be a sibling of the DigestView, not inside the controls
     // Verify by checking its parent structure — it should not be inside a tabpanel
     const tabpanel = screen.getByRole('tabpanel');
-    expect(within(tabpanel).queryByRole('button', { name: /Mark all as read/i })).not.toBeInTheDocument();
+    expect(
+      within(tabpanel).queryByRole('button', { name: /Mark all as read/i }),
+    ).not.toBeInTheDocument();
   });
 
   // 26. Mark all as read button is not shown when no digest exists
@@ -727,6 +786,8 @@ describe('DigestPage', () => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
-    expect(screen.queryByRole('button', { name: /Mark all as read/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Mark all as read/i }),
+    ).not.toBeInTheDocument();
   });
 });

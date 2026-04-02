@@ -21,7 +21,10 @@ interface ErrorBoundaryState {
  * Catches render errors and displays a recovery UI with a "Try again" button
  * that resets the boundary. Uses semantic tokens only — no raw Tailwind colours.
  */
-export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+export class ErrorBoundary extends Component<
+  ErrorBoundaryProps,
+  ErrorBoundaryState
+> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -46,7 +49,10 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           role="alert"
           className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-card px-6 py-12 text-center"
         >
-          <AlertTriangle className="size-8 text-muted-foreground" aria-hidden="true" />
+          <AlertTriangle
+            className="size-8 text-muted-foreground"
+            aria-hidden="true"
+          />
           <div>
             <h2 className="text-lg font-semibold text-foreground">
               {this.props.label ?? 'Something went wrong'}

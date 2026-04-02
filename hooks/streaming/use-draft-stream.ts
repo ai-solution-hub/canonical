@@ -5,7 +5,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
 import type { CitationEntry } from '@/types/bid-metadata';
 
-export type StreamPhase = 'idle' | 'analysing' | 'drafting' | 'quality' | 'saving' | 'done' | 'error';
+export type StreamPhase =
+  | 'idle'
+  | 'analysing'
+  | 'drafting'
+  | 'quality'
+  | 'saving'
+  | 'done'
+  | 'error';
 
 interface StreamState {
   phase: StreamPhase;
@@ -39,7 +46,9 @@ export function useDraftStream(bidId: string) {
   // Invalidate bid caches when stream completes
   useEffect(() => {
     if (state.phase === 'done') {
-      queryClient.invalidateQueries({ queryKey: queryKeys.bids.questions(bidId) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bids.questions(bidId),
+      });
       queryClient.invalidateQueries({ queryKey: queryKeys.bids.detail(bidId) });
     }
   }, [state.phase, bidId, queryClient]);
@@ -68,13 +77,23 @@ export function useDraftStream(bidId: string) {
         );
 
         if (!response.ok) {
-          const err = await response.json().catch(() => ({ error: 'Request failed' }));
-          setState((s) => ({ ...s, phase: 'error', error: err.error ?? 'Request failed' }));
+          const err = await response
+            .json()
+            .catch(() => ({ error: 'Request failed' }));
+          setState((s) => ({
+            ...s,
+            phase: 'error',
+            error: err.error ?? 'Request failed',
+          }));
           return;
         }
 
         if (!response.body) {
-          setState((s) => ({ ...s, phase: 'error', error: 'No response body' }));
+          setState((s) => ({
+            ...s,
+            phase: 'error',
+            error: 'No response body',
+          }));
           return;
         }
 

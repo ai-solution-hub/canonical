@@ -9,13 +9,32 @@ import { render, screen } from '@testing-library/react';
 vi.mock('@/contexts/layer-vocabulary-context', () => ({
   useLayerVocabulary: () => ({
     layers: [
-      { id: '1', key: 'sales_brief', label: 'Sales Brief', description: null, display_order: 1, is_active: true },
-      { id: '2', key: 'bid_detail', label: 'Bid Detail', description: null, display_order: 2, is_active: true },
+      {
+        id: '1',
+        key: 'sales_brief',
+        label: 'Sales Brief',
+        description: null,
+        display_order: 1,
+        is_active: true,
+      },
+      {
+        id: '2',
+        key: 'bid_detail',
+        label: 'Bid Detail',
+        description: null,
+        display_order: 2,
+        is_active: true,
+      },
     ],
     loading: false,
     error: null,
     getLayerKeys: () => ['sales_brief', 'bid_detail'],
-    getLayerLabel: (key: string) => (key === 'sales_brief' ? 'Sales Brief' : key === 'bid_detail' ? 'Bid Detail' : key),
+    getLayerLabel: (key: string) =>
+      key === 'sales_brief'
+        ? 'Sales Brief'
+        : key === 'bid_detail'
+          ? 'Bid Detail'
+          : key,
     getLayerDescription: () => null,
     refresh: vi.fn(),
   }),
@@ -57,10 +76,7 @@ describe('IngestionSuccessCard', () => {
 
   it('shows domain badge when provided', () => {
     render(
-      <IngestionSuccessCard
-        {...defaultProps}
-        domain="Security & Resilience"
-      />,
+      <IngestionSuccessCard {...defaultProps} domain="Security & Resilience" />,
     );
 
     expect(screen.getByText('Security & Resilience')).toBeInTheDocument();

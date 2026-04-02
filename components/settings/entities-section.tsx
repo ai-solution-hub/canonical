@@ -42,8 +42,8 @@ export function EntitiesSection() {
           </TooltipProvider>
         </h2>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          Companies, certifications, frameworks, and people mentioned across your
-          knowledge base.
+          Companies, certifications, frameworks, and people mentioned across
+          your knowledge base.
         </p>
       </div>
       <EntityList />

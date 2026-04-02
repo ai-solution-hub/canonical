@@ -17,7 +17,8 @@ const { mockToast, mockValidateEditableField } = vi.hoisted(() => ({
 
 vi.mock('sonner', () => ({ toast: mockToast }));
 vi.mock('@/lib/validation', () => ({
-  validateEditableField: (...args: unknown[]) => mockValidateEditableField(...args),
+  validateEditableField: (...args: unknown[]) =>
+    mockValidateEditableField(...args),
 }));
 
 let mockFetch: ReturnType<typeof vi.fn>;
@@ -29,9 +30,11 @@ import { useInlineFieldEdit } from '@/hooks/use-inline-field-edit';
 // ---------------------------------------------------------------------------
 
 describe('useInlineFieldEdit', () => {
-  const onItemUpdate = vi.fn((updater: (prev: Record<string, unknown>) => Record<string, unknown>) => {
-    return updater({ suggested_title: 'Old Title' });
-  });
+  const onItemUpdate = vi.fn(
+    (updater: (prev: Record<string, unknown>) => Record<string, unknown>) => {
+      return updater({ suggested_title: 'Old Title' });
+    },
+  );
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -52,8 +55,9 @@ describe('useInlineFieldEdit', () => {
   // -------------------------------------------------------------------------
 
   it('starts editing a field with current value', () => {
-    const { result } = renderHook(() =>
-      useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }), {
+    const { result } = renderHook(
+      () => useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }),
+      {
         wrapper: createQueryWrapper().Wrapper,
       },
     );
@@ -67,8 +71,9 @@ describe('useInlineFieldEdit', () => {
   });
 
   it('converts null to empty string when starting edit', () => {
-    const { result } = renderHook(() =>
-      useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }), {
+    const { result } = renderHook(
+      () => useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }),
+      {
         wrapper: createQueryWrapper().Wrapper,
       },
     );
@@ -81,8 +86,9 @@ describe('useInlineFieldEdit', () => {
   });
 
   it('cancels editing and resets state', () => {
-    const { result } = renderHook(() =>
-      useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }), {
+    const { result } = renderHook(
+      () => useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }),
+      {
         wrapper: createQueryWrapper().Wrapper,
       },
     );
@@ -103,8 +109,9 @@ describe('useInlineFieldEdit', () => {
   // -------------------------------------------------------------------------
 
   it('saves edit with optimistic update and calls fetch', async () => {
-    const { result } = renderHook(() =>
-      useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }), {
+    const { result } = renderHook(
+      () => useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }),
+      {
         wrapper: createQueryWrapper().Wrapper,
       },
     );
@@ -133,8 +140,9 @@ describe('useInlineFieldEdit', () => {
   it('rejects save for non-editable fields', async () => {
     mockValidateEditableField.mockReturnValue(false);
 
-    const { result } = renderHook(() =>
-      useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }), {
+    const { result } = renderHook(
+      () => useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }),
+      {
         wrapper: createQueryWrapper().Wrapper,
       },
     );
@@ -157,8 +165,9 @@ describe('useInlineFieldEdit', () => {
       json: async () => ({ error: 'Update failed' }),
     });
 
-    const { result } = renderHook(() =>
-      useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }), {
+    const { result } = renderHook(
+      () => useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }),
+      {
         wrapper: createQueryWrapper().Wrapper,
       },
     );
@@ -169,7 +178,9 @@ describe('useInlineFieldEdit', () => {
 
     // onItemUpdate called twice: optimistic + rollback
     expect(onItemUpdate).toHaveBeenCalledTimes(2);
-    expect(mockToast.error).toHaveBeenCalledWith('Failed to save — please try again');
+    expect(mockToast.error).toHaveBeenCalledWith(
+      'Failed to save — please try again',
+    );
     expect(result.current.saveAnnouncement).toBe('Save failed');
   });
 
@@ -178,8 +189,9 @@ describe('useInlineFieldEdit', () => {
   // -------------------------------------------------------------------------
 
   it('allows setting edit value directly', () => {
-    const { result } = renderHook(() =>
-      useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }), {
+    const { result } = renderHook(
+      () => useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }),
+      {
         wrapper: createQueryWrapper().Wrapper,
       },
     );

@@ -7,7 +7,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
   createServiceClient: vi.fn(() => ({
-    auth: { admin: { getUserById: vi.fn().mockResolvedValue({ data: { user: null }, error: null }) } },
+    auth: {
+      admin: {
+        getUserById: vi
+          .fn()
+          .mockResolvedValue({ data: { user: null }, error: null }),
+      },
+    },
   })),
 }));
 
@@ -60,7 +66,13 @@ describe('fetchReorientData quality flag query alignment', () => {
         rpcCalls.push(name);
         return {
           then: (resolve: (v: unknown) => void) => {
-            const result = { data: name === 'get_items_with_quality_flags' ? ['uuid-1', 'uuid-2'] : [], error: null };
+            const result = {
+              data:
+                name === 'get_items_with_quality_flags'
+                  ? ['uuid-1', 'uuid-2']
+                  : [],
+              error: null,
+            };
             resolve(result);
             return Promise.resolve(result);
           },
@@ -68,7 +80,9 @@ describe('fetchReorientData quality flag query alignment', () => {
       }),
       auth: {
         getUser: vi.fn().mockResolvedValue({
-          data: { user: { id: 'user-1', email: 'test@test.com', user_metadata: {} } },
+          data: {
+            user: { id: 'user-1', email: 'test@test.com', user_metadata: {} },
+          },
           error: null,
         }),
       },
@@ -116,7 +130,9 @@ describe('fetchReorientData quality flag query alignment', () => {
       }),
       auth: {
         getUser: vi.fn().mockResolvedValue({
-          data: { user: { id: 'user-1', email: 'test@test.com', user_metadata: {} } },
+          data: {
+            user: { id: 'user-1', email: 'test@test.com', user_metadata: {} },
+          },
           error: null,
         }),
       },
@@ -175,7 +191,9 @@ describe('fetchReorientData quality flag query alignment', () => {
       }),
       auth: {
         getUser: vi.fn().mockResolvedValue({
-          data: { user: { id: 'user-1', email: 'test@test.com', user_metadata: {} } },
+          data: {
+            user: { id: 'user-1', email: 'test@test.com', user_metadata: {} },
+          },
           error: null,
         }),
       },

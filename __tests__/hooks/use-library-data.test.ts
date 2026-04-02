@@ -141,8 +141,7 @@ describe('useLibraryData', () => {
 
   it('applies domain filter to query', async () => {
     mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const filters: LibraryFilters = {
@@ -186,8 +185,7 @@ describe('useLibraryData', () => {
 
   it('exposes refetch function', async () => {
     mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const { result } = renderHook(() => useLibraryData(DEFAULT_FILTERS), {

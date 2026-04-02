@@ -32,7 +32,11 @@ export async function GET(
     if (!auth.success) return authFailureResponse(auth);
     const { user, supabase } = auth;
 
-    const { allowed } = checkRateLimit(`entities:detail:${user.id}`, 30, 60_000);
+    const { allowed } = checkRateLimit(
+      `entities:detail:${user.id}`,
+      30,
+      60_000,
+    );
     if (!allowed) return rateLimitResponse();
 
     const { canonical_name } = await params;
@@ -41,21 +45,25 @@ export async function GET(
     // ── Fetch all mentions for this canonical name ────────────────────
     const { data: mentions, error: mentionsError } = await supabase
       .from('entity_mentions')
-      .select('entity_type, entity_type_override, entity_name, content_item_id, confidence, context_snippet, metadata')
+      .select(
+        'entity_type, entity_type_override, entity_name, content_item_id, confidence, context_snippet, metadata',
+      )
       .eq('canonical_name', decodedName);
 
     if (mentionsError) {
       return NextResponse.json(
-        { error: safeErrorMessage(mentionsError, 'Failed to fetch entity detail') },
+        {
+          error: safeErrorMessage(
+            mentionsError,
+            'Failed to fetch entity detail',
+          ),
+        },
         { status: 500 },
       );
     }
 
     if (!mentions || mentions.length === 0) {
-      return NextResponse.json(
-        { error: 'Entity not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Entity not found' }, { status: 404 });
     }
 
     // ── Aggregate mention data ───────────────────────────────────────
@@ -63,7 +71,8 @@ export async function GET(
     const contentItemIds = new Set<string>();
     const typesSeen = new Set<string>();
     let entityType = mentions[0].entity_type;
-    let effectiveType = mentions[0].entity_type_override ?? mentions[0].entity_type;
+    let effectiveType =
+      mentions[0].entity_type_override ?? mentions[0].entity_type;
     let entityMetadata: Record<string, unknown> | undefined;
 
     for (const m of mentions) {
@@ -88,7 +97,11 @@ export async function GET(
 
     // ── Fetch content item details ───────────────────────────────────
     const itemIds = Array.from(contentItemIds);
-    let contentItems: { id: string; title: string; content_type: string | null }[] = [];
+    let contentItems: {
+      id: string;
+      title: string;
+      content_type: string | null;
+    }[] = [];
 
     if (itemIds.length > 0) {
       const { data: items, error: itemsError } = await supabase
@@ -113,14 +126,15 @@ export async function GET(
       .select('source_entity, relationship_type, target_entity, confidence')
       .or(`source_entity.eq."${escaped}",target_entity.eq."${escaped}"`);
 
-    const relationships = (!relError && relRows)
-      ? relRows.map((r) => ({
-          source_entity: r.source_entity,
-          relationship_type: r.relationship_type,
-          target_entity: r.target_entity,
-          confidence: Number(r.confidence),
-        }))
-      : [];
+    const relationships =
+      !relError && relRows
+        ? relRows.map((r) => ({
+            source_entity: r.source_entity,
+            relationship_type: r.relationship_type,
+            target_entity: r.target_entity,
+            confidence: Number(r.confidence),
+          }))
+        : [];
 
     return NextResponse.json({
       canonical_name: decodedName,

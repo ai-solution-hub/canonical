@@ -29,7 +29,9 @@ interface ContentLibraryDrawerProps {
   onOpenChange: (open: boolean) => void;
   questionText?: string;
   /** Callback when user clicks "Insert" on a result. Null if no editor available. */
-  onInsert?: ((html: string, sourceId: string, sourceTitle: string) => void) | null;
+  onInsert?:
+    | ((html: string, sourceId: string, sourceTitle: string) => void)
+    | null;
 }
 
 type ContentTypeFilter = 'all' | 'q_a_pair';
@@ -127,7 +129,8 @@ export function ContentLibraryDrawer({
   const filteredResults = useMemo(() => {
     return results.filter((r) => {
       if (typeFilter !== 'all' && r.content_type !== typeFilter) return false;
-      if (domainFilter !== 'all' && r.primary_domain !== domainFilter) return false;
+      if (domainFilter !== 'all' && r.primary_domain !== domainFilter)
+        return false;
       return true;
     });
   }, [results, typeFilter, domainFilter]);
@@ -140,9 +143,12 @@ export function ContentLibraryDrawer({
     const ungrouped: SearchResult[] = [];
 
     for (const result of filteredResults) {
-      const sourceDoc = result.source_file
-        ?? (result.metadata as Record<string, unknown> | null)?.source_file as string | undefined
-        ?? result.source_document;
+      const sourceDoc =
+        result.source_file ??
+        ((result.metadata as Record<string, unknown> | null)?.source_file as
+          | string
+          | undefined) ??
+        result.source_document;
       if (sourceDoc) {
         const existing = groups.get(sourceDoc) ?? [];
         existing.push(result);
@@ -172,13 +178,17 @@ export function ContentLibraryDrawer({
         <SheetHeader className="space-y-0 pb-3">
           <SheetTitle className="text-base">Content Library</SheetTitle>
           <SheetDescription className="sr-only">
-            Search and browse the knowledge base to find answers, policies, and reference material.
+            Search and browse the knowledge base to find answers, policies, and
+            reference material.
           </SheetDescription>
         </SheetHeader>
 
         {/* Search bar */}
         <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" aria-hidden="true" />
+          <Search
+            className="absolute left-2.5 top-2.5 size-4 text-muted-foreground"
+            aria-hidden="true"
+          />
           <Input
             ref={inputRef}
             value={query}
@@ -245,7 +255,8 @@ export function ContentLibraryDrawer({
           )}
           {hasSearched && !isLoading && (
             <span className="ml-auto text-xs text-muted-foreground">
-              {filteredResults.length} result{filteredResults.length !== 1 ? 's' : ''}
+              {filteredResults.length} result
+              {filteredResults.length !== 1 ? 's' : ''}
             </span>
           )}
         </div>
@@ -272,7 +283,10 @@ export function ContentLibraryDrawer({
           {/* Error */}
           {error && !isLoading && (
             <div className="flex flex-col items-center rounded-lg border border-dashed border-border py-8 text-center">
-              <Search className="size-6 text-muted-foreground/50" aria-hidden="true" />
+              <Search
+                className="size-6 text-muted-foreground/50"
+                aria-hidden="true"
+              />
               <p className="mt-2 text-sm text-muted-foreground">{error}</p>
               <Button
                 variant="outline"
@@ -288,60 +302,73 @@ export function ContentLibraryDrawer({
           {/* Empty — no search yet */}
           {!hasSearched && !isLoading && !error && (
             <div className="flex flex-col items-center py-12 text-center">
-              <Search className="size-8 text-muted-foreground/30" aria-hidden="true" />
+              <Search
+                className="size-8 text-muted-foreground/30"
+                aria-hidden="true"
+              />
               <p className="mt-3 text-sm text-muted-foreground">
-                Search the content library to find answers, policies, and reference material.
+                Search the content library to find answers, policies, and
+                reference material.
               </p>
               <p className="mt-1 text-xs text-muted-foreground/70">
-                Shortcut: <kbd className="rounded border border-border bg-muted px-1 font-mono text-[10px]">{shortcutLabel}</kbd>
+                Shortcut:{' '}
+                <kbd className="rounded border border-border bg-muted px-1 font-mono text-[10px]">
+                  {shortcutLabel}
+                </kbd>
               </p>
             </div>
           )}
 
           {/* Empty — no results */}
-          {hasSearched && !isLoading && !error && filteredResults.length === 0 && (
-            <div className="flex flex-col items-center py-12 text-center">
-              <p className="text-sm text-muted-foreground">
-                No results for &ldquo;{query.slice(0, 60)}{query.length > 60 ? '...' : ''}&rdquo;
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground/70">
-                Try different search terms or broaden your filters.
-              </p>
-              {typeFilter !== 'all' && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setTypeFilter('all')}
-                  className="mt-2"
-                >
-                  Show all types
-                </Button>
-              )}
-            </div>
-          )}
+          {hasSearched &&
+            !isLoading &&
+            !error &&
+            filteredResults.length === 0 && (
+              <div className="flex flex-col items-center py-12 text-center">
+                <p className="text-sm text-muted-foreground">
+                  No results for &ldquo;{query.slice(0, 60)}
+                  {query.length > 60 ? '...' : ''}&rdquo;
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground/70">
+                  Try different search terms or broaden your filters.
+                </p>
+                {typeFilter !== 'all' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setTypeFilter('all')}
+                    className="mt-2"
+                  >
+                    Show all types
+                  </Button>
+                )}
+              </div>
+            )}
 
           {/* Results — grouped (Q&A filter active) */}
           {hasSearched && !isLoading && !error && groupedResults && (
             <div className="space-y-4">
-              {Array.from(groupedResults.groups.entries()).map(([sourceDoc, items]) => (
-                <div key={sourceDoc}>
-                  <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                    <span className="h-px flex-1 bg-border" />
-                    From: {sourceDoc}
-                    <span className="h-px flex-1 bg-border" />
-                  </p>
-                  <div className="space-y-2">
-                    {items.map((result) => (
-                      <ContentLibraryResult
-                        key={result.id}
-                        result={result}
-                        onCopy={handleCopy}
-                        onInsert={onInsert}
-                      />
-                    ))}
+              {Array.from(groupedResults.groups.entries()).map(
+                ([sourceDoc, items]) => (
+                  <div key={sourceDoc}>
+                    <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                      <span className="h-px flex-1 bg-border" />
+                      From: {sourceDoc}
+                      <span className="h-px flex-1 bg-border" />
+                    </p>
+                    <div className="space-y-2">
+                      {items.map((result) => (
+                        <ContentLibraryResult
+                          key={result.id}
+                          result={result}
+                          onCopy={handleCopy}
+                          onInsert={onInsert}
+                        />
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ),
+              )}
               {groupedResults.ungrouped.length > 0 && (
                 <div className="space-y-2">
                   {groupedResults.ungrouped.map((result) => (
@@ -358,26 +385,30 @@ export function ContentLibraryDrawer({
           )}
 
           {/* Results — flat (all types filter) */}
-          {hasSearched && !isLoading && !error && !groupedResults && filteredResults.length > 0 && (
-            <div className="space-y-2">
-              {/* Contextual suggestions header */}
-              {questionText && query === questionText && (
-                <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                  <span className="h-px flex-1 bg-border" />
-                  Suggested for this question
-                  <span className="h-px flex-1 bg-border" />
-                </p>
-              )}
-              {filteredResults.map((result) => (
-                <ContentLibraryResult
-                  key={result.id}
-                  result={result}
-                  onCopy={handleCopy}
-                  onInsert={onInsert}
-                />
-              ))}
-            </div>
-          )}
+          {hasSearched &&
+            !isLoading &&
+            !error &&
+            !groupedResults &&
+            filteredResults.length > 0 && (
+              <div className="space-y-2">
+                {/* Contextual suggestions header */}
+                {questionText && query === questionText && (
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <span className="h-px flex-1 bg-border" />
+                    Suggested for this question
+                    <span className="h-px flex-1 bg-border" />
+                  </p>
+                )}
+                {filteredResults.map((result) => (
+                  <ContentLibraryResult
+                    key={result.id}
+                    result={result}
+                    onCopy={handleCopy}
+                    onInsert={onInsert}
+                  />
+                ))}
+              </div>
+            )}
         </div>
       </SheetContent>
     </Sheet>

@@ -29,7 +29,10 @@ export async function GET(
     }
 
     // Validate and extract the storage path from query params
-    const parsed = parseSearchParams(TenderDownloadParamsSchema, request.nextUrl.searchParams);
+    const parsed = parseSearchParams(
+      TenderDownloadParamsSchema,
+      request.nextUrl.searchParams,
+    );
     if (!parsed.success) return parsed.response;
     const storagePath = parsed.data.path;
 
@@ -50,10 +53,7 @@ export async function GET(
       .single();
 
     if (bidError || !bid) {
-      return NextResponse.json(
-        { error: 'Bid not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
     }
 
     // Generate signed URL (5-minute expiry) using service client
@@ -63,7 +63,10 @@ export async function GET(
       .createSignedUrl(storagePath, 300);
 
     if (signError || !signedUrl?.signedUrl) {
-      console.error('Failed to create signed URL for tender document:', signError);
+      console.error(
+        'Failed to create signed URL for tender document:',
+        signError,
+      );
       return NextResponse.json(
         { error: 'Failed to generate download link' },
         { status: 500 },

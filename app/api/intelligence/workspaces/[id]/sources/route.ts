@@ -8,10 +8,7 @@ import { FeedSourceCreateSchema } from '@/lib/validation/schemas';
 type RouteContext = { params: Promise<{ id: string }> };
 
 /** GET /api/intelligence/workspaces/:id/sources — list feed sources for workspace */
-export async function GET(
-  _request: NextRequest,
-  context: RouteContext,
-) {
+export async function GET(_request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
     const auth = await getAuthorisedClient(['admin', 'editor']);
@@ -41,10 +38,7 @@ export async function GET(
 }
 
 /** POST /api/intelligence/workspaces/:id/sources — create a feed source */
-export async function POST(
-  request: NextRequest,
-  context: RouteContext,
-) {
+export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
     const auth = await getAuthorisedClient(['admin', 'editor']);

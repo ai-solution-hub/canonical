@@ -26,7 +26,10 @@ export function BreadcrumbNav({
     <nav aria-label="Breadcrumb" className={className}>
       <ol className="flex items-center gap-1 text-xs text-muted-foreground">
         <li>
-          <Link href="/browse" className="hover:text-foreground transition-colours">
+          <Link
+            href="/browse"
+            className="hover:text-foreground transition-colours"
+          >
             Browse
           </Link>
         </li>

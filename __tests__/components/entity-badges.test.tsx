@@ -67,9 +67,7 @@ describe('EntityBadges', () => {
   it('renders empty state when no entities are found', async () => {
     configureFetchResult([]);
 
-    render(
-      <EntityBadges contentItemId="item-1" />,
-    );
+    render(<EntityBadges contentItemId="item-1" />);
 
     // Wait for the fetch to complete
     await waitFor(() => {
@@ -77,15 +75,34 @@ describe('EntityBadges', () => {
     });
 
     // Should render the empty state with consistent pattern
-    expect(screen.getByText('No entities detected in this content.')).toBeInTheDocument();
-    expect(screen.getByLabelText('Entities mentioned in this content')).toBeInTheDocument();
+    expect(
+      screen.getByText('No entities detected in this content.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Entities mentioned in this content'),
+    ).toBeInTheDocument();
   });
 
   it('renders entity badges grouped by type when data is returned', async () => {
     configureFetchResult([
-      { id: 'e1', entity_type: 'organisation', canonical_name: 'Acme Corp', confidence: 0.9 },
-      { id: 'e2', entity_type: 'organisation', canonical_name: 'Widget Ltd', confidence: 0.8 },
-      { id: 'e3', entity_type: 'certification', canonical_name: 'ISO 27001', confidence: 0.95 },
+      {
+        id: 'e1',
+        entity_type: 'organisation',
+        canonical_name: 'Acme Corp',
+        confidence: 0.9,
+      },
+      {
+        id: 'e2',
+        entity_type: 'organisation',
+        canonical_name: 'Widget Ltd',
+        confidence: 0.8,
+      },
+      {
+        id: 'e3',
+        entity_type: 'certification',
+        canonical_name: 'ISO 27001',
+        confidence: 0.95,
+      },
     ]);
 
     render(<EntityBadges contentItemId="item-1" />);
@@ -106,7 +123,12 @@ describe('EntityBadges', () => {
 
   it('renders the section with correct aria-label', async () => {
     configureFetchResult([
-      { id: 'e1', entity_type: 'technology', canonical_name: 'React', confidence: 0.9 },
+      {
+        id: 'e1',
+        entity_type: 'technology',
+        canonical_name: 'React',
+        confidence: 0.9,
+      },
     ]);
 
     render(<EntityBadges contentItemId="item-1" />);
@@ -121,7 +143,12 @@ describe('EntityBadges', () => {
 
   it('renders the "Entities" heading', async () => {
     configureFetchResult([
-      { id: 'e1', entity_type: 'location', canonical_name: 'London', confidence: 0.85 },
+      {
+        id: 'e1',
+        entity_type: 'location',
+        canonical_name: 'London',
+        confidence: 0.85,
+      },
     ]);
 
     render(<EntityBadges contentItemId="item-1" />);
@@ -133,9 +160,24 @@ describe('EntityBadges', () => {
 
   it('deduplicates entities with the same type and canonical_name', async () => {
     configureFetchResult([
-      { id: 'e1', entity_type: 'standard', canonical_name: 'ISO 27001', confidence: 0.9 },
-      { id: 'e2', entity_type: 'standard', canonical_name: 'ISO 27001', confidence: 0.85 },
-      { id: 'e3', entity_type: 'standard', canonical_name: 'ISO 9001', confidence: 0.8 },
+      {
+        id: 'e1',
+        entity_type: 'standard',
+        canonical_name: 'ISO 27001',
+        confidence: 0.9,
+      },
+      {
+        id: 'e2',
+        entity_type: 'standard',
+        canonical_name: 'ISO 27001',
+        confidence: 0.85,
+      },
+      {
+        id: 'e3',
+        entity_type: 'standard',
+        canonical_name: 'ISO 9001',
+        confidence: 0.8,
+      },
     ]);
 
     render(<EntityBadges contentItemId="item-1" />);
@@ -151,10 +193,30 @@ describe('EntityBadges', () => {
 
   it('renders correct type labels for all known entity types', async () => {
     configureFetchResult([
-      { id: 'e1', entity_type: 'person', canonical_name: 'Jane Doe', confidence: 0.9 },
-      { id: 'e2', entity_type: 'regulation', canonical_name: 'GDPR', confidence: 0.95 },
-      { id: 'e3', entity_type: 'technology', canonical_name: 'Python', confidence: 0.85 },
-      { id: 'e4', entity_type: 'methodology', canonical_name: 'Agile', confidence: 0.8 },
+      {
+        id: 'e1',
+        entity_type: 'person',
+        canonical_name: 'Jane Doe',
+        confidence: 0.9,
+      },
+      {
+        id: 'e2',
+        entity_type: 'regulation',
+        canonical_name: 'GDPR',
+        confidence: 0.95,
+      },
+      {
+        id: 'e3',
+        entity_type: 'technology',
+        canonical_name: 'Python',
+        confidence: 0.85,
+      },
+      {
+        id: 'e4',
+        entity_type: 'methodology',
+        canonical_name: 'Agile',
+        confidence: 0.8,
+      },
     ]);
 
     render(<EntityBadges contentItemId="item-1" />);
@@ -170,7 +232,12 @@ describe('EntityBadges', () => {
 
   it('handles unknown entity types with capitalised fallback label', async () => {
     configureFetchResult([
-      { id: 'e1', entity_type: 'widget', canonical_name: 'Test Widget', confidence: 0.7 },
+      {
+        id: 'e1',
+        entity_type: 'widget',
+        canonical_name: 'Test Widget',
+        confidence: 0.7,
+      },
     ]);
 
     render(<EntityBadges contentItemId="item-1" />);
@@ -188,9 +255,7 @@ describe('EntityBadges', () => {
     const fetchError = { message: 'Database error', code: '500' };
     configureFetchResult(null, fetchError);
 
-    render(
-      <EntityBadges contentItemId="item-1" />,
-    );
+    render(<EntityBadges contentItemId="item-1" />);
 
     await waitFor(() => {
       expect(consoleSpy).toHaveBeenCalledWith(
@@ -200,7 +265,9 @@ describe('EntityBadges', () => {
     });
 
     // Should render empty state on error (entities remains empty)
-    expect(screen.getByText('No entities detected in this content.')).toBeInTheDocument();
+    expect(
+      screen.getByText('No entities detected in this content.'),
+    ).toBeInTheDocument();
     consoleSpy.mockRestore();
   });
 
@@ -216,14 +283,22 @@ describe('EntityBadges', () => {
     expect(mockChain.select).toHaveBeenCalledWith(
       'id, entity_type, canonical_name, confidence',
     );
-    expect(mockChain.eq).toHaveBeenCalledWith('content_item_id', 'item-abc-123');
+    expect(mockChain.eq).toHaveBeenCalledWith(
+      'content_item_id',
+      'item-abc-123',
+    );
     expect(mockChain.order).toHaveBeenCalledWith('entity_type');
     expect(mockChain.order).toHaveBeenCalledWith('canonical_name');
   });
 
   it('passes className prop to the section element', async () => {
     configureFetchResult([
-      { id: 'e1', entity_type: 'location', canonical_name: 'Birmingham', confidence: 0.8 },
+      {
+        id: 'e1',
+        entity_type: 'location',
+        canonical_name: 'Birmingham',
+        confidence: 0.8,
+      },
     ]);
 
     render(<EntityBadges contentItemId="item-1" className="mt-4 border-t" />);
@@ -238,9 +313,24 @@ describe('EntityBadges', () => {
 
   it('sorts entity type groups alphabetically by label', async () => {
     configureFetchResult([
-      { id: 'e1', entity_type: 'technology', canonical_name: 'React', confidence: 0.9 },
-      { id: 'e2', entity_type: 'certification', canonical_name: 'ISO 27001', confidence: 0.95 },
-      { id: 'e3', entity_type: 'organisation', canonical_name: 'Acme', confidence: 0.8 },
+      {
+        id: 'e1',
+        entity_type: 'technology',
+        canonical_name: 'React',
+        confidence: 0.9,
+      },
+      {
+        id: 'e2',
+        entity_type: 'certification',
+        canonical_name: 'ISO 27001',
+        confidence: 0.95,
+      },
+      {
+        id: 'e3',
+        entity_type: 'organisation',
+        canonical_name: 'Acme',
+        confidence: 0.8,
+      },
     ]);
 
     render(<EntityBadges contentItemId="item-1" />);
@@ -252,6 +342,10 @@ describe('EntityBadges', () => {
     // Verify ordering: Certifications < Organisations < Technologies
     const labels = screen.getAllByText(/:$/);
     const labelTexts = labels.map((el) => el.textContent);
-    expect(labelTexts).toEqual(['Certifications:', 'Organisations:', 'Technologies:']);
+    expect(labelTexts).toEqual([
+      'Certifications:',
+      'Organisations:',
+      'Technologies:',
+    ]);
   });
 });

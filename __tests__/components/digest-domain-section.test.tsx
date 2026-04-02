@@ -28,7 +28,8 @@ vi.mock('@/lib/format', () => ({
 }));
 
 vi.mock('@/lib/utils', () => ({
-  cn: (...args: (string | undefined | null | false)[]) => args.filter(Boolean).join(' '),
+  cn: (...args: (string | undefined | null | false)[]) =>
+    args.filter(Boolean).join(' '),
 }));
 
 vi.mock('@/components/shared/domain-badge', () => ({
@@ -42,8 +43,16 @@ vi.mock('@/components/shared/content-type-icon', () => ({
 }));
 
 vi.mock('@/components/ui/badge', () => ({
-  Badge: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) => (
-    <span data-testid="badge" {...props}>{children}</span>
+  Badge: ({
+    children,
+    ...props
+  }: {
+    children: React.ReactNode;
+    [key: string]: unknown;
+  }) => (
+    <span data-testid="badge" {...props}>
+      {children}
+    </span>
   ),
 }));
 
@@ -55,7 +64,9 @@ import type { DigestDomainSummary } from '@/types/digest';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeDomainSummary(overrides: Partial<DigestDomainSummary> = {}): DigestDomainSummary {
+function makeDomainSummary(
+  overrides: Partial<DigestDomainSummary> = {},
+): DigestDomainSummary {
   return {
     domain: 'Corporate',
     item_count: 3,
@@ -86,7 +97,11 @@ describe('DigestDomainSection', () => {
   });
 
   it('renders singular "item" for count of 1', () => {
-    render(<DigestDomainSection domainSummary={makeDomainSummary({ item_count: 1 })} />);
+    render(
+      <DigestDomainSection
+        domainSummary={makeDomainSummary({ item_count: 1 })}
+      />,
+    );
 
     expect(screen.getByText('1 item')).toBeInTheDocument();
   });
@@ -94,7 +109,9 @@ describe('DigestDomainSection', () => {
   it('renders summary text', () => {
     render(<DigestDomainSection domainSummary={makeDomainSummary()} />);
 
-    expect(screen.getByText('Corporate domain summary text.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Corporate domain summary text.'),
+    ).toBeInTheDocument();
   });
 
   it('renders key theme badges', () => {
@@ -117,7 +134,9 @@ describe('DigestDomainSection', () => {
   it('renders "Review these items" link pointing to review page with domain filter', () => {
     render(<DigestDomainSection domainSummary={makeDomainSummary()} />);
 
-    const reviewLink = screen.getByRole('link', { name: /Review these items/i });
+    const reviewLink = screen.getByRole('link', {
+      name: /Review these items/i,
+    });
     expect(reviewLink).toBeInTheDocument();
     expect(reviewLink).toHaveAttribute('href', '/review?domain=Corporate');
   });
@@ -129,8 +148,13 @@ describe('DigestDomainSection', () => {
       />,
     );
 
-    const reviewLink = screen.getByRole('link', { name: /Review these items/i });
-    expect(reviewLink).toHaveAttribute('href', '/review?domain=Health%20%26%20Safety');
+    const reviewLink = screen.getByRole('link', {
+      name: /Review these items/i,
+    });
+    expect(reviewLink).toHaveAttribute(
+      'href',
+      '/review?domain=Health%20%26%20Safety',
+    );
   });
 
   it('renders review link even with no top items', () => {
@@ -140,7 +164,9 @@ describe('DigestDomainSection', () => {
       />,
     );
 
-    const reviewLink = screen.getByRole('link', { name: /Review these items/i });
+    const reviewLink = screen.getByRole('link', {
+      name: /Review these items/i,
+    });
     expect(reviewLink).toBeInTheDocument();
   });
 
@@ -171,6 +197,8 @@ describe('DigestDomainSection', () => {
       />,
     );
 
-    expect(screen.getByText('This is particularly relevant')).toBeInTheDocument();
+    expect(
+      screen.getByText('This is particularly relevant'),
+    ).toBeInTheDocument();
   });
 });

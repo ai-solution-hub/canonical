@@ -85,11 +85,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('next/link', () => ({
-  default: ({
-    children,
-    href,
-    ...props
-  }: Record<string, unknown>) => (
+  default: ({ children, href, ...props }: Record<string, unknown>) => (
     <a href={href as string} {...props}>
       {children as React.ReactNode}
     </a>
@@ -176,19 +172,13 @@ vi.mock('@/components/bid/bid-outcome', () => ({
 
 vi.mock('@/components/bid/kb-integration-review', () => ({
   KBIntegrationReview: ({ open }: { open: boolean }) =>
-    open ? (
-      <div data-testid="kb-integration-review">KB Review</div>
-    ) : null,
+    open ? <div data-testid="kb-integration-review">KB Review</div> : null,
 }));
 
 vi.mock('@/components/shared/confidence-badge', () => ({
-  ConfidenceDot: ({
-    posture,
-    count,
-  }: {
-    posture: string;
-    count: number;
-  }) => <span data-testid={`confidence-dot-${posture}`}>{count}</span>,
+  ConfidenceDot: ({ posture, count }: { posture: string; count: number }) => (
+    <span data-testid={`confidence-dot-${posture}`}>{count}</span>
+  ),
 }));
 
 vi.mock('@/components/bid/question-list', () => ({
@@ -196,9 +186,7 @@ vi.mock('@/components/bid/question-list', () => ({
 }));
 
 vi.mock('@/components/bid/question-review', () => ({
-  QuestionReview: () => (
-    <div data-testid="question-review">QuestionReview</div>
-  ),
+  QuestionReview: () => <div data-testid="question-review">QuestionReview</div>,
 }));
 
 vi.mock('@/components/bid/tender-upload', () => ({
@@ -223,9 +211,7 @@ function renderWithQuery(ui: React.ReactElement) {
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
-    <QueryClientProvider client={queryClient}>
-      {ui}
-    </QueryClientProvider>,
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
   );
 }
 
@@ -360,10 +346,19 @@ function findActionDivs(container: HTMLElement) {
 
   allDivs.forEach((div) => {
     const cls = div.className;
-    if (cls.includes('sm:flex') && cls.includes('hidden') && cls.includes('gap-2')) {
+    if (
+      cls.includes('sm:flex') &&
+      cls.includes('hidden') &&
+      cls.includes('gap-2')
+    ) {
       desktopDiv = div;
     }
-    if (cls.includes('sm:hidden') && cls.includes('flex') && cls.includes('gap-2') && !cls.includes('sm:flex')) {
+    if (
+      cls.includes('sm:hidden') &&
+      cls.includes('flex') &&
+      cls.includes('gap-2') &&
+      !cls.includes('sm:flex')
+    ) {
       mobileDiv = div;
     }
   });
@@ -384,7 +379,10 @@ function findActionDivs(container: HTMLElement) {
  */
 function getDropdownContent(): HTMLElement {
   const el = document.querySelector('[data-slot="dropdown-menu-content"]');
-  if (!el) throw new Error('Dropdown content not found — was the Actions button clicked?');
+  if (!el)
+    throw new Error(
+      'Dropdown content not found — was the Actions button clicked?',
+    );
   return el as HTMLElement;
 }
 
@@ -565,7 +563,9 @@ describe('BidDetailPage — Mobile Actions', () => {
       });
       await user.click(actionsButton);
       const dropdown = getDropdownContent();
-      expect(within(dropdown).getByText('Ready for Export')).toBeInTheDocument();
+      expect(
+        within(dropdown).getByText('Ready for Export'),
+      ).toBeInTheDocument();
       expect(within(dropdown).getByText('Drafting')).toBeInTheDocument();
     });
 
@@ -609,7 +609,9 @@ describe('BidDetailPage — Mobile Actions', () => {
       });
       await user.click(actionsButton);
       const dropdown = getDropdownContent();
-      expect(within(dropdown).getByText('Ready for Export')).toBeInTheDocument();
+      expect(
+        within(dropdown).getByText('Ready for Export'),
+      ).toBeInTheDocument();
       expect(within(dropdown).queryByText('Withdrawn')).not.toBeInTheDocument();
     });
   });
@@ -680,7 +682,9 @@ describe('BidDetailPage — Mobile Actions', () => {
       });
       await user.click(actionsButton);
       const dropdown = getDropdownContent();
-      expect(within(dropdown).queryByText('Record Outcome')).not.toBeInTheDocument();
+      expect(
+        within(dropdown).queryByText('Record Outcome'),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -725,7 +729,9 @@ describe('BidDetailPage — Mobile Actions', () => {
       });
       await user.click(actionsButton);
       const dropdown = getDropdownContent();
-      expect(within(dropdown).queryByText('Delete bid')).not.toBeInTheDocument();
+      expect(
+        within(dropdown).queryByText('Delete bid'),
+      ).not.toBeInTheDocument();
     });
 
     it('Delete bid has destructive styling', async () => {
@@ -747,7 +753,9 @@ describe('BidDetailPage — Mobile Actions', () => {
       await user.click(actionsButton);
       const dropdown = getDropdownContent();
       const deleteItem =
-        within(dropdown).getByText('Delete bid').closest('[data-slot="dropdown-menu-item"]') ??
+        within(dropdown)
+          .getByText('Delete bid')
+          .closest('[data-slot="dropdown-menu-item"]') ??
         within(dropdown).getByText('Delete bid').closest('[role="menuitem"]');
       expect(deleteItem).not.toBeNull();
       expect(deleteItem!.className).toContain('text-destructive');
@@ -824,13 +832,19 @@ describe('BidDetailPage — Mobile Actions', () => {
 
       // Radix DropdownMenuItem with disabled prop gets data-disabled attribute
       const readyItem =
-        within(dropdown).getByText('Ready for Export').closest('[data-slot="dropdown-menu-item"]') ??
-        within(dropdown).getByText('Ready for Export').closest('[role="menuitem"]');
+        within(dropdown)
+          .getByText('Ready for Export')
+          .closest('[data-slot="dropdown-menu-item"]') ??
+        within(dropdown)
+          .getByText('Ready for Export')
+          .closest('[role="menuitem"]');
       expect(readyItem).not.toBeNull();
       expect(readyItem).toHaveAttribute('data-disabled');
 
       const draftingItem =
-        within(dropdown).getByText('Drafting').closest('[data-slot="dropdown-menu-item"]') ??
+        within(dropdown)
+          .getByText('Drafting')
+          .closest('[data-slot="dropdown-menu-item"]') ??
         within(dropdown).getByText('Drafting').closest('[role="menuitem"]');
       expect(draftingItem).not.toBeNull();
       expect(draftingItem).toHaveAttribute('data-disabled');
@@ -856,7 +870,9 @@ describe('BidDetailPage — Mobile Actions', () => {
       const dropdown = getDropdownContent();
 
       const reviewItem =
-        within(dropdown).getByText('In Review').closest('[data-slot="dropdown-menu-item"]') ??
+        within(dropdown)
+          .getByText('In Review')
+          .closest('[data-slot="dropdown-menu-item"]') ??
         within(dropdown).getByText('In Review').closest('[role="menuitem"]');
       expect(reviewItem).not.toBeNull();
       expect(reviewItem).not.toHaveAttribute('data-disabled');

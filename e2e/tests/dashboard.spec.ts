@@ -51,7 +51,9 @@ test.describe('Dashboard -- hero and search', () => {
       // On mobile, the hero search bar is still visible on the dashboard.
       // Fill it directly rather than using the header search helper
       // (which tries to click a search icon button that navigates to /search).
-      const heroSearch = page.locator('section[aria-label="Search"]').getByRole('combobox', { name: /search/i });
+      const heroSearch = page
+        .locator('section[aria-label="Search"]')
+        .getByRole('combobox', { name: /search/i });
       await heroSearch.fill('IT support');
       await heroSearch.press('Enter');
     } else {
@@ -79,9 +81,9 @@ test.describe('Dashboard -- attention and bids sections', () => {
     ).toBeVisible({ timeout: 10000 });
 
     // UnifiedAttentionSection has aria-label="Items needing attention"
-    const attentionSection = page.locator(
-      'section[aria-label="Items needing attention"]',
-    ).first();
+    const attentionSection = page
+      .locator('section[aria-label="Items needing attention"]')
+      .first();
     await expect(attentionSection).toBeVisible({ timeout: 15000 });
   });
 
@@ -96,7 +98,9 @@ test.describe('Dashboard -- attention and bids sections', () => {
 
     // ActiveBidsSection has aria-label="Active bids"
     // Use .first() in case Suspense re-render creates a transient duplicate
-    const bidsSection = page.locator('section[aria-label="Active bids"]').first();
+    const bidsSection = page
+      .locator('section[aria-label="Active bids"]')
+      .first();
     await expect(bidsSection).toBeVisible({ timeout: 15000 });
 
     // Heading within the section
@@ -119,7 +123,9 @@ test.describe('Dashboard -- attention and bids sections', () => {
     await page.goto('/');
 
     // Wait for Active Bids section
-    const bidsSection = page.locator('section[aria-label="Active bids"]').first();
+    const bidsSection = page
+      .locator('section[aria-label="Active bids"]')
+      .first();
     await expect(bidsSection).toBeVisible({ timeout: 15000 });
 
     // Click the bid card link
@@ -142,7 +148,9 @@ test.describe('Dashboard -- content health stats', () => {
     await page.goto('/');
 
     // Wait for dashboard to load (Active Bids as proxy for Suspense resolution)
-    const bidsSection = page.locator('section[aria-label="Active bids"]').first();
+    const bidsSection = page
+      .locator('section[aria-label="Active bids"]')
+      .first();
     await expect(bidsSection).toBeVisible({ timeout: 15000 });
 
     // Content health section — only one QuickStatsStrip is rendered on the
@@ -165,7 +173,9 @@ test.describe('Dashboard -- content health stats', () => {
     await expect(activeBidsLabel).toBeVisible();
 
     // The value <span> is the immediately preceding sibling of the label <span>
-    const activeBidsValue = activeBidsLabel.locator('xpath=preceding-sibling::span');
+    const activeBidsValue = activeBidsLabel.locator(
+      'xpath=preceding-sibling::span',
+    );
     await expect(activeBidsValue).toBeVisible();
     const valueText = await activeBidsValue.textContent();
     expect(Number(valueText)).toBeGreaterThan(0);
@@ -215,9 +225,9 @@ test.describe('Dashboard -- compliance status', () => {
     ).toBeVisible({ timeout: 10000 });
 
     // ComplianceStatusSection has aria-label="Compliance status"
-    const complianceSection = page.locator(
-      'section[aria-label="Compliance status"]',
-    ).first();
+    const complianceSection = page
+      .locator('section[aria-label="Compliance status"]')
+      .first();
     await expect(complianceSection).toBeVisible({ timeout: 15000 });
 
     // When visible, should contain at least one sub-section
@@ -228,9 +238,9 @@ test.describe('Dashboard -- compliance status', () => {
     const frameworkSection = page.locator(
       'section[aria-label="Framework memberships"]',
     );
-    await expect(
-      certSection.or(frameworkSection).first(),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(certSection.or(frameworkSection).first()).toBeVisible({
+      timeout: 10000,
+    });
   });
 });
 
@@ -272,15 +282,13 @@ test.describe('Dashboard -- recent activity', () => {
     ).toBeVisible({ timeout: 10000 });
 
     // Recent activity section (defined in app/page.tsx with aria-label)
-    const activitySection = page.locator(
-      'section[aria-label="Recent activity"]',
-    ).first();
+    const activitySection = page
+      .locator('section[aria-label="Recent activity"]')
+      .first();
     await expect(activitySection).toBeVisible({ timeout: 15000 });
 
     // Heading text
-    await expect(
-      activitySection.getByText('Recent Activity'),
-    ).toBeVisible();
+    await expect(activitySection.getByText('Recent Activity')).toBeVisible();
   });
 });
 
@@ -329,7 +337,9 @@ test.describe('Dashboard -- mobile layout', () => {
     ).toBeVisible();
 
     // Active Bids section should be visible (stacked, not side-by-side)
-    const bidsSection = page.locator('section[aria-label="Active bids"]').first();
+    const bidsSection = page
+      .locator('section[aria-label="Active bids"]')
+      .first();
     await expect(bidsSection).toBeVisible({ timeout: 15000 });
   });
 });

@@ -5,7 +5,10 @@ import {
   getExistingNotificationIds,
 } from '@/lib/notifications';
 
-function createMockSupabase(insertResult = { error: null }, selectResult = { data: [], error: null }) {
+function createMockSupabase(
+  insertResult = { error: null },
+  selectResult = { data: [], error: null },
+) {
   return {
     from: vi.fn().mockReturnValue({
       insert: vi.fn().mockResolvedValue(insertResult),
@@ -81,7 +84,9 @@ describe('createNotification', () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const mockSupabase = {
       from: vi.fn().mockReturnValue({
-        insert: vi.fn().mockResolvedValue({ error: { message: 'insert failed' } }),
+        insert: vi
+          .fn()
+          .mockResolvedValue({ error: { message: 'insert failed' } }),
       }),
     };
 
@@ -108,7 +113,9 @@ describe('createBulkNotifications', () => {
   });
 
   it('inserts multiple notifications', async () => {
-    const mockSelect = vi.fn().mockResolvedValue({ data: [{ id: '1' }, { id: '2' }], error: null });
+    const mockSelect = vi
+      .fn()
+      .mockResolvedValue({ data: [{ id: '1' }, { id: '2' }], error: null });
     const mockInsert = vi.fn().mockReturnValue({ select: mockSelect });
     const mockSupabase = {
       from: vi.fn().mockReturnValue({ insert: mockInsert }),
@@ -131,7 +138,10 @@ describe('createBulkNotifications', () => {
       },
     ];
 
-    const result = await createBulkNotifications(mockSupabase as never, notifications);
+    const result = await createBulkNotifications(
+      mockSupabase as never,
+      notifications,
+    );
     expect(result.count).toBe(2);
     expect(result.error).toBeNull();
     expect(mockInsert).toHaveBeenCalledWith(

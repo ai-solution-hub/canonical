@@ -1,4 +1,11 @@
-import { differenceInDays, format, formatDistanceToNow, isToday, isYesterday, parseISO } from 'date-fns';
+import {
+  differenceInDays,
+  format,
+  formatDistanceToNow,
+  isToday,
+  isYesterday,
+  parseISO,
+} from 'date-fns';
 import { enGB } from 'date-fns/locale';
 
 /** Format a date string as DD MMM YYYY (e.g. "15 Jan 2026") */
@@ -77,8 +84,10 @@ const PLATFORM_DISPLAY_NAMES: Record<string, string> = {
 /** Format platform for display with human-friendly labels */
 export function formatPlatform(platform: string | null): string {
   if (!platform) return '';
-  return PLATFORM_DISPLAY_NAMES[platform]
-    ?? platform.charAt(0).toUpperCase() + platform.slice(1);
+  return (
+    PLATFORM_DISPLAY_NAMES[platform] ??
+    platform.charAt(0).toUpperCase() + platform.slice(1)
+  );
 }
 
 /** Smart date: "Today", "Yesterday", "3 days ago" for <7 days, else "15 Jan 2026" */

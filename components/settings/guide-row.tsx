@@ -16,7 +16,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { type Guide, type GuideSection, GUIDE_TYPE_LABELS } from './guide-types';
+import {
+  type Guide,
+  type GuideSection,
+  GUIDE_TYPE_LABELS,
+} from './guide-types';
 import { SectionFormDialog } from './section-form-dialog';
 
 // ---------------------------------------------------------------------------
@@ -39,13 +43,17 @@ export function GuideRow({
   const [loadingSections, setLoadingSections] = useState(false);
   const [sectionLoadError, setSectionLoadError] = useState(false);
   const [sectionDialogOpen, setSectionDialogOpen] = useState(false);
-  const [editingSection, setEditingSection] = useState<GuideSection | null>(null);
+  const [editingSection, setEditingSection] = useState<GuideSection | null>(
+    null,
+  );
 
   const fetchSections = useCallback(async () => {
     setLoadingSections(true);
     setSectionLoadError(false);
     try {
-      const res = await fetch(`/api/guides/${encodeURIComponent(guide.slug)}/sections`);
+      const res = await fetch(
+        `/api/guides/${encodeURIComponent(guide.slug)}/sections`,
+      );
       if (res.ok) {
         const data: GuideSection[] = await res.json();
         setSections(data);
@@ -67,7 +75,10 @@ export function GuideRow({
     }
   }, [expanded, fetchSections]);
 
-  const handleMoveSection = async (sectionIndex: number, direction: 'up' | 'down') => {
+  const handleMoveSection = async (
+    sectionIndex: number,
+    direction: 'up' | 'down',
+  ) => {
     const swapIndex = direction === 'up' ? sectionIndex - 1 : sectionIndex + 1;
     if (swapIndex < 0 || swapIndex >= sections.length) return;
 
@@ -83,11 +94,14 @@ export function GuideRow({
     }));
 
     try {
-      const res = await fetch(`/api/guides/${encodeURIComponent(guide.slug)}/sections`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sections: updatedSections }),
-      });
+      const res = await fetch(
+        `/api/guides/${encodeURIComponent(guide.slug)}/sections`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sections: updatedSections }),
+        },
+      );
 
       if (res.ok) {
         fetchSections();
@@ -146,7 +160,10 @@ export function GuideRow({
               {GUIDE_TYPE_LABELS[guide.guide_type] ?? guide.guide_type}
             </Badge>
             {guide.is_published ? (
-              <Badge variant="outline" className="text-[10px] text-freshness-fresh border-freshness-fresh/30">
+              <Badge
+                variant="outline"
+                className="text-[10px] text-freshness-fresh border-freshness-fresh/30"
+              >
                 Published
               </Badge>
             ) : (

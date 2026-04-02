@@ -18,7 +18,11 @@ import type {
   SimilarItem,
   SimilarItemsResult,
 } from '@/lib/mcp/formatters';
-import { type ToolExtra, toStructuredContent, getGenerateEmbedding } from './shared';
+import {
+  type ToolExtra,
+  toStructuredContent,
+  getGenerateEmbedding,
+} from './shared';
 
 // ---------------------------------------------------------------------------
 // Load domain names from DB at registration time so tool descriptions stay
@@ -43,9 +47,10 @@ async function loadDomainNames(): Promise<string[]> {
 
 export async function registerSearchTools(server: McpServer): Promise<void> {
   const domainNames = await loadDomainNames();
-  const domainList = domainNames.length > 0
-    ? domainNames.join(', ')
-    : 'security, compliance, implementation, support, corporate, product-feature, methodology';
+  const domainList =
+    domainNames.length > 0
+      ? domainNames.join(', ')
+      : 'security, compliance, implementation, support, corporate, product-feature, methodology';
   // -------------------------------------------------------------------------
   // 1. search_knowledge_base
   // -------------------------------------------------------------------------
@@ -55,10 +60,25 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
       title: 'Search Knowledge Base',
       description: `Search the knowledge base using semantic and keyword search. Returns content items matching your query, ranked by relevance. Use this to find articles, policies, case studies, Q&A pairs, and other knowledge base content. For Q&A pairs specifically, prefer search_qa_library instead. Valid domains: ${domainList}. Use the kb://taxonomy resource for the full subtopic list.`,
       inputSchema: {
-        query: z.string().describe('The search query — use natural language for best results'),
-        limit: z.number().optional().describe('Maximum number of results to return (default: 10, max: 50)'),
-        offset: z.number().optional().describe('Number of results to skip for pagination (default: 0)'),
-        domain: z.string().optional().describe(`Filter results to a specific domain. Valid values: ${domainList}`),
+        query: z
+          .string()
+          .describe('The search query — use natural language for best results'),
+        limit: z
+          .number()
+          .optional()
+          .describe(
+            'Maximum number of results to return (default: 10, max: 50)',
+          ),
+        offset: z
+          .number()
+          .optional()
+          .describe('Number of results to skip for pagination (default: 0)'),
+        domain: z
+          .string()
+          .optional()
+          .describe(
+            `Filter results to a specific domain. Valid values: ${domainList}`,
+          ),
       },
       annotations: {
         readOnlyHint: true,
@@ -86,7 +106,12 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
 
         if (error) {
           return {
-            content: [{ type: 'text' as const, text: `Search failed: ${error.message}. Try simplifying your query or removing filters.` }],
+            content: [
+              {
+                type: 'text' as const,
+                text: `Search failed: ${error.message}. Try simplifying your query or removing filters.`,
+              },
+            ],
             isError: true,
           };
         }
@@ -107,18 +132,22 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
         const paged = filtered.slice(searchOffset, searchOffset + searchLimit);
 
         // Map to SearchResult type for formatting
-        const searchResults: SearchResult[] = paged.map((r: Record<string, unknown>) => ({
-          id: r.id as string,
-          title: r.title as string | null,
-          suggested_title: r.suggested_title as string | null,
-          content_type: r.content_type as string | null,
-          primary_domain: r.primary_domain as string | null,
-          primary_subtopic: r.primary_subtopic as string | null,
-          ai_summary: r.ai_summary as string | null,
-          similarity: r.similarity as number,
-        }));
+        const searchResults: SearchResult[] = paged.map(
+          (r: Record<string, unknown>) => ({
+            id: r.id as string,
+            title: r.title as string | null,
+            suggested_title: r.suggested_title as string | null,
+            content_type: r.content_type as string | null,
+            primary_domain: r.primary_domain as string | null,
+            primary_subtopic: r.primary_subtopic as string | null,
+            ai_summary: r.ai_summary as string | null,
+            similarity: r.similarity as number,
+          }),
+        );
 
-        const markdown = truncateResponse(formatSearchResults(args.query, searchResults));
+        const markdown = truncateResponse(
+          formatSearchResults(args.query, searchResults),
+        );
 
         return {
           content: [{ type: 'text' as const, text: markdown }],
@@ -133,7 +162,12 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Search failed: ${message}. Try simplifying your query or removing filters.` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Search failed: ${message}. Try simplifying your query or removing filters.`,
+            },
+          ],
           isError: true,
         };
       }
@@ -147,11 +181,22 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
     'search_qa_library',
     {
       title: 'Search Q&A Library',
-      description: 'Search the Q&A library for reusable answers. Unlike search_knowledge_base which searches all content types, this tool filters to Q&A pairs only — ideal for finding existing answers to use in bid responses. Q&A pairs have standard and advanced answer levels. Use get_content_item to retrieve the full answer text after finding relevant pairs.',
+      description:
+        'Search the Q&A library for reusable answers. Unlike search_knowledge_base which searches all content types, this tool filters to Q&A pairs only — ideal for finding existing answers to use in bid responses. Q&A pairs have standard and advanced answer levels. Use get_content_item to retrieve the full answer text after finding relevant pairs.',
       inputSchema: {
-        query: z.string().describe('The search query — use natural language for best results'),
-        limit: z.number().optional().describe('Maximum number of results to return (default: 10, max: 50)'),
-        offset: z.number().optional().describe('Number of results to skip for pagination (default: 0)'),
+        query: z
+          .string()
+          .describe('The search query — use natural language for best results'),
+        limit: z
+          .number()
+          .optional()
+          .describe(
+            'Maximum number of results to return (default: 10, max: 50)',
+          ),
+        offset: z
+          .number()
+          .optional()
+          .describe('Number of results to skip for pagination (default: 0)'),
       },
       annotations: {
         readOnlyHint: true,
@@ -178,17 +223,26 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
 
         if (error) {
           return {
-            content: [{ type: 'text' as const, text: `Q&A search failed: ${error.message}. Try simplifying your query or removing filters.` }],
+            content: [
+              {
+                type: 'text' as const,
+                text: `Q&A search failed: ${error.message}. Try simplifying your query or removing filters.`,
+              },
+            ],
             isError: true,
           };
         }
 
         // Filter to Q&A pairs only, then apply pagination
-        const allQaResults = ((results ?? []) as Record<string, unknown>[])
-          .filter((r) => r.content_type === 'q_a_pair');
+        const allQaResults = (
+          (results ?? []) as Record<string, unknown>[]
+        ).filter((r) => r.content_type === 'q_a_pair');
 
         const hasMore = allQaResults.length > searchOffset + searchLimit;
-        const paged = allQaResults.slice(searchOffset, searchOffset + searchLimit);
+        const paged = allQaResults.slice(
+          searchOffset,
+          searchOffset + searchLimit,
+        );
 
         const qaResults: SearchResult[] = paged.map((r) => ({
           id: r.id as string,
@@ -215,7 +269,12 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Q&A search failed: ${message}. Try simplifying your query or removing filters.` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Q&A search failed: ${message}. Try simplifying your query or removing filters.`,
+            },
+          ],
           isError: true,
         };
       }
@@ -229,11 +288,21 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
     'find_similar_items',
     {
       title: 'Find Similar Items',
-      description: 'Find content items similar to a given item using vector cosine similarity. Useful for duplicate detection and related-content discovery. Items above 95% similarity are flagged as likely duplicates. Uses the existing embedding index — no AI cost.',
+      description:
+        'Find content items similar to a given item using vector cosine similarity. Useful for duplicate detection and related-content discovery. Items above 95% similarity are flagged as likely duplicates. Uses the existing embedding index — no AI cost.',
       inputSchema: {
-        id: z.string().uuid().describe('The UUID of the content item to find similar items for'),
-        threshold: z.number().optional().describe('Minimum cosine similarity (default: 0.8, range: 0.5–1.0)'),
-        limit: z.number().optional().describe('Maximum results (default: 10, max: 25)'),
+        id: z
+          .string()
+          .uuid()
+          .describe('The UUID of the content item to find similar items for'),
+        threshold: z
+          .number()
+          .optional()
+          .describe('Minimum cosine similarity (default: 0.8, range: 0.5–1.0)'),
+        limit: z
+          .number()
+          .optional()
+          .describe('Maximum results (default: 10, max: 25)'),
       },
       annotations: {
         readOnlyHint: true,
@@ -257,37 +326,58 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
 
         if (sourceError || !sourceItem) {
           return {
-            content: [{ type: 'text' as const, text: `Content item not found: ${args.id}` }],
+            content: [
+              {
+                type: 'text' as const,
+                text: `Content item not found: ${args.id}`,
+              },
+            ],
             isError: true,
           };
         }
 
         if (!sourceItem.embedding) {
           return {
-            content: [{ type: 'text' as const, text: `No embedding found for item ${args.id}. The item may not have been embedded yet.` }],
+            content: [
+              {
+                type: 'text' as const,
+                text: `No embedding found for item ${args.id}. The item may not have been embedded yet.`,
+              },
+            ],
             isError: true,
           };
         }
 
         // Use the embedding to search for similar items
-        const { data: results, error: searchError } = await supabase.rpc('hybrid_search', {
-          query_embedding: typeof sourceItem.embedding === 'string'
-            ? sourceItem.embedding
-            : JSON.stringify(sourceItem.embedding),
-          query_text: '',
-          similarity_threshold: threshold,
-          limit_count: resultLimit + 1, // +1 to exclude self
-        });
+        const { data: results, error: searchError } = await supabase.rpc(
+          'hybrid_search',
+          {
+            query_embedding:
+              typeof sourceItem.embedding === 'string'
+                ? sourceItem.embedding
+                : JSON.stringify(sourceItem.embedding),
+            query_text: '',
+            similarity_threshold: threshold,
+            limit_count: resultLimit + 1, // +1 to exclude self
+          },
+        );
 
         if (searchError) {
           return {
-            content: [{ type: 'text' as const, text: `Similarity search failed: ${searchError.message}.` }],
+            content: [
+              {
+                type: 'text' as const,
+                text: `Similarity search failed: ${searchError.message}.`,
+              },
+            ],
             isError: true,
           };
         }
 
         // Filter out the source item itself
-        const similar: SimilarItem[] = ((results ?? []) as Record<string, unknown>[])
+        const similar: SimilarItem[] = (
+          (results ?? []) as Record<string, unknown>[]
+        )
           .filter((r) => r.id !== args.id)
           .slice(0, resultLimit)
           .map((r) => ({
@@ -300,7 +390,8 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
             likely_duplicate: (r.similarity as number) > 0.95,
           }));
 
-        const sourceTitle = sourceItem.suggested_title || sourceItem.title || 'Untitled';
+        const sourceTitle =
+          sourceItem.suggested_title || sourceItem.title || 'Untitled';
         const result: SimilarItemsResult = {
           source_item: { id: args.id, title: sourceTitle },
           similar_items: similar,
@@ -314,7 +405,12 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Similarity search failed: ${message}.` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Similarity search failed: ${message}.`,
+            },
+          ],
           isError: true,
         };
       }

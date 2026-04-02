@@ -62,7 +62,9 @@ export function LayerSuggestionBanner({
   const { layers, getLayerLabel } = useLayerVocabulary();
 
   const [mode, setMode] = useState<'suggest' | 'change'>('suggest');
-  const [selectedLayer, setSelectedLayer] = useState(suggestedLayer.suggestedLayer);
+  const [selectedLayer, setSelectedLayer] = useState(
+    suggestedLayer.suggestedLayer,
+  );
   const [isApplying, setIsApplying] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
 
@@ -166,8 +168,8 @@ export function LayerSuggestionBanner({
               Topic group:{' '}
               <span className="font-medium text-foreground">
                 {topicSuggestion.topicId}
-              </span>
-              {' '}&mdash; {topicSuggestion.reason}
+              </span>{' '}
+              &mdash; {topicSuggestion.reason}
             </p>
           )}
 
@@ -207,10 +209,7 @@ export function LayerSuggestionBanner({
             </div>
           ) : (
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <Select
-                value={selectedLayer}
-                onValueChange={setSelectedLayer}
-              >
+              <Select value={selectedLayer} onValueChange={setSelectedLayer}>
                 <SelectTrigger
                   className="h-8 w-48 text-xs"
                   aria-label="Select a layer"

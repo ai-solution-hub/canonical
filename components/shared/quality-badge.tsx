@@ -59,13 +59,16 @@ function buildBreakdown(components: QualityScoreResult['components']): string {
  * This is intended for viewer/reader contexts where the detailed
  * breakdown is not actionable.
  */
-export function QualityBadge({ score, size = 'sm', simplified, className }: QualityBadgeProps) {
+export function QualityBadge({
+  score,
+  size = 'sm',
+  simplified,
+  className,
+}: QualityBadgeProps) {
   const { text, bg } = getScoreClasses(score.score);
   const breakdown = buildBreakdown(score.components);
 
-  const titleText = simplified
-    ? `Quality: ${score.label}`
-    : breakdown;
+  const titleText = simplified ? `Quality: ${score.label}` : breakdown;
   const ariaText = simplified
     ? `Quality score: ${score.score} out of 100 — ${score.label}`
     : `Quality score: ${score.score} out of 100 — ${score.label}. ${breakdown}`;

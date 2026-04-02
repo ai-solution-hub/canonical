@@ -3,7 +3,15 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
-import { BookOpen, Loader2, FileText, Layers, Clock, Search, X } from 'lucide-react';
+import {
+  BookOpen,
+  Loader2,
+  FileText,
+  Layers,
+  Clock,
+  Search,
+  X,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { DomainBadge } from '@/components/shared/domain-badge';
 import { Input } from '@/components/ui/input';
@@ -85,8 +93,11 @@ function GuideCard({ guide }: { guide: Guide }) {
   const percentage = hasStats
     ? Math.round((stats.populated_sections / stats.total_sections) * 100)
     : 0;
-  const isComplete = hasStats && stats.populated_sections >= stats.total_sections;
-  const readingTime = hasStats ? estimateReadingTime(stats.populated_sections) : null;
+  const isComplete =
+    hasStats && stats.populated_sections >= stats.total_sections;
+  const readingTime = hasStats
+    ? estimateReadingTime(stats.populated_sections)
+    : null;
 
   return (
     <Link
@@ -95,7 +106,10 @@ function GuideCard({ guide }: { guide: Guide }) {
     >
       <div className="flex items-start gap-3">
         <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-          <BookOpen className="size-5 text-muted-foreground" aria-hidden="true" />
+          <BookOpen
+            className="size-5 text-muted-foreground"
+            aria-hidden="true"
+          />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
@@ -103,7 +117,10 @@ function GuideCard({ guide }: { guide: Guide }) {
               {guide.name}
             </h3>
             {readingTime !== null && (
-              <span className="inline-flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground" aria-label={`Estimated reading time: ${readingTime} minutes`}>
+              <span
+                className="inline-flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground"
+                aria-label={`Estimated reading time: ${readingTime} minutes`}
+              >
                 <Clock className="size-3" aria-hidden="true" />
                 {readingTime} min read
               </span>
@@ -122,12 +139,11 @@ function GuideCard({ guide }: { guide: Guide }) {
         <div className="mt-3">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>
-              {stats.populated_sections}/{stats.total_sections} sections populated
+              {stats.populated_sections}/{stats.total_sections} sections
+              populated
             </span>
             <span
-              className={
-                isComplete ? 'font-semibold text-freshness-fresh' : ''
-              }
+              className={isComplete ? 'font-semibold text-freshness-fresh' : ''}
             >
               {percentage}%
             </span>
@@ -156,9 +172,7 @@ function GuideCard({ guide }: { guide: Guide }) {
         <Badge variant="secondary" className="text-xs">
           {GUIDE_TYPE_LABELS[guide.guide_type] ?? guide.guide_type}
         </Badge>
-        {guide.domain_filter && (
-          <DomainBadge domain={guide.domain_filter} />
-        )}
+        {guide.domain_filter && <DomainBadge domain={guide.domain_filter} />}
       </div>
     </Link>
   );
@@ -171,12 +185,16 @@ function GuideCard({ guide }: { guide: Guide }) {
 function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border px-6 py-16 text-center">
-      <FileText className="size-10 text-muted-foreground/50" aria-hidden="true" />
+      <FileText
+        className="size-10 text-muted-foreground/50"
+        aria-hidden="true"
+      />
       <h3 className="mt-4 text-sm font-medium text-foreground">
         No guides published yet
       </h3>
       <p className="mt-1 text-xs text-muted-foreground">
-        Guides provide a curated reading experience over your knowledge base content.
+        Guides provide a curated reading experience over your knowledge base
+        content.
       </p>
       <p className="mt-3 text-xs text-muted-foreground">
         <Link
@@ -250,9 +268,14 @@ function FilterBar({
 
       <Select
         value={filters.type ?? '__all__'}
-        onValueChange={(v) => setFilters({ type: v === '__all__' ? undefined : v })}
+        onValueChange={(v) =>
+          setFilters({ type: v === '__all__' ? undefined : v })
+        }
       >
-        <SelectTrigger className="h-9 w-full text-xs sm:w-[140px]" aria-label="Filter by type">
+        <SelectTrigger
+          className="h-9 w-full text-xs sm:w-[140px]"
+          aria-label="Filter by type"
+        >
           <SelectValue placeholder="All types" />
         </SelectTrigger>
         <SelectContent>
@@ -268,9 +291,14 @@ function FilterBar({
       {domains.length > 0 && (
         <Select
           value={filters.domain ?? '__all__'}
-          onValueChange={(v) => setFilters({ domain: v === '__all__' ? undefined : v })}
+          onValueChange={(v) =>
+            setFilters({ domain: v === '__all__' ? undefined : v })
+          }
         >
-          <SelectTrigger className="h-9 w-full text-xs sm:w-[160px]" aria-label="Filter by domain">
+          <SelectTrigger
+            className="h-9 w-full text-xs sm:w-[160px]"
+            aria-label="Filter by domain"
+          >
             <SelectValue placeholder="All domains" />
           </SelectTrigger>
           <SelectContent>
@@ -363,7 +391,9 @@ export function GuideContent() {
 
   const domains = useMemo(
     () =>
-      [...new Set(guides.map((g) => g.domain_filter).filter(Boolean))] as string[],
+      [
+        ...new Set(guides.map((g) => g.domain_filter).filter(Boolean)),
+      ] as string[],
     [guides],
   );
 
@@ -423,7 +453,10 @@ export function GuideContent() {
   // -------------------------------------------------------------------------
 
   return (
-    <section aria-label="Guides" className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+    <section
+      aria-label="Guides"
+      className="mx-auto max-w-5xl px-4 py-8 sm:px-6"
+    >
       <div className="flex items-center gap-3">
         <Layers className="size-6 text-muted-foreground" aria-hidden="true" />
         <div>
@@ -447,23 +480,36 @@ export function GuideContent() {
 
       <div className="mt-6" aria-live="polite">
         {loading && (
-          <div className="flex items-center justify-center py-16" role="status" aria-label="Loading guides">
-            <Loader2 className="size-6 animate-spin text-muted-foreground" aria-hidden="true" />
+          <div
+            className="flex items-center justify-center py-16"
+            role="status"
+            aria-label="Loading guides"
+          >
+            <Loader2
+              className="size-6 animate-spin text-muted-foreground"
+              aria-hidden="true"
+            />
             <span className="sr-only">Loading guides...</span>
           </div>
         )}
 
         {!loading && error && (
-          <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+          <div
+            role="alert"
+            className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"
+          >
             {error}
           </div>
         )}
 
         {!loading && !error && guides.length === 0 && <EmptyState />}
 
-        {!loading && !error && guides.length > 0 && filteredGuides.length === 0 && (
-          <NoResultsState onClear={clearFilters} />
-        )}
+        {!loading &&
+          !error &&
+          guides.length > 0 &&
+          filteredGuides.length === 0 && (
+            <NoResultsState onClear={clearFilters} />
+          )}
 
         {!loading && !error && filteredGuides.length > 0 && (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

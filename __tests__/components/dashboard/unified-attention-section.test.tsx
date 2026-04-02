@@ -93,7 +93,9 @@ function makeTestItems(): AttentionItem[] {
 describe('UnifiedAttentionSection', () => {
   describe('severity grouping', () => {
     it('groups items into correct tier sections', () => {
-      render(<UnifiedAttentionSection items={makeTestItems()} userRole="admin" />);
+      render(
+        <UnifiedAttentionSection items={makeTestItems()} userRole="admin" />,
+      );
 
       expect(screen.getByText(/Critical \(1\)/i)).toBeInTheDocument();
       expect(screen.getByText(/High Priority \(2\)/i)).toBeInTheDocument();
@@ -102,13 +104,21 @@ describe('UnifiedAttentionSection', () => {
     });
 
     it('renders items within their severity groups', () => {
-      render(<UnifiedAttentionSection items={makeTestItems()} userRole="admin" />);
+      render(
+        <UnifiedAttentionSection items={makeTestItems()} userRole="admin" />,
+      );
 
-      expect(screen.getByText('3 governance reviews pending')).toBeInTheDocument();
+      expect(
+        screen.getByText('3 governance reviews pending'),
+      ).toBeInTheDocument();
       expect(screen.getByText('5 expired content items')).toBeInTheDocument();
-      expect(screen.getByText('2 quality flags unresolved')).toBeInTheDocument();
+      expect(
+        screen.getByText('2 quality flags unresolved'),
+      ).toBeInTheDocument();
       expect(screen.getByText('10 unverified items')).toBeInTheDocument();
-      expect(screen.getByText('3 coverage gaps identified')).toBeInTheDocument();
+      expect(
+        screen.getByText('3 coverage gaps identified'),
+      ).toBeInTheDocument();
     });
 
     it('omits tier headers for empty tiers', () => {
@@ -126,7 +136,9 @@ describe('UnifiedAttentionSection', () => {
     });
 
     it('shows total count in section header', () => {
-      render(<UnifiedAttentionSection items={makeTestItems()} userRole="admin" />);
+      render(
+        <UnifiedAttentionSection items={makeTestItems()} userRole="admin" />,
+      );
 
       expect(screen.getByText(/Needs Attention \(5\)/i)).toBeInTheDocument();
     });
@@ -138,30 +150,48 @@ describe('UnifiedAttentionSection', () => {
 
   describe('role filtering', () => {
     it('shows all items for admin role', () => {
-      render(<UnifiedAttentionSection items={makeTestItems()} userRole="admin" />);
+      render(
+        <UnifiedAttentionSection items={makeTestItems()} userRole="admin" />,
+      );
 
-      expect(screen.getByText('3 governance reviews pending')).toBeInTheDocument();
+      expect(
+        screen.getByText('3 governance reviews pending'),
+      ).toBeInTheDocument();
       expect(screen.getByText('5 expired content items')).toBeInTheDocument();
-      expect(screen.getByText('2 quality flags unresolved')).toBeInTheDocument();
+      expect(
+        screen.getByText('2 quality flags unresolved'),
+      ).toBeInTheDocument();
       expect(screen.getByText('10 unverified items')).toBeInTheDocument();
-      expect(screen.getByText('3 coverage gaps identified')).toBeInTheDocument();
+      expect(
+        screen.getByText('3 coverage gaps identified'),
+      ).toBeInTheDocument();
     });
 
     it('filters out editor/admin-only items for viewer role', () => {
-      render(<UnifiedAttentionSection items={makeTestItems()} userRole="viewer" />);
+      render(
+        <UnifiedAttentionSection items={makeTestItems()} userRole="viewer" />,
+      );
 
       // Viewer should see expired content (visible to all)
       expect(screen.getByText('5 expired content items')).toBeInTheDocument();
 
       // Viewer should NOT see governance reviews, quality flags, unverified, or coverage gaps
-      expect(screen.queryByText('3 governance reviews pending')).not.toBeInTheDocument();
-      expect(screen.queryByText('2 quality flags unresolved')).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('3 governance reviews pending'),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('2 quality flags unresolved'),
+      ).not.toBeInTheDocument();
       expect(screen.queryByText('10 unverified items')).not.toBeInTheDocument();
-      expect(screen.queryByText('3 coverage gaps identified')).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('3 coverage gaps identified'),
+      ).not.toBeInTheDocument();
     });
 
     it('shows reduced count in header for viewer', () => {
-      render(<UnifiedAttentionSection items={makeTestItems()} userRole="viewer" />);
+      render(
+        <UnifiedAttentionSection items={makeTestItems()} userRole="viewer" />,
+      );
 
       // Only 1 item (expired content) visible to viewer
       expect(screen.getByText(/Needs Attention \(1\)/i)).toBeInTheDocument();
@@ -187,7 +217,9 @@ describe('UnifiedAttentionSection', () => {
       );
 
       // CheckCircle2 renders as an SVG
-      const section = container.querySelector('[aria-label="Items needing attention"]');
+      const section = container.querySelector(
+        '[aria-label="Items needing attention"]',
+      );
       expect(section).toBeInTheDocument();
       expect(section!.querySelector('svg')).toBeInTheDocument();
     });
@@ -201,7 +233,9 @@ describe('UnifiedAttentionSection', () => {
         }),
       ];
 
-      render(<UnifiedAttentionSection items={adminOnlyItems} userRole="viewer" />);
+      render(
+        <UnifiedAttentionSection items={adminOnlyItems} userRole="viewer" />,
+      );
 
       expect(
         screen.getByText('All clear — your knowledge base is in good shape.'),
@@ -251,7 +285,9 @@ describe('UnifiedAttentionSection', () => {
 
   describe('prompt strip', () => {
     it('shows severity breakdown when items exist', () => {
-      render(<UnifiedAttentionSection items={makeTestItems()} userRole="admin" />);
+      render(
+        <UnifiedAttentionSection items={makeTestItems()} userRole="admin" />,
+      );
 
       // Should contain severity breakdown text
       expect(screen.getByText(/1 critical/i)).toBeInTheDocument();
@@ -259,7 +295,9 @@ describe('UnifiedAttentionSection', () => {
     });
 
     it('shows "Plan actions" button in prompt strip', () => {
-      render(<UnifiedAttentionSection items={makeTestItems()} userRole="admin" />);
+      render(
+        <UnifiedAttentionSection items={makeTestItems()} userRole="admin" />,
+      );
 
       expect(screen.getByText('Plan actions')).toBeInTheDocument();
     });
@@ -278,7 +316,9 @@ describe('UnifiedAttentionSection', () => {
         }),
       ];
 
-      render(<UnifiedAttentionSection items={adminOnlyItems} userRole="viewer" />);
+      render(
+        <UnifiedAttentionSection items={adminOnlyItems} userRole="viewer" />,
+      );
 
       expect(screen.queryByText('Plan actions')).not.toBeInTheDocument();
     });

@@ -180,7 +180,9 @@ describe('QuickReviewActions', () => {
     await user.click(screen.getByLabelText('Flag for review'));
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText('Why does this need attention?')).toBeInTheDocument();
+      expect(
+        screen.getByPlaceholderText('Why does this need attention?'),
+      ).toBeInTheDocument();
     });
   });
 
@@ -199,9 +201,15 @@ describe('QuickReviewActions', () => {
     await user.click(screen.getByLabelText('Flag for review'));
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText('Why does this need attention?')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Submit' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+      expect(
+        screen.getByPlaceholderText('Why does this need attention?'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Submit' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Cancel' }),
+      ).toBeInTheDocument();
     });
   });
 
@@ -220,7 +228,9 @@ describe('QuickReviewActions', () => {
     await user.click(screen.getByLabelText('Flag for review'));
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText('Why does this need attention?')).toBeInTheDocument();
+      expect(
+        screen.getByPlaceholderText('Why does this need attention?'),
+      ).toBeInTheDocument();
     });
 
     const input = screen.getByPlaceholderText('Why does this need attention?');
@@ -255,7 +265,9 @@ describe('QuickReviewActions', () => {
     await user.click(screen.getByLabelText('Flag for review'));
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Submit' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Submit' }),
+      ).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole('button', { name: 'Submit' }));
@@ -284,7 +296,9 @@ describe('QuickReviewActions', () => {
     await user.click(screen.getByLabelText('Flag for review'));
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText('Why does this need attention?')).toBeInTheDocument();
+      expect(
+        screen.getByPlaceholderText('Why does this need attention?'),
+      ).toBeInTheDocument();
     });
 
     const input = screen.getByPlaceholderText('Why does this need attention?');
@@ -377,11 +391,7 @@ describe('QuickReviewActions', () => {
     mockCanEdit.value = false;
 
     const { container } = renderWithQuery(
-      <QuickReviewActions
-        itemId="item-1"
-        itemTitle="Test"
-        verifiedAt={null}
-      />,
+      <QuickReviewActions itemId="item-1" itemTitle="Test" verifiedAt={null} />,
     );
 
     // Should render nothing because useUserRole returns canEdit=false

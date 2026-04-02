@@ -13,7 +13,9 @@ import { render, screen } from '@testing-library/react';
 // ---------------------------------------------------------------------------
 
 vi.mock('@/components/reader/transcript-reader', () => ({
-  TranscriptReader: () => <div data-testid="transcript-reader">TranscriptReader</div>,
+  TranscriptReader: () => (
+    <div data-testid="transcript-reader">TranscriptReader</div>
+  ),
 }));
 
 vi.mock('@/lib/format', () => ({

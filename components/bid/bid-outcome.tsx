@@ -2,13 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
-import {
-  Trophy,
-  XCircle,
-  MinusCircle,
-  Loader2,
-  BookOpen,
-} from 'lucide-react';
+import { Trophy, XCircle, MinusCircle, Loader2, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -117,20 +111,26 @@ export function BidOutcomeDialog({
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || `Failed to record outcome (${response.status})`);
+        throw new Error(
+          data.error || `Failed to record outcome (${response.status})`,
+        );
       }
 
       const data = await response.json();
       const kbCandidates: KBCandidate[] = data.kb_candidates ?? [];
 
-      const outcomeLabel = OUTCOME_OPTIONS.find((o) => o.value === outcome)?.label ?? outcome;
-      toast.success(`Bid outcome recorded: ${outcomeLabel}`, { duration: 3000 });
+      const outcomeLabel =
+        OUTCOME_OPTIONS.find((o) => o.value === outcome)?.label ?? outcome;
+      toast.success(`Bid outcome recorded: ${outcomeLabel}`, {
+        duration: 3000,
+      });
 
       resetForm();
       onOpenChange(false);
       onOutcomeRecorded(outcome, kbCandidates);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to record outcome';
+      const message =
+        err instanceof Error ? err.message : 'Failed to record outcome';
       setError(message);
       toast.error(message);
     } finally {
@@ -150,9 +150,10 @@ export function BidOutcomeDialog({
         <DialogHeader>
           <DialogTitle>Record Bid Outcome</DialogTitle>
           <DialogDescription>
-            Record the final outcome for <span className="font-medium">{bidName}</span>.
-            This will update the bid status and can optionally flag responses for
-            knowledge base integration.
+            Record the final outcome for{' '}
+            <span className="font-medium">{bidName}</span>. This will update the
+            bid status and can optionally flag responses for knowledge base
+            integration.
           </DialogDescription>
         </DialogHeader>
 
@@ -196,7 +197,9 @@ export function BidOutcomeDialog({
                       aria-hidden="true"
                     />
                     <div className="flex flex-col">
-                      <span className="text-sm font-medium">{option.label}</span>
+                      <span className="text-sm font-medium">
+                        {option.label}
+                      </span>
                       <span className="text-xs text-muted-foreground">
                         {option.description}
                       </span>
@@ -227,7 +230,9 @@ export function BidOutcomeDialog({
               <Checkbox
                 id="integrate-to-kb"
                 checked={integrateToKb}
-                onCheckedChange={(checked) => setIntegrateToKb(checked === true)}
+                onCheckedChange={(checked) =>
+                  setIntegrateToKb(checked === true)
+                }
                 disabled={submitting}
                 className="mt-0.5"
               />
@@ -237,13 +242,16 @@ export function BidOutcomeDialog({
                   className="text-sm font-medium cursor-pointer leading-none"
                 >
                   <span className="inline-flex items-center gap-1.5">
-                    <BookOpen className="size-4 text-muted-foreground" aria-hidden="true" />
+                    <BookOpen
+                      className="size-4 text-muted-foreground"
+                      aria-hidden="true"
+                    />
                     Review responses for knowledge base integration
                   </span>
                 </label>
                 <span className="text-xs text-muted-foreground">
-                  Winning responses will be analysed for potential addition to the
-                  knowledge base as reusable content.
+                  Winning responses will be analysed for potential addition to
+                  the knowledge base as reusable content.
                 </span>
               </div>
             </div>

@@ -4,20 +4,31 @@ import {
   applyHostStyleVariables,
   applyHostFonts,
   type McpUiHostContext,
-} from "@modelcontextprotocol/ext-apps";
-import DOMPurify from "dompurify";
-import { marked } from "marked";
-import type { ReorientAppData, UrgentItem, TeamChange, RecentWorkItem, BidBriefing } from "./types";
-import "./styles.css";
+} from '@modelcontextprotocol/ext-apps';
+import DOMPurify from 'dompurify';
+import { marked } from 'marked';
+import type {
+  ReorientAppData,
+  UrgentItem,
+  TeamChange,
+  RecentWorkItem,
+  BidBriefing,
+} from './types';
+import './styles.css';
 
 // Configure marked: no async renderer, safe defaults
 marked.setOptions({ async: false });
 
-const app = new App({ name: "Reorient Me", version: "1.0.0" });
-const root = document.getElementById("app")!;
+const app = new App({ name: 'Reorient Me', version: '1.0.0' });
+const root = document.getElementById('app')!;
 
 let briefingData: ReorientAppData | null = null;
-let detailPanel: { title: string; loading: boolean; content: string | null; error?: string } | null = null;
+let detailPanel: {
+  title: string;
+  loading: boolean;
+  content: string | null;
+  error?: string;
+} | null = null;
 
 // Initial render
 renderLoading();
@@ -38,15 +49,17 @@ function handleHostContextChanged(ctx: McpUiHostContext): void {
 // App event handlers
 app.ontoolresult = (result) => {
   if (result.isError) {
-    const text = result.content?.find((c) => c.type === "text") as { text: string } | undefined;
-    renderEmpty(`Error: ${text?.text ?? "Unknown error"}`);
+    const text = result.content?.find((c) => c.type === 'text') as
+      | { text: string }
+      | undefined;
+    renderEmpty(`Error: ${text?.text ?? 'Unknown error'}`);
     return;
   }
 
   // Expect structuredContent mapped to ReorientAppData
   const data = result.structuredContent as unknown as ReorientAppData;
   if (!data || !Array.isArray(data.urgent)) {
-    renderEmpty("Invalid data format received.");
+    renderEmpty('Invalid data format received.');
     return;
   }
 
@@ -60,11 +73,11 @@ app.ontoolinput = () => {
 };
 
 app.ontoolcancelled = () => {
-  renderEmpty("Briefing request was cancelled.");
+  renderEmpty('Briefing request was cancelled.');
 };
 
 app.onerror = (error) => {
-  renderEmpty(`Error: ${error?.message ?? "Unknown error"}`);
+  renderEmpty(`Error: ${error?.message ?? 'Unknown error'}`);
 };
 
 app.onhostcontextchanged = handleHostContextChanged;
@@ -72,7 +85,7 @@ app.onhostcontextchanged = handleHostContextChanged;
 app.onteardown = async () => {
   briefingData = null;
   detailPanel = null;
-  root.innerHTML = "";
+  root.innerHTML = '';
   return {};
 };
 
@@ -86,37 +99,47 @@ app.connect().then(() => {
 // ---------------------------------------------------------------------------
 
 async function askClaude(prompt: string, statusEl: HTMLElement): Promise<void> {
-  statusEl.textContent = "Asking Claude...";
-  statusEl.className = "action-status action-status--loading";
-  statusEl.setAttribute("role", "status");
+  statusEl.textContent = 'Asking Claude...';
+  statusEl.className = 'action-status action-status--loading';
+  statusEl.setAttribute('role', 'status');
 
   try {
     await app.sendMessage({
-      role: "user",
-      content: [{ type: "text", text: prompt }],
+      role: 'user',
+      content: [{ type: 'text', text: prompt }],
     });
-    statusEl.textContent = "Message sent to Claude.";
-    statusEl.className = "action-status action-status--success";
+    statusEl.textContent = 'Message sent to Claude.';
+    statusEl.className = 'action-status action-status--success';
   } catch {
-    statusEl.textContent = "Could not send message. Try asking Claude directly.";
-    statusEl.className = "action-status action-status--error";
+    statusEl.textContent =
+      'Could not send message. Try asking Claude directly.';
+    statusEl.className = 'action-status action-status--error';
   }
 }
 
-async function drillDown(toolName: string, args: Record<string, unknown>, title: string): Promise<void> {
+async function drillDown(
+  toolName: string,
+  args: Record<string, unknown>,
+  title: string,
+): Promise<void> {
   detailPanel = { title, loading: true, content: null };
   renderDetailPanel();
 
   try {
-    const result = await app.callServerTool({ name: toolName, arguments: args });
-    const text = result.content?.find((c) => c.type === "text") as { text?: string } | undefined;
-    
+    const result = await app.callServerTool({
+      name: toolName,
+      arguments: args,
+    });
+    const text = result.content?.find((c) => c.type === 'text') as
+      | { text?: string }
+      | undefined;
+
     // We only update if this panel is still active (prevents race conditions if clicked twice)
     if (detailPanel && detailPanel.title === title) {
       detailPanel = {
         title,
         loading: false,
-        content: text?.text ?? "No detail available.",
+        content: text?.text ?? 'No detail available.',
       };
       renderDetailPanel();
     }
@@ -126,7 +149,7 @@ async function drillDown(toolName: string, args: Record<string, unknown>, title:
         title,
         loading: false,
         content: null,
-        error: err instanceof Error ? err.message : "Failed to load detail",
+        error: err instanceof Error ? err.message : 'Failed to load detail',
       };
       renderDetailPanel();
     }
@@ -138,8 +161,8 @@ function handleCloseDetailPanel() {
   renderDetailPanel();
 }
 
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && detailPanel) {
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && detailPanel) {
     handleCloseDetailPanel();
   }
 });
@@ -171,31 +194,42 @@ function renderBriefing() {
 
   const { urgent, team_changes, my_recent_work, bid_summary } = briefingData;
 
-  const isEmpty = urgent.length === 0 && team_changes.length === 0 && my_recent_work.length === 0 && bid_summary.length === 0;
+  const isEmpty =
+    urgent.length === 0 &&
+    team_changes.length === 0 &&
+    my_recent_work.length === 0 &&
+    bid_summary.length === 0;
 
   if (isEmpty && !briefingData.last_active_at) {
-    renderEmpty("Welcome to Knowledge Hub. Start by browsing the knowledge base or creating your first bid.");
+    renderEmpty(
+      'Welcome to Knowledge Hub. Start by browsing the knowledge base or creating your first bid.',
+    );
     return;
   } else if (isEmpty) {
-    renderEmpty("Everything looks good — no urgent items and nothing new since your last visit.");
+    renderEmpty(
+      'Everything looks good — no urgent items and nothing new since your last visit.',
+    );
     return;
   }
 
-  root.innerHTML = "";
+  root.innerHTML = '';
 
-  const container = document.createElement("div");
-  container.className = "briefing-container";
+  const container = document.createElement('div');
+  container.className = 'briefing-container';
 
   container.appendChild(buildWelcomeHeader(briefingData));
 
   if (urgent.length > 0) container.appendChild(buildUrgentSection(urgent));
-  if (team_changes.length > 0) container.appendChild(buildTeamChangesSection(team_changes));
-  if (my_recent_work.length > 0) container.appendChild(buildRecentWorkSection(my_recent_work));
-  if (bid_summary.length > 0) container.appendChild(buildBidSummarySection(bid_summary));
+  if (team_changes.length > 0)
+    container.appendChild(buildTeamChangesSection(team_changes));
+  if (my_recent_work.length > 0)
+    container.appendChild(buildRecentWorkSection(my_recent_work));
+  if (bid_summary.length > 0)
+    container.appendChild(buildBidSummarySection(bid_summary));
 
   // Placeholder for the detail panel
-  const panelDiv = document.createElement("div");
-  panelDiv.id = "detail-panel-container";
+  const panelDiv = document.createElement('div');
+  panelDiv.id = 'detail-panel-container';
   container.appendChild(panelDiv);
 
   root.appendChild(container);
@@ -205,15 +239,15 @@ function renderBriefing() {
 }
 
 function buildWelcomeHeader(data: ReorientAppData): HTMLElement {
-  const header = document.createElement("div");
-  header.className = "welcome-header";
+  const header = document.createElement('div');
+  header.className = 'welcome-header';
 
   const hour = new Date().getHours();
-  let greeting = "Good evening";
-  if (hour < 12) greeting = "Good morning";
-  else if (hour < 17) greeting = "Good afternoon";
+  let greeting = 'Good evening';
+  if (hour < 12) greeting = 'Good morning';
+  else if (hour < 17) greeting = 'Good afternoon';
 
-  const name = data.user_display_name ? `, ${data.user_display_name}` : "";
+  const name = data.user_display_name ? `, ${data.user_display_name}` : '';
   const lastActive = data.last_active_relative;
 
   header.innerHTML = `
@@ -225,26 +259,36 @@ function buildWelcomeHeader(data: ReorientAppData): HTMLElement {
 }
 
 function buildUrgentSection(items: UrgentItem[]): HTMLElement {
-  const section = document.createElement("div");
-  section.className = "briefing-block";
+  const section = document.createElement('div');
+  section.className = 'briefing-block';
   section.innerHTML = `<h2 class="briefing-block-header">⚠️ Needs Your Attention</h2>`;
 
-  const list = document.createElement("div");
-  list.className = "card-list";
+  const list = document.createElement('div');
+  list.className = 'card-list';
   section.appendChild(list);
 
   for (const item of items) {
-    const card = document.createElement("div");
-    card.className = "card urgent-card";
+    const card = document.createElement('div');
+    card.className = 'card urgent-card';
 
     const isOverdue = item.priority === 1;
-    const iconClass = isOverdue ? "urgent-icon urgent-icon--overdue" : "urgent-icon";
-    const icon = item.type === "bid_deadline" ? (isOverdue ? "!" : "⏰") :
-                 item.type === "content_expired" ? "↻" :
-                 item.type === "review_pending" ? "✓" :
-                 item.type === "quality_flag" ? "🚩" : "💬";
+    const iconClass = isOverdue
+      ? 'urgent-icon urgent-icon--overdue'
+      : 'urgent-icon';
+    const icon =
+      item.type === 'bid_deadline'
+        ? isOverdue
+          ? '!'
+          : '⏰'
+        : item.type === 'content_expired'
+          ? '↻'
+          : item.type === 'review_pending'
+            ? '✓'
+            : item.type === 'quality_flag'
+              ? '🚩'
+              : '💬';
 
-    const contentDiv = document.createElement("div");
+    const contentDiv = document.createElement('div');
     contentDiv.innerHTML = `
       <div class="card-title-row">
         <span class="${iconClass}">${icon}</span>
@@ -253,65 +297,85 @@ function buildUrgentSection(items: UrgentItem[]): HTMLElement {
       <p class="card-detail">${escapeHtml(item.detail)}</p>
     `;
 
-    const actionsRow = document.createElement("div");
-    actionsRow.className = "actions-row";
+    const actionsRow = document.createElement('div');
+    actionsRow.className = 'actions-row';
 
-    const statusEl = document.createElement("div");
+    const statusEl = document.createElement('div');
 
     // Action Logic
-    if (item.type === "bid_deadline") {
+    if (item.type === 'bid_deadline') {
       if (isOverdue) {
         // Overdue: Primary = draft answers, Secondary = detail
-        const btnDraft = document.createElement("button");
-        btnDraft.className = "btn btn--primary btn--sm";
-        btnDraft.textContent = "Help me draft answers";
-        btnDraft.onclick = () => askClaude(`Help me draft answers for the unanswered questions in the ${item.title.split('—')[0].trim()} bid. Start with the highest-priority gaps.`, statusEl);
+        const btnDraft = document.createElement('button');
+        btnDraft.className = 'btn btn--primary btn--sm';
+        btnDraft.textContent = 'Help me draft answers';
+        btnDraft.onclick = () =>
+          askClaude(
+            `Help me draft answers for the unanswered questions in the ${item.title.split('—')[0].trim()} bid. Start with the highest-priority gaps.`,
+            statusEl,
+          );
 
-        const btnDetail = document.createElement("button");
-        btnDetail.className = "btn btn--sm";
-        btnDetail.textContent = "Show bid detail";
-        btnDetail.onclick = () => drillDown("get_bid_detail", { id: item.entity_id }, item.title);
+        const btnDetail = document.createElement('button');
+        btnDetail.className = 'btn btn--sm';
+        btnDetail.textContent = 'Show bid detail';
+        btnDetail.onclick = () =>
+          drillDown('get_bid_detail', { id: item.entity_id }, item.title);
 
         actionsRow.appendChild(btnDraft);
         actionsRow.appendChild(btnDetail);
       } else {
         // Urgent: Primary = detail, Secondary = draft answers
-        const btnDetail = document.createElement("button");
-        btnDetail.className = "btn btn--sm btn--primary";
-        btnDetail.textContent = "Show bid detail";
-        btnDetail.onclick = () => drillDown("get_bid_detail", { id: item.entity_id }, item.title);
+        const btnDetail = document.createElement('button');
+        btnDetail.className = 'btn btn--sm btn--primary';
+        btnDetail.textContent = 'Show bid detail';
+        btnDetail.onclick = () =>
+          drillDown('get_bid_detail', { id: item.entity_id }, item.title);
 
-        const btnDraft = document.createElement("button");
-        btnDraft.className = "btn btn--sm";
-        btnDraft.textContent = "Help me draft";
-        btnDraft.onclick = () => askClaude(`Help me draft answers for the unanswered questions in the ${item.title.split('—')[0].trim()} bid. Start with the highest-priority gaps.`, statusEl);
+        const btnDraft = document.createElement('button');
+        btnDraft.className = 'btn btn--sm';
+        btnDraft.textContent = 'Help me draft';
+        btnDraft.onclick = () =>
+          askClaude(
+            `Help me draft answers for the unanswered questions in the ${item.title.split('—')[0].trim()} bid. Start with the highest-priority gaps.`,
+            statusEl,
+          );
 
         actionsRow.appendChild(btnDetail);
         actionsRow.appendChild(btnDraft);
       }
-    } else if (item.type === "content_expired") {
-      const btn = document.createElement("button");
-      btn.className = "btn btn--sm btn--primary";
-      btn.textContent = "Show freshness report";
-      btn.onclick = () => drillDown("get_freshness_report", {}, "Freshness Report");
+    } else if (item.type === 'content_expired') {
+      const btn = document.createElement('button');
+      btn.className = 'btn btn--sm btn--primary';
+      btn.textContent = 'Show freshness report';
+      btn.onclick = () =>
+        drillDown('get_freshness_report', {}, 'Freshness Report');
       actionsRow.appendChild(btn);
-    } else if (item.type === "review_pending") {
-      const btn = document.createElement("button");
-      btn.className = "btn btn--sm btn--primary";
-      btn.textContent = "Help me triage reviews";
-      btn.onclick = () => askClaude("Show me the items pending governance review and help me triage them.", statusEl);
+    } else if (item.type === 'review_pending') {
+      const btn = document.createElement('button');
+      btn.className = 'btn btn--sm btn--primary';
+      btn.textContent = 'Help me triage reviews';
+      btn.onclick = () =>
+        askClaude(
+          'Show me the items pending governance review and help me triage them.',
+          statusEl,
+        );
       actionsRow.appendChild(btn);
-    } else if (item.type === "notification") {
-      const btn = document.createElement("button");
-      btn.className = "btn btn--sm btn--primary";
-      btn.textContent = "Summarise notifications";
-      btn.onclick = () => askClaude("Summarise my unread notifications and suggest which ones need action.", statusEl);
+    } else if (item.type === 'notification') {
+      const btn = document.createElement('button');
+      btn.className = 'btn btn--sm btn--primary';
+      btn.textContent = 'Summarise notifications';
+      btn.onclick = () =>
+        askClaude(
+          'Summarise my unread notifications and suggest which ones need action.',
+          statusEl,
+        );
       actionsRow.appendChild(btn);
-    } else if (item.type === "quality_flag") {
-      const btn = document.createElement("button");
-      btn.className = "btn btn--sm btn--primary";
-      btn.textContent = "Show quality issues";
-      btn.onclick = () => drillDown("get_quality_summary", {}, "Quality Summary");
+    } else if (item.type === 'quality_flag') {
+      const btn = document.createElement('button');
+      btn.className = 'btn btn--sm btn--primary';
+      btn.textContent = 'Show quality issues';
+      btn.onclick = () =>
+        drillDown('get_quality_summary', {}, 'Quality Summary');
       actionsRow.appendChild(btn);
     }
 
@@ -325,12 +389,12 @@ function buildUrgentSection(items: UrgentItem[]): HTMLElement {
 }
 
 function buildTeamChangesSection(changes: TeamChange[]): HTMLElement {
-  const section = document.createElement("div");
-  section.className = "briefing-block";
+  const section = document.createElement('div');
+  section.className = 'briefing-block';
   section.innerHTML = `<h2 class="briefing-block-header">👥 Since You Were Away</h2>`;
 
-  const list = document.createElement("div");
-  list.className = "compact-list";
+  const list = document.createElement('div');
+  list.className = 'compact-list';
   section.appendChild(list);
 
   // Group by user, action, type
@@ -343,21 +407,22 @@ function buildTeamChangesSection(changes: TeamChange[]): HTMLElement {
 
   for (const group of grouped.values()) {
     const first = group[0];
-    const name = first.user_name || "A team member";
-    const itemEl = document.createElement("div");
-    itemEl.className = "compact-list-item";
+    const name = first.user_name || 'A team member';
+    const itemEl = document.createElement('div');
+    itemEl.className = 'compact-list-item';
 
     // Format: "Sarah updated 3 items in Security"
     // "Sarah updated Data Protection Policy"
     const count = group.length;
-    const entityLabel = first.entity_type === "bid_response" ? "response" : "item";
+    const entityLabel =
+      first.entity_type === 'bid_response' ? 'response' : 'item';
     const escapedAction = escapeHtml(first.action);
-    let titleStr = "";
+    let titleStr = '';
 
     if (count > 1) {
-      if (first.domain && first.entity_type === "content_item") {
+      if (first.domain && first.entity_type === 'content_item') {
         titleStr = `${escapeHtml(name)} ${escapedAction} ${count} ${entityLabel}s in ${escapeHtml(first.domain)}`;
-      } else if (first.entity_type === "bid_response") {
+      } else if (first.entity_type === 'bid_response') {
         titleStr = `${escapeHtml(name)} ${escapedAction} ${count} ${entityLabel}s in ${escapeHtml(first.entity_title)} bid`;
       } else {
         titleStr = `${escapeHtml(name)} ${escapedAction} ${count} ${entityLabel}s`;
@@ -367,20 +432,33 @@ function buildTeamChangesSection(changes: TeamChange[]): HTMLElement {
     }
 
     itemEl.innerHTML = `<div class="compact-list-item-content"><span class="compact-list-title">${titleStr}</span></div>`;
-    const btnContainer = document.createElement("div");
-    const btn = document.createElement("button");
-    btn.className = "btn btn--sm";
-    
-    if (first.entity_type === "content_item") {
-      btn.textContent = "View item";
+    const btnContainer = document.createElement('div');
+    const btn = document.createElement('button');
+    btn.className = 'btn btn--sm';
+
+    if (first.entity_type === 'content_item') {
+      btn.textContent = 'View item';
       // We only open the first one if grouped
-      btn.onclick = () => drillDown("get_content_item", { id: first.entity_id }, first.entity_title);
-    } else if (first.entity_type === "bid_response" && first.workspace_id) {
-      btn.textContent = "View bid";
-      btn.onclick = () => drillDown("get_bid_detail", { id: first.workspace_id }, first.entity_title);
+      btn.onclick = () =>
+        drillDown(
+          'get_content_item',
+          { id: first.entity_id },
+          first.entity_title,
+        );
+    } else if (first.entity_type === 'bid_response' && first.workspace_id) {
+      btn.textContent = 'View bid';
+      btn.onclick = () =>
+        drillDown(
+          'get_bid_detail',
+          { id: first.workspace_id },
+          first.entity_title,
+        );
     }
 
-    if (first.entity_type === "content_item" || (first.entity_type === "bid_response" && first.workspace_id)) {
+    if (
+      first.entity_type === 'content_item' ||
+      (first.entity_type === 'bid_response' && first.workspace_id)
+    ) {
       btnContainer.appendChild(btn);
     }
 
@@ -392,21 +470,23 @@ function buildTeamChangesSection(changes: TeamChange[]): HTMLElement {
 }
 
 function buildRecentWorkSection(items: RecentWorkItem[]): HTMLElement {
-  const section = document.createElement("div");
-  section.className = "briefing-block";
+  const section = document.createElement('div');
+  section.className = 'briefing-block';
   section.innerHTML = `<h2 class="briefing-block-header">🕰 Pick Up Where You Left Off</h2>`;
 
-  const list = document.createElement("div");
-  list.className = "compact-list";
+  const list = document.createElement('div');
+  list.className = 'compact-list';
   section.appendChild(list);
 
   for (const item of items) {
-    const itemEl = document.createElement("div");
-    itemEl.className = "compact-list-item";
+    const itemEl = document.createElement('div');
+    itemEl.className = 'compact-list-item';
 
     // Format relative date nicely (e.g., from 2026-03-08T09:00:00Z -> "a few minutes ago")
     // Use the API's date formatting for simplicity here, or just show the action.
-    const actionStr = escapeHtml(item.action.charAt(0).toUpperCase() + item.action.slice(1));
+    const actionStr = escapeHtml(
+      item.action.charAt(0).toUpperCase() + item.action.slice(1),
+    );
 
     itemEl.innerHTML = `
       <div class="compact-list-item-content">
@@ -415,19 +495,32 @@ function buildRecentWorkSection(items: RecentWorkItem[]): HTMLElement {
       </div>
     `;
 
-    const btnContainer = document.createElement("div");
-    const btn = document.createElement("button");
-    btn.className = "btn btn--sm";
-    
-    if (item.entity_type === "content_item") {
-      btn.textContent = "View item";
-      btn.onclick = () => drillDown("get_content_item", { id: item.entity_id }, item.entity_title);
-    } else if (item.entity_type === "bid_response" && item.workspace_id) {
-      btn.textContent = "View bid";
-      btn.onclick = () => drillDown("get_bid_detail", { id: item.workspace_id }, item.entity_title);
+    const btnContainer = document.createElement('div');
+    const btn = document.createElement('button');
+    btn.className = 'btn btn--sm';
+
+    if (item.entity_type === 'content_item') {
+      btn.textContent = 'View item';
+      btn.onclick = () =>
+        drillDown(
+          'get_content_item',
+          { id: item.entity_id },
+          item.entity_title,
+        );
+    } else if (item.entity_type === 'bid_response' && item.workspace_id) {
+      btn.textContent = 'View bid';
+      btn.onclick = () =>
+        drillDown(
+          'get_bid_detail',
+          { id: item.workspace_id },
+          item.entity_title,
+        );
     }
 
-    if (item.entity_type === "content_item" || (item.entity_type === "bid_response" && item.workspace_id)) {
+    if (
+      item.entity_type === 'content_item' ||
+      (item.entity_type === 'bid_response' && item.workspace_id)
+    ) {
       btnContainer.appendChild(btn);
     }
 
@@ -439,29 +532,33 @@ function buildRecentWorkSection(items: RecentWorkItem[]): HTMLElement {
 }
 
 function buildBidSummarySection(bids: BidBriefing[]): HTMLElement {
-  const section = document.createElement("div");
-  section.className = "briefing-block";
+  const section = document.createElement('div');
+  section.className = 'briefing-block';
   section.innerHTML = `<h2 class="briefing-block-header">💼 Active Bids</h2>`;
 
-  const list = document.createElement("div");
-  list.className = "card-list";
+  const list = document.createElement('div');
+  list.className = 'card-list';
   section.appendChild(list);
 
   for (const bid of bids) {
-    const card = document.createElement("div");
-    card.className = "card bid-card";
+    const card = document.createElement('div');
+    card.className = 'card bid-card';
 
     const badgeClass = `badge badge--${bid.urgency}`;
     let urgencyText = bid.urgency;
     if (bid.days_until_deadline !== null) {
-       if (bid.days_until_deadline < 0) urgencyText = "Overdue";
-       else if (bid.days_until_deadline === 0) urgencyText = "Due today";
-       else urgencyText = `${bid.days_until_deadline} day${bid.days_until_deadline > 1 ? "s" : ""} left`;
+      if (bid.days_until_deadline < 0) urgencyText = 'Overdue';
+      else if (bid.days_until_deadline === 0) urgencyText = 'Due today';
+      else
+        urgencyText = `${bid.days_until_deadline} day${bid.days_until_deadline > 1 ? 's' : ''} left`;
     }
 
-    const pct = bid.total_questions > 0 ? Math.round((bid.answered_questions / bid.total_questions) * 100) : 0;
-    
-    const contentDiv = document.createElement("div");
+    const pct =
+      bid.total_questions > 0
+        ? Math.round((bid.answered_questions / bid.total_questions) * 100)
+        : 0;
+
+    const contentDiv = document.createElement('div');
     contentDiv.innerHTML = `
       <div class="card-title-row" style="justify-content: space-between;">
         <span class="card-title">${escapeHtml(bid.name)}</span>
@@ -478,23 +575,28 @@ function buildBidSummarySection(bids: BidBriefing[]): HTMLElement {
       </div>
     `;
 
-    const actionsRow = document.createElement("div");
-    actionsRow.className = "actions-row";
+    const actionsRow = document.createElement('div');
+    actionsRow.className = 'actions-row';
 
-    const statusEl = document.createElement("div");
+    const statusEl = document.createElement('div');
 
-    const btnDetail = document.createElement("button");
-    btnDetail.className = "btn btn--sm";
-    btnDetail.textContent = "Show detail";
-    btnDetail.onclick = () => drillDown("get_bid_detail", { id: bid.id }, bid.name);
+    const btnDetail = document.createElement('button');
+    btnDetail.className = 'btn btn--sm';
+    btnDetail.textContent = 'Show detail';
+    btnDetail.onclick = () =>
+      drillDown('get_bid_detail', { id: bid.id }, bid.name);
     actionsRow.appendChild(btnDetail);
 
     // If there are gaps, add Draft Next Answer
     if (bid.answered_questions < bid.total_questions) {
-      const btnDraft = document.createElement("button");
-      btnDraft.className = "btn btn--sm btn--primary";
-      btnDraft.textContent = "Draft next answer";
-      btnDraft.onclick = () => askClaude(`Help me draft the next unanswered question for the ${bid.name} bid. Look at the questions that need attention and pick the highest priority one.`, statusEl);
+      const btnDraft = document.createElement('button');
+      btnDraft.className = 'btn btn--sm btn--primary';
+      btnDraft.textContent = 'Draft next answer';
+      btnDraft.onclick = () =>
+        askClaude(
+          `Help me draft the next unanswered question for the ${bid.name} bid. Look at the questions that need attention and pick the highest priority one.`,
+          statusEl,
+        );
       actionsRow.appendChild(btnDraft);
     }
 
@@ -509,17 +611,17 @@ function buildBidSummarySection(bids: BidBriefing[]): HTMLElement {
 }
 
 function renderDetailPanel() {
-  const container = document.getElementById("detail-panel-container");
+  const container = document.getElementById('detail-panel-container');
   if (!container) return;
 
   if (!detailPanel) {
-    container.innerHTML = "";
+    container.innerHTML = '';
     return;
   }
 
   const { title, loading, content, error } = detailPanel;
 
-  let bodyHtml = "";
+  let bodyHtml = '';
   if (loading) {
     bodyHtml = `<div class="detail-panel-loading">Loading ${escapeHtml(title)}...</div>`;
   } else if (error) {
@@ -539,7 +641,7 @@ function renderDetailPanel() {
     </div>
   `;
 
-  const btnClose = document.getElementById("btn-close-detail");
+  const btnClose = document.getElementById('btn-close-detail');
   if (btnClose) {
     btnClose.onclick = handleCloseDetailPanel;
   }
@@ -551,9 +653,9 @@ function renderDetailPanel() {
 
 function escapeHtml(unsafe: string): string {
   return unsafe
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }

@@ -19,7 +19,9 @@ describe('htmlToPlainText', () => {
   });
 
   it('handles nested tags', () => {
-    const result = htmlToPlainText('<p><strong>Bold</strong> and <em>italic</em></p>');
+    const result = htmlToPlainText(
+      '<p><strong>Bold</strong> and <em>italic</em></p>',
+    );
     expect(result).toContain('Bold');
     expect(result).toContain('and');
     expect(result).toContain('italic');
@@ -64,7 +66,8 @@ describe('htmlToPlainText', () => {
   });
 
   it('handles deeply nested HTML', () => {
-    const html = '<div><section><p><span>Deep <strong>nesting</strong></span></p></section></div>';
+    const html =
+      '<div><section><p><span>Deep <strong>nesting</strong></span></p></section></div>';
     const result = htmlToPlainText(html);
     expect(result).toContain('Deep');
     expect(result).toContain('nesting');
@@ -112,7 +115,9 @@ describe('countWords', () => {
 
 describe('countWordsFromHtml', () => {
   it('counts words from HTML content', () => {
-    expect(countWordsFromHtml('<p>Hello <strong>beautiful</strong> world</p>')).toBe(3);
+    expect(
+      countWordsFromHtml('<p>Hello <strong>beautiful</strong> world</p>'),
+    ).toBe(3);
   });
 
   it('returns 0 for empty HTML', () => {
@@ -120,7 +125,8 @@ describe('countWordsFromHtml', () => {
   });
 
   it('counts words from complex HTML', () => {
-    const html = '<div><h1>Title</h1><p>First paragraph with <em>five</em> words.</p></div>';
+    const html =
+      '<div><h1>Title</h1><p>First paragraph with <em>five</em> words.</p></div>';
     const result = countWordsFromHtml(html);
     expect(result).toBeGreaterThan(0);
   });

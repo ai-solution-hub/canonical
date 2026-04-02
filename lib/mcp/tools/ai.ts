@@ -26,10 +26,17 @@ export async function registerAITools(server: McpServer): Promise<void> {
     'classify_content',
     {
       title: 'Classify Content',
-      description: 'Trigger AI classification of a content item. Assigns domain, subtopic, keywords, summary, and a suggested title. Requires editor or admin role.',
+      description:
+        'Trigger AI classification of a content item. Assigns domain, subtopic, keywords, summary, and a suggested title. Requires editor or admin role.',
       inputSchema: {
-        item_id: z.string().uuid().describe('The UUID of the content item to classify'),
-        force: z.boolean().optional().describe('Re-classify even if already classified (default: false)'),
+        item_id: z
+          .string()
+          .uuid()
+          .describe('The UUID of the content item to classify'),
+        force: z
+          .boolean()
+          .optional()
+          .describe('Re-classify even if already classified (default: false)'),
       },
       annotations: {
         readOnlyHint: false,
@@ -43,7 +50,12 @@ export async function registerAITools(server: McpServer): Promise<void> {
         const role = await checkMcpRole(extra.authInfo, ['admin', 'editor']);
         if (!role) {
           return {
-            content: [{ type: 'text' as const, text: 'Permission denied: editor or admin role required.' }],
+            content: [
+              {
+                type: 'text' as const,
+                text: 'Permission denied: editor or admin role required.',
+              },
+            ],
             isError: true,
           };
         }
@@ -65,9 +77,19 @@ export async function registerAITools(server: McpServer): Promise<void> {
         };
       } catch (err) {
         const AIServiceError = await getAIErrors();
-        const message = err instanceof AIServiceError ? err.message : (err instanceof Error ? err.message : 'Unknown error');
+        const message =
+          err instanceof AIServiceError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Classification failed: ${message}. Ensure you have editor or admin permissions.` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Classification failed: ${message}. Ensure you have editor or admin permissions.`,
+            },
+          ],
           isError: true,
         };
       }
@@ -81,10 +103,19 @@ export async function registerAITools(server: McpServer): Promise<void> {
     'generate_summary',
     {
       title: 'Generate Summary',
-      description: 'Generate an AI summary for a content item including executive summary, detailed summary, and key takeaways. Requires editor or admin role. If a summary already exists, pass force=true to regenerate it — otherwise the call will return an error.',
+      description:
+        'Generate an AI summary for a content item including executive summary, detailed summary, and key takeaways. Requires editor or admin role. If a summary already exists, pass force=true to regenerate it — otherwise the call will return an error.',
       inputSchema: {
-        item_id: z.string().uuid().describe('The UUID of the content item to summarise'),
-        force: z.boolean().optional().describe('Regenerate even if a summary already exists. Set to true when you want to refresh an existing summary (default: false)'),
+        item_id: z
+          .string()
+          .uuid()
+          .describe('The UUID of the content item to summarise'),
+        force: z
+          .boolean()
+          .optional()
+          .describe(
+            'Regenerate even if a summary already exists. Set to true when you want to refresh an existing summary (default: false)',
+          ),
       },
       annotations: {
         readOnlyHint: false,
@@ -98,7 +129,12 @@ export async function registerAITools(server: McpServer): Promise<void> {
         const role = await checkMcpRole(extra.authInfo, ['admin', 'editor']);
         if (!role) {
           return {
-            content: [{ type: 'text' as const, text: 'Permission denied: editor or admin role required.' }],
+            content: [
+              {
+                type: 'text' as const,
+                text: 'Permission denied: editor or admin role required.',
+              },
+            ],
             isError: true,
           };
         }
@@ -120,14 +156,24 @@ export async function registerAITools(server: McpServer): Promise<void> {
         };
       } catch (err) {
         const AIServiceError = await getAIErrors();
-        const message = err instanceof AIServiceError ? err.message : (err instanceof Error ? err.message : 'Unknown error');
+        const message =
+          err instanceof AIServiceError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : 'Unknown error';
         // Provide actionable guidance for common error cases
         const isConflict = err instanceof AIServiceError && err.status === 409;
         const hint = isConflict
           ? ' To regenerate an existing summary, call again with force=true.'
           : ' Ensure you have editor or admin permissions.';
         return {
-          content: [{ type: 'text' as const, text: `Summary generation failed: ${message}.${hint}` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Summary generation failed: ${message}.${hint}`,
+            },
+          ],
           isError: true,
         };
       }

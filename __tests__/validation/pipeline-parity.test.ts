@@ -120,9 +120,7 @@ describe('Pipeline Parity', () => {
     const tsCount = [...tsBlock![1].matchAll(/\/.+\//g)].length;
 
     // Python: count re.compile() entries in _EXCLUDED_PATTERNS
-    const pyBlock = pyContent.match(
-      /_EXCLUDED_PATTERNS\s*=\s*\[([\s\S]*?)\]/,
-    );
+    const pyBlock = pyContent.match(/_EXCLUDED_PATTERNS\s*=\s*\[([\s\S]*?)\]/);
     expect(
       pyBlock,
       'Could not find _EXCLUDED_PATTERNS in scripts/kb_pipeline/classify.py — regex may need updating',
@@ -278,9 +276,7 @@ describe('Pipeline Parity', () => {
     const tsCount = [...tsBlock![1].matchAll(/\w+:\s*'/g)].length;
 
     // Python: count key-value entries in _ABBREVIATIONS dict ("key": "VALUE" lines)
-    const pyBlock = pyContent.match(
-      /_ABBREVIATIONS\s*=\s*\{([\s\S]*?)\}/,
-    );
+    const pyBlock = pyContent.match(/_ABBREVIATIONS\s*=\s*\{([\s\S]*?)\}/);
     expect(
       pyBlock,
       'Could not find _ABBREVIATIONS in scripts/kb_pipeline/classify.py — regex may need updating',

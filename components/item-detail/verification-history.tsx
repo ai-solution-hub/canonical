@@ -1,7 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { CheckCircle2, XCircle, AlertTriangle, ChevronDown, ChevronUp, History } from 'lucide-react';
+import {
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  History,
+} from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useDisplayNames } from '@/hooks/use-display-names';
 import { formatRelativeTime } from '@/components/shared/verification-badge';
@@ -70,7 +77,9 @@ export function LatestVerificationNote({
     Promise.resolve(
       supabase
         .from('verification_history')
-        .select('id, content_item_id, action_type, note, performed_by, performed_at')
+        .select(
+          'id, content_item_id, action_type, note, performed_by, performed_at',
+        )
         .eq('content_item_id', contentItemId)
         .order('performed_at', { ascending: false })
         .limit(1)
@@ -78,7 +87,10 @@ export function LatestVerificationNote({
     )
       .then(({ data, error }) => {
         if (error) {
-          console.error('Failed to load latest verification note:', error.message);
+          console.error(
+            'Failed to load latest verification note:',
+            error.message,
+          );
           return;
         }
         if (data) {
@@ -117,7 +129,9 @@ export function VerificationHistory({
     Promise.resolve(
       supabase
         .from('verification_history')
-        .select('id, content_item_id, action_type, note, performed_by, performed_at')
+        .select(
+          'id, content_item_id, action_type, note, performed_by, performed_at',
+        )
         .eq('content_item_id', contentItemId)
         .order('performed_at', { ascending: false }),
     )
@@ -184,7 +198,8 @@ export function VerificationHistory({
           {entries.map((entry) => {
             const config = ACTION_CONFIG[entry.action_type];
             const Icon = config.icon;
-            const performerName = displayNames.get(entry.performed_by) ?? 'Unknown user';
+            const performerName =
+              displayNames.get(entry.performed_by) ?? 'Unknown user';
 
             return (
               <li

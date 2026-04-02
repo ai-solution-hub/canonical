@@ -10,7 +10,7 @@ import type {
 // ---------------------------------------------------------------------------
 
 function makeMetadata(
-  overrides: Partial<ExportBidMetadata> = {}
+  overrides: Partial<ExportBidMetadata> = {},
 ): ExportBidMetadata {
   return {
     bid_name: 'IT Support Services',
@@ -24,9 +24,7 @@ function makeMetadata(
   };
 }
 
-function makeQuestion(
-  overrides: Partial<ExportQuestion> = {}
-): ExportQuestion {
+function makeQuestion(overrides: Partial<ExportQuestion> = {}): ExportQuestion {
   return {
     question_id: 'q-001',
     section_name: 'Technical Capability',
@@ -85,7 +83,7 @@ describe('generateBidDocx', () => {
     const withoutCover = await generateBidDocx(
       makeMetadata(),
       [makeQuestion()],
-      { includeCover: false }
+      { includeCover: false },
     );
     expect(withoutCover.length).toBeLessThan(withCover.length);
     // Still valid ZIP
@@ -112,12 +110,12 @@ describe('generateBidDocx', () => {
     const withCitations = await generateBidDocx(
       makeMetadata(),
       [makeQuestion()],
-      { includeCitations: true }
+      { includeCitations: true },
     );
     const withoutCitations = await generateBidDocx(
       makeMetadata(),
       [makeQuestion()],
-      { includeCitations: false }
+      { includeCitations: false },
     );
     // Without citations should be smaller (citation text omitted)
     expect(withoutCitations.length).toBeLessThan(withCitations.length);
@@ -136,16 +134,12 @@ describe('generateBidDocx', () => {
       }),
     ];
 
-    const withUnanswered = await generateBidDocx(
-      makeMetadata(),
-      questions,
-      { includeUnanswered: true }
-    );
-    const withoutUnanswered = await generateBidDocx(
-      makeMetadata(),
-      questions,
-      { includeUnanswered: false }
-    );
+    const withUnanswered = await generateBidDocx(makeMetadata(), questions, {
+      includeUnanswered: true,
+    });
+    const withoutUnanswered = await generateBidDocx(makeMetadata(), questions, {
+      includeUnanswered: false,
+    });
 
     // Excluding unanswered should produce a smaller document
     expect(withoutUnanswered.length).toBeLessThan(withUnanswered.length);
@@ -402,15 +396,15 @@ describe('generateBidDocx', () => {
     const standard = await generateBidDocx(makeMetadata(), [question], {
       useAdvancedVariant: false,
     });
-    const advancedFallback = await generateBidDocx(
-      makeMetadata(),
-      [question],
-      { useAdvancedVariant: true }
-    );
+    const advancedFallback = await generateBidDocx(makeMetadata(), [question], {
+      useAdvancedVariant: true,
+    });
 
     // Both should produce similar output since advanced is null
     // (minor differences possible due to ZIP compression non-determinism)
-    expect(Math.abs(advancedFallback.length - standard.length)).toBeLessThan(10);
+    expect(Math.abs(advancedFallback.length - standard.length)).toBeLessThan(
+      10,
+    );
   });
 
   // -----------------------------------------------------------------------

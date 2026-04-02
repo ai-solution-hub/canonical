@@ -35,8 +35,10 @@ const NEW_ID = '00000000-0000-0000-0000-000000000002';
 
 describe('computeFullTextDiff', () => {
   it('produces non-empty entries for prose documents with differences', () => {
-    const oldText = 'This is the original policy document.\nIt covers data protection.';
-    const newText = 'This is the updated policy document.\nIt covers data protection and privacy.';
+    const oldText =
+      'This is the original policy document.\nIt covers data protection.';
+    const newText =
+      'This is the updated policy document.\nIt covers data protection and privacy.';
 
     const result = computeFullTextDiff(OLD_ID, NEW_ID, oldText, newText);
 
@@ -79,7 +81,9 @@ describe('computeFullTextDiff', () => {
     expect(result.summary.modified).toBe(0);
 
     // All non-unchanged entries should be 'added'
-    const nonUnchanged = result.entries.filter((e) => e.diff_type !== 'unchanged');
+    const nonUnchanged = result.entries.filter(
+      (e) => e.diff_type !== 'unchanged',
+    );
     for (const entry of nonUnchanged) {
       expect(entry.diff_type).toBe('added');
       expect(entry.new_content).toBeTruthy();
@@ -97,7 +101,9 @@ describe('computeFullTextDiff', () => {
     expect(result.summary.modified).toBe(0);
 
     // All non-unchanged entries should be 'removed'
-    const nonUnchanged = result.entries.filter((e) => e.diff_type !== 'unchanged');
+    const nonUnchanged = result.entries.filter(
+      (e) => e.diff_type !== 'unchanged',
+    );
     for (const entry of nonUnchanged) {
       expect(entry.diff_type).toBe('removed');
       expect(entry.old_content).toBeTruthy();
@@ -105,7 +111,8 @@ describe('computeFullTextDiff', () => {
   });
 
   it('produces only unchanged entries for identical texts', () => {
-    const text = 'Section 1: Introduction\nThis policy defines our approach.\n\nSection 2: Scope\nApplies to all staff.';
+    const text =
+      'Section 1: Introduction\nThis policy defines our approach.\n\nSection 2: Scope\nApplies to all staff.';
     const result = computeFullTextDiff(OLD_ID, NEW_ID, text, text);
 
     expect(result.diff_mode).toBe('full_text');
@@ -123,7 +130,8 @@ describe('computeFullTextDiff', () => {
 
   it('sets diff_mode to full_text on every entry', () => {
     const result = computeFullTextDiff(
-      OLD_ID, NEW_ID,
+      OLD_ID,
+      NEW_ID,
       'Old content here.\nSecond line.',
       'New content here.\nSecond line.',
     );
@@ -177,7 +185,10 @@ describe('computeFullTextDiff — merge logic', () => {
 describe('computeFullTextDiff — unchanged collapsing', () => {
   it('collapses consecutive unchanged blocks into one entry', () => {
     // Create text with many lines, only the middle line changes
-    const lines = Array.from({ length: 20 }, (_, i) => `Line ${i + 1} of the document.`);
+    const lines = Array.from(
+      { length: 20 },
+      (_, i) => `Line ${i + 1} of the document.`,
+    );
     const oldText = lines.join('\n');
 
     const newLines = [...lines];
@@ -218,7 +229,8 @@ describe('computeFullTextDiff — max-entries cap', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const result = computeFullTextDiff(
-      OLD_ID, NEW_ID,
+      OLD_ID,
+      NEW_ID,
       oldLines.join('\n'),
       newLines.join('\n'),
     );
@@ -227,9 +239,7 @@ describe('computeFullTextDiff — max-entries cap', () => {
     expect(result.entries.length).toBeLessThanOrEqual(MAX_DIFF_ENTRIES + 1);
 
     // Should have logged a warning about exceeding cap
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('exceed cap'),
-    );
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('exceed cap'));
 
     warnSpy.mockRestore();
   });
@@ -251,7 +261,8 @@ describe('computeFullTextDiff — max-entries cap', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const result = computeFullTextDiff(
-      OLD_ID, NEW_ID,
+      OLD_ID,
+      NEW_ID,
       oldLines.join('\n'),
       newLines.join('\n'),
     );
@@ -260,7 +271,7 @@ describe('computeFullTextDiff — max-entries cap', () => {
     const firstEntry = result.entries[0];
     expect(
       (firstEntry.old_content ?? '').includes('line 0') ||
-      (firstEntry.new_content ?? '').includes('line 0'),
+        (firstEntry.new_content ?? '').includes('line 0'),
     ).toBe(true);
 
     // Last entry should contain text from the end of the document
@@ -269,9 +280,9 @@ describe('computeFullTextDiff — max-entries cap', () => {
     // The last entry should reference lines near the end
     expect(
       (lastEntry.old_content ?? '').includes(`${lastLineIdx}`) ||
-      (lastEntry.new_content ?? '').includes(`${lastLineIdx}`) ||
-      (lastEntry.old_content ?? '').includes(`${lastLineIdx - 1}`) ||
-      (lastEntry.new_content ?? '').includes(`${lastLineIdx - 1}`),
+        (lastEntry.new_content ?? '').includes(`${lastLineIdx}`) ||
+        (lastEntry.old_content ?? '').includes(`${lastLineIdx - 1}`) ||
+        (lastEntry.new_content ?? '').includes(`${lastLineIdx - 1}`),
     ).toBe(true);
 
     warnSpy.mockRestore();
@@ -294,14 +305,15 @@ describe('computeFullTextDiff — max-entries cap', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const result = computeFullTextDiff(
-      OLD_ID, NEW_ID,
+      OLD_ID,
+      NEW_ID,
       oldLines.join('\n'),
       newLines.join('\n'),
     );
 
     // Should contain a synthetic entry with the collapse indicator
-    const syntheticEntry = result.entries.find(
-      (e) => e.old_content?.includes('collapsed'),
+    const syntheticEntry = result.entries.find((e) =>
+      e.old_content?.includes('collapsed'),
     );
     expect(syntheticEntry).toBeDefined();
     expect(syntheticEntry!.diff_type).toBe('unchanged');
@@ -330,8 +342,10 @@ describe('computeFullTextDiff — max-entries cap', () => {
 
 describe('computeDocumentDiff — full-text fallback', () => {
   it('falls back to full-text diff when both documents are prose', () => {
-    const oldText = 'This organisation follows a strict data governance framework.';
-    const newText = 'This organisation follows an updated data governance framework with enhanced controls.';
+    const oldText =
+      'This organisation follows a strict data governance framework.';
+    const newText =
+      'This organisation follows an updated data governance framework with enhanced controls.';
 
     const result = computeDocumentDiff(OLD_ID, NEW_ID, oldText, newText);
 
@@ -342,7 +356,8 @@ describe('computeDocumentDiff — full-text fallback', () => {
 
   it('sets diffAvailable to true for prose documents with changes', () => {
     const result = computeDocumentDiff(
-      OLD_ID, NEW_ID,
+      OLD_ID,
+      NEW_ID,
       'Original policy text.',
       'Updated policy text.',
     );
@@ -360,7 +375,8 @@ describe('computeDocumentDiff — full-text fallback', () => {
 
   it('produces full-text entries when old text is empty and new has prose', () => {
     const result = computeDocumentDiff(
-      OLD_ID, NEW_ID,
+      OLD_ID,
+      NEW_ID,
       '',
       'This is a new prose document with no Q&A structure.',
     );
@@ -372,7 +388,8 @@ describe('computeDocumentDiff — full-text fallback', () => {
 
   it('produces full-text entries when new text is empty and old has prose', () => {
     const result = computeDocumentDiff(
-      OLD_ID, NEW_ID,
+      OLD_ID,
+      NEW_ID,
       'This is an existing prose document being replaced with nothing.',
       '',
     );
@@ -425,11 +442,14 @@ describe('computeDocumentDiff — Q&A regression', () => {
 
   it('preserves all Q&A diff fields on entries', () => {
     const oldText = 'Q: Question one?\nA: Answer one.';
-    const newText = 'Q: Question one?\nA: Answer one updated.\nQ: Question two?\nA: Answer two.';
+    const newText =
+      'Q: Question one?\nA: Answer one updated.\nQ: Question two?\nA: Answer two.';
 
     const result = computeDocumentDiff(OLD_ID, NEW_ID, oldText, newText);
 
-    const modifiedEntry = result.entries.find((e) => e.diff_type === 'modified');
+    const modifiedEntry = result.entries.find(
+      (e) => e.diff_type === 'modified',
+    );
     expect(modifiedEntry).toBeDefined();
     expect(modifiedEntry!.diff_mode).toBe('qa');
     expect(modifiedEntry!.old_question).toBe('Question one?');
@@ -451,10 +471,7 @@ describe('computeDocumentDiff — Q&A regression', () => {
 
 describe('diff_mode discriminator', () => {
   it('every Q&A entry has diff_mode set to qa', () => {
-    const text = [
-      'Q: Q1?\nA: A1.',
-      'Q: Q2?\nA: A2.',
-    ].join('\n');
+    const text = ['Q: Q1?\nA: A1.', 'Q: Q2?\nA: A2.'].join('\n');
     const result = computeDocumentDiff(OLD_ID, NEW_ID, text, text);
 
     expect(result.diff_mode).toBe('qa');
@@ -465,7 +482,8 @@ describe('diff_mode discriminator', () => {
 
   it('every full-text entry has diff_mode set to full_text', () => {
     const result = computeDocumentDiff(
-      OLD_ID, NEW_ID,
+      OLD_ID,
+      NEW_ID,
       'Original prose content.',
       'Updated prose content.',
     );
@@ -479,7 +497,8 @@ describe('diff_mode discriminator', () => {
   it('DiffResult diff_mode matches entry diff_mode', () => {
     // Q&A case
     const qaResult = computeDocumentDiff(
-      OLD_ID, NEW_ID,
+      OLD_ID,
+      NEW_ID,
       'Q: Test?\nA: Yes.',
       'Q: Test?\nA: No.',
     );
@@ -488,7 +507,8 @@ describe('diff_mode discriminator', () => {
 
     // Full-text case
     const ftResult = computeDocumentDiff(
-      OLD_ID, NEW_ID,
+      OLD_ID,
+      NEW_ID,
       'Prose old.',
       'Prose new.',
     );
@@ -512,7 +532,8 @@ describe('computeFullTextDiff — summary counts', () => {
       added: result.entries.filter((e) => e.diff_type === 'added').length,
       removed: result.entries.filter((e) => e.diff_type === 'removed').length,
       modified: result.entries.filter((e) => e.diff_type === 'modified').length,
-      unchanged: result.entries.filter((e) => e.diff_type === 'unchanged').length,
+      unchanged: result.entries.filter((e) => e.diff_type === 'unchanged')
+        .length,
     };
 
     expect(result.summary.added).toBe(counts.added);
@@ -539,7 +560,8 @@ describe('computeFullTextDiff — summary counts', () => {
 describe('Full-text diff — upload route compatibility', () => {
   it('full-text entries map correctly to DB insert rows with null questions', () => {
     const result = computeDocumentDiff(
-      OLD_ID, NEW_ID,
+      OLD_ID,
+      NEW_ID,
       'Old policy content.',
       'New policy content.',
     );
@@ -564,7 +586,9 @@ describe('Full-text diff — upload route compatibility', () => {
       expect(row.old_question).toBeNull();
       expect(row.new_question).toBeNull();
       expect(row.status).toBe('pending_review');
-      expect(['added', 'removed', 'modified', 'unchanged']).toContain(row.diff_type);
+      expect(['added', 'removed', 'modified', 'unchanged']).toContain(
+        row.diff_type,
+      );
     }
   });
 
@@ -573,7 +597,8 @@ describe('Full-text diff — upload route compatibility', () => {
     // will find no matches and affected_content_item_id remains NULL.
     // This is acceptable for Phase 1.
     const result = computeDocumentDiff(
-      OLD_ID, NEW_ID,
+      OLD_ID,
+      NEW_ID,
       'Prose content about data protection.',
       'Updated prose content about data protection and privacy.',
     );
@@ -596,15 +621,21 @@ describe('detectSectionHeader', () => {
   });
 
   it('detects markdown h2 headings', () => {
-    expect(detectSectionHeader('## Data Protection Policy')).toBe('## Data Protection Policy');
+    expect(detectSectionHeader('## Data Protection Policy')).toBe(
+      '## Data Protection Policy',
+    );
   });
 
   it('detects markdown h3 headings', () => {
-    expect(detectSectionHeader('### Sub-section Details')).toBe('### Sub-section Details');
+    expect(detectSectionHeader('### Sub-section Details')).toBe(
+      '### Sub-section Details',
+    );
   });
 
   it('detects markdown h6 headings', () => {
-    expect(detectSectionHeader('###### Deep Heading')).toBe('###### Deep Heading');
+    expect(detectSectionHeader('###### Deep Heading')).toBe(
+      '###### Deep Heading',
+    );
   });
 
   it('detects numbered sections: 1. Title', () => {
@@ -616,7 +647,9 @@ describe('detectSectionHeader', () => {
   });
 
   it('detects numbered sections: 1.1.1 Title', () => {
-    expect(detectSectionHeader('1.1.1 Detailed Requirements')).toBe('1.1.1 Detailed Requirements');
+    expect(detectSectionHeader('1.1.1 Detailed Requirements')).toBe(
+      '1.1.1 Detailed Requirements',
+    );
   });
 
   it('detects ALL CAPS headings', () => {
@@ -624,7 +657,9 @@ describe('detectSectionHeader', () => {
   });
 
   it('detects ALL CAPS headings with spaces', () => {
-    expect(detectSectionHeader('HEALTH AND SAFETY POLICY')).toBe('HEALTH AND SAFETY POLICY');
+    expect(detectSectionHeader('HEALTH AND SAFETY POLICY')).toBe(
+      'HEALTH AND SAFETY POLICY',
+    );
   });
 
   it('returns undefined for normal text', () => {
@@ -640,7 +675,9 @@ describe('detectSectionHeader', () => {
   });
 
   it('trims whitespace before matching', () => {
-    expect(detectSectionHeader('  ## Indented Heading  ')).toBe('## Indented Heading');
+    expect(detectSectionHeader('  ## Indented Heading  ')).toBe(
+      '## Indented Heading',
+    );
   });
 
   it('does not match short ALL CAPS (2 chars or fewer) to avoid false positives', () => {
@@ -663,7 +700,8 @@ describe('detectSectionHeader', () => {
 
 describe('findLastHeadingInBlock', () => {
   it('finds the last heading in a multi-line block', () => {
-    const text = '# First Heading\nSome content here.\n## Second Heading\nMore content.';
+    const text =
+      '# First Heading\nSome content here.\n## Second Heading\nMore content.';
     expect(findLastHeadingInBlock(text)).toBe('## Second Heading');
   });
 
@@ -841,8 +879,10 @@ describe('annotateWithSectionHeaders', () => {
 
 describe('computeFullTextDiff — section header integration', () => {
   it('populates section_header on entries when headings are present', () => {
-    const oldText = '# Introduction\nThis is our policy.\n## Scope\nApplies to all staff.\nAll employees must comply.';
-    const newText = '# Introduction\nThis is our updated policy.\n## Scope\nApplies to all staff.\nAll employees must comply with new rules.';
+    const oldText =
+      '# Introduction\nThis is our policy.\n## Scope\nApplies to all staff.\nAll employees must comply.';
+    const newText =
+      '# Introduction\nThis is our updated policy.\n## Scope\nApplies to all staff.\nAll employees must comply with new rules.';
 
     const result = computeFullTextDiff(OLD_ID, NEW_ID, oldText, newText);
 
@@ -864,14 +904,19 @@ describe('computeFullTextDiff — section header integration', () => {
 
   it('propagates heading context from unchanged blocks to subsequent changed entries', () => {
     // The heading is in an unchanged block; the change is after it
-    const oldText = '# Policy Overview\nThis policy covers data protection.\nOld compliance statement here.';
-    const newText = '# Policy Overview\nThis policy covers data protection.\nNew compliance statement here.';
+    const oldText =
+      '# Policy Overview\nThis policy covers data protection.\nOld compliance statement here.';
+    const newText =
+      '# Policy Overview\nThis policy covers data protection.\nNew compliance statement here.';
 
     const result = computeFullTextDiff(OLD_ID, NEW_ID, oldText, newText);
 
     // The modified/changed entry should inherit the heading from the preceding unchanged block
     const changedEntries = result.entries.filter(
-      (e) => e.diff_type === 'modified' || e.diff_type === 'added' || e.diff_type === 'removed',
+      (e) =>
+        e.diff_type === 'modified' ||
+        e.diff_type === 'added' ||
+        e.diff_type === 'removed',
     );
     if (changedEntries.length > 0) {
       expect(changedEntries[0].section_header).toBe('# Policy Overview');

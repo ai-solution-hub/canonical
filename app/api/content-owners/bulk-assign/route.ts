@@ -31,9 +31,7 @@ export async function POST(request: NextRequest) {
       itemIds = item_ids;
     } else if (filter) {
       // Query content_items with filters to resolve IDs
-      let query = supabase
-        .from('content_items')
-        .select('id');
+      let query = supabase.from('content_items').select('id');
 
       if (filter.domain) {
         query = query.eq('primary_domain', filter.domain);
@@ -55,7 +53,12 @@ export async function POST(request: NextRequest) {
 
       if (queryError) {
         return NextResponse.json(
-          { error: safeErrorMessage(queryError, 'Failed to query content items') },
+          {
+            error: safeErrorMessage(
+              queryError,
+              'Failed to query content items',
+            ),
+          },
           { status: 500 },
         );
       }
@@ -79,18 +82,23 @@ export async function POST(request: NextRequest) {
     }
 
     // Call bulk_assign_content_owner RPC
-    const { data: rpcResult, error: rpcError } = await supabase.rpc(
+    const { data: rpcResult, error: rpcError } = (await supabase.rpc(
       'bulk_assign_content_owner',
       {
         p_item_ids: itemIds,
         p_owner_id: owner_id,
         p_assigned_by: user.id,
       },
-    ) as { data: number | null; error: { message: string } | null };
+    )) as { data: number | null; error: { message: string } | null };
 
     if (rpcError) {
       return NextResponse.json(
-        { error: safeErrorMessage(rpcError, 'Failed to bulk assign content owner') },
+        {
+          error: safeErrorMessage(
+            rpcError,
+            'Failed to bulk assign content owner',
+          ),
+        },
         { status: 500 },
       );
     }
@@ -109,7 +117,10 @@ export async function POST(request: NextRequest) {
           message: null,
         });
       } catch (err) {
-        console.warn('Failed to create bulk owner assignment notification:', err);
+        console.warn(
+          'Failed to create bulk owner assignment notification:',
+          err,
+        );
       }
     }
 

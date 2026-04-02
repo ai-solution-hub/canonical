@@ -38,7 +38,10 @@ vi.mock('next/headers', () => ({
 // Import route handlers AFTER mocks
 // ---------------------------------------------------------------------------
 
-import { GET as listGET, POST as listPOST } from '@/app/api/intelligence/profiles/route';
+import {
+  GET as listGET,
+  POST as listPOST,
+} from '@/app/api/intelligence/profiles/route';
 import {
   GET as detailGET,
   PATCH as detailPATCH,
@@ -87,9 +90,8 @@ function resetMocks() {
     data: null,
     error: null,
   });
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 }
 
@@ -259,7 +261,9 @@ describe('Intelligence Profiles API', () => {
         error: null,
       });
 
-      const request = createTestRequest(`/api/intelligence/profiles/${VALID_UUID}`);
+      const request = createTestRequest(
+        `/api/intelligence/profiles/${VALID_UUID}`,
+      );
       const params = createTestParams({ id: VALID_UUID });
       const response = await detailGET(request, { params });
       const body = await response.json();
@@ -275,7 +279,9 @@ describe('Intelligence Profiles API', () => {
         error: { message: 'not found' },
       });
 
-      const request = createTestRequest(`/api/intelligence/profiles/${VALID_UUID}`);
+      const request = createTestRequest(
+        `/api/intelligence/profiles/${VALID_UUID}`,
+      );
       const params = createTestParams({ id: VALID_UUID });
       const response = await detailGET(request, { params });
 
@@ -293,10 +299,13 @@ describe('Intelligence Profiles API', () => {
         error: null,
       });
 
-      const request = createTestRequest(`/api/intelligence/profiles/${VALID_UUID}`, {
-        method: 'PATCH',
-        body: { name: 'Updated Name' },
-      });
+      const request = createTestRequest(
+        `/api/intelligence/profiles/${VALID_UUID}`,
+        {
+          method: 'PATCH',
+          body: { name: 'Updated Name' },
+        },
+      );
       const params = createTestParams({ id: VALID_UUID });
       const response = await detailPATCH(request, { params });
       const body = await response.json();
@@ -312,10 +321,13 @@ describe('Intelligence Profiles API', () => {
         error: { code: '23505', message: 'unique_violation' },
       });
 
-      const request = createTestRequest(`/api/intelligence/profiles/${VALID_UUID}`, {
-        method: 'PATCH',
-        body: { slug: 'existing-slug' },
-      });
+      const request = createTestRequest(
+        `/api/intelligence/profiles/${VALID_UUID}`,
+        {
+          method: 'PATCH',
+          body: { slug: 'existing-slug' },
+        },
+      );
       const params = createTestParams({ id: VALID_UUID });
       const response = await detailPATCH(request, { params });
 
@@ -329,10 +341,13 @@ describe('Intelligence Profiles API', () => {
         error: null,
       });
 
-      const request = createTestRequest(`/api/intelligence/profiles/${VALID_UUID}`, {
-        method: 'PATCH',
-        body: { name: 'New Name' },
-      });
+      const request = createTestRequest(
+        `/api/intelligence/profiles/${VALID_UUID}`,
+        {
+          method: 'PATCH',
+          body: { name: 'New Name' },
+        },
+      );
       const params = createTestParams({ id: VALID_UUID });
       const response = await detailPATCH(request, { params });
 
@@ -350,9 +365,12 @@ describe('Intelligence Profiles API', () => {
         error: null,
       });
 
-      const request = createTestRequest(`/api/intelligence/profiles/${VALID_UUID}`, {
-        method: 'DELETE',
-      });
+      const request = createTestRequest(
+        `/api/intelligence/profiles/${VALID_UUID}`,
+        {
+          method: 'DELETE',
+        },
+      );
       const params = createTestParams({ id: VALID_UUID });
       const response = await detailDELETE(request, { params });
       const body = await response.json();
@@ -364,9 +382,12 @@ describe('Intelligence Profiles API', () => {
     it('returns 403 for editor role (admin only)', async () => {
       configureRole(mockSupabase, 'editor');
 
-      const request = createTestRequest(`/api/intelligence/profiles/${VALID_UUID}`, {
-        method: 'DELETE',
-      });
+      const request = createTestRequest(
+        `/api/intelligence/profiles/${VALID_UUID}`,
+        {
+          method: 'DELETE',
+        },
+      );
       const params = createTestParams({ id: VALID_UUID });
       const response = await detailDELETE(request, { params });
 
@@ -380,9 +401,12 @@ describe('Intelligence Profiles API', () => {
         error: null,
       });
 
-      const request = createTestRequest(`/api/intelligence/profiles/${VALID_UUID}`, {
-        method: 'DELETE',
-      });
+      const request = createTestRequest(
+        `/api/intelligence/profiles/${VALID_UUID}`,
+        {
+          method: 'DELETE',
+        },
+      );
       const params = createTestParams({ id: VALID_UUID });
       const response = await detailDELETE(request, { params });
 
@@ -392,9 +416,12 @@ describe('Intelligence Profiles API', () => {
     it('returns 401 when unauthenticated', async () => {
       configureUnauthenticated(mockSupabase);
 
-      const request = createTestRequest(`/api/intelligence/profiles/${VALID_UUID}`, {
-        method: 'DELETE',
-      });
+      const request = createTestRequest(
+        `/api/intelligence/profiles/${VALID_UUID}`,
+        {
+          method: 'DELETE',
+        },
+      );
       const params = createTestParams({ id: VALID_UUID });
       const response = await detailDELETE(request, { params });
 

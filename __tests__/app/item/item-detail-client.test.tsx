@@ -47,26 +47,60 @@ vi.mock('@/hooks/use-item-detail-shortcuts', () => ({
 
 // Stub views
 vi.mock('@/components/item-detail/reader-view', () => ({
-  ReaderView: ({ detailModeToggle, onModeToggle }: { detailModeToggle?: React.ReactNode; onModeToggle?: () => void }) => (
+  ReaderView: ({
+    detailModeToggle,
+    onModeToggle,
+  }: {
+    detailModeToggle?: React.ReactNode;
+    onModeToggle?: () => void;
+  }) => (
     <div data-testid="reader-view">
-      {detailModeToggle && <div data-testid="reader-mode-toggle">{detailModeToggle}</div>}
-      {onModeToggle && <button data-testid="reader-toggle-btn" onClick={onModeToggle}>Toggle</button>}
+      {detailModeToggle && (
+        <div data-testid="reader-mode-toggle">{detailModeToggle}</div>
+      )}
+      {onModeToggle && (
+        <button data-testid="reader-toggle-btn" onClick={onModeToggle}>
+          Toggle
+        </button>
+      )}
     </div>
   ),
 }));
 
 vi.mock('@/components/item-detail/editor-view', () => ({
-  EditorView: ({ detailModeToggle, onModeToggle }: { detailModeToggle?: React.ReactNode; onModeToggle?: () => void }) => (
+  EditorView: ({
+    detailModeToggle,
+    onModeToggle,
+  }: {
+    detailModeToggle?: React.ReactNode;
+    onModeToggle?: () => void;
+  }) => (
     <div data-testid="editor-view">
-      {detailModeToggle && <div data-testid="editor-mode-toggle">{detailModeToggle}</div>}
-      {onModeToggle && <button data-testid="editor-toggle-btn" onClick={onModeToggle}>Toggle</button>}
+      {detailModeToggle && (
+        <div data-testid="editor-mode-toggle">{detailModeToggle}</div>
+      )}
+      {onModeToggle && (
+        <button data-testid="editor-toggle-btn" onClick={onModeToggle}>
+          Toggle
+        </button>
+      )}
     </div>
   ),
 }));
 
 vi.mock('@/components/item-detail/detail-mode-toggle', () => ({
-  DetailModeToggle: ({ detailMode, onToggle }: { detailMode: string; onToggle: () => void }) => (
-    <button data-testid="detail-mode-toggle" data-mode={detailMode} onClick={onToggle}>
+  DetailModeToggle: ({
+    detailMode,
+    onToggle,
+  }: {
+    detailMode: string;
+    onToggle: () => void;
+  }) => (
+    <button
+      data-testid="detail-mode-toggle"
+      data-mode={detailMode}
+      onClick={onToggle}
+    >
       {detailMode}
     </button>
   ),
@@ -74,8 +108,12 @@ vi.mock('@/components/item-detail/detail-mode-toggle', () => ({
 
 // Stub layout components
 vi.mock('react-resizable-panels', () => ({
-  Panel: ({ children }: { children: React.ReactNode }) => <div data-testid="panel">{children}</div>,
-  Group: ({ children }: { children: React.ReactNode }) => <div data-testid="panel-group">{children}</div>,
+  Panel: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="panel">{children}</div>
+  ),
+  Group: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="panel-group">{children}</div>
+  ),
   Separator: () => <div data-testid="panel-separator" />,
 }));
 
@@ -88,7 +126,9 @@ vi.mock('@/components/reader/reader-panel', () => ({
 }));
 
 vi.mock('@/components/shared/error-boundary', () => ({
-  ErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  ErrorBoundary: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
 }));
 
 import { ItemDetailClient } from '@/app/item/[id]/item-detail-client';
@@ -143,7 +183,14 @@ function createMockData(overrides: Record<string, unknown> = {}) {
     isMobile: false,
     canEdit: true,
     canAdmin: false,
-    router: { push: vi.fn(), replace: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn(), prefetch: vi.fn() },
+    router: {
+      push: vi.fn(),
+      replace: vi.fn(),
+      back: vi.fn(),
+      forward: vi.fn(),
+      refresh: vi.fn(),
+      prefetch: vi.fn(),
+    },
     toggleRead: vi.fn(),
     segments: null,
     highlights: null,
@@ -163,7 +210,16 @@ function createMockData(overrides: Record<string, unknown> = {}) {
     setDetachedPosition: vi.fn(),
     setDetachedSize: vi.fn(),
     showSplitReader: false,
-    inlineEdit: { editingField: null, editValue: '', saveSuccess: null, saveAnnouncement: '', startEdit: vi.fn(), cancelEdit: vi.fn(), saveEdit: vi.fn(), setEditValue: vi.fn() },
+    inlineEdit: {
+      editingField: null,
+      editValue: '',
+      saveSuccess: null,
+      saveAnnouncement: '',
+      startEdit: vi.fn(),
+      cancelEdit: vi.fn(),
+      saveEdit: vi.fn(),
+      setEditValue: vi.fn(),
+    },
     qaEditMode: {
       isEditing: false,
       setIsEditing: vi.fn(),
@@ -183,7 +239,12 @@ function createMockData(overrides: Record<string, unknown> = {}) {
     },
     isAnalysing: false,
     handleVisionAnalysis: vi.fn(),
-    qaProvenance: { usedInWorkspaces: [], relatedQA: [], topicLayers: [], handleLayerChange: vi.fn() },
+    qaProvenance: {
+      usedInWorkspaces: [],
+      relatedQA: [],
+      topicLayers: [],
+      handleLayerChange: vi.fn(),
+    },
     layerContent: {},
     isLayerContentLoading: false,
     copied: false,
@@ -333,7 +394,9 @@ describe('ItemDetailClient (orchestrator)', () => {
 
       render(<ItemDetailClient item={createMockItem()} relatedItems={[]} />);
 
-      expect(screen.queryByTestId('detail-mode-toggle')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('detail-mode-toggle'),
+      ).not.toBeInTheDocument();
     });
   });
 

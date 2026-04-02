@@ -29,8 +29,22 @@ const sampleCoverageMatrix: CoverageMatrixData = {
       stale: 3,
       expired: 2,
       subtopics: [
-        { name: 'Penetration Testing', total_items: 12, fresh: 8, aging: 3, stale: 1, expired: 0 },
-        { name: 'Incident Response', total_items: 8, fresh: 5, aging: 2, stale: 1, expired: 0 },
+        {
+          name: 'Penetration Testing',
+          total_items: 12,
+          fresh: 8,
+          aging: 3,
+          stale: 1,
+          expired: 0,
+        },
+        {
+          name: 'Incident Response',
+          total_items: 8,
+          fresh: 5,
+          aging: 2,
+          stale: 1,
+          expired: 0,
+        },
       ],
     },
     {
@@ -41,8 +55,22 @@ const sampleCoverageMatrix: CoverageMatrixData = {
       stale: 3,
       expired: 2,
       subtopics: [
-        { name: 'GDPR Compliance', total_items: 10, fresh: 7, aging: 2, stale: 1, expired: 0 },
-        { name: 'ISO Standards', total_items: 5, fresh: 3, aging: 1, stale: 1, expired: 0 },
+        {
+          name: 'GDPR Compliance',
+          total_items: 10,
+          fresh: 7,
+          aging: 2,
+          stale: 1,
+          expired: 0,
+        },
+        {
+          name: 'ISO Standards',
+          total_items: 5,
+          fresh: 3,
+          aging: 1,
+          stale: 1,
+          expired: 0,
+        },
       ],
     },
   ],
@@ -54,9 +82,24 @@ const sampleCoverageMatrix: CoverageMatrixData = {
     },
   },
   gaps: [
-    { domain: 'Security', subtopic: 'Zero Trust', item_count: 0, issue: 'empty' },
-    { domain: 'Compliance & Governance', subtopic: 'SOC 2', item_count: 2, issue: 'thin' },
-    { domain: 'Operations', subtopic: 'Supply Chain', item_count: 4, issue: 'stale_only' },
+    {
+      domain: 'Security',
+      subtopic: 'Zero Trust',
+      item_count: 0,
+      issue: 'empty',
+    },
+    {
+      domain: 'Compliance & Governance',
+      subtopic: 'SOC 2',
+      item_count: 2,
+      issue: 'thin',
+    },
+    {
+      domain: 'Operations',
+      subtopic: 'Supply Chain',
+      item_count: 4,
+      issue: 'stale_only',
+    },
   ],
 };
 
@@ -117,9 +160,13 @@ describe('formatCoverageMatrix', () => {
     const result = formatCoverageMatrix(sampleCoverageMatrix);
 
     expect(result).toContain('## Domains');
-    expect(result).toContain('| Domain | Total | Fresh | Aging | Stale | Expired |');
+    expect(result).toContain(
+      '| Domain | Total | Fresh | Aging | Stale | Expired |',
+    );
     expect(result).toContain('| Security | 45 | 30 | 10 | 3 | 2 |');
-    expect(result).toContain('| Compliance & Governance | 30 | 20 | 5 | 3 | 2 |');
+    expect(result).toContain(
+      '| Compliance & Governance | 30 | 20 | 5 | 3 | 2 |',
+    );
   });
 
   it('shows quality issues when flagged', () => {
@@ -333,17 +380,19 @@ describe('formatBidDashboard', () => {
       count: 1,
       total_count: 1,
       has_more: false,
-      bids: [{
-        id: 'bid-003',
-        name: 'Draft Proposal',
-        buyer: 'Test Client',
-        status: 'draft',
-        deadline: null,
-        days_until_deadline: null,
-        total_questions: 10,
-        answered_questions: 0,
-        approved_questions: 0,
-      }],
+      bids: [
+        {
+          id: 'bid-003',
+          name: 'Draft Proposal',
+          buyer: 'Test Client',
+          status: 'draft',
+          deadline: null,
+          days_until_deadline: null,
+          total_questions: 10,
+          answered_questions: 0,
+          approved_questions: 0,
+        },
+      ],
     };
     const result = formatBidDashboard(noDeadline);
 
@@ -356,17 +405,19 @@ describe('formatBidDashboard', () => {
       count: 1,
       total_count: 1,
       has_more: false,
-      bids: [{
-        id: 'bid-004',
-        name: 'Empty Bid',
-        buyer: null,
-        status: 'draft',
-        deadline: null,
-        days_until_deadline: null,
-        total_questions: 0,
-        answered_questions: 0,
-        approved_questions: 0,
-      }],
+      bids: [
+        {
+          id: 'bid-004',
+          name: 'Empty Bid',
+          buyer: null,
+          status: 'draft',
+          deadline: null,
+          days_until_deadline: null,
+          total_questions: 0,
+          answered_questions: 0,
+          approved_questions: 0,
+        },
+      ],
     };
     const result = formatBidDashboard(noQuestions);
 
@@ -379,17 +430,19 @@ describe('formatBidDashboard', () => {
       count: 1,
       total_count: 1,
       has_more: false,
-      bids: [{
-        id: 'bid-005',
-        name: 'Deadline No Days',
-        buyer: 'Client',
-        status: 'active',
-        deadline: '2026-06-01',
-        days_until_deadline: null,
-        total_questions: 5,
-        answered_questions: 2,
-        approved_questions: 1,
-      }],
+      bids: [
+        {
+          id: 'bid-005',
+          name: 'Deadline No Days',
+          buyer: 'Client',
+          status: 'active',
+          deadline: '2026-06-01',
+          days_until_deadline: null,
+          total_questions: 5,
+          answered_questions: 2,
+          approved_questions: 1,
+        },
+      ],
     };
     const result = formatBidDashboard(deadlineNoDays);
 
@@ -426,19 +479,49 @@ const sampleBidDetail: BidDetail = {
     {
       name: 'Organisation',
       questions: [
-        { id: 'q1', question_text: 'Describe your organisation structure', status: 'complete', confidence_posture: 'strong_match', word_limit: 500, has_response: true, review_status: 'approved' },
-        { id: 'q2', question_text: 'How many employees do you have?', status: 'ai_drafted', confidence_posture: 'partial_match', word_limit: null, has_response: true, review_status: null },
+        {
+          id: 'q1',
+          question_text: 'Describe your organisation structure',
+          status: 'complete',
+          confidence_posture: 'strong_match',
+          word_limit: 500,
+          has_response: true,
+          review_status: 'approved',
+        },
+        {
+          id: 'q2',
+          question_text: 'How many employees do you have?',
+          status: 'ai_drafted',
+          confidence_posture: 'partial_match',
+          word_limit: null,
+          has_response: true,
+          review_status: null,
+        },
       ],
     },
     {
       name: 'Technical',
       questions: [
-        { id: 'q3', question_text: 'Describe your approach to information security including ISO 27001 certification and ongoing compliance monitoring', status: 'not_started', confidence_posture: 'needs_sme', word_limit: 1000, has_response: false, review_status: null },
+        {
+          id: 'q3',
+          question_text:
+            'Describe your approach to information security including ISO 27001 certification and ongoing compliance monitoring',
+          status: 'not_started',
+          confidence_posture: 'needs_sme',
+          word_limit: 1000,
+          has_response: false,
+          review_status: null,
+        },
       ],
     },
   ],
   status_breakdown: { complete: 3, ai_drafted: 4, not_started: 3 },
-  confidence_breakdown: { strong_match: 4, partial_match: 3, needs_sme: 2, no_content: 1 },
+  confidence_breakdown: {
+    strong_match: 4,
+    partial_match: 3,
+    needs_sme: 2,
+    no_content: 1,
+  },
 };
 
 describe('formatBidDetail', () => {
@@ -482,7 +565,9 @@ describe('formatBidDetail', () => {
     const result = formatBidDetail(sampleBidDetail);
 
     // q3 has 107 characters — should be truncated to 97 + '...'
-    expect(result).toContain('Describe your approach to information security including ISO 27001 certification and ongoing comp...');
+    expect(result).toContain(
+      'Describe your approach to information security including ISO 27001 certification and ongoing comp...',
+    );
   });
 
   it('shows response status icon for answered questions', () => {

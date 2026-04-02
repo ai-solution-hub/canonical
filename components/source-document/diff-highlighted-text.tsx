@@ -32,11 +32,13 @@ const MOBILE_CHAR_THRESHOLD = 2000;
  * current viewport. Uses a simple width check rather than a media query
  * hook — this is only evaluated once per render, not reactive to resize.
  */
-export function exceedsLazyThreshold(oldText: string, newText: string): boolean {
+export function exceedsLazyThreshold(
+  oldText: string,
+  newText: string,
+): boolean {
   const maxLen = Math.max(oldText.length, newText.length);
   // SSR-safe: default to desktop threshold when window is unavailable
-  const isMobile =
-    typeof window !== 'undefined' && window.innerWidth < 768;
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   const threshold = isMobile ? MOBILE_CHAR_THRESHOLD : DESKTOP_CHAR_THRESHOLD;
   return maxLen > threshold;
 }

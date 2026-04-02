@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  getAuthenticatedClient,
-  unauthorisedResponse,
-} from '@/lib/auth';
+import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseSearchParams } from '@/lib/validation';
 import { EntityCoOccurrenceParamsSchema } from '@/lib/validation/schemas';
@@ -29,15 +26,21 @@ export async function GET(request: NextRequest) {
     if (!auth) return unauthorisedResponse();
     const { supabase } = auth;
 
-    const parsed = parseSearchParams(EntityCoOccurrenceParamsSchema, request.nextUrl.searchParams);
+    const parsed = parseSearchParams(
+      EntityCoOccurrenceParamsSchema,
+      request.nextUrl.searchParams,
+    );
     if (!parsed.success) return parsed.response;
     const { limit, min: minShared, type: entityType } = parsed.data;
 
-    const { data: pairs, error } = await supabase.rpc('get_entity_co_occurrence', {
-      p_limit: limit,
-      p_min_count: minShared,
-      p_entity_type: entityType,
-    });
+    const { data: pairs, error } = await supabase.rpc(
+      'get_entity_co_occurrence',
+      {
+        p_limit: limit,
+        p_min_count: minShared,
+        p_entity_type: entityType,
+      },
+    );
 
     if (error) {
       return NextResponse.json(

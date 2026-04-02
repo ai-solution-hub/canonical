@@ -58,7 +58,10 @@ function findProjectRoot(): string {
     dir = parent;
   }
   for (const root of candidates) {
-    if (existsSync(resolve(root, '.env')) || existsSync(resolve(root, '.env.local'))) {
+    if (
+      existsSync(resolve(root, '.env')) ||
+      existsSync(resolve(root, '.env.local'))
+    ) {
       return root;
     }
   }
@@ -77,44 +80,44 @@ export function loadEnv(): void {
 
 /** All 38 MCP tool names in registration order. */
 export const CANONICAL_TOOL_NAMES = [
-  'search_knowledge_base',        // 1
-  'search_qa_library',            // 2
-  'find_similar_items',           // 3
-  'get_dashboard_summary',        // 4
-  'get_reorientation',            // 5
-  'get_freshness_report',         // 6
-  'get_expiring_content',         // 7
-  'list_active_bids',             // 8
-  'get_bid_detail',               // 9
-  'get_bid_question',             // 10
-  'cite_content',                 // 11
-  'get_content_effectiveness',    // 12
-  'get_content_item',             // 13
-  'create_content_item',          // 14
-  'update_content_item',          // 15
-  'get_content_items',            // 16
-  'assign_content_owner',         // 17
-  'get_document_versions',        // 18
-  'get_document_diff',            // 19
-  'get_quality_summary',          // 20
-  'get_coverage_gaps',            // 21
-  'audit_content',                // 22
-  'find_all_duplicates',          // 23
-  'suggest_content_creation',     // 24
-  'get_quality_briefing',         // 25
-  'get_quality_actions',          // 26
-  'classify_content',             // 27
-  'generate_summary',             // 28
-  'get_entity_relationships',     // 29
-  'get_certification_status',     // 30
-  'list_templates',               // 31
-  'get_template_coverage',        // 32
-  'get_template_gaps',            // 33
-  'show_coverage_matrix',         // 34
-  'show_bid_dashboard',           // 35
-  'show_reorient_me',             // 36
-  'delete_content_item',          // 37
-  'update_governance_status',     // 38
+  'search_knowledge_base', // 1
+  'search_qa_library', // 2
+  'find_similar_items', // 3
+  'get_dashboard_summary', // 4
+  'get_reorientation', // 5
+  'get_freshness_report', // 6
+  'get_expiring_content', // 7
+  'list_active_bids', // 8
+  'get_bid_detail', // 9
+  'get_bid_question', // 10
+  'cite_content', // 11
+  'get_content_effectiveness', // 12
+  'get_content_item', // 13
+  'create_content_item', // 14
+  'update_content_item', // 15
+  'get_content_items', // 16
+  'assign_content_owner', // 17
+  'get_document_versions', // 18
+  'get_document_diff', // 19
+  'get_quality_summary', // 20
+  'get_coverage_gaps', // 21
+  'audit_content', // 22
+  'find_all_duplicates', // 23
+  'suggest_content_creation', // 24
+  'get_quality_briefing', // 25
+  'get_quality_actions', // 26
+  'classify_content', // 27
+  'generate_summary', // 28
+  'get_entity_relationships', // 29
+  'get_certification_status', // 30
+  'list_templates', // 31
+  'get_template_coverage', // 32
+  'get_template_gaps', // 33
+  'show_coverage_matrix', // 34
+  'show_bid_dashboard', // 35
+  'show_reorient_me', // 36
+  'delete_content_item', // 37
+  'update_governance_status', // 38
 ] as const;
 
 export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 38
@@ -155,14 +158,14 @@ export const READ_ONLY_TOOLS = new Set([
 
 /** Write tools that modify data. */
 export const WRITE_TOOLS = new Set([
-  'classify_content',        // 10
-  'generate_summary',        // 11
-  'create_content_item',     // 12
-  'cite_content',            // 15
-  'update_content_item',     // 19
-  'delete_content_item',     // 25
+  'classify_content', // 10
+  'generate_summary', // 11
+  'create_content_item', // 12
+  'cite_content', // 15
+  'update_content_item', // 19
+  'delete_content_item', // 25
   'update_governance_status', // 30
-  'assign_content_owner',    // 31
+  'assign_content_owner', // 31
 ]);
 
 /**
@@ -171,8 +174,8 @@ export const WRITE_TOOLS = new Set([
  * embeddings which are fast and cheap (<$0.001 per call).
  */
 export const AI_TOOLS = new Set([
-  'classify_content',        // calls Claude API
-  'generate_summary',        // calls Claude API
+  'classify_content', // calls Claude API
+  'generate_summary', // calls Claude API
 ]);
 
 /** All 5 prompt names. */
@@ -219,17 +222,22 @@ export async function getAuthToken(): Promise<{
   const password = process.env.TEST_USER_1_PASSWORD;
 
   if (!url || !anonKey) {
-    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
+    throw new Error(
+      'Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY',
+    );
   }
   if (!email || !password) {
     throw new Error(
       'Missing TEST_USER_1_EMAIL or TEST_USER_1_PASSWORD. ' +
-      'Set these in .env to an admin test user.',
+        'Set these in .env to an admin test user.',
     );
   }
 
   const supabase = createClient(url, anonKey);
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
 
   if (error || !data.session) {
     throw new Error(`Auth failed: ${error?.message ?? 'No session returned'}`);
@@ -252,7 +260,9 @@ export interface KnownUUIDs {
   bidResponseId: string | null;
 }
 
-export async function getKnownUUIDs(supabase: SupabaseClient): Promise<KnownUUIDs> {
+export async function getKnownUUIDs(
+  supabase: SupabaseClient,
+): Promise<KnownUUIDs> {
   // Get a known content item (preferably a Q&A pair with embedding)
   const { data: contentItem } = await supabase
     .from('content_items')
@@ -312,7 +322,8 @@ export async function getKnownUUIDs(supabase: SupabaseClient): Promise<KnownUUID
 // ---------------------------------------------------------------------------
 
 const EVAL_TITLE = '[MCP-EVAL] Protocol compliance test item';
-const EVAL_CONTENT = 'This is a temporary item created by the MCP evaluation harness. It tests write tool functionality and will be deleted at the end of the test run.';
+const EVAL_CONTENT =
+  'This is a temporary item created by the MCP evaluation harness. It tests write tool functionality and will be deleted at the end of the test run.';
 
 export interface EvalItem {
   id: string;
@@ -323,12 +334,11 @@ export interface EvalItem {
  * Creates a dedicated eval content item via the Supabase client (not MCP).
  * This ensures the item exists before testing MCP write tools against it.
  */
-export async function createEvalItem(supabase: SupabaseClient): Promise<EvalItem> {
+export async function createEvalItem(
+  supabase: SupabaseClient,
+): Promise<EvalItem> {
   // Clean up any leftover eval items from previous runs
-  await supabase
-    .from('content_items')
-    .delete()
-    .like('title', '[MCP-EVAL]%');
+  await supabase.from('content_items').delete().like('title', '[MCP-EVAL]%');
 
   const { data, error } = await supabase
     .from('content_items')
@@ -344,7 +354,9 @@ export async function createEvalItem(supabase: SupabaseClient): Promise<EvalItem
     .single();
 
   if (error || !data) {
-    throw new Error(`Failed to create eval item: ${error?.message ?? 'Unknown error'}`);
+    throw new Error(
+      `Failed to create eval item: ${error?.message ?? 'Unknown error'}`,
+    );
   }
 
   return { id: data.id, title: data.title ?? EVAL_TITLE };
@@ -353,7 +365,10 @@ export async function createEvalItem(supabase: SupabaseClient): Promise<EvalItem
 /**
  * Deletes the eval content item and any related data.
  */
-export async function deleteEvalItem(supabase: SupabaseClient, id: string): Promise<void> {
+export async function deleteEvalItem(
+  supabase: SupabaseClient,
+  id: string,
+): Promise<void> {
   // Delete citations referencing the eval item
   await supabase.from('content_citations').delete().eq('content_item_id', id);
   // Delete content history
@@ -365,7 +380,9 @@ export async function deleteEvalItem(supabase: SupabaseClient, id: string): Prom
 /**
  * Cleans up any eval items left over from previous runs.
  */
-export async function cleanupStaleEvalItems(supabase: SupabaseClient): Promise<number> {
+export async function cleanupStaleEvalItems(
+  supabase: SupabaseClient,
+): Promise<number> {
   const { data } = await supabase
     .from('content_items')
     .select('id')
@@ -409,7 +426,10 @@ export function getMinimalArgs(
     case 'get_bid_detail':
       return { id: knownUUIDs.bidId ?? '00000000-0000-0000-0000-000000000000' };
     case 'get_bid_question':
-      return { question_id: knownUUIDs.questionId ?? '00000000-0000-0000-0000-000000000000' };
+      return {
+        question_id:
+          knownUUIDs.questionId ?? '00000000-0000-0000-0000-000000000000',
+      };
     case 'get_quality_summary':
       return {};
     case 'get_freshness_report':
@@ -461,19 +481,37 @@ export function getMinimalArgs(
     case 'generate_summary':
       return { item_id: evalItemId, force: true };
     case 'create_content_item':
-      return { title: '[MCP-EVAL] Created by protocol test', content: 'Protocol compliance test content', content_type: 'note', governance_review_status: 'draft' };
+      return {
+        title: '[MCP-EVAL] Created by protocol test',
+        content: 'Protocol compliance test content',
+        content_type: 'note',
+        governance_review_status: 'draft',
+      };
     case 'cite_content':
       // Use eval item + a fake bid response UUID — will return a structured error
-      return { content_item_id: evalItemId, bid_response_id: '00000000-0000-0000-0000-000000000000' };
+      return {
+        content_item_id: evalItemId,
+        bid_response_id: '00000000-0000-0000-0000-000000000000',
+      };
     case 'update_content_item':
-      return { id: evalItemId, fields: { notes: '[MCP-EVAL] Protocol compliance test' } };
+      return {
+        id: evalItemId,
+        fields: { notes: '[MCP-EVAL] Protocol compliance test' },
+      };
     case 'delete_content_item':
       // Will be tested separately with a dedicated item
-      return { id: evalItemId, mode: 'archive', reason: '[MCP-EVAL] Protocol compliance test' };
+      return {
+        id: evalItemId,
+        mode: 'archive',
+        reason: '[MCP-EVAL] Protocol compliance test',
+      };
     case 'update_governance_status':
       return { item_ids: [evalItemId], status: 'draft' };
     case 'assign_content_owner':
-      return { item_ids: [evalItemId], owner_id: '00000000-0000-0000-0000-000000000000' };
+      return {
+        item_ids: [evalItemId],
+        owner_id: '00000000-0000-0000-0000-000000000000',
+      };
 
     default:
       return {};

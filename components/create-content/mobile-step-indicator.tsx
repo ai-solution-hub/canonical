@@ -22,9 +22,7 @@ export function MobileStepIndicator({ activeStep }: MobileStepIndicatorProps) {
     >
       {FORM_STEPS.map(({ step, label }, idx) => (
         <div key={step} className="flex items-center gap-2">
-          {idx > 0 && (
-            <div className="h-px w-4 bg-border" aria-hidden="true" />
-          )}
+          {idx > 0 && <div className="h-px w-4 bg-border" aria-hidden="true" />}
           <div className="flex items-center gap-1.5">
             <span
               className={`flex size-6 items-center justify-center rounded-full text-xs font-medium transition-colors ${

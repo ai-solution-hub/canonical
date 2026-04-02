@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedClient, unauthorisedResponse, getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import {
+  getAuthenticatedClient,
+  unauthorisedResponse,
+  getAuthorisedClient,
+  authFailureResponse,
+} from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { guideUpdateSchema } from '@/lib/validation/guide-schemas';
@@ -31,16 +36,15 @@ export async function GET(
     // Fetch guide metadata
     const { data: guide, error: guideError } = await supabase
       .from('guides')
-      .select('id, slug, name, description, guide_type, domain_filter, icon, color, display_order, is_published, created_by, created_at, updated_at')
+      .select(
+        'id, slug, name, description, guide_type, domain_filter, icon, color, display_order, is_published, created_by, created_at, updated_at',
+      )
       .eq('slug', slug)
       .single();
 
     if (guideError || !guide) {
       if (guideError?.code === 'PGRST116') {
-        return NextResponse.json(
-          { error: 'Guide not found' },
-          { status: 404 },
-        );
+        return NextResponse.json({ error: 'Guide not found' }, { status: 404 });
       }
       console.error('Failed to fetch guide:', guideError);
       return NextResponse.json(
@@ -50,8 +54,10 @@ export async function GET(
     }
 
     // Fetch guide content via RPC
-    const { data: rows, error: rpcError } = await supabase
-      .rpc('get_guide_content', { p_guide_slug: slug });
+    const { data: rows, error: rpcError } = await supabase.rpc(
+      'get_guide_content',
+      { p_guide_slug: slug },
+    );
 
     if (rpcError) {
       console.error('Failed to fetch guide content:', rpcError);
@@ -62,25 +68,28 @@ export async function GET(
     }
 
     // Group results by section_id
-    const sectionsMap = new Map<string, {
-      section_id: string;
-      section_name: string;
-      section_description: string | null;
-      section_order: number;
-      expected_layer: string | null;
-      subtopic_filter: string | null;
-      is_required: boolean;
-      content_items: Array<{
-        content_id: string;
-        content_title: string;
-        content_type: string;
-        content_layer: string | null;
-        content_brief: string | null;
-        content_freshness: string | null;
-        content_verified_at: string | null;
-        content_captured_date: string | null;
-      }>;
-    }>();
+    const sectionsMap = new Map<
+      string,
+      {
+        section_id: string;
+        section_name: string;
+        section_description: string | null;
+        section_order: number;
+        expected_layer: string | null;
+        subtopic_filter: string | null;
+        is_required: boolean;
+        content_items: Array<{
+          content_id: string;
+          content_title: string;
+          content_type: string;
+          content_layer: string | null;
+          content_brief: string | null;
+          content_freshness: string | null;
+          content_verified_at: string | null;
+          content_captured_date: string | null;
+        }>;
+      }
+    >();
 
     for (const row of rows ?? []) {
       if (!sectionsMap.has(row.section_id)) {
@@ -167,10 +176,7 @@ export async function PATCH(
         );
       }
       if (error.code === 'PGRST116') {
-        return NextResponse.json(
-          { error: 'Guide not found' },
-          { status: 404 },
-        );
+        return NextResponse.json({ error: 'Guide not found' }, { status: 404 });
       }
       console.error('Failed to update guide:', error);
       return NextResponse.json(
@@ -180,10 +186,7 @@ export async function PATCH(
     }
 
     if (!data) {
-      return NextResponse.json(
-        { error: 'Guide not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Guide not found' }, { status: 404 });
     }
 
     return NextResponse.json(data);
@@ -213,10 +216,7 @@ export async function DELETE(
       );
     }
 
-    const { error } = await supabase
-      .from('guides')
-      .delete()
-      .eq('slug', slug);
+    const { error } = await supabase.from('guides').delete().eq('slug', slug);
 
     if (error) {
       console.error('Failed to delete guide:', error);

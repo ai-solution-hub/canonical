@@ -21,7 +21,10 @@ export async function GET() {
       .order('created_at', { ascending: false });
 
     if (wsError) {
-      return NextResponse.json({ error: 'Failed to fetch workspaces' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Failed to fetch workspaces' },
+        { status: 500 },
+      );
     }
 
     if (!workspaces?.length) {
@@ -59,7 +62,8 @@ export async function GET() {
 
     const sourceCountMap: Record<string, number> = {};
     for (const row of sourceCounts ?? []) {
-      sourceCountMap[row.workspace_id] = (sourceCountMap[row.workspace_id] ?? 0) + 1;
+      sourceCountMap[row.workspace_id] =
+        (sourceCountMap[row.workspace_id] ?? 0) + 1;
     }
 
     // Fetch article counts per workspace
@@ -68,7 +72,8 @@ export async function GET() {
       .select('workspace_id, passed')
       .in('workspace_id', workspaceIds);
 
-    const articleCountMap: Record<string, { total: number; passed: number }> = {};
+    const articleCountMap: Record<string, { total: number; passed: number }> =
+      {};
     for (const row of articleCounts ?? []) {
       if (!articleCountMap[row.workspace_id]) {
         articleCountMap[row.workspace_id] = { total: 0, passed: 0 };
@@ -85,7 +90,9 @@ export async function GET() {
       const profileId = meta?.company_profile_id as string | undefined;
       return {
         ...ws,
-        company_profile_name: profileId ? profileMap[profileId] ?? null : null,
+        company_profile_name: profileId
+          ? (profileMap[profileId] ?? null)
+          : null,
         source_count: sourceCountMap[ws.id] ?? 0,
         article_count: articleCountMap[ws.id]?.total ?? 0,
         passed_article_count: articleCountMap[ws.id]?.passed ?? 0,
@@ -163,7 +170,8 @@ export async function POST(request: NextRequest) {
     if (keyTopics) {
       promptText += ` Key topics of interest: ${keyTopics}.`;
     }
-    promptText += ' Prioritise articles that could inform bids, sales conversations, or strategic decisions.';
+    promptText +=
+      ' Prioritise articles that could inform bids, sales conversations, or strategic decisions.';
 
     await supabase.from('feed_prompts').insert({
       workspace_id: workspace.id,
@@ -179,7 +187,8 @@ export async function POST(request: NextRequest) {
     let guideId: string | null = null;
 
     try {
-      const { createIntelligenceGuide } = await import('@/lib/intelligence/guide-generator');
+      const { createIntelligenceGuide } =
+        await import('@/lib/intelligence/guide-generator');
       const guideResult = await createIntelligenceGuide(
         supabase,
         workspace.id,

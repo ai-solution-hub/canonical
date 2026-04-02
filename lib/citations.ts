@@ -82,7 +82,9 @@ export function extractCitedResponse(
  * Deduplicate citations by source_id, keeping the first occurrence.
  * Useful for summary displays where you want unique source references.
  */
-export function deduplicateCitations(citations: CitationEntry[]): CitationEntry[] {
+export function deduplicateCitations(
+  citations: CitationEntry[],
+): CitationEntry[] {
   const seen = new Set<string>();
   return citations.filter((c) => {
     if (seen.has(c.source_id)) return false;

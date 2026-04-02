@@ -57,8 +57,7 @@ function filterActiveBids(workspaces: Workspace[]): ActiveBidWorkspace[] {
     })
     .sort((a, b) => {
       // Soonest deadline first, nulls last
-      if (a.deadline && b.deadline)
-        return a.deadline.localeCompare(b.deadline);
+      if (a.deadline && b.deadline) return a.deadline.localeCompare(b.deadline);
       if (a.deadline && !b.deadline) return -1;
       if (!a.deadline && b.deadline) return 1;
       return a.name.localeCompare(b.name);
@@ -86,24 +85,18 @@ export function useQuickAssign(): UseQuickAssignReturn {
     Map<string, Set<string>>
   >(new Map());
   // Per-item assigning state for spinner
-  const [assigningItems, setAssigningItems] = useState<Set<string>>(
-    new Set(),
-  );
+  const [assigningItems, setAssigningItems] = useState<Set<string>>(new Set());
 
   // -------------------------------------------------------------------------
   // Workspace query — replaces useEffect + fetchedRef
   // -------------------------------------------------------------------------
 
-  const workspacesQuery = useQuery<
-    Workspace[],
-    Error,
-    ActiveBidWorkspace[]
-  >({
+  const workspacesQuery = useQuery<Workspace[], Error, ActiveBidWorkspace[]>({
     queryKey: queryKeys.workspaces.list,
     queryFn: async () => {
-      const data = await fetchJson<
-        Workspace[] | { workspaces: Workspace[] }
-      >('/api/workspaces');
+      const data = await fetchJson<Workspace[] | { workspaces: Workspace[] }>(
+        '/api/workspaces',
+      );
       return Array.isArray(data) ? data : (data.workspaces ?? []);
     },
     select: filterActiveBids,
@@ -134,8 +127,7 @@ export function useQuickAssign(): UseQuickAssignReturn {
       if (itemIds.length === 0) return;
 
       try {
-        const assignments =
-          await loadAssignmentsMutateAsync(itemIds);
+        const assignments = await loadAssignmentsMutateAsync(itemIds);
 
         setItemAssignments((prev) => {
           const next = new Map(prev);
@@ -156,21 +148,13 @@ export function useQuickAssign(): UseQuickAssignReturn {
   // -------------------------------------------------------------------------
 
   const toggleMutation = useMutation<void, Error, ToggleVariables>({
-    mutationFn: async ({
-      itemId,
-      workspaceId,
-      action,
-    }: ToggleVariables) => {
+    mutationFn: async ({ itemId, workspaceId, action }: ToggleVariables) => {
       await mutationFetchJson(`/api/items/${itemId}/workspaces`, {
         workspace_id: workspaceId,
         action,
       });
     },
-    onMutate: async ({
-      itemId,
-      workspaceId,
-      action,
-    }: ToggleVariables) => {
+    onMutate: async ({ itemId, workspaceId, action }: ToggleVariables) => {
       // Optimistic update
       setItemAssignments((prev) => {
         const next = new Map(prev);
@@ -201,10 +185,7 @@ export function useQuickAssign(): UseQuickAssignReturn {
       });
       toast.error(`Failed to ${action} workspace`);
     },
-    onSuccess: (
-      _data,
-      { itemId, workspaceId, workspaceName, action },
-    ) => {
+    onSuccess: (_data, { itemId, workspaceId, workspaceName, action }) => {
       const toastMessage =
         action === 'assign'
           ? `Added to ${workspaceName}`
@@ -237,11 +218,7 @@ export function useQuickAssign(): UseQuickAssignReturn {
   const { mutateAsync: toggleMutateAsync } = toggleMutation;
 
   const toggleAssignment = useCallback(
-    async (
-      itemId: string,
-      workspaceId: string,
-      workspaceName: string,
-    ) => {
+    async (itemId: string, workspaceId: string, workspaceName: string) => {
       const currentAssignments =
         itemAssignments.get(itemId) ?? new Set<string>();
       const isCurrentlyAssigned = currentAssignments.has(workspaceId);

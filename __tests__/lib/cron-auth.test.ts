@@ -41,7 +41,9 @@ describe('verifyCronAuth', () => {
       headers: { authorization: 'Bearer anything' },
     });
     expect(verifyCronAuth(request)).toBe(false);
-    expect(consoleSpy).toHaveBeenCalledWith('CRON_SECRET environment variable not set');
+    expect(consoleSpy).toHaveBeenCalledWith(
+      'CRON_SECRET environment variable not set',
+    );
     consoleSpy.mockRestore();
   });
 
@@ -56,10 +58,7 @@ describe('verifyCronAuth', () => {
 
 describe('getUsersByRole', () => {
   it('returns user IDs for matching roles', async () => {
-    const mockData = [
-      { user_id: 'user-1' },
-      { user_id: 'user-2' },
-    ];
+    const mockData = [{ user_id: 'user-1' }, { user_id: 'user-2' }];
     const mockSupabase = {
       from: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnValue({
@@ -68,7 +67,10 @@ describe('getUsersByRole', () => {
       }),
     };
 
-    const result = await getUsersByRole(mockSupabase as never, ['admin', 'editor']);
+    const result = await getUsersByRole(mockSupabase as never, [
+      'admin',
+      'editor',
+    ]);
     expect(result).toEqual(['user-1', 'user-2']);
     expect(mockSupabase.from).toHaveBeenCalledWith('user_roles');
   });
@@ -77,7 +79,9 @@ describe('getUsersByRole', () => {
     const mockSupabase = {
       from: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnValue({
-          in: vi.fn().mockResolvedValue({ data: null, error: { message: 'fail' } }),
+          in: vi
+            .fn()
+            .mockResolvedValue({ data: null, error: { message: 'fail' } }),
         }),
       }),
     };

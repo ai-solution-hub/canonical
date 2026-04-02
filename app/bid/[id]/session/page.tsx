@@ -220,7 +220,10 @@ export default function BidSessionPage({
 
   // Wrap handleAction to clear draft only after successful save/accept
   const handleActionWithRecovery = useCallback(
-    async (action: Parameters<typeof handleAction>[0], instructions?: string) => {
+    async (
+      action: Parameters<typeof handleAction>[0],
+      instructions?: string,
+    ) => {
       try {
         if (instructions !== undefined) {
           await handleAction(action, instructions);
@@ -308,7 +311,10 @@ export default function BidSessionPage({
     return (
       <BidContextProvider bidId={id}>
         <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6">
-          <div className="flex flex-col items-center justify-center py-20 text-center" role="alert">
+          <div
+            className="flex flex-col items-center justify-center py-20 text-center"
+            role="alert"
+          >
             <AlertCircle
               className="size-10 text-muted-foreground/50"
               aria-hidden="true"
@@ -317,11 +323,7 @@ export default function BidSessionPage({
               Couldn&apos;t load the session
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">{error}</p>
-            <Button
-              variant="outline"
-              onClick={fetchBidData}
-              className="mt-4"
-            >
+            <Button variant="outline" onClick={fetchBidData} className="mt-4">
               Try again
             </Button>
           </div>
@@ -362,7 +364,10 @@ export default function BidSessionPage({
 
   // ── Main session layout ──
   const sessionContent = (
-    <div className="mx-auto max-w-screen-2xl px-4 py-4 sm:px-6" aria-label="Bid drafting session">
+    <div
+      className="mx-auto max-w-screen-2xl px-4 py-4 sm:px-6"
+      aria-label="Bid drafting session"
+    >
       {/* Header */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
@@ -378,12 +383,7 @@ export default function BidSessionPage({
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            asChild
-            className="gap-1.5"
-          >
+          <Button variant="outline" size="sm" asChild className="gap-1.5">
             <Link href={`/browse?from_bid=${id}`}>
               <Search className="size-3.5" aria-hidden="true" />
               Browse for content
@@ -432,7 +432,10 @@ export default function BidSessionPage({
           )}
 
           <Sheet open={questionSheetOpen} onOpenChange={setQuestionSheetOpen}>
-            <SheetContent side="left" className="w-[85vw] max-w-sm overflow-y-auto">
+            <SheetContent
+              side="left"
+              className="w-[85vw] max-w-sm overflow-y-auto"
+            >
               <SheetHeader>
                 <SheetTitle>Questions</SheetTitle>
                 <SheetDescription>
@@ -443,7 +446,10 @@ export default function BidSessionPage({
                 <QuestionNavigator
                   questions={navigatorQuestions}
                   currentIndex={currentIndex}
-                  onNavigate={(i) => { handleNavigate(i); setQuestionSheetOpen(false); }}
+                  onNavigate={(i) => {
+                    handleNavigate(i);
+                    setQuestionSheetOpen(false);
+                  }}
                 />
                 {currentQuestion && (
                   <div className="rounded-lg border border-[var(--color-highlight-border)] bg-[var(--color-highlight-bg)] p-4">
@@ -569,13 +575,18 @@ export default function BidSessionPage({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => contentLibrary.open(currentQuestion?.question_text)}
+                    onClick={() =>
+                      contentLibrary.open(currentQuestion?.question_text)
+                    }
                     className="shrink-0 gap-1.5"
                     title={`Content Library (${modKey}L)`}
                   >
                     <Library className="size-3.5" aria-hidden="true" />
                     <span className="hidden sm:inline">Library</span>
-                    <kbd className="ml-1 hidden rounded border border-border bg-muted px-1.5 py-0.5 text-xs font-mono text-muted-foreground sm:inline" aria-hidden="true">
+                    <kbd
+                      className="ml-1 hidden rounded border border-border bg-muted px-1.5 py-0.5 text-xs font-mono text-muted-foreground sm:inline"
+                      aria-hidden="true"
+                    >
                       {modKey}L
                     </kbd>
                   </Button>

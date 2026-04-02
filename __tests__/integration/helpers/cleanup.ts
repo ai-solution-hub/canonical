@@ -21,9 +21,26 @@ export function resetMockClient(client: MockSupabaseClient): void {
   client.auth.getUser.mockClear();
 
   const chainable = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
 
   for (const method of chainable) {
@@ -38,9 +55,8 @@ export function resetMockClient(client: MockSupabaseClient): void {
   client._chain.csv.mockReset();
   client._chain.csv.mockResolvedValue({ data: null, error: null });
   client._chain.then.mockReset();
-  client._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  client._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 }
 
@@ -74,7 +90,13 @@ export function createTracker(): TrackedTestData {
  * Uses try/finally to ensure all cleanup attempts run even if earlier ones fail.
  */
 export async function cleanupTrackedData(
-  supabase: { from: (table: string) => { delete: () => { in: (col: string, ids: string[]) => Promise<{ error: unknown }> } } },
+  supabase: {
+    from: (table: string) => {
+      delete: () => {
+        in: (col: string, ids: string[]) => Promise<{ error: unknown }>;
+      };
+    };
+  },
   tracker: TrackedTestData,
 ): Promise<void> {
   const errors: unknown[] = [];

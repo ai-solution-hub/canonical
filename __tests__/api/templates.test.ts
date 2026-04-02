@@ -41,8 +41,14 @@ vi.spyOn(console, 'error').mockImplementation(() => {});
 // Import handlers under test (AFTER mocks are registered)
 // ---------------------------------------------------------------------------
 
-import { GET as listTemplates, POST as uploadTemplate } from '@/app/api/bids/[id]/templates/route';
-import { GET as getTemplateDetail, DELETE as deleteTemplate } from '@/app/api/bids/[id]/templates/[templateId]/route';
+import {
+  GET as listTemplates,
+  POST as uploadTemplate,
+} from '@/app/api/bids/[id]/templates/route';
+import {
+  GET as getTemplateDetail,
+  DELETE as deleteTemplate,
+} from '@/app/api/bids/[id]/templates/[templateId]/route';
 import { POST as analyseTemplate } from '@/app/api/bids/[id]/templates/[templateId]/analyse/route';
 
 // ---------------------------------------------------------------------------
@@ -66,16 +72,41 @@ function resetMocks() {
   });
 
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockResolvedValue({ data: null, error: null, count: null });
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null, count: null });
+  mockSupabase._chain.single.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
@@ -85,11 +116,15 @@ function resetMocks() {
 
   // Reset storage mock
   mockSupabase.storage.from.mockReturnValue({
-    upload: vi.fn().mockResolvedValue({ data: { path: 'test-path' }, error: null }),
+    upload: vi
+      .fn()
+      .mockResolvedValue({ data: { path: 'test-path' }, error: null }),
     download: vi.fn().mockResolvedValue({ data: new Blob(), error: null }),
     remove: vi.fn().mockResolvedValue({ data: [], error: null }),
     list: vi.fn().mockResolvedValue({ data: [], error: null }),
-    getPublicUrl: vi.fn().mockReturnValue({ data: { publicUrl: 'https://example.com/file' } }),
+    getPublicUrl: vi
+      .fn()
+      .mockReturnValue({ data: { publicUrl: 'https://example.com/file' } }),
   });
 }
 
@@ -160,18 +195,23 @@ describe('GET /api/bids/:id/templates', () => {
     ];
 
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) {
-        // Templates query
-        return resolve({ data: mockTemplates, error: null });
-      }
-      if (thenCallCount === 2) {
-        // Completions query
-        return resolve({ data: [{ template_id: TEMPLATE_UUID }], error: null });
-      }
-      return resolve({ data: [], error: null });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) {
+          // Templates query
+          return resolve({ data: mockTemplates, error: null });
+        }
+        if (thenCallCount === 2) {
+          // Completions query
+          return resolve({
+            data: [{ template_id: TEMPLATE_UUID }],
+            error: null,
+          });
+        }
+        return resolve({ data: [], error: null });
+      },
+    );
 
     const req = createTestRequest(`/api/bids/${BID_UUID}/templates`);
     const params = createTestParams({ id: BID_UUID });
@@ -192,8 +232,8 @@ describe('GET /api/bids/:id/templates', () => {
       error: null,
     });
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const req = createTestRequest(`/api/bids/${BID_UUID}/templates`);
@@ -250,10 +290,13 @@ describe('POST /api/bids/:id/templates', () => {
     });
     formData.append('file', file);
 
-    const req = new Request('http://localhost:3000/api/bids/not-a-uuid/templates', {
-      method: 'POST',
-      body: formData,
-    });
+    const req = new Request(
+      'http://localhost:3000/api/bids/not-a-uuid/templates',
+      {
+        method: 'POST',
+        body: formData,
+      },
+    );
     const nextReq = req as unknown as import('next/server').NextRequest;
     const params = createTestParams({ id: 'not-a-uuid' });
     const res = await uploadTemplate(nextReq, { params });
@@ -274,8 +317,13 @@ describe('GET /api/bids/:id/templates/:templateId', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest(`/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}`);
-    const params = createTestParams({ id: BID_UUID, templateId: TEMPLATE_UUID });
+    const req = createTestRequest(
+      `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}`,
+    );
+    const params = createTestParams({
+      id: BID_UUID,
+      templateId: TEMPLATE_UUID,
+    });
     const res = await getTemplateDetail(req, { params });
 
     expect(res.status).toBe(401);
@@ -299,8 +347,13 @@ describe('GET /api/bids/:id/templates/:templateId', () => {
       error: { code: 'PGRST116', message: 'No rows found' },
     });
 
-    const req = createTestRequest(`/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}`);
-    const params = createTestParams({ id: BID_UUID, templateId: TEMPLATE_UUID });
+    const req = createTestRequest(
+      `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}`,
+    );
+    const params = createTestParams({
+      id: BID_UUID,
+      templateId: TEMPLATE_UUID,
+    });
     const res = await getTemplateDetail(req, { params });
 
     expect(res.status).toBe(404);
@@ -317,7 +370,8 @@ describe('GET /api/bids/:id/templates/:templateId', () => {
       filename: 'security-q.docx',
       storage_path: `${BID_UUID}/${TEMPLATE_UUID}/original.docx`,
       file_size: 45000,
-      mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      mime_type:
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       status: 'analysed',
       field_count: 3,
       mapped_count: 2,
@@ -359,34 +413,43 @@ describe('GET /api/bids/:id/templates/:templateId', () => {
     // then() calls: fields, questions (empty since no question_id), responses (empty),
     //   rpc for summary, completions
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) {
-        // Fields query
-        return resolve({ data: mockFields, error: null });
-      }
-      // Completions query and anything else
-      return resolve({ data: [], error: null });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) {
+          // Fields query
+          return resolve({ data: mockFields, error: null });
+        }
+        // Completions query and anything else
+        return resolve({ data: [], error: null });
+      },
+    );
 
     // RPC for summary
     mockSupabase.rpc.mockResolvedValue({
-      data: [{
-        total_fields: 3,
-        confirmed_fields: 2,
-        rejected_fields: 0,
-        unmapped_fields: 1,
-        unreviewed_fields: 0,
-        filled_fields: 1,
-        pending_fields: 1,
-        skipped_fields: 0,
-        failed_fields: 0,
-      }],
+      data: [
+        {
+          total_fields: 3,
+          confirmed_fields: 2,
+          rejected_fields: 0,
+          unmapped_fields: 1,
+          unreviewed_fields: 0,
+          filled_fields: 1,
+          pending_fields: 1,
+          skipped_fields: 0,
+          failed_fields: 0,
+        },
+      ],
       error: null,
     });
 
-    const req = createTestRequest(`/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}`);
-    const params = createTestParams({ id: BID_UUID, templateId: TEMPLATE_UUID });
+    const req = createTestRequest(
+      `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}`,
+    );
+    const params = createTestParams({
+      id: BID_UUID,
+      templateId: TEMPLATE_UUID,
+    });
     const res = await getTemplateDetail(req, { params });
 
     expect(res.status).toBe(200);
@@ -412,10 +475,16 @@ describe('DELETE /api/bids/:id/templates/:templateId', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest(`/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}`, {
-      method: 'DELETE',
+    const req = createTestRequest(
+      `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}`,
+      {
+        method: 'DELETE',
+      },
+    );
+    const params = createTestParams({
+      id: BID_UUID,
+      templateId: TEMPLATE_UUID,
     });
-    const params = createTestParams({ id: BID_UUID, templateId: TEMPLATE_UUID });
     const res = await deleteTemplate(req, { params });
 
     expect(res.status).toBe(401);
@@ -426,10 +495,16 @@ describe('DELETE /api/bids/:id/templates/:templateId', () => {
   it('returns 403 for editor role (admin only)', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const req = createTestRequest(`/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}`, {
-      method: 'DELETE',
+    const req = createTestRequest(
+      `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}`,
+      {
+        method: 'DELETE',
+      },
+    );
+    const params = createTestParams({
+      id: BID_UUID,
+      templateId: TEMPLATE_UUID,
     });
-    const params = createTestParams({ id: BID_UUID, templateId: TEMPLATE_UUID });
     const res = await deleteTemplate(req, { params });
 
     expect(res.status).toBe(403);
@@ -438,10 +513,16 @@ describe('DELETE /api/bids/:id/templates/:templateId', () => {
   it('returns 400 for invalid UUID', async () => {
     configureRole(mockSupabase, 'admin');
 
-    const req = createTestRequest(`/api/bids/bad-id/templates/${TEMPLATE_UUID}`, {
-      method: 'DELETE',
+    const req = createTestRequest(
+      `/api/bids/bad-id/templates/${TEMPLATE_UUID}`,
+      {
+        method: 'DELETE',
+      },
+    );
+    const params = createTestParams({
+      id: 'bad-id',
+      templateId: TEMPLATE_UUID,
     });
-    const params = createTestParams({ id: 'bad-id', templateId: TEMPLATE_UUID });
     const res = await deleteTemplate(req, { params });
 
     expect(res.status).toBe(400);
@@ -458,10 +539,16 @@ describe('DELETE /api/bids/:id/templates/:templateId', () => {
       error: { code: 'PGRST116', message: 'No rows found' },
     });
 
-    const req = createTestRequest(`/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}`, {
-      method: 'DELETE',
+    const req = createTestRequest(
+      `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}`,
+      {
+        method: 'DELETE',
+      },
+    );
+    const params = createTestParams({
+      id: BID_UUID,
+      templateId: TEMPLATE_UUID,
     });
-    const params = createTestParams({ id: BID_UUID, templateId: TEMPLATE_UUID });
     const res = await deleteTemplate(req, { params });
 
     expect(res.status).toBe(404);
@@ -484,23 +571,31 @@ describe('DELETE /api/bids/:id/templates/:templateId', () => {
 
     // then() calls: completions query, delete query
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) {
-        // Completions query
-        return resolve({ data: [], error: null });
-      }
-      if (thenCallCount === 2) {
-        // Delete query
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) {
+          // Completions query
+          return resolve({ data: [], error: null });
+        }
+        if (thenCallCount === 2) {
+          // Delete query
+          return resolve({ data: null, error: null });
+        }
         return resolve({ data: null, error: null });
-      }
-      return resolve({ data: null, error: null });
-    });
+      },
+    );
 
-    const req = createTestRequest(`/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}`, {
-      method: 'DELETE',
+    const req = createTestRequest(
+      `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}`,
+      {
+        method: 'DELETE',
+      },
+    );
+    const params = createTestParams({
+      id: BID_UUID,
+      templateId: TEMPLATE_UUID,
     });
-    const params = createTestParams({ id: BID_UUID, templateId: TEMPLATE_UUID });
     const res = await deleteTemplate(req, { params });
 
     expect(res.status).toBe(200);
@@ -526,22 +621,33 @@ describe('DELETE /api/bids/:id/templates/:templateId', () => {
 
     // then() calls: completions query succeeds, delete fails
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) {
-        return resolve({ data: [], error: null });
-      }
-      if (thenCallCount === 2) {
-        // Delete fails
-        return resolve({ data: null, error: { message: 'FK constraint violation' } });
-      }
-      return resolve({ data: null, error: null });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) {
+          return resolve({ data: [], error: null });
+        }
+        if (thenCallCount === 2) {
+          // Delete fails
+          return resolve({
+            data: null,
+            error: { message: 'FK constraint violation' },
+          });
+        }
+        return resolve({ data: null, error: null });
+      },
+    );
 
-    const req = createTestRequest(`/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}`, {
-      method: 'DELETE',
+    const req = createTestRequest(
+      `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}`,
+      {
+        method: 'DELETE',
+      },
+    );
+    const params = createTestParams({
+      id: BID_UUID,
+      templateId: TEMPLATE_UUID,
     });
-    const params = createTestParams({ id: BID_UUID, templateId: TEMPLATE_UUID });
     const res = await deleteTemplate(req, { params });
 
     expect(res.status).toBe(500);
@@ -564,7 +670,10 @@ describe('POST /api/bids/:id/templates/:templateId/analyse', () => {
       `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}/analyse`,
       { method: 'POST', body: {} },
     );
-    const params = createTestParams({ id: BID_UUID, templateId: TEMPLATE_UUID });
+    const params = createTestParams({
+      id: BID_UUID,
+      templateId: TEMPLATE_UUID,
+    });
     const res = await analyseTemplate(req, { params });
 
     expect(res.status).toBe(401);
@@ -579,7 +688,10 @@ describe('POST /api/bids/:id/templates/:templateId/analyse', () => {
       `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}/analyse`,
       { method: 'POST', body: {} },
     );
-    const params = createTestParams({ id: BID_UUID, templateId: TEMPLATE_UUID });
+    const params = createTestParams({
+      id: BID_UUID,
+      templateId: TEMPLATE_UUID,
+    });
     const res = await analyseTemplate(req, { params });
 
     expect(res.status).toBe(403);
@@ -592,7 +704,10 @@ describe('POST /api/bids/:id/templates/:templateId/analyse', () => {
       `/api/bids/bad-id/templates/${TEMPLATE_UUID}/analyse`,
       { method: 'POST', body: {} },
     );
-    const params = createTestParams({ id: 'bad-id', templateId: TEMPLATE_UUID });
+    const params = createTestParams({
+      id: 'bad-id',
+      templateId: TEMPLATE_UUID,
+    });
     const res = await analyseTemplate(req, { params });
 
     expect(res.status).toBe(400);
@@ -612,7 +727,10 @@ describe('POST /api/bids/:id/templates/:templateId/analyse', () => {
       `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}/analyse`,
       { method: 'POST', body: {} },
     );
-    const params = createTestParams({ id: BID_UUID, templateId: TEMPLATE_UUID });
+    const params = createTestParams({
+      id: BID_UUID,
+      templateId: TEMPLATE_UUID,
+    });
     const res = await analyseTemplate(req, { params });
 
     expect(res.status).toBe(404);
@@ -638,7 +756,10 @@ describe('POST /api/bids/:id/templates/:templateId/analyse', () => {
       `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}/analyse`,
       { method: 'POST', body: {} },
     );
-    const params = createTestParams({ id: BID_UUID, templateId: TEMPLATE_UUID });
+    const params = createTestParams({
+      id: BID_UUID,
+      templateId: TEMPLATE_UUID,
+    });
     const res = await analyseTemplate(req, { params });
 
     expect(res.status).toBe(409);
@@ -668,15 +789,18 @@ describe('POST /api/bids/:id/templates/:templateId/analyse', () => {
       });
 
     // then() for status update
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest(
       `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}/analyse`,
       { method: 'POST', body: {} },
     );
-    const params = createTestParams({ id: BID_UUID, templateId: TEMPLATE_UUID });
+    const params = createTestParams({
+      id: BID_UUID,
+      templateId: TEMPLATE_UUID,
+    });
     const res = await analyseTemplate(req, { params });
 
     expect(res.status).toBe(202);
@@ -707,15 +831,18 @@ describe('POST /api/bids/:id/templates/:templateId/analyse', () => {
       });
 
     // then() calls: delete fields, update status
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest(
       `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}/analyse`,
       { method: 'POST', body: { force: true } },
     );
-    const params = createTestParams({ id: BID_UUID, templateId: TEMPLATE_UUID });
+    const params = createTestParams({
+      id: BID_UUID,
+      templateId: TEMPLATE_UUID,
+    });
     const res = await analyseTemplate(req, { params });
 
     expect(res.status).toBe(202);
@@ -748,15 +875,18 @@ describe('POST /api/bids/:id/templates/:templateId/analyse', () => {
       });
 
     // then() for status updates
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest(
       `/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}/analyse`,
       { method: 'POST', body: {} },
     );
-    const params = createTestParams({ id: BID_UUID, templateId: TEMPLATE_UUID });
+    const params = createTestParams({
+      id: BID_UUID,
+      templateId: TEMPLATE_UUID,
+    });
     const res = await analyseTemplate(req, { params });
 
     expect(res.status).toBe(500);

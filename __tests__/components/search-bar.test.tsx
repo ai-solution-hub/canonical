@@ -30,7 +30,9 @@ describe('SearchBar', () => {
 
   it('shows full placeholder for hero variant', () => {
     render(<SearchBar variant="hero" />);
-    expect(screen.getByPlaceholderText('Search your knowledge base...')).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText('Search your knowledge base...'),
+    ).toBeInTheDocument();
   });
 
   it('renders with default value', () => {
@@ -62,7 +64,9 @@ describe('SearchBar', () => {
     const input = screen.getByRole('combobox');
     await user.type(input, 'my search');
     await user.keyboard('{Enter}');
-    const stored = JSON.parse(localStorage.getItem('kb-recent-searches') ?? '[]');
+    const stored = JSON.parse(
+      localStorage.getItem('kb-recent-searches') ?? '[]',
+    );
     expect(stored).toContain('my search');
   });
 

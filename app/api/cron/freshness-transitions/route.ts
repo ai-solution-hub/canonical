@@ -54,7 +54,11 @@ interface GovConfig {
   timeout_days: number | null;
 }
 
-function transitionTitle(title: string, from: FreshnessState, to: FreshnessState): string {
+function transitionTitle(
+  title: string,
+  from: FreshnessState,
+  to: FreshnessState,
+): string {
   switch (to) {
     case 'aging':
       return `"${title}" is ageing — review recommended`;
@@ -76,7 +80,9 @@ function transitionMessage(
   lifecycleType: string | null,
 ): string {
   const domainStr = domain ?? 'unclassified';
-  const dateStr = updatedAt ? new Date(updatedAt).toLocaleDateString('en-GB') : 'unknown';
+  const dateStr = updatedAt
+    ? new Date(updatedAt).toLocaleDateString('en-GB')
+    : 'unknown';
   const lcStr = lifecycleType ?? 'unspecified';
   return `Content item "${title}" in ${domainStr} transitioned from ${from} to ${to}. Last updated: ${dateStr}. Lifecycle type: ${lcStr}.`;
 }
@@ -92,7 +98,9 @@ export async function GET(request: NextRequest) {
     // Fetch governance_config to build domain maps for auto-flagging
     const { data: govConfigs } = await supabase
       .from('governance_config')
-      .select('id, domain, auto_flag_on_freshness_transition, auto_flag_cooldown_days, reviewer_id, timeout_days');
+      .select(
+        'id, domain, auto_flag_on_freshness_transition, auto_flag_cooldown_days, reviewer_id, timeout_days',
+      );
 
     const govConfigMap = new Map<string, GovConfig>();
     if (govConfigs) {
@@ -104,7 +112,9 @@ export async function GET(request: NextRequest) {
     // Find items where freshness changed (skip positive transitions to fresh)
     const { data: transitions, error: queryError } = await supabase
       .from('content_items')
-      .select('id, title, previous_freshness, freshness, primary_domain, updated_at, lifecycle_type, content_owner_id, governance_review_status, verified_at')
+      .select(
+        'id, title, previous_freshness, freshness, primary_domain, updated_at, lifecycle_type, content_owner_id, governance_review_status, verified_at',
+      )
       .not('previous_freshness', 'is', null)
       .neq('freshness', 'fresh'); // Skip transitions TO fresh (positive = silent)
     // Note: PostgREST cannot compare two columns directly, so we filter
@@ -141,7 +151,8 @@ export async function GET(request: NextRequest) {
 
     if (changed.length === 0) {
       // Still check date-based expiry reminders even when no freshness transitions
-      const expiryNotificationsCreated = await checkDateExpiryReminders(supabase);
+      const expiryNotificationsCreated =
+        await checkDateExpiryReminders(supabase);
 
       // Clean up old notifications even when no transitions
       await cleanupExpiredNotifications(supabase);
@@ -199,8 +210,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Split into owned and unowned items
-    const ownedTransitions = newTransitions.filter((item) => item.content_owner_id);
-    const unownedTransitions = newTransitions.filter((item) => !item.content_owner_id);
+    const ownedTransitions = newTransitions.filter(
+      (item) => item.content_owner_id,
+    );
+    const unownedTransitions = newTransitions.filter(
+      (item) => !item.content_owner_id,
+    );
 
     // For unowned items, notify all admins + editors (existing behaviour)
     // For owned items, notify the owner with owner_content_stale + admins with freshness_transition
@@ -210,7 +225,9 @@ export async function GET(request: NextRequest) {
 
     // --- Owned items: targeted owner_content_stale + admin freshness_transition ---
     if (ownedTransitions.length > 0) {
-      const ownerNotifications: Array<Omit<import('@/lib/notifications').CreateNotificationParams, 'supabase'>> = [];
+      const ownerNotifications: Array<
+        Omit<import('@/lib/notifications').CreateNotificationParams, 'supabase'>
+      > = [];
 
       if (ownedTransitions.length > BATCH_THRESHOLD) {
         // Summary notifications for owners (grouped by owner)
@@ -222,9 +239,15 @@ export async function GET(request: NextRequest) {
         }
 
         for (const [ownerId, items] of ownerGroups) {
-          const agingCount = items.filter((i) => i.freshness === 'aging').length;
-          const staleCount = items.filter((i) => i.freshness === 'stale').length;
-          const expiredCount = items.filter((i) => i.freshness === 'expired').length;
+          const agingCount = items.filter(
+            (i) => i.freshness === 'aging',
+          ).length;
+          const staleCount = items.filter(
+            (i) => i.freshness === 'stale',
+          ).length;
+          const expiredCount = items.filter(
+            (i) => i.freshness === 'expired',
+          ).length;
           const summaryTitle = `${items.length} of your owned items changed freshness status`;
           const summaryMessage = `${items.length} items you own changed freshness status: ${agingCount} ageing, ${staleCount} stale, ${expiredCount} expired. Review the freshness report for details.`;
 
@@ -239,9 +262,15 @@ export async function GET(request: NextRequest) {
         }
 
         // Summary for admins
-        const agingCount = ownedTransitions.filter((i) => i.freshness === 'aging').length;
-        const staleCount = ownedTransitions.filter((i) => i.freshness === 'stale').length;
-        const expiredCount = ownedTransitions.filter((i) => i.freshness === 'expired').length;
+        const agingCount = ownedTransitions.filter(
+          (i) => i.freshness === 'aging',
+        ).length;
+        const staleCount = ownedTransitions.filter(
+          (i) => i.freshness === 'stale',
+        ).length;
+        const expiredCount = ownedTransitions.filter(
+          (i) => i.freshness === 'expired',
+        ).length;
         const adminSummaryTitle = `${ownedTransitions.length} owned items changed freshness status`;
         const adminSummaryMessage = `${ownedTransitions.length} owned items changed freshness status: ${agingCount} ageing, ${staleCount} stale, ${expiredCount} expired. Owners have been notified.`;
 
@@ -264,10 +293,18 @@ export async function GET(request: NextRequest) {
             type: 'owner_content_stale' as const,
             entityType: 'content_item',
             entityId: item.id,
-            title: transitionTitle(item.title, item.previous_freshness, item.freshness),
+            title: transitionTitle(
+              item.title,
+              item.previous_freshness,
+              item.freshness,
+            ),
             message: transitionMessage(
-              item.title, item.primary_domain, item.previous_freshness,
-              item.freshness, item.updated_at, item.lifecycle_type,
+              item.title,
+              item.primary_domain,
+              item.previous_freshness,
+              item.freshness,
+              item.updated_at,
+              item.lifecycle_type,
             ),
           });
 
@@ -278,10 +315,18 @@ export async function GET(request: NextRequest) {
               type: 'freshness_transition' as const,
               entityType: 'content_item',
               entityId: item.id,
-              title: transitionTitle(item.title, item.previous_freshness, item.freshness),
+              title: transitionTitle(
+                item.title,
+                item.previous_freshness,
+                item.freshness,
+              ),
               message: transitionMessage(
-                item.title, item.primary_domain, item.previous_freshness,
-                item.freshness, item.updated_at, item.lifecycle_type,
+                item.title,
+                item.primary_domain,
+                item.previous_freshness,
+                item.freshness,
+                item.updated_at,
+                item.lifecycle_type,
               ),
             });
           }
@@ -289,7 +334,10 @@ export async function GET(request: NextRequest) {
       }
 
       if (ownerNotifications.length > 0) {
-        const { error: bulkError } = await createBulkNotifications(supabase, ownerNotifications);
+        const { error: bulkError } = await createBulkNotifications(
+          supabase,
+          ownerNotifications,
+        );
         if (!bulkError) notificationsCreated += ownerNotifications.length;
       }
     }
@@ -298,9 +346,15 @@ export async function GET(request: NextRequest) {
     if (unownedTransitions.length > 0) {
       if (unownedTransitions.length > BATCH_THRESHOLD) {
         // Summary notification
-        const agingCount = unownedTransitions.filter((i) => i.freshness === 'aging').length;
-        const staleCount = unownedTransitions.filter((i) => i.freshness === 'stale').length;
-        const expiredCount = unownedTransitions.filter((i) => i.freshness === 'expired').length;
+        const agingCount = unownedTransitions.filter(
+          (i) => i.freshness === 'aging',
+        ).length;
+        const staleCount = unownedTransitions.filter(
+          (i) => i.freshness === 'stale',
+        ).length;
+        const expiredCount = unownedTransitions.filter(
+          (i) => i.freshness === 'expired',
+        ).length;
 
         const summaryTitle = `${unownedTransitions.length} items changed freshness status`;
         const summaryMessage = `${unownedTransitions.length} items changed freshness status: ${agingCount} ageing, ${staleCount} stale, ${expiredCount} expired. Review the freshness report for details.`;
@@ -314,7 +368,10 @@ export async function GET(request: NextRequest) {
           message: summaryMessage,
         }));
 
-        const { error: bulkError } = await createBulkNotifications(supabase, notifications);
+        const { error: bulkError } = await createBulkNotifications(
+          supabase,
+          notifications,
+        );
         if (!bulkError) notificationsCreated += notifications.length;
       } else {
         // Individual notifications
@@ -324,15 +381,26 @@ export async function GET(request: NextRequest) {
             type: 'freshness_transition' as const,
             entityType: 'content_item',
             entityId: item.id,
-            title: transitionTitle(item.title, item.previous_freshness, item.freshness),
+            title: transitionTitle(
+              item.title,
+              item.previous_freshness,
+              item.freshness,
+            ),
             message: transitionMessage(
-              item.title, item.primary_domain, item.previous_freshness,
-              item.freshness, item.updated_at, item.lifecycle_type,
+              item.title,
+              item.primary_domain,
+              item.previous_freshness,
+              item.freshness,
+              item.updated_at,
+              item.lifecycle_type,
             ),
           })),
         );
 
-        const { error: bulkError } = await createBulkNotifications(supabase, notifications);
+        const { error: bulkError } = await createBulkNotifications(
+          supabase,
+          notifications,
+        );
         if (!bulkError) notificationsCreated += notifications.length;
       }
     }
@@ -361,7 +429,8 @@ export async function GET(request: NextRequest) {
 
       for (const item of governanceCandidates) {
         const domainConfig = govConfigMap.get(item.primary_domain ?? '');
-        const autoFlagEnabled = domainConfig?.auto_flag_on_freshness_transition ?? true;
+        const autoFlagEnabled =
+          domainConfig?.auto_flag_on_freshness_transition ?? true;
 
         if (!autoFlagEnabled) continue;
 
@@ -374,8 +443,12 @@ export async function GET(request: NextRequest) {
 
         // Cooldown check: skip if verified_at is within cooldown period
         const cooldownDays = domainConfig?.auto_flag_cooldown_days ?? 7;
-        const cooldownCutoff = new Date(Date.now() - cooldownDays * 24 * 60 * 60 * 1000);
-        const lastVerified = item.verified_at ? new Date(item.verified_at) : null;
+        const cooldownCutoff = new Date(
+          Date.now() - cooldownDays * 24 * 60 * 60 * 1000,
+        );
+        const lastVerified = item.verified_at
+          ? new Date(item.verified_at)
+          : null;
         const withinCooldown = lastVerified && lastVerified > cooldownCutoff;
 
         if (withinCooldown) continue;
@@ -395,7 +468,9 @@ export async function GET(request: NextRequest) {
 
         // Update each item's governance status
         for (const item of governanceFlagItems) {
-          const reviewDue = new Date(Date.now() + item.timeoutDays * 24 * 60 * 60 * 1000).toISOString();
+          const reviewDue = new Date(
+            Date.now() + item.timeoutDays * 24 * 60 * 60 * 1000,
+          ).toISOString();
           await supabase
             .from('content_items')
             .update({
@@ -427,7 +502,8 @@ export async function GET(request: NextRequest) {
               maxCount = count;
             }
           });
-          const summaryEntityId = govConfigMap.get(maxDomain)?.id ?? governanceFlagItems[0].itemId;
+          const summaryEntityId =
+            govConfigMap.get(maxDomain)?.id ?? governanceFlagItems[0].itemId;
 
           // Collect unique recipients (reviewers + admins)
           const recipientIds = new Set<string>(govAdminIds);
@@ -435,22 +511,30 @@ export async function GET(request: NextRequest) {
             if (item.reviewerId) recipientIds.add(item.reviewerId);
           }
 
-          const summaryNotifications = Array.from(recipientIds).map((userId) => ({
-            userId,
-            type: 'governance_review_needed' as const,
-            entityType: 'domain',
-            entityId: summaryEntityId,
-            title: `${governanceFlagItems.length} items flagged for freshness review`,
-            message: `The daily freshness scan flagged ${governanceFlagItems.length} items as stale or expired. Review them in the review queue.`,
-          }));
+          const summaryNotifications = Array.from(recipientIds).map(
+            (userId) => ({
+              userId,
+              type: 'governance_review_needed' as const,
+              entityType: 'domain',
+              entityId: summaryEntityId,
+              title: `${governanceFlagItems.length} items flagged for freshness review`,
+              message: `The daily freshness scan flagged ${governanceFlagItems.length} items as stale or expired. Review them in the review queue.`,
+            }),
+          );
 
-          const { error: govNotifError } = await createBulkNotifications(supabase, summaryNotifications);
-          if (!govNotifError) notificationsCreated += summaryNotifications.length;
+          const { error: govNotifError } = await createBulkNotifications(
+            supabase,
+            summaryNotifications,
+          );
+          if (!govNotifError)
+            notificationsCreated += summaryNotifications.length;
         } else {
           // Individual notification path
           const govNotifications = governanceFlagItems.flatMap((item) => {
             // Notify the assigned reviewer, or all admins if no reviewer
-            const recipients = item.reviewerId ? [item.reviewerId] : govAdminIds;
+            const recipients = item.reviewerId
+              ? [item.reviewerId]
+              : govAdminIds;
             return recipients.map((userId) => ({
               userId,
               type: 'governance_review_needed' as const,
@@ -461,7 +545,10 @@ export async function GET(request: NextRequest) {
             }));
           });
 
-          const { error: govNotifError } = await createBulkNotifications(supabase, govNotifications);
+          const { error: govNotifError } = await createBulkNotifications(
+            supabase,
+            govNotifications,
+          );
           if (!govNotifError) notificationsCreated += govNotifications.length;
         }
       }
@@ -522,7 +609,9 @@ async function checkDateExpiryReminders(
 
   try {
     const now = new Date();
-    const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const thirtyDaysFromNow = new Date(
+      now.getTime() + 30 * 24 * 60 * 60 * 1000,
+    );
     const todayStart = new Date();
     todayStart.setUTCHours(0, 0, 0, 0);
 
@@ -555,13 +644,20 @@ async function checkDateExpiryReminders(
         todayStart.toISOString(),
       );
 
-      const newExpiring = qualifying.filter((item) => !existingExpiryIds.has(item.id));
+      const newExpiring = qualifying.filter(
+        (item) => !existingExpiryIds.has(item.id),
+      );
 
       if (newExpiring.length > 0) {
         // Fetch admins for fallback recipients
         const adminIds = await getUsersByRole(supabase, ['admin']);
 
-        const expiryNotifications: Array<Omit<import('@/lib/notifications').CreateNotificationParams, 'supabase'>> = [];
+        const expiryNotifications: Array<
+          Omit<
+            import('@/lib/notifications').CreateNotificationParams,
+            'supabase'
+          >
+        > = [];
 
         for (const item of newExpiring) {
           const expiryDateObj = new Date(item.expiry_date!);
@@ -569,11 +665,12 @@ async function checkDateExpiryReminders(
             (expiryDateObj.getTime() - now.getTime()) / (24 * 60 * 60 * 1000),
           );
           const formattedDate = expiryDateObj.toLocaleDateString('en-GB');
-          const daysText = daysRemaining <= 0
-            ? 'has expired'
-            : daysRemaining === 1
-              ? '1 day remaining'
-              : `${daysRemaining} days remaining`;
+          const daysText =
+            daysRemaining <= 0
+              ? 'has expired'
+              : daysRemaining === 1
+                ? '1 day remaining'
+                : `${daysRemaining} days remaining`;
 
           const notifTitle = `"${item.title}" expires on ${formattedDate}`;
           const notifMessage = `Content item "${item.title}" has an expiry date of ${formattedDate} (${daysText}). Review and update if needed.`;
@@ -679,18 +776,25 @@ async function checkDateExpiryReminders(
 
       if (newEntityExpiring.length > 0) {
         const adminIds = await getUsersByRole(supabase, ['admin']);
-        const entityNotifications: Array<Omit<import('@/lib/notifications').CreateNotificationParams, 'supabase'>> = [];
+        const entityNotifications: Array<
+          Omit<
+            import('@/lib/notifications').CreateNotificationParams,
+            'supabase'
+          >
+        > = [];
 
         for (const entity of newEntityExpiring) {
           const daysRemaining = Math.ceil(
-            (entity.expiry_date.getTime() - now.getTime()) / (24 * 60 * 60 * 1000),
+            (entity.expiry_date.getTime() - now.getTime()) /
+              (24 * 60 * 60 * 1000),
           );
           const formattedDate = entity.expiry_date.toLocaleDateString('en-GB');
-          const daysText = daysRemaining <= 0
-            ? 'has expired'
-            : daysRemaining === 1
-              ? '1 day remaining'
-              : `${daysRemaining} days remaining`;
+          const daysText =
+            daysRemaining <= 0
+              ? 'has expired'
+              : daysRemaining === 1
+                ? '1 day remaining'
+                : `${daysRemaining} days remaining`;
 
           const notifTitle = `"${entity.canonical_name}" expires on ${formattedDate}`;
           const notifMessage = `The ${entity.entity_type} "${entity.canonical_name}" has an expiry date of ${formattedDate} (${daysText}). Consider uploading the renewed document.`;
@@ -723,9 +827,13 @@ async function checkDateExpiryReminders(
   return notificationsCreated;
 }
 
-async function cleanupExpiredNotifications(supabase: ReturnType<typeof createServiceClient>) {
+async function cleanupExpiredNotifications(
+  supabase: ReturnType<typeof createServiceClient>,
+) {
   try {
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const thirtyDaysAgo = new Date(
+      Date.now() - 30 * 24 * 60 * 60 * 1000,
+    ).toISOString();
     await supabase
       .from('notifications')
       .delete()

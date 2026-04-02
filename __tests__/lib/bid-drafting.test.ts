@@ -24,21 +24,36 @@ vi.mock('@/lib/anthropic', () => ({
     };
     return map[tier] ?? 'claude-sonnet-4-5';
   },
-  estimateCost: vi.fn().mockImplementation((model: string, usage: { input_tokens: number; output_tokens: number; cache_read_input_tokens?: number | null }) => {
-    const rates: Record<string, { input: number; output: number; cache_read: number }> = {
-      'claude-opus-4-6': { input: 15, output: 75, cache_read: 1.5 },
-      'claude-sonnet-4-5': { input: 3, output: 15, cache_read: 0.3 },
-      'claude-haiku-4-5': { input: 0.8, output: 4, cache_read: 0.08 },
-    };
-    const r = rates[model] ?? rates['claude-sonnet-4-5'];
-    const inputTokens = usage.input_tokens - (usage.cache_read_input_tokens ?? 0);
-    const cacheReadTokens = usage.cache_read_input_tokens ?? 0;
-    return (
-      (inputTokens / 1_000_000) * r.input +
-      (usage.output_tokens / 1_000_000) * r.output +
-      (cacheReadTokens / 1_000_000) * r.cache_read
-    );
-  }),
+  estimateCost: vi
+    .fn()
+    .mockImplementation(
+      (
+        model: string,
+        usage: {
+          input_tokens: number;
+          output_tokens: number;
+          cache_read_input_tokens?: number | null;
+        },
+      ) => {
+        const rates: Record<
+          string,
+          { input: number; output: number; cache_read: number }
+        > = {
+          'claude-opus-4-6': { input: 15, output: 75, cache_read: 1.5 },
+          'claude-sonnet-4-5': { input: 3, output: 15, cache_read: 0.3 },
+          'claude-haiku-4-5': { input: 0.8, output: 4, cache_read: 0.08 },
+        };
+        const r = rates[model] ?? rates['claude-sonnet-4-5'];
+        const inputTokens =
+          usage.input_tokens - (usage.cache_read_input_tokens ?? 0);
+        const cacheReadTokens = usage.cache_read_input_tokens ?? 0;
+        return (
+          (inputTokens / 1_000_000) * r.input +
+          (usage.output_tokens / 1_000_000) * r.output +
+          (cacheReadTokens / 1_000_000) * r.cache_read
+        );
+      },
+    ),
 }));
 
 // Mock the quality-check module to isolate Pass 3.
@@ -57,7 +72,11 @@ vi.mock('@/lib/ai/quality-check', () => ({
 
 // Import after mocks are declared
 import { estimateCost } from '@/lib/anthropic';
-import { analyseQuestion, draftResponse, runDraftingPipeline } from '@/lib/ai/draft';
+import {
+  analyseQuestion,
+  draftResponse,
+  runDraftingPipeline,
+} from '@/lib/ai/draft';
 
 // ──────────────────────────────────────────
 // Test fixtures
@@ -65,7 +84,8 @@ import { analyseQuestion, draftResponse, runDraftingPipeline } from '@/lib/ai/dr
 
 const sampleQuestion: DraftableQuestion = {
   id: 'q-001',
-  question_text: 'Describe your approach to data security for cloud-hosted systems.',
+  question_text:
+    'Describe your approach to data security for cloud-hosted systems.',
   word_limit: 500,
   section_name: 'Technical Capability',
   confidence_posture: null,
@@ -81,7 +101,8 @@ const sampleContent: DraftableContent[] = [
   {
     id: 'uuid-1',
     title: 'Data Encryption Policy',
-    content: 'We use AES-256 encryption for all data at rest and TLS 1.3 for data in transit.',
+    content:
+      'We use AES-256 encryption for all data at rest and TLS 1.3 for data in transit.',
     content_type: 'policy',
     ai_summary: 'Covers encryption standards and key management practices.',
   },
@@ -99,7 +120,10 @@ const sampleAnalysis: QuestionAnalysis = {
   content_types_needed: ['policy', 'certification'],
   response_structure: {
     suggested_headings: ['Encryption Standards', 'Certifications'],
-    word_allocation: [{ heading: 'Encryption Standards', words: 300 }, { heading: 'Certifications', words: 200 }],
+    word_allocation: [
+      { heading: 'Encryption Standards', words: 300 },
+      { heading: 'Certifications', words: 200 },
+    ],
   },
   key_points_to_cover: ['AES-256', 'ISO 27001', 'TLS 1.3'],
   tone: 'formal',
@@ -270,7 +294,10 @@ describe('analyseQuestion (Pass 1)', () => {
     const result = await analyseQuestion(sampleQuestion, sampleContent);
 
     expect(result.analysis.primary_topic).toBe('Data Security');
-    expect(result.analysis.content_types_needed).toEqual(['policy', 'certification']);
+    expect(result.analysis.content_types_needed).toEqual([
+      'policy',
+      'certification',
+    ]);
     expect(result.analysis.response_structure.suggested_headings).toEqual([
       'Encryption Standards',
       'Certifications',
@@ -375,7 +402,11 @@ describe('draftResponse (Pass 2)', () => {
       buildPass2ResponseWithCitations('Response text', 2000, 800),
     );
 
-    const result = await draftResponse(sampleQuestion, sampleContent, sampleAnalysis);
+    const result = await draftResponse(
+      sampleQuestion,
+      sampleContent,
+      sampleAnalysis,
+    );
 
     // The real extractCitedResponse processes the search_result_location citations
     expect(result.citations).toHaveLength(1);
@@ -387,10 +418,18 @@ describe('draftResponse (Pass 2)', () => {
 
   it('returns response text concatenated from all text blocks', async () => {
     mockCreate.mockResolvedValueOnce(
-      buildPass2ResponseNoCitations('Full drafted response text here.', 2000, 800),
+      buildPass2ResponseNoCitations(
+        'Full drafted response text here.',
+        2000,
+        800,
+      ),
     );
 
-    const result = await draftResponse(sampleQuestion, sampleContent, sampleAnalysis);
+    const result = await draftResponse(
+      sampleQuestion,
+      sampleContent,
+      sampleAnalysis,
+    );
 
     expect(result.responseText).toBe('Full drafted response text here.');
   });
@@ -514,7 +553,9 @@ describe('runDraftingPipeline (Full Orchestration)', () => {
     const result = await runDraftingPipeline(sampleQuestion, sampleContent);
 
     expect(result.metadata.ai_metadata?.model).toBe('claude-opus-4-6');
-    expect(result.metadata.ai_metadata?.analysis_model).toBe('claude-sonnet-4-5');
+    expect(result.metadata.ai_metadata?.analysis_model).toBe(
+      'claude-sonnet-4-5',
+    );
     expect(result.metadata.ai_metadata?.quality_model).toBe('claude-haiku-4-5');
   });
 
@@ -555,7 +596,10 @@ describe('runDraftingPipeline (Full Orchestration)', () => {
     await runDraftingPipeline(sampleQuestion, sampleContent);
 
     expect(mockCheckResponseQuality).toHaveBeenCalledWith(
-      { question_text: sampleQuestion.question_text, word_limit: sampleQuestion.word_limit },
+      {
+        question_text: sampleQuestion.question_text,
+        word_limit: sampleQuestion.word_limit,
+      },
       'Drafted response about data security.',
       sampleCitations,
       sampleContent.length,
@@ -595,7 +639,9 @@ describe('runDraftingPipeline (Error Handling)', () => {
   });
 
   it('propagates Pass 1 API errors', async () => {
-    mockCreate.mockRejectedValueOnce(new Error('Anthropic API rate limit exceeded'));
+    mockCreate.mockRejectedValueOnce(
+      new Error('Anthropic API rate limit exceeded'),
+    );
 
     await expect(
       runDraftingPipeline(sampleQuestion, sampleContent),

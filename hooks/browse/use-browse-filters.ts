@@ -10,7 +10,10 @@ export function useBrowseFilters() {
   const pathname = usePathname();
 
   // Search query from URL (?q=)
-  const searchQuery = useMemo(() => searchParams.get('q') ?? undefined, [searchParams]);
+  const searchQuery = useMemo(
+    () => searchParams.get('q') ?? undefined,
+    [searchParams],
+  );
 
   const filters: BrowseFilters = useMemo(() => {
     const domainRaw = searchParams.get('domain')?.split(',').filter(Boolean);
@@ -39,11 +42,16 @@ export function useBrowseFilters() {
 
     const reviewStatusRaw = searchParams.get('review_status') ?? undefined;
 
-    const qualityIssues = searchParams.get('quality_issues') === 'true' || undefined;
-    const includeQaExplicit = searchParams.get('include_qa') === 'true' || undefined;
+    const qualityIssues =
+      searchParams.get('quality_issues') === 'true' || undefined;
+    const includeQaExplicit =
+      searchParams.get('include_qa') === 'true' || undefined;
     // When quality_issues is active, automatically include Q&A pairs so the
     // user sees every flagged item — unless they've explicitly turned it off
-    const includeQa = includeQaExplicit || (qualityIssues && searchParams.get('include_qa') === null) || undefined;
+    const includeQa =
+      includeQaExplicit ||
+      (qualityIssues && searchParams.get('include_qa') === null) ||
+      undefined;
 
     return {
       domain: domainRaw?.length ? domainRaw : undefined,
@@ -64,7 +72,8 @@ export function useBrowseFilters() {
       entity: searchParams.get('entity') ?? undefined,
       entity_type: searchParams.get('entity_type') ?? undefined,
       quality_issues: qualityIssues,
-      include_drafts: searchParams.get('include_drafts') === 'true' || undefined,
+      include_drafts:
+        searchParams.get('include_drafts') === 'true' || undefined,
       include_qa: includeQa,
       owner: ownerRaw,
       review_status: reviewStatusRaw,
@@ -188,7 +197,8 @@ export function useBrowseFilters() {
         else params.delete('entity');
       }
       if ('entity_type' in newFilters) {
-        if (newFilters.entity_type) params.set('entity_type', newFilters.entity_type);
+        if (newFilters.entity_type)
+          params.set('entity_type', newFilters.entity_type);
         else params.delete('entity_type');
       }
       if ('quality_issues' in newFilters) {
@@ -208,7 +218,8 @@ export function useBrowseFilters() {
         else params.delete('owner');
       }
       if ('review_status' in newFilters) {
-        if (newFilters.review_status) params.set('review_status', newFilters.review_status);
+        if (newFilters.review_status)
+          params.set('review_status', newFilters.review_status);
         else params.delete('review_status');
       }
       if ('sort' in newFilters) {
@@ -262,7 +273,18 @@ export function useBrowseFilters() {
 
   /** Remove a single value from a multi-select array filter */
   const removeFilterValue = useCallback(
-    (key: 'domain' | 'content_type' | 'platform' | 'author' | 'keywords' | 'priority' | 'user_tags' | 'freshness', value: string) => {
+    (
+      key:
+        | 'domain'
+        | 'content_type'
+        | 'platform'
+        | 'author'
+        | 'keywords'
+        | 'priority'
+        | 'user_tags'
+        | 'freshness',
+      value: string,
+    ) => {
       const current = filters[key];
       if (!current?.length) return;
       const updated = current.filter((v) => v !== value);

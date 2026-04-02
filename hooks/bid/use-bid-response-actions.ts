@@ -232,8 +232,7 @@ export function useBidResponseActions({
   // ── Content Library insert ──
   const handleLibraryInsert = useCallback(
     async (html: string, sourceId: string, sourceTitle: string) => {
-      const isMobile =
-        typeof window !== 'undefined' && window.innerWidth < 768;
+      const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
       if (isMobile || !editorInstanceRef.current) {
         // Mobile / no editor fallback — copy to clipboard

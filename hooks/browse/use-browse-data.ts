@@ -1,6 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, type RefCallback } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  type RefCallback,
+} from 'react';
 import {
   useInfiniteQuery,
   useQuery,
@@ -79,7 +85,10 @@ export interface UseBrowseDataReturn {
   /** Search error message, if any */
   searchError: string | null;
   /** Optimistically update a single item's fields in local state */
-  updateItemLocally: (itemId: string, updates: Partial<ContentListItem>) => void;
+  updateItemLocally: (
+    itemId: string,
+    updates: Partial<ContentListItem>,
+  ) => void;
   /** Optimistically toggle a quality flag for an item */
   updateQualityFlag: (itemId: string, flagged: boolean) => void;
 }
@@ -105,30 +114,42 @@ function applyPostFilters(
 
   if (filters.domain?.length) {
     const domainSet = new Set(filters.domain);
-    filtered = filtered.filter((r) => r.primary_domain && domainSet.has(r.primary_domain));
+    filtered = filtered.filter(
+      (r) => r.primary_domain && domainSet.has(r.primary_domain),
+    );
   }
   if (filters.subtopic) {
     filtered = filtered.filter((r) => r.primary_subtopic === filters.subtopic);
   }
   if (filters.content_type?.length) {
     const typeSet = new Set(filters.content_type);
-    filtered = filtered.filter((r) => r.content_type && typeSet.has(r.content_type));
+    filtered = filtered.filter(
+      (r) => r.content_type && typeSet.has(r.content_type),
+    );
   }
   if (filters.platform?.length) {
     const platformSet = new Set(filters.platform);
-    filtered = filtered.filter((r) => r.platform && platformSet.has(r.platform));
+    filtered = filtered.filter(
+      (r) => r.platform && platformSet.has(r.platform),
+    );
   }
   if (filters.author?.length) {
     const authorSet = new Set(filters.author);
-    filtered = filtered.filter((r) => r.author_name && authorSet.has(r.author_name));
+    filtered = filtered.filter(
+      (r) => r.author_name && authorSet.has(r.author_name),
+    );
   }
   if (filters.freshness?.length) {
     const freshnessSet = new Set(filters.freshness);
-    filtered = filtered.filter((r) => r.freshness && freshnessSet.has(r.freshness));
+    filtered = filtered.filter(
+      (r) => r.freshness && freshnessSet.has(r.freshness),
+    );
   }
   if (filters.priority?.length) {
     const prioritySet = new Set(filters.priority);
-    filtered = filtered.filter((r) => r.priority && prioritySet.has(r.priority));
+    filtered = filtered.filter(
+      (r) => r.priority && prioritySet.has(r.priority),
+    );
   }
   if (filters.layer) {
     const layerValue = filters.layer;
@@ -172,7 +193,9 @@ async function resolveWorkspaceIds(
     console.error('Workspace filter failed:', error);
     return null;
   }
-  return (data ?? []).map((row: { content_item_id: string }) => row.content_item_id);
+  return (data ?? []).map(
+    (row: { content_item_id: string }) => row.content_item_id,
+  );
 }
 
 async function resolveQualityIssueIds(
@@ -219,7 +242,13 @@ async function resolveEntityIds(
     console.error('Entity filter failed:', error);
     return null;
   }
-  return [...new Set((data ?? []).map((row: { content_item_id: string }) => row.content_item_id))];
+  return [
+    ...new Set(
+      (data ?? []).map(
+        (row: { content_item_id: string }) => row.content_item_id,
+      ),
+    ),
+  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -302,7 +331,9 @@ function buildBrowseQuery(
 
   // Exclude draft items by default
   if (!filters.include_drafts) {
-    query = query.or('governance_review_status.is.null,governance_review_status.neq.draft');
+    query = query.or(
+      'governance_review_status.is.null,governance_review_status.neq.draft',
+    );
   }
 
   // Review status filter
@@ -460,7 +491,13 @@ export function useBrowseData(): UseBrowseDataReturn {
   // Browse mode: useInfiniteQuery for filter-mode with cursor/offset pagination
   // -------------------------------------------------------------------------
 
-  const browseQuery = useInfiniteQuery<BrowsePage, Error, InfiniteData<BrowsePage>, readonly unknown[], PageParam | null>({
+  const browseQuery = useInfiniteQuery<
+    BrowsePage,
+    Error,
+    InfiniteData<BrowsePage>,
+    readonly unknown[],
+    PageParam | null
+  >({
     queryKey: queryKeys.contentItems.browse(filtersKey),
     queryFn: async ({ pageParam }) => {
       const supabase = createClient();
@@ -468,7 +505,13 @@ export function useBrowseData(): UseBrowseDataReturn {
       const sort = filters.sort ?? 'captured_date';
 
       // Use cached resolver results if filter values haven't changed
-      type ResolverResult = { keywordIds: string[] | null; projectIds: string[] | null; qualityIds: string[] | null; entityIds: string[] | null; resolvedOwner: string | null };
+      type ResolverResult = {
+        keywordIds: string[] | null;
+        projectIds: string[] | null;
+        qualityIds: string[] | null;
+        entityIds: string[] | null;
+        resolvedOwner: string | null;
+      };
       let resolved: ResolverResult;
       if (resolverCacheRef.current?.key === resolverCacheKey) {
         resolved = resolverCacheRef.current.result;
@@ -481,11 +524,18 @@ export function useBrowseData(): UseBrowseDataReturn {
             resolveEntityIds(supabase, filters),
             resolveOwnerFilter(supabase, filters),
           ]);
-        resolved = { keywordIds, projectIds, qualityIds, entityIds, resolvedOwner };
+        resolved = {
+          keywordIds,
+          projectIds,
+          qualityIds,
+          entityIds,
+          resolvedOwner,
+        };
         resolverCacheRef.current = { key: resolverCacheKey, result: resolved };
       }
 
-      const { keywordIds, projectIds, qualityIds, entityIds, resolvedOwner } = resolved;
+      const { keywordIds, projectIds, qualityIds, entityIds, resolvedOwner } =
+        resolved;
 
       // Short-circuit if any required filter resolved to empty
       if (
@@ -498,10 +548,8 @@ export function useBrowseData(): UseBrowseDataReturn {
       }
 
       // Extract cursor/offset from pageParam
-      const cursorValue =
-        pageParam?.type === 'cursor' ? pageParam.value : null;
-      const offsetValue =
-        pageParam?.type === 'offset' ? pageParam.value : 0;
+      const cursorValue = pageParam?.type === 'cursor' ? pageParam.value : null;
+      const offsetValue = pageParam?.type === 'offset' ? pageParam.value : 0;
 
       const { data, count, error } = await buildBrowseQuery(
         supabase,
@@ -568,20 +616,25 @@ export function useBrowseData(): UseBrowseDataReturn {
     queryKey: queryKeys.contentItems.search(searchQuery ?? ''),
     queryFn: async ({ signal }) => {
       try {
-        const data = await fetchJson<{ results: SearchResult[] }>('/api/search', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query: searchQuery,
-            threshold: 0.35,
-            limit: SEARCH_RESULT_LIMIT,
-          }),
-          signal,
-        });
+        const data = await fetchJson<{ results: SearchResult[] }>(
+          '/api/search',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query: searchQuery,
+              threshold: 0.35,
+              limit: SEARCH_RESULT_LIMIT,
+            }),
+            signal,
+          },
+        );
         return data.results ?? [];
       } catch (err) {
         if (err instanceof ApiError && err.code === 'EMBEDDING_FAILED') {
-          throw new Error('Search is temporarily unavailable. Please try again shortly.');
+          throw new Error(
+            'Search is temporarily unavailable. Please try again shortly.',
+          );
         }
         throw err;
       }
@@ -602,18 +655,22 @@ export function useBrowseData(): UseBrowseDataReturn {
   // Quality flags: useQuery
   // -------------------------------------------------------------------------
 
-  const { data: qualityFlaggedIds = new Set<string>() } = useQuery<Set<string>>({
-    queryKey: queryKeys.qualityFlags.flaggedIds,
-    queryFn: async () => {
-      const supabase = createClient();
-      const { data, error } = await supabase.rpc('get_items_with_quality_flags');
-      if (error) throw error;
-      return new Set((data as string[]) ?? []);
+  const { data: qualityFlaggedIds = new Set<string>() } = useQuery<Set<string>>(
+    {
+      queryKey: queryKeys.qualityFlags.flaggedIds,
+      queryFn: async () => {
+        const supabase = createClient();
+        const { data, error } = await supabase.rpc(
+          'get_items_with_quality_flags',
+        );
+        if (error) throw error;
+        return new Set((data as string[]) ?? []);
+      },
+      staleTime: AUXILIARY_STALE_TIME,
+      // Set objects are not compatible with TanStack Query's structural sharing
+      structuralSharing: false,
     },
-    staleTime: AUXILIARY_STALE_TIME,
-    // Set objects are not compatible with TanStack Query's structural sharing
-    structuralSharing: false,
-  });
+  );
 
   // -------------------------------------------------------------------------
   // Freshness counts: useQuery
@@ -633,7 +690,12 @@ export function useBrowseData(): UseBrowseDataReturn {
             .neq('content_type', 'q_a_pair'),
         ),
       );
-      const counts: FreshnessCounts = { fresh: 0, aging: 0, stale: 0, expired: 0 };
+      const counts: FreshnessCounts = {
+        fresh: 0,
+        aging: 0,
+        stale: 0,
+        expired: 0,
+      };
       for (let i = 0; i < states.length; i++) {
         counts[states[i]] = results[i].count ?? 0;
       }
@@ -675,11 +737,7 @@ export function useBrowseData(): UseBrowseDataReturn {
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (
-          entries[0]?.isIntersecting &&
-          hasNextPage &&
-          !isFetchingNextPage
-        ) {
+        if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
           fetchNextPageRef.current();
         }
       },
@@ -748,7 +806,9 @@ export function useBrowseData(): UseBrowseDataReturn {
 
   const items = isSearchMode ? searchItems : browseItems;
   const totalCount = isSearchMode ? searchItems.length : browseTotalCount;
-  const isLoading = isSearchMode ? searchResult.isLoading : browseQuery.isLoading;
+  const isLoading = isSearchMode
+    ? searchResult.isLoading
+    : browseQuery.isLoading;
   const isLoadingMore = browseQuery.isFetchingNextPage;
   const hasMore = isSearchMode ? false : (browseQuery.hasNextPage ?? false);
 

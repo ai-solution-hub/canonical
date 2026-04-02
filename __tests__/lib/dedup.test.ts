@@ -14,17 +14,27 @@ import type { DedupResult } from '@/lib/dedup';
 function createMockChain() {
   const chain: Record<string, ReturnType<typeof vi.fn>> = {};
   const chainMethods = [
-    'select', 'insert', 'update', 'delete',
-    'eq', 'neq', 'not', 'is', 'limit',
-    'single', 'maybeSingle',
+    'select',
+    'insert',
+    'update',
+    'delete',
+    'eq',
+    'neq',
+    'not',
+    'is',
+    'limit',
+    'single',
+    'maybeSingle',
   ];
   for (const m of chainMethods) {
     chain[m] = vi.fn().mockReturnValue(chain);
   }
   // Terminal method defaults
-  chain.then = vi.fn().mockImplementation(
-    (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
-  );
+  chain.then = vi
+    .fn()
+    .mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({ data: [], error: null }),
+    );
   return chain;
 }
 
@@ -47,7 +57,9 @@ describe('normaliseTextForHash', () => {
   });
 
   it('collapses whitespace', () => {
-    expect(normaliseTextForHash('  multiple   spaces   here  ')).toBe('multiple spaces here');
+    expect(normaliseTextForHash('  multiple   spaces   here  ')).toBe(
+      'multiple spaces here',
+    );
   });
 
   it('handles empty string', () => {
@@ -55,11 +67,15 @@ describe('normaliseTextForHash', () => {
   });
 
   it('preserves alphanumeric characters', () => {
-    expect(normaliseTextForHash('ISO 27001 certification')).toBe('iso 27001 certification');
+    expect(normaliseTextForHash('ISO 27001 certification')).toBe(
+      'iso 27001 certification',
+    );
   });
 
   it('strips special characters', () => {
-    expect(normaliseTextForHash("What's your approach?")).toBe('whats your approach');
+    expect(normaliseTextForHash("What's your approach?")).toBe(
+      'whats your approach',
+    );
   });
 });
 
@@ -133,7 +149,7 @@ describe('checkForDuplicates', () => {
 
     const result = await checkForDuplicates(
       mockSupabase as unknown as Parameters<typeof checkForDuplicates>[0],
-      'hello world how are you',  // Same after normalisation
+      'hello world how are you', // Same after normalisation
     );
 
     expect(result.has_duplicates).toBe(true);
@@ -144,7 +160,7 @@ describe('checkForDuplicates', () => {
     // Mock: first RPC call (find_exact_duplicates) returns nothing,
     // second RPC call (find_similar_content) returns similar items
     mockSupabase.rpc
-      .mockResolvedValueOnce({ data: [], error: null })  // exact dedup
+      .mockResolvedValueOnce({ data: [], error: null }) // exact dedup
       .mockResolvedValueOnce({
         data: [
           {
@@ -188,9 +204,7 @@ describe('checkForDuplicates', () => {
   it('excludes specified item ID from results', async () => {
     // Mock: find_exact_duplicates RPC returns only the non-excluded item
     mockSupabase.rpc.mockResolvedValue({
-      data: [
-        { id: 'other-item', title: 'Other' },
-      ],
+      data: [{ id: 'other-item', title: 'Other' }],
       error: null,
     });
 
@@ -215,9 +229,7 @@ describe('checkForDuplicates', () => {
     // second RPC (find_similar_content) also returns the same item
     mockSupabase.rpc
       .mockResolvedValueOnce({
-        data: [
-          { id: 'same-item', title: 'Same Article' },
-        ],
+        data: [{ id: 'same-item', title: 'Same Article' }],
         error: null,
       })
       .mockResolvedValueOnce({
@@ -271,7 +283,10 @@ describe('checkForDuplicates', () => {
   });
 
   it('handles exact dedup query failure gracefully', async () => {
-    mockSupabase.rpc.mockResolvedValue({ data: null, error: { message: 'DB error' } });
+    mockSupabase.rpc.mockResolvedValue({
+      data: null,
+      error: { message: 'DB error' },
+    });
 
     const result = await checkForDuplicates(
       mockSupabase as unknown as Parameters<typeof checkForDuplicates>[0],
@@ -314,7 +329,10 @@ describe('checkForDuplicates', () => {
 
     // RPC should have been called once (for exact dedup only), not for find_similar_content
     expect(mockSupabase.rpc).toHaveBeenCalledTimes(1);
-    expect(mockSupabase.rpc).toHaveBeenCalledWith('find_exact_duplicates', expect.any(Object));
+    expect(mockSupabase.rpc).toHaveBeenCalledWith(
+      'find_exact_duplicates',
+      expect.any(Object),
+    );
   });
 });
 
@@ -328,7 +346,12 @@ describe('formatDedupWarning', () => {
     const result: DedupResult = {
       has_duplicates: true,
       matches: [
-        { id: '1', title: 'Existing Article', similarity: 1.0, match_type: 'exact' },
+        {
+          id: '1',
+          title: 'Existing Article',
+          similarity: 1.0,
+          match_type: 'exact',
+        },
       ],
     };
     const warning = formatDedupWarning(result);
@@ -341,7 +364,12 @@ describe('formatDedupWarning', () => {
     const result: DedupResult = {
       has_duplicates: true,
       matches: [
-        { id: '1', title: 'Similar Article', similarity: 0.95, match_type: 'near_duplicate' },
+        {
+          id: '1',
+          title: 'Similar Article',
+          similarity: 0.95,
+          match_type: 'near_duplicate',
+        },
       ],
     };
     const warning = formatDedupWarning(result);
@@ -355,7 +383,12 @@ describe('formatDedupWarning', () => {
       has_duplicates: true,
       matches: [
         { id: '1', title: 'Exact Match', similarity: 1.0, match_type: 'exact' },
-        { id: '2', title: 'Near Match', similarity: 0.93, match_type: 'near_duplicate' },
+        {
+          id: '2',
+          title: 'Near Match',
+          similarity: 0.93,
+          match_type: 'near_duplicate',
+        },
       ],
     };
     const warning = formatDedupWarning(result);
@@ -367,8 +400,18 @@ describe('formatDedupWarning', () => {
     const result: DedupResult = {
       has_duplicates: true,
       matches: [
-        { id: '1', title: 'Near A', similarity: 0.95, match_type: 'near_duplicate' },
-        { id: '2', title: 'Near B', similarity: 0.93, match_type: 'near_duplicate' },
+        {
+          id: '1',
+          title: 'Near A',
+          similarity: 0.95,
+          match_type: 'near_duplicate',
+        },
+        {
+          id: '2',
+          title: 'Near B',
+          similarity: 0.93,
+          match_type: 'near_duplicate',
+        },
       ],
     };
     const warning = formatDedupWarning(result);
@@ -379,10 +422,30 @@ describe('formatDedupWarning', () => {
     const result: DedupResult = {
       has_duplicates: true,
       matches: [
-        { id: '1', title: 'Article A', similarity: 0.98, match_type: 'near_duplicate' },
-        { id: '2', title: 'Article B', similarity: 0.96, match_type: 'near_duplicate' },
-        { id: '3', title: 'Article C', similarity: 0.94, match_type: 'near_duplicate' },
-        { id: '4', title: 'Article D', similarity: 0.92, match_type: 'near_duplicate' },
+        {
+          id: '1',
+          title: 'Article A',
+          similarity: 0.98,
+          match_type: 'near_duplicate',
+        },
+        {
+          id: '2',
+          title: 'Article B',
+          similarity: 0.96,
+          match_type: 'near_duplicate',
+        },
+        {
+          id: '3',
+          title: 'Article C',
+          similarity: 0.94,
+          match_type: 'near_duplicate',
+        },
+        {
+          id: '4',
+          title: 'Article D',
+          similarity: 0.92,
+          match_type: 'near_duplicate',
+        },
       ],
     };
     const warning = formatDedupWarning(result)!;

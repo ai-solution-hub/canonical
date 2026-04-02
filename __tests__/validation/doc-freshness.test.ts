@@ -10,7 +10,8 @@ const PROJECT_ROOT = join(__dirname, '../..');
 
 /** Extract backtick-quoted file paths from markdown content. */
 function extractFilePaths(content: string): string[] {
-  const pathPattern = /`((?:app|lib|scripts|docs|contexts|components)\/[\w/.-]+\.\w+)`/g;
+  const pathPattern =
+    /`((?:app|lib|scripts|docs|contexts|components)\/[\w/.-]+\.\w+)`/g;
   const paths: string[] = [];
   let match: RegExpExecArray | null;
   while ((match = pathPattern.exec(content)) !== null) {
@@ -34,7 +35,9 @@ describe('Doc Freshness: data-entry-points.md', () => {
   const docExists = existsSync(docPath);
 
   it('document should exist', () => {
-    expect(docExists, 'docs/reference/data-entry-points.md is missing').toBe(true);
+    expect(docExists, 'docs/reference/data-entry-points.md is missing').toBe(
+      true,
+    );
   });
 
   // Only run the remaining tests if the doc exists
@@ -129,19 +132,19 @@ describe('Doc Freshness: data-entry-points.md', () => {
     const ALLOWED_UNREFERENCED = [
       // These routes do INSERT for content_history, review assignments, etc.
       // but are not content creation entry points
-      'app/api/items/[id]/route.ts',            // update handler creates content_history
+      'app/api/items/[id]/route.ts', // update handler creates content_history
       'app/api/source-documents/[id]/diff/route.ts', // diff tracking
-      'app/api/review/assignments/route.ts',    // review assignment
-      'app/api/governance/review/route.ts',     // governance review
-      'app/api/items/[id]/owner/route.ts',      // owner assignment
-      'app/api/cron/quality-score/route.ts',    // quality score updates
+      'app/api/review/assignments/route.ts', // review assignment
+      'app/api/governance/review/route.ts', // governance review
+      'app/api/items/[id]/owner/route.ts', // owner assignment
+      'app/api/cron/quality-score/route.ts', // quality score updates
       'app/api/content-owners/bulk-assign/route.ts', // bulk owner assignment
-      'app/api/review/action/route.ts',         // review action
+      'app/api/review/action/route.ts', // review action
       'app/api/cron/freshness-transitions/route.ts', // freshness cron
-      'app/api/items/[id]/rollback/route.ts',   // rollback
+      'app/api/items/[id]/rollback/route.ts', // rollback
       'app/api/cron/classification-quality/route.ts', // classification quality cron
       'app/api/bids/[id]/responses/draft-stream/route.ts', // bid draft stream
-      'lib/mcp/tools/governance.ts',            // governance tools
+      'lib/mcp/tools/governance.ts', // governance tools
     ];
 
     const trueUnreferenced = unreferenced.filter(
@@ -160,11 +163,17 @@ describe('Doc Freshness: data-entry-points.md', () => {
 // ---------------------------------------------------------------------------
 
 describe('Doc Freshness: classification-architecture.md', () => {
-  const docPath = join(PROJECT_ROOT, 'docs/reference/classification-architecture.md');
+  const docPath = join(
+    PROJECT_ROOT,
+    'docs/reference/classification-architecture.md',
+  );
   const docExists = existsSync(docPath);
 
   it('document should exist', () => {
-    expect(docExists, 'docs/reference/classification-architecture.md is missing').toBe(true);
+    expect(
+      docExists,
+      'docs/reference/classification-architecture.md is missing',
+    ).toBe(true);
   });
 
   const content = docExists ? readFileSync(docPath, 'utf8') : '';
@@ -197,7 +206,9 @@ describe('Doc Freshness: classification-architecture.md', () => {
     // Extract paths from the File Reference section at the end of the doc
     const fileRefSection = content.split('## File Reference')[1];
     if (!fileRefSection) {
-      expect.fail('File Reference section not found in classification-architecture.md');
+      expect.fail(
+        'File Reference section not found in classification-architecture.md',
+      );
       return;
     }
 
@@ -216,11 +227,17 @@ describe('Doc Freshness: classification-architecture.md', () => {
 // ---------------------------------------------------------------------------
 
 describe('Doc Freshness: taxonomy-change-runbook.md', () => {
-  const docPath = join(PROJECT_ROOT, 'docs/reference/taxonomy-change-runbook.md');
+  const docPath = join(
+    PROJECT_ROOT,
+    'docs/reference/taxonomy-change-runbook.md',
+  );
   const docExists = existsSync(docPath);
 
   it('document should exist', () => {
-    expect(docExists, 'docs/reference/taxonomy-change-runbook.md is missing').toBe(true);
+    expect(
+      docExists,
+      'docs/reference/taxonomy-change-runbook.md is missing',
+    ).toBe(true);
   });
 
   const content = docExists ? readFileSync(docPath, 'utf8') : '';
@@ -263,9 +280,13 @@ describe('Doc Freshness: taxonomy-change-runbook.md', () => {
   });
 
   it('all file paths in the Generated artefacts table should exist', () => {
-    const artefactsSection = content.split('### Generated artefacts')[1]?.split('###')[0];
+    const artefactsSection = content
+      .split('### Generated artefacts')[1]
+      ?.split('###')[0];
     if (!artefactsSection) {
-      expect.fail('Generated artefacts section not found in taxonomy-change-runbook.md');
+      expect.fail(
+        'Generated artefacts section not found in taxonomy-change-runbook.md',
+      );
       return;
     }
 

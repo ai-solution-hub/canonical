@@ -5,7 +5,9 @@
  */
 
 /** Map a user role string to the appropriate badge variant. */
-export function roleBadgeVariant(role: string): 'default' | 'secondary' | 'outline' {
+export function roleBadgeVariant(
+  role: string,
+): 'default' | 'secondary' | 'outline' {
   switch (role) {
     case 'admin':
       return 'default';

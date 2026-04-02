@@ -7,7 +7,10 @@
  * application code runs.
  */
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
-import type { ServerRequest, ServerNotification } from '@modelcontextprotocol/sdk/types.js';
+import type {
+  ServerRequest,
+  ServerNotification,
+} from '@modelcontextprotocol/sdk/types.js';
 import type { BidQuestionSummary, BidSection } from '@/lib/mcp/formatters';
 import { createMcpClient } from '@/lib/mcp/auth';
 
@@ -80,29 +83,41 @@ export async function fetchBidSections(
   // Fetch individual questions with ordering
   const { data: questions } = await supabase
     .from('bid_questions')
-    .select('id, question_text, section_name, section_sequence, question_sequence, status, confidence_posture, word_limit')
+    .select(
+      'id, question_text, section_name, section_sequence, question_sequence, status, confidence_posture, word_limit',
+    )
     .eq('project_id', bidId)
     .order('section_sequence')
     .order('question_sequence');
 
   // Fetch responses for all questions in this bid (avoids N+1)
   const questionIds = (questions ?? []).map((q: { id: string }) => q.id);
-  const { data: responses } = questionIds.length > 0
-    ? await supabase
-        .from('bid_responses')
-        .select('question_id, response_text, review_status')
-        .in('question_id', questionIds)
-    : { data: [] as Array<{ question_id: string; response_text: string | null; review_status: string | null }> };
+  const { data: responses } =
+    questionIds.length > 0
+      ? await supabase
+          .from('bid_responses')
+          .select('question_id, response_text, review_status')
+          .in('question_id', questionIds)
+      : {
+          data: [] as Array<{
+            question_id: string;
+            response_text: string | null;
+            review_status: string | null;
+          }>,
+        };
 
   // Build a response lookup map
-  const responseMap = new Map<string, { response_text: string | null; review_status: string | null }>();
-  for (const r of (responses ?? [])) {
+  const responseMap = new Map<
+    string,
+    { response_text: string | null; review_status: string | null }
+  >();
+  for (const r of responses ?? []) {
     responseMap.set(r.question_id, r);
   }
 
   // Group questions into sections
   const sectionMap = new Map<string, BidQuestionSummary[]>();
-  for (const q of (questions ?? [])) {
+  for (const q of questions ?? []) {
     const sectionName = q.section_name ?? 'Ungrouped';
     if (!sectionMap.has(sectionName)) {
       sectionMap.set(sectionName, []);
@@ -127,7 +142,7 @@ export async function fetchBidSections(
   // Compute breakdowns
   const status_breakdown: Record<string, number> = {};
   const confidence_breakdown: Record<string, number> = {};
-  for (const q of (questions ?? [])) {
+  for (const q of questions ?? []) {
     const s = q.status ?? 'not_started';
     status_breakdown[s] = (status_breakdown[s] ?? 0) + 1;
     const c = q.confidence_posture ?? 'unmatched';
@@ -161,18 +176,25 @@ export async function fetchQualityBriefingData(
   // Build content_items queries with optional domain filter
   let belowThresholdQuery = supabase
     .from('content_items')
-    .select('id, title, suggested_title, primary_domain, primary_subtopic, quality_score, freshness, ai_summary, classification_confidence')
+    .select(
+      'id, title, suggested_title, primary_domain, primary_subtopic, quality_score, freshness, ai_summary, classification_confidence',
+    )
     .is('archived_at', null)
     .not('quality_score', 'is', null)
     .order('quality_score', { ascending: true })
     .limit(100);
   if (domainFilter) {
-    belowThresholdQuery = belowThresholdQuery.eq('primary_domain', domainFilter);
+    belowThresholdQuery = belowThresholdQuery.eq(
+      'primary_domain',
+      domainFilter,
+    );
   }
 
   let scoreDropsQuery = supabase
     .from('content_items')
-    .select('id, title, suggested_title, primary_domain, quality_score, previous_quality_score')
+    .select(
+      'id, title, suggested_title, primary_domain, quality_score, previous_quality_score',
+    )
     .is('archived_at', null)
     .not('previous_quality_score', 'is', null)
     .limit(100);
@@ -182,7 +204,9 @@ export async function fetchQualityBriefingData(
 
   let freshnessQuery = supabase
     .from('content_items')
-    .select('id, title, suggested_title, primary_domain, freshness, previous_freshness')
+    .select(
+      'id, title, suggested_title, primary_domain, freshness, previous_freshness',
+    )
     .is('archived_at', null)
     .not('previous_freshness', 'is', null)
     .limit(100);
@@ -229,7 +253,10 @@ export async function fetchQualityBriefingData(
 
   // Build threshold map from governance_config
   const thresholdMap = new Map<string, number>();
-  for (const config of (govConfigResult.data ?? []) as unknown as Array<{ domain: string; quality_score_threshold: number | null }>) {
+  for (const config of (govConfigResult.data ?? []) as unknown as Array<{
+    domain: string;
+    quality_score_threshold: number | null;
+  }>) {
     if (config.quality_score_threshold != null) {
       thresholdMap.set(config.domain, config.quality_score_threshold);
     }
@@ -237,16 +264,25 @@ export async function fetchQualityBriefingData(
   const defaultThreshold = 40;
 
   // Process below-threshold items
-  type BelowThresholdItemType = import('@/lib/mcp/formatters/briefing').BelowThresholdItem;
+  type BelowThresholdItemType =
+    import('@/lib/mcp/formatters/briefing').BelowThresholdItem;
   const belowThreshold: BelowThresholdItemType[] = [];
   for (const row of (belowThresholdResult.data ?? []) as unknown as Array<{
-    id: string; title: string | null; suggested_title: string | null;
-    primary_domain: string | null; primary_subtopic: string | null;
-    quality_score: number | null; freshness: string | null;
-    ai_summary: string | null; classification_confidence: number | null;
+    id: string;
+    title: string | null;
+    suggested_title: string | null;
+    primary_domain: string | null;
+    primary_subtopic: string | null;
+    quality_score: number | null;
+    freshness: string | null;
+    ai_summary: string | null;
+    classification_confidence: number | null;
   }>) {
     if (row.quality_score == null) continue;
-    const threshold = thresholdOverride ?? thresholdMap.get(row.primary_domain ?? '') ?? defaultThreshold;
+    const threshold =
+      thresholdOverride ??
+      thresholdMap.get(row.primary_domain ?? '') ??
+      defaultThreshold;
     if (row.quality_score < threshold) {
       belowThreshold.push({
         id: row.id,
@@ -264,15 +300,22 @@ export async function fetchQualityBriefingData(
   const belowThresholdLimited = belowThreshold.slice(0, 20);
 
   // Process score drops — filter to items where score actually dropped
-  type ScoreDropItemType = import('@/lib/mcp/formatters/briefing').ScoreDropItem;
+  type ScoreDropItemType =
+    import('@/lib/mcp/formatters/briefing').ScoreDropItem;
   const scoreDrops: ScoreDropItemType[] = [];
   for (const row of (scoreDropsResult.data ?? []) as unknown as Array<{
-    id: string; title: string | null; suggested_title: string | null;
-    primary_domain: string | null; quality_score: number | null;
+    id: string;
+    title: string | null;
+    suggested_title: string | null;
+    primary_domain: string | null;
+    quality_score: number | null;
     previous_quality_score: number | null;
   }>) {
-    if (row.quality_score != null && row.previous_quality_score != null
-        && row.quality_score < row.previous_quality_score) {
+    if (
+      row.quality_score != null &&
+      row.previous_quality_score != null &&
+      row.quality_score < row.previous_quality_score
+    ) {
       scoreDrops.push({
         id: row.id,
         title: row.title,
@@ -284,17 +327,24 @@ export async function fetchQualityBriefingData(
     }
   }
   // Sort by drop magnitude descending, limit to 20
-  scoreDrops.sort((a, b) =>
-    (b.previous_quality_score - b.quality_score) - (a.previous_quality_score - a.quality_score),
+  scoreDrops.sort(
+    (a, b) =>
+      b.previous_quality_score -
+      b.quality_score -
+      (a.previous_quality_score - a.quality_score),
   );
   const scoreDropsLimited = scoreDrops.slice(0, 20);
 
   // Process freshness transitions — filter to actual changes
-  type FreshnessTransitionItemType = import('@/lib/mcp/formatters/briefing').FreshnessTransitionItem;
+  type FreshnessTransitionItemType =
+    import('@/lib/mcp/formatters/briefing').FreshnessTransitionItem;
   const freshnessTransitions: FreshnessTransitionItemType[] = [];
   for (const row of (freshnessResult.data ?? []) as unknown as Array<{
-    id: string; title: string | null; suggested_title: string | null;
-    primary_domain: string | null; freshness: string | null;
+    id: string;
+    title: string | null;
+    suggested_title: string | null;
+    primary_domain: string | null;
+    freshness: string | null;
     previous_freshness: string | null;
   }>) {
     if (row.freshness !== row.previous_freshness) {
@@ -311,19 +361,25 @@ export async function fetchQualityBriefingData(
   const freshnessTransitionsLimited = freshnessTransitions.slice(0, 20);
 
   // Quality flags — already filtered by query
-  type QualityFlagNotificationType = import('@/lib/mcp/formatters/briefing').QualityFlagNotification;
-  const qualityFlags = ((qualityFlagsResult.data ?? []) as QualityFlagNotificationType[]);
+  type QualityFlagNotificationType =
+    import('@/lib/mcp/formatters/briefing').QualityFlagNotification;
+  const qualityFlags = (qualityFlagsResult.data ??
+    []) as QualityFlagNotificationType[];
 
   // Coverage alerts — already filtered by query
-  type CoverageAlertNotificationType = import('@/lib/mcp/formatters/briefing').CoverageAlertNotification;
-  const coverageAlerts = ((coverageAlertsResult.data ?? []) as CoverageAlertNotificationType[]);
+  type CoverageAlertNotificationType =
+    import('@/lib/mcp/formatters/briefing').CoverageAlertNotification;
+  const coverageAlerts = (coverageAlertsResult.data ??
+    []) as CoverageAlertNotificationType[];
 
   // Process certification warnings — derive expiry status
-  type CertificationWarningType = import('@/lib/mcp/formatters/briefing').CertificationWarning;
+  type CertificationWarningType =
+    import('@/lib/mcp/formatters/briefing').CertificationWarning;
   const certWarnings: CertificationWarningType[] = [];
   const seenCerts = new Set<string>();
   for (const row of (certResult.data ?? []) as Array<{
-    canonical_name: string; entity_type: string;
+    canonical_name: string;
+    entity_type: string;
     metadata: Record<string, unknown> | null;
   }>) {
     const meta = row.metadata;
@@ -347,15 +403,16 @@ export async function fetchQualityBriefingData(
   }
   const certWarningsLimited = certWarnings.slice(0, 10);
 
-  const briefingData: import('@/lib/mcp/formatters/briefing').QualityBriefingData = {
-    below_threshold: belowThresholdLimited,
-    score_drops: scoreDropsLimited,
-    freshness_transitions: freshnessTransitionsLimited,
-    quality_flags: qualityFlags,
-    coverage_alerts: coverageAlerts,
-    certification_warnings: certWarningsLimited,
-    generated_at: new Date().toISOString(),
-  };
+  const briefingData: import('@/lib/mcp/formatters/briefing').QualityBriefingData =
+    {
+      below_threshold: belowThresholdLimited,
+      score_drops: scoreDropsLimited,
+      freshness_transitions: freshnessTransitionsLimited,
+      quality_flags: qualityFlags,
+      coverage_alerts: coverageAlerts,
+      certification_warnings: certWarningsLimited,
+      generated_at: new Date().toISOString(),
+    };
 
   return briefingData;
 }

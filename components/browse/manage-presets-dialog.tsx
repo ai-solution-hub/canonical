@@ -89,12 +89,15 @@ export function ManagePresetsDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Manage filter presets</DialogTitle>
-          <DialogDescription>Rename or delete your saved filter presets.</DialogDescription>
+          <DialogDescription>
+            Rename or delete your saved filter presets.
+          </DialogDescription>
         </DialogHeader>
 
         {userPresets.length === 0 ? (
           <p className="py-4 text-center text-sm text-muted-foreground">
-            No custom presets yet. Save your current filters from the browse page.
+            No custom presets yet. Save your current filters from the browse
+            page.
           </p>
         ) : (
           <ul className="space-y-2" aria-label="User presets">

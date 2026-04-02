@@ -46,7 +46,9 @@ describe('CompanyProfileCreateSchema', () => {
       services: ['consultancy', 'training'],
       certifications: ['ISO 27001'],
       geographic_scope: ['UK'],
-      competitors: [{ name: 'Acme Corp', website: 'https://acme.com', notes: 'Main rival' }],
+      competitors: [
+        { name: 'Acme Corp', website: 'https://acme.com', notes: 'Main rival' },
+      ],
       target_customers: 'Multi-academy trusts',
       value_proposition: 'Specialist safeguarding solutions',
     });
@@ -66,22 +68,34 @@ describe('CompanyProfileCreateSchema', () => {
   });
 
   it('rejects invalid slug format (uppercase)', () => {
-    const result = CompanyProfileCreateSchema.safeParse({ ...VALID_INPUT, slug: 'Invalid-Slug' });
+    const result = CompanyProfileCreateSchema.safeParse({
+      ...VALID_INPUT,
+      slug: 'Invalid-Slug',
+    });
     expect(result.success).toBe(false);
   });
 
   it('rejects invalid slug format (spaces)', () => {
-    const result = CompanyProfileCreateSchema.safeParse({ ...VALID_INPUT, slug: 'has spaces' });
+    const result = CompanyProfileCreateSchema.safeParse({
+      ...VALID_INPUT,
+      slug: 'has spaces',
+    });
     expect(result.success).toBe(false);
   });
 
   it('rejects empty sectors array', () => {
-    const result = CompanyProfileCreateSchema.safeParse({ ...VALID_INPUT, sectors: [] });
+    const result = CompanyProfileCreateSchema.safeParse({
+      ...VALID_INPUT,
+      sectors: [],
+    });
     expect(result.success).toBe(false);
   });
 
   it('rejects empty key_topics array', () => {
-    const result = CompanyProfileCreateSchema.safeParse({ ...VALID_INPUT, key_topics: [] });
+    const result = CompanyProfileCreateSchema.safeParse({
+      ...VALID_INPUT,
+      key_topics: [],
+    });
     expect(result.success).toBe(false);
   });
 
@@ -97,17 +111,26 @@ describe('CompanyProfileCreateSchema', () => {
   });
 
   it('accepts empty string for website_url', () => {
-    const result = CompanyProfileCreateSchema.safeParse({ ...VALID_INPUT, website_url: '' });
+    const result = CompanyProfileCreateSchema.safeParse({
+      ...VALID_INPUT,
+      website_url: '',
+    });
     expect(result.success).toBe(true);
   });
 
   it('rejects invalid website_url', () => {
-    const result = CompanyProfileCreateSchema.safeParse({ ...VALID_INPUT, website_url: 'not-a-url' });
+    const result = CompanyProfileCreateSchema.safeParse({
+      ...VALID_INPUT,
+      website_url: 'not-a-url',
+    });
     expect(result.success).toBe(false);
   });
 
   it('rejects name exceeding max length', () => {
-    const result = CompanyProfileCreateSchema.safeParse({ ...VALID_INPUT, name: 'x'.repeat(201) });
+    const result = CompanyProfileCreateSchema.safeParse({
+      ...VALID_INPUT,
+      name: 'x'.repeat(201),
+    });
     expect(result.success).toBe(false);
   });
 });
@@ -118,7 +141,9 @@ describe('CompanyProfileCreateSchema', () => {
 
 describe('CompanyProfileUpdateSchema', () => {
   it('accepts partial updates', () => {
-    const result = CompanyProfileUpdateSchema.safeParse({ name: 'Updated Name' });
+    const result = CompanyProfileUpdateSchema.safeParse({
+      name: 'Updated Name',
+    });
     expect(result.success).toBe(true);
   });
 
@@ -128,7 +153,9 @@ describe('CompanyProfileUpdateSchema', () => {
   });
 
   it('still validates field constraints', () => {
-    const result = CompanyProfileUpdateSchema.safeParse({ slug: 'Invalid Slug!' });
+    const result = CompanyProfileUpdateSchema.safeParse({
+      slug: 'Invalid Slug!',
+    });
     expect(result.success).toBe(false);
   });
 });
@@ -164,27 +191,41 @@ describe('FeedSourceCreateSchema', () => {
   });
 
   it('rejects missing name', () => {
-    const result = FeedSourceCreateSchema.safeParse({ url: 'https://example.com/feed' });
+    const result = FeedSourceCreateSchema.safeParse({
+      url: 'https://example.com/feed',
+    });
     expect(result.success).toBe(false);
   });
 
   it('rejects invalid URL', () => {
-    const result = FeedSourceCreateSchema.safeParse({ ...VALID_SOURCE, url: 'not-a-url' });
+    const result = FeedSourceCreateSchema.safeParse({
+      ...VALID_SOURCE,
+      url: 'not-a-url',
+    });
     expect(result.success).toBe(false);
   });
 
   it('rejects polling interval below minimum', () => {
-    const result = FeedSourceCreateSchema.safeParse({ ...VALID_SOURCE, polling_interval_minutes: 2 });
+    const result = FeedSourceCreateSchema.safeParse({
+      ...VALID_SOURCE,
+      polling_interval_minutes: 2,
+    });
     expect(result.success).toBe(false);
   });
 
   it('rejects polling interval above maximum', () => {
-    const result = FeedSourceCreateSchema.safeParse({ ...VALID_SOURCE, polling_interval_minutes: 2000 });
+    const result = FeedSourceCreateSchema.safeParse({
+      ...VALID_SOURCE,
+      polling_interval_minutes: 2000,
+    });
     expect(result.success).toBe(false);
   });
 
   it('rejects invalid source_type', () => {
-    const result = FeedSourceCreateSchema.safeParse({ ...VALID_SOURCE, source_type: 'ftp' });
+    const result = FeedSourceCreateSchema.safeParse({
+      ...VALID_SOURCE,
+      source_type: 'ftp',
+    });
     expect(result.success).toBe(false);
   });
 });
@@ -211,12 +252,16 @@ describe('FeedSourceUpdateSchema', () => {
 
 describe('FeedFlagCreateSchema', () => {
   it('accepts false_positive flag', () => {
-    const result = FeedFlagCreateSchema.safeParse({ flag_type: 'false_positive' });
+    const result = FeedFlagCreateSchema.safeParse({
+      flag_type: 'false_positive',
+    });
     expect(result.success).toBe(true);
   });
 
   it('accepts false_negative flag', () => {
-    const result = FeedFlagCreateSchema.safeParse({ flag_type: 'false_negative' });
+    const result = FeedFlagCreateSchema.safeParse({
+      flag_type: 'false_negative',
+    });
     expect(result.success).toBe(true);
   });
 
@@ -249,24 +294,30 @@ describe('FeedFlagCreateSchema', () => {
 describe('FeedPromptCreateSchema', () => {
   it('accepts valid prompt', () => {
     const result = FeedPromptCreateSchema.safeParse({
-      prompt_text: 'Score articles about education policy higher, especially those mentioning safeguarding.',
+      prompt_text:
+        'Score articles about education policy higher, especially those mentioning safeguarding.',
     });
     expect(result.success).toBe(true);
   });
 
   it('rejects prompt below minimum length', () => {
-    const result = FeedPromptCreateSchema.safeParse({ prompt_text: 'Too short' });
+    const result = FeedPromptCreateSchema.safeParse({
+      prompt_text: 'Too short',
+    });
     expect(result.success).toBe(false);
   });
 
   it('rejects prompt exceeding max length', () => {
-    const result = FeedPromptCreateSchema.safeParse({ prompt_text: 'x'.repeat(10001) });
+    const result = FeedPromptCreateSchema.safeParse({
+      prompt_text: 'x'.repeat(10001),
+    });
     expect(result.success).toBe(false);
   });
 
   it('accepts prompt with change notes', () => {
     const result = FeedPromptCreateSchema.safeParse({
-      prompt_text: 'Score articles about education policy higher, especially those mentioning safeguarding.',
+      prompt_text:
+        'Score articles about education policy higher, especially those mentioning safeguarding.',
       change_notes: 'Added safeguarding emphasis after false negatives.',
     });
     expect(result.success).toBe(true);

@@ -40,33 +40,33 @@ interface ToolbarAction {
 
 function getFormattingActions(mod: string): ToolbarAction[] {
   return [
-  {
-    icon: Bold,
-    label: 'Bold',
-    shortcut: `${mod}+B`,
-    action: (e) => e.chain().focus().toggleBold().run(),
-    isActive: (e) => e.isActive('bold'),
-  },
-  {
-    icon: Italic,
-    label: 'Italic',
-    shortcut: `${mod}+I`,
-    action: (e) => e.chain().focus().toggleItalic().run(),
-    isActive: (e) => e.isActive('italic'),
-  },
-  {
-    icon: Underline,
-    label: 'Underline',
-    shortcut: `${mod}+U`,
-    action: (e) => e.chain().focus().toggleUnderline().run(),
-    isActive: (e) => e.isActive('underline'),
-  },
-  {
-    icon: Strikethrough,
-    label: 'Strikethrough',
-    action: (e) => e.chain().focus().toggleStrike().run(),
-    isActive: (e) => e.isActive('strike'),
-  },
+    {
+      icon: Bold,
+      label: 'Bold',
+      shortcut: `${mod}+B`,
+      action: (e) => e.chain().focus().toggleBold().run(),
+      isActive: (e) => e.isActive('bold'),
+    },
+    {
+      icon: Italic,
+      label: 'Italic',
+      shortcut: `${mod}+I`,
+      action: (e) => e.chain().focus().toggleItalic().run(),
+      isActive: (e) => e.isActive('italic'),
+    },
+    {
+      icon: Underline,
+      label: 'Underline',
+      shortcut: `${mod}+U`,
+      action: (e) => e.chain().focus().toggleUnderline().run(),
+      isActive: (e) => e.isActive('underline'),
+    },
+    {
+      icon: Strikethrough,
+      label: 'Strikethrough',
+      action: (e) => e.chain().focus().toggleStrike().run(),
+      isActive: (e) => e.isActive('strike'),
+    },
   ];
 }
 
@@ -154,7 +154,9 @@ function ToolbarButton({
       <TooltipContent>
         {action.label}
         {action.shortcut && (
-          <span className="ml-1.5 text-muted-foreground">({action.shortcut})</span>
+          <span className="ml-1.5 text-muted-foreground">
+            ({action.shortcut})
+          </span>
         )}
       </TooltipContent>
     </Tooltip>

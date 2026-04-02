@@ -36,7 +36,9 @@ describe('BidCreationForm', () => {
     expect(screen.getByLabelText(/Bid Name/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Buyer/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Submission Deadline/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Create Bid/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Create Bid/ }),
+    ).toBeInTheDocument();
   });
 
   it('renders optional fields (reference number, estimated value, notes)', () => {
@@ -110,7 +112,9 @@ describe('BidCreationForm', () => {
     await user.click(screen.getByRole('button', { name: /Create Bid/ }));
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('Server error occurred');
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Server error occurred',
+      );
     });
     expect(onCreated).not.toHaveBeenCalled();
   });

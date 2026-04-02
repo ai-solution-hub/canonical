@@ -56,7 +56,7 @@ function createAggregateData(overrides: Record<string, unknown> = {}) {
       win_rate: 0.63,
       unique_items_cited: 16,
       unique_bids: 8,
-      ...(overrides.overall as Record<string, unknown> ?? {}),
+      ...((overrides.overall as Record<string, unknown>) ?? {}),
     },
     by_domain: overrides.by_domain ?? [
       {
@@ -258,8 +258,12 @@ describe('ContentPerformanceSection', () => {
     });
 
     // Other domains should not appear
-    expect(screen.queryByTestId('domain-badge-compliance')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('domain-badge-corporate')).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('domain-badge-compliance'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('domain-badge-corporate'),
+    ).not.toBeInTheDocument();
   });
 
   it('accessibility: meter roles have correct aria attributes', async () => {

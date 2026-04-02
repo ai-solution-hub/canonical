@@ -20,7 +20,13 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, History, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
+import {
+  Loader2,
+  History,
+  ChevronDown,
+  ChevronUp,
+  RotateCcw,
+} from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { toast } from 'sonner';
 import type { BidResponseVersion } from '@/types/bid';
@@ -34,7 +40,10 @@ interface ResponseVersionHistoryProps {
   onRestored?: () => void;
 }
 
-const REVIEW_STATUS_LABELS: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
+const REVIEW_STATUS_LABELS: Record<
+  string,
+  { label: string; variant: 'default' | 'secondary' | 'outline' }
+> = {
   draft: { label: 'Draft', variant: 'secondary' },
   ai_drafted: { label: 'AI Drafted', variant: 'outline' },
   edited: { label: 'Edited', variant: 'secondary' },
@@ -70,7 +79,9 @@ export function ResponseVersionHistory({
     if (!responseId || !bidId) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/bids/${bidId}/responses/${responseId}/history`);
+      const res = await fetch(
+        `/api/bids/${bidId}/responses/${responseId}/history`,
+      );
       if (!res.ok) throw new Error('Failed to fetch history');
       const data = await res.json();
       setVersions(data.versions ?? []);
@@ -92,11 +103,14 @@ export function ResponseVersionHistory({
     if (restoreVersion === null || !responseId) return;
     setRestoring(true);
     try {
-      const res = await fetch(`/api/bids/${bidId}/responses/${responseId}/restore`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ version: restoreVersion }),
-      });
+      const res = await fetch(
+        `/api/bids/${bidId}/responses/${responseId}/restore`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ version: restoreVersion }),
+        },
+      );
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? 'Failed to restore');
@@ -106,7 +120,9 @@ export function ResponseVersionHistory({
       onOpenChange(false);
       onRestored?.();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to restore version');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to restore version',
+      );
     } finally {
       setRestoring(false);
     }
@@ -126,24 +142,35 @@ export function ResponseVersionHistory({
               Version History
             </SheetTitle>
             <SheetDescription>
-              Current version: {currentVersion}. Previous versions are shown below.
+              Current version: {currentVersion}. Previous versions are shown
+              below.
             </SheetDescription>
           </SheetHeader>
 
-          <div className="flex-1 overflow-y-auto px-4 pb-4" role="list" aria-label="Version history">
+          <div
+            className="flex-1 overflow-y-auto px-4 pb-4"
+            role="list"
+            aria-label="Version history"
+          >
             {loading ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="size-5 animate-spin text-muted-foreground" aria-label="Loading history" />
+                <Loader2
+                  className="size-5 animate-spin text-muted-foreground"
+                  aria-label="Loading history"
+                />
               </div>
             ) : versions.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
-                No previous versions yet. History is recorded when the response content changes.
+                No previous versions yet. History is recorded when the response
+                content changes.
               </p>
             ) : (
               <ul className="space-y-3">
                 {versions.map((v) => {
                   const isExpanded = expandedVersion === v.version;
-                  const statusConfig = REVIEW_STATUS_LABELS[v.review_status] ?? {
+                  const statusConfig = REVIEW_STATUS_LABELS[
+                    v.review_status
+                  ] ?? {
                     label: v.review_status,
                     variant: 'secondary' as const,
                   };
@@ -163,7 +190,10 @@ export function ResponseVersionHistory({
                             >
                               v{v.version}
                             </span>
-                            <Badge variant={statusConfig.variant} className="text-[10px]">
+                            <Badge
+                              variant={statusConfig.variant}
+                              className="text-[10px]"
+                            >
                               {statusConfig.label}
                             </Badge>
                           </div>
@@ -185,9 +215,15 @@ export function ResponseVersionHistory({
                             className="h-7 px-2 text-xs"
                           >
                             {isExpanded ? (
-                              <ChevronUp className="mr-1 size-3" aria-hidden="true" />
+                              <ChevronUp
+                                className="mr-1 size-3"
+                                aria-hidden="true"
+                              />
                             ) : (
-                              <ChevronDown className="mr-1 size-3" aria-hidden="true" />
+                              <ChevronDown
+                                className="mr-1 size-3"
+                                aria-hidden="true"
+                              />
                             )}
                             View
                           </Button>
@@ -198,7 +234,10 @@ export function ResponseVersionHistory({
                             className="h-7 px-2 text-xs"
                             aria-label={`Restore version ${v.version}`}
                           >
-                            <RotateCcw className="mr-1 size-3" aria-hidden="true" />
+                            <RotateCcw
+                              className="mr-1 size-3"
+                              aria-hidden="true"
+                            />
                             Restore
                           </Button>
                         </div>
@@ -212,7 +251,9 @@ export function ResponseVersionHistory({
                           {v.response_text ? (
                             <div
                               className="prose prose-sm max-h-64 max-w-none overflow-y-auto rounded bg-muted/50 p-3 text-sm"
-                              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(v.response_text) }}
+                              dangerouslySetInnerHTML={{
+                                __html: DOMPurify.sanitize(v.response_text),
+                              }}
                             />
                           ) : (
                             <p className="text-sm italic text-muted-foreground">
@@ -239,10 +280,13 @@ export function ResponseVersionHistory({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Restore version {restoreVersion}?</AlertDialogTitle>
+            <AlertDialogTitle>
+              Restore version {restoreVersion}?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This will replace the current response content with version {restoreVersion}.
-              The current version will be saved to history before being replaced.
+              This will replace the current response content with version{' '}
+              {restoreVersion}. The current version will be saved to history
+              before being replaced.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -250,7 +294,10 @@ export function ResponseVersionHistory({
             <AlertDialogAction onClick={handleRestore} disabled={restoring}>
               {restoring ? (
                 <>
-                  <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
+                  <Loader2
+                    className="mr-2 size-4 animate-spin"
+                    aria-hidden="true"
+                  />
                   Restoring…
                 </>
               ) : (

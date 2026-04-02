@@ -97,99 +97,93 @@ export function useBatchCreate(): UseBatchCreateReturn {
   // Submit mutation
   // -------------------------------------------------------------------------
 
-  const submitMutation = useMutation<
-    BatchCreateResult,
-    Error,
-    SubmitVariables
-  >({
-    mutationFn: async ({ pairs, options }: SubmitVariables) => {
-      setProgress({ current: 0, total: pairs.length });
+  const submitMutation = useMutation<BatchCreateResult, Error, SubmitVariables>(
+    {
+      mutationFn: async ({ pairs, options }: SubmitVariables) => {
+        setProgress({ current: 0, total: pairs.length });
 
-      const items = pairs.map((pair) => ({
-        title: pair.question,
-        content: formatQAContent(pair),
-        contentType: 'q_a_pair' as const,
-      }));
+        const items = pairs.map((pair) => ({
+          title: pair.question,
+          content: formatQAContent(pair),
+          contentType: 'q_a_pair' as const,
+        }));
 
-      const body: Record<string, unknown> = { items };
+        const body: Record<string, unknown> = { items };
 
-      // The batch API accepts source_document_id (UUID). The sourceDocumentLink
-      // is a URL, so we do not pass it as source_document_id. Instead, we pass
-      // it via metadata if needed in the future. For now, we only support UUID.
-      if (options?.sourceDocumentLink) {
-        const uuidPattern =
-          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (uuidPattern.test(options.sourceDocumentLink)) {
-          body.source_document_id = options.sourceDocumentLink;
+        // The batch API accepts source_document_id (UUID). The sourceDocumentLink
+        // is a URL, so we do not pass it as source_document_id. Instead, we pass
+        // it via metadata if needed in the future. For now, we only support UUID.
+        if (options?.sourceDocumentLink) {
+          const uuidPattern =
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (uuidPattern.test(options.sourceDocumentLink)) {
+            body.source_document_id = options.sourceDocumentLink;
+          }
         }
-      }
 
-      try {
-        const result = await mutationFetchJson<BatchCreateResult>(
-          '/api/items/batch',
-          body,
-        );
+        try {
+          const result = await mutationFetchJson<BatchCreateResult>(
+            '/api/items/batch',
+            body,
+          );
 
-        setProgress({ current: pairs.length, total: pairs.length });
-        return result;
-      } catch (err) {
-        // Re-throw with domain-specific fallback if the error is generic
-        if (
-          err instanceof Error &&
-          err.message.startsWith('Request failed:')
-        ) {
-          throw new Error('Batch creation failed');
+          setProgress({ current: pairs.length, total: pairs.length });
+          return result;
+        } catch (err) {
+          // Re-throw with domain-specific fallback if the error is generic
+          if (
+            err instanceof Error &&
+            err.message.startsWith('Request failed:')
+          ) {
+            throw new Error('Batch creation failed');
+          }
+          throw err;
         }
-        throw err;
-      }
+      },
+      onSuccess: () => {
+        // Invalidate content items cache — new items were created
+        queryClient.invalidateQueries({ queryKey: queryKeys.contentItems.all });
+      },
     },
-    onSuccess: () => {
-      // Invalidate content items cache — new items were created
-      queryClient.invalidateQueries({ queryKey: queryKeys.contentItems.all });
-    },
-  });
+  );
 
   // -------------------------------------------------------------------------
   // Duplicate check mutation
   // -------------------------------------------------------------------------
 
-  const duplicateMutation = useMutation<
-    DuplicateMatch[],
-    Error,
-    BatchQAPair[]
-  >({
-    mutationFn: async (pairs: BatchQAPair[]) => {
-      const supabase = createClient();
-      const matches: DuplicateMatch[] = [];
+  const duplicateMutation = useMutation<DuplicateMatch[], Error, BatchQAPair[]>(
+    {
+      mutationFn: async (pairs: BatchQAPair[]) => {
+        const supabase = createClient();
+        const matches: DuplicateMatch[] = [];
 
-      for (const pair of pairs) {
-        // Trim to first 100 chars for the search to avoid overly long queries
-        const searchTerm = pair.question
-          .slice(0, 100)
-          .replace(/%/g, '\\%');
-        const { data } = await supabase
-          .from('content_items')
-          .select('id, title')
-          .ilike('title', `%${searchTerm}%`)
-          .limit(3);
+        for (const pair of pairs) {
+          // Trim to first 100 chars for the search to avoid overly long queries
+          const searchTerm = pair.question.slice(0, 100).replace(/%/g, '\\%');
+          const { data } = await supabase
+            .from('content_items')
+            .select('id, title')
+            .ilike('title', `%${searchTerm}%`)
+            .limit(3);
 
-        if (data && data.length > 0) {
-          for (const item of data) {
-            // Avoid duplicate entries in the matches list
-            if (!matches.some((m) => m.id === item.id)) {
-              matches.push({
-                id: item.id,
-                title: item.title,
-                question: pair.question,
-              });
+          if (data && data.length > 0) {
+            for (const item of data) {
+              // Avoid duplicate entries in the matches list
+              if (!matches.some((m) => m.id === item.id)) {
+                matches.push({
+                  id: item.id,
+                  title: item.title,
+                  question: pair.question,
+                });
+              }
             }
           }
         }
-      }
 
-      return matches;
+        return matches;
+      },
     },
-  });
+  );
 
   // -------------------------------------------------------------------------
   // Destructure stable functions from mutation objects

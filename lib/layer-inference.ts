@@ -8,7 +8,6 @@
  * Spec: docs/specs/layer-suggestion-spec.md (Section 3)
  */
 
-
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -53,8 +52,16 @@ const LAYER_RESEARCH = 'research';
 // Content type sets for Rule 4
 // ---------------------------------------------------------------------------
 
-const COMPANY_REFERENCE_TYPES = new Set(['policy', 'compliance', 'certification']);
-const BID_DETAIL_TYPES = new Set(['product_description', 'capability', 'methodology']);
+const COMPANY_REFERENCE_TYPES = new Set([
+  'policy',
+  'compliance',
+  'certification',
+]);
+const BID_DETAIL_TYPES = new Set([
+  'product_description',
+  'capability',
+  'methodology',
+]);
 
 // ---------------------------------------------------------------------------
 // Inference function
@@ -75,13 +82,17 @@ export function inferLayer(input: LayerInferenceInput): LayerSuggestion {
   if (input.isBidDiscovered) {
     return {
       suggestedLayer: LAYER_BID_DETAIL,
-      reason: 'Content discovered through a bid workspace is typically bid-level detail',
+      reason:
+        'Content discovered through a bid workspace is typically bid-level detail',
       confidence: 'high',
     };
   }
 
   // Rule 2: Bid library Q&A pairs
-  if (input.ingestionSource === 'bid_library' && input.contentType === 'q_a_pair') {
+  if (
+    input.ingestionSource === 'bid_library' &&
+    input.contentType === 'q_a_pair'
+  ) {
     return {
       suggestedLayer: LAYER_BID_DETAIL,
       reason: 'Q&A pairs imported from bid documents are bid-level detail',
@@ -118,7 +129,8 @@ export function inferLayer(input: LayerInferenceInput): LayerSuggestion {
   if (COMPANY_REFERENCE_TYPES.has(input.contentType)) {
     return {
       suggestedLayer: LAYER_COMPANY_REFERENCE,
-      reason: 'Policies and compliance documents are typically company reference material',
+      reason:
+        'Policies and compliance documents are typically company reference material',
       confidence: 'medium',
     };
   }

@@ -25,11 +25,20 @@ const sampleCoverageGaps: CoverageGapResult = {
     { domain: 'Compliance & Governance', subtopic: 'GDPR Compliance' },
   ],
   thin_subtopics: [
-    { domain: 'IT & Infrastructure', subtopic: 'Cloud Services', item_count: 2 },
+    {
+      domain: 'IT & Infrastructure',
+      subtopic: 'Cloud Services',
+      item_count: 2,
+    },
     { domain: 'Operations', subtopic: 'Supply Chain', item_count: 1 },
   ],
   stale_only_subtopics: [
-    { domain: 'Security', subtopic: 'Incident Response', stale_count: 2, expired_count: 1 },
+    {
+      domain: 'Security',
+      subtopic: 'Incident Response',
+      stale_count: 2,
+      expired_count: 1,
+    },
   ],
 };
 
@@ -125,7 +134,8 @@ const sampleContentItem: ContentItemDetail = {
   freshness: 'fresh',
   classification_confidence: 0.92,
   source_url: null,
-  content: 'ISO 27001 is an international standard for information security management.',
+  content:
+    'ISO 27001 is an international standard for information security management.',
   created_at: '2026-01-15T10:00:00Z',
   updated_at: '2026-03-01T14:30:00Z',
   governance_review_status: null,
@@ -164,7 +174,9 @@ describe('formatCoverageGaps', () => {
     const result = formatCoverageGaps(sampleCoverageGaps);
 
     expect(result).toContain('## Stale-Only Subtopics');
-    expect(result).toContain('Security > Incident Response (2 stale, 1 expired)');
+    expect(result).toContain(
+      'Security > Incident Response (2 stale, 1 expired)',
+    );
   });
 
   it('handles zero gaps', () => {
@@ -306,7 +318,9 @@ describe('formatSimilarItems', () => {
 
     // The non-duplicate item should not have the flag
     const lines = result.split('\n');
-    const securityLine = lines.find(l => l.includes('Information Security Management'));
+    const securityLine = lines.find((l) =>
+      l.includes('Information Security Management'),
+    );
     expect(securityLine).not.toContain('LIKELY DUPLICATE');
   });
 
@@ -329,15 +343,17 @@ describe('formatSimilarItems', () => {
   it('uses "Untitled" when both titles are null', () => {
     const untitled: SimilarItemsResult = {
       source_item: { id: 'item-001', title: 'Source' },
-      similar_items: [{
-        id: 'item-002',
-        title: null,
-        suggested_title: null,
-        content_type: 'other',
-        primary_domain: null,
-        similarity: 0.85,
-        likely_duplicate: false,
-      }],
+      similar_items: [
+        {
+          id: 'item-002',
+          title: null,
+          suggested_title: null,
+          content_type: 'other',
+          primary_domain: null,
+          similarity: 0.85,
+          likely_duplicate: false,
+        },
+      ],
     };
     const result = formatSimilarItems(untitled);
 
@@ -347,15 +363,17 @@ describe('formatSimilarItems', () => {
   it('formats singular item correctly', () => {
     const single: SimilarItemsResult = {
       source_item: { id: 'item-001', title: 'Source' },
-      similar_items: [{
-        id: 'item-002',
-        title: 'Related',
-        suggested_title: null,
-        content_type: 'article',
-        primary_domain: 'Security',
-        similarity: 0.88,
-        likely_duplicate: false,
-      }],
+      similar_items: [
+        {
+          id: 'item-002',
+          title: 'Related',
+          suggested_title: null,
+          content_type: 'article',
+          primary_domain: 'Security',
+          similarity: 0.88,
+          likely_duplicate: false,
+        },
+      ],
     };
     const result = formatSimilarItems(single);
 
@@ -371,7 +389,10 @@ describe('formatBatchContentItems', () => {
   it('formats batch results with item count', () => {
     const batch: BatchContentItemsResult = {
       count: 2,
-      items: [sampleContentItem, { ...sampleContentItem, id: 'item-002', title: 'Second Item' }],
+      items: [
+        sampleContentItem,
+        { ...sampleContentItem, id: 'item-002', title: 'Second Item' },
+      ],
       not_found: [],
     };
     const result = formatBatchContentItems(batch);
@@ -399,7 +420,9 @@ describe('formatBatchContentItems', () => {
     const result = formatBatchContentItems(batch);
 
     expect(result).toContain('ISO 27001 Certification');
-    expect(result).toContain('**Domain:** Compliance & Governance > ISO Standards');
+    expect(result).toContain(
+      '**Domain:** Compliance & Governance > ISO Standards',
+    );
     expect(result).toContain('**Freshness:** fresh');
   });
 

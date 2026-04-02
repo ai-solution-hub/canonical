@@ -106,9 +106,26 @@ beforeEach(() => {
 
   // Chainable methods return the chain
   const chainable = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const m of chainable) {
     mockSupabase._chain[m].mockReturnValue(mockSupabase._chain);
@@ -119,30 +136,48 @@ beforeEach(() => {
   mockSupabase._chain.single.mockReset();
   mockSupabase._chain.single.mockResolvedValue({ data: null, error: null });
   mockSupabase._chain.maybeSingle.mockReset();
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+  });
   mockSupabase._chain.csv.mockReset();
   mockSupabase._chain.csv.mockResolvedValue({ data: null, error: null });
   mockSupabase._chain.then.mockReset();
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 
   // Storage mocks
   const storageBucket = {
-    upload: vi.fn().mockResolvedValue({ data: { path: 'test-path' }, error: null }),
+    upload: vi
+      .fn()
+      .mockResolvedValue({ data: { path: 'test-path' }, error: null }),
     download: vi.fn().mockResolvedValue({ data: new Blob(), error: null }),
     remove: vi.fn().mockResolvedValue({ data: [], error: null }),
     list: vi.fn().mockResolvedValue({ data: [], error: null }),
-    getPublicUrl: vi.fn().mockReturnValue({ data: { publicUrl: 'https://example.com/file' } }),
+    getPublicUrl: vi
+      .fn()
+      .mockReturnValue({ data: { publicUrl: 'https://example.com/file' } }),
   };
   mockSupabase.storage.from.mockReturnValue(storageBucket);
 
   // Auth admin mocks
-  mockSupabase.auth.admin.listUsers.mockResolvedValue({ data: { users: [] }, error: null });
-  mockSupabase.auth.admin.createUser.mockResolvedValue({ data: { user: null }, error: null });
-  mockSupabase.auth.admin.updateUserById.mockResolvedValue({ data: { user: null }, error: null });
-  mockSupabase.auth.admin.deleteUser.mockResolvedValue({ data: null, error: null });
+  mockSupabase.auth.admin.listUsers.mockResolvedValue({
+    data: { users: [] },
+    error: null,
+  });
+  mockSupabase.auth.admin.createUser.mockResolvedValue({
+    data: { user: null },
+    error: null,
+  });
+  mockSupabase.auth.admin.updateUserById.mockResolvedValue({
+    data: { user: null },
+    error: null,
+  });
+  mockSupabase.auth.admin.deleteUser.mockResolvedValue({
+    data: null,
+    error: null,
+  });
 
   // Re-set external dependency mocks
   mockGenerateEmbedding.mockResolvedValue(new Array(1024).fill(0));
@@ -218,7 +253,9 @@ describe('POST /api/items', () => {
 
     const body = await res.json();
     expect(body.error).toBe('Validation failed');
-    expect(body.details.some((d: { field: string }) => d.field === 'content_type')).toBe(true);
+    expect(
+      body.details.some((d: { field: string }) => d.field === 'content_type'),
+    ).toBe(true);
   });
 
   it('returns 201 with created item data on success', async () => {
@@ -391,7 +428,9 @@ describe('POST /api/items', () => {
       error: null,
     });
 
-    mockClassifyContent.mockRejectedValueOnce(new Error('Claude API quota exceeded'));
+    mockClassifyContent.mockRejectedValueOnce(
+      new Error('Claude API quota exceeded'),
+    );
 
     const req = createTestRequest('/api/items', {
       method: 'POST',
@@ -516,8 +555,11 @@ describe('POST /api/items', () => {
 
     mockSuggestTopic.mockResolvedValueOnce({
       topicId: 'compliance-kcsie',
-      reason: 'Existing topic group "compliance-kcsie" has bid_detail but is missing sales_brief',
-      existingLayers: [{ id: 'other-id', title: 'KCSIE Guide', layer: 'bid_detail' }],
+      reason:
+        'Existing topic group "compliance-kcsie" has bid_detail but is missing sales_brief',
+      existingLayers: [
+        { id: 'other-id', title: 'KCSIE Guide', layer: 'bid_detail' },
+      ],
       missingLayers: ['sales_brief', 'research'],
     });
 
@@ -540,9 +582,13 @@ describe('POST /api/items', () => {
     // Verify merge_item_metadata was called with topic_id
     const rpcCalls = mockSupabase.rpc.mock.calls;
     const topicRpcCall = rpcCalls.find(
-      (call: unknown[]) => call[0] === 'merge_item_metadata' &&
+      (call: unknown[]) =>
+        call[0] === 'merge_item_metadata' &&
         (call[1] as Record<string, unknown>)?.p_new_data &&
-        ((call[1] as Record<string, Record<string, unknown>>).p_new_data as Record<string, unknown>).topic_id === 'compliance-kcsie',
+        (
+          (call[1] as Record<string, Record<string, unknown>>)
+            .p_new_data as Record<string, unknown>
+        ).topic_id === 'compliance-kcsie',
     );
     expect(topicRpcCall).toBeDefined();
   });
@@ -687,9 +733,11 @@ describe('PATCH /api/items/[id]', () => {
 
     const body = await res.json();
     expect(body.error).toBe('Validation failed');
-    expect(body.details.some(
-      (d: { message: string }) => d.message.includes('cannot be null'),
-    )).toBe(true);
+    expect(
+      body.details.some((d: { message: string }) =>
+        d.message.includes('cannot be null'),
+      ),
+    ).toBe(true);
   });
 
   it('returns 404 when item not found', async () => {
@@ -916,12 +964,12 @@ describe('DELETE /api/items/[id]', () => {
 
     await DELETE(req, { params });
 
-    const fromCalls = mockSupabase.from.mock.calls.map(
-      (c: unknown[]) => c[0],
-    );
+    const fromCalls = mockSupabase.from.mock.calls.map((c: unknown[]) => c[0]);
 
     // Should only touch content_items (existence check + delete) — no manual cascade
-    const contentItemsCalls = fromCalls.filter((t: unknown) => t === 'content_items');
+    const contentItemsCalls = fromCalls.filter(
+      (t: unknown) => t === 'content_items',
+    );
     expect(contentItemsCalls.length).toBe(2); // select + delete
 
     expect(fromCalls).not.toContain('ingestion_quality_log');

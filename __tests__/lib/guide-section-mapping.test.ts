@@ -76,9 +76,8 @@ function configureSectionResponse(
   client: MockSupabaseClient,
   sections: ReturnType<typeof mockSection>[],
 ) {
-  client._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: sections, error: null }),
+  client._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: sections, error: null }),
   );
 }
 
@@ -153,7 +152,9 @@ describe('suggestGuideSections — exact matches', () => {
 
     expect(results).toHaveLength(1);
     expect(results[0].matchStrength).toBe('exact');
-    expect(results[0].matchReason).toContain('accepts all content in this domain');
+    expect(results[0].matchReason).toContain(
+      'accepts all content in this domain',
+    );
   });
 });
 
@@ -242,9 +243,9 @@ describe('suggestGuideSections — domain-only matches', () => {
   it('returns domain_only when no non-NULL filters match', async () => {
     configureSectionResponse(mockClient, [
       mockSection({
-        subtopic_filter: 'Audits',            // does not match 'Certification'
-        expected_layer: 'company_reference',    // does not match 'bid_detail'
-        content_type_filter: 'policy',          // does not match 'q_a_pair'
+        subtopic_filter: 'Audits', // does not match 'Certification'
+        expected_layer: 'company_reference', // does not match 'bid_detail'
+        content_type_filter: 'policy', // does not match 'q_a_pair'
       }),
     ]);
 
@@ -292,9 +293,9 @@ describe('suggestGuideSections — NULL filter handling', () => {
   it('treats NULL subtopic_filter as matching any subtopic', async () => {
     configureSectionResponse(mockClient, [
       mockSection({
-        subtopic_filter: null,       // matches any
+        subtopic_filter: null, // matches any
         expected_layer: 'bid_detail', // matches
-        content_type_filter: null,   // matches any
+        content_type_filter: null, // matches any
       }),
     ]);
 
@@ -311,8 +312,8 @@ describe('suggestGuideSections — NULL filter handling', () => {
     configureSectionResponse(mockClient, [
       mockSection({
         subtopic_filter: 'Certification', // matches
-        expected_layer: null,              // matches any
-        content_type_filter: 'q_a_pair',   // matches
+        expected_layer: null, // matches any
+        content_type_filter: 'q_a_pair', // matches
       }),
     ]);
 
@@ -329,8 +330,8 @@ describe('suggestGuideSections — NULL filter handling', () => {
     configureSectionResponse(mockClient, [
       mockSection({
         subtopic_filter: 'Certification', // matches
-        expected_layer: 'bid_detail',      // matches
-        content_type_filter: null,         // matches any
+        expected_layer: 'bid_detail', // matches
+        content_type_filter: null, // matches any
       }),
     ]);
 
@@ -354,7 +355,11 @@ describe('suggestGuideSections — NULL filter handling', () => {
 
     const results = await suggestGuideSections(
       asSupabase(mockClient),
-      baseInput({ primarySubtopic: 'Anything', layer: 'any_layer', contentType: 'any_type' }),
+      baseInput({
+        primarySubtopic: 'Anything',
+        layer: 'any_layer',
+        contentType: 'any_type',
+      }),
     );
 
     expect(results).toHaveLength(1);
@@ -385,9 +390,8 @@ describe('suggestGuideSections — no matches', () => {
   });
 
   it('returns empty array when query returns error', async () => {
-    mockClient._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: { message: 'Connection failed' } }),
+    mockClient._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({ data: null, error: { message: 'Connection failed' } }),
     );
 
     const results = await suggestGuideSections(
@@ -419,8 +423,13 @@ describe('suggestGuideSections — no matches', () => {
 
     expect(mockClient.from).toHaveBeenCalledWith('guide_sections');
     expect(mockClient._chain.select).toHaveBeenCalled();
-    expect(mockClient._chain.eq).toHaveBeenCalledWith('guides.is_published', true);
-    expect(mockClient._chain.in).toHaveBeenCalledWith('guides.domain_filter', ['Technology']);
+    expect(mockClient._chain.eq).toHaveBeenCalledWith(
+      'guides.is_published',
+      true,
+    );
+    expect(mockClient._chain.in).toHaveBeenCalledWith('guides.domain_filter', [
+      'Technology',
+    ]);
   });
 
   it('queries with both domains when secondaryDomain is provided', async () => {
@@ -431,7 +440,10 @@ describe('suggestGuideSections — no matches', () => {
       baseInput({ primaryDomain: 'Compliance', secondaryDomain: 'corporate' }),
     );
 
-    expect(mockClient._chain.in).toHaveBeenCalledWith('guides.domain_filter', ['Compliance', 'corporate']);
+    expect(mockClient._chain.in).toHaveBeenCalledWith('guides.domain_filter', [
+      'Compliance',
+      'corporate',
+    ]);
   });
 
   it('does not duplicate domain in query when secondaryDomain equals primaryDomain', async () => {
@@ -442,7 +454,9 @@ describe('suggestGuideSections — no matches', () => {
       baseInput({ primaryDomain: 'Compliance', secondaryDomain: 'Compliance' }),
     );
 
-    expect(mockClient._chain.in).toHaveBeenCalledWith('guides.domain_filter', ['Compliance']);
+    expect(mockClient._chain.in).toHaveBeenCalledWith('guides.domain_filter', [
+      'Compliance',
+    ]);
   });
 });
 
@@ -837,7 +851,9 @@ describe('suggestGuideSections — secondary domain matching', () => {
     expect(results).toHaveLength(2);
     // Primary domain match should be exact, secondary capped to partial
     const primaryMatch = results.find((r) => r.sectionId === 'primary-section');
-    const secondaryMatch = results.find((r) => r.sectionId === 'secondary-section');
+    const secondaryMatch = results.find(
+      (r) => r.sectionId === 'secondary-section',
+    );
     expect(primaryMatch?.matchStrength).toBe('exact');
     expect(secondaryMatch?.matchStrength).toBe('partial');
   });
@@ -957,23 +973,22 @@ describe('suggestGuideSections — edge cases', () => {
 
   it('handles null guides relation gracefully', async () => {
     // Edge case: section with null guide (should not happen in practice)
-    mockClient._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({
-          data: [
-            {
-              id: 'orphan-section',
-              section_name: 'Orphan',
-              subtopic_filter: null,
-              expected_layer: null,
-              content_type_filter: null,
-              display_order: 1,
-              is_required: false,
-              guides: null,
-            },
-          ],
-          error: null,
-        }),
+    mockClient._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({
+        data: [
+          {
+            id: 'orphan-section',
+            section_name: 'Orphan',
+            subtopic_filter: null,
+            expected_layer: null,
+            content_type_filter: null,
+            display_order: 1,
+            is_required: false,
+            guides: null,
+          },
+        ],
+        error: null,
+      }),
     );
 
     const results = await suggestGuideSections(

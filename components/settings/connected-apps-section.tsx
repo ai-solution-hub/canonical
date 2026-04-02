@@ -94,7 +94,8 @@ export function ConnectedAppsSection() {
       toast.success(`Revoked access for ${clientName}`);
       setGrants((prev) => prev.filter((g) => g.client.id !== clientId));
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to revoke access';
+      const message =
+        err instanceof Error ? err.message : 'Failed to revoke access';
       toast.error(message);
     } finally {
       setRevoking(null);
@@ -120,7 +121,11 @@ export function ConnectedAppsSection() {
       </CardHeader>
       <CardContent>
         {loading ? (
-          <div role="status" aria-label="Loading connected apps" className="flex items-center justify-center py-6">
+          <div
+            role="status"
+            aria-label="Loading connected apps"
+            className="flex items-center justify-center py-6"
+          >
             <Loader2
               className="size-5 animate-spin text-muted-foreground"
               aria-hidden="true"
@@ -167,12 +172,17 @@ export function ConnectedAppsSection() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => handleRevoke(grant.client.id, grant.client.name)}
+                  onClick={() =>
+                    handleRevoke(grant.client.id, grant.client.name)
+                  }
                   disabled={revoking === grant.client.id}
                   className="shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
                 >
                   {revoking === grant.client.id ? (
-                    <Loader2 className="mr-1.5 size-3.5 animate-spin" aria-hidden="true" />
+                    <Loader2
+                      className="mr-1.5 size-3.5 animate-spin"
+                      aria-hidden="true"
+                    />
                   ) : (
                     <ShieldX className="mr-1.5 size-3.5" aria-hidden="true" />
                   )}

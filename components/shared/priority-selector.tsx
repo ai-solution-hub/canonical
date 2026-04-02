@@ -13,9 +13,24 @@ import { cn } from '@/lib/utils';
 export type Priority = 'high' | 'medium' | 'low' | null;
 
 const PRIORITY_CONFIG = {
-  high: { label: 'High', colour: 'text-priority-high', dot: 'bg-priority-high', fill: 'fill-priority-high' },
-  medium: { label: 'Medium', colour: 'text-priority-medium', dot: 'bg-priority-medium', fill: 'fill-priority-medium' },
-  low: { label: 'Low', colour: 'text-priority-low', dot: 'bg-priority-low', fill: 'fill-priority-low' },
+  high: {
+    label: 'High',
+    colour: 'text-priority-high',
+    dot: 'bg-priority-high',
+    fill: 'fill-priority-high',
+  },
+  medium: {
+    label: 'Medium',
+    colour: 'text-priority-medium',
+    dot: 'bg-priority-medium',
+    fill: 'fill-priority-medium',
+  },
+  low: {
+    label: 'Low',
+    colour: 'text-priority-low',
+    dot: 'bg-priority-low',
+    fill: 'fill-priority-low',
+  },
 } as const;
 
 const PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
@@ -139,9 +154,7 @@ export function PrioritySelector({
                 )}
               >
                 {optConfig ? (
-                  <span
-                    className={cn('size-2 rounded-full', optConfig.dot)}
-                  />
+                  <span className={cn('size-2 rounded-full', optConfig.dot)} />
                 ) : (
                   <span className="size-2 rounded-full bg-muted-foreground/30" />
                 )}

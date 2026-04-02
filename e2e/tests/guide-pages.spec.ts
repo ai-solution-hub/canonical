@@ -22,18 +22,14 @@ test.describe('Guides index page', () => {
   }) => {
     await page.goto('/guide');
 
-    await expect(
-      page.getByRole('heading', { name: 'Guides' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Guides' })).toBeVisible({
+      timeout: 10000,
+    });
 
-    await expect(
-      page.getByText('Curated reading experiences'),
-    ).toBeVisible();
+    await expect(page.getByText('Curated reading experiences')).toBeVisible();
 
     // The section has aria-label="Guides"
-    await expect(
-      page.locator('section[aria-label="Guides"]'),
-    ).toBeVisible();
+    await expect(page.locator('section[aria-label="Guides"]')).toBeVisible();
   });
 
   test('guide cards show name, type badge, and section coverage', async ({
@@ -41,9 +37,9 @@ test.describe('Guides index page', () => {
   }) => {
     await page.goto('/guide');
 
-    await expect(
-      page.getByRole('heading', { name: 'Guides' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Guides' })).toBeVisible({
+      timeout: 10000,
+    });
 
     // Wait for loading to finish -- either guide cards or empty state
     const guideCard = page.locator('a[href^="/guide/"]').first();
@@ -82,15 +78,17 @@ test.describe('Guides index page', () => {
   }) => {
     await page.goto('/guide');
 
-    await expect(
-      page.getByRole('heading', { name: 'Guides' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Guides' })).toBeVisible({
+      timeout: 10000,
+    });
 
     // Wait for guide cards to load
     const guideCards = page.locator('a[href^="/guide/"]');
     const emptyState = page.getByText('No guides published yet');
 
-    await expect(guideCards.first().or(emptyState)).toBeVisible({ timeout: 15000 });
+    await expect(guideCards.first().or(emptyState)).toBeVisible({
+      timeout: 15000,
+    });
 
     // Skip if no guides exist or filter not visible
     const totalCount = await guideCards.count();
@@ -125,7 +123,9 @@ test.describe('Guides index page', () => {
       if (filteredCount > 0) {
         for (let i = 0; i < filteredCount; i++) {
           const card = guideCards.nth(i);
-          const typeBadge = card.locator('span').filter({ hasText: /^Sector$/ });
+          const typeBadge = card
+            .locator('span')
+            .filter({ hasText: /^Sector$/ });
           await expect(typeBadge).toBeVisible();
         }
       }
@@ -140,22 +140,36 @@ test.describe('Guides index page', () => {
   }) => {
     await page.goto('/guide');
 
-    await expect(
-      page.getByRole('heading', { name: 'Guides' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Guides' })).toBeVisible({
+      timeout: 10000,
+    });
 
     const guideCards = page.locator('a[href^="/guide/"]');
     const emptyState = page.getByText('No guides published yet');
 
-    await expect(guideCards.first().or(emptyState)).toBeVisible({ timeout: 15000 });
+    await expect(guideCards.first().or(emptyState)).toBeVisible({
+      timeout: 15000,
+    });
 
-    if (await guideCards.first().isVisible({ timeout: 2000 }).catch(() => false)) {
+    if (
+      await guideCards
+        .first()
+        .isVisible({ timeout: 2000 })
+        .catch(() => false)
+    ) {
       // Get the name of the first guide card
-      const firstGuideName = await guideCards.first().locator('h3').first().textContent();
+      const firstGuideName = await guideCards
+        .first()
+        .locator('h3')
+        .first()
+        .textContent();
 
       if (firstGuideName && firstGuideName.length > 3) {
         // Use a substring to search
-        const searchTerm = firstGuideName.substring(0, Math.min(firstGuideName.length, 8));
+        const searchTerm = firstGuideName.substring(
+          0,
+          Math.min(firstGuideName.length, 8),
+        );
 
         const searchInput = page.locator('[aria-label="Search guides"]');
         await expect(searchInput).toBeVisible();
@@ -168,8 +182,14 @@ test.describe('Guides index page', () => {
         await expect(guideCards.first()).toBeVisible({ timeout: 5000 });
 
         // Verify the first visible card's name contains the search term
-        const firstCardName = await guideCards.first().locator('h3').first().textContent();
-        expect(firstCardName?.toLowerCase()).toContain(searchTerm.toLowerCase());
+        const firstCardName = await guideCards
+          .first()
+          .locator('h3')
+          .first()
+          .textContent();
+        expect(firstCardName?.toLowerCase()).toContain(
+          searchTerm.toLowerCase(),
+        );
       }
     } else {
       test.skip();
@@ -181,21 +201,23 @@ test.describe('Guides index page', () => {
   }) => {
     // First, load the unfiltered page to capture the baseline card count
     await page.goto('/guide');
-    await expect(
-      page.getByRole('heading', { name: 'Guides' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Guides' })).toBeVisible({
+      timeout: 10000,
+    });
 
     const guideCardsAll = page.locator('a[href^="/guide/"]');
     const emptyState = page.getByText('No guides published yet');
-    await expect(guideCardsAll.first().or(emptyState)).toBeVisible({ timeout: 15000 });
+    await expect(guideCardsAll.first().or(emptyState)).toBeVisible({
+      timeout: 15000,
+    });
     const baselineCount = await guideCardsAll.count();
 
     // Now navigate with filters applied
     await page.goto('/guide?q=test&type=sector');
 
-    await expect(
-      page.getByRole('heading', { name: 'Guides' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Guides' })).toBeVisible({
+      timeout: 10000,
+    });
 
     // Wait for the page to settle: either guide cards, the clear button, or the no-results state
     const clearButton = page.locator('button[aria-label="Clear all filters"]');
@@ -203,15 +225,17 @@ test.describe('Guides index page', () => {
     const guideCardsFiltered = page.locator('a[href^="/guide/"]');
 
     // Wait for the filter results to appear (guides, clear button, or no-results)
-    await expect(
-      guideCardsFiltered.first().or(noResultsText),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(guideCardsFiltered.first().or(noResultsText)).toBeVisible({
+      timeout: 10000,
+    });
 
     // Find the clear mechanism: the filter bar's clear button or the no-results clear link
     if (await clearButton.isVisible({ timeout: 3000 }).catch(() => false)) {
       await clearButton.click();
       await expect(page).toHaveURL('/guide', { timeout: 5000 });
-    } else if (await noResultsText.isVisible({ timeout: 2000 }).catch(() => false)) {
+    } else if (
+      await noResultsText.isVisible({ timeout: 2000 }).catch(() => false)
+    ) {
       // "Clear all filters" link within no results state
       const clearLink = page.getByText('Clear all filters');
       await clearLink.click();
@@ -237,16 +261,23 @@ test.describe('Guide detail page', () => {
   }) => {
     await page.goto('/guide');
 
-    await expect(
-      page.getByRole('heading', { name: 'Guides' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Guides' })).toBeVisible({
+      timeout: 10000,
+    });
 
     const guideCards = page.locator('a[href^="/guide/"]');
     const emptyState = page.getByText('No guides published yet');
 
-    await expect(guideCards.first().or(emptyState)).toBeVisible({ timeout: 15000 });
+    await expect(guideCards.first().or(emptyState)).toBeVisible({
+      timeout: 15000,
+    });
 
-    if (!(await guideCards.first().isVisible({ timeout: 2000 }).catch(() => false))) {
+    if (
+      !(await guideCards
+        .first()
+        .isVisible({ timeout: 2000 })
+        .catch(() => false))
+    ) {
       test.skip();
       return;
     }
@@ -258,13 +289,14 @@ test.describe('Guide detail page', () => {
     await expect(page).toHaveURL(/\/guide\/[a-z0-9-]+/);
 
     // Heading with guide name
-    await expect(
-      page.getByRole('heading', { level: 1 }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible({
+      timeout: 10000,
+    });
 
     // Type badge is visible (e.g. "Sector Guide", "Product Guide")
     const typeBadge = page.locator('span').filter({
-      hasText: /^(Sector Guide|Product Guide|Company Guide|Research Guide|Guide)$/,
+      hasText:
+        /^(Sector Guide|Product Guide|Company Guide|Research Guide|Guide)$/,
     });
     await expect(typeBadge.first()).toBeVisible();
 
@@ -279,25 +311,32 @@ test.describe('Guide detail page', () => {
   }) => {
     await page.goto('/guide');
 
-    await expect(
-      page.getByRole('heading', { name: 'Guides' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Guides' })).toBeVisible({
+      timeout: 10000,
+    });
 
     const guideCards = page.locator('a[href^="/guide/"]');
     const emptyState = page.getByText('No guides published yet');
 
-    await expect(guideCards.first().or(emptyState)).toBeVisible({ timeout: 15000 });
+    await expect(guideCards.first().or(emptyState)).toBeVisible({
+      timeout: 15000,
+    });
 
-    if (!(await guideCards.first().isVisible({ timeout: 2000 }).catch(() => false))) {
+    if (
+      !(await guideCards
+        .first()
+        .isVisible({ timeout: 2000 })
+        .catch(() => false))
+    ) {
       test.skip();
       return;
     }
 
     await guideCards.first().click();
 
-    await expect(
-      page.getByRole('heading', { level: 1 }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible({
+      timeout: 10000,
+    });
 
     // If sections exist, a table of contents navigation is visible
     const tocNav = page.getByRole('navigation', { name: 'Guide sections' });
@@ -315,25 +354,32 @@ test.describe('Guide detail page', () => {
   }) => {
     await page.goto('/guide');
 
-    await expect(
-      page.getByRole('heading', { name: 'Guides' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Guides' })).toBeVisible({
+      timeout: 10000,
+    });
 
     const guideCards = page.locator('a[href^="/guide/"]');
     const emptyState = page.getByText('No guides published yet');
 
-    await expect(guideCards.first().or(emptyState)).toBeVisible({ timeout: 15000 });
+    await expect(guideCards.first().or(emptyState)).toBeVisible({
+      timeout: 15000,
+    });
 
-    if (!(await guideCards.first().isVisible({ timeout: 2000 }).catch(() => false))) {
+    if (
+      !(await guideCards
+        .first()
+        .isVisible({ timeout: 2000 })
+        .catch(() => false))
+    ) {
       test.skip();
       return;
     }
 
     await guideCards.first().click();
 
-    await expect(
-      page.getByRole('heading', { level: 1 }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible({
+      timeout: 10000,
+    });
 
     // Click "Back to Guides" link
     const backLink = page.getByRole('link', { name: 'Back to Guides' });
@@ -342,9 +388,9 @@ test.describe('Guide detail page', () => {
 
     // Should navigate back to /guide
     await expect(page).toHaveURL('/guide');
-    await expect(
-      page.getByRole('heading', { name: 'Guides' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Guides' })).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test('nonexistent guide shows error state', async ({
@@ -353,7 +399,9 @@ test.describe('Guide detail page', () => {
     await page.goto('/guide/nonexistent-slug-e2e-test');
 
     // Wait for content to load
-    const errorState = page.getByText('Guide not found').or(page.getByRole('alert'));
+    const errorState = page
+      .getByText('Guide not found')
+      .or(page.getByRole('alert'));
     const backLink = page.getByRole('link', { name: 'Back to Guides' });
 
     await expect(errorState.or(backLink)).toBeVisible({ timeout: 10000 });
@@ -382,14 +430,16 @@ test.describe('Guide pages -- mobile layout', () => {
 
     await page.goto('/guide');
 
-    await expect(
-      page.getByRole('heading', { name: 'Guides' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Guides' })).toBeVisible({
+      timeout: 10000,
+    });
 
     const guideCards = page.locator('a[href^="/guide/"]');
     const emptyState = page.getByText('No guides published yet');
 
-    await expect(guideCards.first().or(emptyState)).toBeVisible({ timeout: 15000 });
+    await expect(guideCards.first().or(emptyState)).toBeVisible({
+      timeout: 15000,
+    });
 
     const cardCount = await guideCards.count();
     if (cardCount < 2) {

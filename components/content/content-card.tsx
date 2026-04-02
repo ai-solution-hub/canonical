@@ -8,7 +8,12 @@ import { SimilarityBadge } from '@/components/shared/similarity-badge';
 import { StarButton } from '@/components/shared/star-button';
 import { PriorityBadge } from '@/components/shared/priority-selector';
 import { VerificationBadge } from '@/components/shared/verification-badge';
-import { getDisplayTitle, formatSmartDate, formatContentType, formatPlatform } from '@/lib/format';
+import {
+  getDisplayTitle,
+  formatSmartDate,
+  formatContentType,
+  formatPlatform,
+} from '@/lib/format';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { ContentTypeIcon } from '@/components/shared/content-type-icon';
 import { FreshnessBadge } from '@/components/shared/freshness-badge';
@@ -32,7 +37,9 @@ import { QuickAssignButton } from '@/components/content/quick-assign-button';
 // Internal helpers and sub-components
 // ---------------------------------------------------------------------------
 
-function isSearchResult(item: ContentListItem | SearchResult): item is SearchResult {
+function isSearchResult(
+  item: ContentListItem | SearchResult,
+): item is SearchResult {
   return 'similarity' in item;
 }
 
@@ -73,14 +80,23 @@ function UnreadDot({ isRead }: { isRead?: boolean }) {
 }
 
 /** Hover-reveal star toggle */
-function StarToggle({ itemId, starred, className }: {
+function StarToggle({
+  itemId,
+  starred,
+  className,
+}: {
   itemId: string;
   starred?: boolean;
   className?: string;
 }) {
   return (
     <span className="opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
-      <StarButton itemId={itemId} starred={starred === true} size="sm" className={className} />
+      <StarButton
+        itemId={itemId}
+        starred={starred === true}
+        size="sm"
+        className={className}
+      />
     </span>
   );
 }
@@ -90,19 +106,33 @@ function LayerBadge({ layer }: { layer?: string | null }) {
   const { getLayerLabel } = useLayerVocabulary();
   if (!isFeatureEnabled('content_layers') || !layer) return null;
   return (
-    <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-confidence-needs-sme-border text-confidence-needs-sme">
+    <Badge
+      variant="outline"
+      className="text-[10px] px-1.5 py-0 border-confidence-needs-sme-border text-confidence-needs-sme"
+    >
       {getLayerLabel(layer)}
     </Badge>
   );
 }
 
 /** Header row: content type icon, domain badge, layer badge, unread dot, quick assign, star */
-function CardHeaderRow({ item, isRead, activeWorkspaces, assignedWorkspaceIds, onAssignmentChange, fromBidId }: {
+function CardHeaderRow({
+  item,
+  isRead,
+  activeWorkspaces,
+  assignedWorkspaceIds,
+  onAssignmentChange,
+  fromBidId,
+}: {
   item: ContentListItem | SearchResult;
   isRead?: boolean;
   activeWorkspaces?: ActiveBidWorkspace[];
   assignedWorkspaceIds?: Set<string>;
-  onAssignmentChange?: (itemId: string, workspaceId: string, workspaceName: string) => void;
+  onAssignmentChange?: (
+    itemId: string,
+    workspaceId: string,
+    workspaceName: string,
+  ) => void;
   fromBidId?: string;
 }) {
   return (
@@ -128,7 +158,12 @@ function CardHeaderRow({ item, isRead, activeWorkspaces, assignedWorkspaceIds, o
 }
 
 /** Card title with priority badge and optional Q: prefix */
-function CardTitle({ title, priority, qaPrefix, renderText }: {
+function CardTitle({
+  title,
+  priority,
+  qaPrefix,
+  renderText,
+}: {
   title: string;
   priority: string | null;
   qaPrefix?: boolean;
@@ -146,7 +181,10 @@ function CardTitle({ title, priority, qaPrefix, renderText }: {
 }
 
 /** Summary or snippet preview text */
-function SummaryPreview({ item, renderText }: {
+function SummaryPreview({
+  item,
+  renderText,
+}: {
   item: ContentListItem | SearchResult;
   renderText: (text: string) => React.ReactNode;
 }) {
@@ -184,7 +222,13 @@ function ContentTypeLine({ item }: { item: ContentListItem | SearchResult }) {
       {[formatContentType(item.content_type), formatPlatform(item.platform)]
         .filter(Boolean)
         .reduce<React.ReactNode[]>((acc, part, i) => {
-          if (i > 0) acc.push(<span key={`sep-${i}`} aria-hidden="true"> &middot; </span>);
+          if (i > 0)
+            acc.push(
+              <span key={`sep-${i}`} aria-hidden="true">
+                {' '}
+                &middot;{' '}
+              </span>,
+            );
           acc.push(<span key={i}>{part}</span>);
           return acc;
         }, [])}
@@ -193,7 +237,12 @@ function ContentTypeLine({ item }: { item: ContentListItem | SearchResult }) {
 }
 
 /** Status row: date, freshness always visible; governance, quality, similarity on hover */
-function CardStatusRow({ item, hasQualityFlag, simplifiedQuality, children }: {
+function CardStatusRow({
+  item,
+  hasQualityFlag,
+  simplifiedQuality,
+  children,
+}: {
   item: ContentListItem | SearchResult;
   hasQualityFlag?: boolean;
   simplifiedQuality?: boolean;
@@ -207,10 +256,16 @@ function CardStatusRow({ item, hasQualityFlag, simplifiedQuality, children }: {
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      <time className="text-xs text-muted-foreground" dateTime={item.captured_date ?? undefined}>
+      <time
+        className="text-xs text-muted-foreground"
+        dateTime={item.captured_date ?? undefined}
+      >
         {formatSmartDate(item.captured_date)}
       </time>
-      <QualityBadge score={qualityScoreForItem(item)} simplified={simplifiedQuality} />
+      <QualityBadge
+        score={qualityScoreForItem(item)}
+        simplified={simplifiedQuality}
+      />
       {children}
       {item.freshness && item.freshness !== 'fresh' && (
         <FreshnessBadge freshness={item.freshness} compact />
@@ -218,8 +273,12 @@ function CardStatusRow({ item, hasQualityFlag, simplifiedQuality, children }: {
       {hasSecondaryBadges && (
         <span className="inline-flex items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
           {isSearchResult(item) && <SimilarityBadge score={item.similarity} />}
-          {item.governance_review_status === 'pending' && <GovernanceBadge status="pending" compact />}
-          {item.governance_review_status === 'draft' && <GovernanceBadge status="draft" compact />}
+          {item.governance_review_status === 'pending' && (
+            <GovernanceBadge status="pending" compact />
+          )}
+          {item.governance_review_status === 'draft' && (
+            <GovernanceBadge status="draft" compact />
+          )}
           {hasQualityFlag && <QualityFlagBadge />}
         </span>
       )}
@@ -228,7 +287,14 @@ function CardStatusRow({ item, hasQualityFlag, simplifiedQuality, children }: {
 }
 
 /** Card footer: badges row, action bar, author, content type line, status row (shared by compact + standard) */
-function CardFooter({ item, hasQualityFlag, simplifiedQuality, badgeSlot, actionSlot, verifiedByName }: {
+function CardFooter({
+  item,
+  hasQualityFlag,
+  simplifiedQuality,
+  badgeSlot,
+  actionSlot,
+  verifiedByName,
+}: {
   item: ContentListItem | SearchResult;
   hasQualityFlag?: boolean;
   simplifiedQuality?: boolean;
@@ -258,10 +324,16 @@ function CardFooter({ item, hasQualityFlag, simplifiedQuality, badgeSlot, action
         </div>
       )}
       {item.author_name && (
-        <span className="truncate text-xs font-medium text-foreground">{item.author_name}</span>
+        <span className="truncate text-xs font-medium text-foreground">
+          {item.author_name}
+        </span>
       )}
       <ContentTypeLine item={item} />
-      <CardStatusRow item={item} hasQualityFlag={hasQualityFlag} simplifiedQuality={simplifiedQuality} />
+      <CardStatusRow
+        item={item}
+        hasQualityFlag={hasQualityFlag}
+        simplifiedQuality={simplifiedQuality}
+      />
     </div>
   );
 }
@@ -272,8 +344,14 @@ function CardFooter({ item, hasQualityFlag, simplifiedQuality, badgeSlot, action
 
 /** Content types that use compact card layout (no thumbnail, 4px left border only) */
 const COMPACT_CONTENT_TYPES = new Set([
-  'q_a_pair', 'policy', 'certification', 'compliance',
-  'methodology', 'capability', 'product_description', 'case_study',
+  'q_a_pair',
+  'policy',
+  'certification',
+  'compliance',
+  'methodology',
+  'capability',
+  'product_description',
+  'case_study',
 ]);
 
 interface ContentCardProps {
@@ -293,28 +371,50 @@ interface ContentCardProps {
   /** Set of workspace IDs this item is assigned to */
   assignedWorkspaceIds?: Set<string>;
   /** Callback when workspace assignment changes */
-  onAssignmentChange?: (itemId: string, workspaceId: string, workspaceName: string) => void;
+  onAssignmentChange?: (
+    itemId: string,
+    workspaceId: string,
+    workspaceName: string,
+  ) => void;
   /** Workspace ID from ?from_bid= URL param for contextual quick-assign shortcut */
   fromBidId?: string;
   /** Map of user UUID to display name for verification badge attribution */
   verifierNames?: Map<string, string>;
 }
 
-export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highlightQuery, canEdit, simplifiedQuality, onQuickReviewUpdate, activeWorkspaces, assignedWorkspaceIds, onAssignmentChange, fromBidId, verifierNames }: ContentCardProps) {
+export const ContentCard = memo(function ContentCard({
+  item,
+  isRead,
+  hasQualityFlag,
+  hideThumbnail,
+  highlightQuery,
+  canEdit,
+  simplifiedQuality,
+  onQuickReviewUpdate,
+  activeWorkspaces,
+  assignedWorkspaceIds,
+  onAssignmentChange,
+  fromBidId,
+  verifierNames,
+}: ContentCardProps) {
   const { getDomainColourKey } = useTaxonomy();
   const title = getDisplayTitle(item);
   const renderText = (text: string) =>
     highlightQuery ? highlightTerms(text, highlightQuery) : text;
-  const colourKey = item.primary_domain ? getDomainColourKey(item.primary_domain) : 'meta';
+  const colourKey = item.primary_domain
+    ? getDomainColourKey(item.primary_domain)
+    : 'meta';
 
   const isQAPair = item.content_type === 'q_a_pair';
   const isCompactType = COMPACT_CONTENT_TYPES.has(item.content_type ?? '');
   const shouldHideThumbnail = isCompactType || hideThumbnail;
 
-  const answerPreview = isQAPair ? (item.content || item.brief || item.ai_summary || null) : null;
+  const answerPreview = isQAPair
+    ? item.content || item.brief || item.ai_summary || null
+    : null;
   const sourceDocument = isQAPair ? item.source_document : null;
   const verifiedByName = item.verified_by
-    ? verifierNames?.get(item.verified_by) ?? null
+    ? (verifierNames?.get(item.verified_by) ?? null)
     : null;
 
   const cardClassName = cn(
@@ -344,13 +444,20 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
   // --- Q&A PAIR CARD ---
   if (isQAPair) {
     return (
-      <Link href={`/item/${item.id}`} prefetch={true} className={cardClassName} style={cardStyle('180px')}>
+      <Link
+        href={`/item/${item.id}`}
+        prefetch={true}
+        className={cardClassName}
+        style={cardStyle('180px')}
+      >
         <div className="flex flex-1 flex-col gap-2 p-3">
           <div className="flex items-center gap-1.5">
             <ContentTypeIcon contentType={item.content_type} size="size-5" />
             <DomainBadge domain={item.primary_domain ?? ''} />
             {isSearchResult(item) && (
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0">Q&amp;A</Badge>
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                Q&amp;A
+              </Badge>
             )}
             <LayerBadge layer={item.layer} />
             <div className="ml-auto flex items-center gap-1">
@@ -367,10 +474,17 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
               <StarToggle itemId={item.id} starred={item.starred} />
             </div>
           </div>
-          <CardTitle title={title} priority={item.priority} qaPrefix renderText={renderText} />
+          <CardTitle
+            title={title}
+            priority={item.priority}
+            qaPrefix
+            renderText={renderText}
+          />
           {answerPreview && (
             <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-              <span className="font-medium text-muted-foreground">A:&nbsp;</span>
+              <span className="font-medium text-muted-foreground">
+                A:&nbsp;
+              </span>
               {renderText(answerPreview)}
             </p>
           )}
@@ -387,7 +501,11 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
                 {actionSlot}
               </div>
             )}
-            <CardStatusRow item={item} hasQualityFlag={hasQualityFlag} simplifiedQuality={simplifiedQuality}>
+            <CardStatusRow
+              item={item}
+              hasQualityFlag={hasQualityFlag}
+              simplifiedQuality={simplifiedQuality}
+            >
               {answerPreview && (
                 <button
                   type="button"
@@ -402,7 +520,10 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
                     );
                   }}
                 >
-                  <Copy className="size-3.5 text-muted-foreground hover:text-foreground" aria-hidden="true" />
+                  <Copy
+                    className="size-3.5 text-muted-foreground hover:text-foreground"
+                    aria-hidden="true"
+                  />
                 </button>
               )}
               {item.verified_at && (
@@ -426,12 +547,34 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
   // --- COMPACT CARD (non-Q&A compact types) ---
   if (isCompactType) {
     return (
-      <Link href={`/item/${item.id}`} prefetch={true} className={cardClassName} style={cardStyle('200px')}>
+      <Link
+        href={`/item/${item.id}`}
+        prefetch={true}
+        className={cardClassName}
+        style={cardStyle('200px')}
+      >
         <div className="flex flex-1 flex-col gap-2 p-3">
-          <CardHeaderRow item={item} isRead={isRead} activeWorkspaces={activeWorkspaces} assignedWorkspaceIds={assignedWorkspaceIds} onAssignmentChange={onAssignmentChange} fromBidId={fromBidId} />
-          <CardTitle title={title} priority={item.priority} renderText={renderText} />
+          <CardHeaderRow
+            item={item}
+            isRead={isRead}
+            activeWorkspaces={activeWorkspaces}
+            assignedWorkspaceIds={assignedWorkspaceIds}
+            onAssignmentChange={onAssignmentChange}
+            fromBidId={fromBidId}
+          />
+          <CardTitle
+            title={title}
+            priority={item.priority}
+            renderText={renderText}
+          />
           <SummaryPreview item={item} renderText={renderText} />
-          <CardFooter item={item} hasQualityFlag={hasQualityFlag} simplifiedQuality={simplifiedQuality} actionSlot={actionSlot} verifiedByName={verifiedByName} />
+          <CardFooter
+            item={item}
+            hasQualityFlag={hasQualityFlag}
+            simplifiedQuality={simplifiedQuality}
+            actionSlot={actionSlot}
+            verifiedByName={verifiedByName}
+          />
         </div>
       </Link>
     );
@@ -439,10 +582,22 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
 
   // --- STANDARD CARD (thumbnail-eligible types) ---
   return (
-    <Link href={`/item/${item.id}`} prefetch={true} className={cardClassName} style={cardStyle(shouldHideThumbnail ? '200px' : '320px')}>
+    <Link
+      href={`/item/${item.id}`}
+      prefetch={true}
+      className={cardClassName}
+      style={cardStyle(shouldHideThumbnail ? '200px' : '320px')}
+    >
       {!shouldHideThumbnail ? (
         <div className="relative">
-          <Thumbnail src={item.thumbnail_url} alt={title} contentType={item.content_type} domain={item.primary_domain} placeholderAspect="compact" className="rounded-b-none" />
+          <Thumbnail
+            src={item.thumbnail_url}
+            alt={title}
+            contentType={item.content_type}
+            domain={item.primary_domain}
+            placeholderAspect="compact"
+            className="rounded-b-none"
+          />
           <div className="absolute right-1 top-1 flex items-center gap-1">
             <UnreadDot isRead={isRead} />
             {activeWorkspaces && assignedWorkspaceIds && (
@@ -455,7 +610,11 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
                 className="rounded-full bg-background/80 shadow-sm backdrop-blur-sm"
               />
             )}
-            <StarToggle itemId={item.id} starred={item.starred} className="rounded-full bg-background/80 shadow-sm backdrop-blur-sm" />
+            <StarToggle
+              itemId={item.id}
+              starred={item.starred}
+              className="rounded-full bg-background/80 shadow-sm backdrop-blur-sm"
+            />
           </div>
         </div>
       ) : (
@@ -474,13 +633,22 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
         </div>
       )}
       <div className="flex flex-1 flex-col gap-2 p-3">
-        <CardTitle title={title} priority={item.priority} renderText={renderText} />
+        <CardTitle
+          title={title}
+          priority={item.priority}
+          renderText={renderText}
+        />
         <SummaryPreview item={item} renderText={renderText} />
         <CardFooter
           item={item}
           hasQualityFlag={hasQualityFlag}
           simplifiedQuality={simplifiedQuality}
-          badgeSlot={<><DomainBadge domain={item.primary_domain ?? ''} /><LayerBadge layer={item.layer} /></>}
+          badgeSlot={
+            <>
+              <DomainBadge domain={item.primary_domain ?? ''} />
+              <LayerBadge layer={item.layer} />
+            </>
+          }
           actionSlot={actionSlot}
           verifiedByName={verifiedByName}
         />

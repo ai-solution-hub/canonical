@@ -33,8 +33,12 @@ export async function GET(request: NextRequest) {
     if (!allowed) return rateLimitResponse();
 
     const params = request.nextUrl.searchParams;
-    const hasFilterParams = params.has('type') || params.has('min_count') ||
-      params.has('search') || params.has('limit') || params.has('offset');
+    const hasFilterParams =
+      params.has('type') ||
+      params.has('min_count') ||
+      params.has('search') ||
+      params.has('limit') ||
+      params.has('offset');
 
     if (hasFilterParams) {
       // Filtered/paginated path
@@ -65,11 +69,13 @@ export async function GET(request: NextRequest) {
         const totalCount = rows.length > 0 ? Number(rows[0].total_count) : 0;
 
         return NextResponse.json({
-          tags: rows.map((r: { tag: string; count: number; source: string }) => ({
-            tag: r.tag,
-            count: Number(r.count),
-            source: r.source,
-          })),
+          tags: rows.map(
+            (r: { tag: string; count: number; source: string }) => ({
+              tag: r.tag,
+              count: Number(r.count),
+              source: r.source,
+            }),
+          ),
           total: totalCount,
         });
       }
@@ -94,13 +100,23 @@ export async function GET(request: NextRequest) {
 
       if (aiResult.error) {
         return NextResponse.json(
-          { error: safeErrorMessage(aiResult.error, 'Failed to fetch tag counts') },
+          {
+            error: safeErrorMessage(
+              aiResult.error,
+              'Failed to fetch tag counts',
+            ),
+          },
           { status: 500 },
         );
       }
       if (userResult.error) {
         return NextResponse.json(
-          { error: safeErrorMessage(userResult.error, 'Failed to fetch tag counts') },
+          {
+            error: safeErrorMessage(
+              userResult.error,
+              'Failed to fetch tag counts',
+            ),
+          },
           { status: 500 },
         );
       }
@@ -116,7 +132,8 @@ export async function GET(request: NextRequest) {
         .sort((a, b) => b.count - a.count);
 
       const aiTotal = aiRows.length > 0 ? Number(aiRows[0].total_count) : 0;
-      const userTotal = userRows.length > 0 ? Number(userRows[0].total_count) : 0;
+      const userTotal =
+        userRows.length > 0 ? Number(userRows[0].total_count) : 0;
 
       return NextResponse.json({
         tags: combined,

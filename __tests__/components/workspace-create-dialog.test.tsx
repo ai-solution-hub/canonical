@@ -18,7 +18,11 @@ const { mockOnOpenChange, mockOnCreated, mockOnBidCreate } = vi.hoisted(() => ({
 }));
 
 vi.mock('sonner', () => ({
-  toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), info: vi.fn() }),
+  toast: Object.assign(vi.fn(), {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+  }),
 }));
 
 vi.mock('@/components/workspace/workspace-colour-picker', () => ({
@@ -53,7 +57,9 @@ describe('WorkspaceCreateDialog', () => {
 
       expect(screen.getByText('New KB Section')).toBeInTheDocument();
       expect(
-        screen.getByText('Organise related content items into thematic sections'),
+        screen.getByText(
+          'Organise related content items into thematic sections',
+        ),
       ).toBeInTheDocument();
     });
 

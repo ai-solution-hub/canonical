@@ -31,21 +31,42 @@ import {
 
 export type ViewMode = 'grid' | 'list';
 
-export type SortOption = 'relevance' | 'date-desc' | 'date-asc' | 'domain' | 'confidence' | 'freshness-stale' | 'quality-lowest';
+export type SortOption =
+  | 'relevance'
+  | 'date-desc'
+  | 'date-asc'
+  | 'domain'
+  | 'confidence'
+  | 'freshness-stale'
+  | 'quality-lowest';
 
 /** Base sort options always available */
-const BASE_SORT_OPTIONS: { value: SortOption; label: string; shortLabel: string }[] = [
+const BASE_SORT_OPTIONS: {
+  value: SortOption;
+  label: string;
+  shortLabel: string;
+}[] = [
   { value: 'date-desc', label: 'Date (newest)', shortLabel: 'Newest' },
   { value: 'date-asc', label: 'Date (oldest)', shortLabel: 'Oldest' },
   { value: 'domain', label: 'Domain', shortLabel: 'Domain' },
   { value: 'confidence', label: 'Confidence', shortLabel: 'Conf.' },
-  { value: 'freshness-stale', label: 'Freshness (most stale)', shortLabel: 'Stale' },
+  {
+    value: 'freshness-stale',
+    label: 'Freshness (most stale)',
+    shortLabel: 'Stale',
+  },
   { value: 'quality-lowest', label: 'Quality (lowest)', shortLabel: 'Quality' },
 ];
 
 /** Relevance sort option — only shown when a search query is active */
-const RELEVANCE_SORT_OPTION: { value: SortOption; label: string; shortLabel: string } = {
-  value: 'relevance', label: 'Relevance', shortLabel: 'Relevance',
+const RELEVANCE_SORT_OPTION: {
+  value: SortOption;
+  label: string;
+  shortLabel: string;
+} = {
+  value: 'relevance',
+  label: 'Relevance',
+  shortLabel: 'Relevance',
 };
 
 /** Returns sort options including Relevance when a search query is active */
@@ -93,7 +114,11 @@ export function FilterBar({
       {/* Left group: view controls */}
       <div className="flex items-center gap-2">
         {/* View toggle */}
-        <div className="flex rounded-md border" role="group" aria-label="View mode">
+        <div
+          className="flex rounded-md border"
+          role="group"
+          aria-label="View mode"
+        >
           <Button
             variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
             size="icon-sm"
@@ -118,7 +143,11 @@ export function FilterBar({
 
         {/* Sort */}
         <Select value={sortOption} onValueChange={onSortChange}>
-          <SelectTrigger size="sm" className="w-auto gap-1.5" aria-label="Sort by">
+          <SelectTrigger
+            size="sm"
+            className="w-auto gap-1.5"
+            aria-label="Sort by"
+          >
             <ArrowUpDown className="size-3.5" />
             <span className="hidden sm:inline">
               <SelectValue />
@@ -181,11 +210,7 @@ export function FilterBar({
         {/* Overflow menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="More options"
-            >
+            <Button variant="ghost" size="icon-sm" aria-label="More options">
               <MoreHorizontal className="size-4" />
             </Button>
           </DropdownMenuTrigger>

@@ -16,7 +16,9 @@ const mocks = vi.hoisted(() => {
     chain.is = vi.fn().mockReturnValue(chain);
     chain.not = vi.fn().mockReturnValue(chain);
     chain.in = vi.fn().mockReturnValue(chain);
-    chain.then = vi.fn((resolve: (v: unknown) => void) => resolve(resolvedValue));
+    chain.then = vi.fn((resolve: (v: unknown) => void) =>
+      resolve(resolvedValue),
+    );
     return chain;
   };
 
@@ -73,7 +75,10 @@ vi.mock('@/lib/mcp/app-bundles', () => ({
 // Mock McpServer
 // ---------------------------------------------------------------------------
 
-type ToolHandler = (args: Record<string, unknown>, extra: Record<string, unknown>) => Promise<unknown>;
+type ToolHandler = (
+  args: Record<string, unknown>,
+  extra: Record<string, unknown>,
+) => Promise<unknown>;
 type ResourceHandler = (...args: unknown[]) => Promise<unknown>;
 
 function createMockMcpServer() {
@@ -83,7 +88,11 @@ function createMockMcpServer() {
   return {
     tools,
     resources,
-    registerTool(name: string, _config: Record<string, unknown>, handler: ToolHandler) {
+    registerTool(
+      name: string,
+      _config: Record<string, unknown>,
+      handler: ToolHandler,
+    ) {
       tools[name] = { handler };
     },
     // Handle both static resource (4 args) and template resource (4 args with template)
@@ -110,7 +119,8 @@ function createMockMcpServer() {
 
 describe('formatQualityBriefing', () => {
   it('formats a complete briefing with all 6 sections', async () => {
-    const { formatQualityBriefing } = await import('@/lib/mcp/formatters/briefing');
+    const { formatQualityBriefing } =
+      await import('@/lib/mcp/formatters/briefing');
 
     const data = {
       below_threshold: [
@@ -216,7 +226,8 @@ describe('formatQualityBriefing', () => {
   });
 
   it('formats empty briefing with sensible defaults', async () => {
-    const { formatQualityBriefing } = await import('@/lib/mcp/formatters/briefing');
+    const { formatQualityBriefing } =
+      await import('@/lib/mcp/formatters/briefing');
 
     const emptyData = {
       below_threshold: [],
@@ -240,7 +251,8 @@ describe('formatQualityBriefing', () => {
   });
 
   it('uses suggested_title when title is null', async () => {
-    const { formatQualityBriefing } = await import('@/lib/mcp/formatters/briefing');
+    const { formatQualityBriefing } =
+      await import('@/lib/mcp/formatters/briefing');
 
     const data = {
       below_threshold: [
@@ -283,7 +295,9 @@ describe('fetchQualityBriefingData', () => {
 
   it('returns all 6 data sections with empty database', async () => {
     const { fetchQualityBriefingData } = await import('@/lib/mcp/tools/shared');
-    const result = await fetchQualityBriefingData(mocks.mockSupabaseClient as never);
+    const result = await fetchQualityBriefingData(
+      mocks.mockSupabaseClient as never,
+    );
 
     expect(result.below_threshold).toEqual([]);
     expect(result.score_drops).toEqual([]);
@@ -308,9 +322,13 @@ describe('fetchQualityBriefingData', () => {
       return chain;
     });
 
-    await fetchQualityBriefingData(mocks.mockSupabaseClient as never, { domain: 'Security' });
+    await fetchQualityBriefingData(mocks.mockSupabaseClient as never, {
+      domain: 'Security',
+    });
 
-    const domainFilters = eqCalls.filter(([col, val]) => col === 'primary_domain' && val === 'Security');
+    const domainFilters = eqCalls.filter(
+      ([col, val]) => col === 'primary_domain' && val === 'Security',
+    );
     expect(domainFilters.length).toBeGreaterThanOrEqual(3);
   });
 
@@ -324,15 +342,25 @@ describe('fetchQualityBriefingData', () => {
         return mocks.createChain({
           data: [
             {
-              id: 'item-1', title: 'Score 55', suggested_title: null,
-              primary_domain: 'Ops', primary_subtopic: null,
-              quality_score: 55, freshness: 'fresh', ai_summary: 'Yes',
+              id: 'item-1',
+              title: 'Score 55',
+              suggested_title: null,
+              primary_domain: 'Ops',
+              primary_subtopic: null,
+              quality_score: 55,
+              freshness: 'fresh',
+              ai_summary: 'Yes',
               classification_confidence: 0.8,
             },
             {
-              id: 'item-2', title: 'Score 25', suggested_title: null,
-              primary_domain: 'Ops', primary_subtopic: null,
-              quality_score: 25, freshness: 'stale', ai_summary: null,
+              id: 'item-2',
+              title: 'Score 25',
+              suggested_title: null,
+              primary_domain: 'Ops',
+              primary_subtopic: null,
+              quality_score: 25,
+              freshness: 'stale',
+              ai_summary: null,
               classification_confidence: 0.3,
             },
           ],
@@ -342,11 +370,18 @@ describe('fetchQualityBriefingData', () => {
       return mocks.createChain({ data: [], error: null });
     });
 
-    const result = await fetchQualityBriefingData(mocks.mockSupabaseClient as never, { threshold: 60 });
+    const result = await fetchQualityBriefingData(
+      mocks.mockSupabaseClient as never,
+      { threshold: 60 },
+    );
 
     expect(result.below_threshold.length).toBe(2);
-    expect(result.below_threshold.some(item => item.quality_score === 55)).toBe(true);
-    expect(result.below_threshold.some(item => item.quality_score === 25)).toBe(true);
+    expect(
+      result.below_threshold.some((item) => item.quality_score === 55),
+    ).toBe(true);
+    expect(
+      result.below_threshold.some((item) => item.quality_score === 25),
+    ).toBe(true);
   });
 
   it('processes score drops and sorts by magnitude', async () => {
@@ -361,13 +396,19 @@ describe('fetchQualityBriefingData', () => {
           return mocks.createChain({
             data: [
               {
-                id: 'item-a', title: 'Small Drop', suggested_title: null,
-                primary_domain: 'Ops', quality_score: 60,
+                id: 'item-a',
+                title: 'Small Drop',
+                suggested_title: null,
+                primary_domain: 'Ops',
+                quality_score: 60,
                 previous_quality_score: 70,
               },
               {
-                id: 'item-b', title: 'Big Drop', suggested_title: null,
-                primary_domain: 'Ops', quality_score: 20,
+                id: 'item-b',
+                title: 'Big Drop',
+                suggested_title: null,
+                primary_domain: 'Ops',
+                quality_score: 20,
                 previous_quality_score: 80,
               },
             ],
@@ -378,7 +419,9 @@ describe('fetchQualityBriefingData', () => {
       return mocks.createChain({ data: [], error: null });
     });
 
-    const result = await fetchQualityBriefingData(mocks.mockSupabaseClient as never);
+    const result = await fetchQualityBriefingData(
+      mocks.mockSupabaseClient as never,
+    );
 
     expect(result.score_drops.length).toBe(2);
     // Big drop (60 points) should come first
@@ -394,11 +437,13 @@ describe('fetchQualityBriefingData', () => {
         return mocks.createChain({
           data: [
             {
-              canonical_name: 'ISO 27001', entity_type: 'certification',
+              canonical_name: 'ISO 27001',
+              entity_type: 'certification',
               metadata: { expiry_date: '2020-01-01T00:00:00Z' },
             },
             {
-              canonical_name: 'ISO 27001', entity_type: 'certification',
+              canonical_name: 'ISO 27001',
+              entity_type: 'certification',
               metadata: { expiry_date: '2020-06-01T00:00:00Z' },
             },
           ],
@@ -408,7 +453,9 @@ describe('fetchQualityBriefingData', () => {
       return mocks.createChain({ data: [], error: null });
     });
 
-    const result = await fetchQualityBriefingData(mocks.mockSupabaseClient as never);
+    const result = await fetchQualityBriefingData(
+      mocks.mockSupabaseClient as never,
+    );
 
     // Should deduplicate — only 1 warning for ISO 27001
     expect(result.certification_warnings.length).toBe(1);
@@ -427,13 +474,19 @@ describe('fetchQualityBriefingData', () => {
           return mocks.createChain({
             data: [
               {
-                id: 'item-changed', title: 'Changed', suggested_title: null,
-                primary_domain: 'Security', freshness: 'stale',
+                id: 'item-changed',
+                title: 'Changed',
+                suggested_title: null,
+                primary_domain: 'Security',
+                freshness: 'stale',
                 previous_freshness: 'fresh',
               },
               {
-                id: 'item-same', title: 'Unchanged', suggested_title: null,
-                primary_domain: 'Security', freshness: 'stale',
+                id: 'item-same',
+                title: 'Unchanged',
+                suggested_title: null,
+                primary_domain: 'Security',
+                freshness: 'stale',
                 previous_freshness: 'stale',
               },
             ],
@@ -444,7 +497,9 @@ describe('fetchQualityBriefingData', () => {
       return mocks.createChain({ data: [], error: null });
     });
 
-    const result = await fetchQualityBriefingData(mocks.mockSupabaseClient as never);
+    const result = await fetchQualityBriefingData(
+      mocks.mockSupabaseClient as never,
+    );
 
     // Only the item where freshness actually changed should be included
     expect(result.freshness_transitions.length).toBe(1);
@@ -466,7 +521,9 @@ describe('get_quality_briefing tool', () => {
     mocks.resetFrom();
     mockServer = createMockMcpServer();
     const { registerQualityTools } = await import('@/lib/mcp/tools/quality');
-    await registerQualityTools(mockServer as unknown as Parameters<typeof registerQualityTools>[0]);
+    await registerQualityTools(
+      mockServer as unknown as Parameters<typeof registerQualityTools>[0],
+    );
   });
 
   it('registers the get_quality_briefing tool', () => {
@@ -484,32 +541,49 @@ describe('get_quality_briefing tool', () => {
         if (callNum === 0) {
           // below-threshold query
           return mocks.createChain({
-            data: [{
-              id: 'item-1', title: 'Low Quality', suggested_title: null,
-              primary_domain: 'Compliance', primary_subtopic: 'GDPR',
-              quality_score: 20, freshness: 'expired', ai_summary: null,
-              classification_confidence: 0.3,
-            }],
+            data: [
+              {
+                id: 'item-1',
+                title: 'Low Quality',
+                suggested_title: null,
+                primary_domain: 'Compliance',
+                primary_subtopic: 'GDPR',
+                quality_score: 20,
+                freshness: 'expired',
+                ai_summary: null,
+                classification_confidence: 0.3,
+              },
+            ],
             error: null,
           });
         } else if (callNum === 1) {
           // score drops query
           return mocks.createChain({
-            data: [{
-              id: 'item-2', title: 'Dropped', suggested_title: null,
-              primary_domain: 'Operations', quality_score: 30,
-              previous_quality_score: 60,
-            }],
+            data: [
+              {
+                id: 'item-2',
+                title: 'Dropped',
+                suggested_title: null,
+                primary_domain: 'Operations',
+                quality_score: 30,
+                previous_quality_score: 60,
+              },
+            ],
             error: null,
           });
         } else {
           // freshness transitions query
           return mocks.createChain({
-            data: [{
-              id: 'item-3', title: 'Staling', suggested_title: null,
-              primary_domain: 'Security', freshness: 'stale',
-              previous_freshness: 'ageing',
-            }],
+            data: [
+              {
+                id: 'item-3',
+                title: 'Staling',
+                suggested_title: null,
+                primary_domain: 'Security',
+                freshness: 'stale',
+                previous_freshness: 'ageing',
+              },
+            ],
             error: null,
           });
         }
@@ -517,20 +591,28 @@ describe('get_quality_briefing tool', () => {
 
       if (tableName === 'notifications') {
         return mocks.createChain({
-          data: [{
-            id: 'notif-1', type: 'quality_flag', message: 'Test flag',
-            created_at: '2026-03-20T10:00:00Z', entity_id: 'item-1',
-          }],
+          data: [
+            {
+              id: 'notif-1',
+              type: 'quality_flag',
+              message: 'Test flag',
+              created_at: '2026-03-20T10:00:00Z',
+              entity_id: 'item-1',
+            },
+          ],
           error: null,
         });
       }
 
       if (tableName === 'entity_mentions') {
         return mocks.createChain({
-          data: [{
-            canonical_name: 'ISO 9001', entity_type: 'certification',
-            metadata: { expiry_date: '2020-01-01T00:00:00Z' },
-          }],
+          data: [
+            {
+              canonical_name: 'ISO 9001',
+              entity_type: 'certification',
+              metadata: { expiry_date: '2020-01-01T00:00:00Z' },
+            },
+          ],
           error: null,
         });
       }
@@ -545,7 +627,7 @@ describe('get_quality_briefing tool', () => {
       return mocks.createChain({ data: [], error: null });
     });
 
-    const result = await handler({}, extra) as {
+    const result = (await handler({}, extra)) as {
       content: Array<{ text: string }>;
       structuredContent: Record<string, unknown>;
     };
@@ -568,14 +650,18 @@ describe('get_quality_briefing tool', () => {
     const handler = mockServer.getHandler('get_quality_briefing')!;
 
     // Explicitly ensure from() returns empty data (reset already done in beforeEach)
-    const result = await handler({}, extra) as {
+    const result = (await handler({}, extra)) as {
       content: Array<{ text: string }>;
       structuredContent: Record<string, unknown>;
     };
 
     expect(result.content[0].text).toContain('# Quality Briefing');
-    expect(result.content[0].text).toContain('No items currently below the quality threshold.');
-    expect(result.content[0].text).toContain('No quality score drops detected.');
+    expect(result.content[0].text).toContain(
+      'No items currently below the quality threshold.',
+    );
+    expect(result.content[0].text).toContain(
+      'No quality score drops detected.',
+    );
 
     // Structured content should have empty arrays
     const sc = result.structuredContent;
@@ -605,7 +691,9 @@ describe('get_quality_briefing tool', () => {
     await handler({ domain: 'Compliance' }, extra);
 
     // Should have domain filter eq calls for the 3 content_items queries
-    const domainFilters = eqCalls.filter(([col, val]) => col === 'primary_domain' && val === 'Compliance');
+    const domainFilters = eqCalls.filter(
+      ([col, val]) => col === 'primary_domain' && val === 'Compliance',
+    );
     expect(domainFilters.length).toBeGreaterThanOrEqual(3);
   });
 
@@ -620,15 +708,25 @@ describe('get_quality_briefing tool', () => {
         return mocks.createChain({
           data: [
             {
-              id: 'item-1', title: 'Score 55', suggested_title: null,
-              primary_domain: 'Ops', primary_subtopic: null,
-              quality_score: 55, freshness: 'fresh', ai_summary: 'Yes',
+              id: 'item-1',
+              title: 'Score 55',
+              suggested_title: null,
+              primary_domain: 'Ops',
+              primary_subtopic: null,
+              quality_score: 55,
+              freshness: 'fresh',
+              ai_summary: 'Yes',
               classification_confidence: 0.8,
             },
             {
-              id: 'item-2', title: 'Score 25', suggested_title: null,
-              primary_domain: 'Ops', primary_subtopic: null,
-              quality_score: 25, freshness: 'stale', ai_summary: null,
+              id: 'item-2',
+              title: 'Score 25',
+              suggested_title: null,
+              primary_domain: 'Ops',
+              primary_subtopic: null,
+              quality_score: 25,
+              freshness: 'stale',
+              ai_summary: null,
               classification_confidence: 0.3,
             },
           ],
@@ -639,7 +737,7 @@ describe('get_quality_briefing tool', () => {
     });
 
     // With threshold 60, item with score 55 should be below threshold
-    const result = await handler({ threshold: 60 }, extra) as {
+    const result = (await handler({ threshold: 60 }, extra)) as {
       content: Array<{ text: string }>;
       structuredContent: { below_threshold: Array<{ quality_score: number }> };
     };
@@ -647,8 +745,16 @@ describe('get_quality_briefing tool', () => {
     const belowThreshold = result.structuredContent.below_threshold;
     // Both items (55 and 25) are below threshold of 60
     expect(belowThreshold.length).toBe(2);
-    expect(belowThreshold.some((item: { quality_score: number }) => item.quality_score === 55)).toBe(true);
-    expect(belowThreshold.some((item: { quality_score: number }) => item.quality_score === 25)).toBe(true);
+    expect(
+      belowThreshold.some(
+        (item: { quality_score: number }) => item.quality_score === 55,
+      ),
+    ).toBe(true);
+    expect(
+      belowThreshold.some(
+        (item: { quality_score: number }) => item.quality_score === 25,
+      ),
+    ).toBe(true);
   });
 
   it('excludes archived items (query uses is archived_at null)', async () => {
@@ -683,7 +789,7 @@ describe('get_quality_briefing tool', () => {
       throw new Error('Database connection failed');
     });
 
-    const result = await handler({}, extra) as {
+    const result = (await handler({}, extra)) as {
       content: Array<{ text: string }>;
       isError: boolean;
     };
@@ -707,7 +813,9 @@ describe('kb://quality-briefing resource', () => {
     mocks.resetFrom();
     mockServer = createMockMcpServer();
     const { registerResources } = await import('@/lib/mcp/resources');
-    await registerResources(mockServer as unknown as Parameters<typeof registerResources>[0]);
+    await registerResources(
+      mockServer as unknown as Parameters<typeof registerResources>[0],
+    );
   });
 
   it('registers the quality_briefing resource', () => {
@@ -720,10 +828,9 @@ describe('kb://quality-briefing resource', () => {
       throw new Error('quality_briefing resource not registered');
     }
 
-    const result = await handler(
-      new URL('kb://quality-briefing'),
-      extra,
-    ) as { contents: Array<{ mimeType: string; text: string }> };
+    const result = (await handler(new URL('kb://quality-briefing'), extra)) as {
+      contents: Array<{ mimeType: string; text: string }>;
+    };
 
     expect(result.contents).toHaveLength(1);
     expect(result.contents[0].mimeType).toBe('application/json');
@@ -753,22 +860,28 @@ describe('kb://quality-briefing resource', () => {
       if (tableName === 'content_items' && fromCallIndex.value === 0) {
         fromCallIndex.value++;
         return mocks.createChain({
-          data: [{
-            id: 'item-low', title: 'Low Quality Article', suggested_title: null,
-            primary_domain: 'Security', primary_subtopic: 'access-control',
-            quality_score: 25, freshness: 'expired', ai_summary: null,
-            classification_confidence: 0.4,
-          }],
+          data: [
+            {
+              id: 'item-low',
+              title: 'Low Quality Article',
+              suggested_title: null,
+              primary_domain: 'Security',
+              primary_subtopic: 'access-control',
+              quality_score: 25,
+              freshness: 'expired',
+              ai_summary: null,
+              classification_confidence: 0.4,
+            },
+          ],
           error: null,
         });
       }
       return mocks.createChain({ data: [], error: null });
     });
 
-    const result = await handler(
-      new URL('kb://quality-briefing'),
-      extra,
-    ) as { contents: Array<{ mimeType: string; text: string }> };
+    const result = (await handler(new URL('kb://quality-briefing'), extra)) as {
+      contents: Array<{ mimeType: string; text: string }>;
+    };
 
     const parsed = JSON.parse(result.contents[0].text);
     expect(parsed.below_threshold).toHaveLength(1);
@@ -787,12 +900,13 @@ describe('kb://quality-briefing resource', () => {
       throw new Error('quality_briefing resource not registered');
     }
 
-    const result = await handler(
-      new URL('kb://quality-briefing'),
-      extra,
-    ) as { contents: Array<{ mimeType: string; text: string }> };
+    const result = (await handler(new URL('kb://quality-briefing'), extra)) as {
+      contents: Array<{ mimeType: string; text: string }>;
+    };
 
     expect(result.contents[0].mimeType).toBe('text/plain');
-    expect(result.contents[0].text).toContain('Error generating quality briefing');
+    expect(result.contents[0].text).toContain(
+      'Error generating quality briefing',
+    );
   });
 });

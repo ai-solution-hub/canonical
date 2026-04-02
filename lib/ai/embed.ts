@@ -40,7 +40,10 @@ function evictCache(): void {
     const entries = [...embeddingCache.entries()].sort(
       (a, b) => a[1].createdAt - b[1].createdAt,
     );
-    const toRemove = entries.slice(0, embeddingCache.size - CACHE_MAX_ENTRIES + 1);
+    const toRemove = entries.slice(
+      0,
+      embeddingCache.size - CACHE_MAX_ENTRIES + 1,
+    );
     for (const [key] of toRemove) {
       embeddingCache.delete(key);
     }

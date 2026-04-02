@@ -35,7 +35,10 @@ export async function GET(
     }
 
     const HistoryParamsSchema = paginationParams({ limit: 50 });
-    const parsed = parseSearchParams(HistoryParamsSchema, request.nextUrl.searchParams);
+    const parsed = parseSearchParams(
+      HistoryParamsSchema,
+      request.nextUrl.searchParams,
+    );
     if (!parsed.success) return parsed.response;
     const { limit, offset } = parsed.data;
 

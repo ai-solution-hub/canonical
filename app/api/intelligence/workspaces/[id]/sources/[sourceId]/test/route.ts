@@ -7,10 +7,7 @@ import { pollFeed } from '@/lib/intelligence/feed-poller';
 type RouteContext = { params: Promise<{ id: string; sourceId: string }> };
 
 /** POST /api/intelligence/workspaces/:id/sources/:sourceId/test — test poll a feed source */
-export async function POST(
-  _request: NextRequest,
-  context: RouteContext,
-) {
+export async function POST(_request: NextRequest, context: RouteContext) {
   try {
     const { id, sourceId } = await context.params;
     const auth = await getAuthorisedClient(['admin', 'editor']);

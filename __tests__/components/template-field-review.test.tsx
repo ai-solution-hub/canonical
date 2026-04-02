@@ -31,7 +31,12 @@ vi.mock('sonner', () => ({
 }));
 
 vi.mock('@/components/ui/button', () => ({
-  Button: ({ children, onClick, disabled, ...props }: Record<string, unknown>) => (
+  Button: ({
+    children,
+    onClick,
+    disabled,
+    ...props
+  }: Record<string, unknown>) => (
     <button
       onClick={onClick as React.MouseEventHandler}
       disabled={disabled as boolean}
@@ -43,7 +48,11 @@ vi.mock('@/components/ui/button', () => ({
 }));
 
 vi.mock('@/components/ui/checkbox', () => ({
-  Checkbox: ({ checked, onCheckedChange, ...props }: Record<string, unknown>) => (
+  Checkbox: ({
+    checked,
+    onCheckedChange,
+    ...props
+  }: Record<string, unknown>) => (
     <input
       type="checkbox"
       checked={checked as boolean}
@@ -56,16 +65,38 @@ vi.mock('@/components/ui/checkbox', () => ({
 
 vi.mock('@/components/ui/progress', () => ({
   Progress: (props: Record<string, unknown>) => (
-    <div role="progressbar" aria-label={props['aria-label'] as string} data-testid="progress-bar" />
+    <div
+      role="progressbar"
+      aria-label={props['aria-label'] as string}
+      data-testid="progress-bar"
+    />
   ),
 }));
 
 vi.mock('lucide-react', () => ({
-  CheckCircle: ({ className, ...props }: Record<string, unknown>) => <span data-testid="check-icon" className={className as string} {...props} />,
-  XCircle: ({ className, ...props }: Record<string, unknown>) => <span data-testid="x-icon" className={className as string} {...props} />,
-  CircleDot: ({ className, ...props }: Record<string, unknown>) => <span data-testid="circle-dot-icon" className={className as string} {...props} />,
-  AlertCircle: ({ className, ...props }: Record<string, unknown>) => <span data-testid="alert-icon" className={className as string} {...props} />,
-  UserPen: ({ className, ...props }: Record<string, unknown>) => <span data-testid="user-pen-icon" className={className as string} {...props} />,
+  CheckCircle: ({ className, ...props }: Record<string, unknown>) => (
+    <span data-testid="check-icon" className={className as string} {...props} />
+  ),
+  XCircle: ({ className, ...props }: Record<string, unknown>) => (
+    <span data-testid="x-icon" className={className as string} {...props} />
+  ),
+  CircleDot: ({ className, ...props }: Record<string, unknown>) => (
+    <span
+      data-testid="circle-dot-icon"
+      className={className as string}
+      {...props}
+    />
+  ),
+  AlertCircle: ({ className, ...props }: Record<string, unknown>) => (
+    <span data-testid="alert-icon" className={className as string} {...props} />
+  ),
+  UserPen: ({ className, ...props }: Record<string, unknown>) => (
+    <span
+      data-testid="user-pen-icon"
+      className={className as string}
+      {...props}
+    />
+  ),
   ArrowUpDown: () => <span data-testid="sort-neutral" />,
   ArrowUp: () => <span data-testid="sort-asc" />,
   ArrowDown: () => <span data-testid="sort-desc" />,
@@ -109,7 +140,9 @@ function makeField(overrides: Partial<TemplateField> = {}): TemplateField {
   };
 }
 
-function makeSummary(overrides: Partial<TemplateSummary> = {}): TemplateSummary {
+function makeSummary(
+  overrides: Partial<TemplateSummary> = {},
+): TemplateSummary {
   return {
     total_fields: 10,
     confirmed_fields: 3,
@@ -129,13 +162,39 @@ function defaultProps(overrides: Record<string, unknown> = {}) {
     templateId: 't-1',
     bidId: 'bid-1',
     fields: [
-      makeField({ id: 'f-1', sequence: 0, mapping_status: 'unreviewed', question_id: 'q-1' }),
-      makeField({ id: 'f-2', sequence: 1, mapping_status: 'confirmed', question_id: 'q-2', question_text: 'Team structure' }),
-      makeField({ id: 'f-3', sequence: 2, mapping_status: 'unmapped', question_id: null, question_text: 'Risk management', matched_question: undefined }),
+      makeField({
+        id: 'f-1',
+        sequence: 0,
+        mapping_status: 'unreviewed',
+        question_id: 'q-1',
+      }),
+      makeField({
+        id: 'f-2',
+        sequence: 1,
+        mapping_status: 'confirmed',
+        question_id: 'q-2',
+        question_text: 'Team structure',
+      }),
+      makeField({
+        id: 'f-3',
+        sequence: 2,
+        mapping_status: 'unmapped',
+        question_id: null,
+        question_text: 'Risk management',
+        matched_question: undefined,
+      }),
     ],
     bidQuestions: [
-      { id: 'q-1', question_text: 'Describe your technical approach', status: 'drafted' },
-      { id: 'q-2', question_text: 'Team structure overview', status: 'drafted' },
+      {
+        id: 'q-1',
+        question_text: 'Describe your technical approach',
+        status: 'drafted',
+      },
+      {
+        id: 'q-2',
+        question_text: 'Team structure overview',
+        status: 'drafted',
+      },
     ],
     summary: makeSummary(),
     onMappingUpdate: vi.fn().mockResolvedValue(undefined),
@@ -170,7 +229,9 @@ describe('TemplateFieldReview', () => {
   it('renders progress bar with correct aria label', () => {
     render(<TemplateFieldReview {...defaultProps()} />);
     // totalMappable = 10 - 1 = 9, confirmedCount = 3
-    expect(screen.getByRole('progressbar', { name: '3 of 9 fields mapped' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('progressbar', { name: '3 of 9 fields mapped' }),
+    ).toBeInTheDocument();
   });
 
   // ---- Action buttons ----
@@ -186,7 +247,9 @@ describe('TemplateFieldReview', () => {
   });
 
   it('disables Fill Template when no confirmed fields', () => {
-    const props = defaultProps({ summary: makeSummary({ confirmed_fields: 0 }) });
+    const props = defaultProps({
+      summary: makeSummary({ confirmed_fields: 0 }),
+    });
     render(<TemplateFieldReview {...props} />);
     expect(screen.getByText('Fill Template')).toBeDisabled();
   });
@@ -210,7 +273,9 @@ describe('TemplateFieldReview', () => {
   });
 
   it('does not render Accept All Unreviewed when no unreviewed fields', () => {
-    const props = defaultProps({ summary: makeSummary({ unreviewed_fields: 0 }) });
+    const props = defaultProps({
+      summary: makeSummary({ unreviewed_fields: 0 }),
+    });
     render(<TemplateFieldReview {...props} />);
     expect(screen.queryByText('Accept All Unreviewed')).not.toBeInTheDocument();
   });
@@ -219,7 +284,9 @@ describe('TemplateFieldReview', () => {
 
   it('renders all filter tabs', () => {
     render(<TemplateFieldReview {...defaultProps()} />);
-    const tablist = screen.getByRole('tablist', { name: 'Filter fields by status' });
+    const tablist = screen.getByRole('tablist', {
+      name: 'Filter fields by status',
+    });
     expect(within(tablist).getByText('All')).toBeInTheDocument();
     expect(within(tablist).getByText('Unreviewed')).toBeInTheDocument();
     expect(within(tablist).getByText('Confirmed')).toBeInTheDocument();
@@ -249,7 +316,9 @@ describe('TemplateFieldReview', () => {
     await user.click(within(tablist).getByText('Confirmed'));
     // After clicking Confirmed, it should be selected
     const selectedTabs = screen.getAllByRole('tab', { selected: true });
-    const confirmedTab = selectedTabs.find((t) => t.textContent?.includes('Confirmed'));
+    const confirmedTab = selectedTabs.find((t) =>
+      t.textContent?.includes('Confirmed'),
+    );
     expect(confirmedTab).toBeTruthy();
   });
 
@@ -323,7 +392,11 @@ describe('TemplateFieldReview', () => {
     const props = defaultProps();
     render(<TemplateFieldReview {...props} />);
     await user.click(screen.getByText('Confirm'));
-    expect(props.onMappingUpdate).toHaveBeenCalledWith('f-1', 'q-1', 'confirmed');
+    expect(props.onMappingUpdate).toHaveBeenCalledWith(
+      'f-1',
+      'q-1',
+      'confirmed',
+    );
   });
 
   it('shows toast on successful confirm', async () => {
@@ -335,7 +408,9 @@ describe('TemplateFieldReview', () => {
 
   it('shows error toast when confirm fails', async () => {
     const user = userEvent.setup();
-    const props = defaultProps({ onMappingUpdate: vi.fn().mockRejectedValue(new Error('fail')) });
+    const props = defaultProps({
+      onMappingUpdate: vi.fn().mockRejectedValue(new Error('fail')),
+    });
     render(<TemplateFieldReview {...props} />);
     await user.click(screen.getByText('Confirm'));
     expect(mockToast.error).toHaveBeenCalledWith('Failed to confirm mapping');
@@ -376,7 +451,9 @@ describe('TemplateFieldReview', () => {
 
   it('shows error toast when auto-map fails', async () => {
     const user = userEvent.setup();
-    const props = defaultProps({ onAutoMap: vi.fn().mockRejectedValue(new Error('fail')) });
+    const props = defaultProps({
+      onAutoMap: vi.fn().mockRejectedValue(new Error('fail')),
+    });
     render(<TemplateFieldReview {...props} />);
     await user.click(screen.getByText('Auto-Map'));
     expect(mockToast.error).toHaveBeenCalledWith('Auto-mapping failed');
@@ -414,7 +491,9 @@ describe('TemplateFieldReview', () => {
     const summary = makeSummary({ confirmed_fields: 0 });
     render(<TemplateFieldReview {...defaultProps({ fields, summary })} />);
     await user.click(screen.getByText('Confirmed'));
-    expect(screen.getByText(/No fields match the current filter/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/No fields match the current filter/),
+    ).toBeInTheDocument();
   });
 
   // ---- Table headers ----
@@ -448,7 +527,9 @@ describe('TemplateFieldReview', () => {
   it('does not render checkboxes when onBulkReject is undefined', () => {
     const props = defaultProps({ onBulkReject: undefined });
     render(<TemplateFieldReview {...props} />);
-    expect(screen.queryByLabelText('Select all fields')).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Select all fields'),
+    ).not.toBeInTheDocument();
   });
 
   // ---- Sorting ----
@@ -462,7 +543,9 @@ describe('TemplateFieldReview', () => {
   // ---- Unknown status fallback ----
 
   it('renders raw status text for unknown statuses', () => {
-    const fields = [makeField({ id: 'f-1', mapping_status: 'custom_status' as never })];
+    const fields = [
+      makeField({ id: 'f-1', mapping_status: 'custom_status' as never }),
+    ];
     render(<TemplateFieldReview {...defaultProps({ fields })} />);
     expect(screen.getByText('custom_status')).toBeInTheDocument();
   });
@@ -534,9 +617,26 @@ describe('TemplateFieldReview', () => {
 
   it('n key jumps to next unreviewed field', () => {
     const fields = [
-      makeField({ id: 'f-1', sequence: 0, mapping_status: 'confirmed', question_id: 'q-1' }),
-      makeField({ id: 'f-2', sequence: 1, mapping_status: 'unreviewed', question_id: 'q-2', question_text: 'Unreviewed Q' }),
-      makeField({ id: 'f-3', sequence: 2, mapping_status: 'confirmed', question_id: 'q-3', question_text: 'Another confirmed' }),
+      makeField({
+        id: 'f-1',
+        sequence: 0,
+        mapping_status: 'confirmed',
+        question_id: 'q-1',
+      }),
+      makeField({
+        id: 'f-2',
+        sequence: 1,
+        mapping_status: 'unreviewed',
+        question_id: 'q-2',
+        question_text: 'Unreviewed Q',
+      }),
+      makeField({
+        id: 'f-3',
+        sequence: 2,
+        mapping_status: 'confirmed',
+        question_id: 'q-3',
+        question_text: 'Another confirmed',
+      }),
     ];
     render(<TemplateFieldReview {...defaultProps({ fields })} />);
     fireEvent.keyDown(document, { key: 'n' });
@@ -554,14 +654,23 @@ describe('TemplateFieldReview', () => {
     await act(async () => {
       fireEvent.keyDown(document, { key: 'Enter' });
     });
-    expect(props.onMappingUpdate).toHaveBeenCalledWith('f-1', 'q-1', 'confirmed');
+    expect(props.onMappingUpdate).toHaveBeenCalledWith(
+      'f-1',
+      'q-1',
+      'confirmed',
+    );
   });
 
   // ---- Keyboard guards ----
 
   it('Enter key does not confirm a confirmed field', async () => {
     const fields = [
-      makeField({ id: 'f-1', sequence: 0, mapping_status: 'confirmed', question_id: 'q-1' }),
+      makeField({
+        id: 'f-1',
+        sequence: 0,
+        mapping_status: 'confirmed',
+        question_id: 'q-1',
+      }),
     ];
     const props = defaultProps({ fields });
     render(<TemplateFieldReview {...props} />);
@@ -585,7 +694,12 @@ describe('TemplateFieldReview', () => {
 
   it('r key does not reject an already-rejected field', async () => {
     const fields = [
-      makeField({ id: 'f-1', sequence: 0, mapping_status: 'rejected', question_id: null }),
+      makeField({
+        id: 'f-1',
+        sequence: 0,
+        mapping_status: 'rejected',
+        question_id: null,
+      }),
     ];
     const props = defaultProps({ fields });
     render(<TemplateFieldReview {...props} />);
@@ -601,8 +715,18 @@ describe('TemplateFieldReview', () => {
   it('clicking a sort header changes row order', async () => {
     const user = userEvent.setup();
     const fields = [
-      makeField({ id: 'f-1', sequence: 0, mapping_confidence: 0.5, question_text: 'Low confidence' }),
-      makeField({ id: 'f-2', sequence: 1, mapping_confidence: 0.95, question_text: 'High confidence' }),
+      makeField({
+        id: 'f-1',
+        sequence: 0,
+        mapping_confidence: 0.5,
+        question_text: 'Low confidence',
+      }),
+      makeField({
+        id: 'f-2',
+        sequence: 1,
+        mapping_confidence: 0.95,
+        question_text: 'High confidence',
+      }),
     ];
     render(<TemplateFieldReview {...defaultProps({ fields })} />);
     // Default order is by sequence: f-1 first
@@ -646,11 +770,25 @@ describe('TemplateFieldReview', () => {
     const user = userEvent.setup();
     const fields = [
       makeField({ id: 'f-1', sequence: 0, mapping_status: 'unreviewed' }),
-      makeField({ id: 'f-2', sequence: 1, mapping_status: 'unreviewed', question_text: 'Second field' }),
-      makeField({ id: 'f-3', sequence: 2, mapping_status: 'confirmed', question_text: 'Third field' }),
+      makeField({
+        id: 'f-2',
+        sequence: 1,
+        mapping_status: 'unreviewed',
+        question_text: 'Second field',
+      }),
+      makeField({
+        id: 'f-3',
+        sequence: 2,
+        mapping_status: 'confirmed',
+        question_text: 'Third field',
+      }),
     ];
     const mockBulkReject = vi.fn().mockResolvedValue(undefined);
-    render(<TemplateFieldReview {...defaultProps({ fields, onBulkReject: mockBulkReject })} />);
+    render(
+      <TemplateFieldReview
+        {...defaultProps({ fields, onBulkReject: mockBulkReject })}
+      />,
+    );
     // Click first two field checkboxes (skip select-all which is first checkbox)
     const checkboxes = screen.getAllByTestId('checkbox');
     // checkboxes[0] = select-all, checkboxes[1..3] = per-field
@@ -659,7 +797,9 @@ describe('TemplateFieldReview', () => {
     // "Reject Selected (2)" button should now appear
     const rejectSelectedBtn = screen.getByText(/Reject Selected \(2\)/);
     await user.click(rejectSelectedBtn);
-    expect(mockBulkReject).toHaveBeenCalledWith(expect.arrayContaining(['f-1', 'f-2']));
+    expect(mockBulkReject).toHaveBeenCalledWith(
+      expect.arrayContaining(['f-1', 'f-2']),
+    );
   });
 
   it('bulk reject error shows toast', async () => {
@@ -668,7 +808,11 @@ describe('TemplateFieldReview', () => {
       makeField({ id: 'f-1', sequence: 0, mapping_status: 'unreviewed' }),
     ];
     const mockBulkReject = vi.fn().mockRejectedValue(new Error('fail'));
-    render(<TemplateFieldReview {...defaultProps({ fields, onBulkReject: mockBulkReject })} />);
+    render(
+      <TemplateFieldReview
+        {...defaultProps({ fields, onBulkReject: mockBulkReject })}
+      />,
+    );
     const checkboxes = screen.getAllByTestId('checkbox');
     await user.click(checkboxes[1]); // select the field
     const rejectSelectedBtn = screen.getByText(/Reject Selected \(1\)/);
@@ -720,7 +864,9 @@ describe('TemplateFieldReview', () => {
     // Re-query rows — no row should have focus class
     rows = screen.getAllByRole('row');
     tbodyRows = rows.slice(1);
-    const focusedRows = tbodyRows.filter((r) => r.className.includes('bg-accent/50'));
+    const focusedRows = tbodyRows.filter((r) =>
+      r.className.includes('bg-accent/50'),
+    );
     expect(focusedRows.length).toBe(0);
   });
 
@@ -728,10 +874,19 @@ describe('TemplateFieldReview', () => {
     const user = userEvent.setup();
     const fields = [
       makeField({ id: 'f-1', sequence: 0, mapping_status: 'unreviewed' }),
-      makeField({ id: 'f-2', sequence: 1, mapping_status: 'confirmed', question_text: 'Confirmed Q' }),
+      makeField({
+        id: 'f-2',
+        sequence: 1,
+        mapping_status: 'confirmed',
+        question_text: 'Confirmed Q',
+      }),
     ];
     const mockBulkReject = vi.fn().mockResolvedValue(undefined);
-    render(<TemplateFieldReview {...defaultProps({ fields, onBulkReject: mockBulkReject })} />);
+    render(
+      <TemplateFieldReview
+        {...defaultProps({ fields, onBulkReject: mockBulkReject })}
+      />,
+    );
     // Select a checkbox
     const checkboxes = screen.getAllByTestId('checkbox');
     await user.click(checkboxes[1]);
@@ -748,11 +903,25 @@ describe('TemplateFieldReview', () => {
     const user = userEvent.setup();
     const fields = [
       makeField({ id: 'f-1', sequence: 0, mapping_status: 'unreviewed' }),
-      makeField({ id: 'f-2', sequence: 1, mapping_status: 'confirmed', question_text: 'Confirmed Q' }),
-      makeField({ id: 'f-3', sequence: 2, mapping_status: 'rejected', question_text: 'Rejected Q' }),
+      makeField({
+        id: 'f-2',
+        sequence: 1,
+        mapping_status: 'confirmed',
+        question_text: 'Confirmed Q',
+      }),
+      makeField({
+        id: 'f-3',
+        sequence: 2,
+        mapping_status: 'rejected',
+        question_text: 'Rejected Q',
+      }),
     ];
     const mockBulkReject = vi.fn().mockResolvedValue(undefined);
-    render(<TemplateFieldReview {...defaultProps({ fields, onBulkReject: mockBulkReject })} />);
+    render(
+      <TemplateFieldReview
+        {...defaultProps({ fields, onBulkReject: mockBulkReject })}
+      />,
+    );
     // Click select-all checkbox
     const selectAll = screen.getByLabelText('Select all fields');
     await user.click(selectAll);
@@ -765,9 +934,13 @@ describe('TemplateFieldReview', () => {
   it('Auto-Map button shows Mapping text while in progress', async () => {
     const user = userEvent.setup();
     let resolvePromise: () => void;
-    const promise = new Promise<void>((r) => { resolvePromise = r; });
+    const promise = new Promise<void>((r) => {
+      resolvePromise = r;
+    });
     const mockOnAutoMap = vi.fn().mockReturnValue(promise);
-    render(<TemplateFieldReview {...defaultProps({ onAutoMap: mockOnAutoMap })} />);
+    render(
+      <TemplateFieldReview {...defaultProps({ onAutoMap: mockOnAutoMap })} />,
+    );
     await user.click(screen.getByText('Auto-Map'));
     expect(screen.getByText('Mapping...')).toBeInTheDocument();
     // Clean up

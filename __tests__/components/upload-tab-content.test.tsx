@@ -28,7 +28,9 @@ vi.mock('@/components/create-content/file-upload', () => ({
 }));
 
 vi.mock('@/components/create-content/ingestion-progress', () => ({
-  IngestionProgress: () => <div data-testid="ingestion-progress">IngestionProgress</div>,
+  IngestionProgress: () => (
+    <div data-testid="ingestion-progress">IngestionProgress</div>
+  ),
 }));
 
 vi.mock('@/components/shared/dedup-warning', () => ({
@@ -40,7 +42,13 @@ vi.mock('@/components/source-document/reupload-banner', () => ({
 }));
 
 vi.mock('@/components/create-content/upload-review-step', () => ({
-  UploadReviewStep: ({ items, onDismiss }: { items: unknown[]; onDismiss: () => void }) => (
+  UploadReviewStep: ({
+    items,
+    onDismiss,
+  }: {
+    items: unknown[];
+    onDismiss: () => void;
+  }) => (
     <div data-testid="upload-review-step">
       UploadReviewStep ({(items as unknown[]).length} items)
       <button data-testid="mock-dismiss-review" onClick={onDismiss}>
@@ -72,7 +80,14 @@ vi.mock('@/lib/claude-prompts', () => ({
 vi.mock('@/contexts/layer-vocabulary-context', () => ({
   useLayerVocabulary: () => ({
     layers: [
-      { id: '1', key: 'reference', label: 'Reference', description: null, display_order: 1, is_active: true },
+      {
+        id: '1',
+        key: 'reference',
+        label: 'Reference',
+        description: null,
+        display_order: 1,
+        is_active: true,
+      },
     ],
     loading: false,
     error: null,
@@ -98,10 +113,22 @@ const mockGetSkipReview = vi.fn().mockReturnValue(false);
 // Mutable hook return value that tests can modify
 const hookReturn = {
   phase: 'select' as 'select' | 'uploading' | 'review',
-  files: [] as Array<{ id: string; file: File; status: string; progress: number; resultId?: string }>,
+  files: [] as Array<{
+    id: string;
+    file: File;
+    status: string;
+    progress: number;
+    resultId?: string;
+  }>,
   fileStates: {} as Record<string, unknown>,
   isUploading: false,
-  reviewItems: [] as Array<{ id: string; title: string; contentType: string; warnings: string[]; dedupMatches: unknown[] }>,
+  reviewItems: [] as Array<{
+    id: string;
+    title: string;
+    contentType: string;
+    warnings: string[];
+    dedupMatches: unknown[];
+  }>,
   handleFilesAdded: mockHandleFilesAdded,
   handleFileRemoved: mockHandleFileRemoved,
   handleUpload: mockHandleUpload,
@@ -296,7 +323,9 @@ describe('UploadTabContent', () => {
 
       expect(mockSetPhase).toHaveBeenCalledWith('select');
       expect(mockSetReviewItems).not.toHaveBeenCalled();
-      expect(toast.success).toHaveBeenCalledWith('1 file uploaded and published');
+      expect(toast.success).toHaveBeenCalledWith(
+        '1 file uploaded and published',
+      );
     });
 
     it('shows warning toast for mixed success/failure', async () => {
@@ -347,19 +376,33 @@ describe('UploadTabContent', () => {
     it('renders UploadReviewStep when phase is review with items', () => {
       hookReturn.phase = 'review';
       hookReturn.reviewItems = [
-        { id: 'item-1', title: 'Test Document', contentType: 'pdf', warnings: [], dedupMatches: [] },
+        {
+          id: 'item-1',
+          title: 'Test Document',
+          contentType: 'pdf',
+          warnings: [],
+          dedupMatches: [],
+        },
       ];
 
       render(<UploadTabContent />);
 
       expect(screen.getByTestId('upload-review-step')).toBeInTheDocument();
-      expect(screen.getByText(/UploadReviewStep \(1 items\)/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/UploadReviewStep \(1 items\)/),
+      ).toBeInTheDocument();
     });
 
     it('does not render FileUpload during review phase', () => {
       hookReturn.phase = 'review';
       hookReturn.reviewItems = [
-        { id: 'item-1', title: 'Test Document', contentType: 'pdf', warnings: [], dedupMatches: [] },
+        {
+          id: 'item-1',
+          title: 'Test Document',
+          contentType: 'pdf',
+          warnings: [],
+          dedupMatches: [],
+        },
       ];
 
       render(<UploadTabContent />);
@@ -370,7 +413,13 @@ describe('UploadTabContent', () => {
     it('transitions back to select phase when review is dismissed', () => {
       hookReturn.phase = 'review';
       hookReturn.reviewItems = [
-        { id: 'item-1', title: 'Test Document', contentType: 'pdf', warnings: [], dedupMatches: [] },
+        {
+          id: 'item-1',
+          title: 'Test Document',
+          contentType: 'pdf',
+          warnings: [],
+          dedupMatches: [],
+        },
       ];
 
       render(<UploadTabContent />);
@@ -392,7 +441,9 @@ describe('UploadTabContent', () => {
 
       render(<UploadTabContent />);
 
-      expect(screen.getByRole('button', { name: /clear/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /clear/i }),
+      ).toBeInTheDocument();
     });
 
     it('hides Clear button when no results', () => {
@@ -400,7 +451,9 @@ describe('UploadTabContent', () => {
 
       render(<UploadTabContent />);
 
-      expect(screen.queryByRole('button', { name: /clear/i })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: /clear/i }),
+      ).not.toBeInTheDocument();
     });
 
     it('calls reset when Clear is clicked', () => {

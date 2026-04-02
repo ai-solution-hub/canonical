@@ -20,7 +20,11 @@ vi.mock('@/contexts/taxonomy-context', () => ({
 }));
 
 vi.mock('next/link', () => ({
-  default: ({ children, href, ...props }: Record<string, unknown>) => <a href={href as string} {...props}>{children as React.ReactNode}</a>,
+  default: ({ children, href, ...props }: Record<string, unknown>) => (
+    <a href={href as string} {...props}>
+      {children as React.ReactNode}
+    </a>
+  ),
 }));
 
 vi.mock('next/image', () => ({
@@ -158,16 +162,16 @@ describe('ContentRow', () => {
   it('renders title text', () => {
     render(<ContentRow item={makeItem()} />);
     // Title appears in both the thumbnail alt mock and the row text
-    expect(screen.getAllByText('Default Article Title').length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getAllByText('Default Article Title').length,
+    ).toBeGreaterThanOrEqual(1);
   });
 
   it('prefers suggested_title over title', () => {
-    render(
-      <ContentRow
-        item={makeItem({ suggested_title: 'Better Title' })}
-      />,
+    render(<ContentRow item={makeItem({ suggested_title: 'Better Title' })} />);
+    expect(screen.getAllByText('Better Title').length).toBeGreaterThanOrEqual(
+      1,
     );
-    expect(screen.getAllByText('Better Title').length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders domain badge', () => {
@@ -176,7 +180,15 @@ describe('ContentRow', () => {
   });
 
   it('renders content type in metadata line for standard items without summary', () => {
-    render(<ContentRow item={makeItem({ content_type: 'article', ai_summary: null, brief: null })} />);
+    render(
+      <ContentRow
+        item={makeItem({
+          content_type: 'article',
+          ai_summary: null,
+          brief: null,
+        })}
+      />,
+    );
     // formatContentType('article') returns 'Article'; parts are in separate spans with middot separators
     expect(screen.getByText('Article')).toBeInTheDocument();
     expect(screen.getByText('web')).toBeInTheDocument();
@@ -184,12 +196,20 @@ describe('ContentRow', () => {
   });
 
   it('shows ai_summary as snippet when available for standard items', () => {
-    render(<ContentRow item={makeItem({ ai_summary: 'This is an AI-generated summary.' })} />);
-    expect(screen.getByText('This is an AI-generated summary.')).toBeInTheDocument();
+    render(
+      <ContentRow
+        item={makeItem({ ai_summary: 'This is an AI-generated summary.' })}
+      />,
+    );
+    expect(
+      screen.getByText('This is an AI-generated summary.'),
+    ).toBeInTheDocument();
   });
 
   it('shows date in correct format', () => {
-    render(<ContentRow item={makeItem({ captured_date: '2026-01-15T10:00:00Z' })} />);
+    render(
+      <ContentRow item={makeItem({ captured_date: '2026-01-15T10:00:00Z' })} />,
+    );
     // formatDate returns "15 Jan 2026"
     expect(screen.getByText('15 Jan 2026')).toBeInTheDocument();
   });
@@ -238,7 +258,9 @@ describe('ContentRow', () => {
       />,
     );
     expect(screen.getByText('A:')).toBeInTheDocument();
-    expect(screen.getByText(/The policy covers data protection/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/The policy covers data protection/),
+    ).toBeInTheDocument();
   });
 
   it('shows copy button for Q&A pairs with answer content', () => {
@@ -251,7 +273,9 @@ describe('ContentRow', () => {
         })}
       />,
     );
-    expect(screen.getByRole('button', { name: 'Copy answer to clipboard' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Copy answer to clipboard' }),
+    ).toBeInTheDocument();
   });
 
   // ── Missing optional fields ──
@@ -259,13 +283,17 @@ describe('ContentRow', () => {
   it('handles missing captured_date gracefully', () => {
     render(<ContentRow item={makeItem({ captured_date: null })} />);
     // Should render without crashing; title still present
-    expect(screen.getAllByText('Default Article Title').length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getAllByText('Default Article Title').length,
+    ).toBeGreaterThanOrEqual(1);
   });
 
   it('handles missing primary_domain gracefully', () => {
     render(<ContentRow item={makeItem({ primary_domain: null })} />);
     // Should still render the row without crashing
-    expect(screen.getAllByText('Default Article Title').length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getAllByText('Default Article Title').length,
+    ).toBeGreaterThanOrEqual(1);
   });
 
   // ── Quality flag ──
@@ -277,6 +305,8 @@ describe('ContentRow', () => {
 
   it('does not show quality flag when hasQualityFlag is false', () => {
     render(<ContentRow item={makeItem()} hasQualityFlag={false} />);
-    expect(screen.queryByLabelText('Has quality issues')).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Has quality issues'),
+    ).not.toBeInTheDocument();
   });
 });

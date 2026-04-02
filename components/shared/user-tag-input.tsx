@@ -80,11 +80,7 @@ export function UserTagInput({
 
       <div className="flex flex-wrap items-center gap-1.5">
         {tags.map((tag) => (
-          <Badge
-            key={tag}
-            variant="outline"
-            className="gap-1 pr-1 text-xs"
-          >
+          <Badge key={tag} variant="outline" className="gap-1 pr-1 text-xs">
             {tag}
             <button
               onClick={() => removeTag(tag)}

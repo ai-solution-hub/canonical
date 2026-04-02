@@ -51,9 +51,24 @@ const { mockUseReviewQueue } = vi.hoisted(() => {
       isLoading: false,
       isActioning: false,
       hasMore: false,
-      progress: { verified: 10, flagged: 2, skipped: 1, total: 50, sessionReviewed: 5 },
+      progress: {
+        verified: 10,
+        flagged: 2,
+        skipped: 1,
+        total: 50,
+        sessionReviewed: 5,
+      },
       filters: { status: 'unverified' as const },
-      stats: { total: 50, verified: 10, flagged: 2, unverified: 38, draft: 0, by_domain: {}, by_content_type: {}, by_source_file: {} },
+      stats: {
+        total: 50,
+        verified: 10,
+        flagged: 2,
+        unverified: 38,
+        draft: 0,
+        by_domain: {},
+        by_content_type: {},
+        by_source_file: {},
+      },
       showFlagInput: false,
       flagDetails: '',
       showQueuePanel: false,
@@ -94,7 +109,9 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: Record<string, unknown>) => (
-    <a href={href as string} {...props}>{children as React.ReactNode}</a>
+    <a href={href as string} {...props}>
+      {children as React.ReactNode}
+    </a>
   ),
 }));
 
@@ -112,11 +129,23 @@ vi.mock('sonner', () => ({
 
 // Stub child components to isolate banner tests
 vi.mock('@/components/review/review-card', () => ({
-  ReviewCard: vi.fn().mockImplementation(
-    ({ item, position, total }: { item: { title: string }; position: number; total: number }) => (
-      <div data-testid="review-card">ReviewCard: {item.title} ({position}/{total})</div>
+  ReviewCard: vi
+    .fn()
+    .mockImplementation(
+      ({
+        item,
+        position,
+        total,
+      }: {
+        item: { title: string };
+        position: number;
+        total: number;
+      }) => (
+        <div data-testid="review-card">
+          ReviewCard: {item.title} ({position}/{total})
+        </div>
+      ),
     ),
-  ),
 }));
 
 vi.mock('@/components/review/review-action-bar', () => ({
@@ -124,7 +153,9 @@ vi.mock('@/components/review/review-action-bar', () => ({
 }));
 
 vi.mock('@/components/review/review-progress-bar', () => ({
-  ReviewProgressBar: () => <div data-testid="review-progress-bar">ProgressBar</div>,
+  ReviewProgressBar: () => (
+    <div data-testid="review-progress-bar">ProgressBar</div>
+  ),
 }));
 
 vi.mock('@/components/review/review-filters', () => ({
@@ -132,31 +163,49 @@ vi.mock('@/components/review/review-filters', () => ({
 }));
 
 vi.mock('@/components/review/review-queue-panel', () => ({
-  ReviewQueuePanel: () => <div data-testid="review-queue-panel">QueuePanel</div>,
+  ReviewQueuePanel: () => (
+    <div data-testid="review-queue-panel">QueuePanel</div>
+  ),
 }));
 
 vi.mock('@/components/review/review-cadence-card', () => ({
-  ReviewCadenceCard: () => <div data-testid="review-cadence-card">CadenceCard</div>,
+  ReviewCadenceCard: () => (
+    <div data-testid="review-cadence-card">CadenceCard</div>
+  ),
 }));
 
 vi.mock('@/components/ui/sheet', () => ({
-  Sheet: ({ children, open }: { children: React.ReactNode; open: boolean }) => (
-    open ? <div data-testid="sheet">{children}</div> : null
+  Sheet: ({ children, open }: { children: React.ReactNode; open: boolean }) =>
+    open ? <div data-testid="sheet">{children}</div> : null,
+  SheetContent: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
   ),
-  SheetContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SheetHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SheetTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SheetDescription: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  SheetHeader: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SheetTitle: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SheetDescription: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
 }));
 
 vi.mock('@/components/ui/dialog', () => ({
-  Dialog: ({ children, open }: { children: React.ReactNode; open: boolean }) => (
-    open ? <div role="dialog">{children}</div> : null
+  Dialog: ({ children, open }: { children: React.ReactNode; open: boolean }) =>
+    open ? <div role="dialog">{children}</div> : null,
+  DialogContent: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
   ),
-  DialogContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
-  DialogDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
+  DialogHeader: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DialogTitle: ({ children }: { children: React.ReactNode }) => (
+    <h2>{children}</h2>
+  ),
+  DialogDescription: ({ children }: { children: React.ReactNode }) => (
+    <p>{children}</p>
+  ),
 }));
 
 vi.mock('@/components/review/review-session-summary', () => ({
@@ -219,9 +268,24 @@ describe('ReviewContent — assignment banner', () => {
         isLoading: false,
         isActioning: false,
         hasMore: false,
-        progress: { verified: 10, flagged: 2, skipped: 1, total: 50, sessionReviewed: 5 },
+        progress: {
+          verified: 10,
+          flagged: 2,
+          skipped: 1,
+          total: 50,
+          sessionReviewed: 5,
+        },
         filters: { status: 'unverified' as const },
-        stats: { total: 50, verified: 10, flagged: 2, unverified: 38, draft: 0, by_domain: {}, by_content_type: {}, by_source_file: {} },
+        stats: {
+          total: 50,
+          verified: 10,
+          flagged: 2,
+          unverified: 38,
+          draft: 0,
+          by_domain: {},
+          by_content_type: {},
+          by_source_file: {},
+        },
         showFlagInput: false,
         flagDetails: '',
         showQueuePanel: false,
@@ -262,7 +326,9 @@ describe('ReviewContent — assignment banner', () => {
     setHookReturn({ activeAssignment: null });
     render(<ReviewContent />);
 
-    expect(screen.queryByText(/You have a review assignment/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/You have a review assignment/),
+    ).not.toBeInTheDocument();
   });
 
   it('renders assignment banner with notes when activeAssignment is present', () => {
@@ -281,7 +347,11 @@ describe('ReviewContent — assignment banner', () => {
     });
     render(<ReviewContent />);
 
-    expect(screen.getByText(/You have a review assignment: Review H&S content before Friday/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /You have a review assignment: Review H&S content before Friday/,
+      ),
+    ).toBeInTheDocument();
   });
 
   it('renders assignment banner without notes when notes are null', () => {
@@ -300,7 +370,9 @@ describe('ReviewContent — assignment banner', () => {
     });
     render(<ReviewContent />);
 
-    expect(screen.getByText('You have a review assignment')).toBeInTheDocument();
+    expect(
+      screen.getByText('You have a review assignment'),
+    ).toBeInTheDocument();
   });
 
   it('displays due date when present on the assignment', () => {
@@ -366,7 +438,9 @@ describe('ReviewContent — assignment banner', () => {
     render(<ReviewContent />);
 
     // The banner should have role="status"
-    const bannerElement = screen.getByText('You have a review assignment').closest('[role="status"]');
+    const bannerElement = screen
+      .getByText('You have a review assignment')
+      .closest('[role="status"]');
     expect(bannerElement).toBeInTheDocument();
   });
 });

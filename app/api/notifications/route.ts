@@ -30,7 +30,9 @@ export async function GET() {
       // 1: Paginated notification list (read + unread, capped at 50)
       supabase
         .from('notifications')
-        .select('id, title, message, type, entity_type, entity_id, user_id, read_at, dismissed_at, expires_at, created_at')
+        .select(
+          'id, title, message, type, entity_type, entity_id, user_id, read_at, dismissed_at, expires_at, created_at',
+        )
         .eq('user_id', user.id)
         .is('dismissed_at', null)
         .or(`expires_at.is.null,expires_at.gt.${now}`)
@@ -61,7 +63,9 @@ export async function GET() {
       const notifications = listResult.data ?? [];
       return NextResponse.json({
         notifications,
-        unreadCount: notifications.filter((n: { read_at: string | null }) => !n.read_at).length,
+        unreadCount: notifications.filter(
+          (n: { read_at: string | null }) => !n.read_at,
+        ).length,
       });
     }
 

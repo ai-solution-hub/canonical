@@ -127,7 +127,9 @@ describe('useLayerAdmin', () => {
   });
 
   it('shows error toast on fetch failure', async () => {
-    mockFetch.mockResolvedValue(createMockResponse({ error: 'Server error' }, 500));
+    mockFetch.mockResolvedValue(
+      createMockResponse({ error: 'Server error' }, 500),
+    );
 
     const { result } = renderLayerAdmin();
 
@@ -197,7 +199,9 @@ describe('useLayerAdmin', () => {
     });
 
     // Mock successful create
-    mockFetch.mockResolvedValueOnce(createMockResponse({ id: 'new-layer' }, 201));
+    mockFetch.mockResolvedValueOnce(
+      createMockResponse({ id: 'new-layer' }, 201),
+    );
 
     await act(async () => {
       await result.current.handleSubmit({
@@ -245,7 +249,8 @@ describe('useLayerAdmin', () => {
 
     // Should have called PATCH with only the label change
     const patchCall = mockFetch.mock.calls.find(
-      (call) => call[0] === `/api/layers/layer-1` && call[1]?.method === 'PATCH',
+      (call) =>
+        call[0] === `/api/layers/layer-1` && call[1]?.method === 'PATCH',
     );
     expect(patchCall).toBeDefined();
     const body = JSON.parse(patchCall![1].body);
@@ -320,7 +325,8 @@ describe('useLayerAdmin', () => {
     });
 
     const deleteCall = mockFetch.mock.calls.find(
-      (call) => call[0] === '/api/layers/layer-1' && call[1]?.method === 'DELETE',
+      (call) =>
+        call[0] === '/api/layers/layer-1' && call[1]?.method === 'DELETE',
     );
     expect(deleteCall).toBeDefined();
     expect(toast.success).toHaveBeenCalledWith('Layer deleted');
@@ -378,7 +384,9 @@ describe('useLayerAdmin', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     // Mock failed reorder
-    mockFetch.mockResolvedValueOnce(createMockResponse({ error: 'Server error' }, 500));
+    mockFetch.mockResolvedValueOnce(
+      createMockResponse({ error: 'Server error' }, 500),
+    );
 
     await act(async () => {
       try {

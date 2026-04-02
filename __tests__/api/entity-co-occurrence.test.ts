@@ -42,19 +42,42 @@ beforeEach(() => {
   });
 
   const chainable = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const m of chainable) {
     mockSupabase._chain[m].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockReset().mockResolvedValue({ data: null, error: null });
-  mockSupabase._chain.maybeSingle.mockReset().mockResolvedValue({ data: null, error: null });
-  mockSupabase._chain.then.mockReset().mockImplementation(
-    (resolve: (v: unknown) => void) => resolve({ data: [], error: null, count: 0 }),
-  );
+  mockSupabase._chain.single
+    .mockReset()
+    .mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.maybeSingle
+    .mockReset()
+    .mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.then
+    .mockReset()
+    .mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({ data: [], error: null, count: 0 }),
+    );
 });
 
 // ---------------------------------------------------------------------------
@@ -84,9 +107,27 @@ describe('GET /api/entities/co-occurrence', () => {
 
   it('returns co-occurring entity pairs from RPC', async () => {
     const rpcResult = [
-      { entity_a: 'Acme Corp', type_a: 'organisation', entity_b: 'ISO 27001', type_b: 'certification', shared_count: 3 },
-      { entity_a: 'Acme Corp', type_a: 'organisation', entity_b: 'GDPR', type_b: 'regulation', shared_count: 2 },
-      { entity_a: 'GDPR', type_a: 'regulation', entity_b: 'ISO 27001', type_b: 'certification', shared_count: 2 },
+      {
+        entity_a: 'Acme Corp',
+        type_a: 'organisation',
+        entity_b: 'ISO 27001',
+        type_b: 'certification',
+        shared_count: 3,
+      },
+      {
+        entity_a: 'Acme Corp',
+        type_a: 'organisation',
+        entity_b: 'GDPR',
+        type_b: 'regulation',
+        shared_count: 2,
+      },
+      {
+        entity_a: 'GDPR',
+        type_a: 'regulation',
+        entity_b: 'ISO 27001',
+        type_b: 'certification',
+        shared_count: 2,
+      },
     ];
 
     mockSupabase.rpc.mockResolvedValueOnce({ data: rpcResult, error: null });
@@ -117,7 +158,13 @@ describe('GET /api/entities/co-occurrence', () => {
 
   it('passes entity type filter to RPC', async () => {
     const rpcResult = [
-      { entity_a: 'ISO 27001', type_a: 'certification', entity_b: 'ISO 9001', type_b: 'certification', shared_count: 2 },
+      {
+        entity_a: 'ISO 27001',
+        type_a: 'certification',
+        entity_b: 'ISO 9001',
+        type_b: 'certification',
+        shared_count: 2,
+      },
     ];
 
     mockSupabase.rpc.mockResolvedValueOnce({ data: rpcResult, error: null });
@@ -145,7 +192,13 @@ describe('GET /api/entities/co-occurrence', () => {
   it('passes limit parameter to RPC', async () => {
     mockSupabase.rpc.mockResolvedValueOnce({
       data: [
-        { entity_a: 'Entity A', type_a: 'organisation', entity_b: 'Entity B', type_b: 'organisation', shared_count: 2 },
+        {
+          entity_a: 'Entity A',
+          type_a: 'organisation',
+          entity_b: 'Entity B',
+          type_b: 'organisation',
+          shared_count: 2,
+        },
       ],
       error: null,
     });
@@ -193,7 +246,13 @@ describe('GET /api/entities/co-occurrence', () => {
 
   it('returns correct total matching pairs count', async () => {
     const rpcResult = [
-      { entity_a: 'Acme Corp', type_a: 'organisation', entity_b: 'ISO 27001', type_b: 'certification', shared_count: 2 },
+      {
+        entity_a: 'Acme Corp',
+        type_a: 'organisation',
+        entity_b: 'ISO 27001',
+        type_b: 'certification',
+        shared_count: 2,
+      },
     ];
 
     mockSupabase.rpc.mockResolvedValueOnce({ data: rpcResult, error: null });

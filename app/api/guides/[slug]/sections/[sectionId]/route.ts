@@ -8,7 +8,8 @@ import { rateLimitResponse } from '@/lib/auth';
 
 export const maxDuration = 30;
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SLUG_RE = /^[a-z0-9-]+$/;
 
 /** PATCH /api/guides/[slug]/sections/[sectionId] — update a section */
@@ -50,10 +51,7 @@ export async function PATCH(
       .single();
 
     if (!guide) {
-      return NextResponse.json(
-        { error: 'Guide not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Guide not found' }, { status: 404 });
     }
 
     const updates = { ...parsed.data, updated_at: new Date().toISOString() };
@@ -81,10 +79,7 @@ export async function PATCH(
     }
 
     if (!data) {
-      return NextResponse.json(
-        { error: 'Section not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Section not found' }, { status: 404 });
     }
 
     return NextResponse.json(data);
@@ -128,10 +123,7 @@ export async function DELETE(
       .single();
 
     if (!guide) {
-      return NextResponse.json(
-        { error: 'Guide not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Guide not found' }, { status: 404 });
     }
 
     const { error } = await supabase

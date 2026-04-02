@@ -21,7 +21,9 @@ vi.mock('@/contexts/taxonomy-context', () => ({
 
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: Record<string, unknown>) => (
-    <a href={href as string} {...props}>{children as React.ReactNode}</a>
+    <a href={href as string} {...props}>
+      {children as React.ReactNode}
+    </a>
   ),
 }));
 
@@ -222,7 +224,9 @@ describe('ContentRow — search mode features', () => {
         />,
       );
       expect(
-        screen.getByText('A comprehensive overview of data protection measures.'),
+        screen.getByText(
+          'A comprehensive overview of data protection measures.',
+        ),
       ).toBeInTheDocument();
     });
 
@@ -235,8 +239,12 @@ describe('ContentRow — search mode features', () => {
           })}
         />,
       );
-      expect(screen.getByText('Brief summary of the article.')).toBeInTheDocument();
-      expect(screen.queryByText('AI-generated summary of the article.')).not.toBeInTheDocument();
+      expect(
+        screen.getByText('Brief summary of the article.'),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText('AI-generated summary of the article.'),
+      ).not.toBeInTheDocument();
     });
 
     it('falls back to content type + platform when no summary exists', () => {
@@ -266,8 +274,12 @@ describe('ContentRow — search mode features', () => {
           })}
         />,
       );
-      expect(screen.getByText(/This is the search snippet/)).toBeInTheDocument();
-      expect(screen.queryByText('This should not appear.')).not.toBeInTheDocument();
+      expect(
+        screen.getByText(/This is the search snippet/),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText('This should not appear.'),
+      ).not.toBeInTheDocument();
     });
   });
 });

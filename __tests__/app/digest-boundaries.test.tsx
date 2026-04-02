@@ -21,7 +21,7 @@ describe('Digest Error Boundary', () => {
   it('renders the heading text', () => {
     render(<DigestError error={error} reset={reset} />);
     expect(
-      screen.getByText(/couldn.*t load your change report/i)
+      screen.getByText(/couldn.*t load your change report/i),
     ).toBeInTheDocument();
   });
 
@@ -55,7 +55,7 @@ describe('Digest Loading Skeleton', () => {
     render(<DigestLoading />);
     expect(screen.getByRole('status')).toHaveAttribute(
       'aria-label',
-      'Loading change report'
+      'Loading change report',
     );
   });
 

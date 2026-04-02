@@ -89,7 +89,9 @@ describe('ContentEffectivenessPanel', () => {
   });
 
   it('renders empty state when total_citations is 0', async () => {
-    mockFetchResponse(createEffectivenessData({ total_citations: 0, bids: [] }));
+    mockFetchResponse(
+      createEffectivenessData({ total_citations: 0, bids: [] }),
+    );
 
     render(<ContentEffectivenessPanel contentItemId={CONTENT_ID} />);
 

@@ -155,8 +155,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     section_ref: 'Part 1',
     section_name: 'General Information',
     question_number: 2,
-    requirement_text:
-      'Registered office address (if applicable).',
+    requirement_text: 'Registered office address (if applicable).',
     description: 'Registered office address of the organisation',
     requirement_type: 'data',
     primary_domain: 'corporate',
@@ -210,8 +209,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     section_ref: 'Part 1',
     section_name: 'General Information',
     question_number: 4,
-    requirement_text:
-      'Date of registration in country of origin.',
+    requirement_text: 'Date of registration in country of origin.',
     description: 'Date the organisation was registered/incorporated',
     requirement_type: 'data',
     primary_domain: 'corporate',
@@ -237,8 +235,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     section_ref: 'Part 1',
     section_name: 'General Information',
     question_number: 5,
-    requirement_text:
-      'Company registration number (if applicable).',
+    requirement_text: 'Company registration number (if applicable).',
     description: 'Companies House registration number',
     requirement_type: 'data',
     primary_domain: 'corporate',
@@ -264,19 +261,14 @@ const REQUIREMENTS: TemplateRequirement[] = [
     section_ref: 'Part 1',
     section_name: 'General Information',
     question_number: 6,
-    requirement_text:
-      'Head office DUNS number (if applicable).',
+    requirement_text: 'Head office DUNS number (if applicable).',
     description: 'Dun & Bradstreet DUNS number',
     requirement_type: 'data',
     primary_domain: 'corporate',
     primary_subtopic: 'company-info',
     secondary_domain: null,
     secondary_subtopic: null,
-    matching_keywords: [
-      'DUNS number',
-      'Dun & Bradstreet',
-      'D-U-N-S',
-    ],
+    matching_keywords: ['DUNS number', 'Dun & Bradstreet', 'D-U-N-S'],
     matching_guidance: null,
     is_mandatory: false,
     sector_applicability: null,
@@ -290,19 +282,14 @@ const REQUIREMENTS: TemplateRequirement[] = [
     section_ref: 'Part 1',
     section_name: 'General Information',
     question_number: 7,
-    requirement_text:
-      'Registered VAT number.',
+    requirement_text: 'Registered VAT number.',
     description: 'VAT registration number',
     requirement_type: 'data',
     primary_domain: 'corporate',
     primary_subtopic: 'company-info',
     secondary_domain: null,
     secondary_subtopic: null,
-    matching_keywords: [
-      'VAT number',
-      'VAT registration',
-      'tax registration',
-    ],
+    matching_keywords: ['VAT number', 'VAT registration', 'tax registration'],
     matching_guidance: null,
     is_mandatory: true,
     sector_applicability: null,
@@ -318,8 +305,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     question_number: 8,
     requirement_text:
       'Name and details of the relevant persons of significant control (PSC) as listed on the PSC register at Companies House or persons with a right to exercise significant influence or control. If you are a PSC-exempt company, please provide the name and details of the relevant registrable legal entity (RLE).',
-    description:
-      'Persons of significant control or registrable legal entities',
+    description: 'Persons of significant control or registrable legal entities',
     requirement_type: 'data',
     primary_domain: 'corporate',
     primary_subtopic: 'company-info',
@@ -512,8 +498,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     question_number: 15,
     requirement_text:
       'Is your organisation bidding as the lead contact for a group of economic operators? If yes, please provide details of the proposed arrangements and the composition of the group.',
-    description:
-      'Consortium or group bidding arrangement details',
+    description: 'Consortium or group bidding arrangement details',
     requirement_type: 'data',
     primary_domain: 'corporate',
     primary_subtopic: 'company-info',
@@ -569,8 +554,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     question_number: 17,
     requirement_text:
       'Where you intend to sub-contract a proportion of the contract, please demonstrate how you have or will identify sub-contractors and how you manage them.',
-    description:
-      'Sub-contractor identification and management approach',
+    description: 'Sub-contractor identification and management approach',
     requirement_type: 'narrative',
     primary_domain: 'corporate',
     primary_subtopic: 'supply-chain',
@@ -906,8 +890,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     question_number: 1,
     requirement_text:
       'Please provide your annual turnover for the last two financial years.',
-    description:
-      'Annual turnover figures for past two years',
+    description: 'Annual turnover figures for past two years',
     requirement_type: 'data',
     primary_domain: 'corporate',
     primary_subtopic: 'financial',
@@ -935,8 +918,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     question_number: 2,
     requirement_text:
       'Where turnover information is not available for the last two years (e.g. for newly formed companies), please state your date of incorporation and provide any evidence of financial standing such as a cash flow forecast.',
-    description:
-      'Alternative financial evidence for newly formed companies',
+    description: 'Alternative financial evidence for newly formed companies',
     requirement_type: 'evidence',
     primary_domain: 'corporate',
     primary_subtopic: 'financial',
@@ -964,8 +946,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     question_number: 3,
     requirement_text:
       'Please provide a copy of your most recent audited accounts, or if not available, your most recent unaudited accounts.',
-    description:
-      'Most recent audited or unaudited company accounts',
+    description: 'Most recent audited or unaudited company accounts',
     requirement_type: 'evidence',
     primary_domain: 'corporate',
     primary_subtopic: 'financial',
@@ -992,9 +973,8 @@ const REQUIREMENTS: TemplateRequirement[] = [
     section_name: 'Economic and Financial Standing',
     question_number: 4,
     requirement_text:
-      'Can you provide a credit reference or banker\'s reference if required?',
-    description:
-      'Willingness to provide credit or banker reference',
+      "Can you provide a credit reference or banker's reference if required?",
+    description: 'Willingness to provide credit or banker reference',
     requirement_type: 'declaration',
     primary_domain: 'corporate',
     primary_subtopic: 'financial',
@@ -1022,8 +1002,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     question_number: 5,
     requirement_text:
       'Where the contracting authority has stated a minimum level of economic and financial standing, please confirm whether you meet that requirement.',
-    description:
-      'Declaration of meeting minimum financial standing thresholds',
+    description: 'Declaration of meeting minimum financial standing thresholds',
     requirement_type: 'declaration',
     primary_domain: 'corporate',
     primary_subtopic: 'financial',
@@ -1085,8 +1064,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     question_number: 2,
     requirement_text:
       'Where you cannot provide at least one example of relevant experience, please provide an explanation for this (e.g. organisation is a new start-up).',
-    description:
-      'Explanation if no relevant contract references are available',
+    description: 'Explanation if no relevant contract references are available',
     requirement_type: 'narrative',
     primary_domain: 'corporate',
     primary_subtopic: 'references',
@@ -1113,8 +1091,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     question_number: 3,
     requirement_text:
       'Where you intend to sub-contract a proportion of the contract, please provide relevant examples of work carried out by your proposed sub-contractors.',
-    description:
-      'Sub-contractor relevant experience and references',
+    description: 'Sub-contractor relevant experience and references',
     requirement_type: 'reference',
     primary_domain: 'corporate',
     primary_subtopic: 'supply-chain',
@@ -1144,7 +1121,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     section_name: 'Insurance',
     question_number: 1,
     requirement_text:
-      'Please confirm that you already have, or can commit to obtain, the levels of insurance cover specified by the contracting authority prior to the commencement of the contract. Provide details of current insurance coverage: employer\'s liability, public liability, professional indemnity, product liability.',
+      "Please confirm that you already have, or can commit to obtain, the levels of insurance cover specified by the contracting authority prior to the commencement of the contract. Provide details of current insurance coverage: employer's liability, public liability, professional indemnity, product liability.",
     description:
       'Insurance coverage details and confirmation of meeting required levels',
     requirement_type: 'evidence',
@@ -1180,8 +1157,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     question_number: 1,
     requirement_text:
       'Please confirm that you will comply with the requirements of the Data Protection Act 2018 (including the UK GDPR) when processing personal data on behalf of the contracting authority. Please describe your approach to data protection, including any relevant policies, procedures, and technical and organisational measures.',
-    description:
-      'Data protection compliance approach and UK GDPR measures',
+    description: 'Data protection compliance approach and UK GDPR measures',
     requirement_type: 'policy',
     primary_domain: 'security',
     primary_subtopic: 'data-protection',
@@ -1211,9 +1187,8 @@ const REQUIREMENTS: TemplateRequirement[] = [
     section_name: 'Data Protection',
     question_number: 2,
     requirement_text:
-      'Is your organisation registered with the Information Commissioner\'s Office (ICO)? If yes, please provide your ICO registration number.',
-    description:
-      'ICO registration status and registration number',
+      "Is your organisation registered with the Information Commissioner's Office (ICO)? If yes, please provide your ICO registration number.",
+    description: 'ICO registration status and registration number',
     requirement_type: 'data',
     primary_domain: 'compliance',
     primary_subtopic: 'regulatory',
@@ -1244,8 +1219,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     question_number: 1,
     requirement_text:
       'Please provide details of your health and safety policy and arrangements. If you have five or more employees, please confirm that you have a written health and safety policy. Please describe your arrangements for ensuring the health and safety of your workers and any persons affected by your work activities.',
-    description:
-      'Health and safety policy and workplace safety arrangements',
+    description: 'Health and safety policy and workplace safety arrangements',
     requirement_type: 'policy',
     primary_domain: 'compliance',
     primary_subtopic: 'health-and-safety',
@@ -1308,8 +1282,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     question_number: 1,
     requirement_text:
       'Can you confirm that you will pay your sub-contractors within 30 days of a valid and undisputed invoice, in line with the Late Payment of Commercial Debts (Interest) Act 1998?',
-    description:
-      'Commitment to 30-day payment terms for sub-contractors',
+    description: 'Commitment to 30-day payment terms for sub-contractors',
     requirement_type: 'declaration',
     primary_domain: 'corporate',
     primary_subtopic: 'supply-chain',
@@ -1337,8 +1310,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     question_number: 2,
     requirement_text:
       'What are your current payment terms for your sub-contractors and supply chain?',
-    description:
-      'Current payment terms offered to sub-contractors',
+    description: 'Current payment terms offered to sub-contractors',
     requirement_type: 'data',
     primary_domain: 'corporate',
     primary_subtopic: 'supply-chain',
@@ -1365,8 +1337,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     question_number: 3,
     requirement_text:
       'Are you a signatory to the Prompt Payment Code? If yes, please provide details.',
-    description:
-      'Prompt Payment Code signatory status',
+    description: 'Prompt Payment Code signatory status',
     requirement_type: 'declaration',
     primary_domain: 'corporate',
     primary_subtopic: 'supply-chain',
@@ -1392,8 +1363,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     question_number: 4,
     requirement_text:
       'What is your average payment time (days) for invoices from sub-contractors and supply chain for the last reporting period?',
-    description:
-      'Average payment days for sub-contractor invoices',
+    description: 'Average payment days for sub-contractor invoices',
     requirement_type: 'data',
     primary_domain: 'corporate',
     primary_subtopic: 'supply-chain',
@@ -1420,8 +1390,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     question_number: 5,
     requirement_text:
       'What percentage of invoices were paid within 30 days in the last reporting period? What percentage were paid between 31 and 60 days? What percentage were paid in more than 60 days?',
-    description:
-      'Payment performance statistics (30/60/60+ day breakdown)',
+    description: 'Payment performance statistics (30/60/60+ day breakdown)',
     requirement_type: 'data',
     primary_domain: 'corporate',
     primary_subtopic: 'supply-chain',
@@ -1509,8 +1478,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     question_number: 1,
     requirement_text:
       'If you are bidding for a contract which is above the thresholds set out in PPN 06/21, you are required to provide a Carbon Reduction Plan. Please confirm that you have a Carbon Reduction Plan which meets the requirements of PPN 06/21 and provide a copy or link to the plan.',
-    description:
-      'Carbon Reduction Plan as required by PPN 06/21',
+    description: 'Carbon Reduction Plan as required by PPN 06/21',
     requirement_type: 'policy',
     primary_domain: 'compliance',
     primary_subtopic: 'environmental',
@@ -1539,9 +1507,8 @@ const REQUIREMENTS: TemplateRequirement[] = [
     section_name: 'Carbon Reduction',
     question_number: 2,
     requirement_text:
-      'Please confirm your organisation\'s commitment to achieving net zero by 2050 in respect of your UK operations.',
-    description:
-      'Net zero 2050 commitment for UK operations',
+      "Please confirm your organisation's commitment to achieving net zero by 2050 in respect of your UK operations.",
+    description: 'Net zero 2050 commitment for UK operations',
     requirement_type: 'declaration',
     primary_domain: 'compliance',
     primary_subtopic: 'environmental',
@@ -1598,8 +1565,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     question_number: 4,
     requirement_text:
       'Have you set carbon reduction targets? If yes, please provide details of your targets, including baseline year and target year.',
-    description:
-      'Carbon reduction targets with baseline and target years',
+    description: 'Carbon reduction targets with baseline and target years',
     requirement_type: 'data',
     primary_domain: 'compliance',
     primary_subtopic: 'environmental',
@@ -1627,8 +1593,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     question_number: 5,
     requirement_text:
       'Do you hold any environmental management certifications (e.g. ISO 14001, EMAS, or equivalent)? If yes, please provide details.',
-    description:
-      'Environmental management certifications (ISO 14001, EMAS)',
+    description: 'Environmental management certifications (ISO 14001, EMAS)',
     requirement_type: 'evidence',
     primary_domain: 'compliance',
     primary_subtopic: 'environmental',
@@ -1689,9 +1654,8 @@ const REQUIREMENTS: TemplateRequirement[] = [
     section_name: 'Skills and Apprentices',
     question_number: 2,
     requirement_text:
-      'Please provide details of your organisation\'s approach to skills development, training, and investment in your workforce.',
-    description:
-      'Workforce skills development and training approach',
+      "Please provide details of your organisation's approach to skills development, training, and investment in your workforce.",
+    description: 'Workforce skills development and training approach',
     requirement_type: 'narrative',
     primary_domain: 'corporate',
     primary_subtopic: 'staffing',
@@ -1722,9 +1686,8 @@ const REQUIREMENTS: TemplateRequirement[] = [
     section_name: 'Procuring Steel',
     question_number: 1,
     requirement_text:
-      'For contracts which involve the procurement of steel, please confirm that you will comply with the Government\'s steel procurement guidance and provide details of how you will ensure that steel is procured in accordance with the guidance.',
-    description:
-      'Steel procurement compliance with government guidance',
+      "For contracts which involve the procurement of steel, please confirm that you will comply with the Government's steel procurement guidance and provide details of how you will ensure that steel is procured in accordance with the guidance.",
+    description: 'Steel procurement compliance with government guidance',
     requirement_type: 'statement',
     primary_domain: 'corporate',
     primary_subtopic: 'supply-chain',
@@ -1752,8 +1715,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     question_number: 2,
     requirement_text:
       'Please provide details of the origin and source of steel products that will be used in the delivery of this contract.',
-    description:
-      'Steel sourcing and origin details for contract delivery',
+    description: 'Steel sourcing and origin details for contract delivery',
     requirement_type: 'data',
     primary_domain: 'corporate',
     primary_subtopic: 'supply-chain',
@@ -1813,8 +1775,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     question_number: 2,
     requirement_text:
       'Has your organisation ever had a contract which was not renewed due to poor performance? If yes, please provide details.',
-    description:
-      'Disclosure of contracts not renewed due to poor performance',
+    description: 'Disclosure of contracts not renewed due to poor performance',
     requirement_type: 'declaration',
     primary_domain: 'corporate',
     primary_subtopic: 'references',
@@ -1841,8 +1802,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     question_number: 3,
     requirement_text:
       'Has your organisation ever received any formal performance improvement notices or similar sanctions from a client? If yes, please provide details.',
-    description:
-      'Disclosure of formal performance improvement notices',
+    description: 'Disclosure of formal performance improvement notices',
     requirement_type: 'declaration',
     primary_domain: 'corporate',
     primary_subtopic: 'references',
@@ -1869,8 +1829,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     question_number: 4,
     requirement_text:
       'If you answered yes to any of the above questions on past performance, please describe the steps taken to address and resolve the issues.',
-    description:
-      'Remedial steps taken to address past performance issues',
+    description: 'Remedial steps taken to address past performance issues',
     requirement_type: 'narrative',
     primary_domain: 'corporate',
     primary_subtopic: 'references',
@@ -1896,9 +1855,8 @@ const REQUIREMENTS: TemplateRequirement[] = [
     section_name: 'Suppliers Past Performance',
     question_number: 5,
     requirement_text:
-      'Please provide details of your organisation\'s quality management approach, including any quality management certifications held (e.g. ISO 9001 or equivalent).',
-    description:
-      'Quality management approach and certifications (ISO 9001)',
+      "Please provide details of your organisation's quality management approach, including any quality management certifications held (e.g. ISO 9001 or equivalent).",
+    description: 'Quality management approach and certifications (ISO 9001)',
     requirement_type: 'evidence',
     primary_domain: 'methodology',
     primary_subtopic: 'quality',
@@ -1929,7 +1887,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     section_name: 'Modern Slavery',
     question_number: 1,
     requirement_text:
-      'Are you required to publish a modern slavery statement under section 54 of the Modern Slavery Act 2015? If yes, please provide a link to your most recent statement, or confirm that your statement is published on the Government\'s Modern Slavery Statement Registry.',
+      "Are you required to publish a modern slavery statement under section 54 of the Modern Slavery Act 2015? If yes, please provide a link to your most recent statement, or confirm that your statement is published on the Government's Modern Slavery Statement Registry.",
     description:
       'Modern Slavery Act 2015 statement publication requirement and link',
     requirement_type: 'evidence',
@@ -2022,7 +1980,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     section_name: 'Declaration',
     question_number: 1,
     requirement_text:
-      'I declare that to the best of my knowledge the answers submitted in this standard selection questionnaire are correct. I understand that the information will be used in the selection process to assess my organisation\'s suitability to be invited to participate further in this procurement. I understand that the contracting authority may reject my submission if there is a failure to answer all relevant questions fully or if I provide false or misleading information.',
+      "I declare that to the best of my knowledge the answers submitted in this standard selection questionnaire are correct. I understand that the information will be used in the selection process to assess my organisation's suitability to be invited to participate further in this procurement. I understand that the contracting authority may reject my submission if there is a failure to answer all relevant questions fully or if I provide false or misleading information.",
     description:
       'Formal declaration of accuracy and understanding of procurement process',
     requirement_type: 'declaration',
@@ -2052,8 +2010,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     question_number: 2,
     requirement_text:
       'Signatory details: name, role/position in organisation, date, signature. The person signing must be authorised to do so on behalf of the organisation.',
-    description:
-      'Authorised signatory details for the questionnaire',
+    description: 'Authorised signatory details for the questionnaire',
     requirement_type: 'data',
     primary_domain: null,
     primary_subtopic: null,
@@ -2097,7 +2054,9 @@ async function generateEmbedding(text: string): Promise<number[]> {
 
   if (!response.ok) {
     const error = await response.text();
-    throw new Error(`OpenAI embedding API error: ${response.status} — ${error}`);
+    throw new Error(
+      `OpenAI embedding API error: ${response.status} — ${error}`,
+    );
   }
 
   const data = (await response.json()) as {
@@ -2122,13 +2081,15 @@ async function main(): Promise<void> {
   console.log('═══════════════════════════════════════════════════════════');
   console.log(`  Requirements: ${REQUIREMENTS.length}`);
   console.log(`  Dry run:      ${dryRun}`);
-  console.log(`  Embeddings:   ${skipEmbeddings ? 'SKIPPED' : 'will generate'}`);
+  console.log(
+    `  Embeddings:   ${skipEmbeddings ? 'SKIPPED' : 'will generate'}`,
+  );
   console.log('');
 
   // Validate requirement count matches expected
   if (REQUIREMENTS.length !== 66) {
     console.error(
-      `ERROR: Expected 66 requirements, got ${REQUIREMENTS.length}. Check data.`
+      `ERROR: Expected 66 requirements, got ${REQUIREMENTS.length}. Check data.`,
     );
     process.exit(1);
   }
@@ -2172,14 +2133,12 @@ async function main(): Promise<void> {
     console.log('DRY RUN — printing all requirements:\n');
     for (const req of REQUIREMENTS) {
       console.log(
-        `  [${req.display_order}] ${req.section_ref} Q${req.question_number}: ${req.requirement_text.slice(0, 80)}...`
+        `  [${req.display_order}] ${req.section_ref} Q${req.question_number}: ${req.requirement_text.slice(0, 80)}...`,
       );
       console.log(
-        `         type=${req.requirement_type} domain=${req.primary_domain || 'null'}/${req.primary_subtopic || 'null'} mandatory=${req.is_mandatory}`
+        `         type=${req.requirement_type} domain=${req.primary_domain || 'null'}/${req.primary_subtopic || 'null'} mandatory=${req.is_mandatory}`,
       );
-      console.log(
-        `         keywords=[${req.matching_keywords.join(', ')}]`
-      );
+      console.log(`         keywords=[${req.matching_keywords.join(', ')}]`);
       console.log('');
     }
     console.log('DRY RUN complete — no database changes made.');
@@ -2189,13 +2148,12 @@ async function main(): Promise<void> {
   // ── Supabase client ──
 
   const supabaseUrl =
-    process.env.SUPABASE_URL ||
-    process.env.NEXT_PUBLIC_SUPABASE_URL;
+    process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SECRET_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
     console.error(
-      'ERROR: SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) and SUPABASE_SECRET_KEY are required.'
+      'ERROR: SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) and SUPABASE_SECRET_KEY are required.',
     );
     process.exit(1);
   }
@@ -2218,13 +2176,11 @@ async function main(): Promise<void> {
 
   if (existing && existing.length > 0) {
     console.log(
-      `Found ${existing.length} existing requirements for ${TEMPLATE_NAME} (${TEMPLATE_VERSION}).`
+      `Found ${existing.length} existing requirements for ${TEMPLATE_NAME} (${TEMPLATE_VERSION}).`,
     );
+    console.log('To re-catalogue, delete existing rows first:');
     console.log(
-      'To re-catalogue, delete existing rows first:'
-    );
-    console.log(
-      `  DELETE FROM template_requirements WHERE template_name = '${TEMPLATE_NAME}' AND template_version = '${TEMPLATE_VERSION}';`
+      `  DELETE FROM template_requirements WHERE template_name = '${TEMPLATE_NAME}' AND template_version = '${TEMPLATE_VERSION}';`,
     );
     console.log('');
     console.log('Aborting to prevent duplicates.');
@@ -2238,7 +2194,7 @@ async function main(): Promise<void> {
   if (!skipEmbeddings) {
     console.log('Generating embeddings for all 66 requirements...');
     console.log(
-      `  Model: ${EMBEDDING_MODEL}, dimensions: ${EMBEDDING_DIMENSIONS}`
+      `  Model: ${EMBEDDING_MODEL}, dimensions: ${EMBEDDING_DIMENSIONS}`,
     );
     console.log('');
 
@@ -2247,7 +2203,7 @@ async function main(): Promise<void> {
       const input = buildEmbeddingInput(req);
 
       process.stdout.write(
-        `  [${i + 1}/${REQUIREMENTS.length}] ${req.section_ref} Q${req.question_number}...`
+        `  [${i + 1}/${REQUIREMENTS.length}] ${req.section_ref} Q${req.question_number}...`,
       );
 
       try {
@@ -2261,7 +2217,7 @@ async function main(): Promise<void> {
       } catch (err) {
         console.log(` FAILED: ${err}`);
         console.error(
-          `\nERROR: Failed to generate embedding for requirement ${i + 1}. Aborting.`
+          `\nERROR: Failed to generate embedding for requirement ${i + 1}. Aborting.`,
         );
         process.exit(1);
       }
@@ -2285,7 +2241,9 @@ async function main(): Promise<void> {
 
   // ── Insert into database ──
 
-  console.log(`Inserting ${rows.length} requirements into template_requirements...`);
+  console.log(
+    `Inserting ${rows.length} requirements into template_requirements...`,
+  );
 
   // Insert in batches of 10 to avoid payload size limits
   const BATCH_SIZE = 10;
@@ -2300,21 +2258,19 @@ async function main(): Promise<void> {
     if (insertError) {
       console.error(
         `ERROR inserting batch ${Math.floor(i / BATCH_SIZE) + 1}:`,
-        insertError.message
+        insertError.message,
       );
       console.error('  Rows inserted before failure:', inserted);
+      console.error('  You may need to clean up partial inserts with:');
       console.error(
-        '  You may need to clean up partial inserts with:'
-      );
-      console.error(
-        `  DELETE FROM template_requirements WHERE template_name = '${TEMPLATE_NAME}' AND template_version = '${TEMPLATE_VERSION}';`
+        `  DELETE FROM template_requirements WHERE template_name = '${TEMPLATE_NAME}' AND template_version = '${TEMPLATE_VERSION}';`,
       );
       process.exit(1);
     }
 
     inserted += batch.length;
     console.log(
-      `  Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${inserted}/${rows.length} inserted`
+      `  Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${inserted}/${rows.length} inserted`,
     );
   }
 
@@ -2322,7 +2278,9 @@ async function main(): Promise<void> {
   console.log('═══════════════════════════════════════════════════════════');
   console.log(`  SUCCESS: ${inserted} requirements catalogued`);
   console.log(`  Template: ${TEMPLATE_NAME} (${TEMPLATE_VERSION})`);
-  console.log(`  Embeddings: ${skipEmbeddings ? 'not generated' : 'generated and stored'}`);
+  console.log(
+    `  Embeddings: ${skipEmbeddings ? 'not generated' : 'generated and stored'}`,
+  );
   console.log('═══════════════════════════════════════════════════════════');
 }
 

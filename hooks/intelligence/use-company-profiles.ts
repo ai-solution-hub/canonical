@@ -40,7 +40,8 @@ export function useCompanyProfiles() {
 export function useCompanyProfile(id: string) {
   return useQuery({
     queryKey: queryKeys.intelligence.profiles.detail(id),
-    queryFn: () => fetchJson<CompanyProfile>(`/api/intelligence/profiles/${id}`),
+    queryFn: () =>
+      fetchJson<CompanyProfile>(`/api/intelligence/profiles/${id}`),
     enabled: !!id,
   });
 }
@@ -51,7 +52,9 @@ export function useCreateCompanyProfile() {
     mutationFn: (data: CompanyProfileInput) =>
       mutationFetchJson<CompanyProfile>('/api/intelligence/profiles', data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.intelligence.profiles.all });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.intelligence.profiles.all,
+      });
       toast.success('Company profile created');
     },
     onError: (err: Error) => toast.error(err.message),
@@ -62,11 +65,17 @@ export function useUpdateCompanyProfile(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: Partial<CompanyProfileInput>) =>
-      mutationFetchJson<CompanyProfile>(`/api/intelligence/profiles/${id}`, data, {
-        method: 'PATCH',
-      }),
+      mutationFetchJson<CompanyProfile>(
+        `/api/intelligence/profiles/${id}`,
+        data,
+        {
+          method: 'PATCH',
+        },
+      ),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.intelligence.profiles.all });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.intelligence.profiles.all,
+      });
       toast.success('Profile updated');
     },
     onError: (err: Error) => toast.error(err.message),
@@ -77,11 +86,17 @@ export function useDeleteCompanyProfile() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      mutationFetchJson<void>(`/api/intelligence/profiles/${id}`, {}, {
-        method: 'DELETE',
-      }),
+      mutationFetchJson<void>(
+        `/api/intelligence/profiles/${id}`,
+        {},
+        {
+          method: 'DELETE',
+        },
+      ),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.intelligence.profiles.all });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.intelligence.profiles.all,
+      });
       toast.success('Profile removed');
     },
     onError: (err: Error) => toast.error(err.message),

@@ -84,7 +84,11 @@ vi.mock('@/hooks/use-user-role', () => ({
 
 // Mock the Select component to avoid Radix pointer capture issues in jsdom
 vi.mock('@/components/ui/select', () => ({
-  Select: ({ children, value, onValueChange: _onValueChange }: {
+  Select: ({
+    children,
+    value,
+    onValueChange: _onValueChange,
+  }: {
     value: string;
     onValueChange: (val: string) => void;
     children: React.ReactNode;
@@ -93,7 +97,12 @@ vi.mock('@/components/ui/select', () => ({
       {children}
     </div>
   ),
-  SelectTrigger: ({ id, children, className, ...props }: Record<string, unknown>) => (
+  SelectTrigger: ({
+    id,
+    children,
+    className,
+    ...props
+  }: Record<string, unknown>) => (
     <button
       id={id as string}
       data-testid={`select-trigger-${id}`}
@@ -109,9 +118,13 @@ vi.mock('@/components/ui/select', () => ({
   SelectContent: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
-  SelectItem: ({ value, children }: { value: string; children: React.ReactNode }) => (
-    <div data-testid={`select-item-${value}`}>{children}</div>
-  ),
+  SelectItem: ({
+    value,
+    children,
+  }: {
+    value: string;
+    children: React.ReactNode;
+  }) => <div data-testid={`select-item-${value}`}>{children}</div>,
   SelectGroup: ({ children }: { children: React.ReactNode }) => (
     <div role="group">{children}</div>
   ),
@@ -213,7 +226,9 @@ describe('CreateContentClient — template integration', () => {
       // Content type should now be 'policy' — visible in the select wrapper
       await waitFor(() => {
         const selectTrigger = screen.getByTestId('select-trigger-content-type');
-        const selectWrapper = selectTrigger.closest('[data-testid="select-wrapper"]');
+        const selectWrapper = selectTrigger.closest(
+          '[data-testid="select-wrapper"]',
+        );
         expect(selectWrapper).toHaveAttribute('data-value', 'policy');
       });
     });
@@ -226,7 +241,9 @@ describe('CreateContentClient — template integration', () => {
       await user.click(selector.getByText('Policy Document'));
 
       await waitFor(() => {
-        const editor = screen.getByTestId('content-editor') as HTMLTextAreaElement;
+        const editor = screen.getByTestId(
+          'content-editor',
+        ) as HTMLTextAreaElement;
         expect(editor.value).toContain('Policy Statement');
       });
     });
@@ -240,7 +257,9 @@ describe('CreateContentClient — template integration', () => {
 
       await waitFor(() => {
         const selectTrigger = screen.getByTestId('select-trigger-content-type');
-        const selectWrapper = selectTrigger.closest('[data-testid="select-wrapper"]');
+        const selectWrapper = selectTrigger.closest(
+          '[data-testid="select-wrapper"]',
+        );
         expect(selectWrapper).toHaveAttribute('data-value', 'case_study');
       });
     });
@@ -254,7 +273,9 @@ describe('CreateContentClient — template integration', () => {
 
       await waitFor(() => {
         const selectTrigger = screen.getByTestId('select-trigger-content-type');
-        const selectWrapper = selectTrigger.closest('[data-testid="select-wrapper"]');
+        const selectWrapper = selectTrigger.closest(
+          '[data-testid="select-wrapper"]',
+        );
         expect(selectWrapper).toHaveAttribute('data-value', 'q_a_pair');
       });
     });
@@ -266,7 +287,9 @@ describe('CreateContentClient — template integration', () => {
 
       await user.click(selector.getByText('Policy Document'));
 
-      const policyButton = selector.getByText('Policy Document').closest('button');
+      const policyButton = selector
+        .getByText('Policy Document')
+        .closest('button');
       expect(policyButton).toHaveAttribute('aria-checked', 'true');
 
       // Blank should no longer be selected
@@ -287,7 +310,9 @@ describe('CreateContentClient — template integration', () => {
 
       // The "More details" section should auto-expand when domain is set
       await waitFor(() => {
-        const toggle = screen.getByText('Classification, tags, and source info');
+        const toggle = screen.getByText(
+          'Classification, tags, and source info',
+        );
         expect(toggle).toHaveAttribute('aria-expanded', 'true');
       });
     });
@@ -301,7 +326,9 @@ describe('CreateContentClient — template integration', () => {
       await user.click(selector.getByText('Case Study'));
 
       await waitFor(() => {
-        const toggle = screen.getByText('Classification, tags, and source info');
+        const toggle = screen.getByText(
+          'Classification, tags, and source info',
+        );
         expect(toggle).toHaveAttribute('aria-expanded', 'true');
       });
     });
@@ -317,7 +344,9 @@ describe('CreateContentClient — template integration', () => {
       await user.click(selector.getByText('Policy Document'));
 
       await waitFor(() => {
-        const editor = screen.getByTestId('content-editor') as HTMLTextAreaElement;
+        const editor = screen.getByTestId(
+          'content-editor',
+        ) as HTMLTextAreaElement;
         expect(editor.value).toContain('Policy Statement');
       });
 
@@ -328,7 +357,9 @@ describe('CreateContentClient — template integration', () => {
       await user.click(selector.getByText('Blank'));
 
       await waitFor(() => {
-        const editor = screen.getByTestId('content-editor') as HTMLTextAreaElement;
+        const editor = screen.getByTestId(
+          'content-editor',
+        ) as HTMLTextAreaElement;
         expect(editor.value).toBe('');
       });
     });
@@ -368,12 +399,16 @@ describe('CreateContentClient — template integration', () => {
 
       // Content should not have been replaced
       await waitFor(() => {
-        const editor = screen.getByTestId('content-editor') as HTMLTextAreaElement;
+        const editor = screen.getByTestId(
+          'content-editor',
+        ) as HTMLTextAreaElement;
         expect(editor.value).toBe('');
       });
 
       // Template should not be selected
-      const policyButton = selector.getByText('Policy Document').closest('button');
+      const policyButton = selector
+        .getByText('Policy Document')
+        .closest('button');
       expect(policyButton).toHaveAttribute('aria-checked', 'false');
     });
 
@@ -392,7 +427,9 @@ describe('CreateContentClient — template integration', () => {
       await user.click(selector.getByText('Case Study'));
 
       await waitFor(() => {
-        const editor = screen.getByTestId('content-editor') as HTMLTextAreaElement;
+        const editor = screen.getByTestId(
+          'content-editor',
+        ) as HTMLTextAreaElement;
         expect(editor.value).toContain('Client and Context');
       });
     });
@@ -423,7 +460,8 @@ describe('CreateContentClient — template integration', () => {
 
       allElements.forEach((el, idx) => {
         if (el.contains(templateLabel)) templateIndex = idx;
-        if (el.contains(titleLabel) && !el.contains(templateLabel)) titleIndex = idx;
+        if (el.contains(titleLabel) && !el.contains(templateLabel))
+          titleIndex = idx;
       });
 
       // Template selector should come first

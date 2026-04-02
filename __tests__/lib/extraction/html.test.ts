@@ -50,7 +50,10 @@ describe('extractFromHtml', () => {
       excerpt: 'A short excerpt.',
     });
 
-    const result = await extractFromHtml('<html><body>...</body></html>', 'https://example.com');
+    const result = await extractFromHtml(
+      '<html><body>...</body></html>',
+      'https://example.com',
+    );
     expect(result.title).toBe('Test Article Title');
   });
 
@@ -62,8 +65,13 @@ describe('extractFromHtml', () => {
       excerpt: '',
     });
 
-    const result = await extractFromHtml('<html><body>...</body></html>', 'https://example.com');
-    expect(result.content).toBe('Full article body text with multiple paragraphs.');
+    const result = await extractFromHtml(
+      '<html><body>...</body></html>',
+      'https://example.com',
+    );
+    expect(result.content).toBe(
+      'Full article body text with multiple paragraphs.',
+    );
   });
 
   it('extracts byline as author', async () => {
@@ -74,7 +82,10 @@ describe('extractFromHtml', () => {
       excerpt: '',
     });
 
-    const result = await extractFromHtml('<html><body>...</body></html>', 'https://example.com');
+    const result = await extractFromHtml(
+      '<html><body>...</body></html>',
+      'https://example.com',
+    );
     expect(result.author).toBe('John Smith');
   });
 
@@ -86,7 +97,10 @@ describe('extractFromHtml', () => {
       excerpt: 'A brief summary of the article.',
     });
 
-    const result = await extractFromHtml('<html><body>...</body></html>', 'https://example.com');
+    const result = await extractFromHtml(
+      '<html><body>...</body></html>',
+      'https://example.com',
+    );
     expect(result.excerpt).toBe('A brief summary of the article.');
   });
 
@@ -119,7 +133,10 @@ describe('extractFromHtml', () => {
       excerpt: '',
     });
 
-    const result = await extractFromHtml('<html><body>...</body></html>', 'https://example.com');
+    const result = await extractFromHtml(
+      '<html><body>...</body></html>',
+      'https://example.com',
+    );
     expect(result.author).toBe('');
   });
 
@@ -131,7 +148,10 @@ describe('extractFromHtml', () => {
       excerpt: '',
     });
 
-    const result = await extractFromHtml('<html><body>...</body></html>', 'https://example.com');
+    const result = await extractFromHtml(
+      '<html><body>...</body></html>',
+      'https://example.com',
+    );
     expect(result.title).toBe('');
   });
 });

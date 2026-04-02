@@ -43,8 +43,16 @@ const RESOURCES_FILE = resolve(ROOT, 'lib/mcp/resources.ts');
 
 // Category order matching the main script
 const CATEGORY_ORDER = [
-  'search.ts', 'dashboard.ts', 'bids.ts', 'content.ts', 'quality.ts',
-  'ai.ts', 'entities.ts', 'templates.ts', 'apps.ts', 'governance.ts',
+  'search.ts',
+  'dashboard.ts',
+  'bids.ts',
+  'content.ts',
+  'quality.ts',
+  'ai.ts',
+  'entities.ts',
+  'templates.ts',
+  'apps.ts',
+  'governance.ts',
 ];
 const SKIP_FILES = new Set(['index.ts', 'shared.ts']);
 
@@ -213,7 +221,9 @@ describe('Zod schema parsing', () => {
   });
 
   it('parses number with optional', () => {
-    const params = parseZodSchema("limit: z.number().optional().describe('Max results')");
+    const params = parseZodSchema(
+      "limit: z.number().optional().describe('Max results')",
+    );
     expect(params).toHaveLength(1);
     expect(params[0].name).toBe('limit');
     expect(params[0].type).toBe('number');
@@ -221,7 +231,9 @@ describe('Zod schema parsing', () => {
   });
 
   it('parses enum type', () => {
-    const params = parseZodSchema("mode: z.enum(['read', 'write']).optional().describe('Mode')");
+    const params = parseZodSchema(
+      "mode: z.enum(['read', 'write']).optional().describe('Mode')",
+    );
     expect(params).toHaveLength(1);
     expect(params[0].name).toBe('mode');
     expect(params[0].type).toBe('enum(read|write)');
@@ -229,7 +241,9 @@ describe('Zod schema parsing', () => {
   });
 
   it('parses boolean type', () => {
-    const params = parseZodSchema("force: z.boolean().optional().describe('Force flag')");
+    const params = parseZodSchema(
+      "force: z.boolean().optional().describe('Force flag')",
+    );
     expect(params).toHaveLength(1);
     expect(params[0].name).toBe('force');
     expect(params[0].type).toBe('boolean');
@@ -516,7 +530,10 @@ describe('Integration: full codebase extraction', () => {
 
       // Every tool should have a non-empty description
       for (const tool of allTools) {
-        expect(tool.description, `Tool ${tool.name} has empty description`).toBeTruthy();
+        expect(
+          tool.description,
+          `Tool ${tool.name} has empty description`,
+        ).toBeTruthy();
       }
 
       // No duplicate tool names

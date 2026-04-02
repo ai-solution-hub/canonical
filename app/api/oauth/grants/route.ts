@@ -25,7 +25,10 @@ export async function GET() {
     const { data, error } = await supabase.auth.oauth.listGrants();
 
     if (error) {
-      return NextResponse.json({ error: safeErrorMessage(error, 'Failed to list OAuth grants') }, { status: 500 });
+      return NextResponse.json(
+        { error: safeErrorMessage(error, 'Failed to list OAuth grants') },
+        { status: 500 },
+      );
     }
 
     return NextResponse.json({ grants: data ?? [] });

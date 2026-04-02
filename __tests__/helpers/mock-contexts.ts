@@ -6,7 +6,11 @@
  * contamination. Accepts partial overrides for per-test customisation.
  */
 import { vi } from 'vitest';
-import type { FeatureName, FeatureToggle, LayerDefinition } from '@/lib/client-config';
+import type {
+  FeatureName,
+  FeatureToggle,
+  LayerDefinition,
+} from '@/lib/client-config';
 
 // ---------------------------------------------------------------------------
 // Taxonomy context
@@ -38,15 +42,51 @@ export interface MockTaxonomyContextValue {
 }
 
 const DEFAULT_DOMAINS = [
-  { id: 'dom-1', name: 'Corporate', display_order: 1, colour: 'corporate', is_active: true },
-  { id: 'dom-2', name: 'Technical', display_order: 2, colour: 'technical', is_active: true },
-  { id: 'dom-3', name: 'Commercial', display_order: 3, colour: 'commercial', is_active: true },
+  {
+    id: 'dom-1',
+    name: 'Corporate',
+    display_order: 1,
+    colour: 'corporate',
+    is_active: true,
+  },
+  {
+    id: 'dom-2',
+    name: 'Technical',
+    display_order: 2,
+    colour: 'technical',
+    is_active: true,
+  },
+  {
+    id: 'dom-3',
+    name: 'Commercial',
+    display_order: 3,
+    colour: 'commercial',
+    is_active: true,
+  },
 ];
 
 const DEFAULT_SUBTOPICS = [
-  { id: 'sub-1', domain_id: 'dom-1', name: 'Company History', display_order: 1, is_active: true },
-  { id: 'sub-2', domain_id: 'dom-2', name: 'Infrastructure', display_order: 1, is_active: true },
-  { id: 'sub-3', domain_id: 'dom-3', name: 'Pricing', display_order: 1, is_active: true },
+  {
+    id: 'sub-1',
+    domain_id: 'dom-1',
+    name: 'Company History',
+    display_order: 1,
+    is_active: true,
+  },
+  {
+    id: 'sub-2',
+    domain_id: 'dom-2',
+    name: 'Infrastructure',
+    display_order: 1,
+    is_active: true,
+  },
+  {
+    id: 'sub-3',
+    domain_id: 'dom-3',
+    name: 'Pricing',
+    display_order: 1,
+    is_active: true,
+  },
 ];
 
 export function mockTaxonomyContext(
@@ -64,7 +104,9 @@ export function mockTaxonomyContext(
     getSubtopics: (domainName: string) => {
       const domain = domains.find((d) => d.name === domainName);
       if (!domain) return [];
-      return subtopics.filter((s) => s.domain_id === domain.id).map((s) => s.name);
+      return subtopics
+        .filter((s) => s.domain_id === domain.id)
+        .map((s) => s.name);
     },
     getDomainColourKey: (domainName: string) => {
       const domain = domains.find((d) => d.name === domainName);
@@ -132,7 +174,11 @@ export interface MockClientFeaturesContextValue {
 
 const DEFAULT_FEATURES: Record<FeatureName, FeatureToggle> = {
   tag_management: { enabled: true, label: 'Tag Management', description: '' },
-  coverage_dashboard: { enabled: false, label: 'Coverage Dashboard', description: '' },
+  coverage_dashboard: {
+    enabled: false,
+    label: 'Coverage Dashboard',
+    description: '',
+  },
   content_layers: { enabled: false, label: 'Content Layers', description: '' },
   draft_status: { enabled: true, label: 'Draft Status', description: '' },
   ai_integration: { enabled: true, label: 'AI Integration', description: '' },
@@ -146,7 +192,8 @@ export function mockClientFeaturesContext(
 
   return {
     features,
-    isFeatureEnabled: (feature: FeatureName) => features[feature]?.enabled ?? false,
+    isFeatureEnabled: (feature: FeatureName) =>
+      features[feature]?.enabled ?? false,
     clientName: overrides.clientName ?? 'Knowledge Hub',
     ...overrides,
   };
@@ -167,10 +214,30 @@ export interface MockLayerVocabularyContextValue {
 }
 
 const DEFAULT_LAYERS: LayerDefinition[] = [
-  { key: 'sales_brief', label: 'Sales Brief', description: 'Positioning and messaging for internal sales', order: 1 },
-  { key: 'bid_detail', label: 'Bid Detail', description: 'Factual content for tender responses', order: 2 },
-  { key: 'company_reference', label: 'Company Reference', description: 'Controlled corporate documents', order: 3 },
-  { key: 'research', label: 'Research', description: 'Background material and market intelligence', order: 4 },
+  {
+    key: 'sales_brief',
+    label: 'Sales Brief',
+    description: 'Positioning and messaging for internal sales',
+    order: 1,
+  },
+  {
+    key: 'bid_detail',
+    label: 'Bid Detail',
+    description: 'Factual content for tender responses',
+    order: 2,
+  },
+  {
+    key: 'company_reference',
+    label: 'Company Reference',
+    description: 'Controlled corporate documents',
+    order: 3,
+  },
+  {
+    key: 'research',
+    label: 'Research',
+    description: 'Background material and market intelligence',
+    order: 4,
+  },
 ];
 
 export function mockLayerVocabularyContext(
@@ -183,8 +250,10 @@ export function mockLayerVocabularyContext(
     loading: false,
     error: null,
     getLayerKeys: () => layers.map((l) => l.key),
-    getLayerLabel: (key: string) => layers.find((l) => l.key === key)?.label ?? key,
-    getLayerDescription: (key: string) => layers.find((l) => l.key === key)?.description ?? '',
+    getLayerLabel: (key: string) =>
+      layers.find((l) => l.key === key)?.label ?? key,
+    getLayerDescription: (key: string) =>
+      layers.find((l) => l.key === key)?.description ?? '',
     refresh: vi.fn(),
     ...overrides,
   };

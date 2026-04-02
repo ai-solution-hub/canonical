@@ -24,7 +24,9 @@ import type {
 // Test helpers — factories for mock data
 // ---------------------------------------------------------------------------
 
-function makeRequirement(overrides: Partial<TemplateRequirement> = {}): TemplateRequirement {
+function makeRequirement(
+  overrides: Partial<TemplateRequirement> = {},
+): TemplateRequirement {
   return {
     id: 'req-1',
     template_name: 'Test Template',
@@ -51,10 +53,15 @@ function makeRequirement(overrides: Partial<TemplateRequirement> = {}): Template
   };
 }
 
-function makeContent(overrides: Partial<ContentItemForMatching> = {}): ContentItemForMatching {
+function makeContent(
+  overrides: Partial<ContentItemForMatching> = {},
+): ContentItemForMatching {
   return {
     id: 'ci-1',
-    content: 'Our health and safety policy covers all aspects of workplace safety. '.repeat(10), // ~700 chars
+    content:
+      'Our health and safety policy covers all aspects of workplace safety. '.repeat(
+        10,
+      ), // ~700 chars
     brief: null,
     detail: null,
     title: 'Health and Safety Policy',
@@ -67,7 +74,6 @@ function makeContent(overrides: Partial<ContentItemForMatching> = {}): ContentIt
     ...overrides,
   };
 }
-
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -87,7 +93,9 @@ describe('Constants', () => {
   it('similarity thresholds are in the expected range', () => {
     expect(SIMILARITY_STRONG_THRESHOLD).toBe(0.55);
     expect(SIMILARITY_PARTIAL_THRESHOLD).toBe(0.35);
-    expect(SIMILARITY_STRONG_THRESHOLD).toBeGreaterThan(SIMILARITY_PARTIAL_THRESHOLD);
+    expect(SIMILARITY_STRONG_THRESHOLD).toBeGreaterThan(
+      SIMILARITY_PARTIAL_THRESHOLD,
+    );
   });
 
   it('QA_FRAGMENT_THRESHOLD is 20', () => {
@@ -165,7 +173,7 @@ describe('matchRequirement', () => {
     const refEmb = [0.1, 0.2, 0.3, 0.4, 0.5];
     // Analytically computed: ref + t*orth where t chosen so cos(ref, v) ≈ 0.45
     // (between partial threshold 0.35 and strong threshold 0.55)
-    const partialEmb = [1.54, 0.20, 0.30, 0.40, 0.21];
+    const partialEmb = [1.54, 0.2, 0.3, 0.4, 0.21];
     const actualSim = cosineSimilarity(refEmb, partialEmb);
     // Verify the crafted vector gives partial-range similarity
     expect(actualSim).toBeGreaterThan(0.35);
@@ -321,8 +329,11 @@ describe('computeTemplateCoverage', () => {
     const content = [makeContent({ embedding: refEmb })];
 
     const result = computeTemplateCoverage(
-      'Test Template', 'v1', 'sq',
-      requirements, content,
+      'Test Template',
+      'v1',
+      'sq',
+      requirements,
+      content,
     );
 
     expect(result.strong_count).toBe(1);
@@ -344,16 +355,14 @@ describe('computeTemplateCoverage', () => {
       }),
     ];
 
-    const result = computeTemplateCoverage(
-      'Test', null, 'sq',
-      requirements,
-      [makeContent({
+    const result = computeTemplateCoverage('Test', null, 'sq', requirements, [
+      makeContent({
         primary_domain: 'other',
         primary_subtopic: 'other',
         ai_keywords: ['unrelated'],
         embedding: [0.1, 0.1, 0.1, 0.1, 0.1],
-      })],
-    );
+      }),
+    ]);
 
     expect(result.score).toBe(0);
     expect(result.gap_count).toBe(1);
@@ -362,16 +371,31 @@ describe('computeTemplateCoverage', () => {
   it('returns score 1.0 when all non-NA requirements are strong', () => {
     const refEmb = [0.1, 0.2, 0.3, 0.4, 0.5];
     const requirements = [
-      makeRequirement({ id: 'req-1', display_order: 1, requirement_embedding: refEmb }),
-      makeRequirement({ id: 'req-2', display_order: 2, requirement_embedding: refEmb }),
-      makeRequirement({ id: 'req-na', display_order: 3, requirement_type: 'declaration' }),
+      makeRequirement({
+        id: 'req-1',
+        display_order: 1,
+        requirement_embedding: refEmb,
+      }),
+      makeRequirement({
+        id: 'req-2',
+        display_order: 2,
+        requirement_embedding: refEmb,
+      }),
+      makeRequirement({
+        id: 'req-na',
+        display_order: 3,
+        requirement_type: 'declaration',
+      }),
     ];
 
     const content = [makeContent({ embedding: refEmb })];
 
     const result = computeTemplateCoverage(
-      'Test', 'v1', 'sq',
-      requirements, content,
+      'Test',
+      'v1',
+      'sq',
+      requirements,
+      content,
     );
 
     expect(result.score).toBe(1.0);
@@ -382,16 +406,30 @@ describe('computeTemplateCoverage', () => {
   it('groups requirements correctly by section', () => {
     const refEmb = [0.1, 0.2, 0.3, 0.4, 0.5];
     const requirements = [
-      makeRequirement({ id: 'r1', section_ref: 'Part 1', section_name: 'General', display_order: 1 }),
-      makeRequirement({ id: 'r2', section_ref: 'Part 1', section_name: 'General', display_order: 2, question_number: 2 }),
-      makeRequirement({ id: 'r3', section_ref: 'Part 2', section_name: 'Technical', display_order: 3 }),
+      makeRequirement({
+        id: 'r1',
+        section_ref: 'Part 1',
+        section_name: 'General',
+        display_order: 1,
+      }),
+      makeRequirement({
+        id: 'r2',
+        section_ref: 'Part 1',
+        section_name: 'General',
+        display_order: 2,
+        question_number: 2,
+      }),
+      makeRequirement({
+        id: 'r3',
+        section_ref: 'Part 2',
+        section_name: 'Technical',
+        display_order: 3,
+      }),
     ];
 
-    const result = computeTemplateCoverage(
-      'Test', 'v1', 'sq',
-      requirements,
-      [makeContent({ embedding: refEmb })],
-    );
+    const result = computeTemplateCoverage('Test', 'v1', 'sq', requirements, [
+      makeContent({ embedding: refEmb }),
+    ]);
 
     expect(result.sections).toHaveLength(2);
     expect(result.sections[0].section_ref).toBe('Part 1');
@@ -408,8 +446,11 @@ describe('computeTemplateCoverage', () => {
     ];
 
     const result = computeTemplateCoverage(
-      'Test', 'v1', 'sq',
-      requirements, [],
+      'Test',
+      'v1',
+      'sq',
+      requirements,
+      [],
     );
 
     expect(result.score).toBe(0);

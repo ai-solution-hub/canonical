@@ -19,39 +19,43 @@
  *   bun run scripts/backfill-temporal-bridge.ts --dry-run      # preview without writing
  */
 
-import { createClient } from "@supabase/supabase-js";
-import { parseArgs } from "util";
-import path from "path";
-import fs from "fs";
-import { reconcileTemporalReferences } from "../lib/entities/temporal-reconciliation";
-import { tokenMatch, isDuration, addDurationToDate } from "../lib/entities/token-match";
-import type { ClassificationTemporalReference } from "../lib/ai/classify";
-import type { TemporalReference } from "../lib/date-extraction";
+import { createClient } from '@supabase/supabase-js';
+import { parseArgs } from 'util';
+import path from 'path';
+import fs from 'fs';
+import { reconcileTemporalReferences } from '../lib/entities/temporal-reconciliation';
+import {
+  tokenMatch,
+  isDuration,
+  addDurationToDate,
+} from '../lib/entities/token-match';
+import type { ClassificationTemporalReference } from '../lib/ai/classify';
+import type { TemporalReference } from '../lib/date-extraction';
 
 // ── Env loading (handles worktrees) ────────────────────────────────────────
 
 function loadEnv() {
   let dir = process.cwd();
-  while (dir !== "/") {
-    for (const file of [".env.local", ".env"]) {
+  while (dir !== '/') {
+    for (const file of ['.env.local', '.env']) {
       const p = path.join(dir, file);
       if (fs.existsSync(p)) {
-        const content = fs.readFileSync(p, "utf-8");
-        for (const line of content.split("\n")) {
+        const content = fs.readFileSync(p, 'utf-8');
+        for (const line of content.split('\n')) {
           const trimmed = line.trim();
-          if (!trimmed || trimmed.startsWith("#")) continue;
-          const eq = trimmed.indexOf("=");
+          if (!trimmed || trimmed.startsWith('#')) continue;
+          const eq = trimmed.indexOf('=');
           if (eq === -1) continue;
           const key = trimmed.slice(0, eq).trim();
           const val = trimmed
             .slice(eq + 1)
             .trim()
-            .replace(/^["']|["']$/g, "");
+            .replace(/^["']|["']$/g, '');
           if (!process.env[key]) process.env[key] = val;
         }
       }
     }
-    if (fs.existsSync(path.join(dir, "package.json"))) break;
+    if (fs.existsSync(path.join(dir, 'package.json'))) break;
     dir = path.dirname(dir);
   }
 }
@@ -62,9 +66,9 @@ loadEnv();
 
 const { values: args } = parseArgs({
   options: {
-    limit: { type: "string", default: "0" },
-    "dry-run": { type: "boolean", default: false },
-    help: { type: "boolean", default: false },
+    limit: { type: 'string', default: '0' },
+    'dry-run': { type: 'boolean', default: false },
+    help: { type: 'boolean', default: false },
   },
   strict: true,
 });
@@ -82,11 +86,11 @@ Options:
 }
 
 const LIMIT = parseInt(args.limit!, 10) || 0;
-const DRY_RUN = args["dry-run"]!;
+const DRY_RUN = args['dry-run']!;
 
 // ── Entity types that receive temporal metadata ───────────────────────────
 
-const TEMPORAL_ENTITY_TYPES = ["certification", "framework", "regulation"];
+const TEMPORAL_ENTITY_TYPES = ['certification', 'framework', 'regulation'];
 
 // ── Supabase client ──────────────────────────────────────────────────────
 
@@ -98,7 +102,7 @@ const supabaseKey =
 
 if (!supabaseUrl || !supabaseKey) {
   console.error(
-    "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY in environment"
+    'Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY in environment',
   );
   process.exit(1);
 }
@@ -108,12 +112,12 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 // ── Sort refs so effective dates come before expiry ─────────────────────
 
 function sortRefsEffectiveFirst<T extends { context_type: string }>(
-  refs: T[]
+  refs: T[],
 ): T[] {
   return [...refs].sort((a, b) => {
-    if (a.context_type === "effective" && b.context_type !== "effective")
+    if (a.context_type === 'effective' && b.context_type !== 'effective')
       return -1;
-    if (a.context_type !== "effective" && b.context_type === "effective")
+    if (a.context_type !== 'effective' && b.context_type === 'effective')
       return 1;
     return 0;
   });
@@ -133,7 +137,7 @@ async function bridgeForItem(
   contentItemId: string,
   aiRefs: ClassificationTemporalReference[],
   mentions: EntityMention[],
-  dryRun: boolean
+  dryRun: boolean,
 ): Promise<{ updated: number; details: string[] }> {
   const details: string[] = [];
   let updated = 0;
@@ -151,7 +155,7 @@ async function bridgeForItem(
     // Skip if already has expiry_date or date_obtained
     if (existingMetadata.expiry_date || existingMetadata.date_obtained) {
       details.push(
-        `  SKIP: ${mention.canonical_name} — already has temporal metadata`
+        `  SKIP: ${mention.canonical_name} — already has temporal metadata`,
       );
       continue;
     }
@@ -163,7 +167,7 @@ async function bridgeForItem(
       const result = tokenMatch(ref.context, mention.canonical_name);
       if (!result.match) continue;
 
-      if (ref.context_type === "expiry") {
+      if (ref.context_type === 'expiry') {
         if (isDuration(ref.date)) {
           const startDate = (newMetadata.date_obtained as string) ?? null;
           if (startDate) {
@@ -177,7 +181,7 @@ async function bridgeForItem(
           newMetadata.expiry_date = ref.date;
           mentionUpdated = true;
         }
-      } else if (ref.context_type === "effective") {
+      } else if (ref.context_type === 'effective') {
         newMetadata.date_obtained = ref.date;
         mentionUpdated = true;
       }
@@ -185,25 +189,23 @@ async function bridgeForItem(
 
     if (mentionUpdated) {
       const dateInfo = [
-        newMetadata.expiry_date
-          ? `expiry=${newMetadata.expiry_date}`
-          : null,
+        newMetadata.expiry_date ? `expiry=${newMetadata.expiry_date}` : null,
         newMetadata.date_obtained
           ? `obtained=${newMetadata.date_obtained}`
           : null,
       ]
         .filter(Boolean)
-        .join(", ");
+        .join(', ');
 
       details.push(
-        `  UPDATE: ${mention.canonical_name} (${mention.entity_type}) — ${dateInfo}`
+        `  UPDATE: ${mention.canonical_name} (${mention.entity_type}) — ${dateInfo}`,
       );
 
       if (!dryRun) {
         const { error } = await supabase
-          .from("entity_mentions")
+          .from('entity_mentions')
           .update({ metadata: newMetadata as Record<string, string> })
-          .eq("id", mention.id);
+          .eq('id', mention.id);
 
         if (error) {
           details.push(`  ERROR updating ${mention.id}: ${error.message}`);
@@ -221,10 +223,10 @@ async function bridgeForItem(
 // ── Main ───────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log("=".repeat(60));
-  console.log("Temporal Bridge Backfill");
-  console.log("=".repeat(60));
-  console.log(`  Limit:    ${LIMIT || "all"}`);
+  console.log('='.repeat(60));
+  console.log('Temporal Bridge Backfill');
+  console.log('='.repeat(60));
+  console.log(`  Limit:    ${LIMIT || 'all'}`);
   console.log(`  Dry run:  ${DRY_RUN}`);
   console.log();
 
@@ -232,10 +234,10 @@ async function main() {
   //    We fetch all items that have temporal refs, then check their
   //    entity mentions in-loop for missing bridged data.
   let query = supabase
-    .from("content_items")
-    .select("id, suggested_title, metadata")
-    .not("metadata->ai_temporal_references", "is", null)
-    .order("captured_date", { ascending: false });
+    .from('content_items')
+    .select('id, suggested_title, metadata')
+    .not('metadata->ai_temporal_references', 'is', null)
+    .order('captured_date', { ascending: false });
 
   if (LIMIT > 0) {
     query = query.limit(LIMIT);
@@ -246,18 +248,16 @@ async function main() {
   const { data: items, error } = await query;
 
   if (error) {
-    console.error("Query error:", error.message);
+    console.error('Query error:', error.message);
     process.exit(1);
   }
 
   if (!items || items.length === 0) {
-    console.log("No content items with ai_temporal_references found.");
+    console.log('No content items with ai_temporal_references found.');
     return;
   }
 
-  console.log(
-    `Found ${items.length} content items with temporal references`
-  );
+  console.log(`Found ${items.length} content items with temporal references`);
   console.log();
 
   let totalProcessed = 0;
@@ -278,16 +278,16 @@ async function main() {
     }
 
     const progress = `[${i + 1}/${items.length}]`;
-    const title = (item.suggested_title || "(untitled)").slice(0, 60);
+    const title = (item.suggested_title || '(untitled)').slice(0, 60);
     console.log(`${progress} ${title}`);
     console.log(`         ${aiRefs.length} temporal ref(s)`);
 
     // 2. Fetch entity mentions for this item
     const { data: mentions, error: mentionError } = await supabase
-      .from("entity_mentions")
-      .select("id, canonical_name, entity_type, metadata")
-      .eq("content_item_id", item.id)
-      .in("entity_type", TEMPORAL_ENTITY_TYPES);
+      .from('entity_mentions')
+      .select('id, canonical_name, entity_type, metadata')
+      .eq('content_item_id', item.id)
+      .in('entity_type', TEMPORAL_ENTITY_TYPES);
 
     if (mentionError) {
       console.log(`         ERROR fetching mentions: ${mentionError.message}`);
@@ -297,22 +297,20 @@ async function main() {
 
     if (!mentions?.length) {
       console.log(
-        "         SKIP: no certification/framework/regulation mentions"
+        '         SKIP: no certification/framework/regulation mentions',
       );
       totalSkipped++;
       continue;
     }
 
-    console.log(
-      `         ${mentions.length} eligible mention(s)`
-    );
+    console.log(`         ${mentions.length} eligible mention(s)`);
 
     // 3. Run the bridge
     const { updated, details } = await bridgeForItem(
       item.id,
       aiRefs,
       mentions,
-      DRY_RUN
+      DRY_RUN,
     );
 
     for (const detail of details) {
@@ -320,7 +318,7 @@ async function main() {
     }
 
     if (updated === 0) {
-      console.log("         No matches found");
+      console.log('         No matches found');
       totalSkipped++;
     } else {
       totalUpdated += updated;
@@ -332,17 +330,19 @@ async function main() {
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
   console.log();
-  console.log("=".repeat(60));
-  console.log("BACKFILL COMPLETE");
-  console.log("=".repeat(60));
+  console.log('='.repeat(60));
+  console.log('BACKFILL COMPLETE');
+  console.log('='.repeat(60));
   console.log(`  Items processed:    ${totalProcessed}`);
-  console.log(`  Mentions updated:   ${totalUpdated}${DRY_RUN ? " (dry run)" : ""}`);
+  console.log(
+    `  Mentions updated:   ${totalUpdated}${DRY_RUN ? ' (dry run)' : ''}`,
+  );
   console.log(`  Items skipped:      ${totalSkipped}`);
   console.log(`  Errors:             ${totalErrors}`);
   console.log(`  Time:               ${elapsed}s`);
 }
 
 main().catch((err) => {
-  console.error("Fatal error:", err);
+  console.error('Fatal error:', err);
   process.exit(1);
 });

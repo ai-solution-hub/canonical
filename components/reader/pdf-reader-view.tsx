@@ -35,7 +35,11 @@ interface PdfReaderViewProps {
   title?: string;
 }
 
-export function PdfReaderView({ sourceUrl, filePath, title }: PdfReaderViewProps) {
+export function PdfReaderView({
+  sourceUrl,
+  filePath,
+  title,
+}: PdfReaderViewProps) {
   // Initialise pdfUrl from sourceUrl prop (avoids setState-in-effect lint warning).
   // When filePath is provided instead, it starts null and gets resolved below.
   const [pdfUrl, setPdfUrl] = useState<string | null>(sourceUrl ?? null);
@@ -68,10 +72,13 @@ export function PdfReaderView({ sourceUrl, filePath, title }: PdfReaderViewProps
     }
   }, [filePath, sourceUrl]);
 
-  const onDocumentLoadSuccess = useCallback(({ numPages: total }: { numPages: number }) => {
-    setNumPages(total);
-    setHasError(false);
-  }, []);
+  const onDocumentLoadSuccess = useCallback(
+    ({ numPages: total }: { numPages: number }) => {
+      setNumPages(total);
+      setHasError(false);
+    },
+    [],
+  );
 
   const onDocumentLoadError = useCallback(() => {
     setHasError(true);
@@ -86,9 +93,12 @@ export function PdfReaderView({ sourceUrl, filePath, title }: PdfReaderViewProps
     [numPages],
   );
 
-  const handlePageInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setPageInputValue(e.target.value);
-  }, []);
+  const handlePageInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setPageInputValue(e.target.value);
+    },
+    [],
+  );
 
   const handlePageInputSubmit = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -127,20 +137,17 @@ export function PdfReaderView({ sourceUrl, filePath, title }: PdfReaderViewProps
     }
   }, []);
 
-  const onPageLoadSuccess = useCallback(
-    (page: { originalWidth: number }) => {
-      if (!pageWidthRef.current) {
-        pageWidthRef.current = page.originalWidth;
-        // Auto fit-width on first page load
-        if (containerRef.current) {
-          const containerWidth = containerRef.current.clientWidth - 48;
-          const newScale = containerWidth / page.originalWidth;
-          setScale(Math.max(MIN_SCALE, Math.min(newScale, MAX_SCALE)));
-        }
+  const onPageLoadSuccess = useCallback((page: { originalWidth: number }) => {
+    if (!pageWidthRef.current) {
+      pageWidthRef.current = page.originalWidth;
+      // Auto fit-width on first page load
+      if (containerRef.current) {
+        const containerWidth = containerRef.current.clientWidth - 48;
+        const newScale = containerWidth / page.originalWidth;
+        setScale(Math.max(MIN_SCALE, Math.min(newScale, MAX_SCALE)));
       }
-    },
-    [],
-  );
+    }
+  }, []);
 
   // Keyboard navigation
   useEffect(() => {
@@ -318,9 +325,7 @@ export function PdfReaderView({ sourceUrl, filePath, title }: PdfReaderViewProps
               pageNumber={currentPage}
               scale={scale}
               onLoadSuccess={onPageLoadSuccess}
-              loading={
-                <Skeleton className="h-[600px] w-[450px] rounded" />
-              }
+              loading={<Skeleton className="h-[600px] w-[450px] rounded" />}
               renderTextLayer={true}
               renderAnnotationLayer={true}
             />

@@ -37,7 +37,8 @@ export function TenderUpload({ bidId, onUploadComplete }: TenderUploadProps) {
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
-  const [extractionResult, setExtractionResult] = useState<ExtractionResult | null>(null);
+  const [extractionResult, setExtractionResult] =
+    useState<ExtractionResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounterRef = useRef(0);
 
@@ -106,7 +107,9 @@ export function TenderUpload({ bidId, onUploadComplete }: TenderUploadProps) {
 
         if (!extractRes.ok) {
           const body = await extractRes.json().catch(() => null);
-          throw new Error(body?.error ?? `Extraction failed (${extractRes.status})`);
+          throw new Error(
+            body?.error ?? `Extraction failed (${extractRes.status})`,
+          );
         }
 
         const result: ExtractionResult = await extractRes.json();
@@ -116,7 +119,8 @@ export function TenderUpload({ bidId, onUploadComplete }: TenderUploadProps) {
           `Extracted ${result.total_questions} questions from ${result.total_sections} sections`,
         );
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'An unexpected error occurred';
+        const message =
+          err instanceof Error ? err.message : 'An unexpected error occurred';
         setError(message);
         setPhase('error');
         toast.error(message);
@@ -196,10 +200,14 @@ export function TenderUpload({ bidId, onUploadComplete }: TenderUploadProps) {
         aria-label="Upload tender document. Drag and drop or click to browse."
         className={cn(
           'relative flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-8 text-center transition-colors',
-          phase === 'idle' && !dragging && 'border-muted-foreground/25 hover:border-muted-foreground/50 cursor-pointer',
-          phase === 'error' && 'border-destructive/50 hover:border-destructive cursor-pointer',
+          phase === 'idle' &&
+            !dragging &&
+            'border-muted-foreground/25 hover:border-muted-foreground/50 cursor-pointer',
+          phase === 'error' &&
+            'border-destructive/50 hover:border-destructive cursor-pointer',
           dragging && 'border-primary bg-primary/5',
-          (phase === 'uploading' || phase === 'extracting') && 'border-primary/50 cursor-default',
+          (phase === 'uploading' || phase === 'extracting') &&
+            'border-primary/50 cursor-default',
           phase === 'complete' && 'border-template-confirmed/50 cursor-default',
         )}
         onDragEnter={handleDragEnter}
@@ -222,7 +230,10 @@ export function TenderUpload({ bidId, onUploadComplete }: TenderUploadProps) {
         {/* Idle state */}
         {phase === 'idle' && (
           <>
-            <FileUp className="size-10 text-muted-foreground" aria-hidden="true" />
+            <FileUp
+              className="size-10 text-muted-foreground"
+              aria-hidden="true"
+            />
             <div>
               <p className="text-sm font-medium">Upload Tender Document</p>
               <p className="mt-1 text-xs text-muted-foreground">
@@ -238,10 +249,19 @@ export function TenderUpload({ bidId, onUploadComplete }: TenderUploadProps) {
         {/* Uploading state */}
         {phase === 'uploading' && (
           <>
-            <Loader2 className="size-8 animate-spin text-primary" aria-hidden="true" />
+            <Loader2
+              className="size-8 animate-spin text-primary"
+              aria-hidden="true"
+            />
             <div>
-              <p className="text-sm font-medium">Uploading{fileName ? `: ${fileName}` : ''}...</p>
-              <Progress className="mt-2 w-48" value={undefined} aria-label="Upload in progress" />
+              <p className="text-sm font-medium">
+                Uploading{fileName ? `: ${fileName}` : ''}...
+              </p>
+              <Progress
+                className="mt-2 w-48"
+                value={undefined}
+                aria-label="Upload in progress"
+              />
             </div>
           </>
         )}
@@ -249,7 +269,10 @@ export function TenderUpload({ bidId, onUploadComplete }: TenderUploadProps) {
         {/* Extracting state */}
         {phase === 'extracting' && (
           <>
-            <Loader2 className="size-8 animate-spin text-primary" aria-hidden="true" />
+            <Loader2
+              className="size-8 animate-spin text-primary"
+              aria-hidden="true"
+            />
             <div>
               <p className="text-sm font-medium">Extracting questions...</p>
               <p className="mt-1 text-xs text-muted-foreground">
@@ -262,11 +285,12 @@ export function TenderUpload({ bidId, onUploadComplete }: TenderUploadProps) {
         {/* Complete state */}
         {phase === 'complete' && extractionResult && (
           <>
-            <CheckCircle className="size-8 text-template-confirmed" aria-hidden="true" />
+            <CheckCircle
+              className="size-8 text-template-confirmed"
+              aria-hidden="true"
+            />
             <div>
-              <p className="text-sm font-medium">
-                Extraction complete
-              </p>
+              <p className="text-sm font-medium">Extraction complete</p>
               <p className="mt-1 text-xs text-muted-foreground">
                 Found {extractionResult.total_questions} questions across{' '}
                 {extractionResult.total_sections} sections.
@@ -299,9 +323,14 @@ export function TenderUpload({ bidId, onUploadComplete }: TenderUploadProps) {
         {/* Error state */}
         {phase === 'error' && (
           <>
-            <AlertTriangle className="size-8 text-muted-foreground/50" aria-hidden="true" />
+            <AlertTriangle
+              className="size-8 text-muted-foreground/50"
+              aria-hidden="true"
+            />
             <div>
-              <p className="text-sm font-medium text-foreground">Upload didn&apos;t complete</p>
+              <p className="text-sm font-medium text-foreground">
+                Upload didn&apos;t complete
+              </p>
               {error && (
                 <p className="mt-1 text-xs text-muted-foreground">{error}</p>
               )}

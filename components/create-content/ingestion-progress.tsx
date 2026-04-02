@@ -18,10 +18,7 @@ function StepIcon({ status }: { status: IngestionStep['status'] }) {
   switch (status) {
     case 'done':
       return (
-        <Check
-          className="size-4 text-status-success"
-          aria-hidden="true"
-        />
+        <Check className="size-4 text-status-success" aria-hidden="true" />
       );
     case 'active':
       return (
@@ -32,10 +29,7 @@ function StepIcon({ status }: { status: IngestionStep['status'] }) {
       );
     case 'error':
       return (
-        <AlertCircle
-          className="size-4 text-destructive"
-          aria-hidden="true"
-        />
+        <AlertCircle className="size-4 text-destructive" aria-hidden="true" />
       );
     case 'skipped':
       return (
@@ -47,10 +41,7 @@ function StepIcon({ status }: { status: IngestionStep['status'] }) {
     case 'pending':
     default:
       return (
-        <Minus
-          className="size-4 text-muted-foreground"
-          aria-hidden="true"
-        />
+        <Minus className="size-4 text-muted-foreground" aria-hidden="true" />
       );
   }
 }
@@ -89,7 +80,11 @@ export function IngestionProgress({
     const hasError = steps.some((s) => s.status === 'error');
 
     return (
-      <div aria-live="polite" role="status" className="flex items-center gap-2 text-sm">
+      <div
+        aria-live="polite"
+        role="status"
+        className="flex items-center gap-2 text-sm"
+      >
         {activeStep ? (
           <>
             <Loader2
@@ -102,7 +97,10 @@ export function IngestionProgress({
           </>
         ) : hasError ? (
           <>
-            <AlertCircle className="size-4 text-destructive" aria-hidden="true" />
+            <AlertCircle
+              className="size-4 text-destructive"
+              aria-hidden="true"
+            />
             <span className="text-destructive">Pipeline failed</span>
           </>
         ) : (
@@ -127,7 +125,8 @@ export function IngestionProgress({
                 step.status === 'active' && 'font-medium text-foreground',
                 step.status === 'done' && 'text-muted-foreground',
                 step.status === 'error' && 'text-destructive',
-                step.status === 'skipped' && 'text-muted-foreground line-through',
+                step.status === 'skipped' &&
+                  'text-muted-foreground line-through',
                 step.status === 'pending' && 'text-muted-foreground',
               )}
             >
@@ -141,7 +140,9 @@ export function IngestionProgress({
       {warnings && warnings.length > 0 && (
         <div className="mt-3 rounded-md border border-status-warning/30 bg-status-warning/10 p-3">
           <p className="mb-1 text-xs font-medium text-status-warning">
-            {warnings.length === 1 ? '1 warning' : `${warnings.length} warnings`}
+            {warnings.length === 1
+              ? '1 warning'
+              : `${warnings.length} warnings`}
           </p>
           <ul className="space-y-1">
             {warnings.map((warning, i) => (

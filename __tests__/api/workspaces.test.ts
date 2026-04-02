@@ -31,8 +31,14 @@ vi.spyOn(console, 'error').mockImplementation(() => {});
 // Import handlers under test (AFTER mocks are registered)
 // ---------------------------------------------------------------------------
 
-import { GET as listWorkspaces, POST as createWorkspace } from '@/app/api/workspaces/route';
-import { PATCH as updateWorkspace, DELETE as deleteWorkspace } from '@/app/api/workspaces/[id]/route';
+import {
+  GET as listWorkspaces,
+  POST as createWorkspace,
+} from '@/app/api/workspaces/route';
+import {
+  PATCH as updateWorkspace,
+  DELETE as deleteWorkspace,
+} from '@/app/api/workspaces/[id]/route';
 import { GET as getWorkspaceItems } from '@/app/api/workspaces/[id]/items/route';
 
 // ---------------------------------------------------------------------------
@@ -56,16 +62,41 @@ function resetMocks() {
   });
 
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockResolvedValue({ data: null, error: null, count: null });
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null, count: null });
+  mockSupabase._chain.single.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
@@ -94,12 +125,25 @@ describe('GET /api/workspaces', () => {
 
   it('returns 200 with workspace list on success', async () => {
     const mockWorkspaces = [
-      { id: VALID_UUID, name: 'Project Alpha', description: null, type: 'project', is_archived: false },
-      { id: '00000000-0000-4000-8000-000000000002', name: 'Bid Beta', description: 'A bid', type: 'bid', is_archived: false },
+      {
+        id: VALID_UUID,
+        name: 'Project Alpha',
+        description: null,
+        type: 'project',
+        is_archived: false,
+      },
+      {
+        id: '00000000-0000-4000-8000-000000000002',
+        name: 'Bid Beta',
+        description: 'A bid',
+        type: 'bid',
+        is_archived: false,
+      },
     ];
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: mockWorkspaces, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: mockWorkspaces, error: null }),
     );
 
     const req = createTestRequest('/api/workspaces');
@@ -116,8 +160,8 @@ describe('GET /api/workspaces', () => {
   });
 
   it('includes archived workspaces when include_archived=true', async () => {
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const req = createTestRequest('/api/workspaces', {
@@ -134,8 +178,9 @@ describe('GET /api/workspaces', () => {
   });
 
   it('returns 500 when Supabase query fails', async () => {
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { message: 'Connection failed' } }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: { message: 'Connection failed' } }),
     );
 
     const req = createTestRequest('/api/workspaces');
@@ -500,15 +545,17 @@ describe('DELETE /api/workspaces/[id]', () => {
     // so it resolves via .then. Return count: 0 for the first call (count check),
     // then the delete also resolves via .then.
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) {
-        // Count of assigned items
-        return resolve({ data: null, error: null, count: 0 });
-      }
-      // Hard delete result
-      return resolve({ data: null, error: null });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) {
+          // Count of assigned items
+          return resolve({ data: null, error: null, count: 0 });
+        }
+        // Hard delete result
+        return resolve({ data: null, error: null });
+      },
+    );
 
     const req = createTestRequest(`/api/workspaces/${VALID_UUID}`, {
       method: 'DELETE',
@@ -529,8 +576,9 @@ describe('DELETE /api/workspaces/[id]', () => {
     configureRole(mockSupabase, 'admin');
 
     // Count of assigned items returns > 0
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null, count: 5 }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: null, count: 5 }),
     );
 
     const req = createTestRequest(`/api/workspaces/${VALID_UUID}`, {
@@ -542,7 +590,9 @@ describe('DELETE /api/workspaces/[id]', () => {
 
     expect(res.status).toBe(409);
     const json = await res.json();
-    expect(json.error).toContain('Cannot delete a workspace with assigned items');
+    expect(json.error).toContain(
+      'Cannot delete a workspace with assigned items',
+    );
   });
 });
 
@@ -588,8 +638,9 @@ describe('GET /api/workspaces/[id]/items', () => {
       },
     ];
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: mockRows, error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: mockRows, error: null }),
     );
 
     const req = createTestRequest(`/api/workspaces/${VALID_UUID}/items`);
@@ -605,8 +656,9 @@ describe('GET /api/workspaces/[id]/items', () => {
   });
 
   it('returns 500 when Supabase query fails', async () => {
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { message: 'Query failed' } }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: { message: 'Query failed' } }),
     );
 
     const req = createTestRequest(`/api/workspaces/${VALID_UUID}/items`);

@@ -20,7 +20,9 @@ const { mockFetch, mockCanEdit, mockTaxonomy } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
   mockCanEdit: { value: false },
   mockTaxonomy: {
-    value: null as ReturnType<typeof import('../helpers/mock-contexts').mockTaxonomyContext> | null,
+    value: null as ReturnType<
+      typeof import('../helpers/mock-contexts').mockTaxonomyContext
+    > | null,
   },
 }));
 
@@ -29,8 +31,18 @@ const { mockFetch, mockCanEdit, mockTaxonomy } = vi.hoisted(() => ({
 // ---------------------------------------------------------------------------
 
 vi.mock('next/link', () => ({
-  default: ({ children, href, ...props }: { children: React.ReactNode; href: string; [key: string]: unknown }) => (
-    <a href={href} {...props}>{children}</a>
+  default: ({
+    children,
+    href,
+    ...props
+  }: {
+    children: React.ReactNode;
+    href: string;
+    [key: string]: unknown;
+  }) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
   ),
 }));
 
@@ -72,8 +84,16 @@ vi.mock('@/components/guide/guide-section', () => ({
 }));
 
 vi.mock('@/components/guide/guide-progress-bar', () => ({
-  GuideProgressBar: ({ populated, total }: { populated: number; total: number }) => (
-    <div data-testid="guide-progress-bar">{populated}/{total}</div>
+  GuideProgressBar: ({
+    populated,
+    total,
+  }: {
+    populated: number;
+    total: number;
+  }) => (
+    <div data-testid="guide-progress-bar">
+      {populated}/{total}
+    </div>
   ),
 }));
 
@@ -146,7 +166,10 @@ function createRelatedGuide(overrides: Record<string, unknown> = {}) {
  * Sets up mockFetch to respond with guide data and related guides.
  */
 function setupFetchResponses(
-  guideData: { guide: ReturnType<typeof createGuideMetadata>; sections: ReturnType<typeof createSection>[] },
+  guideData: {
+    guide: ReturnType<typeof createGuideMetadata>;
+    sections: ReturnType<typeof createSection>[];
+  },
   relatedGuides: ReturnType<typeof createRelatedGuide>[] = [],
 ) {
   mockFetch
@@ -186,10 +209,18 @@ describe('GuideContent — mobile sidebar', () => {
     const guide = createGuideMetadata();
     const sections = [createSection()];
     const relatedGuides = [
-      createRelatedGuide({ id: 'r1', slug: 'alpha-guide', name: 'Alpha Guide' }),
+      createRelatedGuide({
+        id: 'r1',
+        slug: 'alpha-guide',
+        name: 'Alpha Guide',
+      }),
       createRelatedGuide({ id: 'r2', slug: 'beta-guide', name: 'Beta Guide' }),
       // Include the current guide — it should be filtered out by the component
-      createRelatedGuide({ id: 'guide-1', slug: 'test-guide', name: 'Test Guide' }),
+      createRelatedGuide({
+        id: 'guide-1',
+        slug: 'test-guide',
+        name: 'Test Guide',
+      }),
     ];
 
     setupFetchResponses({ guide, sections }, relatedGuides);
@@ -384,7 +415,10 @@ describe('GuideContent — mobile sidebar', () => {
     // Mobile accordion and Guide Info are only shown to editors
     mockCanEdit.value = true;
 
-    const guide = createGuideMetadata({ guide_type: 'research', domain_filter: 'Technical' });
+    const guide = createGuideMetadata({
+      guide_type: 'research',
+      domain_filter: 'Technical',
+    });
     const sections = [
       createSection({ section_id: 's1' }),
       createSection({ section_id: 's2' }),
@@ -449,7 +483,9 @@ describe('GuideContent — mobile sidebar', () => {
 
     render(<GuideContent slug="test-guide" />);
 
-    expect(screen.getByRole('status', { name: /loading guide/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('status', { name: /loading guide/i }),
+    ).toBeInTheDocument();
   });
 
   it('shows error state when fetch fails', async () => {

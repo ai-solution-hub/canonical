@@ -16,7 +16,9 @@ import type { ProvenanceFieldsetProps } from '@/components/create-content/proven
 // Helpers
 // ---------------------------------------------------------------------------
 
-function createDefaultProps(overrides: Partial<ProvenanceFieldsetProps> = {}): ProvenanceFieldsetProps {
+function createDefaultProps(
+  overrides: Partial<ProvenanceFieldsetProps> = {},
+): ProvenanceFieldsetProps {
   return {
     authorName: '',
     setAuthorName: vi.fn(),
@@ -37,8 +39,12 @@ function createDefaultProps(overrides: Partial<ProvenanceFieldsetProps> = {}): P
 // ---------------------------------------------------------------------------
 
 describe('ProvenanceFieldset', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
-  afterEach(() => { vi.unstubAllGlobals(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it('renders author and source URL inputs', () => {
     render(<ProvenanceFieldset {...createDefaultProps()} />);
@@ -47,7 +53,11 @@ describe('ProvenanceFieldset', () => {
   });
 
   it('renders tag badges for existing tags', () => {
-    render(<ProvenanceFieldset {...createDefaultProps({ tags: ['compliance', 'security'] })} />);
+    render(
+      <ProvenanceFieldset
+        {...createDefaultProps({ tags: ['compliance', 'security'] })}
+      />,
+    );
     expect(screen.getByText('compliance')).toBeInTheDocument();
     expect(screen.getByText('security')).toBeInTheDocument();
   });
@@ -89,7 +99,9 @@ describe('ProvenanceFieldset', () => {
 
   it('renders priority radio group', () => {
     render(<ProvenanceFieldset {...createDefaultProps()} />);
-    expect(screen.getByRole('radiogroup', { name: 'Priority' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('radiogroup', { name: 'Priority' }),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText('None')).toBeInTheDocument();
     expect(screen.getByLabelText('High')).toBeInTheDocument();
     expect(screen.getByLabelText('Medium')).toBeInTheDocument();

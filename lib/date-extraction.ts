@@ -91,14 +91,14 @@ const MONTH_PATTERN = Object.keys(MONTH_NAMES).join('|');
  * Checked within a window of text surrounding the date.
  */
 const EXPIRY_KEYWORDS = [
-  'expir',        // expires, expiry, expiration, expired
+  'expir', // expires, expiry, expiration, expired
   'valid until',
   'valid to',
   'renewal date',
   'renewal due',
   'due for renewal',
   'renew by',
-  'lapse',        // lapses, lapsed
+  'lapse', // lapses, lapsed
   'certificate valid until',
   'accreditation valid',
   'valid through',
@@ -238,7 +238,11 @@ const FALSE_POSITIVE_PATTERNS = [
  * @param matchLength - Length of the matched date string
  * @returns true if this match should be rejected as a false positive
  */
-function isFalsePositive(text: string, matchPosition: number, matchLength: number): boolean {
+function isFalsePositive(
+  text: string,
+  matchPosition: number,
+  matchLength: number,
+): boolean {
   // Use a tight window around the match — the false positive patterns should
   // overlap with the actual date text, not just be in the neighbourhood.
   // 20 chars before captures "Act ", "Regulation ", etc. that immediately
@@ -449,7 +453,8 @@ function extractRawDates(text: string): RawDateMatch[] {
   // ── Pattern 1: DD/MM/YYYY or DD-MM-YYYY ──
   // Matches: 25/03/2027, 01-12-2026, etc.
   // Negative lookbehind for digits to avoid matching mid-number sequences
-  const numericDatePattern = /(?<!\d)(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})(?!\d)/g;
+  const numericDatePattern =
+    /(?<!\d)(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})(?!\d)/g;
   let match: RegExpExecArray | null;
 
   while ((match = numericDatePattern.exec(text)) !== null) {
@@ -498,10 +503,12 @@ function extractRawDates(text: string): RawDateMatch[] {
   // Matches: 25 March 2027, 1st January 2026, 3rd Feb 2027
   const dayMonthYearPattern = new RegExp(
     '(?<![\\w])' +
-    '(\\d{1,2})(?:st|nd|rd|th)?\\s+' +                          // Day with optional ordinal
-    '(' + MONTH_PATTERN + ')' +                                  // Month name
-    '(?:[,]?\\s+)(\\d{4})' +                                     // Year (optional comma)
-    '(?![\\w])',
+      '(\\d{1,2})(?:st|nd|rd|th)?\\s+' + // Day with optional ordinal
+      '(' +
+      MONTH_PATTERN +
+      ')' + // Month name
+      '(?:[,]?\\s+)(\\d{4})' + // Year (optional comma)
+      '(?![\\w])',
     'gi',
   );
 
@@ -533,10 +540,12 @@ function extractRawDates(text: string): RawDateMatch[] {
   // Matches: March 25, 2027, January 1 2026
   const monthDayYearPattern = new RegExp(
     '(?<![\\w])' +
-    '(' + MONTH_PATTERN + ')\\s+' +                              // Month name
-    '(\\d{1,2})(?:st|nd|rd|th)?' +                               // Day with optional ordinal
-    '(?:[,]?\\s+)(\\d{4})' +                                     // Year (optional comma)
-    '(?![\\w])',
+      '(' +
+      MONTH_PATTERN +
+      ')\\s+' + // Month name
+      '(\\d{1,2})(?:st|nd|rd|th)?' + // Day with optional ordinal
+      '(?:[,]?\\s+)(\\d{4})' + // Year (optional comma)
+      '(?![\\w])',
     'gi',
   );
 
@@ -568,11 +577,13 @@ function extractRawDates(text: string): RawDateMatch[] {
   // Matches: March 2027, December 2026, Jun 2025
   // Negative lookbehind ensures we do not re-match "25 March 2027"
   const monthYearPattern = new RegExp(
-    '(?<![\\d]\\s)' +                                            // Not preceded by a day number
-    '(?<![\\w])' +
-    '(' + MONTH_PATTERN + ')\\s+' +                              // Month name
-    '(\\d{4})' +                                                 // Year
-    '(?![\\w/\\-:])',                                             // Not followed by more date chars
+    '(?<![\\d]\\s)' + // Not preceded by a day number
+      '(?<![\\w])' +
+      '(' +
+      MONTH_PATTERN +
+      ')\\s+' + // Month name
+      '(\\d{4})' + // Year
+      '(?![\\w/\\-:])', // Not followed by more date chars
     'gi',
   );
 

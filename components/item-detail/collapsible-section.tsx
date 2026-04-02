@@ -50,9 +50,15 @@ export function CollapsibleSection({
         </span>
       </button>
       {lazy ? (
-        isOpen && <div id={contentId} className={contentClassName}>{children}</div>
+        isOpen && (
+          <div id={contentId} className={contentClassName}>
+            {children}
+          </div>
+        )
       ) : (
-        <div id={contentId} className={contentClassName} hidden={!isOpen}>{children}</div>
+        <div id={contentId} className={contentClassName} hidden={!isOpen}>
+          {children}
+        </div>
       )}
     </div>
   );

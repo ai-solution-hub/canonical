@@ -76,6 +76,11 @@ export function isActive(state: BidState): boolean {
 
 // Linear progression states for the stepper display (excludes terminal branches)
 export const BID_STATE_PROGRESSION: BidState[] = [
-  'draft', 'questions_extracted', 'matching', 'drafting',
-  'in_review', 'ready_for_export', 'submitted',
+  'draft',
+  'questions_extracted',
+  'matching',
+  'drafting',
+  'in_review',
+  'ready_for_export',
+  'submitted',
 ];

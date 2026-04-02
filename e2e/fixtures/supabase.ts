@@ -12,7 +12,7 @@ export function createServiceClient(): SupabaseClient {
   if (!url || !key) {
     throw new Error(
       'Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY env vars. ' +
-        'Ensure .env.local is loaded or these are set in the environment.'
+        'Ensure .env.local is loaded or these are set in the environment.',
     );
   }
 

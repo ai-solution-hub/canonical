@@ -215,9 +215,26 @@ function setupDefaultMocks() {
   // Re-wire chain methods
   mockSupabase.from.mockReturnValue(mockSupabase._chain);
   const chainable = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const m of chainable) {
     mockSupabase._chain[m].mockReturnValue(mockSupabase._chain);
@@ -232,9 +249,8 @@ function setupDefaultMocks() {
 
   // coverage_targets query (awaited as thenable)
   mockSupabase._chain.then.mockReset();
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: TARGETS_DATA, error: null, count: TARGETS_DATA.length }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: TARGETS_DATA, error: null, count: TARGETS_DATA.length }),
   );
 
   // RPC mocks: first call = matrix, second = guide (run in Promise.all)
@@ -346,7 +362,9 @@ describe('GET /api/coverage/gaps', () => {
     const res = await GET(req);
     const body = await res.json();
 
-    const scores = body.gaps.map((g: { priority_score: number }) => g.priority_score);
+    const scores = body.gaps.map(
+      (g: { priority_score: number }) => g.priority_score,
+    );
     for (let i = 1; i < scores.length; i++) {
       expect(scores[i]).toBeLessThanOrEqual(scores[i - 1]);
     }
@@ -360,7 +378,8 @@ describe('GET /api/coverage/gaps', () => {
     for (const gap of body.gaps) {
       if (gap.priority_score >= 75) expect(gap.priority_tier).toBe('critical');
       else if (gap.priority_score >= 50) expect(gap.priority_tier).toBe('high');
-      else if (gap.priority_score >= 25) expect(gap.priority_tier).toBe('medium');
+      else if (gap.priority_score >= 25)
+        expect(gap.priority_tier).toBe('medium');
       else expect(gap.priority_tier).toBe('low');
     }
   });
@@ -370,8 +389,8 @@ describe('GET /api/coverage/gaps', () => {
     const res = await GET(req);
     const body = await res.json();
 
-    const mandatoryGap = body.gaps.find(
-      (g: { gap_key: string }) => g.gap_key.includes('req-2'),
+    const mandatoryGap = body.gaps.find((g: { gap_key: string }) =>
+      g.gap_key.includes('req-2'),
     );
     expect(mandatoryGap).toBeDefined();
     // 20 base + 15 mandatory + 10 SQ = 45
@@ -384,8 +403,8 @@ describe('GET /api/coverage/gaps', () => {
     const res = await GET(req);
     const body = await res.json();
 
-    const nullMandatoryGap = body.gaps.find(
-      (g: { gap_key: string }) => g.gap_key.includes('req-3'),
+    const nullMandatoryGap = body.gaps.find((g: { gap_key: string }) =>
+      g.gap_key.includes('req-3'),
     );
     expect(nullMandatoryGap).toBeDefined();
     // 20 base + 0 mandatory (null = false) + 10 SQ = 30
@@ -400,7 +419,9 @@ describe('GET /api/coverage/gaps', () => {
     const body = await res.json();
 
     // All returned gaps should be taxonomy
-    expect(body.gaps.every((g: { source: string }) => g.source === 'taxonomy')).toBe(true);
+    expect(
+      body.gaps.every((g: { source: string }) => g.source === 'taxonomy'),
+    ).toBe(true);
     // But summary still shows all totals
     expect(body.total_gaps).toBeGreaterThan(body.gaps.length);
   });
@@ -472,7 +493,13 @@ describe('GET /api/coverage/gaps', () => {
     mockSupabase.rpc.mockReset();
     mockSupabase.rpc
       .mockResolvedValueOnce({
-        data: [{ domain_name: 'Engineering', subtopic_name: 'DevOps', item_count: 5 }],
+        data: [
+          {
+            domain_name: 'Engineering',
+            subtopic_name: 'DevOps',
+            item_count: 5,
+          },
+        ],
         error: null,
       })
       .mockResolvedValueOnce({ data: [], error: null }); // No guide data

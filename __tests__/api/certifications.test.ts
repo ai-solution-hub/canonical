@@ -30,11 +30,31 @@ const { GET } = await import('@/app/api/certifications/route');
 // ---------------------------------------------------------------------------
 
 const MOCK_RELATIONSHIPS = [
-  { source_entity: 'Acme Corp', target_entity: 'ISO 27001', source_item_id: 'item-1' },
-  { source_entity: 'Acme Corp', target_entity: 'Cyber Essentials Plus', source_item_id: 'item-2' },
-  { source_entity: 'Acme Corp', target_entity: 'G-Cloud 14', source_item_id: 'item-3' },
-  { source_entity: 'Acme Corp', target_entity: 'ICO Registration', source_item_id: 'item-4' },
-  { source_entity: 'Supplier Co', target_entity: 'ISO 9001', source_item_id: 'item-5' },
+  {
+    source_entity: 'Acme Corp',
+    target_entity: 'ISO 27001',
+    source_item_id: 'item-1',
+  },
+  {
+    source_entity: 'Acme Corp',
+    target_entity: 'Cyber Essentials Plus',
+    source_item_id: 'item-2',
+  },
+  {
+    source_entity: 'Acme Corp',
+    target_entity: 'G-Cloud 14',
+    source_item_id: 'item-3',
+  },
+  {
+    source_entity: 'Acme Corp',
+    target_entity: 'ICO Registration',
+    source_item_id: 'item-4',
+  },
+  {
+    source_entity: 'Supplier Co',
+    target_entity: 'ISO 9001',
+    source_item_id: 'item-5',
+  },
 ];
 
 const MOCK_MENTIONS = [
@@ -131,19 +151,42 @@ beforeEach(() => {
   });
 
   const chainable = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const m of chainable) {
     mockSupabase._chain[m].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockReset().mockResolvedValue({ data: null, error: null });
-  mockSupabase._chain.maybeSingle.mockReset().mockResolvedValue({ data: null, error: null });
-  mockSupabase._chain.then.mockReset().mockImplementation(
-    (resolve: (v: unknown) => void) => resolve({ data: [], error: null, count: 0 }),
-  );
+  mockSupabase._chain.single
+    .mockReset()
+    .mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.maybeSingle
+    .mockReset()
+    .mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.then
+    .mockReset()
+    .mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({ data: [], error: null, count: 0 }),
+    );
 });
 
 // ---------------------------------------------------------------------------
@@ -165,19 +208,21 @@ function setupFullMockData() {
   // Since the chain is shared, we configure .then() to return different data
   // for each successive call
   let thenCallCount = 0;
-  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-    thenCallCount++;
-    if (thenCallCount === 1) {
-      return resolve({ data: MOCK_RELATIONSHIPS, error: null });
-    }
-    if (thenCallCount === 2) {
-      return resolve({ data: MOCK_MENTIONS, error: null });
-    }
-    if (thenCallCount === 3) {
-      return resolve({ data: MOCK_CONTENT_ITEMS, error: null });
-    }
-    return resolve({ data: [], error: null });
-  });
+  mockSupabase._chain.then.mockImplementation(
+    (resolve: (v: unknown) => void) => {
+      thenCallCount++;
+      if (thenCallCount === 1) {
+        return resolve({ data: MOCK_RELATIONSHIPS, error: null });
+      }
+      if (thenCallCount === 2) {
+        return resolve({ data: MOCK_MENTIONS, error: null });
+      }
+      if (thenCallCount === 3) {
+        return resolve({ data: MOCK_CONTENT_ITEMS, error: null });
+      }
+      return resolve({ data: [], error: null });
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -229,7 +274,9 @@ describe('GET /api/certifications', () => {
     const body = await res.json();
 
     // ISO 27001 + Cyber Essentials Plus (self) + ISO 9001 (supplier) = 3 certifications
-    const certNames = body.certifications.map((c: { canonical_name: string }) => c.canonical_name);
+    const certNames = body.certifications.map(
+      (c: { canonical_name: string }) => c.canonical_name,
+    );
     expect(certNames).toContain('ISO 27001');
     expect(certNames).toContain('Cyber Essentials Plus');
     expect(certNames).toContain('ISO 9001');
@@ -257,7 +304,8 @@ describe('GET /api/certifications', () => {
 
     // ICO Registration has no expiry_date — should be 'unknown'
     const ico = body.registrations.find(
-      (r: { canonical_name: string }) => r.canonical_name === 'ICO Registration',
+      (r: { canonical_name: string }) =>
+        r.canonical_name === 'ICO Registration',
     );
     expect(ico.expiry_status).toBe('unknown');
   });
@@ -296,9 +344,11 @@ describe('GET /api/certifications', () => {
   });
 
   it('handles database error on relationships query', async () => {
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      return resolve({ data: null, error: { message: 'Connection failed' } });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        return resolve({ data: null, error: { message: 'Connection failed' } });
+      },
+    );
 
     const res = await GET();
     expect(res.status).toBe(500);

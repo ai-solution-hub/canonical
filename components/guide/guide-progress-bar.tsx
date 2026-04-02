@@ -8,7 +8,11 @@ interface GuideProgressBarProps {
   className?: string;
 }
 
-export function GuideProgressBar({ populated, total, className }: GuideProgressBarProps) {
+export function GuideProgressBar({
+  populated,
+  total,
+  className,
+}: GuideProgressBarProps) {
   const percentage = total > 0 ? Math.round((populated / total) * 100) : 0;
   const isComplete = populated >= total;
 

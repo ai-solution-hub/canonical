@@ -1,7 +1,10 @@
 // __tests__/lib/intelligence/pipeline.test.ts
 /* eslint-disable @typescript-eslint/no-explicit-any -- mock supabase clients require flexible typing */
 import { describe, it, expect, vi } from 'vitest';
-import { processFeedSource, getDueFeedSources } from '@/lib/intelligence/pipeline';
+import {
+  processFeedSource,
+  getDueFeedSources,
+} from '@/lib/intelligence/pipeline';
 
 // Mock all dependencies
 vi.mock('@/lib/intelligence/feed-poller', () => ({
@@ -27,7 +30,9 @@ describe('getDueFeedSources', () => {
     const mockRpc = vi.fn().mockResolvedValue({ data: [], error: null });
     const mockSupabase = { rpc: mockRpc } as any;
     const result = await getDueFeedSources(mockSupabase, 5);
-    expect(mockRpc).toHaveBeenCalledWith('get_due_feed_sources', { max_sources: 5 });
+    expect(mockRpc).toHaveBeenCalledWith('get_due_feed_sources', {
+      max_sources: 5,
+    });
     expect(Array.isArray(result)).toBe(true);
   });
 });
@@ -54,7 +59,9 @@ describe('processFeedSource', () => {
           eq: vi.fn().mockResolvedValue({ error: null }),
         }),
         upsert: vi.fn().mockResolvedValue({ error: null }),
-        insert: vi.fn().mockResolvedValue({ data: [{ id: 'item-1' }], error: null }),
+        insert: vi
+          .fn()
+          .mockResolvedValue({ data: [{ id: 'item-1' }], error: null }),
       }),
     } as any;
 
@@ -77,20 +84,23 @@ describe('processFeedSource', () => {
 
   it('skips content item creation when no company profile exists', async () => {
     const { pollFeed } = await import('@/lib/intelligence/feed-poller');
-    const { extractContent } = await import('@/lib/intelligence/content-extractor');
+    const { extractContent } =
+      await import('@/lib/intelligence/content-extractor');
 
     vi.mocked(pollFeed).mockResolvedValue({
       feedSourceId: 'source-1',
       status: 'success',
-      items: [{
-        title: 'Test Article',
-        url: 'https://example.com/article',
-        guid: 'guid-1',
-        publishedAt: '2026-04-01T10:00:00Z',
-        summary: 'Summary',
-        contentEncoded: null,
-        categories: [],
-      }],
+      items: [
+        {
+          title: 'Test Article',
+          url: 'https://example.com/article',
+          guid: 'guid-1',
+          publishedAt: '2026-04-01T10:00:00Z',
+          summary: 'Summary',
+          contentEncoded: null,
+          categories: [],
+        },
+      ],
       etag: null,
       lastModified: null,
     });
@@ -120,7 +130,16 @@ describe('processFeedSource', () => {
         }),
         insert: vi.fn().mockImplementation((data: any) => {
           insertCalls.push({ table, data });
-          return { select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'fa-1' }, error: null }) }), error: null };
+          return {
+            select: vi
+              .fn()
+              .mockReturnValue({
+                single: vi
+                  .fn()
+                  .mockResolvedValue({ data: { id: 'fa-1' }, error: null }),
+              }),
+            error: null,
+          };
         }),
       })),
     } as any;
@@ -141,12 +160,16 @@ describe('processFeedSource', () => {
     await processFeedSource(mockSupabase, source, null, null);
 
     // Verify feed_articles was inserted with passed: false
-    const feedArticleInsert = insertCalls.find(c => c.table === 'feed_articles');
+    const feedArticleInsert = insertCalls.find(
+      (c) => c.table === 'feed_articles',
+    );
     expect(feedArticleInsert).toBeDefined();
     expect(feedArticleInsert.data.passed).toBe(false);
 
     // Verify content_items was NOT inserted
-    const contentItemInsert = insertCalls.find(c => c.table === 'content_items');
+    const contentItemInsert = insertCalls.find(
+      (c) => c.table === 'content_items',
+    );
     expect(contentItemInsert).toBeUndefined();
   });
 });

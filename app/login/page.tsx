@@ -6,19 +6,22 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Card,
-  CardContent,
-} from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { ArrowLeft, ChevronRight, KeyRound, Mail, Loader2 } from 'lucide-react';
 
-type LoginStep = 'email' | 'method' | 'password' | 'magic-link-sent' | 'forgot-sent';
+type LoginStep =
+  | 'email'
+  | 'method'
+  | 'password'
+  | 'magic-link-sent'
+  | 'forgot-sent';
 
 export default function LoginPage() {
   // Read redirect param for post-login navigation (e.g. OAuth consent flow)
-  const redirectTo = typeof window !== 'undefined'
-    ? new URLSearchParams(window.location.search).get('redirect')
-    : null;
+  const redirectTo =
+    typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('redirect')
+      : null;
 
   // --- State ---
   const [step, setStep] = useState<LoginStep>('email');
@@ -26,9 +29,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [resendStatus, setResendStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
+  const [resendStatus, setResendStatus] = useState<'idle' | 'sending' | 'sent'>(
+    'idle',
+  );
   const [forgotStatus, setForgotStatus] = useState<'idle' | 'sending'>('idle');
-  const [forgotResendStatus, setForgotResendStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
+  const [forgotResendStatus, setForgotResendStatus] = useState<
+    'idle' | 'sending' | 'sent'
+  >('idle');
   const [staySignedIn, setStaySignedIn] = useState(() => {
     if (typeof window === 'undefined') return true;
     const stored = localStorage.getItem('kh-stay-signed-in');
@@ -119,10 +126,12 @@ export default function LoginPage() {
 
     if (signInError) {
       if ('status' in signInError && signInError.status === 429) {
-        setError('Too many attempts. Please wait a moment before trying again.');
+        setError(
+          'Too many attempts. Please wait a moment before trying again.',
+        );
       } else {
         setError(
-          "That email and password combination didn't work. Please try again."
+          "That email and password combination didn't work. Please try again.",
         );
       }
       setIsLoading(false);
@@ -149,10 +158,12 @@ export default function LoginPage() {
 
     if (otpError) {
       if ('status' in otpError && otpError.status === 429) {
-        setError('Too many attempts. Please wait a moment before trying again.');
+        setError(
+          'Too many attempts. Please wait a moment before trying again.',
+        );
       } else {
         setError(
-          "We couldn't send the sign-in link. Please check your email address and try again."
+          "We couldn't send the sign-in link. Please check your email address and try again.",
         );
       }
       setIsLoading(false);
@@ -175,9 +186,7 @@ export default function LoginPage() {
     });
 
     if (otpError) {
-      setError(
-        "We couldn't resend the sign-in link. Please try again."
-      );
+      setError("We couldn't resend the sign-in link. Please try again.");
       setResendStatus('idle');
       return;
     }
@@ -194,7 +203,7 @@ export default function LoginPage() {
 
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(
       email,
-      { redirectTo: `${window.location.origin}/auth/callback` }
+      { redirectTo: `${window.location.origin}/auth/callback` },
     );
 
     if (resetError) {
@@ -215,13 +224,11 @@ export default function LoginPage() {
 
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(
       email,
-      { redirectTo: `${window.location.origin}/auth/callback` }
+      { redirectTo: `${window.location.origin}/auth/callback` },
     );
 
     if (resetError) {
-      setError(
-        "We couldn't resend the reset link. Please try again."
-      );
+      setError("We couldn't resend the reset link. Please try again.");
       setForgotResendStatus('idle');
       return;
     }
@@ -306,7 +313,9 @@ export default function LoginPage() {
         {renderBackButton()}
 
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Welcome back</h2>
+          <h2 className="text-lg font-semibold text-foreground">
+            Welcome back
+          </h2>
           {renderEmailDisplay()}
         </div>
 
@@ -418,7 +427,10 @@ export default function LoginPage() {
               localStorage.setItem('kh-stay-signed-in', String(value));
             }}
           />
-          <Label htmlFor="stay-signed-in" className="text-sm text-muted-foreground cursor-pointer">
+          <Label
+            htmlFor="stay-signed-in"
+            className="text-sm text-muted-foreground cursor-pointer"
+          >
             Stay signed in
           </Label>
         </div>
@@ -433,7 +445,11 @@ export default function LoginPage() {
         </button>
 
         {error && (
-          <p id="password-error" className="text-sm text-destructive" role="alert">
+          <p
+            id="password-error"
+            className="text-sm text-destructive"
+            role="alert"
+          >
             {error}
           </p>
         )}
@@ -485,7 +501,9 @@ export default function LoginPage() {
                   ? 'Sent!'
                   : 'Resend'}
             </button>
-            <span className="text-sm text-muted-foreground" aria-hidden="true">|</span>
+            <span className="text-sm text-muted-foreground" aria-hidden="true">
+              |
+            </span>
             <button
               type="button"
               onClick={() => goToStep('password')}
@@ -545,7 +563,9 @@ export default function LoginPage() {
                   ? 'Sent!'
                   : 'Resend'}
             </button>
-            <span className="text-sm text-muted-foreground" aria-hidden="true">|</span>
+            <span className="text-sm text-muted-foreground" aria-hidden="true">
+              |
+            </span>
             <button
               type="button"
               onClick={() => goToStep('password')}
@@ -566,7 +586,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background via-background to-accent/40 px-4" aria-label="Sign in to Knowledge Hub">
+    <div
+      className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background via-background to-accent/40 px-4"
+      aria-label="Sign in to Knowledge Hub"
+    >
       <div>
         {/* Brand mark — visible on all steps */}
         <div className="mb-8 text-center">

@@ -5,7 +5,12 @@
  */
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { createMcpClient, getMcpUserId, getMcpUserRole, checkMcpRole } from '@/lib/mcp/auth';
+import {
+  createMcpClient,
+  getMcpUserId,
+  getMcpUserRole,
+  checkMcpRole,
+} from '@/lib/mcp/auth';
 import type { Database } from '@/supabase/types/database.types';
 import {
   formatDeleteContent,
@@ -16,9 +21,15 @@ import type {
   GovernanceStatusItemResult,
   GovernanceStatusUpdateResult,
 } from '@/lib/mcp/formatters';
-import { type ToolExtra, toStructuredContent, getGenerateEmbedding } from './shared';
+import {
+  type ToolExtra,
+  toStructuredContent,
+  getGenerateEmbedding,
+} from './shared';
 
-export async function registerGovernanceTools(server: McpServer): Promise<void> {
+export async function registerGovernanceTools(
+  server: McpServer,
+): Promise<void> {
   // -------------------------------------------------------------------------
   // 25. delete_content_item (Write tool — editor+ only)
   // -------------------------------------------------------------------------
@@ -26,11 +37,19 @@ export async function registerGovernanceTools(server: McpServer): Promise<void> 
     'delete_content_item',
     {
       title: 'Delete or Archive Content Item',
-      description: 'Archive or permanently delete a content item. Use "archive" (soft-delete) to hide it from search and analytics while preserving history. Use "delete" (hard-delete) to permanently remove the item and its history — only for mistakes or GDPR requests. Archive requires editor role; delete requires admin role.',
+      description:
+        'Archive or permanently delete a content item. Use "archive" (soft-delete) to hide it from search and analytics while preserving history. Use "delete" (hard-delete) to permanently remove the item and its history — only for mistakes or GDPR requests. Archive requires editor role; delete requires admin role.',
       inputSchema: {
-        id: z.string().uuid().describe('The UUID of the content item to archive/delete'),
-        mode: z.enum(['archive', 'delete']).describe('Type of deletion: archive (soft) or delete (hard)'),
-        reason: z.string().describe('Explanation for the deletion (stored in audit trail)'),
+        id: z
+          .string()
+          .uuid()
+          .describe('The UUID of the content item to archive/delete'),
+        mode: z
+          .enum(['archive', 'delete'])
+          .describe('Type of deletion: archive (soft) or delete (hard)'),
+        reason: z
+          .string()
+          .describe('Explanation for the deletion (stored in audit trail)'),
       },
       annotations: {
         readOnlyHint: false,
@@ -49,7 +68,12 @@ export async function registerGovernanceTools(server: McpServer): Promise<void> 
         if (args.mode === 'delete') {
           if (role !== 'admin') {
             return {
-              content: [{ type: 'text' as const, text: 'Hard-delete requires admin role.' }],
+              content: [
+                {
+                  type: 'text' as const,
+                  text: 'Hard-delete requires admin role.',
+                },
+              ],
               isError: true,
             };
           }
@@ -57,7 +81,12 @@ export async function registerGovernanceTools(server: McpServer): Promise<void> 
           // Archive requires editor or admin
           if (role !== 'admin' && role !== 'editor') {
             return {
-              content: [{ type: 'text' as const, text: 'Archive requires editor or admin role.' }],
+              content: [
+                {
+                  type: 'text' as const,
+                  text: 'Archive requires editor or admin role.',
+                },
+              ],
               isError: true,
             };
           }
@@ -66,13 +95,17 @@ export async function registerGovernanceTools(server: McpServer): Promise<void> 
         // Fetch item first for audit logging
         const { data: item, error: fetchError } = await supabase
           .from('content_items')
-          .select('id, title, suggested_title, content, brief, detail, reference, metadata, archived_at')
+          .select(
+            'id, title, suggested_title, content, brief, detail, reference, metadata, archived_at',
+          )
           .eq('id', args.id)
           .single();
 
         if (fetchError || !item) {
           return {
-            content: [{ type: 'text' as const, text: `Item not found: ${args.id}` }],
+            content: [
+              { type: 'text' as const, text: `Item not found: ${args.id}` },
+            ],
             isError: true,
           };
         }
@@ -82,7 +115,12 @@ export async function registerGovernanceTools(server: McpServer): Promise<void> 
         // Check if already archived
         if (args.mode === 'archive' && item.archived_at) {
           return {
-            content: [{ type: 'text' as const, text: `Item "${displayTitle}" (${args.id}) is already archived.` }],
+            content: [
+              {
+                type: 'text' as const,
+                text: `Item "${displayTitle}" (${args.id}) is already archived.`,
+              },
+            ],
           };
         }
 
@@ -109,7 +147,12 @@ export async function registerGovernanceTools(server: McpServer): Promise<void> 
 
           if (updateError) {
             return {
-              content: [{ type: 'text' as const, text: `Archive failed: ${updateError.message}` }],
+              content: [
+                {
+                  type: 'text' as const,
+                  text: `Archive failed: ${updateError.message}`,
+                },
+              ],
               isError: true,
             };
           }
@@ -175,7 +218,12 @@ export async function registerGovernanceTools(server: McpServer): Promise<void> 
 
           if (deleteError) {
             return {
-              content: [{ type: 'text' as const, text: `Delete failed: ${deleteError.message}` }],
+              content: [
+                {
+                  type: 'text' as const,
+                  text: `Delete failed: ${deleteError.message}`,
+                },
+              ],
               isError: true,
             };
           }
@@ -196,11 +244,13 @@ export async function registerGovernanceTools(server: McpServer): Promise<void> 
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Operation failed: ${message}.` }],
+          content: [
+            { type: 'text' as const, text: `Operation failed: ${message}.` },
+          ],
           isError: true,
         };
       }
-    }
+    },
   );
 
   // -------------------------------------------------------------------------
@@ -210,10 +260,19 @@ export async function registerGovernanceTools(server: McpServer): Promise<void> 
     'update_governance_status',
     {
       title: 'Update Governance Status',
-      description: 'Batch publish or draft content items. Use "publish" to move draft items into the live knowledge base (generates embeddings and clears governance_review_status). Use "draft" to pull live items back to draft status. Publishing generates embeddings synchronously before making items searchable — items that fail embedding are reported but do not block other items. Requires editor or admin role.',
+      description:
+        'Batch publish or draft content items. Use "publish" to move draft items into the live knowledge base (generates embeddings and clears governance_review_status). Use "draft" to pull live items back to draft status. Publishing generates embeddings synchronously before making items searchable — items that fail embedding are reported but do not block other items. Requires editor or admin role.',
       inputSchema: {
-        item_ids: z.array(z.string().uuid()).min(1).max(50).describe('UUIDs of content items to update (1–50)'),
-        status: z.enum(['publish', 'draft']).describe('Target status: "publish" makes items live and searchable, "draft" hides them from search'),
+        item_ids: z
+          .array(z.string().uuid())
+          .min(1)
+          .max(50)
+          .describe('UUIDs of content items to update (1–50)'),
+        status: z
+          .enum(['publish', 'draft'])
+          .describe(
+            'Target status: "publish" makes items live and searchable, "draft" hides them from search',
+          ),
       },
       annotations: {
         readOnlyHint: false,
@@ -227,7 +286,12 @@ export async function registerGovernanceTools(server: McpServer): Promise<void> 
         const role = await checkMcpRole(extra.authInfo, ['admin', 'editor']);
         if (!role) {
           return {
-            content: [{ type: 'text' as const, text: 'Permission denied: editor or admin role required.' }],
+            content: [
+              {
+                type: 'text' as const,
+                text: 'Permission denied: editor or admin role required.',
+              },
+            ],
             isError: true,
           };
         }
@@ -239,19 +303,33 @@ export async function registerGovernanceTools(server: McpServer): Promise<void> 
         // Fetch all items in one query
         const { data: rows, error: fetchError } = await supabase
           .from('content_items')
-          .select('id, title, suggested_title, content, governance_review_status')
+          .select(
+            'id, title, suggested_title, content, governance_review_status',
+          )
           .in('id', args.item_ids);
 
         if (fetchError) {
           return {
-            content: [{ type: 'text' as const, text: `Failed to fetch items: ${fetchError.message}` }],
+            content: [
+              {
+                type: 'text' as const,
+                text: `Failed to fetch items: ${fetchError.message}`,
+              },
+            ],
             isError: true,
           };
         }
 
         const rowMap = new Map(
-          ((rows ?? []) as Array<{ id: string; title: string | null; suggested_title: string | null; content: string | null; governance_review_status: string | null }>)
-            .map(r => [r.id, r]),
+          (
+            (rows ?? []) as Array<{
+              id: string;
+              title: string | null;
+              suggested_title: string | null;
+              content: string | null;
+              governance_review_status: string | null;
+            }>
+          ).map((r) => [r.id, r]),
         );
 
         // Process each item
@@ -260,7 +338,12 @@ export async function registerGovernanceTools(server: McpServer): Promise<void> 
           const displayTitle = row?.title || row?.suggested_title || 'Untitled';
 
           if (!row) {
-            items.push({ id: itemId, title: 'Not found', success: false, error: 'Item not found' });
+            items.push({
+              id: itemId,
+              title: 'Not found',
+              success: false,
+              error: 'Item not found',
+            });
             continue;
           }
 
@@ -272,11 +355,22 @@ export async function registerGovernanceTools(server: McpServer): Promise<void> 
               let embedding: number[] | null = null;
               try {
                 const generateEmbedding = await getGenerateEmbedding();
-                const textForEmbedding = (row.title || row.suggested_title || '') + ' ' + (row.content ?? '').slice(0, 5000);
+                const textForEmbedding =
+                  (row.title || row.suggested_title || '') +
+                  ' ' +
+                  (row.content ?? '').slice(0, 5000);
                 embedding = await generateEmbedding(textForEmbedding);
               } catch (embErr) {
-                const embMsg = embErr instanceof Error ? embErr.message : 'Unknown embedding error';
-                items.push({ id: itemId, title: displayTitle, success: false, error: `Embedding failed: ${embMsg}` });
+                const embMsg =
+                  embErr instanceof Error
+                    ? embErr.message
+                    : 'Unknown embedding error';
+                items.push({
+                  id: itemId,
+                  title: displayTitle,
+                  success: false,
+                  error: `Embedding failed: ${embMsg}`,
+                });
                 continue;
               }
 
@@ -291,7 +385,12 @@ export async function registerGovernanceTools(server: McpServer): Promise<void> 
                 .eq('id', itemId);
 
               if (updateError) {
-                items.push({ id: itemId, title: displayTitle, success: false, error: updateError.message });
+                items.push({
+                  id: itemId,
+                  title: displayTitle,
+                  success: false,
+                  error: updateError.message,
+                });
                 continue;
               }
             } else {
@@ -305,7 +404,12 @@ export async function registerGovernanceTools(server: McpServer): Promise<void> 
                 .eq('id', itemId);
 
               if (updateError) {
-                items.push({ id: itemId, title: displayTitle, success: false, error: updateError.message });
+                items.push({
+                  id: itemId,
+                  title: displayTitle,
+                  success: false,
+                  error: updateError.message,
+                });
                 continue;
               }
             }
@@ -327,21 +431,28 @@ export async function registerGovernanceTools(server: McpServer): Promise<void> 
               title: displayTitle,
               content: row.content || '',
               change_type: changeType,
-              change_summary: args.status === 'publish'
-                ? 'Item published from draft to live'
-                : 'Item moved to draft status',
+              change_summary:
+                args.status === 'publish'
+                  ? 'Item published from draft to live'
+                  : 'Item moved to draft status',
               created_by: userId,
             });
 
             items.push({ id: itemId, title: displayTitle, success: true });
           } catch (itemErr) {
-            const msg = itemErr instanceof Error ? itemErr.message : 'Unknown error';
-            items.push({ id: itemId, title: displayTitle, success: false, error: msg });
+            const msg =
+              itemErr instanceof Error ? itemErr.message : 'Unknown error';
+            items.push({
+              id: itemId,
+              title: displayTitle,
+              success: false,
+              error: msg,
+            });
           }
         }
 
-        const succeeded = items.filter(i => i.success).length;
-        const failed = items.filter(i => !i.success).length;
+        const succeeded = items.filter((i) => i.success).length;
+        const failed = items.filter((i) => !i.success).length;
 
         const result: GovernanceStatusUpdateResult = {
           action: args.status,
@@ -359,7 +470,12 @@ export async function registerGovernanceTools(server: McpServer): Promise<void> 
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Governance status update failed: ${message}. Ensure you have editor or admin permissions.` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Governance status update failed: ${message}. Ensure you have editor or admin permissions.`,
+            },
+          ],
           isError: true,
         };
       }

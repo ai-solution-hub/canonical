@@ -1,5 +1,10 @@
 /* eslint-disable react-hooks/rules-of-hooks -- Playwright fixture `use()` is not a React hook */
-import { test as base, expect, type Page, type BrowserContext } from '@playwright/test';
+import {
+  test as base,
+  expect,
+  type Page,
+  type BrowserContext,
+} from '@playwright/test';
 
 type AuthFixtures = {
   /** A page with an authenticated admin session (default). */
@@ -25,7 +30,9 @@ export const test = base.extend<AuthFixtures>({
     // Storage state is already loaded by the project config —
     // just navigate to the app.
     await page.goto('/');
-    await expect(page.getByRole('link', { name: 'Knowledge Hub' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('link', { name: 'Knowledge Hub' })).toBeVisible(
+      { timeout: 10000 },
+    );
     await use(page);
   },
 
@@ -35,7 +42,9 @@ export const test = base.extend<AuthFixtures>({
     });
     const page = await ctx.newPage();
     await page.goto('/');
-    await expect(page.getByRole('link', { name: 'Knowledge Hub' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('link', { name: 'Knowledge Hub' })).toBeVisible(
+      { timeout: 10000 },
+    );
     await use(page);
     await ctx.close();
   },
@@ -46,7 +55,9 @@ export const test = base.extend<AuthFixtures>({
     });
     const page = await ctx.newPage();
     await page.goto('/');
-    await expect(page.getByRole('link', { name: 'Knowledge Hub' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('link', { name: 'Knowledge Hub' })).toBeVisible(
+      { timeout: 10000 },
+    );
     await use(page);
     await ctx.close();
   },

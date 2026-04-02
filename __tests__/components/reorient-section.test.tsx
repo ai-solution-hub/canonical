@@ -8,7 +8,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { ReorientData, UrgentItem, TeamChange, RecentWorkItem } from '@/types/reorient';
+import type {
+  ReorientData,
+  UrgentItem,
+  TeamChange,
+  RecentWorkItem,
+} from '@/types/reorient';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -55,10 +60,14 @@ vi.mock('@/lib/format', () => ({
 const sessionStorageMap = new Map<string, string>();
 const mockSessionStorage = {
   getItem: vi.fn((key: string) => sessionStorageMap.get(key) ?? null),
-  setItem: vi.fn((key: string, value: string) => sessionStorageMap.set(key, value)),
+  setItem: vi.fn((key: string, value: string) =>
+    sessionStorageMap.set(key, value),
+  ),
   removeItem: vi.fn((key: string) => sessionStorageMap.delete(key)),
   clear: vi.fn(() => sessionStorageMap.clear()),
-  get length() { return sessionStorageMap.size; },
+  get length() {
+    return sessionStorageMap.size;
+  },
   key: vi.fn(() => null),
 };
 
@@ -103,7 +112,9 @@ function makeTeamChange(overrides: Partial<TeamChange> = {}): TeamChange {
   };
 }
 
-function makeRecentWork(overrides: Partial<RecentWorkItem> = {}): RecentWorkItem {
+function makeRecentWork(
+  overrides: Partial<RecentWorkItem> = {},
+): RecentWorkItem {
   return {
     entity_type: 'content_item',
     entity_id: 'item-10',
@@ -153,18 +164,26 @@ beforeEach(() => {
 describe('ReorientSection', () => {
   it('has aria-label="Personal briefing"', () => {
     render(<ReorientSection data={makeReorientData()} />);
-    expect(screen.getByRole('region', { name: /personal briefing/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', { name: /personal briefing/i }),
+    ).toBeInTheDocument();
   });
 
   it('renders welcome greeting with user name', () => {
-    render(<ReorientSection data={makeReorientData({ user_display_name: 'Liam' })} />);
+    render(
+      <ReorientSection
+        data={makeReorientData({ user_display_name: 'Liam' })}
+      />,
+    );
     // The greeting includes the name
     const statusEl = screen.getByRole('status');
     expect(statusEl.textContent).toContain('Liam');
   });
 
   it('renders greeting without name when user_display_name is null', () => {
-    render(<ReorientSection data={makeReorientData({ user_display_name: null })} />);
+    render(
+      <ReorientSection data={makeReorientData({ user_display_name: null })} />,
+    );
     const statusEl = screen.getByRole('status');
     // Should have the greeting but not ", null"
     expect(statusEl.textContent).not.toContain('null');
@@ -172,7 +191,11 @@ describe('ReorientSection', () => {
   });
 
   it('includes last active time in greeting', () => {
-    render(<ReorientSection data={makeReorientData({ last_active_relative: '3 hours ago' })} />);
+    render(
+      <ReorientSection
+        data={makeReorientData({ last_active_relative: '3 hours ago' })}
+      />,
+    );
     const statusEl = screen.getByRole('status');
     expect(statusEl.textContent).toContain('3 hours ago');
   });
@@ -196,13 +219,19 @@ describe('ReorientSection', () => {
     render(<ReorientSection data={data} />);
     expect(screen.getByText('Needs your attention')).toBeInTheDocument();
     expect(screen.getByText('Bid A — deadline passed')).toBeInTheDocument();
-    expect(screen.getByText('5 content items need refreshing')).toBeInTheDocument();
+    expect(
+      screen.getByText('5 content items need refreshing'),
+    ).toBeInTheDocument();
   });
 
   it('renders urgent items in priority order (as provided by data)', () => {
     const data = makeReorientData({
       urgent: [
-        makeUrgentItem({ title: 'Priority 1 Item', priority: 1, entity_id: 'e1' }),
+        makeUrgentItem({
+          title: 'Priority 1 Item',
+          priority: 1,
+          entity_id: 'e1',
+        }),
         makeUrgentItem({
           type: 'content_expired',
           title: 'Priority 2 Item',
@@ -220,9 +249,13 @@ describe('ReorientSection', () => {
 
     render(<ReorientSection data={data} />);
 
-    const items = screen.getAllByRole('link').filter(
-      (link) => link.getAttribute('aria-label')?.includes('Priority') && link.getAttribute('aria-label')?.includes(' — '),
-    );
+    const items = screen
+      .getAllByRole('link')
+      .filter(
+        (link) =>
+          link.getAttribute('aria-label')?.includes('Priority') &&
+          link.getAttribute('aria-label')?.includes(' — '),
+      );
     expect(items).toHaveLength(3);
     // Order should match input (which is already sorted by priority)
     expect(items[0].textContent).toContain('Priority 1');
@@ -260,7 +293,11 @@ describe('ReorientSection', () => {
   it('renders team changes block when changes exist', () => {
     const data = makeReorientData({
       team_changes: [
-        makeTeamChange({ user_id: 'user-a', action: 'updated', domain: 'Corporate' }),
+        makeTeamChange({
+          user_id: 'user-a',
+          action: 'updated',
+          domain: 'Corporate',
+        }),
       ],
     });
 
@@ -282,7 +319,10 @@ describe('ReorientSection', () => {
   it('renders recent work block when items exist', () => {
     const data = makeReorientData({
       my_recent_work: [
-        makeRecentWork({ entity_title: 'My Draft Article', href: '/item/item-20' }),
+        makeRecentWork({
+          entity_title: 'My Draft Article',
+          href: '/item/item-20',
+        }),
       ],
     });
 
@@ -295,13 +335,18 @@ describe('ReorientSection', () => {
     const data = makeReorientData({ my_recent_work: [] });
 
     render(<ReorientSection data={data} />);
-    expect(screen.queryByText('Pick up where you left off')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Pick up where you left off'),
+    ).not.toBeInTheDocument();
   });
 
   it('recent work items link to correct hrefs', () => {
     const data = makeReorientData({
       my_recent_work: [
-        makeRecentWork({ entity_title: 'Linked Article', href: '/item/item-55' }),
+        makeRecentWork({
+          entity_title: 'Linked Article',
+          href: '/item/item-55',
+        }),
       ],
     });
 
@@ -340,9 +385,7 @@ describe('ReorientSection', () => {
     });
 
     render(<ReorientSection data={data} />);
-    expect(
-      screen.getByText(/everything looks good/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/everything looks good/i)).toBeInTheDocument();
   });
 
   it('does not show empty state when urgent items exist', () => {
@@ -353,7 +396,9 @@ describe('ReorientSection', () => {
     });
 
     render(<ReorientSection data={data} />);
-    expect(screen.queryByText(/everything looks good/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/everything looks good/i),
+    ).not.toBeInTheDocument();
   });
 
   // ── First-login empty state ──
@@ -368,9 +413,7 @@ describe('ReorientSection', () => {
     });
 
     render(<ReorientSection data={data} />);
-    expect(
-      screen.getByText(/welcome to knowledge hub/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/welcome to knowledge hub/i)).toBeInTheDocument();
     expect(
       screen.queryByText(/everything looks good/i),
     ).not.toBeInTheDocument();
@@ -385,9 +428,7 @@ describe('ReorientSection', () => {
     });
 
     render(<ReorientSection data={data} />);
-    expect(
-      screen.getByText(/everything looks good/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/everything looks good/i)).toBeInTheDocument();
     expect(
       screen.queryByText(/welcome to knowledge hub/i),
     ).not.toBeInTheDocument();
@@ -403,13 +444,19 @@ describe('ReorientSection', () => {
     });
 
     render(<ReorientSection data={data} />);
-    expect(screen.getByRole('region', { name: /personal briefing/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', { name: /personal briefing/i }),
+    ).toBeInTheDocument();
 
-    const dismissBtn = screen.getByRole('button', { name: /dismiss briefing/i });
+    const dismissBtn = screen.getByRole('button', {
+      name: /dismiss briefing/i,
+    });
     await user.click(dismissBtn);
 
     // Section should no longer be in the document
-    expect(screen.queryByRole('region', { name: /personal briefing/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('region', { name: /personal briefing/i }),
+    ).not.toBeInTheDocument();
 
     // sessionStorage should be updated
     expect(mockSessionStorage.setItem).toHaveBeenCalledWith(
@@ -422,6 +469,8 @@ describe('ReorientSection', () => {
     sessionStorageMap.set('reorient-dismissed', '2026-03-08T10:00:00.000Z');
 
     render(<ReorientSection data={makeReorientData()} />);
-    expect(screen.queryByRole('region', { name: /personal briefing/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('region', { name: /personal briefing/i }),
+    ).not.toBeInTheDocument();
   });
 });

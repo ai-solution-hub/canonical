@@ -40,9 +40,13 @@ export async function registerAppTools(server: McpServer): Promise<void> {
     'show_coverage_matrix',
     {
       title: 'Show Coverage Matrix',
-      description: 'Display an interactive coverage matrix showing taxonomy domains, freshness breakdown, quality issues, and gaps. This tool renders a visual grid inside the conversation. Use it when the user asks to see coverage, analyse gaps, or wants a visual overview of knowledge base health.',
+      description:
+        'Display an interactive coverage matrix showing taxonomy domains, freshness breakdown, quality issues, and gaps. This tool renders a visual grid inside the conversation. Use it when the user asks to see coverage, analyse gaps, or wants a visual overview of knowledge base health.',
       inputSchema: {
-        include_gaps: z.boolean().optional().describe('Whether to include gap analysis (default: true)'),
+        include_gaps: z
+          .boolean()
+          .optional()
+          .describe('Whether to include gap analysis (default: true)'),
       },
       annotations: {
         readOnlyHint: true,
@@ -62,11 +66,20 @@ export async function registerAppTools(server: McpServer): Promise<void> {
 
         // Aggregate data from multiple sources
         const { fetchUnifiedDashboardData } = await getDashboardModule();
-        const dashData = await fetchUnifiedDashboardData(supabase, userId, isAdmin, role);
+        const dashData = await fetchUnifiedDashboardData(
+          supabase,
+          userId,
+          isAdmin,
+          role,
+        );
 
         // Freshness breakdown
         const freshness = dashData.freshness_summary;
-        const totalItems = freshness.fresh + freshness.aging + freshness.stale + freshness.expired;
+        const totalItems =
+          freshness.fresh +
+          freshness.aging +
+          freshness.stale +
+          freshness.expired;
 
         // Domain-level freshness breakdown — query content_items
         const { data: items } = await supabase
@@ -86,13 +99,20 @@ export async function registerAppTools(server: McpServer): Promise<void> {
 
         // Build domain name -> subtopics map
         const domainMap = new Map<string, string>();
-        for (const d of (taxonomyDomains ?? []) as unknown as Array<{ id: string; name: string }>) {
+        for (const d of (taxonomyDomains ?? []) as unknown as Array<{
+          id: string;
+          name: string;
+        }>) {
           domainMap.set(d.id, d.name);
         }
 
         // Group subtopics by domain
         const subtopicsByDomain = new Map<string, Array<{ name: string }>>();
-        for (const st of (taxonomySubtopics ?? []) as unknown as Array<{ id: string; name: string; domain_id: string }>) {
+        for (const st of (taxonomySubtopics ?? []) as unknown as Array<{
+          id: string;
+          name: string;
+          domain_id: string;
+        }>) {
           const domainName = domainMap.get(st.domain_id);
           if (!domainName) continue;
           const existing = subtopicsByDomain.get(domainName) ?? [];
@@ -101,8 +121,18 @@ export async function registerAppTools(server: McpServer): Promise<void> {
         }
 
         // Count items per domain+subtopic+freshness
-        type ItemRow = { primary_domain: string | null; primary_subtopic: string | null; freshness: string | null };
-        type FreshnessCounts = { total: number; fresh: number; aging: number; stale: number; expired: number };
+        type ItemRow = {
+          primary_domain: string | null;
+          primary_subtopic: string | null;
+          freshness: string | null;
+        };
+        type FreshnessCounts = {
+          total: number;
+          fresh: number;
+          aging: number;
+          stale: number;
+          expired: number;
+        };
         const domainCounts = new Map<string, FreshnessCounts>();
         const subtopicCounts = new Map<string, FreshnessCounts>();
 
@@ -110,7 +140,13 @@ export async function registerAppTools(server: McpServer): Promise<void> {
           if (!item.primary_domain) continue;
 
           // Domain level
-          const dc = domainCounts.get(item.primary_domain) ?? { total: 0, fresh: 0, aging: 0, stale: 0, expired: 0 };
+          const dc = domainCounts.get(item.primary_domain) ?? {
+            total: 0,
+            fresh: 0,
+            aging: 0,
+            stale: 0,
+            expired: 0,
+          };
           dc.total++;
           if (item.freshness === 'fresh') dc.fresh++;
           else if (item.freshness === 'aging') dc.aging++;
@@ -121,7 +157,13 @@ export async function registerAppTools(server: McpServer): Promise<void> {
           // Subtopic level
           if (item.primary_subtopic) {
             const stKey = `${item.primary_domain}|${item.primary_subtopic}`;
-            const sc = subtopicCounts.get(stKey) ?? { total: 0, fresh: 0, aging: 0, stale: 0, expired: 0 };
+            const sc = subtopicCounts.get(stKey) ?? {
+              total: 0,
+              fresh: 0,
+              aging: 0,
+              stale: 0,
+              expired: 0,
+            };
             sc.total++;
             if (item.freshness === 'fresh') sc.fresh++;
             else if (item.freshness === 'aging') sc.aging++;
@@ -133,25 +175,46 @@ export async function registerAppTools(server: McpServer): Promise<void> {
 
         // Build domains array
         const domains: CoverageMatrixData['domains'] = [];
-        const allDomainNames = [...new Set([
-          ...((taxonomyDomains ?? []) as unknown as Array<{ name: string }>).map(d => d.name),
-          ...domainCounts.keys(),
-        ])];
+        const allDomainNames = [
+          ...new Set([
+            ...(
+              (taxonomyDomains ?? []) as unknown as Array<{ name: string }>
+            ).map((d) => d.name),
+            ...domainCounts.keys(),
+          ]),
+        ];
 
         // Sort by taxonomy display_order
         const domainOrder = new Map<string, number>();
-        for (const d of (taxonomyDomains ?? []) as unknown as Array<{ name: string; display_order: number }>) {
+        for (const d of (taxonomyDomains ?? []) as unknown as Array<{
+          name: string;
+          display_order: number;
+        }>) {
           domainOrder.set(d.name, d.display_order);
         }
-        allDomainNames.sort((a, b) => (domainOrder.get(a) ?? 999) - (domainOrder.get(b) ?? 999));
+        allDomainNames.sort(
+          (a, b) => (domainOrder.get(a) ?? 999) - (domainOrder.get(b) ?? 999),
+        );
 
         for (const domainName of allDomainNames) {
-          const dc = domainCounts.get(domainName) ?? { total: 0, fresh: 0, aging: 0, stale: 0, expired: 0 };
+          const dc = domainCounts.get(domainName) ?? {
+            total: 0,
+            fresh: 0,
+            aging: 0,
+            stale: 0,
+            expired: 0,
+          };
           const subtopics = subtopicsByDomain.get(domainName) ?? [];
 
-          const subtopicData = subtopics.map(st => {
+          const subtopicData = subtopics.map((st) => {
             const stKey = `${domainName}|${st.name}`;
-            const sc = subtopicCounts.get(stKey) ?? { total: 0, fresh: 0, aging: 0, stale: 0, expired: 0 };
+            const sc = subtopicCounts.get(stKey) ?? {
+              total: 0,
+              fresh: 0,
+              aging: 0,
+              stale: 0,
+              expired: 0,
+            };
             return {
               name: st.name,
               total_items: sc.total,
@@ -182,14 +245,17 @@ export async function registerAppTools(server: McpServer): Promise<void> {
         const qualityByType: Record<string, number> = {};
         let totalFlagged = 0;
         for (const row of (qualityData ?? []) as Array<{ flag_type: string }>) {
-          qualityByType[row.flag_type] = (qualityByType[row.flag_type] ?? 0) + 1;
+          qualityByType[row.flag_type] =
+            (qualityByType[row.flag_type] ?? 0) + 1;
           totalFlagged++;
         }
 
         // Coverage targets
         const { data: targetRows } = await supabase
           .from('coverage_targets')
-          .select('domain_id, metric_name, target_value, taxonomy_domains(name)')
+          .select(
+            'domain_id, metric_name, target_value, taxonomy_domains(name)',
+          )
           .order('domain_id');
 
         type TargetRow = {
@@ -219,15 +285,38 @@ export async function registerAppTools(server: McpServer): Promise<void> {
         if (includeGaps) {
           for (const domain of domains) {
             if (domain.total_items === 0) {
-              gaps.push({ domain: domain.name, subtopic: null, item_count: 0, issue: 'empty' });
+              gaps.push({
+                domain: domain.name,
+                subtopic: null,
+                item_count: 0,
+                issue: 'empty',
+              });
             }
             for (const st of domain.subtopics) {
               if (st.total_items === 0) {
-                gaps.push({ domain: domain.name, subtopic: st.name, item_count: 0, issue: 'empty' });
+                gaps.push({
+                  domain: domain.name,
+                  subtopic: st.name,
+                  item_count: 0,
+                  issue: 'empty',
+                });
               } else if (st.total_items < 3) {
-                gaps.push({ domain: domain.name, subtopic: st.name, item_count: st.total_items, issue: 'thin' });
-              } else if (st.stale + st.expired === st.total_items && st.total_items > 0) {
-                gaps.push({ domain: domain.name, subtopic: st.name, item_count: st.total_items, issue: 'stale_only' });
+                gaps.push({
+                  domain: domain.name,
+                  subtopic: st.name,
+                  item_count: st.total_items,
+                  issue: 'thin',
+                });
+              } else if (
+                st.stale + st.expired === st.total_items &&
+                st.total_items > 0
+              ) {
+                gaps.push({
+                  domain: domain.name,
+                  subtopic: st.name,
+                  item_count: st.total_items,
+                  issue: 'stale_only',
+                });
               }
             }
           }
@@ -272,34 +361,51 @@ export async function registerAppTools(server: McpServer): Promise<void> {
             if (domain) {
               if (target.metric_name === 'item_count') {
                 current = String(domain.total_items);
-                status = domain.total_items >= target.target_value ? 'On track' : 'Below target';
+                status =
+                  domain.total_items >= target.target_value
+                    ? 'On track'
+                    : 'Below target';
               } else if (target.metric_name === 'fresh_pct') {
                 const totalDomain = domain.total_items || 1;
                 const freshPct = Math.round((domain.fresh / totalDomain) * 100);
                 current = `${freshPct}%`;
-                status = freshPct >= target.target_value ? 'On track' : 'Below target';
+                status =
+                  freshPct >= target.target_value ? 'On track' : 'Below target';
               } else if (target.metric_name === 'max_expired') {
                 current = String(domain.expired);
-                status = domain.expired <= target.target_value ? 'On track' : 'Below target';
+                status =
+                  domain.expired <= target.target_value
+                    ? 'On track'
+                    : 'Below target';
               }
             }
             const metricLabel = target.metric_name.replace(/_/g, ' ');
-            const targetDisplay = target.metric_name === 'fresh_pct'
-              ? `${target.target_value}%`
-              : String(target.target_value);
-            targetLines.push(`| ${target.domain_name} | ${metricLabel} | ${targetDisplay} | ${current} | ${status} |`);
+            const targetDisplay =
+              target.metric_name === 'fresh_pct'
+                ? `${target.target_value}%`
+                : String(target.target_value);
+            targetLines.push(
+              `| ${target.domain_name} | ${metricLabel} | ${targetDisplay} | ${current} | ${status} |`,
+            );
           }
           markdown += targetLines.join('\n');
         }
 
         return {
-          content: [{ type: 'text' as const, text: truncateResponse(markdown) }],
+          content: [
+            { type: 'text' as const, text: truncateResponse(markdown) },
+          ],
           structuredContent: toStructuredContent(structuredData),
         };
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Coverage matrix failed: ${message}.` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Coverage matrix failed: ${message}.`,
+            },
+          ],
           isError: true,
         };
       }
@@ -315,9 +421,16 @@ export async function registerAppTools(server: McpServer): Promise<void> {
     'show_bid_dashboard',
     {
       title: 'Show Bid Dashboard',
-      description: 'Display an interactive bid dashboard showing active bids with progress bars, deadline countdowns, and question completion stats. This tool renders a visual dashboard inside the conversation. Use it when the user asks about bid status, pipeline overview, or wants to see all active bids at a glance.',
+      description:
+        'Display an interactive bid dashboard showing active bids with progress bars, deadline countdowns, and question completion stats. This tool renders a visual dashboard inside the conversation. Use it when the user asks about bid status, pipeline overview, or wants to see all active bids at a glance.',
       inputSchema: {
-        bid_id: z.string().uuid().optional().describe('Optionally focus on a specific bid (auto-expands that card)'),
+        bid_id: z
+          .string()
+          .uuid()
+          .optional()
+          .describe(
+            'Optionally focus on a specific bid (auto-expands that card)',
+          ),
       },
       annotations: {
         readOnlyHint: true,
@@ -336,7 +449,12 @@ export async function registerAppTools(server: McpServer): Promise<void> {
 
         // Fetch active bids
         const { fetchUnifiedDashboardData } = await getDashboardModule();
-        const dashData = await fetchUnifiedDashboardData(supabase, userId, isAdmin, role);
+        const dashData = await fetchUnifiedDashboardData(
+          supabase,
+          userId,
+          isAdmin,
+          role,
+        );
         const bids = dashData.active_bids as ActiveBidSummary[];
 
         const result: BidDashboardData = {
@@ -344,7 +462,7 @@ export async function registerAppTools(server: McpServer): Promise<void> {
           count: bids.length,
           total_count: bids.length,
           has_more: false,
-          bids: bids.map(bid => ({
+          bids: bids.map((bid) => ({
             id: bid.id,
             name: bid.name,
             buyer: bid.buyer,
@@ -367,24 +485,29 @@ export async function registerAppTools(server: McpServer): Promise<void> {
             .single();
 
           if (workspace) {
-            const { data: stats } = await supabase.rpc('get_bid_question_stats', {
-              p_project_id: args.bid_id,
-            });
-            const { sections, status_breakdown, confidence_breakdown } = await fetchBidSections(supabase, args.bid_id);
+            const { data: stats } = await supabase.rpc(
+              'get_bid_question_stats',
+              {
+                p_project_id: args.bid_id,
+              },
+            );
+            const { sections, status_breakdown, confidence_breakdown } =
+              await fetchBidSections(supabase, args.bid_id);
             const meta = parseBidMetadata(workspace.domain_metadata);
-            (result as unknown as Record<string, unknown>).focused_bid_detail = {
-              id: workspace.id,
-              name: workspace.name ?? 'Untitled Bid',
-              buyer: meta?.buyer ?? null,
-              status: meta?.status ?? 'draft',
-              deadline: meta?.deadline ?? null,
-              reference_number: meta?.reference_number ?? null,
-              description: workspace.description,
-              question_stats: stats?.[0] ?? null,
-              sections,
-              status_breakdown,
-              confidence_breakdown,
-            };
+            (result as unknown as Record<string, unknown>).focused_bid_detail =
+              {
+                id: workspace.id,
+                name: workspace.name ?? 'Untitled Bid',
+                buyer: meta?.buyer ?? null,
+                status: meta?.status ?? 'draft',
+                deadline: meta?.deadline ?? null,
+                reference_number: meta?.reference_number ?? null,
+                description: workspace.description,
+                question_stats: stats?.[0] ?? null,
+                sections,
+                status_breakdown,
+                confidence_breakdown,
+              };
           }
         }
 
@@ -396,7 +519,12 @@ export async function registerAppTools(server: McpServer): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Bid dashboard failed: ${message}.` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Bid dashboard failed: ${message}.`,
+            },
+          ],
           isError: true,
         };
       }
@@ -412,7 +540,8 @@ export async function registerAppTools(server: McpServer): Promise<void> {
     'show_reorient_me',
     {
       title: 'Show Reorient Me',
-      description: 'Display an interactive personal briefing showing what has changed since your last visit, urgent items needing attention, team activity, and active bid status. This tool renders a visual briefing inside the conversation. Use it when the user says "reorient me", "catch me up", "what did I miss?", "what should I focus on?", or wants a personal briefing.',
+      description:
+        'Display an interactive personal briefing showing what has changed since your last visit, urgent items needing attention, team activity, and active bid status. This tool renders a visual briefing inside the conversation. Use it when the user says "reorient me", "catch me up", "what did I miss?", "what should I focus on?", or wants a personal briefing.',
       inputSchema: {},
       annotations: {
         readOnlyHint: true,
@@ -429,13 +558,14 @@ export async function registerAppTools(server: McpServer): Promise<void> {
         const role = await getMcpUserRole(extra.authInfo!);
         const isAdmin = role === 'admin';
 
-        const { fetchReorientData, resolveDisplayNames } = await getReorientModule();
+        const { fetchReorientData, resolveDisplayNames } =
+          await getReorientModule();
         const data = await fetchReorientData(supabase, userId, isAdmin, role);
 
         // Resolve team member display names server-side
         // Note: resolveDisplayNames creates its own service-role client internally
         // — the user-scoped MCP client cannot access auth.admin
-        const userIds = data.team_changes.map(c => c.user_id).filter(Boolean);
+        const userIds = data.team_changes.map((c) => c.user_id).filter(Boolean);
         const displayNames = await resolveDisplayNames(userIds);
         for (const change of data.team_changes) {
           if (change.user_id && displayNames.has(change.user_id)) {
@@ -451,7 +581,9 @@ export async function registerAppTools(server: McpServer): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Reorient Me failed: ${message}.` }],
+          content: [
+            { type: 'text' as const, text: `Reorient Me failed: ${message}.` },
+          ],
           isError: true,
         };
       }

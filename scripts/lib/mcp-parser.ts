@@ -164,7 +164,10 @@ function findRegistrationBlocks(
  * Extract a string literal value (single-quoted, double-quoted, or backtick).
  * Returns the content without quotes.
  */
-function extractStringLiteral(source: string, startIndex: number): string | null {
+function extractStringLiteral(
+  source: string,
+  startIndex: number,
+): string | null {
   let i = startIndex;
   // Skip whitespace
   while (i < source.length && /\s/.test(source[i])) i++;
@@ -242,7 +245,10 @@ function extractPropertyString(block: string, propName: string): string | null {
 /**
  * Extract boolean property from a block.
  */
-function extractPropertyBoolean(block: string, propName: string): boolean | undefined {
+function extractPropertyBoolean(
+  block: string,
+  propName: string,
+): boolean | undefined {
   const regex = new RegExp(`${propName}\\s*:\\s*(true|false)`);
   const match = regex.exec(block);
   if (!match) return undefined;
@@ -336,13 +342,19 @@ export function parseZodSchema(schemaSource: string): ParamEntry[] {
     let description = '';
     const descIdx = outerChain.indexOf('.describe(');
     if (descIdx !== -1) {
-      const descStr = extractStringLiteral(outerChain, descIdx + '.describe('.length);
+      const descStr = extractStringLiteral(
+        outerChain,
+        descIdx + '.describe('.length,
+      );
       if (descStr) description = descStr;
     } else {
       // Fall back: sometimes .describe() is part of a chained call inside the base
       const fullDescIdx = fullChain.lastIndexOf('.describe(');
       if (fullDescIdx !== -1) {
-        const descStr = extractStringLiteral(fullChain, fullDescIdx + '.describe('.length);
+        const descStr = extractStringLiteral(
+          fullChain,
+          fullDescIdx + '.describe('.length,
+        );
         if (descStr) description = descStr;
       }
     }
@@ -500,7 +512,11 @@ export function parseToolFile(source: string, filename: string): ToolEntry[] {
 /**
  * Parse a single tool registration block.
  */
-function parseToolBlock(block: string, filename: string, isAppTool: boolean): ToolEntry | null {
+function parseToolBlock(
+  block: string,
+  filename: string,
+  isAppTool: boolean,
+): ToolEntry | null {
   // For app tools, the first arg is 'server', then the name
   // For standard tools, the first arg is the name
   let nameSearchBlock = block;
@@ -554,10 +570,22 @@ function parseToolBlock(block: string, filename: string, isAppTool: boolean): To
     const braceIdx = afterAnnot.indexOf('{');
     if (braceIdx !== -1) {
       const annotBlock = extractBalancedBlock(afterAnnot, braceIdx + 1);
-      annotations.readOnlyHint = extractPropertyBoolean(annotBlock, 'readOnlyHint');
-      annotations.idempotentHint = extractPropertyBoolean(annotBlock, 'idempotentHint');
-      annotations.destructiveHint = extractPropertyBoolean(annotBlock, 'destructiveHint');
-      annotations.openWorldHint = extractPropertyBoolean(annotBlock, 'openWorldHint');
+      annotations.readOnlyHint = extractPropertyBoolean(
+        annotBlock,
+        'readOnlyHint',
+      );
+      annotations.idempotentHint = extractPropertyBoolean(
+        annotBlock,
+        'idempotentHint',
+      );
+      annotations.destructiveHint = extractPropertyBoolean(
+        annotBlock,
+        'destructiveHint',
+      );
+      annotations.openWorldHint = extractPropertyBoolean(
+        annotBlock,
+        'openWorldHint',
+      );
     }
   }
 
@@ -584,7 +612,10 @@ export function parseResourceFile(source: string): ResourceEntry[] {
   const resources: ResourceEntry[] = [];
 
   // Standard resources: server.registerResource(
-  const standardBlocks = findRegistrationBlocks(source, 'server.registerResource(');
+  const standardBlocks = findRegistrationBlocks(
+    source,
+    'server.registerResource(',
+  );
   for (const { block } of standardBlocks) {
     const resource = parseResourceBlock(block);
     if (resource) resources.push(resource);
@@ -622,7 +653,9 @@ function parseResourceBlock(block: string): ResourceEntry | null {
     // Extract URI from: new ResourceTemplate('kb://items/{id}', ...)
     const templateIdx = block.indexOf('new ResourceTemplate(');
     if (templateIdx !== -1) {
-      const afterTemplate = block.slice(templateIdx + 'new ResourceTemplate('.length);
+      const afterTemplate = block.slice(
+        templateIdx + 'new ResourceTemplate('.length,
+      );
       uri = extractStringLiteral(afterTemplate, 0) ?? '';
     }
   } else {
@@ -653,7 +686,8 @@ function parseResourceBlock(block: string): ResourceEntry | null {
     const descIdx = block.indexOf(descMatch[0]);
     const metaBlock = extractBalancedBlock(block, descIdx + 1);
     description = extractPropertyString(metaBlock, 'description') ?? '';
-    mimeType = extractPropertyString(metaBlock, 'mimeType') ?? 'application/json';
+    mimeType =
+      extractPropertyString(metaBlock, 'mimeType') ?? 'application/json';
   }
 
   return {

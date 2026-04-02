@@ -7,11 +7,18 @@ import {
   ArrowDown,
   Plus,
 } from 'lucide-react';
-import { formatDomainName, formatSubtopic } from '@/lib/taxonomy/taxonomy-format';
+import {
+  formatDomainName,
+  formatSubtopic,
+} from '@/lib/taxonomy/taxonomy-format';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import type { AdminDomain, AdminSubtopic, TaxonomyProvenance } from '@/hooks/use-taxonomy-admin';
+import type {
+  AdminDomain,
+  AdminSubtopic,
+  TaxonomyProvenance,
+} from '@/hooks/use-taxonomy-admin';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -26,11 +33,28 @@ export interface DomainCardProps {
   onToggle: (domainId: string) => void;
   onEdit: (domain: AdminDomain) => void;
   onDeactivate: (type: 'domain' | 'subtopic', id: string, name: string) => void;
-  onReactivate: (type: 'domain' | 'subtopic', id: string, domainId?: string) => void;
-  onAcceptRecommended: (type: 'domain' | 'subtopic', id: string, domainId?: string) => void;
-  onRejectRecommended: (type: 'domain' | 'subtopic', id: string, name: string, domainId?: string) => void;
+  onReactivate: (
+    type: 'domain' | 'subtopic',
+    id: string,
+    domainId?: string,
+  ) => void;
+  onAcceptRecommended: (
+    type: 'domain' | 'subtopic',
+    id: string,
+    domainId?: string,
+  ) => void;
+  onRejectRecommended: (
+    type: 'domain' | 'subtopic',
+    id: string,
+    name: string,
+    domainId?: string,
+  ) => void;
   onMoveDomain: (domainId: string, direction: 'up' | 'down') => Promise<void>;
-  onMoveSubtopic: (domainId: string, subtopicId: string, direction: 'up' | 'down') => Promise<void>;
+  onMoveSubtopic: (
+    domainId: string,
+    subtopicId: string,
+    direction: 'up' | 'down',
+  ) => Promise<void>;
   onAddSubtopic: (domainId: string) => void;
   onEditSubtopic: (subtopic: AdminSubtopic) => void;
 }
@@ -45,7 +69,10 @@ const PROVENANCE_LABELS: Record<TaxonomyProvenance, string> = {
   recommended: 'Recommended',
 };
 
-const PROVENANCE_VARIANTS: Record<TaxonomyProvenance, 'secondary' | 'outline' | 'default'> = {
+const PROVENANCE_VARIANTS: Record<
+  TaxonomyProvenance,
+  'secondary' | 'outline' | 'default'
+> = {
   baseline: 'secondary',
   client: 'default',
   recommended: 'outline',
@@ -53,7 +80,10 @@ const PROVENANCE_VARIANTS: Record<TaxonomyProvenance, 'secondary' | 'outline' | 
 
 function ProvenanceBadge({ provenance }: { provenance: TaxonomyProvenance }) {
   return (
-    <Badge variant={PROVENANCE_VARIANTS[provenance]} className="shrink-0 text-[10px]">
+    <Badge
+      variant={PROVENANCE_VARIANTS[provenance]}
+      className="shrink-0 text-[10px]"
+    >
       {PROVENANCE_LABELS[provenance]}
     </Badge>
   );
@@ -116,7 +146,8 @@ export function DomainCard({
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
             {domain.colour && (
               <span>
-                Colour: <code className="rounded bg-muted px-1">{domain.colour}</code>
+                Colour:{' '}
+                <code className="rounded bg-muted px-1">{domain.colour}</code>
               </span>
             )}
             <span>Order: {domain.display_order}</span>
@@ -153,11 +184,7 @@ export function DomainCard({
 
         {/* Edit / Activate-Deactivate / Accept-Reject */}
         <div className="flex shrink-0 items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onEdit(domain)}
-          >
+          <Button variant="ghost" size="sm" onClick={() => onEdit(domain)}>
             Edit
           </Button>
           {domain.provenance === 'recommended' && !domain.is_active ? (
@@ -174,7 +201,9 @@ export function DomainCard({
                 variant="ghost"
                 size="sm"
                 className="text-destructive hover:text-destructive"
-                onClick={() => onRejectRecommended('domain', domain.id, domain.name)}
+                onClick={() =>
+                  onRejectRecommended('domain', domain.id, domain.name)
+                }
               >
                 Reject
               </Button>
@@ -184,9 +213,7 @@ export function DomainCard({
               variant="ghost"
               size="sm"
               className="text-destructive hover:text-destructive"
-              onClick={() =>
-                onDeactivate('domain', domain.id, domain.name)
-              }
+              onClick={() => onDeactivate('domain', domain.id, domain.name)}
             >
               Deactivate
             </Button>
@@ -194,9 +221,7 @@ export function DomainCard({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() =>
-                onReactivate('domain', domain.id)
-              }
+              onClick={() => onReactivate('domain', domain.id)}
             >
               Reactivate
             </Button>
@@ -209,7 +234,8 @@ export function DomainCard({
         <div className="border-t border-border bg-muted/30 px-4 py-3">
           {subtopics.length === 0 ? (
             <p className="py-4 text-center text-xs text-muted-foreground">
-              No subtopics yet. Add subtopics to organise content within this domain.
+              No subtopics yet. Add subtopics to organise content within this
+              domain.
             </p>
           ) : (
             <div className="flex flex-col gap-1">
@@ -250,9 +276,7 @@ export function DomainCard({
                       size="icon"
                       className="size-6"
                       disabled={subIdx === 0}
-                      onClick={() =>
-                        onMoveSubtopic(domain.id, sub.id, 'up')
-                      }
+                      onClick={() => onMoveSubtopic(domain.id, sub.id, 'up')}
                       aria-label="Move subtopic up"
                     >
                       <ArrowUp className="size-3" />
@@ -262,9 +286,7 @@ export function DomainCard({
                       size="icon"
                       className="size-6"
                       disabled={subIdx === subtopics.length - 1}
-                      onClick={() =>
-                        onMoveSubtopic(domain.id, sub.id, 'down')
-                      }
+                      onClick={() => onMoveSubtopic(domain.id, sub.id, 'down')}
                       aria-label="Move subtopic down"
                     >
                       <ArrowDown className="size-3" />
@@ -298,7 +320,12 @@ export function DomainCard({
                           size="sm"
                           className="h-7 text-xs text-destructive hover:text-destructive"
                           onClick={() =>
-                            onRejectRecommended('subtopic', sub.id, sub.name, domain.id)
+                            onRejectRecommended(
+                              'subtopic',
+                              sub.id,
+                              sub.name,
+                              domain.id,
+                            )
                           }
                         >
                           Reject

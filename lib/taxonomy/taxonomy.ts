@@ -12,10 +12,7 @@
 
 // Canonical content types and platforms live in lib/validation/schemas.ts.
 // Re-export here for convenience (used by filter components and the Python pipeline).
-import {
-  VALID_CONTENT_TYPES,
-  VALID_PLATFORMS,
-} from '@/lib/validation/schemas';
+import { VALID_CONTENT_TYPES, VALID_PLATFORMS } from '@/lib/validation/schemas';
 
 /** All valid content types (matches DB CHECK constraint) */
 export const CONTENT_TYPES = VALID_CONTENT_TYPES;

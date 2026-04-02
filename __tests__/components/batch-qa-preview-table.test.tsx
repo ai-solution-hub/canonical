@@ -21,7 +21,8 @@ import {
 
 describe('parsePastedQA', () => {
   it('parses tab-separated Q&A pairs', () => {
-    const text = 'What is X?\tX is a thing\nHow does Y work?\tY works by doing Z';
+    const text =
+      'What is X?\tX is a thing\nHow does Y work?\tY works by doing Z';
     const result = parsePastedQA(text);
     expect(result).toEqual([
       { question: 'What is X?', answer: 'X is a thing' },
@@ -30,7 +31,8 @@ describe('parsePastedQA', () => {
   });
 
   it('parses pipe-separated Q&A pairs', () => {
-    const text = 'What is X? | X is a thing\nHow does Y work? | Y works by doing Z';
+    const text =
+      'What is X? | X is a thing\nHow does Y work? | Y works by doing Z';
     const result = parsePastedQA(text);
     expect(result).toEqual([
       { question: 'What is X?', answer: 'X is a thing' },
@@ -47,7 +49,8 @@ describe('parsePastedQA', () => {
   });
 
   it('filters out empty rows', () => {
-    const text = 'What is X?\tX is a thing\n\n\n  \nHow does Y work?\tY works by doing Z';
+    const text =
+      'What is X?\tX is a thing\n\n\n  \nHow does Y work?\tY works by doing Z';
     const result = parsePastedQA(text);
     expect(result).toHaveLength(2);
   });
@@ -98,7 +101,9 @@ describe('parsePastedQA', () => {
   it('respects the 100 pair limit when called externally (parsing has no limit itself)', () => {
     // parsePastedQA itself does not enforce the limit — that is the UI's job.
     // But we test that it can parse more than 100 rows.
-    const lines = Array.from({ length: 150 }, (_, i) => `Q${i}?\tA${i}`).join('\n');
+    const lines = Array.from({ length: 150 }, (_, i) => `Q${i}?\tA${i}`).join(
+      '\n',
+    );
     const result = parsePastedQA(lines);
     expect(result).toHaveLength(150);
   });
@@ -124,7 +129,9 @@ describe('formatQAContent', () => {
       question: 'What is X?',
       answer: 'Line 1\nLine 2\nLine 3',
     };
-    expect(formatQAContent(pair)).toBe('Q: What is X?\n\nA: Line 1\nLine 2\nLine 3');
+    expect(formatQAContent(pair)).toBe(
+      'Q: What is X?\n\nA: Line 1\nLine 2\nLine 3',
+    );
   });
 });
 
@@ -141,7 +148,10 @@ describe('BatchQAPreviewTable', () => {
   it('renders a table with the correct number of rows', () => {
     const onPairsChange = vi.fn();
     render(
-      <BatchQAPreviewTable pairs={defaultPairs} onPairsChange={onPairsChange} />,
+      <BatchQAPreviewTable
+        pairs={defaultPairs}
+        onPairsChange={onPairsChange}
+      />,
     );
 
     // Two data rows plus header row
@@ -154,7 +164,10 @@ describe('BatchQAPreviewTable', () => {
   it('shows row numbers', () => {
     const onPairsChange = vi.fn();
     render(
-      <BatchQAPreviewTable pairs={defaultPairs} onPairsChange={onPairsChange} />,
+      <BatchQAPreviewTable
+        pairs={defaultPairs}
+        onPairsChange={onPairsChange}
+      />,
     );
 
     expect(screen.getByText('1')).toBeInTheDocument();
@@ -164,7 +177,10 @@ describe('BatchQAPreviewTable', () => {
   it('shows "Ready" status for items without status', () => {
     const onPairsChange = vi.fn();
     render(
-      <BatchQAPreviewTable pairs={defaultPairs} onPairsChange={onPairsChange} />,
+      <BatchQAPreviewTable
+        pairs={defaultPairs}
+        onPairsChange={onPairsChange}
+      />,
     );
 
     const readyStatuses = screen.getAllByText('Ready');
@@ -173,7 +189,10 @@ describe('BatchQAPreviewTable', () => {
 
   it('shows "Created" status for created items', () => {
     const onPairsChange = vi.fn();
-    const statuses = new Map<number, { status: 'created' | 'failed'; error?: string }>();
+    const statuses = new Map<
+      number,
+      { status: 'created' | 'failed'; error?: string }
+    >();
     statuses.set(0, { status: 'created' });
 
     render(
@@ -189,7 +208,10 @@ describe('BatchQAPreviewTable', () => {
 
   it('shows "Failed" status with error for failed items', () => {
     const onPairsChange = vi.fn();
-    const statuses = new Map<number, { status: 'created' | 'failed'; error?: string }>();
+    const statuses = new Map<
+      number,
+      { status: 'created' | 'failed'; error?: string }
+    >();
     statuses.set(1, { status: 'failed', error: 'Duplicate title' });
 
     render(
@@ -205,19 +227,22 @@ describe('BatchQAPreviewTable', () => {
 
   it('shows empty state message when no pairs', () => {
     const onPairsChange = vi.fn();
-    render(
-      <BatchQAPreviewTable pairs={[]} onPairsChange={onPairsChange} />,
-    );
+    render(<BatchQAPreviewTable pairs={[]} onPairsChange={onPairsChange} />);
 
     expect(
-      screen.getByText('No Q&A pairs yet. Paste from a spreadsheet or add rows manually.'),
+      screen.getByText(
+        'No Q&A pairs yet. Paste from a spreadsheet or add rows manually.',
+      ),
     ).toBeInTheDocument();
   });
 
   it('calls onPairsChange when "Add row" is clicked', () => {
     const onPairsChange = vi.fn();
     render(
-      <BatchQAPreviewTable pairs={defaultPairs} onPairsChange={onPairsChange} />,
+      <BatchQAPreviewTable
+        pairs={defaultPairs}
+        onPairsChange={onPairsChange}
+      />,
     );
 
     fireEvent.click(screen.getByText('Add row'));
@@ -245,7 +270,10 @@ describe('BatchQAPreviewTable', () => {
   it('calls onPairsChange when a row is removed', () => {
     const onPairsChange = vi.fn();
     render(
-      <BatchQAPreviewTable pairs={defaultPairs} onPairsChange={onPairsChange} />,
+      <BatchQAPreviewTable
+        pairs={defaultPairs}
+        onPairsChange={onPairsChange}
+      />,
     );
 
     // Click the remove button for the first row
@@ -260,7 +288,10 @@ describe('BatchQAPreviewTable', () => {
   it('enters edit mode when a question cell is clicked', () => {
     const onPairsChange = vi.fn();
     render(
-      <BatchQAPreviewTable pairs={defaultPairs} onPairsChange={onPairsChange} />,
+      <BatchQAPreviewTable
+        pairs={defaultPairs}
+        onPairsChange={onPairsChange}
+      />,
     );
 
     // Click on the question button to enter edit mode
@@ -275,7 +306,10 @@ describe('BatchQAPreviewTable', () => {
   it('enters edit mode when an answer cell is clicked', () => {
     const onPairsChange = vi.fn();
     render(
-      <BatchQAPreviewTable pairs={defaultPairs} onPairsChange={onPairsChange} />,
+      <BatchQAPreviewTable
+        pairs={defaultPairs}
+        onPairsChange={onPairsChange}
+      />,
     );
 
     fireEvent.click(screen.getByLabelText('Edit answer 1: X is a thing'));
@@ -303,7 +337,10 @@ describe('BatchQAPreviewTable', () => {
   it('shows pair count and maximum', () => {
     const onPairsChange = vi.fn();
     render(
-      <BatchQAPreviewTable pairs={defaultPairs} onPairsChange={onPairsChange} />,
+      <BatchQAPreviewTable
+        pairs={defaultPairs}
+        onPairsChange={onPairsChange}
+      />,
     );
 
     expect(screen.getByText('2 of 100 maximum pairs')).toBeInTheDocument();
@@ -312,16 +349,24 @@ describe('BatchQAPreviewTable', () => {
   it('has accessible table structure with grid role', () => {
     const onPairsChange = vi.fn();
     render(
-      <BatchQAPreviewTable pairs={defaultPairs} onPairsChange={onPairsChange} />,
+      <BatchQAPreviewTable
+        pairs={defaultPairs}
+        onPairsChange={onPairsChange}
+      />,
     );
 
-    expect(screen.getByRole('grid', { name: 'Q&A pairs preview' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('grid', { name: 'Q&A pairs preview' }),
+    ).toBeInTheDocument();
   });
 
   it('updates pair when editing a cell value', () => {
     const onPairsChange = vi.fn();
     render(
-      <BatchQAPreviewTable pairs={defaultPairs} onPairsChange={onPairsChange} />,
+      <BatchQAPreviewTable
+        pairs={defaultPairs}
+        onPairsChange={onPairsChange}
+      />,
     );
 
     // Click to edit
@@ -340,7 +385,10 @@ describe('BatchQAPreviewTable', () => {
   it('exits edit mode on blur', () => {
     const onPairsChange = vi.fn();
     render(
-      <BatchQAPreviewTable pairs={defaultPairs} onPairsChange={onPairsChange} />,
+      <BatchQAPreviewTable
+        pairs={defaultPairs}
+        onPairsChange={onPairsChange}
+      />,
     );
 
     // Enter edit mode
@@ -352,13 +400,18 @@ describe('BatchQAPreviewTable', () => {
 
     // Input should be gone, text button should be back
     expect(screen.queryByLabelText('Question 1')).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Edit question 1: What is X?')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Edit question 1: What is X?'),
+    ).toBeInTheDocument();
   });
 
   it('exits edit mode on Enter key', () => {
     const onPairsChange = vi.fn();
     render(
-      <BatchQAPreviewTable pairs={defaultPairs} onPairsChange={onPairsChange} />,
+      <BatchQAPreviewTable
+        pairs={defaultPairs}
+        onPairsChange={onPairsChange}
+      />,
     );
 
     // Enter edit mode
@@ -375,7 +428,10 @@ describe('BatchQAPreviewTable', () => {
   it('exits edit mode on Escape key', () => {
     const onPairsChange = vi.fn();
     render(
-      <BatchQAPreviewTable pairs={defaultPairs} onPairsChange={onPairsChange} />,
+      <BatchQAPreviewTable
+        pairs={defaultPairs}
+        onPairsChange={onPairsChange}
+      />,
     );
 
     // Enter edit mode

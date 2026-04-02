@@ -103,8 +103,18 @@ const mockGuideData = {
 };
 
 const mockRelatedGuides = [
-  { id: 'guide-2', slug: 'related-guide', name: 'Related Guide', guide_type: 'sector' },
-  { id: 'guide-3', slug: 'another-guide', name: 'Another Guide', guide_type: 'sector' },
+  {
+    id: 'guide-2',
+    slug: 'related-guide',
+    name: 'Related Guide',
+    guide_type: 'sector',
+  },
+  {
+    id: 'guide-3',
+    slug: 'another-guide',
+    name: 'Another Guide',
+    guide_type: 'sector',
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -117,17 +127,24 @@ describe('GuideContent', () => {
     mockCanEdit.value = true;
 
     // Mock fetch for guide data and related guides
-    global.fetch = vi.fn()
+    global.fetch = vi
+      .fn()
       .mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve(mockGuideData),
       })
       .mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve([
-          ...mockRelatedGuides,
-          { id: 'guide-1', slug: 'test-guide', name: 'Test Guide', guide_type: 'sector' },
-        ]),
+        json: () =>
+          Promise.resolve([
+            ...mockRelatedGuides,
+            {
+              id: 'guide-1',
+              slug: 'test-guide',
+              name: 'Test Guide',
+              guide_type: 'sector',
+            },
+          ]),
       });
   });
 

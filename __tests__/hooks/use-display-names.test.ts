@@ -87,10 +87,9 @@ describe('useDisplayNames', () => {
 
   it('fetches and resolves user IDs to display names', async () => {
     const useDisplayNames = await importHook();
-    const { result } = renderHook(
-      () => useDisplayNames(['user-1', 'user-2']),
-      { wrapper: createWrapper() },
-    );
+    const { result } = renderHook(() => useDisplayNames(['user-1', 'user-2']), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.size).toBe(2);
@@ -128,10 +127,9 @@ describe('useDisplayNames', () => {
     const useDisplayNames = await importHook();
 
     const wrapper = createWrapper();
-    const { result, rerender } = renderHook(
-      () => useDisplayNames(['user-1']),
-      { wrapper },
-    );
+    const { result, rerender } = renderHook(() => useDisplayNames(['user-1']), {
+      wrapper,
+    });
 
     await waitFor(() => {
       expect(result.current.size).toBe(1);

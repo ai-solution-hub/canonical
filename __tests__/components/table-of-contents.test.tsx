@@ -51,7 +51,10 @@ describe('TableOfContents', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Mock window.innerWidth for desktop
-    Object.defineProperty(window, 'innerWidth', { value: 1024, writable: true });
+    Object.defineProperty(window, 'innerWidth', {
+      value: 1024,
+      writable: true,
+    });
   });
 
   afterEach(() => {

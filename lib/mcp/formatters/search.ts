@@ -19,7 +19,10 @@ export interface SearchResult {
   similarity: number;
 }
 
-export function formatSearchResults(query: string, results: SearchResult[]): string {
+export function formatSearchResults(
+  query: string,
+  results: SearchResult[],
+): string {
   if (results.length === 0) {
     return `# Search Results for "${query}"\n\nNo results found. Try broadening your search terms.`;
   }
@@ -63,7 +66,10 @@ export function formatSearchResults(query: string, results: SearchResult[]): str
 // Q&A search results
 // ---------------------------------------------------------------------------
 
-export function formatQASearchResults(query: string, results: SearchResult[]): string {
+export function formatQASearchResults(
+  query: string,
+  results: SearchResult[],
+): string {
   if (results.length === 0) {
     return `# Q&A Library Search: "${query}"\n\nNo Q&A pairs found matching your query.`;
   }
@@ -132,7 +138,10 @@ export function formatSimilarItems(data: SimilarItemsResult): string {
     return lines.join('\n');
   }
 
-  lines.push(`Found ${data.similar_items.length} similar item${data.similar_items.length === 1 ? '' : 's'}:`, '');
+  lines.push(
+    `Found ${data.similar_items.length} similar item${data.similar_items.length === 1 ? '' : 's'}:`,
+    '',
+  );
 
   for (let i = 0; i < data.similar_items.length; i++) {
     const item = data.similar_items[i];

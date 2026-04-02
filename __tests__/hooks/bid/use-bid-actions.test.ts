@@ -36,7 +36,8 @@ const mockGetAvailableTransitions = vi.fn(() => ['drafting', 'submitted']);
 
 vi.mock('@/lib/bid/bid-state-machine', () => ({
   canTransition: (...args: unknown[]) => mockCanTransition(...args),
-  getAvailableTransitions: (...args: unknown[]) => mockGetAvailableTransitions(...args),
+  getAvailableTransitions: (...args: unknown[]) =>
+    mockGetAvailableTransitions(...args),
   BID_STATE_LABELS: {
     draft: 'Draft',
     questions_extracted: 'Questions Extracted',
@@ -123,7 +124,10 @@ function mockFetchSuccess(overrides?: {
 
   mockFetch.mockImplementation((url: string, init?: RequestInit) => {
     // Bid detail GET
-    if (url === `/api/bids/${TEST_BID_ID}` && (!init?.method || init?.method === 'GET')) {
+    if (
+      url === `/api/bids/${TEST_BID_ID}` &&
+      (!init?.method || init?.method === 'GET')
+    ) {
       if (bidStatus === 404) {
         return Promise.resolve({
           ok: false,
@@ -138,7 +142,10 @@ function mockFetchSuccess(overrides?: {
       });
     }
     // Questions GET
-    if (url === `/api/bids/${TEST_BID_ID}/questions` && (!init?.method || init?.method === 'GET')) {
+    if (
+      url === `/api/bids/${TEST_BID_ID}/questions` &&
+      (!init?.method || init?.method === 'GET')
+    ) {
       return Promise.resolve({
         ok: true,
         json: async () => questionsResp,
@@ -159,17 +166,28 @@ function mockFetchSuccess(overrides?: {
       });
     }
     // Match questions
-    if (url === `/api/bids/${TEST_BID_ID}/questions/match` && init?.method === 'POST') {
+    if (
+      url === `/api/bids/${TEST_BID_ID}/questions/match` &&
+      init?.method === 'POST'
+    ) {
       return Promise.resolve({
         ok: true,
         json: async () => ({ matched: 5 }),
       });
     }
     // Draft all
-    if (url === `/api/bids/${TEST_BID_ID}/responses/draft-all` && init?.method === 'POST') {
+    if (
+      url === `/api/bids/${TEST_BID_ID}/responses/draft-all` &&
+      init?.method === 'POST'
+    ) {
       return Promise.resolve({
         ok: true,
-        json: async () => ({ drafted: 8, skipped: 2, failed: 0, total_cost: 0.05 }),
+        json: async () => ({
+          drafted: 8,
+          skipped: 2,
+          failed: 0,
+          total_cost: 0.05,
+        }),
       });
     }
     return Promise.resolve({ ok: false, status: 500, json: async () => ({}) });
@@ -377,8 +395,14 @@ describe('useBidActions (TanStack Query)', () => {
 
     // Override PATCH to fail
     vi.mocked(global.fetch).mockImplementation(async (url, init) => {
-      if (String(url) === `/api/bids/${TEST_BID_ID}` && init?.method === 'PATCH') {
-        return { ok: false, json: async () => ({ error: 'Status change not allowed' }) } as Response;
+      if (
+        String(url) === `/api/bids/${TEST_BID_ID}` &&
+        init?.method === 'PATCH'
+      ) {
+        return {
+          ok: false,
+          json: async () => ({ error: 'Status change not allowed' }),
+        } as Response;
       }
       // Default success for GET requests
       return { ok: true, json: async () => MOCK_BID } as Response;
@@ -448,7 +472,9 @@ describe('useBidActions (TanStack Query)', () => {
     });
 
     await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith('Matched 5 questions against KB');
+      expect(toast.success).toHaveBeenCalledWith(
+        'Matched 5 questions against KB',
+      );
     });
   });
 
@@ -470,23 +496,39 @@ describe('useBidActions (TanStack Query)', () => {
     });
 
     await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith('Drafted 8 responses (2 skipped)');
+      expect(toast.success).toHaveBeenCalledWith(
+        'Drafted 8 responses (2 skipped)',
+      );
       expect(toast.info).toHaveBeenCalledWith('Total cost: $0.0500');
     });
   });
 
   it('handleDraftAll shows warning toast when there are failures', async () => {
     mockFetch.mockImplementation((url: string, init?: RequestInit) => {
-      if (url === `/api/bids/${TEST_BID_ID}` && (!init?.method || init?.method === 'GET')) {
+      if (
+        url === `/api/bids/${TEST_BID_ID}` &&
+        (!init?.method || init?.method === 'GET')
+      ) {
         return Promise.resolve({ ok: true, json: async () => MOCK_BID });
       }
-      if (url === `/api/bids/${TEST_BID_ID}/questions` && (!init?.method || init?.method === 'GET')) {
-        return Promise.resolve({ ok: true, json: async () => MOCK_QUESTIONS_RESPONSE });
+      if (
+        url === `/api/bids/${TEST_BID_ID}/questions` &&
+        (!init?.method || init?.method === 'GET')
+      ) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => MOCK_QUESTIONS_RESPONSE,
+        });
       }
       if (url.includes('draft-all') && init?.method === 'POST') {
         return Promise.resolve({
           ok: true,
-          json: async () => ({ drafted: 5, skipped: 1, failed: 3, total_cost: 0 }),
+          json: async () => ({
+            drafted: 5,
+            skipped: 1,
+            failed: 3,
+            total_cost: 0,
+          }),
         });
       }
       return Promise.resolve({ ok: true, json: async () => ({}) });
@@ -531,7 +573,14 @@ describe('useBidActions (TanStack Query)', () => {
     });
     expect(result.current.showOutcomeDialog).toBe(true);
 
-    const candidates = [{ id: 'c1', title: 'Candidate 1', action: 'create' as const, content_text: 'text' }];
+    const candidates = [
+      {
+        id: 'c1',
+        title: 'Candidate 1',
+        action: 'create' as const,
+        content_text: 'text',
+      },
+    ];
     act(() => {
       result.current.handleOutcomeRecorded('won', candidates);
     });
@@ -626,8 +675,18 @@ describe('useBidActions (TanStack Query)', () => {
           section_name: 'Section A',
           section_sequence: 1,
           questions: [
-            { question_sequence: 1, question_text: 'Q1', word_limit: 500, category: 'technical' },
-            { question_sequence: 2, question_text: 'Q2', word_limit: null, category: 'general' },
+            {
+              question_sequence: 1,
+              question_text: 'Q1',
+              word_limit: 500,
+              category: 'technical',
+            },
+            {
+              question_sequence: 2,
+              question_text: 'Q2',
+              word_limit: null,
+              category: 'general',
+            },
           ],
         },
       ],
@@ -741,14 +800,22 @@ describe('useBidActions (TanStack Query)', () => {
       expect(result.current.bid).not.toBeNull();
     });
 
-    expect(result.current.availableTransitions).toEqual(['in_review', 'withdrawn']);
+    expect(result.current.availableTransitions).toEqual([
+      'in_review',
+      'withdrawn',
+    ]);
   });
 
   it('computes isSubmitted correctly', async () => {
     mockFetchSuccess({
       bid: { ...MOCK_BID, status: 'submitted' },
     });
-    mockGetAvailableTransitions.mockReturnValue(['won', 'lost', 'in_review', 'withdrawn']);
+    mockGetAvailableTransitions.mockReturnValue([
+      'won',
+      'lost',
+      'in_review',
+      'withdrawn',
+    ]);
     const { Wrapper } = createWrapper();
     const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
       wrapper: Wrapper,
@@ -793,11 +860,20 @@ describe('useBidActions (TanStack Query)', () => {
   it('draftingAll is true while draft-all mutation is pending', async () => {
     let resolveDraftAll: ((value: unknown) => void) | undefined;
     mockFetch.mockImplementation((url: string, init?: RequestInit) => {
-      if (url === `/api/bids/${TEST_BID_ID}` && (!init?.method || init?.method === 'GET')) {
+      if (
+        url === `/api/bids/${TEST_BID_ID}` &&
+        (!init?.method || init?.method === 'GET')
+      ) {
         return Promise.resolve({ ok: true, json: async () => MOCK_BID });
       }
-      if (url === `/api/bids/${TEST_BID_ID}/questions` && (!init?.method || init?.method === 'GET')) {
-        return Promise.resolve({ ok: true, json: async () => MOCK_QUESTIONS_RESPONSE });
+      if (
+        url === `/api/bids/${TEST_BID_ID}/questions` &&
+        (!init?.method || init?.method === 'GET')
+      ) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => MOCK_QUESTIONS_RESPONSE,
+        });
       }
       if (url.includes('draft-all') && init?.method === 'POST') {
         return new Promise((resolve) => {
@@ -830,7 +906,12 @@ describe('useBidActions (TanStack Query)', () => {
     act(() => {
       resolveDraftAll!({
         ok: true,
-        json: async () => ({ drafted: 1, skipped: 0, failed: 0, total_cost: 0 }),
+        json: async () => ({
+          drafted: 1,
+          skipped: 0,
+          failed: 0,
+          total_cost: 0,
+        }),
       });
     });
 
@@ -849,11 +930,17 @@ describe('useBidActions (TanStack Query)', () => {
           resolveTransition = resolve;
         });
       }
-      if (url === `/api/bids/${TEST_BID_ID}` && (!init?.method || init?.method === 'GET')) {
+      if (
+        url === `/api/bids/${TEST_BID_ID}` &&
+        (!init?.method || init?.method === 'GET')
+      ) {
         return Promise.resolve({ ok: true, json: async () => MOCK_BID });
       }
       if (url === `/api/bids/${TEST_BID_ID}/questions`) {
-        return Promise.resolve({ ok: true, json: async () => MOCK_QUESTIONS_RESPONSE });
+        return Promise.resolve({
+          ok: true,
+          json: async () => MOCK_QUESTIONS_RESPONSE,
+        });
       }
       return Promise.resolve({ ok: true, json: async () => ({}) });
     });
@@ -930,7 +1017,14 @@ describe('useBidActions (TanStack Query)', () => {
         {
           section_name: 'S1',
           section_sequence: 1,
-          questions: [{ question_sequence: 1, question_text: 'Q', word_limit: null, category: 'general' }],
+          questions: [
+            {
+              question_sequence: 1,
+              question_text: 'Q',
+              word_limit: null,
+              category: 'general',
+            },
+          ],
         },
       ],
     } as ExtractionResult;
@@ -966,7 +1060,14 @@ describe('useBidActions (TanStack Query)', () => {
         {
           section_name: 'S1',
           section_sequence: 1,
-          questions: [{ question_sequence: 1, question_text: 'Q', word_limit: null, category: 'general' }],
+          questions: [
+            {
+              question_sequence: 1,
+              question_text: 'Q',
+              word_limit: null,
+              category: 'general',
+            },
+          ],
         },
       ],
     } as ExtractionResult;
@@ -1065,11 +1166,17 @@ describe('useBidActions (TanStack Query)', () => {
           json: async () => ({ error: 'Cannot delete active bid' }),
         });
       }
-      if (url === `/api/bids/${TEST_BID_ID}` && (!init?.method || init?.method === 'GET')) {
+      if (
+        url === `/api/bids/${TEST_BID_ID}` &&
+        (!init?.method || init?.method === 'GET')
+      ) {
         return Promise.resolve({ ok: true, json: async () => MOCK_BID });
       }
       if (url === `/api/bids/${TEST_BID_ID}/questions`) {
-        return Promise.resolve({ ok: true, json: async () => MOCK_QUESTIONS_RESPONSE });
+        return Promise.resolve({
+          ok: true,
+          json: async () => MOCK_QUESTIONS_RESPONSE,
+        });
       }
       return Promise.resolve({ ok: true, json: async () => ({}) });
     });
@@ -1100,11 +1207,17 @@ describe('useBidActions (TanStack Query)', () => {
           json: async () => ({ error: 'No questions to match' }),
         });
       }
-      if (url === `/api/bids/${TEST_BID_ID}` && (!init?.method || init?.method === 'GET')) {
+      if (
+        url === `/api/bids/${TEST_BID_ID}` &&
+        (!init?.method || init?.method === 'GET')
+      ) {
         return Promise.resolve({ ok: true, json: async () => MOCK_BID });
       }
       if (url === `/api/bids/${TEST_BID_ID}/questions`) {
-        return Promise.resolve({ ok: true, json: async () => MOCK_QUESTIONS_RESPONSE });
+        return Promise.resolve({
+          ok: true,
+          json: async () => MOCK_QUESTIONS_RESPONSE,
+        });
       }
       return Promise.resolve({ ok: true, json: async () => ({}) });
     });

@@ -31,7 +31,9 @@ export const test = testDataTest.extend<CombinedFixtures>({
   authenticatedPage: async ({ page }, use) => {
     await hideDevOverlays(page);
     await page.goto('/');
-    await expect(page.getByRole('link', { name: 'Knowledge Hub' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('link', { name: 'Knowledge Hub' })).toBeVisible(
+      { timeout: 10000 },
+    );
     await use(page);
   },
 
@@ -42,7 +44,9 @@ export const test = testDataTest.extend<CombinedFixtures>({
     const page = await ctx.newPage();
     await hideDevOverlays(page);
     await page.goto('/');
-    await expect(page.getByRole('link', { name: 'Knowledge Hub' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('link', { name: 'Knowledge Hub' })).toBeVisible(
+      { timeout: 10000 },
+    );
     await use(page);
     await ctx.close();
   },
@@ -54,7 +58,9 @@ export const test = testDataTest.extend<CombinedFixtures>({
     const page = await ctx.newPage();
     await hideDevOverlays(page);
     await page.goto('/');
-    await expect(page.getByRole('link', { name: 'Knowledge Hub' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('link', { name: 'Knowledge Hub' })).toBeVisible(
+      { timeout: 10000 },
+    );
     await use(page);
     await ctx.close();
   },

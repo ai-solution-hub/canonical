@@ -36,15 +36,39 @@ vi.mock('@/components/ui/button', () => ({
 
 vi.mock('@/components/ui/progress', () => ({
   Progress: (props: Record<string, unknown>) => (
-    <div role="progressbar" aria-label={props['aria-label'] as string} data-testid="progress-bar" />
+    <div
+      role="progressbar"
+      aria-label={props['aria-label'] as string}
+      data-testid="progress-bar"
+    />
   ),
 }));
 
 vi.mock('lucide-react', () => ({
-  Loader2: (props: Record<string, unknown>) => <span data-testid="loader-icon" aria-hidden={props['aria-hidden'] as string} />,
-  CheckCircle: (props: Record<string, unknown>) => <span data-testid="check-icon" aria-hidden={props['aria-hidden'] as string} />,
-  AlertTriangle: (props: Record<string, unknown>) => <span data-testid="alert-icon" aria-hidden={props['aria-hidden'] as string} />,
-  RefreshCw: (props: Record<string, unknown>) => <span data-testid="refresh-icon" aria-hidden={props['aria-hidden'] as string} />,
+  Loader2: (props: Record<string, unknown>) => (
+    <span
+      data-testid="loader-icon"
+      aria-hidden={props['aria-hidden'] as string}
+    />
+  ),
+  CheckCircle: (props: Record<string, unknown>) => (
+    <span
+      data-testid="check-icon"
+      aria-hidden={props['aria-hidden'] as string}
+    />
+  ),
+  AlertTriangle: (props: Record<string, unknown>) => (
+    <span
+      data-testid="alert-icon"
+      aria-hidden={props['aria-hidden'] as string}
+    />
+  ),
+  RefreshCw: (props: Record<string, unknown>) => (
+    <span
+      data-testid="refresh-icon"
+      aria-hidden={props['aria-hidden'] as string}
+    />
+  ),
 }));
 
 // Import AFTER mocks
@@ -103,7 +127,9 @@ describe('TemplateFillProgress', () => {
   // ---- Pending/processing states ----
 
   it('renders loading spinner in pending state', async () => {
-    mockFetch.mockReturnValue(mockFetchResponse(makeJobStatus({ status: 'pending' })));
+    mockFetch.mockReturnValue(
+      mockFetchResponse(makeJobStatus({ status: 'pending' })),
+    );
     await act(async () => {
       render(<TemplateFillProgress {...defaultProps} />);
     });
@@ -112,36 +138,50 @@ describe('TemplateFillProgress', () => {
   });
 
   it('renders progress bar with aria label', async () => {
-    mockFetch.mockReturnValue(mockFetchResponse(makeJobStatus({ status: 'pending' })));
+    mockFetch.mockReturnValue(
+      mockFetchResponse(makeJobStatus({ status: 'pending' })),
+    );
     await act(async () => {
       render(<TemplateFillProgress {...defaultProps} />);
     });
-    expect(screen.getByRole('progressbar', { name: 'Fill in progress' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('progressbar', { name: 'Fill in progress' }),
+    ).toBeInTheDocument();
   });
 
   it('shows processing phase label when status is processing', async () => {
-    mockFetch.mockReturnValue(mockFetchResponse(makeJobStatus({ status: 'processing' })));
+    mockFetch.mockReturnValue(
+      mockFetchResponse(makeJobStatus({ status: 'processing' })),
+    );
     await act(async () => {
       render(<TemplateFillProgress {...defaultProps} />);
     });
-    expect(screen.getByText('Writing responses into template...')).toBeInTheDocument();
+    expect(
+      screen.getByText('Writing responses into template...'),
+    ).toBeInTheDocument();
   });
 
   // ---- Completed state ----
 
   it('renders success state when job completes', async () => {
     const result = { completion_id: 'c-1' };
-    mockFetch.mockReturnValue(mockFetchResponse(makeJobStatus({ status: 'completed', result })));
+    mockFetch.mockReturnValue(
+      mockFetchResponse(makeJobStatus({ status: 'completed', result })),
+    );
     await act(async () => {
       render(<TemplateFillProgress {...defaultProps} />);
     });
     expect(screen.getByTestId('check-icon')).toBeInTheDocument();
-    expect(screen.getByText('Template filled successfully')).toBeInTheDocument();
+    expect(
+      screen.getByText('Template filled successfully'),
+    ).toBeInTheDocument();
   });
 
   it('calls onComplete with result when job completes', async () => {
     const result = { completion_id: 'c-1' };
-    mockFetch.mockReturnValue(mockFetchResponse(makeJobStatus({ status: 'completed', result })));
+    mockFetch.mockReturnValue(
+      mockFetchResponse(makeJobStatus({ status: 'completed', result })),
+    );
     await act(async () => {
       render(<TemplateFillProgress {...defaultProps} />);
     });
@@ -149,7 +189,9 @@ describe('TemplateFillProgress', () => {
   });
 
   it('calls onComplete with empty object when result is null', async () => {
-    mockFetch.mockReturnValue(mockFetchResponse(makeJobStatus({ status: 'completed', result: null })));
+    mockFetch.mockReturnValue(
+      mockFetchResponse(makeJobStatus({ status: 'completed', result: null })),
+    );
     await act(async () => {
       render(<TemplateFillProgress {...defaultProps} />);
     });
@@ -159,34 +201,50 @@ describe('TemplateFillProgress', () => {
   // ---- Failed state ----
 
   it('renders error state when job fails', async () => {
-    mockFetch.mockReturnValue(mockFetchResponse(makeJobStatus({
-      status: 'failed',
-      error_message: 'Docx corruption detected',
-    })));
+    mockFetch.mockReturnValue(
+      mockFetchResponse(
+        makeJobStatus({
+          status: 'failed',
+          error_message: 'Docx corruption detected',
+        }),
+      ),
+    );
     await act(async () => {
       render(<TemplateFillProgress {...defaultProps} />);
     });
     expect(screen.getByTestId('alert-icon')).toBeInTheDocument();
-    expect(screen.getByText("Template fill didn't complete")).toBeInTheDocument();
+    expect(
+      screen.getByText("Template fill didn't complete"),
+    ).toBeInTheDocument();
     expect(screen.getByText('Docx corruption detected')).toBeInTheDocument();
   });
 
   it('calls onError with error message when job fails', async () => {
-    mockFetch.mockReturnValue(mockFetchResponse(makeJobStatus({
-      status: 'failed',
-      error_message: 'Docx corruption detected',
-    })));
+    mockFetch.mockReturnValue(
+      mockFetchResponse(
+        makeJobStatus({
+          status: 'failed',
+          error_message: 'Docx corruption detected',
+        }),
+      ),
+    );
     await act(async () => {
       render(<TemplateFillProgress {...defaultProps} />);
     });
-    expect(defaultProps.onError).toHaveBeenCalledWith('Docx corruption detected');
+    expect(defaultProps.onError).toHaveBeenCalledWith(
+      'Docx corruption detected',
+    );
   });
 
   it('uses default error message when error_message is null', async () => {
-    mockFetch.mockReturnValue(mockFetchResponse(makeJobStatus({
-      status: 'failed',
-      error_message: null,
-    })));
+    mockFetch.mockReturnValue(
+      mockFetchResponse(
+        makeJobStatus({
+          status: 'failed',
+          error_message: null,
+        }),
+      ),
+    );
     await act(async () => {
       render(<TemplateFillProgress {...defaultProps} />);
     });
@@ -196,10 +254,14 @@ describe('TemplateFillProgress', () => {
   // ---- Retry button ----
 
   it('shows retry button when onRetry is provided and error occurs', async () => {
-    mockFetch.mockReturnValue(mockFetchResponse(makeJobStatus({
-      status: 'failed',
-      error_message: 'Error',
-    })));
+    mockFetch.mockReturnValue(
+      mockFetchResponse(
+        makeJobStatus({
+          status: 'failed',
+          error_message: 'Error',
+        }),
+      ),
+    );
     await act(async () => {
       render(<TemplateFillProgress {...defaultProps} />);
     });
@@ -209,10 +271,14 @@ describe('TemplateFillProgress', () => {
   it('calls onRetry when retry button is clicked', async () => {
     vi.useRealTimers();
     const user = userEvent.setup();
-    mockFetch.mockReturnValue(mockFetchResponse(makeJobStatus({
-      status: 'failed',
-      error_message: 'Error',
-    })));
+    mockFetch.mockReturnValue(
+      mockFetchResponse(
+        makeJobStatus({
+          status: 'failed',
+          error_message: 'Error',
+        }),
+      ),
+    );
     await act(async () => {
       render(<TemplateFillProgress {...defaultProps} />);
     });
@@ -221,11 +287,15 @@ describe('TemplateFillProgress', () => {
   });
 
   it('does not show retry button when onRetry is not provided', async () => {
-    mockFetch.mockReturnValue(mockFetchResponse(makeJobStatus({
-      status: 'failed',
-      error_message: 'Error',
-    })));
-    const { onRetry: _unused, ...propsWithoutRetry } = defaultProps;  
+    mockFetch.mockReturnValue(
+      mockFetchResponse(
+        makeJobStatus({
+          status: 'failed',
+          error_message: 'Error',
+        }),
+      ),
+    );
+    const { onRetry: _unused, ...propsWithoutRetry } = defaultProps;
     await act(async () => {
       render(<TemplateFillProgress {...propsWithoutRetry} />);
     });
@@ -261,7 +331,9 @@ describe('TemplateFillProgress', () => {
   // ---- Polling behaviour ----
 
   it('polls the correct API endpoint', async () => {
-    mockFetch.mockReturnValue(mockFetchResponse(makeJobStatus({ status: 'pending' })));
+    mockFetch.mockReturnValue(
+      mockFetchResponse(makeJobStatus({ status: 'pending' })),
+    );
     await act(async () => {
       render(<TemplateFillProgress {...defaultProps} />);
     });
@@ -269,7 +341,9 @@ describe('TemplateFillProgress', () => {
   });
 
   it('polls at 2-second intervals', async () => {
-    mockFetch.mockReturnValue(mockFetchResponse(makeJobStatus({ status: 'pending' })));
+    mockFetch.mockReturnValue(
+      mockFetchResponse(makeJobStatus({ status: 'pending' })),
+    );
     await act(async () => {
       render(<TemplateFillProgress {...defaultProps} />);
     });
@@ -287,7 +361,9 @@ describe('TemplateFillProgress', () => {
   });
 
   it('stops polling when job completes', async () => {
-    mockFetch.mockReturnValue(mockFetchResponse(makeJobStatus({ status: 'completed', result: {} })));
+    mockFetch.mockReturnValue(
+      mockFetchResponse(makeJobStatus({ status: 'completed', result: {} })),
+    );
     await act(async () => {
       render(<TemplateFillProgress {...defaultProps} />);
     });
@@ -301,7 +377,11 @@ describe('TemplateFillProgress', () => {
   });
 
   it('stops polling when job fails', async () => {
-    mockFetch.mockReturnValue(mockFetchResponse(makeJobStatus({ status: 'failed', error_message: 'err' })));
+    mockFetch.mockReturnValue(
+      mockFetchResponse(
+        makeJobStatus({ status: 'failed', error_message: 'err' }),
+      ),
+    );
     await act(async () => {
       render(<TemplateFillProgress {...defaultProps} />);
     });
@@ -316,7 +396,9 @@ describe('TemplateFillProgress', () => {
   // ---- Cleanup on unmount ----
 
   it('cleans up interval on unmount', async () => {
-    mockFetch.mockReturnValue(mockFetchResponse(makeJobStatus({ status: 'pending' })));
+    mockFetch.mockReturnValue(
+      mockFetchResponse(makeJobStatus({ status: 'pending' })),
+    );
     const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
     let unmount: () => void;
     await act(async () => {

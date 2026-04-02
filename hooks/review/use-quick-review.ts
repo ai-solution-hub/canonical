@@ -60,12 +60,18 @@ export function useQuickReview(options?: UseQuickReviewOptions) {
 
   // Derive a snapshot of pending items from the ref (avoids accessing ref during render)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const pendingItems = useMemo(() => new Map(pendingMapRef.current), [pendingCounter]);
+  const pendingItems = useMemo(
+    () => new Map(pendingMapRef.current),
+    [pendingCounter],
+  );
 
-  const setPending = useCallback((itemId: string, action: QuickReviewAction) => {
-    pendingMapRef.current.set(itemId, action);
-    setPendingCounter((c) => c + 1);
-  }, []);
+  const setPending = useCallback(
+    (itemId: string, action: QuickReviewAction) => {
+      pendingMapRef.current.set(itemId, action);
+      setPendingCounter((c) => c + 1);
+    },
+    [],
+  );
 
   const clearPending = useCallback((itemId: string) => {
     pendingMapRef.current.delete(itemId);
@@ -80,7 +86,11 @@ export function useQuickReview(options?: UseQuickReviewOptions) {
   // Unified review action mutation
   // -------------------------------------------------------------------------
 
-  const reviewActionMutation = useMutation<boolean, Error, ReviewActionVariables>({
+  const reviewActionMutation = useMutation<
+    boolean,
+    Error,
+    ReviewActionVariables
+  >({
     mutationFn: async ({ itemId, action, flagDetails }) => {
       const body: Record<string, unknown> = { item_id: itemId, action };
       if (flagDetails) {
@@ -100,7 +110,9 @@ export function useQuickReview(options?: UseQuickReviewOptions) {
       // Invalidate review stats and quality flag caches so other components
       // reflect the updated state
       queryClient.invalidateQueries({ queryKey: queryKeys.review.stats });
-      queryClient.invalidateQueries({ queryKey: queryKeys.qualityFlags.flaggedIds });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.qualityFlags.flaggedIds,
+      });
     },
   });
 
@@ -175,7 +187,13 @@ export function useQuickReview(options?: UseQuickReviewOptions) {
         },
       });
     },
-    [onOptimisticUpdate, setPending, clearPending, reviewActionMutateAsync, quickUnverify],
+    [
+      onOptimisticUpdate,
+      setPending,
+      clearPending,
+      reviewActionMutateAsync,
+      quickUnverify,
+    ],
   );
 
   // --- quickUnflag ---
@@ -239,7 +257,13 @@ export function useQuickReview(options?: UseQuickReviewOptions) {
         },
       });
     },
-    [onOptimisticUpdate, setPending, clearPending, reviewActionMutateAsync, quickUnflag],
+    [
+      onOptimisticUpdate,
+      setPending,
+      clearPending,
+      reviewActionMutateAsync,
+      quickUnflag,
+    ],
   );
 
   // Derive error from the last mutation error
@@ -257,7 +281,11 @@ export function useQuickReview(options?: UseQuickReviewOptions) {
     pendingItems: Map<string, QuickReviewAction>;
     quickVerify: (itemId: string, itemTitle: string) => Promise<void>;
     quickUnverify: (itemId: string, itemTitle: string) => Promise<void>;
-    quickFlag: (itemId: string, itemTitle: string, reason?: string) => Promise<void>;
+    quickFlag: (
+      itemId: string,
+      itemTitle: string,
+      reason?: string,
+    ) => Promise<void>;
     quickUnflag: (itemId: string, itemTitle: string) => Promise<void>;
     isPending: (itemId: string) => boolean;
   };

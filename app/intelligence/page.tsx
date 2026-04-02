@@ -26,7 +26,8 @@ export default function IntelligencePage() {
           Access restricted
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          You need editor or admin permissions to access intelligence management.
+          You need editor or admin permissions to access intelligence
+          management.
         </p>
       </div>
     );
@@ -118,10 +119,7 @@ export default function IntelligencePage() {
                 <Button asChild variant="outline" size="sm">
                   <Link href="/intelligence/profiles">Create Profile</Link>
                 </Button>
-                <Button
-                  onClick={() => setShowCreateDialog(true)}
-                  size="sm"
-                >
+                <Button onClick={() => setShowCreateDialog(true)} size="sm">
                   <Plus className="mr-1.5 size-4" />
                   Create Workspace
                 </Button>

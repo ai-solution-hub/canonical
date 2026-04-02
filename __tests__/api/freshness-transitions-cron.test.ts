@@ -19,7 +19,11 @@ vi.mock('@/lib/supabase/server', () => ({
   createServiceClient: vi.fn(() => mockSupabase),
 }));
 
-const { mockGetUsersByRole, mockCreateBulkNotifications, mockGetExistingNotificationIds } = vi.hoisted(() => ({
+const {
+  mockGetUsersByRole,
+  mockCreateBulkNotifications,
+  mockGetExistingNotificationIds,
+} = vi.hoisted(() => ({
   mockGetUsersByRole: vi.fn(),
   mockCreateBulkNotifications: vi.fn(),
   mockGetExistingNotificationIds: vi.fn(),
@@ -38,7 +42,8 @@ vi.mock('@/lib/notifications', () => ({
 vi.mock('@/lib/error', () => ({
   safeErrorMessage: vi.fn((err: unknown, fallback: string) => {
     if (err instanceof Error) return err.message;
-    if (typeof err === 'object' && err && 'message' in err) return (err as { message: string }).message;
+    if (typeof err === 'object' && err && 'message' in err)
+      return (err as { message: string }).message;
     return fallback;
   }),
 }));
@@ -59,16 +64,18 @@ const ADMIN_ID_2 = '00000000-0000-4000-8000-000000000002';
 const EDITOR_ID_1 = '00000000-0000-4000-8000-000000000003';
 const ALL_USER_IDS = [ADMIN_ID_1, ADMIN_ID_2, EDITOR_ID_1];
 
-function makeTransition(overrides: Partial<{
-  id: string;
-  title: string;
-  previous_freshness: string;
-  freshness: string;
-  primary_domain: string | null;
-  updated_at: string | null;
-  lifecycle_type: string | null;
-  content_owner_id: string | null;
-}> = {}) {
+function makeTransition(
+  overrides: Partial<{
+    id: string;
+    title: string;
+    previous_freshness: string;
+    freshness: string;
+    primary_domain: string | null;
+    updated_at: string | null;
+    lifecycle_type: string | null;
+    content_owner_id: string | null;
+  }> = {},
+) {
   return {
     id: overrides.id ?? '00000000-0000-4000-8000-000000000010',
     title: overrides.title ?? 'Test Item',
@@ -93,21 +100,40 @@ function resetMocks() {
 
   // Default: getUsersByRole returns all users for ['admin', 'editor']
   // and just admins for ['admin']
-  mockGetUsersByRole.mockImplementation((_supabase: unknown, roles: string[]) => {
-    if (roles.length === 1 && roles[0] === 'admin') {
-      return Promise.resolve([ADMIN_ID_1, ADMIN_ID_2]);
-    }
-    return Promise.resolve(ALL_USER_IDS);
-  });
+  mockGetUsersByRole.mockImplementation(
+    (_supabase: unknown, roles: string[]) => {
+      if (roles.length === 1 && roles[0] === 'admin') {
+        return Promise.resolve([ADMIN_ID_1, ADMIN_ID_2]);
+      }
+      return Promise.resolve(ALL_USER_IDS);
+    },
+  );
 
   mockCreateBulkNotifications.mockResolvedValue({ count: 0, error: null });
   mockGetExistingNotificationIds.mockResolvedValue(new Set());
 
   // Configure chain defaults
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
@@ -136,12 +162,13 @@ describe('GET /api/cron/freshness-transitions', () => {
     });
 
     // governance_config query (runs first in the route) — return empty config
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
     // content_items query returns the owned item
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: [ownedItem], error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [ownedItem], error: null }),
     );
 
     const res = await GET(createCronRequest() as never);
@@ -160,12 +187,14 @@ describe('GET /api/cron/freshness-transitions', () => {
     );
 
     const ownerNotifs = allNotifications.filter(
-      (n: { userId: string; type: string }) => n.userId === OWNER_ID && n.type === 'owner_content_stale',
+      (n: { userId: string; type: string }) =>
+        n.userId === OWNER_ID && n.type === 'owner_content_stale',
     );
     expect(ownerNotifs.length).toBe(1);
 
     const adminNotifs = allNotifications.filter(
-      (n: { userId: string; type: string }) => n.type === 'freshness_transition',
+      (n: { userId: string; type: string }) =>
+        n.type === 'freshness_transition',
     );
     // Admins should get freshness_transition
     expect(adminNotifs.length).toBe(2); // 2 admins
@@ -184,11 +213,12 @@ describe('GET /api/cron/freshness-transitions', () => {
     });
 
     // governance_config query (runs first in the route) — return empty config
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: [unownedItem], error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [unownedItem], error: null }),
     );
 
     const res = await GET(createCronRequest() as never);
@@ -202,7 +232,11 @@ describe('GET /api/cron/freshness-transitions', () => {
     );
 
     // All should be freshness_transition (no owner_content_stale)
-    expect(allNotifications.every((n: { type: string }) => n.type === 'freshness_transition')).toBe(true);
+    expect(
+      allNotifications.every(
+        (n: { type: string }) => n.type === 'freshness_transition',
+      ),
+    ).toBe(true);
     // Should go to all 3 users (2 admins + 1 editor)
     expect(allNotifications.length).toBe(3);
   });
@@ -224,11 +258,12 @@ describe('GET /api/cron/freshness-transitions', () => {
     });
 
     // governance_config query (runs first in the route) — return empty config
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: [ownedItem, unownedItem], error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [ownedItem, unownedItem], error: null }),
     );
 
     const res = await GET(createCronRequest() as never);
@@ -238,7 +273,8 @@ describe('GET /api/cron/freshness-transitions', () => {
     expect(body.notifications_created).toBeGreaterThan(0);
 
     const allNotifications = mockCreateBulkNotifications.mock.calls.flatMap(
-      (call: unknown[]) => call[1] as Array<{ userId: string; type: string; entityId: string }>,
+      (call: unknown[]) =>
+        call[1] as Array<{ userId: string; type: string; entityId: string }>,
     );
 
     // Owned item: owner gets owner_content_stale, admins get freshness_transition
@@ -259,24 +295,27 @@ describe('GET /api/cron/freshness-transitions', () => {
 
   it('returns 0 notifications when no transitions detected', async () => {
     // governance_config query (runs first in the route) — return empty config
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
     // Return items where freshness === previous_freshness (no change)
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({
-        data: [{
-          id: '00000000-0000-4000-8000-000000000010',
-          title: 'Stable',
-          previous_freshness: 'stale',
-          freshness: 'stale',
-          primary_domain: null,
-          updated_at: null,
-          lifecycle_type: null,
-          content_owner_id: null,
-        }],
-        error: null,
-      }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              id: '00000000-0000-4000-8000-000000000010',
+              title: 'Stable',
+              previous_freshness: 'stale',
+              freshness: 'stale',
+              primary_domain: null,
+              updated_at: null,
+              lifecycle_type: null,
+              content_owner_id: null,
+            },
+          ],
+          error: null,
+        }),
     );
 
     const res = await GET(createCronRequest() as never);
@@ -293,11 +332,11 @@ describe('GET /api/cron/freshness-transitions', () => {
     });
 
     // governance_config query (runs first in the route) — return empty config
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: [item], error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [item], error: null }),
     );
 
     // Both idempotency checks return the item as already notified

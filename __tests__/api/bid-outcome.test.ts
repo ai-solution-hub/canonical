@@ -24,7 +24,9 @@ vi.mock('next/headers', () => ({
   }),
 }));
 
-const mockGenerateEmbedding = vi.fn().mockResolvedValue(new Array(1024).fill(0));
+const mockGenerateEmbedding = vi
+  .fn()
+  .mockResolvedValue(new Array(1024).fill(0));
 
 vi.mock('@/lib/ai/embed', () => ({
   generateEmbedding: (...args: unknown[]) => mockGenerateEmbedding(...args),
@@ -57,16 +59,41 @@ function resetMocks() {
   });
 
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockResolvedValue({ data: null, error: null, count: null });
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null, count: null });
+  mockSupabase._chain.single.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
@@ -204,8 +231,8 @@ describe('POST /api/bids/:id/outcome', () => {
     });
 
     // Update succeeds (awaited via .then)
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest(`/api/bids/${BID_ID}/outcome`, {
@@ -235,8 +262,8 @@ describe('POST /api/bids/:id/outcome', () => {
     });
 
     // Update succeeds
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest(`/api/bids/${BID_ID}/outcome`, {
@@ -280,37 +307,39 @@ describe('POST /api/bids/:id/outcome', () => {
 
     // Update succeeds
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) {
-        // workspace update
-        return resolve({ data: null, error: null });
-      }
-      if (thenCallCount === 2) {
-        // bid_questions query
-        return resolve({
-          data: [
-            { id: QUESTION_ID, question_text: 'Describe your approach' },
-          ],
-          error: null,
-        });
-      }
-      if (thenCallCount === 3) {
-        // bid_responses query
-        return resolve({
-          data: [
-            {
-              question_id: QUESTION_ID,
-              response_text: '<p>Our approach is...</p>',
-              source_content_ids: [CONTENT_ID],
-              review_status: 'approved',
-            },
-          ],
-          error: null,
-        });
-      }
-      return resolve({ data: [], error: null });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) {
+          // workspace update
+          return resolve({ data: null, error: null });
+        }
+        if (thenCallCount === 2) {
+          // bid_questions query
+          return resolve({
+            data: [
+              { id: QUESTION_ID, question_text: 'Describe your approach' },
+            ],
+            error: null,
+          });
+        }
+        if (thenCallCount === 3) {
+          // bid_responses query
+          return resolve({
+            data: [
+              {
+                question_id: QUESTION_ID,
+                response_text: '<p>Our approach is...</p>',
+                source_content_ids: [CONTENT_ID],
+                review_status: 'approved',
+              },
+            ],
+            error: null,
+          });
+        }
+        return resolve({ data: [], error: null });
+      },
+    );
 
     const req = createTestRequest(`/api/bids/${BID_ID}/outcome`, {
       method: 'POST',
@@ -342,8 +371,12 @@ describe('POST /api/bids/:id/outcome', () => {
     });
 
     // Update fails
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { code: '42501', message: 'Permission denied' } }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: null,
+          error: { code: '42501', message: 'Permission denied' },
+        }),
     );
 
     const req = createTestRequest(`/api/bids/${BID_ID}/outcome`, {
@@ -368,28 +401,32 @@ describe('POST /api/bids/:id/outcome', () => {
     });
 
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) return resolve({ data: null, error: null });
-      if (thenCallCount === 2) {
-        return resolve({
-          data: [{ id: QUESTION_ID, question_text: 'New question' }],
-          error: null,
-        });
-      }
-      if (thenCallCount === 3) {
-        return resolve({
-          data: [{
-            question_id: QUESTION_ID,
-            response_text: '<p>Fresh response</p>',
-            source_content_ids: [],
-            review_status: 'edited',
-          }],
-          error: null,
-        });
-      }
-      return resolve({ data: [], error: null });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) return resolve({ data: null, error: null });
+        if (thenCallCount === 2) {
+          return resolve({
+            data: [{ id: QUESTION_ID, question_text: 'New question' }],
+            error: null,
+          });
+        }
+        if (thenCallCount === 3) {
+          return resolve({
+            data: [
+              {
+                question_id: QUESTION_ID,
+                response_text: '<p>Fresh response</p>',
+                source_content_ids: [],
+                review_status: 'edited',
+              },
+            ],
+            error: null,
+          });
+        }
+        return resolve({ data: [], error: null });
+      },
+    );
 
     const req = createTestRequest(`/api/bids/${BID_ID}/outcome`, {
       method: 'POST',
@@ -460,9 +497,7 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
     const req = createTestRequest(`/api/bids/${BID_ID}/outcome/integrate`, {
       method: 'POST',
       body: {
-        integrations: [
-          { question_id: QUESTION_ID, action: 'delete' },
-        ],
+        integrations: [{ question_id: QUESTION_ID, action: 'delete' }],
       },
     });
     const params = createTestParams({ id: BID_ID });
@@ -485,9 +520,7 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
     const req = createTestRequest(`/api/bids/${BID_ID}/outcome/integrate`, {
       method: 'POST',
       body: {
-        integrations: [
-          { question_id: QUESTION_ID, action: 'skip' },
-        ],
+        integrations: [{ question_id: QUESTION_ID, action: 'skip' }],
       },
     });
     const params = createTestParams({ id: BID_ID });
@@ -515,9 +548,7 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
     const req = createTestRequest(`/api/bids/${BID_ID}/outcome/integrate`, {
       method: 'POST',
       body: {
-        integrations: [
-          { question_id: QUESTION_ID, action: 'new_entry' },
-        ],
+        integrations: [{ question_id: QUESTION_ID, action: 'new_entry' }],
       },
     });
     const params = createTestParams({ id: BID_ID });
@@ -544,8 +575,8 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
     });
 
     // Questions and responses queries
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const req = createTestRequest(`/api/bids/${BID_ID}/outcome/integrate`, {
@@ -588,24 +619,36 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
 
     // Questions query
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) {
-        // Questions
-        return resolve({
-          data: [{ id: QUESTION_ID, question_text: 'Describe your approach to security' }],
-          error: null,
-        });
-      }
-      if (thenCallCount === 2) {
-        // Responses
-        return resolve({
-          data: [{ question_id: QUESTION_ID, response_text: '<p>We implement ISO 27001</p>' }],
-          error: null,
-        });
-      }
-      return resolve({ data: [], error: null });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) {
+          // Questions
+          return resolve({
+            data: [
+              {
+                id: QUESTION_ID,
+                question_text: 'Describe your approach to security',
+              },
+            ],
+            error: null,
+          });
+        }
+        if (thenCallCount === 2) {
+          // Responses
+          return resolve({
+            data: [
+              {
+                question_id: QUESTION_ID,
+                response_text: '<p>We implement ISO 27001</p>',
+              },
+            ],
+            error: null,
+          });
+        }
+        return resolve({ data: [], error: null });
+      },
+    );
 
     // Insert returns new item ID
     mockSupabase._chain.single.mockResolvedValueOnce({
@@ -668,23 +711,30 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
 
     // Questions query
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) {
-        return resolve({
-          data: [{ id: QUESTION_ID, question_text: 'ISO compliance?' }],
-          error: null,
-        });
-      }
-      if (thenCallCount === 2) {
-        return resolve({
-          data: [{ question_id: QUESTION_ID, response_text: '<p>Fully compliant</p>' }],
-          error: null,
-        });
-      }
-      // content_items update and embedding update (both are .then-awaited)
-      return resolve({ data: null, error: null });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) {
+          return resolve({
+            data: [{ id: QUESTION_ID, question_text: 'ISO compliance?' }],
+            error: null,
+          });
+        }
+        if (thenCallCount === 2) {
+          return resolve({
+            data: [
+              {
+                question_id: QUESTION_ID,
+                response_text: '<p>Fully compliant</p>',
+              },
+            ],
+            error: null,
+          });
+        }
+        // content_items update and embedding update (both are .then-awaited)
+        return resolve({ data: null, error: null });
+      },
+    );
 
     const req = createTestRequest(`/api/bids/${BID_ID}/outcome/integrate`, {
       method: 'POST',
@@ -727,30 +777,30 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
 
     // Questions and responses queries
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) {
-        return resolve({
-          data: [{ id: QUESTION_ID, question_text: 'Question?' }],
-          error: null,
-        });
-      }
-      if (thenCallCount === 2) {
-        // Response text is empty
-        return resolve({
-          data: [{ question_id: QUESTION_ID, response_text: '' }],
-          error: null,
-        });
-      }
-      return resolve({ data: [], error: null });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) {
+          return resolve({
+            data: [{ id: QUESTION_ID, question_text: 'Question?' }],
+            error: null,
+          });
+        }
+        if (thenCallCount === 2) {
+          // Response text is empty
+          return resolve({
+            data: [{ question_id: QUESTION_ID, response_text: '' }],
+            error: null,
+          });
+        }
+        return resolve({ data: [], error: null });
+      },
+    );
 
     const req = createTestRequest(`/api/bids/${BID_ID}/outcome/integrate`, {
       method: 'POST',
       body: {
-        integrations: [
-          { question_id: QUESTION_ID, action: 'new_entry' },
-        ],
+        integrations: [{ question_id: QUESTION_ID, action: 'new_entry' }],
       },
     });
     const params = createTestParams({ id: BID_ID });

@@ -36,7 +36,9 @@ export function ProfileSection() {
 
   useEffect(() => {
     async function loadProfile() {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (user) {
         setEmail(user.email ?? '');
         const name = (user.user_metadata?.display_name as string) ?? '';
@@ -210,15 +212,26 @@ export function ProfileSection() {
               placeholder="Minimum 8 characters"
               minLength={8}
               required
-              aria-describedby={newPassword.length > 0 ? 'password-requirements' : undefined}
+              aria-describedby={
+                newPassword.length > 0 ? 'password-requirements' : undefined
+              }
             />
             {newPassword.length > 0 && (
-              <div id="password-requirements" className="mt-1.5 space-y-1" aria-live="polite">
-                <p className={cn(
-                  'text-xs',
-                  newPassword.length >= 8 ? 'text-freshness-fresh' : 'text-muted-foreground'
-                )}>
-                  {newPassword.length >= 8 ? '\u2713' : '\u25CB'} At least 8 characters
+              <div
+                id="password-requirements"
+                className="mt-1.5 space-y-1"
+                aria-live="polite"
+              >
+                <p
+                  className={cn(
+                    'text-xs',
+                    newPassword.length >= 8
+                      ? 'text-freshness-fresh'
+                      : 'text-muted-foreground',
+                  )}
+                >
+                  {newPassword.length >= 8 ? '\u2713' : '\u25CB'} At least 8
+                  characters
                 </p>
               </div>
             )}
@@ -235,11 +248,18 @@ export function ProfileSection() {
               required
             />
             {confirmPassword.length > 0 && (
-              <p className={cn(
-                'mt-1.5 text-xs',
-                newPassword === confirmPassword ? 'text-freshness-fresh' : 'text-destructive'
-              )} aria-live="polite">
-                {newPassword === confirmPassword ? '\u2713 Passwords match' : '\u2717 Passwords do not match'}
+              <p
+                className={cn(
+                  'mt-1.5 text-xs',
+                  newPassword === confirmPassword
+                    ? 'text-freshness-fresh'
+                    : 'text-destructive',
+                )}
+                aria-live="polite"
+              >
+                {newPassword === confirmPassword
+                  ? '\u2713 Passwords match'
+                  : '\u2717 Passwords do not match'}
               </p>
             )}
           </div>

@@ -33,7 +33,9 @@ export function DomainFilter({
               checked={selectedDomains.includes(domain)}
               onCheckedChange={() => onToggle(domain)}
             />
-            <span className="flex-1 leading-none">{formatDomainName(domain)}</span>
+            <span className="flex-1 leading-none">
+              {formatDomainName(domain)}
+            </span>
             {counts[domain] !== undefined && (
               <span className="text-xs tabular-nums text-muted-foreground">
                 {counts[domain]}

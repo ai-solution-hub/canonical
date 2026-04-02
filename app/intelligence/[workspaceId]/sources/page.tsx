@@ -128,9 +128,7 @@ export default function FeedSourcesPage() {
             onSubmit={editingSource ? handleUpdate : handleCreate}
             onCancel={handleCancelForm}
             onTest={
-              editingSource
-                ? () => handleTest(editingSource.id)
-                : undefined
+              editingSource ? () => handleTest(editingSource.id) : undefined
             }
             isPending={
               editingSource

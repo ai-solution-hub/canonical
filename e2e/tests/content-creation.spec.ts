@@ -39,9 +39,7 @@ test.describe('Content creation -- page access and tab structure', () => {
     await expect(
       page.getByRole('tab', { name: /Import from URL/i }),
     ).toBeVisible();
-    await expect(
-      page.getByRole('tab', { name: /Upload file/i }),
-    ).toBeVisible();
+    await expect(page.getByRole('tab', { name: /Upload file/i })).toBeVisible();
 
     // The write content section is visible
     await expect(
@@ -58,9 +56,7 @@ test.describe('Content creation -- page access and tab structure', () => {
     await expect(page).toHaveURL(/\/browse/, { timeout: 10000 });
   });
 
-  test('editor role can access create page', async ({
-    editorPage: page,
-  }) => {
+  test('editor role can access create page', async ({ editorPage: page }) => {
     await page.goto('/item/new');
 
     // Tab list is visible (editor can create content)
@@ -100,9 +96,9 @@ test.describe('Content creation -- form fields and validation', () => {
     // Wait for either the loading skeleton to appear or the editor to load
     const editorLoading = page.locator('[aria-label="Loading editor"]');
     const editorContainer = page.locator('.tiptap, .ProseMirror');
-    await expect(
-      editorLoading.or(editorContainer),
-    ).toBeVisible({ timeout: 15000 });
+    await expect(editorLoading.or(editorContainer)).toBeVisible({
+      timeout: 15000,
+    });
   });
 
   test('content type selector shows all valid types', async ({
@@ -211,9 +207,7 @@ test.describe('Content creation -- classification fields', () => {
     await expect(listbox).toBeVisible({ timeout: 5000 });
 
     // At least one domain option should be present
-    await expect(
-      listbox.getByRole('option').first(),
-    ).toBeVisible();
+    await expect(listbox.getByRole('option').first()).toBeVisible();
 
     await page.keyboard.press('Escape');
   });
@@ -251,9 +245,7 @@ test.describe('Content creation -- classification fields', () => {
     await expect(subtopicListbox).toBeVisible({ timeout: 5000 });
 
     // Should have at least one subtopic option
-    await expect(
-      subtopicListbox.getByRole('option').first(),
-    ).toBeVisible();
+    await expect(subtopicListbox.getByRole('option').first()).toBeVisible();
 
     await page.keyboard.press('Escape');
   });
@@ -305,7 +297,10 @@ test.describe('Content creation -- form submission', () => {
       // content and updates `canSave` (requires title + content + contentType).
       // The Save button becomes enabled once the editor content propagates, so
       // we wait for that instead of using an arbitrary timeout.
-      const saveButton = page.getByRole('button', { name: 'Save', exact: true });
+      const saveButton = page.getByRole('button', {
+        name: 'Save',
+        exact: true,
+      });
       await expect(saveButton).toBeEnabled({ timeout: 5000 });
 
       // Uncheck auto-classify and auto-summarise to avoid slow AI API calls
@@ -326,19 +321,16 @@ test.describe('Content creation -- form submission', () => {
 
       // The API creates the item and shows a success toast, then redirects.
       // Verify the success toast appeared as proof the API call succeeded.
-      await expect(
-        page.getByText(/Content created/),
-      ).toBeVisible({ timeout: 15000 });
+      await expect(page.getByText(/Content created/)).toBeVisible({
+        timeout: 15000,
+      });
 
       // After save, the redirect should go to /item/{uuid} (the new item's detail page)
       await expect(page).toHaveURL(/\/item\/[a-f0-9-]+/, { timeout: 15000 });
     } finally {
       // Clean up: delete any items matching the title via service client
       const supabase = createServiceClient();
-      await supabase
-        .from('content_items')
-        .delete()
-        .eq('title', itemTitle);
+      await supabase.from('content_items').delete().eq('title', itemTitle);
     }
   });
 });

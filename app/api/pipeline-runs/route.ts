@@ -25,7 +25,10 @@ export async function GET(request: NextRequest) {
     if (!auth.success) return authFailureResponse(auth);
     const { user, supabase, role } = auth;
 
-    const parsed = parseSearchParams(PipelineRunsParamsSchema, request.nextUrl.searchParams);
+    const parsed = parseSearchParams(
+      PipelineRunsParamsSchema,
+      request.nextUrl.searchParams,
+    );
     if (!parsed.success) return parsed.response;
     const { limit, pipeline_name: pipelineName, status, all } = parsed.data;
     const showAll = all === true && role === 'admin';

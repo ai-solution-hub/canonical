@@ -86,14 +86,35 @@ function resetMocks() {
 
   // Reset chain defaults
   const chainable = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainable) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
-  mockSupabase._chain.single.mockResolvedValue({ data: null, error: null, count: null });
+  mockSupabase._chain.single.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
   mockSupabase.from.mockReturnValue(mockSupabase._chain);
   mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
 

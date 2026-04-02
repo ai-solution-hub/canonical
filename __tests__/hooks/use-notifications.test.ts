@@ -115,7 +115,9 @@ describe('useNotifications', () => {
 
     // fetchJson calls fetch(url) -- verify the notifications endpoint was called
     const fetchCalls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls;
-    expect(fetchCalls.some((call: unknown[]) => call[0] === '/api/notifications')).toBe(true);
+    expect(
+      fetchCalls.some((call: unknown[]) => call[0] === '/api/notifications'),
+    ).toBe(true);
     expect(result.current.notifications).toHaveLength(3);
   });
 
@@ -142,9 +144,7 @@ describe('useNotifications', () => {
   it('marks notifications as read via mutation', async () => {
     // After mark-as-read, the server returns updated notification state
     const updatedNotifications = mockNotifications.map((n) =>
-      n.id === 'notif-1'
-        ? { ...n, read_at: '2026-01-15T12:00:00Z' }
-        : n,
+      n.id === 'notif-1' ? { ...n, read_at: '2026-01-15T12:00:00Z' } : n,
     );
 
     (global.fetch as ReturnType<typeof vi.fn>)
@@ -276,7 +276,8 @@ describe('useNotifications', () => {
     });
 
     // Initial fetch (TanStack Query uses fetchJson which calls fetch with signal)
-    const initialCallCount = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.length;
+    const initialCallCount = (global.fetch as ReturnType<typeof vi.fn>).mock
+      .calls.length;
     expect(initialCallCount).toBeGreaterThanOrEqual(1);
 
     // Advance by 5 minutes (poll interval)
@@ -339,14 +340,17 @@ describe('useNotifications', () => {
       expect(result.current.loading).toBe(false);
     });
 
-    const fetchCountBefore = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.length;
+    const fetchCountBefore = (global.fetch as ReturnType<typeof vi.fn>).mock
+      .calls.length;
 
     await act(async () => {
       await result.current.markAsRead([]);
     });
 
     // No additional fetch call (the guard returns early before calling mutate)
-    expect((global.fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(fetchCountBefore);
+    expect((global.fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(
+      fetchCountBefore,
+    );
   });
 
   it('optimistically updates notification read_at on markAsRead', async () => {

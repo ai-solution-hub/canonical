@@ -132,8 +132,8 @@ beforeEach(() => {
       .join(' '),
   );
 
-  mockFormatDomainName.mockImplementation((d: string) =>
-    d.charAt(0).toUpperCase() + d.slice(1),
+  mockFormatDomainName.mockImplementation(
+    (d: string) => d.charAt(0).toUpperCase() + d.slice(1),
   );
 
   mockGetDomainColourKey.mockReturnValue('corporate');

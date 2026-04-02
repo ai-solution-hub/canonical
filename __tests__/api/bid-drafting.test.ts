@@ -80,33 +80,23 @@ vi.mock('@/lib/bid/bid-state-machine', () => ({
 }));
 
 // Import route handlers AFTER mocks
-const { POST: draftPost } = await import(
-  '@/app/api/bids/[id]/responses/draft/route'
-);
-const { POST: draftStreamPost } = await import(
-  '@/app/api/bids/[id]/responses/draft-stream/route'
-);
-const { POST: draftAllPost } = await import(
-  '@/app/api/bids/[id]/responses/draft-all/route'
-);
-const { POST: estimatePost } = await import(
-  '@/app/api/bids/[id]/responses/estimate/route'
-);
-const { POST: regeneratePost } = await import(
-  '@/app/api/bids/[id]/responses/[rId]/regenerate/route'
-);
-const { POST: restorePost } = await import(
-  '@/app/api/bids/[id]/responses/[rId]/restore/route'
-);
-const { PATCH: questionPatch, DELETE: questionDelete } = await import(
-  '@/app/api/bids/[id]/questions/[qId]/route'
-);
-const { POST: tenderPost } = await import(
-  '@/app/api/bids/[id]/tender/route'
-);
-const { GET: historyGet } = await import(
-  '@/app/api/bids/[id]/responses/[rId]/history/route'
-);
+const { POST: draftPost } =
+  await import('@/app/api/bids/[id]/responses/draft/route');
+const { POST: draftStreamPost } =
+  await import('@/app/api/bids/[id]/responses/draft-stream/route');
+const { POST: draftAllPost } =
+  await import('@/app/api/bids/[id]/responses/draft-all/route');
+const { POST: estimatePost } =
+  await import('@/app/api/bids/[id]/responses/estimate/route');
+const { POST: regeneratePost } =
+  await import('@/app/api/bids/[id]/responses/[rId]/regenerate/route');
+const { POST: restorePost } =
+  await import('@/app/api/bids/[id]/responses/[rId]/restore/route');
+const { PATCH: questionPatch, DELETE: questionDelete } =
+  await import('@/app/api/bids/[id]/questions/[qId]/route');
+const { POST: tenderPost } = await import('@/app/api/bids/[id]/tender/route');
+const { GET: historyGet } =
+  await import('@/app/api/bids/[id]/responses/[rId]/history/route');
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -148,30 +138,58 @@ beforeEach(() => {
 
   // Chainable methods return the chain
   const chainable = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const m of chainable) {
     mockSupabase._chain[m].mockReturnValue(mockSupabase._chain);
   }
 
   // Terminal methods
-  mockSupabase._chain.single.mockReset().mockResolvedValue({ data: null, error: null });
-  mockSupabase._chain.maybeSingle.mockReset().mockResolvedValue({ data: null, error: null });
-  mockSupabase._chain.csv.mockReset().mockResolvedValue({ data: null, error: null });
-  mockSupabase._chain.then.mockReset().mockImplementation(
-    (resolve: (v: unknown) => void) =>
+  mockSupabase._chain.single
+    .mockReset()
+    .mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.maybeSingle
+    .mockReset()
+    .mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.csv
+    .mockReset()
+    .mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.then
+    .mockReset()
+    .mockImplementation((resolve: (v: unknown) => void) =>
       resolve({ data: [], error: null, count: 0 }),
-  );
+    );
 
   // Storage mocks
   const storageBucket = {
-    upload: vi.fn().mockResolvedValue({ data: { path: 'test-path' }, error: null }),
+    upload: vi
+      .fn()
+      .mockResolvedValue({ data: { path: 'test-path' }, error: null }),
     download: vi.fn().mockResolvedValue({ data: new Blob(), error: null }),
     remove: vi.fn().mockResolvedValue({ data: [], error: null }),
     list: vi.fn().mockResolvedValue({ data: [], error: null }),
-    getPublicUrl: vi.fn().mockReturnValue({ data: { publicUrl: 'https://example.com/file' } }),
+    getPublicUrl: vi
+      .fn()
+      .mockReturnValue({ data: { publicUrl: 'https://example.com/file' } }),
   };
   mockSupabase.storage.from.mockReturnValue(storageBucket);
 
@@ -231,7 +249,9 @@ describe('POST /api/bids/:id/responses/draft', () => {
       body: {},
     });
 
-    const res = await draftPost(req, { params: createTestParams({ id: INVALID_UUID }) });
+    const res = await draftPost(req, {
+      params: createTestParams({ id: INVALID_UUID }),
+    });
     expect(res.status).toBe(400);
 
     const body = await res.json();
@@ -304,8 +324,7 @@ describe('POST /api/bids/:id/responses/draft', () => {
 
     // Questions query returns empty
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const req = createTestRequest(`/api/bids/${VALID_UUID}/responses/draft`, {
@@ -332,14 +351,16 @@ describe('POST /api/bids/:id/responses/draft', () => {
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
-          data: [{
-            id: VALID_UUID_2,
-            question_text: 'Test question',
-            word_limit: 200,
-            section_name: 'Section 1',
-            confidence_posture: 'no_content',
-            matched_content_ids: [],
-          }],
+          data: [
+            {
+              id: VALID_UUID_2,
+              question_text: 'Test question',
+              word_limit: 200,
+              section_name: 'Section 1',
+              confidence_posture: 'no_content',
+              matched_content_ids: [],
+            },
+          ],
           error: null,
         }),
     );
@@ -369,14 +390,16 @@ describe('POST /api/bids/:id/responses/draft', () => {
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
-          data: [{
-            id: VALID_UUID_2,
-            question_text: 'Test question',
-            word_limit: 200,
-            section_name: 'Section 1',
-            confidence_posture: 'strong',
-            matched_content_ids: [],
-          }],
+          data: [
+            {
+              id: VALID_UUID_2,
+              question_text: 'Test question',
+              word_limit: 200,
+              section_name: 'Section 1',
+              confidence_posture: 'strong',
+              matched_content_ids: [],
+            },
+          ],
           error: null,
         }),
     );
@@ -412,14 +435,16 @@ describe('POST /api/bids/:id/responses/draft', () => {
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
-          data: [{
-            id: VALID_UUID_2,
-            question_text: 'Test question',
-            word_limit: 200,
-            section_name: 'Section 1',
-            confidence_posture: 'strong',
-            matched_content_ids: [],
-          }],
+          data: [
+            {
+              id: VALID_UUID_2,
+              question_text: 'Test question',
+              word_limit: 200,
+              section_name: 'Section 1',
+              confidence_posture: 'strong',
+              matched_content_ids: [],
+            },
+          ],
           error: null,
         }),
     );
@@ -461,10 +486,13 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest(`/api/bids/${VALID_UUID}/responses/draft-stream`, {
-      method: 'POST',
-      body: { question_id: VALID_UUID_2 },
-    });
+    const req = createTestRequest(
+      `/api/bids/${VALID_UUID}/responses/draft-stream`,
+      {
+        method: 'POST',
+        body: { question_id: VALID_UUID_2 },
+      },
+    );
 
     const res = await draftStreamPost(req, { params });
     expect(res.status).toBe(401);
@@ -473,10 +501,13 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
   it('returns 403 for viewer role', async () => {
     configureRole(mockSupabase, 'viewer');
 
-    const req = createTestRequest(`/api/bids/${VALID_UUID}/responses/draft-stream`, {
-      method: 'POST',
-      body: { question_id: VALID_UUID_2 },
-    });
+    const req = createTestRequest(
+      `/api/bids/${VALID_UUID}/responses/draft-stream`,
+      {
+        method: 'POST',
+        body: { question_id: VALID_UUID_2 },
+      },
+    );
 
     const res = await draftStreamPost(req, { params });
     expect(res.status).toBe(403);
@@ -485,12 +516,17 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
   it('returns 400 for invalid bid UUID', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const req = createTestRequest(`/api/bids/${INVALID_UUID}/responses/draft-stream`, {
-      method: 'POST',
-      body: { question_id: VALID_UUID_2 },
-    });
+    const req = createTestRequest(
+      `/api/bids/${INVALID_UUID}/responses/draft-stream`,
+      {
+        method: 'POST',
+        body: { question_id: VALID_UUID_2 },
+      },
+    );
 
-    const res = await draftStreamPost(req, { params: createTestParams({ id: INVALID_UUID }) });
+    const res = await draftStreamPost(req, {
+      params: createTestParams({ id: INVALID_UUID }),
+    });
     expect(res.status).toBe(400);
 
     const body = await res.json();
@@ -501,10 +537,13 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
     configureRole(mockSupabase, 'editor');
     mockCheckRateLimit.mockReturnValue({ allowed: false });
 
-    const req = createTestRequest(`/api/bids/${VALID_UUID}/responses/draft-stream`, {
-      method: 'POST',
-      body: { question_id: VALID_UUID_2 },
-    });
+    const req = createTestRequest(
+      `/api/bids/${VALID_UUID}/responses/draft-stream`,
+      {
+        method: 'POST',
+        body: { question_id: VALID_UUID_2 },
+      },
+    );
 
     const res = await draftStreamPost(req, { params });
     expect(res.status).toBe(429);
@@ -518,10 +557,13 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
       error: { code: 'PGRST116', message: 'No rows found' },
     });
 
-    const req = createTestRequest(`/api/bids/${VALID_UUID}/responses/draft-stream`, {
-      method: 'POST',
-      body: { question_id: VALID_UUID_2 },
-    });
+    const req = createTestRequest(
+      `/api/bids/${VALID_UUID}/responses/draft-stream`,
+      {
+        method: 'POST',
+        body: { question_id: VALID_UUID_2 },
+      },
+    );
 
     const res = await draftStreamPost(req, { params });
     expect(res.status).toBe(404);
@@ -534,14 +576,21 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, status: 'questions_extracted', domain_metadata: {} },
+      data: {
+        id: VALID_UUID,
+        status: 'questions_extracted',
+        domain_metadata: {},
+      },
       error: null,
     });
 
-    const req = createTestRequest(`/api/bids/${VALID_UUID}/responses/draft-stream`, {
-      method: 'POST',
-      body: { question_id: VALID_UUID_2 },
-    });
+    const req = createTestRequest(
+      `/api/bids/${VALID_UUID}/responses/draft-stream`,
+      {
+        method: 'POST',
+        body: { question_id: VALID_UUID_2 },
+      },
+    );
 
     const res = await draftStreamPost(req, { params });
     expect(res.status).toBe(400);
@@ -565,10 +614,13 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
       error: { code: 'PGRST116', message: 'No rows found' },
     });
 
-    const req = createTestRequest(`/api/bids/${VALID_UUID}/responses/draft-stream`, {
-      method: 'POST',
-      body: { question_id: VALID_UUID_2 },
-    });
+    const req = createTestRequest(
+      `/api/bids/${VALID_UUID}/responses/draft-stream`,
+      {
+        method: 'POST',
+        body: { question_id: VALID_UUID_2 },
+      },
+    );
 
     const res = await draftStreamPost(req, { params });
     expect(res.status).toBe(404);
@@ -588,10 +640,13 @@ describe('POST /api/bids/:id/responses/draft-all', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest(`/api/bids/${VALID_UUID}/responses/draft-all`, {
-      method: 'POST',
-      body: {},
-    });
+    const req = createTestRequest(
+      `/api/bids/${VALID_UUID}/responses/draft-all`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
 
     const res = await draftAllPost(req, { params });
     expect(res.status).toBe(401);
@@ -600,10 +655,13 @@ describe('POST /api/bids/:id/responses/draft-all', () => {
   it('returns 403 for viewer role', async () => {
     configureRole(mockSupabase, 'viewer');
 
-    const req = createTestRequest(`/api/bids/${VALID_UUID}/responses/draft-all`, {
-      method: 'POST',
-      body: {},
-    });
+    const req = createTestRequest(
+      `/api/bids/${VALID_UUID}/responses/draft-all`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
 
     const res = await draftAllPost(req, { params });
     expect(res.status).toBe(403);
@@ -612,12 +670,17 @@ describe('POST /api/bids/:id/responses/draft-all', () => {
   it('returns 400 for invalid UUID', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const req = createTestRequest(`/api/bids/${INVALID_UUID}/responses/draft-all`, {
-      method: 'POST',
-      body: {},
-    });
+    const req = createTestRequest(
+      `/api/bids/${INVALID_UUID}/responses/draft-all`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
 
-    const res = await draftAllPost(req, { params: createTestParams({ id: INVALID_UUID }) });
+    const res = await draftAllPost(req, {
+      params: createTestParams({ id: INVALID_UUID }),
+    });
     expect(res.status).toBe(400);
 
     const body = await res.json();
@@ -632,10 +695,13 @@ describe('POST /api/bids/:id/responses/draft-all', () => {
       error: { code: 'PGRST116', message: 'No rows found' },
     });
 
-    const req = createTestRequest(`/api/bids/${VALID_UUID}/responses/draft-all`, {
-      method: 'POST',
-      body: {},
-    });
+    const req = createTestRequest(
+      `/api/bids/${VALID_UUID}/responses/draft-all`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
 
     const res = await draftAllPost(req, { params });
     expect(res.status).toBe(404);
@@ -649,10 +715,13 @@ describe('POST /api/bids/:id/responses/draft-all', () => {
       error: null,
     });
 
-    const req = createTestRequest(`/api/bids/${VALID_UUID}/responses/draft-all`, {
-      method: 'POST',
-      body: {},
-    });
+    const req = createTestRequest(
+      `/api/bids/${VALID_UUID}/responses/draft-all`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
 
     const res = await draftAllPost(req, { params });
     expect(res.status).toBe(400);
@@ -671,14 +740,16 @@ describe('POST /api/bids/:id/responses/draft-all', () => {
 
     // Questions query returns empty
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
-    const req = createTestRequest(`/api/bids/${VALID_UUID}/responses/draft-all`, {
-      method: 'POST',
-      body: {},
-    });
+    const req = createTestRequest(
+      `/api/bids/${VALID_UUID}/responses/draft-all`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
 
     const res = await draftAllPost(req, { params });
     expect(res.status).toBe(200);
@@ -699,22 +770,27 @@ describe('POST /api/bids/:id/responses/draft-all', () => {
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
-          data: [{
-            id: VALID_UUID_2,
-            question_text: 'Test question',
-            word_limit: 200,
-            section_name: 'Section 1',
-            confidence_posture: 'no_content',
-            matched_content_ids: [],
-          }],
+          data: [
+            {
+              id: VALID_UUID_2,
+              question_text: 'Test question',
+              word_limit: 200,
+              section_name: 'Section 1',
+              confidence_posture: 'no_content',
+              matched_content_ids: [],
+            },
+          ],
           error: null,
         }),
     );
 
-    const req = createTestRequest(`/api/bids/${VALID_UUID}/responses/draft-all`, {
-      method: 'POST',
-      body: {},
-    });
+    const req = createTestRequest(
+      `/api/bids/${VALID_UUID}/responses/draft-all`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
 
     const res = await draftAllPost(req, { params });
     expect(res.status).toBe(200);
@@ -736,14 +812,16 @@ describe('POST /api/bids/:id/responses/draft-all', () => {
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
-          data: [{
-            id: VALID_UUID_2,
-            question_text: 'Test question',
-            word_limit: 200,
-            section_name: 'Section 1',
-            confidence_posture: 'strong',
-            matched_content_ids: [],
-          }],
+          data: [
+            {
+              id: VALID_UUID_2,
+              question_text: 'Test question',
+              word_limit: 200,
+              section_name: 'Section 1',
+              confidence_posture: 'strong',
+              matched_content_ids: [],
+            },
+          ],
           error: null,
         }),
     );
@@ -754,10 +832,13 @@ describe('POST /api/bids/:id/responses/draft-all', () => {
         resolve({ data: [{ question_id: VALID_UUID_2 }], error: null }),
     );
 
-    const req = createTestRequest(`/api/bids/${VALID_UUID}/responses/draft-all`, {
-      method: 'POST',
-      body: { skip_existing: true },
-    });
+    const req = createTestRequest(
+      `/api/bids/${VALID_UUID}/responses/draft-all`,
+      {
+        method: 'POST',
+        body: { skip_existing: true },
+      },
+    );
 
     const res = await draftAllPost(req, { params });
     expect(res.status).toBe(200);
@@ -778,10 +859,13 @@ describe('POST /api/bids/:id/responses/estimate', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest(`/api/bids/${VALID_UUID}/responses/estimate`, {
-      method: 'POST',
-      body: {},
-    });
+    const req = createTestRequest(
+      `/api/bids/${VALID_UUID}/responses/estimate`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
 
     const res = await estimatePost(req, { params });
     expect(res.status).toBe(401);
@@ -790,10 +874,13 @@ describe('POST /api/bids/:id/responses/estimate', () => {
   it('returns 403 for viewer role', async () => {
     configureRole(mockSupabase, 'viewer');
 
-    const req = createTestRequest(`/api/bids/${VALID_UUID}/responses/estimate`, {
-      method: 'POST',
-      body: {},
-    });
+    const req = createTestRequest(
+      `/api/bids/${VALID_UUID}/responses/estimate`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
 
     const res = await estimatePost(req, { params });
     expect(res.status).toBe(403);
@@ -802,12 +889,17 @@ describe('POST /api/bids/:id/responses/estimate', () => {
   it('returns 400 for invalid UUID', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const req = createTestRequest(`/api/bids/${INVALID_UUID}/responses/estimate`, {
-      method: 'POST',
-      body: {},
-    });
+    const req = createTestRequest(
+      `/api/bids/${INVALID_UUID}/responses/estimate`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
 
-    const res = await estimatePost(req, { params: createTestParams({ id: INVALID_UUID }) });
+    const res = await estimatePost(req, {
+      params: createTestParams({ id: INVALID_UUID }),
+    });
     expect(res.status).toBe(400);
   });
 
@@ -819,10 +911,13 @@ describe('POST /api/bids/:id/responses/estimate', () => {
       error: { code: 'PGRST116', message: 'No rows found' },
     });
 
-    const req = createTestRequest(`/api/bids/${VALID_UUID}/responses/estimate`, {
-      method: 'POST',
-      body: {},
-    });
+    const req = createTestRequest(
+      `/api/bids/${VALID_UUID}/responses/estimate`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
 
     const res = await estimatePost(req, { params });
     expect(res.status).toBe(404);
@@ -836,10 +931,13 @@ describe('POST /api/bids/:id/responses/estimate', () => {
       error: null,
     });
 
-    const req = createTestRequest(`/api/bids/${VALID_UUID}/responses/estimate`, {
-      method: 'POST',
-      body: {},
-    });
+    const req = createTestRequest(
+      `/api/bids/${VALID_UUID}/responses/estimate`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
 
     const res = await estimatePost(req, { params });
     expect(res.status).toBe(400);
@@ -857,14 +955,16 @@ describe('POST /api/bids/:id/responses/estimate', () => {
     });
 
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
-    const req = createTestRequest(`/api/bids/${VALID_UUID}/responses/estimate`, {
-      method: 'POST',
-      body: {},
-    });
+    const req = createTestRequest(
+      `/api/bids/${VALID_UUID}/responses/estimate`,
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
 
     const res = await estimatePost(req, { params });
     expect(res.status).toBe(200);
@@ -898,10 +998,13 @@ describe('POST /api/bids/:id/responses/estimate', () => {
         }),
     );
 
-    const req = createTestRequest(`/api/bids/${VALID_UUID}/responses/estimate`, {
-      method: 'POST',
-      body: { skip_existing: false },
-    });
+    const req = createTestRequest(
+      `/api/bids/${VALID_UUID}/responses/estimate`,
+      {
+        method: 'POST',
+        body: { skip_existing: false },
+      },
+    );
 
     const res = await estimatePost(req, { params });
     expect(res.status).toBe(200);
@@ -1446,8 +1549,7 @@ describe('DELETE /api/bids/:id/questions/:qId', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest(
@@ -1464,7 +1566,10 @@ describe('DELETE /api/bids/:id/questions/:qId', () => {
 
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: { message: 'FK violation', code: '23503' } }),
+        resolve({
+          data: null,
+          error: { message: 'FK violation', code: '23503' },
+        }),
     );
 
     const req = createTestRequest(
@@ -1485,9 +1590,13 @@ describe('POST /api/bids/:id/tender', () => {
   const params = createTestParams({ id: VALID_UUID });
 
   // PDF magic bytes: %PDF
-  const PDF_MAGIC = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x00, 0x00, 0x00, 0x00]);
+  const PDF_MAGIC = new Uint8Array([
+    0x25, 0x50, 0x44, 0x46, 0x00, 0x00, 0x00, 0x00,
+  ]);
   // ZIP/DOCX magic bytes: PK\x03\x04
-  const DOCX_MAGIC = new Uint8Array([0x50, 0x4B, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00]);
+  const DOCX_MAGIC = new Uint8Array([
+    0x50, 0x4b, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00,
+  ]);
 
   /**
    * Create a mock File that works in jsdom. The route checks
@@ -1532,8 +1641,9 @@ describe('POST /api/bids/:id/tender', () => {
       });
     }
 
-    (req as unknown as { formData: () => Promise<FormData> }).formData =
-      vi.fn().mockResolvedValue(formData);
+    (req as unknown as { formData: () => Promise<FormData> }).formData = vi
+      .fn()
+      .mockResolvedValue(formData);
 
     return req;
   }
@@ -1564,7 +1674,9 @@ describe('POST /api/bids/:id/tender', () => {
     const file = createMockFile(PDF_MAGIC, 'test.pdf', 'application/pdf');
     const req = createTenderRequest(file, INVALID_UUID);
 
-    const res = await tenderPost(req, { params: createTestParams({ id: INVALID_UUID }) });
+    const res = await tenderPost(req, {
+      params: createTestParams({ id: INVALID_UUID }),
+    });
     expect(res.status).toBe(400);
   });
 
@@ -1598,7 +1710,11 @@ describe('POST /api/bids/:id/tender', () => {
     configureRole(mockSupabase, 'editor');
 
     const textBytes = new TextEncoder().encode('test content');
-    const file = createMockFile(new Uint8Array(textBytes), 'test.txt', 'text/plain');
+    const file = createMockFile(
+      new Uint8Array(textBytes),
+      'test.txt',
+      'text/plain',
+    );
     const req = createTenderRequest(file);
 
     const res = await tenderPost(req, { params });
@@ -1654,7 +1770,8 @@ describe('POST /api/bids/:id/tender', () => {
       error: null,
     });
 
-    const docxType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    const docxType =
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     const file = createMockFile(DOCX_MAGIC, 'test.docx', docxType);
     const req = createTenderRequest(file);
 
@@ -1757,8 +1874,18 @@ describe('GET /api/bids/:id/responses/:rId/history', () => {
       (resolve: (v: unknown) => void) =>
         resolve({
           data: [
-            { id: 'h2', version: 2, response_text: 'Version 2 text', created_at: '2026-03-13' },
-            { id: 'h1', version: 1, response_text: 'Version 1 text', created_at: '2026-03-12' },
+            {
+              id: 'h2',
+              version: 2,
+              response_text: 'Version 2 text',
+              created_at: '2026-03-13',
+            },
+            {
+              id: 'h1',
+              version: 1,
+              response_text: 'Version 1 text',
+              created_at: '2026-03-12',
+            },
           ],
           error: null,
         }),
@@ -1792,8 +1919,7 @@ describe('GET /api/bids/:id/responses/:rId/history', () => {
 
     // No history entries
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const req = createTestRequest(

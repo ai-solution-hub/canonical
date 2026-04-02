@@ -13,7 +13,11 @@ export interface EntitySummaryResult {
   entity_type: string;
   mention_count: number;
   content_item_ids: string[];
-  related_entities: Array<{ relationship: string; target?: string; source?: string }>;
+  related_entities: Array<{
+    relationship: string;
+    target?: string;
+    source?: string;
+  }>;
 }
 
 export interface EntityRelationship {
@@ -27,7 +31,11 @@ export interface EntityRelationship {
 export interface EntityOverview {
   total_entities: number;
   by_type: Record<string, number>;
-  top_entities: Array<{ canonical_name: string; entity_type: string; mention_count: number }>;
+  top_entities: Array<{
+    canonical_name: string;
+    entity_type: string;
+    mention_count: number;
+  }>;
 }
 
 export function formatEntitySummary(
@@ -45,23 +53,24 @@ export function formatEntitySummary(
     return `# Entity Relationships\n\nNo entities found matching ${filter}.`;
   }
 
-  const lines: string[] = [
-    '# Entity Relationships',
-    '',
-  ];
+  const lines: string[] = ['# Entity Relationships', ''];
 
   for (const entity of summaries) {
     lines.push(`## ${formatEntityDisplayName(entity.canonical_name)}`);
     lines.push(`**Type:** ${entity.entity_type}`);
     lines.push(`**Mentions:** ${entity.mention_count}`);
-    lines.push(`**Referenced in:** ${entity.content_item_ids.length} content item${entity.content_item_ids.length === 1 ? '' : 's'}`);
+    lines.push(
+      `**Referenced in:** ${entity.content_item_ids.length} content item${entity.content_item_ids.length === 1 ? '' : 's'}`,
+    );
 
     if (entity.related_entities.length > 0) {
       lines.push('', '### Related Entities');
       for (const related of entity.related_entities) {
         const relLabel = related.relationship.replace(/_/g, ' ');
         const entityName = related.target ?? related.source ?? 'unknown';
-        const direction = related.target ? `${relLabel} → ${entityName}` : `${entityName} → ${relLabel}`;
+        const direction = related.target
+          ? `${relLabel} → ${entityName}`
+          : `${entityName} → ${relLabel}`;
         lines.push(`- ${direction}`);
       }
     }
@@ -76,7 +85,9 @@ export function formatEntitySummary(
     for (const rel of relationships) {
       const conf = Math.round(rel.confidence * 100);
       const relLabel = rel.relationship_type.replace(/_/g, ' ');
-      lines.push(`| ${formatEntityDisplayName(rel.source_entity)} | ${relLabel} | ${formatEntityDisplayName(rel.target_entity)} | ${conf}% |`);
+      lines.push(
+        `| ${formatEntityDisplayName(rel.source_entity)} | ${relLabel} | ${formatEntityDisplayName(rel.target_entity)} | ${conf}% |`,
+      );
     }
     lines.push('');
   }
@@ -94,7 +105,9 @@ export function formatEntityOverview(overview: EntityOverview): string {
     '',
   ];
 
-  const sortedTypes = Object.entries(overview.by_type).sort(([, a], [, b]) => b - a);
+  const sortedTypes = Object.entries(overview.by_type).sort(
+    ([, a], [, b]) => b - a,
+  );
   for (const [type, count] of sortedTypes) {
     lines.push(`- **${type}:** ${count}`);
   }
@@ -104,7 +117,9 @@ export function formatEntityOverview(overview: EntityOverview): string {
     lines.push('| Entity | Type | Mentions |');
     lines.push('|--------|------|----------|');
     for (const entity of overview.top_entities) {
-      lines.push(`| ${formatEntityDisplayName(entity.canonical_name)} | ${entity.entity_type} | ${entity.mention_count} |`);
+      lines.push(
+        `| ${formatEntityDisplayName(entity.canonical_name)} | ${entity.entity_type} | ${entity.mention_count} |`,
+      );
     }
   }
 
@@ -149,21 +164,25 @@ export function formatCertificationReport(
   const s = data.summary;
   lines.push(
     `**Total:** ${s.total_certifications} | ` +
-    `Valid: ${s.valid} | ` +
-    `Expiring soon: ${s.expiring_soon} | ` +
-    `Expired: ${s.expired} | ` +
-    `Unknown: ${s.unknown}`,
+      `Valid: ${s.valid} | ` +
+      `Expiring soon: ${s.expiring_soon} | ` +
+      `Expired: ${s.expired} | ` +
+      `Unknown: ${s.unknown}`,
   );
   lines.push('');
 
   // Separate self-held from supplier certifications
   const selfCerts = data.certifications.filter((c) => c.holder !== 'supplier');
-  const supplierCerts = data.certifications.filter((c) => c.holder === 'supplier');
+  const supplierCerts = data.certifications.filter(
+    (c) => c.holder === 'supplier',
+  );
 
   // Certifications section
   if (selfCerts.length > 0) {
     lines.push(`## Certifications (${selfCerts.length} held)`, '');
-    lines.push('| Certification | Version | Issuer | Obtained | Expires | Status |');
+    lines.push(
+      '| Certification | Version | Issuer | Obtained | Expires | Status |',
+    );
     lines.push('|---|---|---|---|---|---|');
     for (const cert of selfCerts) {
       const meta = cert.metadata;
@@ -172,7 +191,9 @@ export function formatCertificationReport(
       const obtained = formatDateUK((meta.date_obtained as string) ?? null);
       const expires = formatDateUK((meta.expiry_date as string) ?? null);
       const status = cert.expiry_status.replace(/_/g, ' ');
-      lines.push(`| ${formatEntityDisplayName(cert.canonical_name)} | ${version} | ${issuer} | ${obtained} | ${expires} | ${status} |`);
+      lines.push(
+        `| ${formatEntityDisplayName(cert.canonical_name)} | ${version} | ${issuer} | ${obtained} | ${expires} | ${status} |`,
+      );
     }
     lines.push('');
   }
@@ -185,10 +206,13 @@ export function formatCertificationReport(
     for (const fw of data.frameworks) {
       const meta = fw.metadata;
       const round = (meta.round as string) ?? '';
-      const status = (meta.status as string) ?? fw.expiry_status.replace(/_/g, ' ');
+      const status =
+        (meta.status as string) ?? fw.expiry_status.replace(/_/g, ' ');
       const joined = formatDateUK((meta.date_joined as string) ?? null);
       const expires = formatDateUK((meta.expiry_date as string) ?? null);
-      lines.push(`| ${formatEntityDisplayName(fw.canonical_name)} | ${round} | ${status} | ${joined} | ${expires} |`);
+      lines.push(
+        `| ${formatEntityDisplayName(fw.canonical_name)} | ${round} | ${status} | ${joined} | ${expires} |`,
+      );
     }
     lines.push('');
   }
@@ -202,7 +226,9 @@ export function formatCertificationReport(
       const meta = reg.metadata;
       const regNumber = (meta.registration_number as string) ?? '';
       const expires = formatDateUK((meta.expiry_date as string) ?? null);
-      lines.push(`| ${formatEntityDisplayName(reg.canonical_name)} | ${regNumber} | ${expires} |`);
+      lines.push(
+        `| ${formatEntityDisplayName(reg.canonical_name)} | ${regNumber} | ${expires} |`,
+      );
     }
     lines.push('');
   }
@@ -213,7 +239,9 @@ export function formatCertificationReport(
   if (evidenceEntries.length > 0) {
     lines.push('### Evidence', '');
     for (const entry of evidenceEntries) {
-      lines.push(`- ${formatEntityDisplayName(entry.canonical_name)}: referenced in ${entry.content_item_count} content ${entry.content_item_count === 1 ? 'item' : 'items'}`);
+      lines.push(
+        `- ${formatEntityDisplayName(entry.canonical_name)}: referenced in ${entry.content_item_count} content ${entry.content_item_count === 1 ? 'item' : 'items'}`,
+      );
     }
     lines.push('');
   }
@@ -225,11 +253,14 @@ export function formatCertificationReport(
     lines.push('|---|---|---|---|---|');
     for (const cert of supplierCerts) {
       const meta = cert.metadata;
-      const supplier = cert.supplier_name ?? (meta.supplier_name as string) ?? '';
+      const supplier =
+        cert.supplier_name ?? (meta.supplier_name as string) ?? '';
       const version = (meta.version as string) ?? '';
       const expires = formatDateUK((meta.expiry_date as string) ?? null);
       const status = cert.expiry_status.replace(/_/g, ' ');
-      lines.push(`| ${formatEntityDisplayName(cert.canonical_name)} | ${supplier} | ${version} | ${expires} | ${status} |`);
+      lines.push(
+        `| ${formatEntityDisplayName(cert.canonical_name)} | ${supplier} | ${version} | ${expires} | ${status} |`,
+      );
     }
     lines.push('');
   }

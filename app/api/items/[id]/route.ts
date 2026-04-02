@@ -75,11 +75,17 @@ export async function PATCH(
       );
     }
 
-    if (field === 'expiry_date' && value !== null && typeof value === 'string') {
+    if (
+      field === 'expiry_date' &&
+      value !== null &&
+      typeof value === 'string'
+    ) {
       const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
       if (!dateRegex.test(value)) {
         return NextResponse.json(
-          { error: 'expiry_date must be a valid ISO date (YYYY-MM-DD) or null' },
+          {
+            error: 'expiry_date must be a valid ISO date (YYYY-MM-DD) or null',
+          },
           { status: 400 },
         );
       }
@@ -92,8 +98,17 @@ export async function PATCH(
       }
     }
 
-    if (field === 'lifecycle_type' && value !== null && typeof value === 'string') {
-      const validTypes = ['evergreen', 'date_bound', 'regulation', 'bid_discovered'];
+    if (
+      field === 'lifecycle_type' &&
+      value !== null &&
+      typeof value === 'string'
+    ) {
+      const validTypes = [
+        'evergreen',
+        'date_bound',
+        'regulation',
+        'bid_discovered',
+      ];
       if (!validTypes.includes(value)) {
         return NextResponse.json(
           { error: `lifecycle_type must be one of: ${validTypes.join(', ')}` },
@@ -105,15 +120,14 @@ export async function PATCH(
     // Fetch current state before update (for version history)
     const { data: currentItem, error: fetchError } = await supabase
       .from('content_items')
-      .select('title, content, brief, detail, reference, suggested_title, ai_keywords, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, priority, ai_summary, content_type, platform, author_name, user_tags, answer_standard, answer_advanced, governance_review_status, expiry_date, lifecycle_type')
+      .select(
+        'title, content, brief, detail, reference, suggested_title, ai_keywords, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, priority, ai_summary, content_type, platform, author_name, user_tags, answer_standard, answer_advanced, governance_review_status, expiry_date, lifecycle_type',
+      )
       .eq('id', id)
       .single();
 
     if (fetchError || !currentItem) {
-      return NextResponse.json(
-        { error: 'Item not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Item not found' }, { status: 404 });
     }
 
     // Generate change summary
@@ -125,13 +139,18 @@ export async function PATCH(
     );
 
     // For Q&A answer fields, auto-rebuild the content field from Standard + Advanced
-    const updateData: Record<string, unknown> = { [field]: value, updated_by: user.id };
+    const updateData: Record<string, unknown> = {
+      [field]: value,
+      updated_by: user.id,
+    };
     if (
       (field === 'answer_standard' || field === 'answer_advanced') &&
       currentItem.content_type === 'q_a_pair'
     ) {
-      const standard = field === 'answer_standard' ? value : currentItem.answer_standard;
-      const advanced = field === 'answer_advanced' ? value : currentItem.answer_advanced;
+      const standard =
+        field === 'answer_standard' ? value : currentItem.answer_standard;
+      const advanced =
+        field === 'answer_advanced' ? value : currentItem.answer_advanced;
       const parts: string[] = [];
       if (standard) parts.push(String(standard));
       if (advanced) parts.push(String(advanced));
@@ -144,7 +163,8 @@ export async function PATCH(
     if (field === 'governance_review_status' && value === null) {
       try {
         const contentText = currentItem.content ?? '';
-        const titleText = currentItem.title ?? currentItem.suggested_title ?? '';
+        const titleText =
+          currentItem.title ?? currentItem.suggested_title ?? '';
         if (contentText) {
           const plainText = htmlToPlainText(contentText);
           const embeddingText = `${titleText}\n\n${plainText}`;
@@ -154,7 +174,10 @@ export async function PATCH(
       } catch (embedErr) {
         console.error('Embedding generation failed during publish:', embedErr);
         return NextResponse.json(
-          { error: 'Failed to generate embedding — item not published. Try again.' },
+          {
+            error:
+              'Failed to generate embedding — item not published. Try again.',
+          },
           { status: 500 },
         );
       }
@@ -193,9 +216,10 @@ export async function PATCH(
 
       if (significantFields.includes(field)) {
         // Look up the item's domain to check governance config
-        const itemDomain = field === 'primary_domain' && typeof value === 'string'
-          ? value
-          : currentItem.primary_domain;
+        const itemDomain =
+          field === 'primary_domain' && typeof value === 'string'
+            ? value
+            : currentItem.primary_domain;
 
         if (itemDomain) {
           const { data: govConfig } = await supabase
@@ -236,7 +260,9 @@ export async function PATCH(
     } catch (govErr) {
       // Governance check is best-effort — surface as warning
       console.error('Governance check failed:', govErr);
-      warnings.push('Governance check failed — item updated but governance review was not triggered');
+      warnings.push(
+        'Governance check failed — item updated but governance review was not triggered',
+      );
     }
 
     // Create version history entry (best-effort — don't fail the update if this fails)
@@ -306,24 +332,34 @@ export async function PATCH(
 
     // Recalculate quality score if a quality-relevant field changed
     const qualityRelevantFields = [
-      'freshness', 'classification_confidence', 'brief', 'detail',
-      'reference', 'ai_summary', 'content', 'title',
+      'freshness',
+      'classification_confidence',
+      'brief',
+      'detail',
+      'reference',
+      'ai_summary',
+      'content',
+      'title',
     ];
     if (qualityRelevantFields.includes(field)) {
       try {
-        const { calculateAndRoundQualityScore } = await import('@/lib/quality/quality-score');
+        const { calculateAndRoundQualityScore } =
+          await import('@/lib/quality/quality-score');
 
         // Fetch the updated item's current state
         const { data: updatedForQuality } = await supabase
           .from('content_items')
-          .select('freshness, classification_confidence, brief, detail, reference, ai_summary, citation_count, quality_score')
+          .select(
+            'freshness, classification_confidence, brief, detail, reference, ai_summary, citation_count, quality_score',
+          )
           .eq('id', id)
           .single();
 
         if (updatedForQuality) {
           const newScore = calculateAndRoundQualityScore({
             freshness: updatedForQuality.freshness,
-            classification_confidence: updatedForQuality.classification_confidence,
+            classification_confidence:
+              updatedForQuality.classification_confidence,
             brief: updatedForQuality.brief,
             detail: updatedForQuality.detail,
             reference: updatedForQuality.reference,
@@ -388,10 +424,7 @@ export async function DELETE(
       .single();
 
     if (fetchError || !existingItem) {
-      return NextResponse.json(
-        { error: 'Item not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Item not found' }, { status: 404 });
     }
 
     // Delete the content item — related records are cleaned up via ON DELETE CASCADE

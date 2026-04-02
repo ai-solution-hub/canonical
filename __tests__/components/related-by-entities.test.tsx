@@ -81,8 +81,14 @@ import { RelatedByEntities } from '@/components/item-detail/related-by-entities'
  */
 function configureThreeQueries(
   myEntities: { data: unknown[] | null; error: unknown },
-  sharedMentions: { data: unknown[] | null; error: unknown } = { data: [], error: null },
-  contentDetails: { data: unknown[] | null; error: unknown } = { data: [], error: null },
+  sharedMentions: { data: unknown[] | null; error: unknown } = {
+    data: [],
+    error: null,
+  },
+  contentDetails: { data: unknown[] | null; error: unknown } = {
+    data: [],
+    error: null,
+  },
 ) {
   callTracker.fromCallIndex = 0;
   callTracker.responses = [myEntities, sharedMentions, contentDetails];
@@ -128,9 +134,7 @@ describe('RelatedByEntities', () => {
   it('renders nothing when the current item has no entities', async () => {
     configureThreeQueries({ data: [], error: null });
 
-    const { container } = render(
-      <RelatedByEntities contentItemId="item-1" />,
-    );
+    const { container } = render(<RelatedByEntities contentItemId="item-1" />);
 
     await waitFor(() => {
       // Loading spinner should be gone
@@ -146,9 +150,7 @@ describe('RelatedByEntities', () => {
   it('renders nothing when entities query returns null data', async () => {
     configureThreeQueries({ data: null, error: null });
 
-    const { container } = render(
-      <RelatedByEntities contentItemId="item-1" />,
-    );
+    const { container } = render(<RelatedByEntities contentItemId="item-1" />);
 
     await waitFor(() => {
       expect(
@@ -223,15 +225,20 @@ describe('RelatedByEntities', () => {
   it('renders links to item detail pages', async () => {
     configureThreeQueries(
       { data: [{ canonical_name: 'React' }], error: null },
-      { data: [{ content_item_id: 'item-42', canonical_name: 'React' }], error: null },
       {
-        data: [{
-          id: 'item-42',
-          title: 'React Best Practices',
-          suggested_title: null,
-          primary_domain: 'Technical',
-          content_type: 'article',
-        }],
+        data: [{ content_item_id: 'item-42', canonical_name: 'React' }],
+        error: null,
+      },
+      {
+        data: [
+          {
+            id: 'item-42',
+            title: 'React Best Practices',
+            suggested_title: null,
+            primary_domain: 'Technical',
+            content_type: 'article',
+          },
+        ],
         error: null,
       },
     );
@@ -249,15 +256,20 @@ describe('RelatedByEntities', () => {
   it('uses suggested_title when available', async () => {
     configureThreeQueries(
       { data: [{ canonical_name: 'Testing' }], error: null },
-      { data: [{ content_item_id: 'item-5', canonical_name: 'Testing' }], error: null },
       {
-        data: [{
-          id: 'item-5',
-          title: 'Original Title',
-          suggested_title: 'Better Suggested Title',
-          primary_domain: null,
-          content_type: 'article',
-        }],
+        data: [{ content_item_id: 'item-5', canonical_name: 'Testing' }],
+        error: null,
+      },
+      {
+        data: [
+          {
+            id: 'item-5',
+            title: 'Original Title',
+            suggested_title: 'Better Suggested Title',
+            primary_domain: null,
+            content_type: 'article',
+          },
+        ],
         error: null,
       },
     );
@@ -286,13 +298,15 @@ describe('RelatedByEntities', () => {
         error: null,
       },
       {
-        data: [{
-          id: 'item-2',
-          title: 'Related Item',
-          suggested_title: null,
-          primary_domain: null,
-          content_type: 'article',
-        }],
+        data: [
+          {
+            id: 'item-2',
+            title: 'Related Item',
+            suggested_title: null,
+            primary_domain: null,
+            content_type: 'article',
+          },
+        ],
         error: null,
       },
     );
@@ -338,13 +352,15 @@ describe('RelatedByEntities', () => {
         error: null,
       },
       {
-        data: [{
-          id: 'item-2',
-          title: 'Multi-Entity Item',
-          suggested_title: null,
-          primary_domain: null,
-          content_type: 'article',
-        }],
+        data: [
+          {
+            id: 'item-2',
+            title: 'Multi-Entity Item',
+            suggested_title: null,
+            primary_domain: null,
+            content_type: 'article',
+          },
+        ],
         error: null,
       },
     );
@@ -367,9 +383,7 @@ describe('RelatedByEntities', () => {
 
     configureThreeQueries({ data: null, error: fetchError });
 
-    const { container } = render(
-      <RelatedByEntities contentItemId="item-1" />,
-    );
+    const { container } = render(<RelatedByEntities contentItemId="item-1" />);
 
     await waitFor(() => {
       expect(consoleSpy).toHaveBeenCalledWith(
@@ -396,9 +410,7 @@ describe('RelatedByEntities', () => {
       { data: null, error: sharedError },
     );
 
-    const { container } = render(
-      <RelatedByEntities contentItemId="item-1" />,
-    );
+    const { container } = render(<RelatedByEntities contentItemId="item-1" />);
 
     await waitFor(() => {
       expect(consoleSpy).toHaveBeenCalledWith(
@@ -425,9 +437,7 @@ describe('RelatedByEntities', () => {
       { data: null, error: detailError },
     );
 
-    const { container } = render(
-      <RelatedByEntities contentItemId="item-1" />,
-    );
+    const { container } = render(<RelatedByEntities contentItemId="item-1" />);
 
     await waitFor(() => {
       expect(consoleSpy).toHaveBeenCalledWith(
@@ -452,9 +462,7 @@ describe('RelatedByEntities', () => {
       { data: [], error: null },
     );
 
-    const { container } = render(
-      <RelatedByEntities contentItemId="item-1" />,
-    );
+    const { container } = render(<RelatedByEntities contentItemId="item-1" />);
 
     await waitFor(() => {
       expect(
@@ -468,15 +476,20 @@ describe('RelatedByEntities', () => {
   it('renders domain badge when primary_domain is provided', async () => {
     configureThreeQueries(
       { data: [{ canonical_name: 'Testing' }], error: null },
-      { data: [{ content_item_id: 'item-2', canonical_name: 'Testing' }], error: null },
       {
-        data: [{
-          id: 'item-2',
-          title: 'Test Strategy Document',
-          suggested_title: null,
-          primary_domain: 'Technical',
-          content_type: 'article',
-        }],
+        data: [{ content_item_id: 'item-2', canonical_name: 'Testing' }],
+        error: null,
+      },
+      {
+        data: [
+          {
+            id: 'item-2',
+            title: 'Test Strategy Document',
+            suggested_title: null,
+            primary_domain: 'Technical',
+            content_type: 'article',
+          },
+        ],
         error: null,
       },
     );
@@ -494,15 +507,20 @@ describe('RelatedByEntities', () => {
   it('does not render domain badge when primary_domain is null', async () => {
     configureThreeQueries(
       { data: [{ canonical_name: 'Testing' }], error: null },
-      { data: [{ content_item_id: 'item-2', canonical_name: 'Testing' }], error: null },
       {
-        data: [{
-          id: 'item-2',
-          title: 'No Domain Item',
-          suggested_title: null,
-          primary_domain: null,
-          content_type: 'article',
-        }],
+        data: [{ content_item_id: 'item-2', canonical_name: 'Testing' }],
+        error: null,
+      },
+      {
+        data: [
+          {
+            id: 'item-2',
+            title: 'No Domain Item',
+            suggested_title: null,
+            primary_domain: null,
+            content_type: 'article',
+          },
+        ],
         error: null,
       },
     );
@@ -520,15 +538,20 @@ describe('RelatedByEntities', () => {
   it('passes className prop to the wrapper div', async () => {
     configureThreeQueries(
       { data: [{ canonical_name: 'React' }], error: null },
-      { data: [{ content_item_id: 'item-2', canonical_name: 'React' }], error: null },
       {
-        data: [{
-          id: 'item-2',
-          title: 'React Guide',
-          suggested_title: null,
-          primary_domain: null,
-          content_type: 'article',
-        }],
+        data: [{ content_item_id: 'item-2', canonical_name: 'React' }],
+        error: null,
+      },
+      {
+        data: [
+          {
+            id: 'item-2',
+            title: 'React Guide',
+            suggested_title: null,
+            primary_domain: null,
+            content_type: 'article',
+          },
+        ],
         error: null,
       },
     );
@@ -548,10 +571,7 @@ describe('RelatedByEntities', () => {
   it('orders related items by descending shared entity count', async () => {
     configureThreeQueries(
       {
-        data: [
-          { canonical_name: 'Entity A' },
-          { canonical_name: 'Entity B' },
-        ],
+        data: [{ canonical_name: 'Entity A' }, { canonical_name: 'Entity B' }],
         error: null,
       },
       {

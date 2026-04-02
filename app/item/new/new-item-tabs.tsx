@@ -67,8 +67,8 @@ export function NewItemTabs() {
                   Import from URL
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Paste a web page URL to extract its content, classify it, and add
-                  it to the knowledge base automatically.
+                  Paste a web page URL to extract its content, classify it, and
+                  add it to the knowledge base automatically.
                 </p>
               </div>
               <UrlIngestForm onSuggestManual={() => setActiveTab('write')} />
@@ -84,7 +84,10 @@ export function NewItemTabs() {
       </Tabs>
 
       {/* Dialog still available for Browse page quick-upload */}
-      <FileUploadDialog open={showUploadDialog} onOpenChange={setShowUploadDialog} />
+      <FileUploadDialog
+        open={showUploadDialog}
+        onOpenChange={setShowUploadDialog}
+      />
     </>
   );
 }

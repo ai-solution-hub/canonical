@@ -80,7 +80,9 @@ describe('CoverageGuideTab', () => {
     mockFetch.mockResolvedValueOnce({ ok: false, status: 500 });
     render(<CoverageGuideTab />);
     await waitFor(() => {
-      expect(screen.getByText('Failed to load guide coverage data.')).toBeInTheDocument();
+      expect(
+        screen.getByText('Failed to load guide coverage data.'),
+      ).toBeInTheDocument();
     });
     expect(screen.getByRole('button', { name: /Retry/ })).toBeInTheDocument();
 
@@ -99,13 +101,24 @@ describe('CoverageGuideTab', () => {
   it('shows empty state when no guides are published', async () => {
     mockFetch.mockResolvedValue({
       ok: true,
-      json: async () => makeGuideResponse({ guides: [], summary: { total_guides: 0, fully_populated: 0, partially_populated: 0, empty: 0 } }),
+      json: async () =>
+        makeGuideResponse({
+          guides: [],
+          summary: {
+            total_guides: 0,
+            fully_populated: 0,
+            partially_populated: 0,
+            empty: 0,
+          },
+        }),
     });
     render(<CoverageGuideTab />);
     await waitFor(() => {
       expect(screen.getByText('No guides published')).toBeInTheDocument();
     });
-    expect(screen.getByText(/Publish a guide to see section-level coverage/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Publish a guide to see section-level coverage/),
+    ).toBeInTheDocument();
   });
 
   it('shows summary cards and guide cards on success', async () => {

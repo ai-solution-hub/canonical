@@ -15,7 +15,10 @@ interface BidStateIndicatorProps {
   className?: string;
 }
 
-const COLOUR_CLASSES: Record<BidState, { bg: string; text: string; border: string; dot: string }> = {
+const COLOUR_CLASSES: Record<
+  BidState,
+  { bg: string; text: string; border: string; dot: string }
+> = {
   draft: {
     bg: 'bg-bid-draft-bg',
     text: 'text-bid-draft',
@@ -95,7 +98,10 @@ export function BidStateBadge({ state, className }: BidStateIndicatorProps) {
         className,
       )}
     >
-      <span className={cn('size-1.5 rounded-full', colours.dot)} aria-hidden="true" />
+      <span
+        className={cn('size-1.5 rounded-full', colours.dot)}
+        aria-hidden="true"
+      />
       {label}
     </span>
   );
@@ -109,7 +115,11 @@ export function BidStateStepper({ state, className }: BidStateIndicatorProps) {
   const terminal = isTerminal(state);
 
   return (
-    <div className={cn('flex items-center gap-1', className)} role="list" aria-label="Bid progress">
+    <div
+      className={cn('flex items-center gap-1', className)}
+      role="list"
+      aria-label="Bid progress"
+    >
       {BID_STATE_PROGRESSION.map((step, index) => {
         const isCompleted = !terminal && currentIndex > index;
         const isCurrent = step === state;
@@ -130,10 +140,15 @@ export function BidStateStepper({ state, className }: BidStateIndicatorProps) {
               <div
                 className={cn(
                   'flex size-5 items-center justify-center rounded-full border text-xs',
-                  isCompleted && 'border-primary bg-primary text-primary-foreground',
-                  isCurrent && 'border-primary bg-primary/10 text-primary ring-2 ring-primary/30',
-                  isFuture && 'border-muted-foreground/30 text-muted-foreground/50',
-                  terminal && !isCurrent && 'border-muted-foreground/30 text-muted-foreground/50',
+                  isCompleted &&
+                    'border-primary bg-primary text-primary-foreground',
+                  isCurrent &&
+                    'border-primary bg-primary/10 text-primary ring-2 ring-primary/30',
+                  isFuture &&
+                    'border-muted-foreground/30 text-muted-foreground/50',
+                  terminal &&
+                    !isCurrent &&
+                    'border-muted-foreground/30 text-muted-foreground/50',
                 )}
                 aria-current={isCurrent ? 'step' : undefined}
               >
@@ -147,7 +162,9 @@ export function BidStateStepper({ state, className }: BidStateIndicatorProps) {
               <span
                 className={cn(
                   'block text-[9px] leading-tight sm:hidden',
-                  isCurrent ? 'font-medium text-foreground' : 'text-muted-foreground',
+                  isCurrent
+                    ? 'font-medium text-foreground'
+                    : 'text-muted-foreground',
                 )}
                 aria-hidden="true"
               >
@@ -157,7 +174,9 @@ export function BidStateStepper({ state, className }: BidStateIndicatorProps) {
               <span
                 className={cn(
                   'hidden text-[11px] leading-tight sm:block',
-                  isCurrent ? 'font-medium text-foreground' : 'text-muted-foreground',
+                  isCurrent
+                    ? 'font-medium text-foreground'
+                    : 'text-muted-foreground',
                 )}
               >
                 {BID_STATE_LABELS[step]}
@@ -170,14 +189,20 @@ export function BidStateStepper({ state, className }: BidStateIndicatorProps) {
       {/* Terminal state indicator */}
       {terminal && (
         <div className="flex items-center" role="listitem">
-          <div className="mx-0.5 h-0.5 w-3 sm:w-6 bg-muted" aria-hidden="true" />
+          <div
+            className="mx-0.5 h-0.5 w-3 sm:w-6 bg-muted"
+            aria-hidden="true"
+          />
           <div className="flex flex-col items-center gap-0.5">
             <div
               className={cn(
                 'flex size-5 items-center justify-center rounded-full border',
-                state === 'won' && 'border-bid-won-border bg-bid-won-bg text-bid-won',
-                state === 'lost' && 'border-bid-lost-border bg-bid-lost-bg text-bid-lost',
-                state === 'withdrawn' && 'border-bid-withdrawn-border bg-bid-withdrawn-bg text-bid-withdrawn',
+                state === 'won' &&
+                  'border-bid-won-border bg-bid-won-bg text-bid-won',
+                state === 'lost' &&
+                  'border-bid-lost-border bg-bid-lost-bg text-bid-lost',
+                state === 'withdrawn' &&
+                  'border-bid-withdrawn-border bg-bid-withdrawn-bg text-bid-withdrawn',
               )}
               aria-current="step"
             >
@@ -190,7 +215,10 @@ export function BidStateStepper({ state, className }: BidStateIndicatorProps) {
               )}
             </div>
             {/* Abbreviated label on mobile */}
-            <span className="block text-[9px] font-medium leading-tight sm:hidden" aria-hidden="true">
+            <span
+              className="block text-[9px] font-medium leading-tight sm:hidden"
+              aria-hidden="true"
+            >
               {BID_STATE_SHORT_LABELS[state]}
             </span>
             {/* Full label on desktop */}

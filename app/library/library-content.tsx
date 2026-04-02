@@ -40,12 +40,19 @@ import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { useUserRole } from '@/hooks/use-user-role';
 import type { ContentListItem } from '@/types/content';
 
-import { useLibraryFilters, type LibraryFilters, type GroupBy } from '@/hooks/browse/use-library-filters';
+import {
+  useLibraryFilters,
+  type LibraryFilters,
+  type GroupBy,
+} from '@/hooks/browse/use-library-filters';
 import { useLibraryData } from '@/hooks/use-library-data';
 import { useLibraryBulkActions } from '@/hooks/use-library-bulk-actions';
 import { QARow } from '@/components/qa/qa-row';
 import { BulkActionToolbar } from '@/components/browse/bulk-action-toolbar';
-import { CollapsibleGroup, groupItems } from '@/components/shell/collapsible-group';
+import {
+  CollapsibleGroup,
+  groupItems,
+} from '@/components/shell/collapsible-group';
 
 // ---------------------------------------------------------------------------
 // VirtualisedQAList — renders the flat Q&A list with window-based virtualisation
@@ -79,7 +86,10 @@ function VirtualisedQAList({
   return (
     <div
       ref={listRef}
-      style={{ height: `${virtualiser.getTotalSize()}px`, position: 'relative' }}
+      style={{
+        height: `${virtualiser.getTotalSize()}px`,
+        position: 'relative',
+      }}
     >
       {virtualItems.map((virtualRow) => {
         const item = items[virtualRow.index];
@@ -113,7 +123,14 @@ function VirtualisedQAList({
 // ---------------------------------------------------------------------------
 
 export function LibraryContent() {
-  const { filters, setFilters, clearFilters, activeCount, groupBy, setGroupBy } = useLibraryFilters();
+  const {
+    filters,
+    setFilters,
+    clearFilters,
+    activeCount,
+    groupBy,
+    setGroupBy,
+  } = useLibraryFilters();
   const { domains } = useTaxonomy();
   const { canAdmin } = useUserRole();
 
@@ -123,7 +140,14 @@ export function LibraryContent() {
   // Bulk actions hook
   const bulk = useLibraryBulkActions({
     items,
-    filterDeps: [filters.domain, filters.source_file, filters.variant, filters.search, filters.freshness, filters.verified],
+    filterDeps: [
+      filters.domain,
+      filters.source_file,
+      filters.variant,
+      filters.search,
+      filters.freshness,
+      filters.verified,
+    ],
   });
 
   // Stats
@@ -149,25 +173,40 @@ export function LibraryContent() {
   );
 
   return (
-    <section aria-label="Q&A Library" className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+    <section
+      aria-label="Q&A Library"
+      className="mx-auto max-w-7xl px-4 py-8 sm:px-6"
+    >
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Q&A Library</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground" aria-live="polite">
+          <p
+            className="mt-0.5 text-sm text-muted-foreground"
+            aria-live="polite"
+          >
             {isLoading ? (
               <span className="inline-block h-4 w-48 animate-pulse rounded bg-accent align-middle" />
             ) : (
               <>
                 {items.length} Q&A pair{items.length !== 1 ? 's' : ''}
                 {standardCount > 0 && (
-                  <span><span aria-hidden="true"> · </span>{standardCount} standard</span>
+                  <span>
+                    <span aria-hidden="true"> · </span>
+                    {standardCount} standard
+                  </span>
                 )}
                 {advancedCount > 0 && (
-                  <span><span aria-hidden="true"> · </span>{advancedCount} advanced</span>
+                  <span>
+                    <span aria-hidden="true"> · </span>
+                    {advancedCount} advanced
+                  </span>
                 )}
                 {verifiedCount > 0 && (
-                  <span><span aria-hidden="true"> · </span>{verifiedCount} verified</span>
+                  <span>
+                    <span aria-hidden="true"> · </span>
+                    {verifiedCount} verified
+                  </span>
                 )}
               </>
             )}
@@ -183,7 +222,9 @@ export function LibraryContent() {
             type="search"
             placeholder="Search questions and answers..."
             value={filters.search ?? ''}
-            onChange={(e) => setFilters({ search: e.target.value || undefined })}
+            onChange={(e) =>
+              setFilters({ search: e.target.value || undefined })
+            }
             className="h-9 border bg-white pl-9 shadow-sm dark:bg-input/30"
             aria-label="Search Q&A pairs"
           />
@@ -192,9 +233,14 @@ export function LibraryContent() {
         <div className="flex flex-wrap items-center gap-2">
           <Select
             value={filters.domain ?? '__all__'}
-            onValueChange={(v) => setFilters({ domain: v === '__all__' ? undefined : v })}
+            onValueChange={(v) =>
+              setFilters({ domain: v === '__all__' ? undefined : v })
+            }
           >
-            <SelectTrigger className="h-9 w-[160px] text-xs" aria-label="Filter by domain">
+            <SelectTrigger
+              className="h-9 w-[160px] text-xs"
+              aria-label="Filter by domain"
+            >
               <SelectValue placeholder="All domains" />
             </SelectTrigger>
             <SelectContent>
@@ -210,10 +256,16 @@ export function LibraryContent() {
           <Select
             value={filters.freshness ?? 'all'}
             onValueChange={(v) =>
-              setFilters({ freshness: v === 'all' ? undefined : (v as LibraryFilters['freshness']) })
+              setFilters({
+                freshness:
+                  v === 'all' ? undefined : (v as LibraryFilters['freshness']),
+              })
             }
           >
-            <SelectTrigger className="h-9 w-[130px] text-xs" aria-label="Filter by freshness">
+            <SelectTrigger
+              className="h-9 w-[130px] text-xs"
+              aria-label="Filter by freshness"
+            >
               <SelectValue placeholder="All freshness" />
             </SelectTrigger>
             <SelectContent>
@@ -228,10 +280,16 @@ export function LibraryContent() {
           <Select
             value={filters.verified ?? 'all'}
             onValueChange={(v) =>
-              setFilters({ verified: v === 'all' ? undefined : (v as LibraryFilters['verified']) })
+              setFilters({
+                verified:
+                  v === 'all' ? undefined : (v as LibraryFilters['verified']),
+              })
             }
           >
-            <SelectTrigger className="h-9 w-[130px] text-xs" aria-label="Filter by verified status">
+            <SelectTrigger
+              className="h-9 w-[130px] text-xs"
+              aria-label="Filter by verified status"
+            >
               <SelectValue placeholder="All status" />
             </SelectTrigger>
             <SelectContent>
@@ -244,7 +302,11 @@ export function LibraryContent() {
           {/* Secondary filters popover */}
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5 text-xs"
+              >
                 <SlidersHorizontal className="size-3.5" />
                 More filters
                 {secondaryFilterCount > 0 && (
@@ -255,16 +317,27 @@ export function LibraryContent() {
               </Button>
             </PopoverTrigger>
             <PopoverContent align="end" className="min-w-[280px] space-y-4">
-              <h3 className="text-sm font-medium text-foreground">Additional Filters</h3>
+              <h3 className="text-sm font-medium text-foreground">
+                Additional Filters
+              </h3>
 
               <div className="space-y-3">
                 <div className="space-y-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">Source</span>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Source
+                  </span>
                   <Select
                     value={filters.source_file ?? '__all__'}
-                    onValueChange={(v) => setFilters({ source_file: v === '__all__' ? undefined : v })}
+                    onValueChange={(v) =>
+                      setFilters({
+                        source_file: v === '__all__' ? undefined : v,
+                      })
+                    }
                   >
-                    <SelectTrigger className="h-9 w-full text-xs" aria-label="Filter by source">
+                    <SelectTrigger
+                      className="h-9 w-full text-xs"
+                      aria-label="Filter by source"
+                    >
                       <SelectValue placeholder="All sources" />
                     </SelectTrigger>
                     <SelectContent>
@@ -279,33 +352,52 @@ export function LibraryContent() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">Variant</span>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Variant
+                  </span>
                   <Select
                     value={filters.variant ?? 'all'}
                     onValueChange={(v) =>
-                      setFilters({ variant: v === 'all' ? undefined : (v as LibraryFilters['variant']) })
+                      setFilters({
+                        variant:
+                          v === 'all'
+                            ? undefined
+                            : (v as LibraryFilters['variant']),
+                      })
                     }
                   >
-                    <SelectTrigger className="h-9 w-full text-xs" aria-label="Filter by variant">
+                    <SelectTrigger
+                      className="h-9 w-full text-xs"
+                      aria-label="Filter by variant"
+                    >
                       <SelectValue placeholder="All variants" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All variants</SelectItem>
                       <SelectItem value="both">Standard + Advanced</SelectItem>
-                      <SelectItem value="standard_only">Standard only</SelectItem>
-                      <SelectItem value="advanced_only">Advanced only</SelectItem>
+                      <SelectItem value="standard_only">
+                        Standard only
+                      </SelectItem>
+                      <SelectItem value="advanced_only">
+                        Advanced only
+                      </SelectItem>
                       <SelectItem value="neither">No answer</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="space-y-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">Grouping</span>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Grouping
+                  </span>
                   <Select
                     value={groupBy}
                     onValueChange={(v) => setGroupBy(v as GroupBy)}
                   >
-                    <SelectTrigger className="h-9 w-full text-xs" aria-label="Group by">
+                    <SelectTrigger
+                      className="h-9 w-full text-xs"
+                      aria-label="Group by"
+                    >
                       <SelectValue placeholder="No grouping" />
                     </SelectTrigger>
                     <SelectContent>
@@ -334,7 +426,12 @@ export function LibraryContent() {
           </Popover>
 
           {activeCount > 0 && (
-            <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 text-xs">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearFilters}
+              className="h-9 text-xs"
+            >
               Clear all
             </Button>
           )}
@@ -344,10 +441,16 @@ export function LibraryContent() {
       {/* Keyboard shortcut hints — directly below filters for discoverability */}
       {!isLoading && items.length > 0 && (
         <p className="mt-3 text-xs text-muted-foreground">
-          <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">C</kbd>{' '}
+          <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">
+            C
+          </kbd>{' '}
           to copy answer ·{' '}
-          <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">↑</kbd>{' '}
-          <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">↓</kbd>{' '}
+          <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">
+            ↑
+          </kbd>{' '}
+          <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">
+            ↓
+          </kbd>{' '}
           to navigate
         </p>
       )}
@@ -359,7 +462,8 @@ export function LibraryContent() {
           if (e.key === 'c' || e.key === 'C') {
             const focused = document.activeElement as HTMLElement;
             if (!focused?.hasAttribute('data-qa-row')) return;
-            const copyBtn = focused.querySelector<HTMLButtonElement>('[data-copy-answer]');
+            const copyBtn =
+              focused.querySelector<HTMLButtonElement>('[data-copy-answer]');
             if (copyBtn) {
               copyBtn.click();
               e.preventDefault();
@@ -386,7 +490,8 @@ export function LibraryContent() {
         <BulkActionToolbar
           selectedCount={bulk.selectedIds.size}
           unverifiedSelectedCount={
-            items.filter((i) => bulk.selectedIds.has(i.id) && !i.verified_at).length
+            items.filter((i) => bulk.selectedIds.has(i.id) && !i.verified_at)
+              .length
           }
           isAdmin={canAdmin}
           bulkOperating={bulk.bulkOperating}
@@ -407,7 +512,9 @@ export function LibraryContent() {
               role="presentation"
             >
               <Checkbox
-                checked={items.length > 0 && bulk.selectedIds.size === items.length}
+                checked={
+                  items.length > 0 && bulk.selectedIds.size === items.length
+                }
                 onCheckedChange={bulk.toggleSelectAll}
                 aria-label={
                   bulk.selectedIds.size === items.length
@@ -441,9 +548,15 @@ export function LibraryContent() {
         ) : items.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-16 text-center">
             {activeCount > 0 ? (
-              <Filter className="size-8 text-muted-foreground/50" aria-hidden="true" />
+              <Filter
+                className="size-8 text-muted-foreground/50"
+                aria-hidden="true"
+              />
             ) : (
-              <BookOpen className="size-8 text-muted-foreground/50" aria-hidden="true" />
+              <BookOpen
+                className="size-8 text-muted-foreground/50"
+                aria-hidden="true"
+              />
             )}
             <h3 className="text-base font-medium text-foreground">
               {activeCount > 0 ? 'No matching Q&A pairs' : 'No Q&A pairs yet'}
@@ -473,8 +586,8 @@ export function LibraryContent() {
         ) : groupedItems ? (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground" aria-live="polite">
-              {groupedItems.size} {groupedItems.size === 1 ? 'group' : 'groups'},{' '}
-              {items.length} total {items.length === 1 ? 'item' : 'items'}
+              {groupedItems.size} {groupedItems.size === 1 ? 'group' : 'groups'}
+              , {items.length} total {items.length === 1 ? 'item' : 'items'}
             </p>
             {Array.from(groupedItems.entries()).map(
               ([groupName, groupEntries]) => (
@@ -502,16 +615,19 @@ export function LibraryContent() {
             onToggleSelect={bulk.toggleSelect}
           />
         )}
-
       </div>
 
       {/* Tag dialog */}
       <Dialog open={bulk.tagDialogOpen} onOpenChange={bulk.setTagDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add tags to {bulk.selectedIds.size} item{bulk.selectedIds.size !== 1 ? 's' : ''}</DialogTitle>
+            <DialogTitle>
+              Add tags to {bulk.selectedIds.size} item
+              {bulk.selectedIds.size !== 1 ? 's' : ''}
+            </DialogTitle>
             <DialogDescription>
-              Enter comma-separated tags. They will be merged with any existing tags on each item.
+              Enter comma-separated tags. They will be merged with any existing
+              tags on each item.
             </DialogDescription>
           </DialogHeader>
           <Input
@@ -527,10 +643,16 @@ export function LibraryContent() {
             aria-label="Tags (comma-separated)"
           />
           <DialogFooter>
-            <Button variant="outline" onClick={() => bulk.setTagDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => bulk.setTagDialogOpen(false)}
+            >
               Cancel
             </Button>
-            <Button onClick={bulk.handleBulkTagConfirm} disabled={!bulk.tagInput.trim()}>
+            <Button
+              onClick={bulk.handleBulkTagConfirm}
+              disabled={!bulk.tagInput.trim()}
+            >
               <Tag className="mr-1.5 size-3.5" />
               Apply tags
             </Button>
@@ -539,10 +661,16 @@ export function LibraryContent() {
       </Dialog>
 
       {/* Assign to workspace dialog */}
-      <Dialog open={bulk.assignDialogOpen} onOpenChange={bulk.setAssignDialogOpen}>
+      <Dialog
+        open={bulk.assignDialogOpen}
+        onOpenChange={bulk.setAssignDialogOpen}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Assign {bulk.selectedIds.size} item{bulk.selectedIds.size !== 1 ? 's' : ''} to workspace</DialogTitle>
+            <DialogTitle>
+              Assign {bulk.selectedIds.size} item
+              {bulk.selectedIds.size !== 1 ? 's' : ''} to workspace
+            </DialogTitle>
             <DialogDescription>
               Select a workspace to assign the selected Q&A pairs to.
             </DialogDescription>
@@ -553,7 +681,10 @@ export function LibraryContent() {
               Loading workspaces...
             </div>
           ) : (
-            <Select value={bulk.selectedWorkspaceId} onValueChange={bulk.setSelectedWorkspaceId}>
+            <Select
+              value={bulk.selectedWorkspaceId}
+              onValueChange={bulk.setSelectedWorkspaceId}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select a workspace" />
               </SelectTrigger>
@@ -561,7 +692,9 @@ export function LibraryContent() {
                 {bulk.workspaces.map((ws) => (
                   <SelectItem key={ws.id} value={ws.id}>
                     {ws.name}
-                    <span className="ml-2 text-xs text-muted-foreground">({ws.type})</span>
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      ({ws.type})
+                    </span>
                   </SelectItem>
                 ))}
                 {bulk.workspaces.length === 0 && (
@@ -573,10 +706,16 @@ export function LibraryContent() {
             </Select>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => bulk.setAssignDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => bulk.setAssignDialogOpen(false)}
+            >
               Cancel
             </Button>
-            <Button onClick={bulk.handleBulkAssignConfirm} disabled={!bulk.selectedWorkspaceId || bulk.workspacesLoading}>
+            <Button
+              onClick={bulk.handleBulkAssignConfirm}
+              disabled={!bulk.selectedWorkspaceId || bulk.workspacesLoading}
+            >
               <FolderPlus className="mr-1.5 size-3.5" />
               Assign
             </Button>

@@ -15,7 +15,9 @@ import { formatRelativeDate } from '@/lib/format';
 // Change type mapping
 // ---------------------------------------------------------------------------
 
-function mapChangeTypeToAction(changeType: string): TeamChange['action'] | RecentWorkItem['action'] {
+function mapChangeTypeToAction(
+  changeType: string,
+): TeamChange['action'] | RecentWorkItem['action'] {
   switch (changeType) {
     case 'create':
     case 'import':
@@ -112,7 +114,9 @@ export async function fetchReorientData(
       // 0: Team changes since last active
       supabase
         .from('content_history')
-        .select('id, content_item_id, change_type, change_summary, created_by, created_at, content_items!inner(title, primary_domain)')
+        .select(
+          'id, content_item_id, change_type, change_summary, created_by, created_at, content_items!inner(title, primary_domain)',
+        )
         .gt('created_at', sinceDate)
         .neq('created_by', userId)
         .order('created_at', { ascending: false })
@@ -121,7 +125,9 @@ export async function fetchReorientData(
       // 1: User's own recent work
       supabase
         .from('content_history')
-        .select('id, content_item_id, change_type, change_summary, created_at, content_items!inner(title)')
+        .select(
+          'id, content_item_id, change_type, change_summary, created_at, content_items!inner(title)',
+        )
         .eq('created_by', userId)
         .order('created_at', { ascending: false })
         .limit(5),
@@ -156,7 +162,9 @@ export async function fetchReorientData(
       // 6: Bid response changes by others (team changes)
       supabase
         .from('bid_response_history')
-        .select('id, response_id, edited_by, created_at, bid_responses!inner(question_id, bid_questions!inner(project_id, workspaces!inner(name)))')
+        .select(
+          'id, response_id, edited_by, created_at, bid_responses!inner(question_id, bid_questions!inner(project_id, workspaces!inner(name)))',
+        )
         .gt('created_at', sinceDate)
         .neq('edited_by', userId)
         .order('created_at', { ascending: false })
@@ -165,7 +173,9 @@ export async function fetchReorientData(
       // 7: User's own bid response edits (recent work)
       supabase
         .from('bid_response_history')
-        .select('id, response_id, edited_by, created_at, bid_responses!inner(question_id, bid_questions!inner(project_id, question_text, workspaces!inner(id, name)))')
+        .select(
+          'id, response_id, edited_by, created_at, bid_responses!inner(question_id, bid_questions!inner(project_id, question_text, workspaces!inner(id, name)))',
+        )
         .eq('edited_by', userId)
         .order('created_at', { ascending: false })
         .limit(5),
@@ -181,11 +191,16 @@ export async function fetchReorientData(
       errors.push('team_changes query failed');
     } else if (data) {
       for (const row of data) {
-        const ci = row.content_items as unknown as { title: string; primary_domain: string } | null;
+        const ci = row.content_items as unknown as {
+          title: string;
+          primary_domain: string;
+        } | null;
         team_changes.push({
           user_id: row.created_by ?? '',
           user_name: null, // Resolved client-side via useDisplayNames
-          action: mapChangeTypeToAction(row.change_type ?? 'edit') as TeamChange['action'],
+          action: mapChangeTypeToAction(
+            row.change_type ?? 'edit',
+          ) as TeamChange['action'],
           entity_type: 'content_item',
           entity_id: row.content_item_id ?? '',
           entity_title: ci?.title ?? 'Untitled',
@@ -231,8 +246,9 @@ export async function fetchReorientData(
   }
 
   // Sort combined team changes by date (content_history + bid_response_history)
-  team_changes.sort((a, b) =>
-    new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  team_changes.sort(
+    (a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
 
   // --- Extract user's recent work ---
@@ -248,7 +264,9 @@ export async function fetchReorientData(
           entity_type: 'content_item',
           entity_id: row.content_item_id ?? '',
           entity_title: ci?.title ?? 'Untitled',
-          action: mapChangeTypeToAction(row.change_type ?? 'edit') as RecentWorkItem['action'],
+          action: mapChangeTypeToAction(
+            row.change_type ?? 'edit',
+          ) as RecentWorkItem['action'],
           href: `/item/${row.content_item_id}`,
           created_at: row.created_at,
         });
@@ -273,14 +291,16 @@ export async function fetchReorientData(
             workspaces: { id: string; name: string };
           };
         } | null;
-        const questionText = br?.bid_questions?.question_text ?? 'Untitled question';
+        const questionText =
+          br?.bid_questions?.question_text ?? 'Untitled question';
         const bidId = br?.bid_questions?.workspaces?.id;
         my_recent_work.push({
           entity_type: 'bid_response',
           entity_id: row.response_id,
-          entity_title: questionText.length > 60
-            ? `${questionText.slice(0, 57)}...`
-            : questionText,
+          entity_title:
+            questionText.length > 60
+              ? `${questionText.slice(0, 57)}...`
+              : questionText,
           action: 'edited',
           href: bidId ? `/bid/${bidId}/session` : '/bid',
           created_at: row.created_at,
@@ -294,8 +314,9 @@ export async function fetchReorientData(
   }
 
   // Sort combined recent work by date and limit to 5
-  my_recent_work.sort((a, b) =>
-    new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  my_recent_work.sort(
+    (a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
   my_recent_work.splice(5);
 
@@ -309,7 +330,8 @@ export async function fetchReorientData(
     const deadline = (meta?.deadline as string) ?? null;
     const urgency = getDeadlineUrgency(deadline);
     const totalQ = stats?.total_questions ?? 0;
-    const answeredQ = (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0);
+    const answeredQ =
+      (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0);
 
     bid_summary.push({
       id: workspace.id,
@@ -329,10 +351,14 @@ export async function fetchReorientData(
 
   // Sort by deadline urgency
   const urgencyOrder: Record<string, number> = {
-    overdue: 0, urgent: 1, approaching: 2, normal: 3, unknown: 4,
+    overdue: 0,
+    urgent: 1,
+    approaching: 2,
+    normal: 3,
+    unknown: 4,
   };
-  bid_summary.sort((a, b) =>
-    (urgencyOrder[a.urgency] ?? 4) - (urgencyOrder[b.urgency] ?? 4),
+  bid_summary.sort(
+    (a, b) => (urgencyOrder[a.urgency] ?? 4) - (urgencyOrder[b.urgency] ?? 4),
   );
 
   // --- Extract freshness counts ---

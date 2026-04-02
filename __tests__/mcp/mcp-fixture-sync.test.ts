@@ -28,7 +28,8 @@ function extractToolNamesFromSource(): Set<string> {
     const content = readFileSync(join(TOOLS_DIR, file), 'utf8');
     // Match registerTool(\n    'tool_name', or registerAppTool(\n    server,\n    'tool_name',
     const registerToolPattern = /registerTool\(\s*\n?\s*'([^']+)'/g;
-    const registerAppToolPattern = /registerAppTool\(\s*\n?\s*server,\s*\n?\s*'([^']+)'/g;
+    const registerAppToolPattern =
+      /registerAppTool\(\s*\n?\s*server,\s*\n?\s*'([^']+)'/g;
 
     let match: RegExpExecArray | null;
     while ((match = registerToolPattern.exec(content)) !== null) {
@@ -95,9 +96,7 @@ describe('MCP Fixture Sync', () => {
   });
 
   it('no tool should be in both READ_ONLY_TOOLS and WRITE_TOOLS', () => {
-    const inBoth = [...READ_ONLY_TOOLS].filter((name) =>
-      WRITE_TOOLS.has(name),
-    );
+    const inBoth = [...READ_ONLY_TOOLS].filter((name) => WRITE_TOOLS.has(name));
     expect(
       inBoth,
       `Tools in both READ_ONLY_TOOLS and WRITE_TOOLS: ${inBoth.join(', ')}`,

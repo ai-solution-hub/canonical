@@ -90,7 +90,10 @@ export function ClaudePromptButton({
             )}
           >
             {copied ? (
-              <Check className="size-3.5 text-quality-good" aria-hidden="true" />
+              <Check
+                className="size-3.5 text-quality-good"
+                aria-hidden="true"
+              />
             ) : (
               <Copy className="size-3.5" aria-hidden="true" />
             )}
@@ -104,8 +107,8 @@ export function ClaudePromptButton({
         </TooltipTrigger>
         <TooltipContent side="bottom" className="max-w-xs">
           <p className="text-xs">
-            Copies a prompt to your clipboard and opens Claude.
-            Works best with the Knowledge Hub connector.
+            Copies a prompt to your clipboard and opens Claude. Works best with
+            the Knowledge Hub connector.
           </p>
         </TooltipContent>
       </Tooltip>

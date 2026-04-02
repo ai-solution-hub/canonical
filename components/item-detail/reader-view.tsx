@@ -1,6 +1,13 @@
 'use client';
 
-import { Copy, BookOpen, ExternalLink, MoreHorizontal, FileText, ChevronDown } from 'lucide-react';
+import {
+  Copy,
+  BookOpen,
+  ExternalLink,
+  MoreHorizontal,
+  FileText,
+  ChevronDown,
+} from 'lucide-react';
 import { Thumbnail } from '@/components/shared/thumbnail';
 import { ContentTabs } from '@/components/item-detail/content-tabs';
 import { MetadataSidebar } from '@/components/item-detail/metadata-sidebar';
@@ -26,7 +33,10 @@ import dynamic from 'next/dynamic';
 
 import { CollapsibleSection } from '@/components/item-detail/collapsible-section';
 import { RelatedContentSection } from '@/components/item-detail/related-content-section';
-import { QAUsedInBids, QARelatedPairs } from '@/components/item-detail/qa-provenance-sections';
+import {
+  QAUsedInBids,
+  QARelatedPairs,
+} from '@/components/item-detail/qa-provenance-sections';
 import { ContentEffectivenessPanel } from '@/components/item-detail/content-effectiveness-panel';
 import { ItemBreadcrumb } from '@/components/item-detail/item-breadcrumb';
 
@@ -36,7 +46,10 @@ import type { ContentListItem } from '@/types/content';
 
 const PdfViewer = dynamic(
   () => import('@/components/reader/pdf-viewer').then((mod) => mod.PdfViewer),
-  { ssr: false, loading: () => <div className="h-9 w-24 animate-pulse rounded bg-accent" /> },
+  {
+    ssr: false,
+    loading: () => <div className="h-9 w-24 animate-pulse rounded bg-accent" />,
+  },
 );
 
 // ---------------------------------------------------------------------------
@@ -145,7 +158,10 @@ export function ReaderView({
 
       <div className="flex flex-col gap-8 lg:flex-row">
         {/* Main content */}
-        <article className="min-w-0 flex-1" aria-label={item.title ?? 'Untitled'}>
+        <article
+          className="min-w-0 flex-1"
+          aria-label={item.title ?? 'Untitled'}
+        >
           {/* Thumbnail (not shown for Q&A pairs) */}
           {item.thumbnail_url && !isQAPair ? (
             <Thumbnail
@@ -160,9 +176,15 @@ export function ReaderView({
 
           {/* Clean title — no editing banner, no edit affordances */}
           <div className="mb-2">
-            <h1 className="text-fluid-xl font-bold leading-tight break-words">{title}</h1>
+            <h1 className="text-fluid-xl font-bold leading-tight break-words">
+              {title}
+            </h1>
             {/* Metadata strip — freshness, verification, and source at a glance */}
-            <div className="mt-2 flex flex-wrap items-center gap-3" role="group" aria-label="Content metadata">
+            <div
+              className="mt-2 flex flex-wrap items-center gap-3"
+              role="group"
+              aria-label="Content metadata"
+            >
               {item.freshness && (
                 <FreshnessBadge freshness={item.freshness as string} />
               )}
@@ -176,19 +198,27 @@ export function ReaderView({
               />
               {item.updated_at && (
                 <span className="text-xs text-muted-foreground">
-                  Updated {new Date(item.updated_at).toLocaleDateString('en-GB')}
+                  Updated{' '}
+                  {new Date(item.updated_at).toLocaleDateString('en-GB')}
                 </span>
               )}
               {item.source_document && (
                 <span className="text-xs text-muted-foreground">
-                  Source: <span className="font-medium text-foreground/80">{item.source_document}</span>
+                  Source:{' '}
+                  <span className="font-medium text-foreground/80">
+                    {item.source_document}
+                  </span>
                 </span>
               )}
             </div>
           </div>
 
           {/* Minimal action bar — read, copy, overflow only */}
-          <div className="mb-6 flex flex-wrap items-center gap-2 py-2" role="toolbar" aria-label="Content actions">
+          <div
+            className="mb-6 flex flex-wrap items-center gap-2 py-2"
+            role="toolbar"
+            aria-label="Content actions"
+          >
             {detailModeToggle}
             <ReadToggleButton itemId={item.id as string} />
             {isQAPair ? (
@@ -202,12 +232,16 @@ export function ReaderView({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
                   {item.answer_standard && (
-                    <DropdownMenuItem onClick={() => handleCopyAnswer('standard')}>
+                    <DropdownMenuItem
+                      onClick={() => handleCopyAnswer('standard')}
+                    >
                       Copy Standard
                     </DropdownMenuItem>
                   )}
                   {item.answer_advanced && (
-                    <DropdownMenuItem onClick={() => handleCopyAnswer('advanced')}>
+                    <DropdownMenuItem
+                      onClick={() => handleCopyAnswer('advanced')}
+                    >
                       Copy Advanced
                     </DropdownMenuItem>
                   )}
@@ -232,7 +266,12 @@ export function ReaderView({
             {/* Overflow menu — reader actions only */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="size-9 p-0" aria-label="More actions">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="size-9 p-0"
+                  aria-label="More actions"
+                >
                   <MoreHorizontal className="size-4" aria-hidden="true" />
                 </Button>
               </DropdownMenuTrigger>
@@ -244,7 +283,11 @@ export function ReaderView({
                   </DropdownMenuItem>
                 )}
                 {item.source_url && (
-                  <DropdownMenuItem onClick={() => window.open(item.source_url as string, '_blank')}>
+                  <DropdownMenuItem
+                    onClick={() =>
+                      window.open(item.source_url as string, '_blank')
+                    }
+                  >
                     <ExternalLink className="size-4" aria-hidden="true" />
                     Open original
                   </DropdownMenuItem>
@@ -253,28 +296,35 @@ export function ReaderView({
                   <Copy className="size-4" aria-hidden="true" />
                   {copied ? 'Copied!' : 'Copy link'}
                 </DropdownMenuItem>
-                {item.content_type === 'pdf' && (item.source_url || item.file_path) && (
-                  <DropdownMenuItem onClick={() => {
-                    const btn = document.querySelector<HTMLButtonElement>('[data-pdf-trigger]');
-                    btn?.click();
-                  }}>
-                    <FileText className="size-4" aria-hidden="true" />
-                    View PDF
-                  </DropdownMenuItem>
-                )}
+                {item.content_type === 'pdf' &&
+                  (item.source_url || item.file_path) && (
+                    <DropdownMenuItem
+                      onClick={() => {
+                        const btn =
+                          document.querySelector<HTMLButtonElement>(
+                            '[data-pdf-trigger]',
+                          );
+                        btn?.click();
+                      }}
+                    >
+                      <FileText className="size-4" aria-hidden="true" />
+                      View PDF
+                    </DropdownMenuItem>
+                  )}
               </DropdownMenuContent>
             </DropdownMenu>
 
             {/* Hidden PDF trigger */}
-            {item.content_type === 'pdf' && (item.source_url || item.file_path) && (
-              <div className="hidden">
-                <PdfViewer
-                  sourceUrl={item.source_url ?? undefined}
-                  filePath={item.file_path ?? undefined}
-                  title={title}
-                />
-              </div>
-            )}
+            {item.content_type === 'pdf' &&
+              (item.source_url || item.file_path) && (
+                <div className="hidden">
+                  <PdfViewer
+                    sourceUrl={item.source_url ?? undefined}
+                    filePath={item.file_path ?? undefined}
+                    title={title}
+                  />
+                </div>
+              )}
           </div>
 
           {/* Content — reader-optimised (no edit controls, no source toggle, no AI messaging) */}
@@ -306,7 +356,10 @@ export function ReaderView({
 
             {/* Table of Contents (not shown for Q&A pairs) */}
             {!isQAPair && (
-              <TableOfContents content={getActiveTabContent()} className="mb-6" />
+              <TableOfContents
+                content={getActiveTabContent()}
+                className="mb-6"
+              />
             )}
 
             {/* Transcript reader (for transcripts with chapters) */}
@@ -329,28 +382,24 @@ export function ReaderView({
           </section>
 
           {/* Q&A provenance: bids using this pair */}
-          {isQAPair && (
-            <QAUsedInBids workspaces={usedInWorkspaces} />
-          )}
+          {isQAPair && <QAUsedInBids workspaces={usedInWorkspaces} />}
 
           {/* Q&A related pairs from the same source document */}
-          {isQAPair && (
-            <QARelatedPairs relatedQA={relatedQA} />
-          )}
+          {isQAPair && <QARelatedPairs relatedQA={relatedQA} />}
 
           {/* Content effectiveness — win rate feedback loop */}
-          <ContentEffectivenessPanel
-            contentItemId={item.id}
-            className="mt-6"
-          />
+          <ContentEffectivenessPanel contentItemId={item.id} className="mt-6" />
 
           {/* Relationships group (collapsed by default) */}
-          <CollapsibleSection title="Relationships" defaultOpen={false} lazy className="mt-6" contentClassName="mt-2 rounded-xl border bg-card p-6">
+          <CollapsibleSection
+            title="Relationships"
+            defaultOpen={false}
+            lazy
+            className="mt-6"
+            contentClassName="mt-2 rounded-xl border bg-card p-6"
+          >
             {/* Entity mentions — shows badges grouped by entity type */}
-            <EntityBadges
-              contentItemId={item.id}
-              className="mb-6"
-            />
+            <EntityBadges contentItemId={item.id} className="mb-6" />
 
             {/* Version history (read-only) */}
             <VersionHistory
@@ -375,7 +424,12 @@ export function ReaderView({
         </article>
 
         {/* Metadata sidebar — read-only (no pencil icons, no edit affordances) */}
-        <CollapsibleSection title="Metadata" defaultOpen={!isMobile} className="w-full max-w-md shrink-0 lg:max-w-none lg:w-72" contentClassName="mt-2 rounded-xl border bg-card p-4">
+        <CollapsibleSection
+          title="Metadata"
+          defaultOpen={!isMobile}
+          className="w-full max-w-md shrink-0 lg:max-w-none lg:w-72"
+          contentClassName="mt-2 rounded-xl border bg-card p-4"
+        >
           <MetadataSidebar
             item={item}
             editingField={null}

@@ -13,4 +13,3 @@ export function isMacPlatform(): boolean {
   }
   return /Mac|iPhone|iPad|iPod/.test(navigator.userAgent);
 }
-

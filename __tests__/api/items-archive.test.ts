@@ -66,16 +66,36 @@ function resetMocks() {
   });
 
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
 
   mockSupabase._chain.single.mockResolvedValue({ data: null, error: null });
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+  });
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
@@ -301,7 +321,10 @@ describe('POST /api/items/[id]/archive', () => {
       configureRole(mockSupabase, 'editor');
 
       // Create a request with invalid JSON body
-      const url = new URL(`/api/items/${VALID_UUID}/archive`, 'http://localhost:3000');
+      const url = new URL(
+        `/api/items/${VALID_UUID}/archive`,
+        'http://localhost:3000',
+      );
       const request = new (await import('next/server')).NextRequest(url, {
         method: 'POST',
         body: 'not json',
@@ -478,7 +501,9 @@ describe('POST /api/items/[id]/archive', () => {
       configureRole(mockSupabase, 'editor');
 
       // Simulate an unexpected throw during the archive operation
-      mockSupabase._chain.single.mockRejectedValueOnce(new Error('Unexpected failure'));
+      mockSupabase._chain.single.mockRejectedValueOnce(
+        new Error('Unexpected failure'),
+      );
 
       const request = createTestRequest(`/api/items/${VALID_UUID}/archive`, {
         method: 'POST',

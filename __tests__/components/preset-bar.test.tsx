@@ -89,13 +89,17 @@ describe('PresetBar', () => {
   // 5. Save button visible when canSave is true
   it('save button visible when canSave is true', () => {
     render(<PresetBar {...defaultProps} canSave={true} />);
-    expect(screen.getByLabelText('Save current filters as preset')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Save current filters as preset'),
+    ).toBeInTheDocument();
   });
 
   // 6. Save button hidden when canSave is false
   it('save button hidden when canSave is false', () => {
     render(<PresetBar {...defaultProps} canSave={false} />);
-    expect(screen.queryByLabelText('Save current filters as preset')).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Save current filters as preset'),
+    ).not.toBeInTheDocument();
   });
 
   // 7. Manage button visible when user presets exist
@@ -107,7 +111,9 @@ describe('PresetBar', () => {
   // 8. Manage button hidden when only system presets
   it('manage button hidden when only system presets', () => {
     render(<PresetBar {...defaultProps} presets={systemPresets} />);
-    expect(screen.queryByLabelText('Manage filter presets')).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Manage filter presets'),
+    ).not.toBeInTheDocument();
   });
 
   // 9. Save button click calls onSavePreset

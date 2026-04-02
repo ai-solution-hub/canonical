@@ -33,7 +33,10 @@ export async function POST(request: Request) {
     });
 
     if (error) {
-      return NextResponse.json({ error: safeErrorMessage(error, 'Failed to revoke OAuth grant') }, { status: 500 });
+      return NextResponse.json(
+        { error: safeErrorMessage(error, 'Failed to revoke OAuth grant') },
+        { status: 500 },
+      );
     }
 
     return NextResponse.json({ success: true });

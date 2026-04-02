@@ -57,7 +57,11 @@ export function applySynonymMerges(
  * Returns the set of tags to remove.
  */
 export function identifySingletonQATags(
-  items: Array<{ id: string; ai_keywords: string[]; content_type: string | null }>,
+  items: Array<{
+    id: string;
+    ai_keywords: string[];
+    content_type: string | null;
+  }>,
 ): Set<string> {
   // Count tag usage and track which content types use each tag
   const tagCounts = new Map<string, number>();
@@ -144,7 +148,10 @@ async function runCli() {
             const eq = trimmed.indexOf('=');
             if (eq === -1) continue;
             const key = trimmed.slice(0, eq).trim();
-            const val = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, '');
+            const val = trimmed
+              .slice(eq + 1)
+              .trim()
+              .replace(/^["']|["']$/g, '');
             if (!process.env[key]) process.env[key] = val;
           }
         }
@@ -199,7 +206,9 @@ Options:
   console.log('='.repeat(60));
   console.log('Tag Vocabulary Cleanup');
   console.log('='.repeat(60));
-  console.log(`  Mode: ${DRY_RUN ? 'DRY RUN (use --apply to write)' : 'APPLY'}`);
+  console.log(
+    `  Mode: ${DRY_RUN ? 'DRY RUN (use --apply to write)' : 'APPLY'}`,
+  );
   console.log();
 
   // Fetch all content items with ai_keywords
@@ -240,9 +249,15 @@ Options:
 
   // Identify singleton Q&A tags
   const singletonTags = identifySingletonQATags(
-    eligible as Array<{ id: string; ai_keywords: string[]; content_type: string | null }>,
+    eligible as Array<{
+      id: string;
+      ai_keywords: string[];
+      content_type: string | null;
+    }>,
   );
-  console.log(`3+ word Q&A-only singleton tags to remove: ${singletonTags.size}`);
+  console.log(
+    `3+ word Q&A-only singleton tags to remove: ${singletonTags.size}`,
+  );
   if (singletonTags.size > 0) {
     const sorted = [...singletonTags].sort();
     for (const tag of sorted.slice(0, 20)) {
@@ -268,7 +283,11 @@ Options:
   const allTagsAfter = new Set<string>();
 
   for (const rawItem of eligible) {
-    const item = rawItem as { id: string; ai_keywords: string[]; content_type: string | null };
+    const item = rawItem as {
+      id: string;
+      ai_keywords: string[];
+      content_type: string | null;
+    };
     const newKeywords = processItemKeywords(
       item.ai_keywords,
       singletonTags,
@@ -306,11 +325,15 @@ Options:
   console.log('='.repeat(60));
   console.log('CLEANUP COMPLETE');
   console.log('='.repeat(60));
-  console.log(`  Items updated:           ${updatedCount}${DRY_RUN ? ' (dry run)' : ''}`);
+  console.log(
+    `  Items updated:           ${updatedCount}${DRY_RUN ? ' (dry run)' : ''}`,
+  );
   console.log(`  Errors:                  ${errorCount}`);
   console.log(`  Unique tags before:      ${allTagsBefore.size}`);
   console.log(`  Unique tags after:       ${allTagsAfter.size}`);
-  console.log(`  Tags removed/merged:     ${allTagsBefore.size - allTagsAfter.size}`);
+  console.log(
+    `  Tags removed/merged:     ${allTagsBefore.size - allTagsAfter.size}`,
+  );
   if (DRY_RUN) {
     console.log();
     console.log('  This was a dry run. Use --apply to write changes.');

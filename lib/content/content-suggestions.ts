@@ -29,7 +29,12 @@ import { createHash } from 'crypto';
 
 export interface ContentSuggestion {
   id: string;
-  suggestion_type: 'empty_subtopic' | 'thin_coverage' | 'stale_only' | 'template_gap' | 'missing_layer';
+  suggestion_type:
+    | 'empty_subtopic'
+    | 'thin_coverage'
+    | 'stale_only'
+    | 'template_gap'
+    | 'missing_layer';
   priority: 'critical' | 'high' | 'medium' | 'low';
   domain: string;
   subtopic: string;
@@ -93,7 +98,11 @@ const PRIORITY_ORDER: Record<string, number> = {
  * Create a deterministic ID from domain + subtopic + suggestion_type.
  * Uses MD5 for consistency (not security).
  */
-function createSuggestionId(domain: string, subtopic: string, type: string): string {
+function createSuggestionId(
+  domain: string,
+  subtopic: string,
+  type: string,
+): string {
   const hash = createHash('md5')
     .update(`${domain}|${subtopic}|${type}`)
     .digest('hex');
@@ -201,7 +210,7 @@ export async function generateContentSuggestions(
 
   // Extract domains mentioned in active bid metadata
   const activeBidDomains = new Set<string>();
-  for (const bid of (activeBids ?? [])) {
+  for (const bid of activeBids ?? []) {
     const meta = bid.domain_metadata as Record<string, unknown> | null;
     if (meta?.primary_domain) {
       activeBidDomains.add(meta.primary_domain as string);
@@ -301,11 +310,13 @@ export async function generateContentSuggestions(
   if (includeTemplateGaps) {
     const { data: templates } = await supabase
       .from('template_requirements')
-      .select('template_name, section_name, requirement_text, primary_domain, primary_subtopic')
+      .select(
+        'template_name, section_name, requirement_text, primary_domain, primary_subtopic',
+      )
       .eq('is_current', true)
       .eq('coverage_status', 'gap');
 
-    for (const req of (templates ?? [])) {
+    for (const req of templates ?? []) {
       const domain = (req.primary_domain as string) ?? 'Unknown';
       const subtopic = (req.primary_subtopic as string) ?? 'General';
 
@@ -313,7 +324,11 @@ export async function generateContentSuggestions(
       if (domainFilter && domain !== domainFilter) continue;
 
       suggestions.push({
-        id: createSuggestionId(domain, subtopic, `template_gap_${req.template_name}`),
+        id: createSuggestionId(
+          domain,
+          subtopic,
+          `template_gap_${req.template_name}`,
+        ),
         suggestion_type: 'template_gap',
         priority: 'high',
         domain,
@@ -331,7 +346,8 @@ export async function generateContentSuggestions(
   // -------------------------------------------------------------------------
 
   suggestions.sort((a, b) => {
-    const priorityDiff = (PRIORITY_ORDER[a.priority] ?? 99) - (PRIORITY_ORDER[b.priority] ?? 99);
+    const priorityDiff =
+      (PRIORITY_ORDER[a.priority] ?? 99) - (PRIORITY_ORDER[b.priority] ?? 99);
     if (priorityDiff !== 0) return priorityDiff;
     return a.domain.localeCompare(b.domain);
   });

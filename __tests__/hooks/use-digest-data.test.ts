@@ -10,7 +10,12 @@ import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
 
 const { mockFetch, mockToast } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
-  mockToast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
+  mockToast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  },
 }));
 
 vi.mock('sonner', () => ({
@@ -42,13 +47,15 @@ function makeDigest(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function setupFetch(options: {
-  latest?: Record<string, unknown> | null;
-  list?: Record<string, unknown>[];
-  detail?: Record<string, unknown> | null;
-  generateResult?: Record<string, unknown> | null;
-  generateError?: string | null;
-} = {}) {
+function setupFetch(
+  options: {
+    latest?: Record<string, unknown> | null;
+    list?: Record<string, unknown>[];
+    detail?: Record<string, unknown> | null;
+    generateResult?: Record<string, unknown> | null;
+    generateError?: string | null;
+  } = {},
+) {
   mockFetch.mockImplementation(async (url: string) => {
     const urlStr = typeof url === 'string' ? url : String(url);
 
@@ -160,7 +167,9 @@ describe('useDigestData', () => {
     });
 
     expect(result.current.currentDigest).toEqual(generated);
-    expect(mockToast.success).toHaveBeenCalledWith('Report generated successfully');
+    expect(mockToast.success).toHaveBeenCalledWith(
+      'Report generated successfully',
+    );
   });
 
   it('shows error toast when generation fails', async () => {
@@ -226,7 +235,10 @@ describe('useDigestData', () => {
 
   it('loadDigest calls the detail endpoint and updates current digest', async () => {
     const latestDigest = makeDigest({ id: 'latest-1' });
-    const pastDigest = makeDigest({ id: 'past-1', narrative_summary: 'Past report.' });
+    const pastDigest = makeDigest({
+      id: 'past-1',
+      narrative_summary: 'Past report.',
+    });
     setupFetch({
       latest: latestDigest,
       list: [latestDigest],

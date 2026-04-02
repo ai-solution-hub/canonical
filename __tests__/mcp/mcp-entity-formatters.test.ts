@@ -31,9 +31,7 @@ const sampleSummaries: EntitySummaryResult[] = [
     entity_type: 'certification',
     mention_count: 5,
     content_item_ids: ['item-001', 'item-004'],
-    related_entities: [
-      { relationship: 'holds', source: 'Acme Ltd' },
-    ],
+    related_entities: [{ relationship: 'holds', source: 'Acme Ltd' }],
   },
 ];
 
@@ -63,9 +61,21 @@ const sampleOverview: EntityOverview = {
     person: 2,
   },
   top_entities: [
-    { canonical_name: 'ISO 27001', entity_type: 'certification', mention_count: 12 },
-    { canonical_name: 'Acme Ltd', entity_type: 'organisation', mention_count: 9 },
-    { canonical_name: 'Kubernetes', entity_type: 'technology', mention_count: 7 },
+    {
+      canonical_name: 'ISO 27001',
+      entity_type: 'certification',
+      mention_count: 12,
+    },
+    {
+      canonical_name: 'Acme Ltd',
+      entity_type: 'organisation',
+      mention_count: 9,
+    },
+    {
+      canonical_name: 'Kubernetes',
+      entity_type: 'technology',
+      mention_count: 7,
+    },
   ],
 };
 
@@ -75,7 +85,12 @@ const sampleOverview: EntityOverview = {
 
 describe('formatEntitySummary', () => {
   it('formats entity summaries with names, types, and mention counts', () => {
-    const result = formatEntitySummary('ISO 27001', 'certification', sampleSummaries, []);
+    const result = formatEntitySummary(
+      'ISO 27001',
+      'certification',
+      sampleSummaries,
+      [],
+    );
 
     expect(result).toContain('# Entity Relationships');
     expect(result).toContain('## ISO 27001');
@@ -85,7 +100,12 @@ describe('formatEntitySummary', () => {
   });
 
   it('includes related entities subsection when present', () => {
-    const result = formatEntitySummary('ISO 27001', undefined, sampleSummaries, []);
+    const result = formatEntitySummary(
+      'ISO 27001',
+      undefined,
+      sampleSummaries,
+      [],
+    );
 
     expect(result).toContain('### Related Entities');
     expect(result).toContain('Acme Ltd');
@@ -94,12 +114,19 @@ describe('formatEntitySummary', () => {
   });
 
   it('formats relationships as a Markdown table', () => {
-    const result = formatEntitySummary('ISO 27001', undefined, sampleSummaries, sampleRelationships);
+    const result = formatEntitySummary(
+      'ISO 27001',
+      undefined,
+      sampleSummaries,
+      sampleRelationships,
+    );
 
     expect(result).toContain('## Relationships');
     expect(result).toContain('| Source | Relationship | Target | Confidence |');
     expect(result).toContain('| Acme Limited | holds | ISO 27001 | 95% |');
-    expect(result).toContain('| Acme Limited | holds | Cyber Essentials | 88% |');
+    expect(result).toContain(
+      '| Acme Limited | holds | Cyber Essentials | 88% |',
+    );
   });
 
   it('formats relationship types with underscores replaced by spaces', () => {
@@ -113,13 +140,23 @@ describe('formatEntitySummary', () => {
       },
     ];
 
-    const result = formatEntitySummary('Acme Ltd', undefined, sampleSummaries, relationships);
+    const result = formatEntitySummary(
+      'Acme Ltd',
+      undefined,
+      sampleSummaries,
+      relationships,
+    );
 
     expect(result).toContain('| complies with |');
   });
 
   it('omits the relationships section when relationships array is empty', () => {
-    const result = formatEntitySummary('ISO 27001', undefined, sampleSummaries, []);
+    const result = formatEntitySummary(
+      'ISO 27001',
+      undefined,
+      sampleSummaries,
+      [],
+    );
 
     expect(result).not.toContain('## Relationships');
     expect(result).not.toContain('| Source |');
@@ -136,7 +173,12 @@ describe('formatEntitySummary', () => {
       },
     ];
 
-    const result = formatEntitySummary('GDPR', undefined, singleItemSummary, []);
+    const result = formatEntitySummary(
+      'GDPR',
+      undefined,
+      singleItemSummary,
+      [],
+    );
 
     expect(result).toContain('**Referenced in:** 1 content item');
     // Should NOT have trailing 's'
@@ -170,13 +212,17 @@ describe('formatEntitySummary', () => {
     it('includes entity type in the "no entities" message when provided', () => {
       const result = formatEntitySummary('Unknown', 'certification', [], []);
 
-      expect(result).toContain('No entities found matching "Unknown" (type: certification)');
+      expect(result).toContain(
+        'No entities found matching "Unknown" (type: certification)',
+      );
     });
 
     it('uses generic filter text when neither name nor type is provided', () => {
       const result = formatEntitySummary(undefined, undefined, [], []);
 
-      expect(result).toContain('No entities found matching the specified criteria');
+      expect(result).toContain(
+        'No entities found matching the specified criteria',
+      );
     });
 
     it('shows type-only filter when only entity type is provided', () => {
@@ -187,7 +233,12 @@ describe('formatEntitySummary', () => {
   });
 
   it('formats multiple entity summaries in sequence', () => {
-    const result = formatEntitySummary(undefined, 'certification', sampleSummaries, []);
+    const result = formatEntitySummary(
+      undefined,
+      'certification',
+      sampleSummaries,
+      [],
+    );
 
     // Both summaries should appear
     expect(result).toContain('## ISO 27001');
@@ -268,7 +319,11 @@ describe('formatEntityOverview', () => {
         total_entities: 1,
         by_type: { regulation: 1 },
         top_entities: [
-          { canonical_name: 'GDPR', entity_type: 'regulation', mention_count: 1 },
+          {
+            canonical_name: 'GDPR',
+            entity_type: 'regulation',
+            mention_count: 1,
+          },
         ],
       };
 

@@ -32,10 +32,7 @@ export default function WorkspaceLayout({
       {/* Workspace header */}
       <div className="mb-6">
         <div className="flex items-center gap-2">
-          <Newspaper
-            className="size-5 text-success"
-            aria-hidden="true"
-          />
+          <Newspaper className="size-5 text-success" aria-hidden="true" />
           {isLoading ? (
             <div className="h-7 w-48 animate-pulse rounded bg-accent" />
           ) : (

@@ -46,7 +46,9 @@ export function ContentOwnerSelector({
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(currentOwnerId);
-  const [selectedName, setSelectedName] = useState<string | null>(currentOwnerName);
+  const [selectedName, setSelectedName] = useState<string | null>(
+    currentOwnerName,
+  );
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Sync with prop changes
@@ -87,9 +89,7 @@ export function ContentOwnerSelector({
 
   const handleSelect = async (user: UserOption | null) => {
     const newOwnerId = user?.id ?? null;
-    const newOwnerName = user
-      ? user.display_name || user.email
-      : null;
+    const newOwnerName = user ? user.display_name || user.email : null;
 
     // Optimistic update
     setSelectedId(newOwnerId);
@@ -144,9 +144,7 @@ export function ContentOwnerSelector({
           disabled={disabled || saving}
           className={cn(
             'h-7 w-fit gap-1.5 border-dashed text-xs',
-            selectedId
-              ? 'text-foreground'
-              : 'text-muted-foreground',
+            selectedId ? 'text-foreground' : 'text-muted-foreground',
           )}
           aria-label={`Content owner: ${displayLabel}. Click to change.`}
         >

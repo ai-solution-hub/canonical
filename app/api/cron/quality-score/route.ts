@@ -72,7 +72,9 @@ export async function GET(request: NextRequest) {
     // 1. Fetch governance_config to build domain maps
     const { data: govConfigs } = await supabase
       .from('governance_config')
-      .select('id, domain, quality_score_threshold, auto_flag_on_quality_drop, auto_flag_cooldown_days, reviewer_id, timeout_days');
+      .select(
+        'id, domain, quality_score_threshold, auto_flag_on_quality_drop, auto_flag_cooldown_days, reviewer_id, timeout_days',
+      );
 
     const thresholdMap = new Map<string, number>();
     const govConfigMap = new Map<string, GovConfig>();
@@ -123,7 +125,9 @@ export async function GET(request: NextRequest) {
 
       const { data: items, error: fetchError } = await supabase
         .from('content_items')
-        .select('id, title, primary_domain, freshness, classification_confidence, brief, detail, reference, ai_summary, metadata, quality_score, governance_review_status, verified_at, citation_count')
+        .select(
+          'id, title, primary_domain, freshness, classification_confidence, brief, detail, reference, ai_summary, metadata, quality_score, governance_review_status, verified_at, citation_count',
+        )
         .is('archived_at', null)
         .order('id', { ascending: true })
         .range(offset, offset + BATCH_SIZE - 1);
@@ -167,7 +171,8 @@ export async function GET(request: NextRequest) {
           });
 
           // Check for threshold crossing (transition from above to below)
-          const threshold = thresholdMap.get(item.primary_domain ?? '') ?? DEFAULT_THRESHOLD;
+          const threshold =
+            thresholdMap.get(item.primary_domain ?? '') ?? DEFAULT_THRESHOLD;
           const wasAboveThreshold = oldScore === null || oldScore >= threshold;
           const isNowBelowThreshold = newScore < threshold;
 
@@ -182,21 +187,28 @@ export async function GET(request: NextRequest) {
 
             // Check if eligible for governance auto-flagging
             const domainConfig = govConfigMap.get(item.primary_domain ?? '');
-            const autoFlagEnabled = domainConfig?.auto_flag_on_quality_drop ?? true;
+            const autoFlagEnabled =
+              domainConfig?.auto_flag_on_quality_drop ?? true;
 
             if (autoFlagEnabled) {
               // Guard: only flag items with null or 'approved' governance_review_status
               // Skip items in 'pending', 'changes_requested', or 'draft' state
               const status = item.governance_review_status;
-              const eligibleForGovernance = status === null || status === 'approved';
+              const eligibleForGovernance =
+                status === null || status === 'approved';
 
               if (eligibleForGovernance) {
                 // Cooldown check: skip if verified_at is within cooldown period
                 // (don't re-flag items recently reviewed by a human)
                 const cooldownDays = domainConfig?.auto_flag_cooldown_days ?? 7;
-                const cooldownCutoff = new Date(Date.now() - cooldownDays * 24 * 60 * 60 * 1000);
-                const lastVerified = item.verified_at ? new Date(item.verified_at) : null;
-                const withinCooldown = lastVerified && lastVerified > cooldownCutoff;
+                const cooldownCutoff = new Date(
+                  Date.now() - cooldownDays * 24 * 60 * 60 * 1000,
+                );
+                const lastVerified = item.verified_at
+                  ? new Date(item.verified_at)
+                  : null;
+                const withinCooldown =
+                  lastVerified && lastVerified > cooldownCutoff;
 
                 if (!withinCooldown) {
                   governanceFlagItems.push({
@@ -256,7 +268,10 @@ export async function GET(request: NextRequest) {
           })),
         );
 
-        const { error: notifError } = await createBulkNotifications(supabase, notifications);
+        const { error: notifError } = await createBulkNotifications(
+          supabase,
+          notifications,
+        );
         if (!notifError) notificationsCreated = notifications.length;
       }
     }
@@ -268,7 +283,9 @@ export async function GET(request: NextRequest) {
 
       // Update each item's governance status
       for (const item of governanceFlagItems) {
-        const reviewDue = new Date(Date.now() + item.timeoutDays * 24 * 60 * 60 * 1000).toISOString();
+        const reviewDue = new Date(
+          Date.now() + item.timeoutDays * 24 * 60 * 60 * 1000,
+        ).toISOString();
         await supabase
           .from('content_items')
           .update({
@@ -300,7 +317,8 @@ export async function GET(request: NextRequest) {
             maxCount = count;
           }
         });
-        const summaryEntityId = govConfigMap.get(maxDomain)?.id ?? governanceFlagItems[0].itemId;
+        const summaryEntityId =
+          govConfigMap.get(maxDomain)?.id ?? governanceFlagItems[0].itemId;
 
         // Collect unique recipients (reviewers + admins)
         const recipientIds = new Set<string>(adminIds);
@@ -317,7 +335,10 @@ export async function GET(request: NextRequest) {
           message: `The weekly quality scan flagged ${governanceFlagItems.length} items below threshold. Review them in the review queue.`,
         }));
 
-        const { error: govNotifError } = await createBulkNotifications(supabase, summaryNotifications);
+        const { error: govNotifError } = await createBulkNotifications(
+          supabase,
+          summaryNotifications,
+        );
         if (!govNotifError) notificationsCreated += summaryNotifications.length;
       } else {
         // Individual notification path
@@ -334,7 +355,10 @@ export async function GET(request: NextRequest) {
           }));
         });
 
-        const { error: govNotifError } = await createBulkNotifications(supabase, notifications);
+        const { error: govNotifError } = await createBulkNotifications(
+          supabase,
+          notifications,
+        );
         if (!govNotifError) notificationsCreated += notifications.length;
       }
     }

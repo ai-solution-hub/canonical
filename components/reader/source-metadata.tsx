@@ -13,7 +13,13 @@ interface SourceMetadataProps {
   content?: string | null;
 }
 
-function MetadataRow({ label, children }: { label: string; children: React.ReactNode }) {
+function MetadataRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div>
       <dt className="text-xs text-muted-foreground">{label}</dt>
@@ -32,8 +38,12 @@ function EmailFields({ metadata }: { metadata: Record<string, unknown> }) {
 
   return (
     <>
-      {newsletterName && <MetadataRow label="Newsletter">{newsletterName}</MetadataRow>}
-      {emailSubject && <MetadataRow label="Subject">{emailSubject}</MetadataRow>}
+      {newsletterName && (
+        <MetadataRow label="Newsletter">{newsletterName}</MetadataRow>
+      )}
+      {emailSubject && (
+        <MetadataRow label="Subject">{emailSubject}</MetadataRow>
+      )}
       {emailFrom && <MetadataRow label="From">{emailFrom}</MetadataRow>}
     </>
   );
@@ -47,14 +57,27 @@ function PdfFields({ metadata }: { metadata: Record<string, unknown> }) {
   return <MetadataRow label="Pages">{pageCount}</MetadataRow>;
 }
 
-function GenericWebFields({ metadata, content }: { metadata: Record<string, unknown>; content?: string | null }) {
+function GenericWebFields({
+  metadata,
+  content,
+}: {
+  metadata: Record<string, unknown>;
+  content?: string | null;
+}) {
   const extractionSource = metadata?.extraction_source as string | undefined;
   const ogDescription = metadata?.og_description as string | undefined;
   const ogType = metadata?.og_type as string | undefined;
   const hasReaderHtml = !!metadata?.reader_html;
-  const wordCount = content ? content.trim().split(/\s+/).filter(Boolean).length : null;
+  const wordCount = content
+    ? content.trim().split(/\s+/).filter(Boolean).length
+    : null;
 
-  const hasFields = extractionSource || ogDescription || ogType || hasReaderHtml || (wordCount && wordCount > 0);
+  const hasFields =
+    extractionSource ||
+    ogDescription ||
+    ogType ||
+    hasReaderHtml ||
+    (wordCount && wordCount > 0);
   if (!hasFields) return null;
 
   return (
@@ -68,9 +91,13 @@ function GenericWebFields({ metadata, content }: { metadata: Record<string, unkn
         </MetadataRow>
       )}
       {ogType && <MetadataRow label="OG type">{ogType}</MetadataRow>}
-      {hasReaderHtml && <MetadataRow label="Reader view">Available</MetadataRow>}
+      {hasReaderHtml && (
+        <MetadataRow label="Reader view">Available</MetadataRow>
+      )}
       {wordCount != null && wordCount > 0 && (
-        <MetadataRow label="Word count">{wordCount.toLocaleString('en-GB')}</MetadataRow>
+        <MetadataRow label="Word count">
+          {wordCount.toLocaleString('en-GB')}
+        </MetadataRow>
       )}
     </>
   );
@@ -83,7 +110,12 @@ function IngestionRow({ metadata }: { metadata: Record<string, unknown> }) {
   return <MetadataRow label="Ingestion source">{ingestionSource}</MetadataRow>;
 }
 
-export function SourceMetadata({ contentType, platform, metadata, content }: SourceMetadataProps) {
+export function SourceMetadata({
+  contentType,
+  platform,
+  metadata,
+  content,
+}: SourceMetadataProps) {
   if (!metadata) return null;
 
   let platformFields: React.ReactNode = null;

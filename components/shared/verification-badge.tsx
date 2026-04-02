@@ -78,7 +78,8 @@ export function formatRelativeTime(dateStr: string): string {
   if (weeks > 0) return `${weeks} ${weeks === 1 ? 'week' : 'weeks'} ago`;
   if (days > 0) return `${days} ${days === 1 ? 'day' : 'days'} ago`;
   if (hours > 0) return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
-  if (minutes > 0) return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} ago`;
+  if (minutes > 0)
+    return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} ago`;
   return 'just now';
 }
 
@@ -92,8 +93,7 @@ function buildLabel(
   verifiedAt?: string | null,
 ): string {
   // Coalesce curated to verified for non-detailed views
-  const displayLevel =
-    !showDetailedTrust && trustLevel === 3 ? 2 : trustLevel;
+  const displayLevel = !showDetailedTrust && trustLevel === 3 ? 2 : trustLevel;
   const base = TRUST_LABELS[displayLevel];
 
   if (displayLevel === 1) return base;
@@ -134,8 +134,7 @@ export function VerificationBadge({
   const trustLevel = getTrustLevel(verified, trustData);
 
   // Coalesce curated to verified for non-detailed views
-  const displayLevel =
-    !showDetailedTrust && trustLevel === 3 ? 2 : trustLevel;
+  const displayLevel = !showDetailedTrust && trustLevel === 3 ? 2 : trustLevel;
 
   const fullLabel = buildLabel(
     trustLevel,
@@ -149,7 +148,8 @@ export function VerificationBadge({
 
   // Decide what text to show inline vs in tooltip
   const inlineText = tooltipOnly ? shortLabel : fullLabel;
-  const tooltipText = tooltipOnly && fullLabel !== shortLabel ? fullLabel : undefined;
+  const tooltipText =
+    tooltipOnly && fullLabel !== shortLabel ? fullLabel : undefined;
 
   if (displayLevel === 1) {
     return (

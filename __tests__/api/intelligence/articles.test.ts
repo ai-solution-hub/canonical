@@ -99,9 +99,8 @@ function resetMocks() {
     data: null,
     error: null,
   });
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 }
 
@@ -135,7 +134,9 @@ describe('Intelligence Articles API', () => {
 
       expect(response.status).toBe(200);
       expect(body.articles).toHaveLength(1);
-      expect(body.articles[0].title).toBe('New cybersecurity regulations announced');
+      expect(body.articles[0].title).toBe(
+        'New cybersecurity regulations announced',
+      );
       expect(body.articles[0].source_name).toBe('Gov.uk Security');
       expect(body.articles[0].flag_count).toBe(0);
       expect(body.total).toBe(1);
@@ -186,7 +187,8 @@ describe('Intelligence Articles API', () => {
       // Should have called eq with feed_source_id filter (among other eq calls)
       const eqCalls = mockSupabase._chain.eq.mock.calls;
       const hasSourceFilter = eqCalls.some(
-        (call: unknown[]) => call[0] === 'feed_source_id' && call[1] === sourceId,
+        (call: unknown[]) =>
+          call[0] === 'feed_source_id' && call[1] === sourceId,
       );
       expect(hasSourceFilter).toBe(true);
     });
@@ -270,7 +272,10 @@ describe('Intelligence Articles API', () => {
         `/api/intelligence/workspaces/${WORKSPACE_UUID}/articles/${ARTICLE_UUID}/flag`,
         {
           method: 'POST',
-          body: { flag_type: 'false_positive', notes: 'Not relevant to our sector' },
+          body: {
+            flag_type: 'false_positive',
+            notes: 'Not relevant to our sector',
+          },
         },
       );
       const params = createTestParams({

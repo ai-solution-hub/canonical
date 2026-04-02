@@ -73,7 +73,8 @@ export function SavePresetDialog({
             aria-label="Preset name"
           />
           <p className="text-sm text-muted-foreground">
-            {activeFilterCount} active filter{activeFilterCount !== 1 ? 's' : ''} will be saved.
+            {activeFilterCount} active filter
+            {activeFilterCount !== 1 ? 's' : ''} will be saved.
           </p>
         </div>
 

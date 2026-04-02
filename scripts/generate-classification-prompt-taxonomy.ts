@@ -17,7 +17,10 @@ import { join } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 
 const PROJECT_ROOT = join(__dirname, '..');
-const PROMPT_PATH = join(PROJECT_ROOT, 'docs/reference/classification-prompt.md');
+const PROMPT_PATH = join(
+  PROJECT_ROOT,
+  'docs/reference/classification-prompt.md',
+);
 
 // ── Env loading ──
 
@@ -58,8 +61,12 @@ interface SubtopicRow {
   description: string | null;
 }
 
-async function fetchTaxonomy(): Promise<{ domains: DomainRow[]; subtopics: SubtopicRow[] }> {
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+async function fetchTaxonomy(): Promise<{
+  domains: DomainRow[];
+  subtopics: SubtopicRow[];
+}> {
+  const supabaseUrl =
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SECRET_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
@@ -76,7 +83,10 @@ async function fetchTaxonomy(): Promise<{ domains: DomainRow[]; subtopics: Subto
     .order('display_order');
 
   if (dErr || !domains?.length) {
-    console.error('Failed to fetch taxonomy domains:', dErr?.message ?? 'empty result');
+    console.error(
+      'Failed to fetch taxonomy domains:',
+      dErr?.message ?? 'empty result',
+    );
     process.exit(1);
   }
 
@@ -91,12 +101,18 @@ async function fetchTaxonomy(): Promise<{ domains: DomainRow[]; subtopics: Subto
     process.exit(1);
   }
 
-  return { domains: domains as DomainRow[], subtopics: (subtopics ?? []) as SubtopicRow[] };
+  return {
+    domains: domains as DomainRow[],
+    subtopics: (subtopics ?? []) as SubtopicRow[],
+  };
 }
 
 // ── Taxonomy section generation ──
 
-function generateTaxonomySection(domains: DomainRow[], subtopics: SubtopicRow[]): string {
+function generateTaxonomySection(
+  domains: DomainRow[],
+  subtopics: SubtopicRow[],
+): string {
   const lines: string[] = [];
 
   lines.push('## TAXONOMY REFERENCE');
@@ -140,13 +156,20 @@ function generateTaxonomySection(domains: DomainRow[], subtopics: SubtopicRow[])
 
 // ── Inject into prompt file ──
 
-function inject(filePath: string, startMarker: string, endMarker: string, newContent: string): boolean {
+function inject(
+  filePath: string,
+  startMarker: string,
+  endMarker: string,
+  newContent: string,
+): boolean {
   const content = readFileSync(filePath, 'utf8');
   const startIndex = content.indexOf(startMarker);
   const endIndex = content.indexOf(endMarker);
 
   if (startIndex === -1 || endIndex === -1) {
-    console.error(`Markers ${startMarker}/${endMarker} not found in ${filePath}`);
+    console.error(
+      `Markers ${startMarker}/${endMarker} not found in ${filePath}`,
+    );
     process.exit(1);
   }
 
@@ -173,11 +196,18 @@ async function main() {
   const { domains, subtopics } = await fetchTaxonomy();
 
   const totalSubtopics = subtopics.length;
-  console.log(`  Fetched ${domains.length} domains, ${totalSubtopics} subtopics from DB`);
+  console.log(
+    `  Fetched ${domains.length} domains, ${totalSubtopics} subtopics from DB`,
+  );
 
   const section = generateTaxonomySection(domains, subtopics);
 
-  const changed = inject(PROMPT_PATH, '<!-- TAXONOMY_START -->', '<!-- TAXONOMY_END -->', section);
+  const changed = inject(
+    PROMPT_PATH,
+    '<!-- TAXONOMY_START -->',
+    '<!-- TAXONOMY_END -->',
+    section,
+  );
 
   if (changed) {
     console.log('UPDATED docs/reference/classification-prompt.md');

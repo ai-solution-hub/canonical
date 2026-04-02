@@ -82,10 +82,7 @@ afterAll(async () => {
       .eq('content_item_id', itemId);
 
     // 4. Content item
-    await serviceClient
-      .from('content_items')
-      .delete()
-      .eq('id', itemId);
+    await serviceClient.from('content_items').delete().eq('id', itemId);
 
     // 5. Test guide and sections (if created)
     if (testGuideSectionId) {
@@ -95,10 +92,7 @@ afterAll(async () => {
         .eq('id', testGuideSectionId);
     }
     if (testGuideId) {
-      await serviceClient
-        .from('guides')
-        .delete()
-        .eq('id', testGuideId);
+      await serviceClient.from('guides').delete().eq('id', testGuideId);
     }
   } catch (err) {
     console.error('Cleanup failed:', err);
@@ -191,9 +185,9 @@ describe('Golden Path Real DB Integration (Phase 3b)', () => {
     if (entities!.length === 0) {
       console.warn(
         '[REAL BUG FOUND] entity_mentions has 0 rows for the classified item. ' +
-        'This is likely caused by missing unique constraint on ' +
-        '(canonical_name, entity_type, content_item_id). ' +
-        'Check classify.ts upsert and entity_mentions table constraints.',
+          'This is likely caused by missing unique constraint on ' +
+          '(canonical_name, entity_type, content_item_id). ' +
+          'Check classify.ts upsert and entity_mentions table constraints.',
       );
     }
 
@@ -206,8 +200,8 @@ describe('Golden Path Real DB Integration (Phase 3b)', () => {
     expect(certEntities.length).toBeGreaterThanOrEqual(1);
 
     // At least one with canonical_name containing 'iso' (case-insensitive)
-    const isoEntities = entities!.filter(
-      (e) => e.canonical_name?.toLowerCase().includes('iso'),
+    const isoEntities = entities!.filter((e) =>
+      e.canonical_name?.toLowerCase().includes('iso'),
     );
     expect(isoEntities.length).toBeGreaterThanOrEqual(1);
   });
@@ -237,15 +231,11 @@ describe('Golden Path Real DB Integration (Phase 3b)', () => {
     expect(temporalRefs.length).toBeGreaterThanOrEqual(1);
 
     // At least one expiry reference
-    const expiryRefs = temporalRefs.filter(
-      (r) => r.context_type === 'expiry',
-    );
+    const expiryRefs = temporalRefs.filter((r) => r.context_type === 'expiry');
     expect(expiryRefs.length).toBeGreaterThanOrEqual(1);
 
     // At least one reference containing '2028' (the ISO cert expiry)
-    const has2028 = temporalRefs.some(
-      (r) => r.date?.includes('2028'),
-    );
+    const has2028 = temporalRefs.some((r) => r.date?.includes('2028'));
     expect(has2028).toBe(true);
   });
 
@@ -275,8 +265,8 @@ describe('Golden Path Real DB Integration (Phase 3b)', () => {
     if (entitiesWithExpiry.length === 0) {
       console.warn(
         '[KNOWN GAP] No certification entities have expiry metadata bridged. ' +
-        'The entity-metadata-bridge may not be populating data. ' +
-        'See docs/specs/data-flow-golden-path-e2e-spec.md Gap 1.',
+          'The entity-metadata-bridge may not be populating data. ' +
+          'See docs/specs/data-flow-golden-path-e2e-spec.md Gap 1.',
       );
     } else {
       // If the bridge IS working, validate the data
@@ -346,16 +336,18 @@ describe('Golden Path Real DB Integration (Phase 3b)', () => {
     }
 
     // Call get_guide_content RPC (parameter is p_guide_slug)
-    const { data: guideContent, error: rpcErr } = await serviceClient
-      .rpc('get_guide_content', { p_guide_slug: guideSlug });
+    const { data: guideContent, error: rpcErr } = await serviceClient.rpc(
+      'get_guide_content',
+      { p_guide_slug: guideSlug },
+    );
 
     expect(rpcErr).toBeNull();
     expect(guideContent).toBeTruthy();
 
     // Check if our test item appears in results
-    const matchingItems = (guideContent as Array<{ content_id: string }>)?.filter(
-      (row) => row.content_id === itemId,
-    );
+    const matchingItems = (
+      guideContent as Array<{ content_id: string }>
+    )?.filter((row) => row.content_id === itemId);
 
     // NOTE: This may fail if the guide RPC doesn't match our domain properly.
     // The spec documents this as Gap 2 — guide domain_filter values may not match
@@ -363,8 +355,8 @@ describe('Golden Path Real DB Integration (Phase 3b)', () => {
     if (!matchingItems || matchingItems.length === 0) {
       console.warn(
         `[EXPECTED GAP] Test item not found in guide content for domain "${classifiedDomain}". ` +
-        'This is likely Gap 2: guide domain_filter vs content domain mismatch. ' +
-        'See docs/specs/data-flow-golden-path-e2e-spec.md Step 5.',
+          'This is likely Gap 2: guide domain_filter vs content domain mismatch. ' +
+          'See docs/specs/data-flow-golden-path-e2e-spec.md Step 5.',
       );
     }
   });
@@ -413,7 +405,7 @@ describe('Golden Path Real DB Integration (Phase 3b)', () => {
     if (!relationships || relationships.length === 0) {
       console.warn(
         '[INFO] No entity relationships found for test item. ' +
-        'This may indicate the AI did not extract relationships for this content.',
+          'This may indicate the AI did not extract relationships for this content.',
       );
       // Don't fail — relationship extraction is AI-dependent
       return;
@@ -438,7 +430,9 @@ describe('Golden Path Real DB Integration (Phase 3b)', () => {
     // Re-query all key data points in one go
     const { data: item } = await serviceClient
       .from('content_items')
-      .select('id, title, primary_domain, primary_subtopic, metadata, embedding, classified_at')
+      .select(
+        'id, title, primary_domain, primary_subtopic, metadata, embedding, classified_at',
+      )
       .eq('id', itemId!)
       .single();
 

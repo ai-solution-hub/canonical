@@ -40,7 +40,9 @@ describe('DetailModeToggle', () => {
     it('renders group with aria-label', () => {
       render(<DetailModeToggle {...defaultProps} />);
 
-      expect(screen.getByRole('group', { name: 'Detail view mode' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('group', { name: 'Detail view mode' }),
+      ).toBeInTheDocument();
     });
 
     it('applies custom className', () => {

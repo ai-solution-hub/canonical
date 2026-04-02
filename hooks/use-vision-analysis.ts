@@ -33,10 +33,11 @@ export function useVisionAnalysis({
 }: UseVisionAnalysisParams): UseVisionAnalysisReturn {
   const mutation = useMutation({
     mutationFn: () =>
-      mutationFetchJson<{ analysis: string; model: string; tokens_used: number }>(
-        `/api/items/${itemId}/vision`,
-        {},
-      ),
+      mutationFetchJson<{
+        analysis: string;
+        model: string;
+        tokens_used: number;
+      }>(`/api/items/${itemId}/vision`, {}),
     onSuccess: (data) => {
       onAnalysisComplete({
         analysis: data.analysis,

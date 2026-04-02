@@ -15,8 +15,12 @@ import { MobileStepIndicator } from '@/components/create-content/mobile-step-ind
 // ---------------------------------------------------------------------------
 
 describe('MobileStepIndicator', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
-  afterEach(() => { vi.unstubAllGlobals(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it('renders 3 steps (Basics, Content, Details)', () => {
     render(<MobileStepIndicator activeStep={1} />);

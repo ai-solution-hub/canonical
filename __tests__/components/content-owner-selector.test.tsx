@@ -35,9 +35,24 @@ import { ContentOwnerSelector } from '@/components/content/content-owner-selecto
 // ---------------------------------------------------------------------------
 
 const MOCK_USERS = [
-  { id: 'user-1', display_name: 'Alice Admin', email: 'alice@example.com', role: 'admin' },
-  { id: 'user-2', display_name: 'Bob Editor', email: 'bob@example.com', role: 'editor' },
-  { id: 'user-3', display_name: null, email: 'viewer@example.com', role: 'viewer' },
+  {
+    id: 'user-1',
+    display_name: 'Alice Admin',
+    email: 'alice@example.com',
+    role: 'admin',
+  },
+  {
+    id: 'user-2',
+    display_name: 'Bob Editor',
+    email: 'bob@example.com',
+    role: 'editor',
+  },
+  {
+    id: 'user-3',
+    display_name: null,
+    email: 'viewer@example.com',
+    role: 'viewer',
+  },
 ];
 
 function setupFetchMock() {
@@ -80,7 +95,9 @@ describe('ContentOwnerSelector', () => {
         currentOwnerName={null}
       />,
     );
-    expect(screen.getByRole('button', { name: /unassigned/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /unassigned/i }),
+    ).toBeInTheDocument();
   });
 
   it('renders with the current owner name', () => {

@@ -282,9 +282,7 @@ async function findSimilarUngroupedItem(
   // The RPC returns id, title, content, similarity, content_type, platform,
   // author_name, source_domain — but not primary_domain/primary_subtopic.
   // We need to fetch those for the matched items.
-  const matchedIds = similarItems.map(
-    (item: { id: string }) => item.id,
-  );
+  const matchedIds = similarItems.map((item: { id: string }) => item.id);
 
   const { data: detailItems, error: detailError } = await supabase
     .from('content_items')
@@ -307,7 +305,9 @@ async function findSimilarUngroupedItem(
     if (metadata?.topic_id) return false;
 
     // Prefer items at a different layer (or without a layer)
-    const itemLayer = (item as Record<string, unknown>).layer as string | undefined;
+    const itemLayer = (item as Record<string, unknown>).layer as
+      | string
+      | undefined;
     return !itemLayer || itemLayer !== suggestedLayer;
   });
 
@@ -317,7 +317,8 @@ async function findSimilarUngroupedItem(
 
   // Pick the first candidate (highest similarity, since RPC returns ordered)
   const bestMatch = candidates[0];
-  const matchLayer = (bestMatch as Record<string, unknown>).layer as string || 'unassigned';
+  const matchLayer =
+    ((bestMatch as Record<string, unknown>).layer as string) || 'unassigned';
 
   const topicId = generateTopicId(domain, subtopic);
   const allLayers = getAllLayerKeys();

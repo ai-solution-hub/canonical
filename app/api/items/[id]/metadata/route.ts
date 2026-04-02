@@ -61,10 +61,7 @@ export async function PATCH(
 
     // Update promoted column fields directly
     if (Object.keys(columnUpdates).length > 0) {
-      await supabase
-        .from('content_items')
-        .update(columnUpdates)
-        .eq('id', id);
+      await supabase.from('content_items').update(columnUpdates).eq('id', id);
     }
 
     // Fetch updated metadata to return
@@ -74,7 +71,10 @@ export async function PATCH(
       .eq('id', id)
       .single();
 
-    return NextResponse.json({ metadata: updated?.metadata ?? {}, layer: (updated as Record<string, unknown> | null)?.layer ?? null });
+    return NextResponse.json({
+      metadata: updated?.metadata ?? {},
+      layer: (updated as Record<string, unknown> | null)?.layer ?? null,
+    });
   } catch (err) {
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to update metadata') },

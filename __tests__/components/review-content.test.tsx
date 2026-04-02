@@ -103,7 +103,12 @@ const { mockUseReviewQueue, mockToast } = vi.hoisted(() => {
       showHelp: false,
       setShowHelp: vi.fn(),
     })),
-    mockToast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
+    mockToast: {
+      success: vi.fn(),
+      error: vi.fn(),
+      info: vi.fn(),
+      warning: vi.fn(),
+    },
   };
 });
 
@@ -115,7 +120,9 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: Record<string, unknown>) => (
-    <a href={href as string} {...props}>{children as React.ReactNode}</a>
+    <a href={href as string} {...props}>
+      {children as React.ReactNode}
+    </a>
   ),
 }));
 
@@ -133,15 +140,37 @@ vi.mock('sonner', () => ({
 
 // Stub child components
 vi.mock('@/components/review/review-card', () => ({
-  ReviewCard: vi.fn().mockImplementation(
-    ({ item, position, total }: { item: { title: string }; position: number; total: number }) => (
-      <div data-testid="review-card">ReviewCard: {item.title} ({position}/{total})</div>
+  ReviewCard: vi
+    .fn()
+    .mockImplementation(
+      ({
+        item,
+        position,
+        total,
+      }: {
+        item: { title: string };
+        position: number;
+        total: number;
+      }) => (
+        <div data-testid="review-card">
+          ReviewCard: {item.title} ({position}/{total})
+        </div>
+      ),
     ),
-  ),
 }));
 
 vi.mock('@/components/review/review-action-bar', () => ({
-  ReviewActionBar: ({ onVerify, onFlag, onSkip, onBack, onExit, onEdit, onPublish, onShowHelp, isDraft }: Record<string, unknown>) => (
+  ReviewActionBar: ({
+    onVerify,
+    onFlag,
+    onSkip,
+    onBack,
+    onExit,
+    onEdit,
+    onPublish,
+    onShowHelp,
+    isDraft,
+  }: Record<string, unknown>) => (
     <div data-testid="review-action-bar">
       <button onClick={onVerify as () => void}>Verify</button>
       <button onClick={onFlag as () => void}>Flag</button>
@@ -156,15 +185,19 @@ vi.mock('@/components/review/review-action-bar', () => ({
 }));
 
 vi.mock('@/components/review/review-progress-bar', () => ({
-  ReviewProgressBar: ({ progress }: { progress: { verified: number; total: number } }) => (
-    <div data-testid="review-progress-bar">Progress: {progress.verified}/{progress.total}</div>
+  ReviewProgressBar: ({
+    progress,
+  }: {
+    progress: { verified: number; total: number };
+  }) => (
+    <div data-testid="review-progress-bar">
+      Progress: {progress.verified}/{progress.total}
+    </div>
   ),
 }));
 
 vi.mock('@/components/review/review-filters', () => ({
-  ReviewFilters: () => (
-    <div data-testid="review-filters">Filters</div>
-  ),
+  ReviewFilters: () => <div data-testid="review-filters">Filters</div>,
 }));
 
 vi.mock('@/components/review/review-queue-panel', () => ({
@@ -174,31 +207,56 @@ vi.mock('@/components/review/review-queue-panel', () => ({
 }));
 
 vi.mock('@/components/ui/sheet', () => ({
-  Sheet: ({ children, open }: { children: React.ReactNode; open: boolean }) => (
-    open ? <div data-testid="sheet">{children}</div> : null
-  ),
+  Sheet: ({ children, open }: { children: React.ReactNode; open: boolean }) =>
+    open ? <div data-testid="sheet">{children}</div> : null,
   SheetContent: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="sheet-content">{children}</div>
   ),
-  SheetHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SheetTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SheetDescription: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  SheetHeader: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SheetTitle: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SheetDescription: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
 }));
 
 vi.mock('@/components/ui/dialog', () => ({
-  Dialog: ({ children, open }: { children: React.ReactNode; open: boolean }) => (
-    open ? <div data-testid="dialog" role="dialog">{children}</div> : null
+  Dialog: ({ children, open }: { children: React.ReactNode; open: boolean }) =>
+    open ? (
+      <div data-testid="dialog" role="dialog">
+        {children}
+      </div>
+    ) : null,
+  DialogContent: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
   ),
-  DialogContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
-  DialogDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
+  DialogHeader: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DialogTitle: ({ children }: { children: React.ReactNode }) => (
+    <h2>{children}</h2>
+  ),
+  DialogDescription: ({ children }: { children: React.ReactNode }) => (
+    <p>{children}</p>
+  ),
 }));
 
 vi.mock('@/components/review/review-session-summary', () => ({
-  ReviewSessionSummary: ({ open, stats }: { open: boolean; stats: { total: number } }) => (
-    open ? <div data-testid="review-session-summary">Summary: {stats.total} reviewed</div> : null
-  ),
+  ReviewSessionSummary: ({
+    open,
+    stats,
+  }: {
+    open: boolean;
+    stats: { total: number };
+  }) =>
+    open ? (
+      <div data-testid="review-session-summary">
+        Summary: {stats.total} reviewed
+      </div>
+    ) : null,
 }));
 
 // Import AFTER mocks
@@ -257,9 +315,24 @@ describe('ReviewContent', () => {
         isLoading: false,
         isActioning: false,
         hasMore: false,
-        progress: { verified: 10, flagged: 2, skipped: 1, total: 50, sessionReviewed: 5 },
+        progress: {
+          verified: 10,
+          flagged: 2,
+          skipped: 1,
+          total: 50,
+          sessionReviewed: 5,
+        },
         filters: { status: 'unverified' as const },
-        stats: { total: 50, verified: 10, flagged: 2, unverified: 38, draft: 0, by_domain: {}, by_content_type: {}, by_source_file: {} },
+        stats: {
+          total: 50,
+          verified: 10,
+          flagged: 2,
+          unverified: 38,
+          draft: 0,
+          by_domain: {},
+          by_content_type: {},
+          by_source_file: {},
+        },
         showFlagInput: false,
         flagDetails: '',
         showQueuePanel: false,
@@ -300,8 +373,12 @@ describe('ReviewContent', () => {
     setHookReturn({ isLoading: true });
     render(<ReviewContent />);
 
-    expect(screen.getByRole('status', { name: 'Loading review queue' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: /Review queue — loading/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole('status', { name: 'Loading review queue' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', { name: /Review queue — loading/ }),
+    ).toBeInTheDocument();
   });
 
   // 2. Empty queue — no filters (default "all caught up")
@@ -309,7 +386,13 @@ describe('ReviewContent', () => {
     setHookReturn({
       queue: [],
       currentItem: null,
-      progress: { verified: 10, flagged: 2, skipped: 0, total: 50, sessionReviewed: 0 },
+      progress: {
+        verified: 10,
+        flagged: 2,
+        skipped: 0,
+        total: 50,
+        sessionReviewed: 0,
+      },
       filters: { status: 'unverified' },
     });
     render(<ReviewContent />);
@@ -323,12 +406,20 @@ describe('ReviewContent', () => {
     setHookReturn({
       queue: [],
       currentItem: null,
-      progress: { verified: 50, flagged: 0, skipped: 0, total: 50, sessionReviewed: 0 },
+      progress: {
+        verified: 50,
+        flagged: 0,
+        skipped: 0,
+        total: 50,
+        sessionReviewed: 0,
+      },
       filters: { status: 'unverified' },
     });
     render(<ReviewContent />);
 
-    expect(screen.getByText(/All 50 items have been verified/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/All 50 items have been verified/),
+    ).toBeInTheDocument();
     const browseLink = screen.getByRole('link', { name: 'Back to Browse' });
     expect(browseLink).toHaveAttribute('href', '/browse');
   });
@@ -338,13 +429,21 @@ describe('ReviewContent', () => {
     setHookReturn({
       queue: [],
       currentItem: null,
-      progress: { verified: 10, flagged: 2, skipped: 0, total: 50, sessionReviewed: 0 },
+      progress: {
+        verified: 10,
+        flagged: 2,
+        skipped: 0,
+        total: 50,
+        sessionReviewed: 0,
+      },
       filters: { status: 'unverified', domain: ['Corporate'] },
     });
     render(<ReviewContent />);
 
     expect(screen.getByText('All caught up!')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Clear filters' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Clear filters' }),
+    ).toBeInTheDocument();
   });
 
   // 5. Clear filters button calls setFilters
@@ -354,7 +453,13 @@ describe('ReviewContent', () => {
     setHookReturn({
       queue: [],
       currentItem: null,
-      progress: { verified: 10, flagged: 2, skipped: 0, total: 50, sessionReviewed: 0 },
+      progress: {
+        verified: 10,
+        flagged: 2,
+        skipped: 0,
+        total: 50,
+        sessionReviewed: 0,
+      },
       filters: { status: 'unverified', domain: ['Corporate'] },
       setFilters: mockSetFilters,
     });
@@ -386,7 +491,9 @@ describe('ReviewContent', () => {
     render(<ReviewContent />);
 
     expect(screen.getByText('Batch complete')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Load more' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Load more' }),
+    ).toBeInTheDocument();
   });
 
   // 7. Main review view renders child components
@@ -405,7 +512,9 @@ describe('ReviewContent', () => {
     render(<ReviewContent />);
 
     expect(screen.getByLabelText(/Reason/)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Why does this need attention?')).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText('Why does this need attention?'),
+    ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Submit' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
   });
@@ -464,7 +573,9 @@ describe('ReviewContent', () => {
   it('renders panel toggle button with correct aria attributes', () => {
     render(<ReviewContent />);
 
-    const toggleButton = screen.getByRole('button', { name: /review queue panel/i });
+    const toggleButton = screen.getByRole('button', {
+      name: /review queue panel/i,
+    });
     expect(toggleButton).toBeInTheDocument();
     expect(toggleButton).toHaveAttribute('aria-expanded', 'false');
   });
@@ -476,7 +587,9 @@ describe('ReviewContent', () => {
     setHookReturn({ handleTogglePanel: mockToggle });
     render(<ReviewContent />);
 
-    await user.click(screen.getByRole('button', { name: /review queue panel/i }));
+    await user.click(
+      screen.getByRole('button', { name: /review queue panel/i }),
+    );
     expect(mockToggle).toHaveBeenCalled();
   });
 
@@ -498,7 +611,10 @@ describe('ReviewContent', () => {
     // The sr-only announcement region
     const liveRegion = screen.getByText('Item 3 of 50: Test Item');
     expect(liveRegion).toBeInTheDocument();
-    expect(liveRegion.closest('[aria-live]')).toHaveAttribute('aria-live', 'polite');
+    expect(liveRegion.closest('[aria-live]')).toHaveAttribute(
+      'aria-live',
+      'polite',
+    );
   });
 
   // 17. Exit with session summary dialog
@@ -507,7 +623,13 @@ describe('ReviewContent', () => {
     const mockHandleExit = vi.fn();
     setHookReturn({
       handleExit: mockHandleExit,
-      progress: { verified: 10, flagged: 2, skipped: 1, total: 50, sessionReviewed: 7 },
+      progress: {
+        verified: 10,
+        flagged: 2,
+        skipped: 1,
+        total: 50,
+        sessionReviewed: 7,
+      },
     });
     render(<ReviewContent />);
 
@@ -526,14 +648,22 @@ describe('ReviewContent', () => {
     const mockHandleExit = vi.fn();
     setHookReturn({
       handleExit: mockHandleExit,
-      progress: { verified: 10, flagged: 2, skipped: 1, total: 50, sessionReviewed: 0 },
+      progress: {
+        verified: 10,
+        flagged: 2,
+        skipped: 1,
+        total: 50,
+        sessionReviewed: 0,
+      },
     });
     render(<ReviewContent />);
 
     await user.click(screen.getByRole('button', { name: 'Exit' }));
 
     // Should navigate away directly — no summary dialog
-    expect(screen.queryByTestId('review-session-summary')).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('review-session-summary'),
+    ).not.toBeInTheDocument();
     expect(mockHandleExit).toHaveBeenCalled();
   });
 
@@ -579,7 +709,9 @@ describe('ReviewContent', () => {
   // 20. Review Queue heading visible in main view
   it('renders "Review Queue" heading in main review view', () => {
     render(<ReviewContent />);
-    expect(screen.getByRole('heading', { name: /Review Queue/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /Review Queue/ }),
+    ).toBeInTheDocument();
   });
 
   // 21. Action bar handlers: Verify opens note input, then Skip verifies without note
@@ -610,12 +742,20 @@ describe('ReviewContent', () => {
     setHookReturn({
       queue: [],
       currentItem: null,
-      progress: { verified: 10, flagged: 2, skipped: 0, total: 50, sessionReviewed: 0 },
+      progress: {
+        verified: 10,
+        flagged: 2,
+        skipped: 0,
+        total: 50,
+        sessionReviewed: 0,
+      },
       filters: { status: 'unverified' },
     });
     render(<ReviewContent />);
 
-    expect(screen.getByRole('region', { name: /Review queue — no items to review/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', { name: /Review queue — no items to review/ }),
+    ).toBeInTheDocument();
   });
 
   // 23. Batch complete state uses descriptive ARIA label
@@ -639,22 +779,58 @@ describe('ReviewContent', () => {
 
     render(<ReviewContent />);
 
-    expect(screen.getByRole('region', { name: /Review queue — no items to review/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', { name: /Review queue — no items to review/ }),
+    ).toBeInTheDocument();
   });
 
   // 24. Main view uses item count in ARIA label
   it('uses "Review queue — N items pending review" aria-label for main view', () => {
     render(<ReviewContent />);
 
-    expect(screen.getByRole('region', { name: /Review queue — 1 item pending review/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', {
+        name: /Review queue — 1 item pending review/,
+      }),
+    ).toBeInTheDocument();
   });
 
   // 25. Main view pluralises correctly for multiple items
   it('pluralises "items" in aria-label when queue has multiple items', () => {
     const items = [
-      { id: 'item-1', title: 'Item 1', governance_review_status: null, content: 'body', source_url: null, verified_at: null, verified_by: null, secondary_domain: null, secondary_subtopic: null },
-      { id: 'item-2', title: 'Item 2', governance_review_status: null, content: 'body', source_url: null, verified_at: null, verified_by: null, secondary_domain: null, secondary_subtopic: null },
-      { id: 'item-3', title: 'Item 3', governance_review_status: null, content: 'body', source_url: null, verified_at: null, verified_by: null, secondary_domain: null, secondary_subtopic: null },
+      {
+        id: 'item-1',
+        title: 'Item 1',
+        governance_review_status: null,
+        content: 'body',
+        source_url: null,
+        verified_at: null,
+        verified_by: null,
+        secondary_domain: null,
+        secondary_subtopic: null,
+      },
+      {
+        id: 'item-2',
+        title: 'Item 2',
+        governance_review_status: null,
+        content: 'body',
+        source_url: null,
+        verified_at: null,
+        verified_by: null,
+        secondary_domain: null,
+        secondary_subtopic: null,
+      },
+      {
+        id: 'item-3',
+        title: 'Item 3',
+        governance_review_status: null,
+        content: 'body',
+        source_url: null,
+        verified_at: null,
+        verified_by: null,
+        secondary_domain: null,
+        secondary_subtopic: null,
+      },
     ];
     setHookReturn({
       queue: items,
@@ -663,6 +839,10 @@ describe('ReviewContent', () => {
     });
     render(<ReviewContent />);
 
-    expect(screen.getByRole('region', { name: /Review queue — 3 items pending review/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', {
+        name: /Review queue — 3 items pending review/,
+      }),
+    ).toBeInTheDocument();
   });
 });

@@ -51,7 +51,9 @@ export const CreateContentFormSchema = z.object({
   // Progressive depth
   brief: z.string().max(5000, 'Brief must be at most 5,000 characters'),
   detail: z.string().max(50_000, 'Detail must be at most 50,000 characters'),
-  reference: z.string().max(50_000, 'Reference must be at most 50,000 characters'),
+  reference: z
+    .string()
+    .max(50_000, 'Reference must be at most 50,000 characters'),
 
   // AI options
   auto_classify: z.boolean(),

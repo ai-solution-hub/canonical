@@ -76,7 +76,8 @@ export async function createIntelligenceGuide(
   // Research feed catch-all
   sections.push({
     section_name: 'Research Feed',
-    description: 'General intelligence articles not matching a specific section',
+    description:
+      'General intelligence articles not matching a specific section',
     expected_layer: 'research',
     display_order: order,
     is_required: false,

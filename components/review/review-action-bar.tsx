@@ -29,9 +29,17 @@ interface ReviewActionBarProps {
   className?: string;
 }
 
-type ActionId = 'verify' | 'flag' | 'skip' | 'back' | 'edit' | 'publish' | 'exit';
+type ActionId =
+  | 'verify'
+  | 'flag'
+  | 'skip'
+  | 'back'
+  | 'edit'
+  | 'publish'
+  | 'exit';
 
-const flashClass = 'ring-2 ring-primary ring-offset-2 motion-safe:animate-pulse';
+const flashClass =
+  'ring-2 ring-primary ring-offset-2 motion-safe:animate-pulse';
 
 /**
  * Sticky action bar for the review page.
@@ -97,7 +105,10 @@ export function ReviewActionBar({
 
   return (
     <div
-      className={cn('sticky bottom-0 z-30 flex flex-wrap items-center justify-center gap-2 rounded-t-lg border bg-card/95 p-3 shadow-[var(--shadow-review-bar)] backdrop-blur-sm sm:gap-3', className)}
+      className={cn(
+        'sticky bottom-0 z-30 flex flex-wrap items-center justify-center gap-2 rounded-t-lg border bg-card/95 p-3 shadow-[var(--shadow-review-bar)] backdrop-blur-sm sm:gap-3',
+        className,
+      )}
       role="toolbar"
       aria-label="Review actions"
     >
@@ -108,24 +119,40 @@ export function ReviewActionBar({
           size="sm"
           onClick={handleAction('back')}
           disabled={!canGoBack || isActioning}
-          className={cn('min-h-[44px] gap-1.5 transition-colors', flashAction === 'back' && flashClass)}
+          className={cn(
+            'min-h-[44px] gap-1.5 transition-colors',
+            flashAction === 'back' && flashClass,
+          )}
           aria-label="Go back (keyboard shortcut: left arrow)"
         >
           <ArrowLeft className="size-4" aria-hidden="true" />
           <span className="hidden sm:inline">Back</span>
-          <kbd aria-hidden="true" className="hidden rounded border border-border bg-muted px-1 font-mono text-[10px] sm:inline">{'\u2190'}</kbd>
+          <kbd
+            aria-hidden="true"
+            className="hidden rounded border border-border bg-muted px-1 font-mono text-[10px] sm:inline"
+          >
+            {'\u2190'}
+          </kbd>
         </Button>
         <Button
           variant="ghost"
           size="sm"
           onClick={handleAction('skip')}
           disabled={isActioning}
-          className={cn('min-h-[44px] gap-1.5 transition-colors', flashAction === 'skip' && flashClass)}
+          className={cn(
+            'min-h-[44px] gap-1.5 transition-colors',
+            flashAction === 'skip' && flashClass,
+          )}
           aria-label="Next item (keyboard shortcut: right arrow)"
         >
           <ArrowRight className="size-4" aria-hidden="true" />
           <span className="hidden sm:inline">Next</span>
-          <kbd aria-hidden="true" className="hidden rounded border border-border bg-muted px-1 font-mono text-[10px] sm:inline">{'\u2192'}</kbd>
+          <kbd
+            aria-hidden="true"
+            className="hidden rounded border border-border bg-muted px-1 font-mono text-[10px] sm:inline"
+          >
+            {'\u2192'}
+          </kbd>
         </Button>
       </div>
 
@@ -139,36 +166,60 @@ export function ReviewActionBar({
             size="default"
             onClick={handleAction('publish')}
             disabled={isActioning}
-            className={cn('min-h-[48px] min-w-[120px] gap-2 text-base font-semibold transition-colors bg-action-publish hover:bg-action-publish-hover text-primary-foreground', flashAction === 'publish' && flashClass)}
+            className={cn(
+              'min-h-[48px] min-w-[120px] gap-2 text-base font-semibold transition-colors bg-action-publish hover:bg-action-publish-hover text-primary-foreground',
+              flashAction === 'publish' && flashClass,
+            )}
             aria-label="Publish draft item (keyboard shortcut: Enter)"
           >
             <Send className="size-5" aria-hidden="true" />
             Publish
-            <kbd aria-hidden="true" className="ml-1.5 rounded border border-primary-foreground/20 bg-primary-foreground/10 px-1 font-mono text-[10px]">Enter</kbd>
+            <kbd
+              aria-hidden="true"
+              className="ml-1.5 rounded border border-primary-foreground/20 bg-primary-foreground/10 px-1 font-mono text-[10px]"
+            >
+              Enter
+            </kbd>
           </Button>
         ) : (
           <Button
             size="default"
             onClick={handleAction('verify')}
             disabled={isActioning}
-            className={cn('min-h-[48px] min-w-[120px] gap-2 text-base font-semibold transition-colors', flashAction === 'verify' && flashClass)}
+            className={cn(
+              'min-h-[48px] min-w-[120px] gap-2 text-base font-semibold transition-colors',
+              flashAction === 'verify' && flashClass,
+            )}
             aria-label="Verify (keyboard shortcut: Enter)"
           >
             <Check className="size-5" aria-hidden="true" />
             Verify
-            <kbd aria-hidden="true" className="ml-1.5 rounded border border-border bg-muted px-1 font-mono text-[10px]">Enter</kbd>
+            <kbd
+              aria-hidden="true"
+              className="ml-1.5 rounded border border-border bg-muted px-1 font-mono text-[10px]"
+            >
+              Enter
+            </kbd>
           </Button>
         )}
         <Button
           variant="outline"
           onClick={handleAction('flag')}
           disabled={isActioning}
-          className={cn('min-h-[44px] gap-1.5 text-muted-foreground border-border transition-colors hover:text-status-warning hover:border-status-warning/50 hover:bg-governance-pending-bg', flashAction === 'flag' && flashClass)}
+          className={cn(
+            'min-h-[44px] gap-1.5 text-muted-foreground border-border transition-colors hover:text-status-warning hover:border-status-warning/50 hover:bg-governance-pending-bg',
+            flashAction === 'flag' && flashClass,
+          )}
           aria-label="Flag for review (keyboard shortcut: F)"
         >
           <Flag className="size-4" aria-hidden="true" />
           <span className="hidden sm:inline">Flag</span>
-          <kbd aria-hidden="true" className="hidden rounded border border-border bg-muted px-1 font-mono text-[10px] sm:inline">F</kbd>
+          <kbd
+            aria-hidden="true"
+            className="hidden rounded border border-border bg-muted px-1 font-mono text-[10px] sm:inline"
+          >
+            F
+          </kbd>
         </Button>
       </div>
 
@@ -183,24 +234,40 @@ export function ReviewActionBar({
             size="sm"
             onClick={handleAction('edit')}
             disabled={isActioning}
-            className={cn('min-h-[44px] gap-1.5 transition-colors', flashAction === 'edit' && flashClass)}
+            className={cn(
+              'min-h-[44px] gap-1.5 transition-colors',
+              flashAction === 'edit' && flashClass,
+            )}
             aria-label="Edit in new tab (keyboard shortcut: E)"
           >
             <Pencil className="size-4" aria-hidden="true" />
             <span className="hidden sm:inline">Edit</span>
-            <kbd aria-hidden="true" className="hidden rounded border border-border bg-muted px-1 font-mono text-[10px] sm:inline">E</kbd>
+            <kbd
+              aria-hidden="true"
+              className="hidden rounded border border-border bg-muted px-1 font-mono text-[10px] sm:inline"
+            >
+              E
+            </kbd>
           </Button>
         )}
         <Button
           variant="ghost"
           size="sm"
           onClick={handleAction('exit')}
-          className={cn('min-h-[44px] gap-1.5 transition-colors', flashAction === 'exit' && flashClass)}
+          className={cn(
+            'min-h-[44px] gap-1.5 transition-colors',
+            flashAction === 'exit' && flashClass,
+          )}
           aria-label="Exit review (keyboard shortcut: Escape)"
         >
           <X className="size-4" aria-hidden="true" />
           <span className="hidden sm:inline">Exit</span>
-          <kbd aria-hidden="true" className="hidden rounded border border-border bg-muted px-1 font-mono text-[10px] sm:inline">Esc</kbd>
+          <kbd
+            aria-hidden="true"
+            className="hidden rounded border border-border bg-muted px-1 font-mono text-[10px] sm:inline"
+          >
+            Esc
+          </kbd>
         </Button>
         {onShowHelp && (
           <Button
@@ -211,7 +278,12 @@ export function ReviewActionBar({
             aria-label="Show keyboard shortcuts"
           >
             <HelpCircle className="size-4" aria-hidden="true" />
-            <kbd aria-hidden="true" className="hidden rounded border border-border bg-muted px-1 font-mono text-[10px] sm:inline">?</kbd>
+            <kbd
+              aria-hidden="true"
+              className="hidden rounded border border-border bg-muted px-1 font-mono text-[10px] sm:inline"
+            >
+              ?
+            </kbd>
           </Button>
         )}
       </div>

@@ -103,7 +103,10 @@ const SEVERITY_ORDER: AttentionItem['severity'][] = [
 function groupBySeverity(
   items: AttentionItem[],
 ): { severity: AttentionItem['severity']; items: AttentionItem[] }[] {
-  const groups: { severity: AttentionItem['severity']; items: AttentionItem[] }[] = [];
+  const groups: {
+    severity: AttentionItem['severity'];
+    items: AttentionItem[];
+  }[] = [];
 
   for (const severity of SEVERITY_ORDER) {
     const tierItems = items.filter((item) => item.severity === severity);
@@ -187,14 +190,10 @@ function AttentionPromptStrip({ items }: { items: AttentionItem[] }) {
   }
 
   const parts: string[] = [];
-  if (counts.critical > 0)
-    parts.push(`${counts.critical} critical`);
-  if (counts.high > 0)
-    parts.push(`${counts.high} high priority`);
-  if (counts.medium > 0)
-    parts.push(`${counts.medium} medium`);
-  if (counts.info > 0)
-    parts.push(`${counts.info} informational`);
+  if (counts.critical > 0) parts.push(`${counts.critical} critical`);
+  if (counts.high > 0) parts.push(`${counts.high} high priority`);
+  if (counts.medium > 0) parts.push(`${counts.medium} medium`);
+  if (counts.info > 0) parts.push(`${counts.info} informational`);
 
   const summaryText = `${parts.join(', ')} ${items.length === 1 ? 'item needs' : 'items need'} attention`;
 

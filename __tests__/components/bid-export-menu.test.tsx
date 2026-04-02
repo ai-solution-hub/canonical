@@ -89,17 +89,23 @@ describe('BidExportMenu', () => {
 
   it('displays "Export" text on the trigger button', () => {
     renderMenu();
-    expect(screen.getByRole('button', { name: 'Export bid responses' })).toHaveTextContent('Export');
+    expect(
+      screen.getByRole('button', { name: 'Export bid responses' }),
+    ).toHaveTextContent('Export');
   });
 
   it('disables the trigger button when hasQuestions is false', () => {
     renderMenu({ hasQuestions: false });
-    expect(screen.getByRole('button', { name: 'Export bid responses' })).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'Export bid responses' }),
+    ).toBeDisabled();
   });
 
   it('enables the trigger button when hasQuestions is true', () => {
     renderMenu({ hasQuestions: true });
-    expect(screen.getByRole('button', { name: 'Export bid responses' })).not.toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'Export bid responses' }),
+    ).not.toBeDisabled();
   });
 
   // ---- Dropdown menu items ----
@@ -107,7 +113,9 @@ describe('BidExportMenu', () => {
   it('shows export options when dropdown is opened', async () => {
     const user = userEvent.setup();
     renderMenu();
-    await user.click(screen.getByRole('button', { name: 'Export bid responses' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Export bid responses' }),
+    );
     expect(screen.getByText('Word (.docx)')).toBeInTheDocument();
     expect(screen.getByText('Excel (.xlsx)')).toBeInTheDocument();
     expect(screen.getByText('Print / Save as PDF')).toBeInTheDocument();
@@ -131,7 +139,9 @@ describe('BidExportMenu', () => {
     });
 
     renderMenu({ bidId: 'bid-42', bidName: 'Council Services Bid' });
-    await user.click(screen.getByRole('button', { name: 'Export bid responses' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Export bid responses' }),
+    );
     await user.click(screen.getByText('Word (.docx)'));
 
     await waitFor(() => {
@@ -167,7 +177,9 @@ describe('BidExportMenu', () => {
     });
 
     renderMenu({ bidId: 'bid-42', bidName: 'Test Bid' });
-    await user.click(screen.getByRole('button', { name: 'Export bid responses' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Export bid responses' }),
+    );
     await user.click(screen.getByText('Excel (.xlsx)'));
 
     await waitFor(() => {
@@ -199,13 +211,17 @@ describe('BidExportMenu', () => {
     // Spy on createElement to observe the created anchor element
     const createdAnchors: HTMLAnchorElement[] = [];
     const origCreateElement = document.createElement.bind(document);
-    const createSpy = vi.spyOn(document, 'createElement').mockImplementation(
-      function (this: Document, tagName: string, options?: ElementCreationOptions) {
+    const createSpy = vi
+      .spyOn(document, 'createElement')
+      .mockImplementation(function (
+        this: Document,
+        tagName: string,
+        options?: ElementCreationOptions,
+      ) {
         const el = origCreateElement(tagName, options);
         if (tagName === 'a') createdAnchors.push(el as HTMLAnchorElement);
         return el;
-      },
-    );
+      });
 
     (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
@@ -213,7 +229,9 @@ describe('BidExportMenu', () => {
     });
 
     renderMenu({ bidName: 'Council Services (2026)' });
-    await user.click(screen.getByRole('button', { name: 'Export bid responses' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Export bid responses' }),
+    );
     await user.click(screen.getByText('Word (.docx)'));
 
     await waitFor(() => {
@@ -239,7 +257,9 @@ describe('BidExportMenu', () => {
     });
 
     renderMenu();
-    await user.click(screen.getByRole('button', { name: 'Export bid responses' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Export bid responses' }),
+    );
     await user.click(screen.getByText('Word (.docx)'));
 
     await waitFor(() => {
@@ -256,7 +276,9 @@ describe('BidExportMenu', () => {
     });
 
     renderMenu();
-    await user.click(screen.getByRole('button', { name: 'Export bid responses' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Export bid responses' }),
+    );
     await user.click(screen.getByText('Word (.docx)'));
 
     await waitFor(() => {
@@ -271,7 +293,9 @@ describe('BidExportMenu', () => {
     );
 
     renderMenu();
-    await user.click(screen.getByRole('button', { name: 'Export bid responses' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Export bid responses' }),
+    );
     await user.click(screen.getByText('Word (.docx)'));
 
     await waitFor(() => {
@@ -284,10 +308,16 @@ describe('BidExportMenu', () => {
   it('calls window.print when Print option is clicked', async () => {
     const user = userEvent.setup();
     const mockPrint = vi.fn();
-    Object.defineProperty(window, 'print', { value: mockPrint, writable: true, configurable: true });
+    Object.defineProperty(window, 'print', {
+      value: mockPrint,
+      writable: true,
+      configurable: true,
+    });
 
     renderMenu();
-    await user.click(screen.getByRole('button', { name: 'Export bid responses' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Export bid responses' }),
+    );
     await user.click(screen.getByText('Print / Save as PDF'));
 
     expect(mockPrint).toHaveBeenCalled();

@@ -49,7 +49,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ updated: data?.length ?? 0 });
   } catch (err) {
     return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to update governance review status') },
+      {
+        error: safeErrorMessage(
+          err,
+          'Failed to update governance review status',
+        ),
+      },
       { status: 500 },
     );
   }

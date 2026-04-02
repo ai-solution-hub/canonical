@@ -17,7 +17,9 @@ import { ReviewActionBar } from '@/components/review/review-action-bar';
 // Factory
 // ---------------------------------------------------------------------------
 
-function makeProps(overrides: Partial<Parameters<typeof ReviewActionBar>[0]> = {}) {
+function makeProps(
+  overrides: Partial<Parameters<typeof ReviewActionBar>[0]> = {},
+) {
   return {
     onVerify: vi.fn(),
     onFlag: vi.fn(),
@@ -41,13 +43,17 @@ describe('ReviewActionBar', () => {
     expect(screen.getByRole('button', { name: /Verify/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Flag/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Next/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Go back/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Go back/i }),
+    ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Exit/i })).toBeInTheDocument();
   });
 
   it('renders toolbar role with correct label', () => {
     render(<ReviewActionBar {...makeProps()} />);
-    expect(screen.getByRole('toolbar', { name: 'Review actions' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('toolbar', { name: 'Review actions' }),
+    ).toBeInTheDocument();
   });
 
   it('calls onVerify when verify button clicked', async () => {
@@ -108,7 +114,11 @@ describe('ReviewActionBar', () => {
     const user = userEvent.setup();
     const onVerify = vi.fn();
     const onFlag = vi.fn();
-    render(<ReviewActionBar {...makeProps({ onVerify, onFlag, isActioning: true })} />);
+    render(
+      <ReviewActionBar
+        {...makeProps({ onVerify, onFlag, isActioning: true })}
+      />,
+    );
 
     // Buttons are disabled so clicks should not fire
     await user.click(screen.getByRole('button', { name: /Verify/i }));
@@ -137,7 +147,9 @@ describe('ReviewActionBar', () => {
 
   it('does not render edit button when onEdit is not provided', () => {
     render(<ReviewActionBar {...makeProps()} />);
-    expect(screen.queryByRole('button', { name: /Edit/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Edit/i }),
+    ).not.toBeInTheDocument();
   });
 
   it('calls onEdit when edit button clicked', async () => {
@@ -151,11 +163,15 @@ describe('ReviewActionBar', () => {
 
   it('renders help button when onShowHelp is provided', () => {
     render(<ReviewActionBar {...makeProps({ onShowHelp: vi.fn() })} />);
-    expect(screen.getByRole('button', { name: /Show keyboard shortcuts/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Show keyboard shortcuts/i }),
+    ).toBeInTheDocument();
   });
 
   it('does not render help button when onShowHelp is not provided', () => {
     render(<ReviewActionBar {...makeProps()} />);
-    expect(screen.queryByRole('button', { name: /Show keyboard shortcuts/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Show keyboard shortcuts/i }),
+    ).not.toBeInTheDocument();
   });
 });

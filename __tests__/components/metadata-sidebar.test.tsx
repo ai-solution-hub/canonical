@@ -17,8 +17,19 @@ import { mockTaxonomyContext } from '../helpers/mock-contexts';
 const { mockChain, mockFrom } = vi.hoisted(() => {
   const chain: Record<string, ReturnType<typeof vi.fn>> = {};
   const methods = [
-    'select', 'eq', 'neq', 'in', 'order', 'or', 'limit',
-    'insert', 'update', 'delete', 'is', 'not', 'single',
+    'select',
+    'eq',
+    'neq',
+    'in',
+    'order',
+    'or',
+    'limit',
+    'insert',
+    'update',
+    'delete',
+    'is',
+    'not',
+    'single',
   ];
   for (const m of methods) {
     chain[m] = vi.fn().mockReturnValue(chain);
@@ -45,10 +56,11 @@ vi.mock('@/contexts/taxonomy-context', () => ({
 }));
 
 vi.mock('@/hooks/use-display-names', () => ({
-  useDisplayNames: () => new Map([
-    ['user-123', 'Jane Smith'],
-    ['user-456', 'Bob Jones'],
-  ]),
+  useDisplayNames: () =>
+    new Map([
+      ['user-123', 'Jane Smith'],
+      ['user-456', 'Bob Jones'],
+    ]),
 }));
 
 vi.mock('sonner', () => ({
@@ -123,8 +135,19 @@ describe('MetadataSidebar', () => {
     vi.clearAllMocks();
     // Reset chain methods to return chain
     for (const m of [
-      'select', 'eq', 'neq', 'in', 'order', 'or', 'limit',
-      'insert', 'update', 'delete', 'is', 'not', 'single',
+      'select',
+      'eq',
+      'neq',
+      'in',
+      'order',
+      'or',
+      'limit',
+      'insert',
+      'update',
+      'delete',
+      'is',
+      'not',
+      'single',
     ]) {
       mockChain[m].mockReturnValue(mockChain);
     }
@@ -255,7 +278,9 @@ describe('MetadataSidebar', () => {
     });
 
     expect(screen.getByText('Short Content')).toBeInTheDocument();
-    expect(screen.getByText('Content is under 100 characters')).toBeInTheDocument();
+    expect(
+      screen.getByText('Content is under 100 characters'),
+    ).toBeInTheDocument();
   });
 
   it('shows resolve button for quality flags when not read-only', async () => {
@@ -315,7 +340,9 @@ describe('MetadataSidebar', () => {
       expect(mockFrom).toHaveBeenCalledWith('ingestion_quality_log');
     });
 
-    expect(screen.getByRole('button', { name: 'Edit domain' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Edit domain' }),
+    ).toBeInTheDocument();
   });
 
   it('hides edit buttons in read-only mode via CSS hidden class', async () => {
@@ -331,7 +358,9 @@ describe('MetadataSidebar', () => {
     const editDomainBtn = screen.getByRole('button', { name: 'Edit domain' });
     expect(editDomainBtn.className).toContain('hidden');
 
-    const editSubtopicBtn = screen.getByRole('button', { name: 'Edit subtopic' });
+    const editSubtopicBtn = screen.getByRole('button', {
+      name: 'Edit subtopic',
+    });
     expect(editSubtopicBtn.className).toContain('hidden');
   });
 

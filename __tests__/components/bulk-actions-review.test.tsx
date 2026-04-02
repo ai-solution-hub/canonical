@@ -13,13 +13,17 @@ describe('BulkActions — Send to review', () => {
   it('does not show "Send to review" when canSendToReview is false', () => {
     render(<BulkActions {...defaultProps} canSendToReview={false} />);
 
-    expect(screen.queryByRole('button', { name: /send to review/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /send to review/i }),
+    ).not.toBeInTheDocument();
   });
 
   it('does not show "Send to review" when canSendToReview is omitted', () => {
     render(<BulkActions {...defaultProps} />);
 
-    expect(screen.queryByRole('button', { name: /send to review/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /send to review/i }),
+    ).not.toBeInTheDocument();
   });
 
   it('shows "Send to review" when canSendToReview is true and onSendToReview provided', () => {
@@ -31,7 +35,9 @@ describe('BulkActions — Send to review', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: /send to review/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /send to review/i }),
+    ).toBeInTheDocument();
   });
 
   it('calls onSendToReview when button is clicked', async () => {
@@ -88,9 +94,13 @@ describe('BulkActions — Send to review', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: /mark as read/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /mark as read/i }),
+    ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /send to review/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /send to review/i }),
+    ).toBeInTheDocument();
   });
 
   it('displays the correct selected count', () => {

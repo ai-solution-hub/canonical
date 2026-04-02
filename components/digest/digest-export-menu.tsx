@@ -1,14 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  Download,
-  FileText,
-  Copy,
-  Printer,
-  Mail,
-  Loader2,
-} from 'lucide-react';
+import { Download, FileText, Copy, Printer, Mail, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -72,12 +65,7 @@ export function DigestExportMenu({ digest }: DigestExportMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          data-no-print
-        >
+        <Button variant="outline" size="sm" className="gap-1.5" data-no-print>
           <Download className="size-3.5" />
           Export
         </Button>

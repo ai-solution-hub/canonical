@@ -54,7 +54,10 @@ function renderDialog(overrides: Partial<typeof defaultProps> = {}) {
 }
 
 /** Click a radio option by clicking the label element wrapping the radio button */
-async function selectOutcome(user: ReturnType<typeof userEvent.setup>, value: string) {
+async function selectOutcome(
+  user: ReturnType<typeof userEvent.setup>,
+  value: string,
+) {
   const radio = screen.getByRole('radio', { name: new RegExp(value, 'i') });
   await user.click(radio);
 }
@@ -101,7 +104,9 @@ describe('BidOutcomeDialog', () => {
     renderDialog();
     expect(screen.getByText('Bid was successful')).toBeInTheDocument();
     expect(screen.getByText('Bid was unsuccessful')).toBeInTheDocument();
-    expect(screen.getByText('Bid was withdrawn before decision')).toBeInTheDocument();
+    expect(
+      screen.getByText('Bid was withdrawn before decision'),
+    ).toBeInTheDocument();
   });
 
   it('renders the notes textarea', () => {
@@ -112,12 +117,16 @@ describe('BidOutcomeDialog', () => {
   it('renders Cancel and Record Outcome buttons', () => {
     renderDialog();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Record Outcome' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Record Outcome' }),
+    ).toBeInTheDocument();
   });
 
   it('disables Record Outcome button when no outcome is selected', () => {
     renderDialog();
-    expect(screen.getByRole('button', { name: 'Record Outcome' })).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'Record Outcome' }),
+    ).toBeDisabled();
   });
 
   // ---- Outcome selection ----
@@ -126,7 +135,9 @@ describe('BidOutcomeDialog', () => {
     const user = userEvent.setup();
     renderDialog();
     await selectOutcome(user, 'Won');
-    expect(screen.getByRole('button', { name: 'Record Outcome' })).not.toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'Record Outcome' }),
+    ).not.toBeDisabled();
   });
 
   // ---- KB integration checkbox ----
@@ -136,11 +147,15 @@ describe('BidOutcomeDialog', () => {
     renderDialog();
 
     // Not visible initially
-    expect(screen.queryByText(/Review responses for knowledge base integration/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Review responses for knowledge base integration/),
+    ).not.toBeInTheDocument();
 
     // Select Won
     await selectOutcome(user, 'Won');
-    expect(screen.getByText(/Review responses for knowledge base integration/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Review responses for knowledge base integration/),
+    ).toBeInTheDocument();
   });
 
   it('hides KB integration checkbox when switching from Won to Lost', async () => {
@@ -148,10 +163,14 @@ describe('BidOutcomeDialog', () => {
     renderDialog();
 
     await selectOutcome(user, 'Won');
-    expect(screen.getByText(/Review responses for knowledge base integration/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Review responses for knowledge base integration/),
+    ).toBeInTheDocument();
 
     await selectOutcome(user, 'Lost');
-    expect(screen.queryByText(/Review responses for knowledge base integration/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Review responses for knowledge base integration/),
+    ).not.toBeInTheDocument();
   });
 
   // ---- Notes input ----
@@ -192,8 +211,13 @@ describe('BidOutcomeDialog', () => {
     });
 
     await waitFor(() => {
-      expect(mockToast.success).toHaveBeenCalledWith('Bid outcome recorded: Won', { duration: 3000 });
-      expect(onOutcomeRecorded).toHaveBeenCalledWith('won', [{ question_id: 'q1' }]);
+      expect(mockToast.success).toHaveBeenCalledWith(
+        'Bid outcome recorded: Won',
+        { duration: 3000 },
+      );
+      expect(onOutcomeRecorded).toHaveBeenCalledWith('won', [
+        { question_id: 'q1' },
+      ]);
       expect(onOpenChange).toHaveBeenCalledWith(false);
     });
   });
@@ -216,7 +240,10 @@ describe('BidOutcomeDialog', () => {
       expect(globalThis.fetch).toHaveBeenCalledWith(
         '/api/bids/bid-123/outcome',
         expect.objectContaining({
-          body: JSON.stringify({ outcome: 'lost', notes: 'Price was too high' }),
+          body: JSON.stringify({
+            outcome: 'lost',
+            notes: 'Price was too high',
+          }),
         }),
       );
     });
@@ -263,7 +290,9 @@ describe('BidOutcomeDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Record Outcome' }));
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('Database unavailable');
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Database unavailable',
+      );
       expect(mockToast.error).toHaveBeenCalledWith('Database unavailable');
     });
   });
@@ -283,7 +312,9 @@ describe('BidOutcomeDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Record Outcome' }));
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('Failed to record outcome (502)');
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Failed to record outcome (502)',
+      );
     });
   });
 

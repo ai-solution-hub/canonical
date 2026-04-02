@@ -26,8 +26,8 @@ export type ModelTier = 'analysis' | 'drafting' | 'quality';
 
 const MODEL_MAP: Record<ModelTier, string> = {
   analysis: 'claude-sonnet-4-5', // Fast, cheap — question analysis + search queries
-  drafting: 'claude-opus-4-6',   // High quality — response drafting with citations
-  quality: 'claude-haiku-4-5',   // Cheap — quality checks
+  drafting: 'claude-opus-4-6', // High quality — response drafting with citations
+  quality: 'claude-haiku-4-5', // Cheap — quality checks
 };
 
 /**
@@ -51,7 +51,8 @@ export interface TokenUsage {
 
 /** Estimate cost in USD from model name and token usage */
 export function estimateCost(model: string, usage: TokenUsage): number {
-  const rates = COST_PER_MILLION[model] ?? COST_PER_MILLION['claude-sonnet-4-5'];
+  const rates =
+    COST_PER_MILLION[model] ?? COST_PER_MILLION['claude-sonnet-4-5'];
   const cacheReadTokens = usage.cache_read_input_tokens ?? 0;
   const cacheWriteTokens = usage.cache_creation_input_tokens ?? 0;
   const inputTokens = usage.input_tokens - cacheReadTokens - cacheWriteTokens;

@@ -25,8 +25,9 @@ interface ClientFeaturesContextValue {
 // Context + Provider
 // ---------------------------------------------------------------------------
 
-const ClientFeaturesContext =
-  createContext<ClientFeaturesContextValue | null>(null);
+const ClientFeaturesContext = createContext<ClientFeaturesContextValue | null>(
+  null,
+);
 
 export function ClientFeaturesProvider({
   children,
@@ -48,4 +49,3 @@ export function ClientFeaturesProvider({
     </ClientFeaturesContext.Provider>
   );
 }
-

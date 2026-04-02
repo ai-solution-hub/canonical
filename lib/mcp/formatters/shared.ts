@@ -31,11 +31,17 @@ export function truncate(text: string, maxLength: number): string {
  */
 export function truncateResponse(text: string): string {
   if (text.length <= CHARACTER_LIMIT) return text;
-  return text.slice(0, CHARACTER_LIMIT) + '\n\n... (content truncated — request specific items for full detail)';
+  return (
+    text.slice(0, CHARACTER_LIMIT) +
+    '\n\n... (content truncated — request specific items for full detail)'
+  );
 }
 
 /** Format a deadline with days remaining */
-export function formatDeadline(deadline: string | null, daysUntil: number | null): string {
+export function formatDeadline(
+  deadline: string | null,
+  daysUntil: number | null,
+): string {
   if (!deadline) return 'No deadline set';
   const dateStr = formatDateUK(deadline);
   if (daysUntil === null) return dateStr;

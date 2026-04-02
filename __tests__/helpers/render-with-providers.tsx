@@ -58,7 +58,8 @@ interface ProviderOverrides {
   clientFeaturesValue?: Partial<MockClientFeaturesContextValue>;
 }
 
-interface CustomRenderOptions extends Omit<RenderOptions, 'wrapper'>, ProviderOverrides {}
+interface CustomRenderOptions
+  extends Omit<RenderOptions, 'wrapper'>, ProviderOverrides {}
 
 // ---------------------------------------------------------------------------
 // We use a module-mock approach: mock each context module to return our
@@ -129,5 +130,11 @@ export function getCurrentMockContexts() {
 
 // Re-export everything from @testing-library/react so tests can import from
 // this single file
-export { screen, waitFor, within, act, fireEvent } from '@testing-library/react';
+export {
+  screen,
+  waitFor,
+  within,
+  act,
+  fireEvent,
+} from '@testing-library/react';
 export { default as userEvent } from '@testing-library/user-event';

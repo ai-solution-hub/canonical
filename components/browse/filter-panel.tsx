@@ -84,8 +84,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
   const domainNames = getDomainNames();
 
   // Derive available subtopics: only when exactly ONE domain is selected
-  const singleDomain =
-    draft.domains.length === 1 ? draft.domains[0] : null;
+  const singleDomain = draft.domains.length === 1 ? draft.domains[0] : null;
   const availableSubtopics =
     singleDomain && domainNames.includes(singleDomain)
       ? getSubtopics(singleDomain)
@@ -213,7 +212,11 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
             <div className="flex flex-wrap gap-2">
               {[
                 { value: 'high', label: 'High', colour: 'bg-priority-high' },
-                { value: 'medium', label: 'Medium', colour: 'bg-priority-medium' },
+                {
+                  value: 'medium',
+                  label: 'Medium',
+                  colour: 'bg-priority-medium',
+                },
                 { value: 'low', label: 'Low', colour: 'bg-priority-low' },
               ].map((opt) => {
                 const isActive = draft.priorities.includes(opt.value);
@@ -344,7 +347,9 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
               <FilterSection title="Entities" defaultOpen={false}>
                 <div className="flex flex-wrap gap-2">
                   {allEntities
-                    .filter((e) => !draft.entity_type || e.type === draft.entity_type)
+                    .filter(
+                      (e) => !draft.entity_type || e.type === draft.entity_type,
+                    )
                     .map(({ name, type, count }) => {
                       const isActive = draft.entity === name;
                       return (
@@ -391,25 +396,27 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
           {/* Freshness — collapsed by default */}
           <FilterSection title="Freshness" defaultOpen={false}>
             <div className="flex flex-wrap gap-2">
-              {(['fresh', 'aging', 'stale', 'expired'] as const).map((state) => {
-                const isActive = draft.freshness.includes(state);
-                return (
-                  <button
-                    key={state}
-                    type="button"
-                    onClick={() => handleFreshnessToggle(state)}
-                    aria-pressed={isActive}
-                    className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                      isActive
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-border bg-muted text-foreground hover:bg-accent'
-                    }`}
-                  >
-                    <FreshnessBadge freshness={state} compact />
-                    <span className="capitalize">{state}</span>
-                  </button>
-                );
-              })}
+              {(['fresh', 'aging', 'stale', 'expired'] as const).map(
+                (state) => {
+                  const isActive = draft.freshness.includes(state);
+                  return (
+                    <button
+                      key={state}
+                      type="button"
+                      onClick={() => handleFreshnessToggle(state)}
+                      aria-pressed={isActive}
+                      className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                        isActive
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border bg-muted text-foreground hover:bg-accent'
+                      }`}
+                    >
+                      <FreshnessBadge freshness={state} compact />
+                      <span className="capitalize">{state}</span>
+                    </button>
+                  );
+                },
+              )}
             </div>
           </FilterSection>
 
@@ -515,12 +522,18 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
 
           {/* Quality Issues — collapsed by default */}
           <FilterSection title="Quality" defaultOpen={false}>
-            <label htmlFor="filter-quality" className="flex cursor-pointer items-center gap-2">
+            <label
+              htmlFor="filter-quality"
+              className="flex cursor-pointer items-center gap-2"
+            >
               <Checkbox
                 id="filter-quality"
                 checked={draft.quality_issues}
                 onCheckedChange={(checked) =>
-                  setDraft((prev) => ({ ...prev, quality_issues: checked === true }))
+                  setDraft((prev) => ({
+                    ...prev,
+                    quality_issues: checked === true,
+                  }))
                 }
               />
               <span className="text-sm">Has quality issues</span>
@@ -531,12 +544,18 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
 
           {/* Include Drafts — collapsed by default */}
           <FilterSection title="Drafts" defaultOpen={false}>
-            <label htmlFor="filter-drafts" className="flex cursor-pointer items-center gap-2">
+            <label
+              htmlFor="filter-drafts"
+              className="flex cursor-pointer items-center gap-2"
+            >
               <Checkbox
                 id="filter-drafts"
                 checked={draft.include_drafts}
                 onCheckedChange={(checked) =>
-                  setDraft((prev) => ({ ...prev, include_drafts: checked === true }))
+                  setDraft((prev) => ({
+                    ...prev,
+                    include_drafts: checked === true,
+                  }))
                 }
               />
               <span className="text-sm">Include draft items</span>
@@ -550,12 +569,18 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
 
           {/* Include Q&A pairs — collapsed by default */}
           <FilterSection title="Q&A Pairs" defaultOpen={false}>
-            <label htmlFor="filter-qa" className="flex cursor-pointer items-center gap-2">
+            <label
+              htmlFor="filter-qa"
+              className="flex cursor-pointer items-center gap-2"
+            >
               <Checkbox
                 id="filter-qa"
                 checked={draft.include_qa}
                 onCheckedChange={(checked) =>
-                  setDraft((prev) => ({ ...prev, include_qa: checked === true }))
+                  setDraft((prev) => ({
+                    ...prev,
+                    include_qa: checked === true,
+                  }))
                 }
               />
               <span className="text-sm">Include Q&A pairs</span>
@@ -569,7 +594,10 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
 
           {/* Starred — collapsed by default */}
           <FilterSection title="Starred" defaultOpen={false}>
-            <label htmlFor="filter-starred" className="flex cursor-pointer items-center gap-2">
+            <label
+              htmlFor="filter-starred"
+              className="flex cursor-pointer items-center gap-2"
+            >
               <Checkbox
                 id="filter-starred"
                 checked={draft.starred}

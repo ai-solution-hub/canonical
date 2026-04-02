@@ -44,7 +44,11 @@ export function useCoverageTargets() {
 
   const mutation = useMutation<TargetsResponse, Error, SaveTargetEntry[]>({
     mutationFn: (entries: SaveTargetEntry[]) =>
-      mutationFetchJson<TargetsResponse>('/api/coverage/targets', { targets: entries }, { method: 'PUT' }),
+      mutationFetchJson<TargetsResponse>(
+        '/api/coverage/targets',
+        { targets: entries },
+        { method: 'PUT' },
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.coverage.targets });
     },
@@ -53,7 +57,9 @@ export function useCoverageTargets() {
   const { mutateAsync: targetsMutateAsync } = mutation;
 
   const saveTargets = useCallback(
-    async (entries: SaveTargetEntry[]): Promise<{ success: boolean; error?: string }> => {
+    async (
+      entries: SaveTargetEntry[],
+    ): Promise<{ success: boolean; error?: string }> => {
       try {
         await targetsMutateAsync(entries);
         return { success: true };

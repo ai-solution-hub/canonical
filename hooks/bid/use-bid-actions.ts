@@ -136,7 +136,9 @@ function useBidTransitions(
       if (!bid) return;
       const currentStatus = bid.status as BidState;
       if (!canTransition(currentStatus, newStatus)) {
-        toast.error(`Cannot transition from ${BID_STATE_LABELS[currentStatus]} to ${BID_STATE_LABELS[newStatus]}`);
+        toast.error(
+          `Cannot transition from ${BID_STATE_LABELS[currentStatus]} to ${BID_STATE_LABELS[newStatus]}`,
+        );
         return;
       }
       transitionMutate(newStatus);
@@ -159,7 +161,8 @@ function useBidDialogs() {
   const [showOutcomeDialog, setShowOutcomeDialog] = useState(false);
   const [showKBReview, setShowKBReview] = useState(false);
   const [kbCandidates, setKBCandidates] = useState<KBCandidate[]>([]);
-  const [extractedMetadata, setExtractedMetadata] = useState<TenderExtractedMetadata | null>(null);
+  const [extractedMetadata, setExtractedMetadata] =
+    useState<TenderExtractedMetadata | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   return {
@@ -190,7 +193,9 @@ function useQuestionExtraction(
   setExtractedMetadata: (metadata: TenderExtractedMetadata | null) => void,
 ) {
   const [showQuestionReview, setShowQuestionReview] = useState(false);
-  const [extractedQuestions, setExtractedQuestions] = useState<ExtractedQuestion[]>([]);
+  const [extractedQuestions, setExtractedQuestions] = useState<
+    ExtractedQuestion[]
+  >([]);
 
   function handleUploadComplete(result?: ExtractionResult) {
     fetchBid();
@@ -198,7 +203,9 @@ function useQuestionExtraction(
     // Check for extracted metadata
     const resultAny = result as unknown as Record<string, unknown>;
     if (resultAny?.extracted_metadata) {
-      setExtractedMetadata(resultAny.extracted_metadata as TenderExtractedMetadata);
+      setExtractedMetadata(
+        resultAny.extracted_metadata as TenderExtractedMetadata,
+      );
     }
     if (result && result.sections.length > 0) {
       // Flatten sections into individual question entries for QuestionReview
@@ -248,23 +255,18 @@ export function useBidActions({ id }: UseBidActionsParams) {
   const queryClient = useQueryClient();
 
   // Data fetching (TanStack Query)
-  const {
-    bid,
-    questions,
-    stats,
-    loading,
-    fetchBid,
-    fetchQuestions,
-  } = useBidData(id);
+  const { bid, questions, stats, loading, fetchBid, fetchQuestions } =
+    useBidData(id);
 
   // Tab state (kept here as it bridges data and extraction concerns)
   const [activeTab, setActiveTab] = useState<Tab>('overview');
 
   // Status transitions (useMutation)
-  const {
-    transitioning,
-    handleStatusTransition,
-  } = useBidTransitions(bid, id, queryClient);
+  const { transitioning, handleStatusTransition } = useBidTransitions(
+    bid,
+    id,
+    queryClient,
+  );
 
   // Dialog state
   const {
@@ -289,7 +291,13 @@ export function useBidActions({ id }: UseBidActionsParams) {
     handleUploadComplete,
     handleQuestionReviewConfirmed,
     handleQuestionReviewCancelled,
-  } = useQuestionExtraction(id, fetchBid, fetchQuestions, setActiveTab, setExtractedMetadata);
+  } = useQuestionExtraction(
+    id,
+    fetchBid,
+    fetchQuestions,
+    setActiveTab,
+    setExtractedMetadata,
+  );
 
   // Delete mutation
   const deleteMutation = useMutation({
@@ -351,11 +359,18 @@ export function useBidActions({ id }: UseBidActionsParams) {
 
       return response.json();
     },
-    onSuccess: (result: { drafted: number; skipped: number; failed: number; total_cost: number }) => {
+    onSuccess: (result: {
+      drafted: number;
+      skipped: number;
+      failed: number;
+      total_cost: number;
+    }) => {
       const { drafted, skipped, failed } = result;
 
       if (failed > 0) {
-        toast.warning(`Drafted ${drafted} responses, ${failed} failed, ${skipped} skipped`);
+        toast.warning(
+          `Drafted ${drafted} responses, ${failed} failed, ${skipped} skipped`,
+        );
       } else {
         toast.success(`Drafted ${drafted} responses (${skipped} skipped)`);
       }
@@ -405,7 +420,10 @@ export function useBidActions({ id }: UseBidActionsParams) {
     queryClient.invalidateQueries({ queryKey: queryKeys.bids.detail(id) });
   }
 
-  function handleKBIntegrationComplete(result: { created: number; updated: number }) {
+  function handleKBIntegrationComplete(result: {
+    created: number;
+    updated: number;
+  }) {
     setShowKBReview(false);
     setKBCandidates([]);
     queryClient.invalidateQueries({ queryKey: queryKeys.bids.detail(id) });
@@ -416,24 +434,34 @@ export function useBidActions({ id }: UseBidActionsParams) {
 
   // Computed values
   const metadata = bid ? (bid.domain_metadata as BidMetadata) : null;
-  const bidStatus = bid
-    ? ((bid.status ?? 'draft') as BidState)
-    : null;
+  const bidStatus = bid ? ((bid.status ?? 'draft') as BidState) : null;
   const totalQuestions = stats?.total_questions ?? 0;
-  const completedCount = (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0);
-  const progressPercent = totalQuestions > 0 ? Math.round((completedCount / totalQuestions) * 100) : 0;
-  const availableTransitions = bidStatus ? getAvailableTransitions(bidStatus) : [];
+  const completedCount =
+    (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0);
+  const progressPercent =
+    totalQuestions > 0
+      ? Math.round((completedCount / totalQuestions) * 100)
+      : 0;
+  const availableTransitions = bidStatus
+    ? getAvailableTransitions(bidStatus)
+    : [];
   const outcomeTransitions = ['won', 'lost', 'withdrawn'] as const;
   const isSubmitted = bidStatus === 'submitted';
   const regularTransitions = availableTransitions.filter(
-    t => !isSubmitted || !outcomeTransitions.includes(t as typeof outcomeTransitions[number]),
+    (t) =>
+      !isSubmitted ||
+      !outcomeTransitions.includes(t as (typeof outcomeTransitions)[number]),
   );
 
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: 'overview', label: 'Overview' },
     { id: 'questions', label: 'Questions', count: totalQuestions },
     { id: 'responses', label: 'Responses' },
-    { id: 'documents', label: 'Documents', count: metadata?.tender_document_ids?.length ?? 0 },
+    {
+      id: 'documents',
+      label: 'Documents',
+      count: metadata?.tender_document_ids?.length ?? 0,
+    },
   ];
 
   return {

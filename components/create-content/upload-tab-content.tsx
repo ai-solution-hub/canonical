@@ -2,7 +2,15 @@
 
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Upload, Layers, Check, ChevronDown, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import {
+  Upload,
+  Layers,
+  Check,
+  ChevronDown,
+  Loader2,
+  CheckCircle,
+  XCircle,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -41,7 +49,11 @@ interface UploadTabContentProps {
 // Component
 // ---------------------------------------------------------------------------
 
-export function UploadTabContent({ onSwitchTab, detectedQAPairs, sourceDocumentId }: UploadTabContentProps) {
+export function UploadTabContent({
+  onSwitchTab,
+  detectedQAPairs,
+  sourceDocumentId,
+}: UploadTabContentProps) {
   const { layers, getLayerLabel } = useLayerVocabulary();
 
   const pipeline = useFileUploadPipeline();
@@ -71,8 +83,12 @@ export function UploadTabContent({ onSwitchTab, detectedQAPairs, sourceDocumentI
   // ---------------------------------------------------------------------------
 
   /** Tracks whether we are in the Q&A preview/batch creation flow. */
-  const [qaPairs, setQaPairs] = useState<QACreateInput[] | null>(detectedQAPairs ?? null);
-  const [qaSourceDocumentId, setQaSourceDocumentId] = useState<string | undefined>(sourceDocumentId);
+  const [qaPairs, setQaPairs] = useState<QACreateInput[] | null>(
+    detectedQAPairs ?? null,
+  );
+  const [qaSourceDocumentId, setQaSourceDocumentId] = useState<
+    string | undefined
+  >(sourceDocumentId);
   const [qaBatchProgress, setQaBatchProgress] = useState<{
     isCreating: boolean;
     created: number;
@@ -83,55 +99,61 @@ export function UploadTabContent({ onSwitchTab, detectedQAPairs, sourceDocumentI
   } | null>(null);
 
   /** Handle Q&A pair confirmation from the preview list. */
-  const handleQAConfirm = useCallback(async (confirmedPairs: QACreateInput[]) => {
-    if (confirmedPairs.length === 0) return;
-
-    setQaBatchProgress({
-      isCreating: true,
-      created: 0,
-      failed: 0,
-      total: confirmedPairs.length,
-      items: [],
-    });
-
-    try {
-      const res = await fetch('/api/items/batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items: confirmedPairs,
-          source_document_id: qaSourceDocumentId,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Batch creation failed');
-      }
+  const handleQAConfirm = useCallback(
+    async (confirmedPairs: QACreateInput[]) => {
+      if (confirmedPairs.length === 0) return;
 
       setQaBatchProgress({
-        isCreating: false,
-        created: data.created ?? 0,
-        failed: data.failed ?? 0,
+        isCreating: true,
+        created: 0,
+        failed: 0,
         total: confirmedPairs.length,
-        items: data.items ?? [],
-        batchId: data.batch_id,
+        items: [],
       });
 
-      if (data.failed === 0) {
-        toast.success(`${data.created} Q&A item${data.created !== 1 ? 's' : ''} created`);
-      } else {
-        toast.warning(`${data.created} created, ${data.failed} failed`);
+      try {
+        const res = await fetch('/api/items/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: confirmedPairs,
+            source_document_id: qaSourceDocumentId,
+          }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || 'Batch creation failed');
+        }
+
+        setQaBatchProgress({
+          isCreating: false,
+          created: data.created ?? 0,
+          failed: data.failed ?? 0,
+          total: confirmedPairs.length,
+          items: data.items ?? [],
+          batchId: data.batch_id,
+        });
+
+        if (data.failed === 0) {
+          toast.success(
+            `${data.created} Q&A item${data.created !== 1 ? 's' : ''} created`,
+          );
+        } else {
+          toast.warning(`${data.created} created, ${data.failed} failed`);
+        }
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Batch creation failed';
+        toast.error(message);
+        setQaBatchProgress((prev) =>
+          prev ? { ...prev, isCreating: false } : null,
+        );
       }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Batch creation failed';
-      toast.error(message);
-      setQaBatchProgress((prev) =>
-        prev ? { ...prev, isCreating: false } : null,
-      );
-    }
-  }, [qaSourceDocumentId]);
+    },
+    [qaSourceDocumentId],
+  );
 
   /** Handle skipping Q&A detection — dismiss preview and return to upload. */
   const handleQASkip = useCallback(() => {
@@ -141,27 +163,30 @@ export function UploadTabContent({ onSwitchTab, detectedQAPairs, sourceDocumentI
   }, []);
 
   /** Handle dedup check for a single Q&A pair. */
-  const handleQADedupCheck = useCallback(async (text: string): Promise<DedupCheckResult> => {
-    try {
-      const res = await fetch('/api/dedup/check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      });
+  const handleQADedupCheck = useCallback(
+    async (text: string): Promise<DedupCheckResult> => {
+      try {
+        const res = await fetch('/api/dedup/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
 
-      if (!res.ok) {
+        if (!res.ok) {
+          return { isDuplicate: false, matches: [], error: true };
+        }
+
+        const data = await res.json();
+        return {
+          isDuplicate: data.isDuplicate ?? false,
+          matches: data.matches ?? [],
+        };
+      } catch {
         return { isDuplicate: false, matches: [], error: true };
       }
-
-      const data = await res.json();
-      return {
-        isDuplicate: data.isDuplicate ?? false,
-        matches: data.matches ?? [],
-      };
-    } catch {
-      return { isDuplicate: false, matches: [], error: true };
-    }
-  }, []);
+    },
+    [],
+  );
 
   /** Reset Q&A batch state and return to initial upload view. */
   const handleQABatchDismiss = useCallback(() => {
@@ -197,7 +222,9 @@ export function UploadTabContent({ onSwitchTab, detectedQAPairs, sourceDocumentI
         setPhase('select');
       }
     } else if (errorCount > 0) {
-      toast.error(`${errorCount} file${errorCount !== 1 ? 's' : ''} failed to upload`);
+      toast.error(
+        `${errorCount} file${errorCount !== 1 ? 's' : ''} failed to upload`,
+      );
       setPhase('select');
     }
   }, [rawHandleUpload, setPhase, setReviewItems]);
@@ -225,9 +252,13 @@ export function UploadTabContent({ onSwitchTab, detectedQAPairs, sourceDocumentI
 
     const failCount = results.filter((r) => r.status === 'rejected').length;
     if (failCount > 0) {
-      toast.warning(`${activeItems.length - failCount} published, ${failCount} failed`);
+      toast.warning(
+        `${activeItems.length - failCount} published, ${failCount} failed`,
+      );
     } else {
-      toast.success(`${activeItems.length} item${activeItems.length !== 1 ? 's' : ''} published`);
+      toast.success(
+        `${activeItems.length} item${activeItems.length !== 1 ? 's' : ''} published`,
+      );
     }
   }, [reviewItems, handlePublishItem]);
 
@@ -253,31 +284,34 @@ export function UploadTabContent({ onSwitchTab, detectedQAPairs, sourceDocumentI
   }, [reset]);
 
   // Layer application handler
-  const handleApplyLayer = useCallback(async (fileId: string, layerKey: string) => {
-    const file = files.find((f) => f.id === fileId);
-    const resultId = file?.resultId;
-    if (!resultId) return;
+  const handleApplyLayer = useCallback(
+    async (fileId: string, layerKey: string) => {
+      const file = files.find((f) => f.id === fileId);
+      const resultId = file?.resultId;
+      if (!resultId) return;
 
-    try {
-      const res = await fetch(`/api/items/${resultId}/metadata`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ layer: layerKey }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Failed to update layer');
+      try {
+        const res = await fetch(`/api/items/${resultId}/metadata`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ layer: layerKey }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'Failed to update layer');
+        }
+        handleSetLayerMode(fileId, 'applied');
+        // Update applied layer label in fileStates directly — the hook
+        // does not track this since it needs getLayerLabel from the context
+        toast.success(`Layer set to ${getLayerLabel(layerKey)}`);
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : 'Failed to update layer',
+        );
       }
-      handleSetLayerMode(fileId, 'applied');
-      // Update applied layer label in fileStates directly — the hook
-      // does not track this since it needs getLayerLabel from the context
-      toast.success(`Layer set to ${getLayerLabel(layerKey)}`);
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Failed to update layer',
-      );
-    }
-  }, [files, getLayerLabel, handleSetLayerMode]);
+    },
+    [files, getLayerLabel, handleSetLayerMode],
+  );
 
   // ---------------------------------------------------------------------------
   // Render: Q&A batch progress (after creation starts)
@@ -285,19 +319,27 @@ export function UploadTabContent({ onSwitchTab, detectedQAPairs, sourceDocumentI
 
   if (qaBatchProgress && !qaBatchProgress.isCreating) {
     return (
-      <div className="mx-auto max-w-2xl space-y-4" data-testid="qa-batch-complete">
+      <div
+        className="mx-auto max-w-2xl space-y-4"
+        data-testid="qa-batch-complete"
+      >
         <div className="rounded-lg border bg-card p-6 space-y-4">
           <div className="flex items-center gap-2">
-            <CheckCircle className="size-5 text-quality-good" aria-hidden="true" />
+            <CheckCircle
+              className="size-5 text-quality-good"
+              aria-hidden="true"
+            />
             <h3 className="text-lg font-semibold text-foreground">
               Batch creation complete
             </h3>
           </div>
           <p className="text-sm text-muted-foreground">
-            {qaBatchProgress.created} item{qaBatchProgress.created !== 1 ? 's' : ''} created
+            {qaBatchProgress.created} item
+            {qaBatchProgress.created !== 1 ? 's' : ''} created
             {qaBatchProgress.failed > 0 && (
               <span className="text-status-warning">
-                {' '}({qaBatchProgress.failed} failed)
+                {' '}
+                ({qaBatchProgress.failed} failed)
               </span>
             )}
           </p>
@@ -309,11 +351,23 @@ export function UploadTabContent({ onSwitchTab, detectedQAPairs, sourceDocumentI
                 className="flex items-center gap-2 text-sm"
               >
                 {item.status === 'created' ? (
-                  <CheckCircle className="size-3.5 shrink-0 text-quality-good" aria-hidden="true" />
+                  <CheckCircle
+                    className="size-3.5 shrink-0 text-quality-good"
+                    aria-hidden="true"
+                  />
                 ) : (
-                  <XCircle className="size-3.5 shrink-0 text-destructive" aria-hidden="true" />
+                  <XCircle
+                    className="size-3.5 shrink-0 text-destructive"
+                    aria-hidden="true"
+                  />
                 )}
-                <span className={item.status === 'created' ? 'text-foreground' : 'text-muted-foreground line-through'}>
+                <span
+                  className={
+                    item.status === 'created'
+                      ? 'text-foreground'
+                      : 'text-muted-foreground line-through'
+                  }
+                >
                   {item.title}
                 </span>
               </div>
@@ -323,10 +377,7 @@ export function UploadTabContent({ onSwitchTab, detectedQAPairs, sourceDocumentI
             <Button variant="outline" size="sm" onClick={handleQABatchDismiss}>
               Done
             </Button>
-            <Button
-              size="sm"
-              onClick={() => window.open('/browse', '_blank')}
-            >
+            <Button size="sm" onClick={() => window.open('/browse', '_blank')}>
               View in Browse
             </Button>
           </div>
@@ -337,21 +388,31 @@ export function UploadTabContent({ onSwitchTab, detectedQAPairs, sourceDocumentI
 
   if (qaBatchProgress?.isCreating) {
     return (
-      <div className="mx-auto max-w-2xl space-y-4" data-testid="qa-batch-progress">
+      <div
+        className="mx-auto max-w-2xl space-y-4"
+        data-testid="qa-batch-progress"
+      >
         <div className="rounded-lg border bg-card p-6 space-y-4">
           <div className="flex items-center gap-2">
-            <Loader2 className="size-5 animate-spin text-primary" aria-hidden="true" />
+            <Loader2
+              className="size-5 animate-spin text-primary"
+              aria-hidden="true"
+            />
             <h3 className="text-lg font-semibold text-foreground">
               Creating Q&A items...
             </h3>
           </div>
           <p className="text-sm text-muted-foreground">
-            Processing {qaBatchProgress.total} item{qaBatchProgress.total !== 1 ? 's' : ''}. This may take a few minutes.
+            Processing {qaBatchProgress.total} item
+            {qaBatchProgress.total !== 1 ? 's' : ''}. This may take a few
+            minutes.
           </p>
           <div className="h-2 overflow-hidden rounded-full bg-muted">
             <div
               className="h-full rounded-full bg-primary transition-all duration-300"
-              style={{ width: `${Math.max(5, (qaBatchProgress.created / qaBatchProgress.total) * 100)}%` }}
+              style={{
+                width: `${Math.max(5, (qaBatchProgress.created / qaBatchProgress.total) * 100)}%`,
+              }}
             />
           </div>
         </div>
@@ -433,7 +494,9 @@ export function UploadTabContent({ onSwitchTab, detectedQAPairs, sourceDocumentI
                     {f.file.name}
                   </p>
                   <IngestionProgress
-                    compact={files.filter((x) => x.status !== 'pending').length > 1}
+                    compact={
+                      files.filter((x) => x.status !== 'pending').length > 1
+                    }
                     steps={state.steps}
                     warnings={f.status === 'done' ? state.warnings : undefined}
                   />
@@ -457,19 +520,33 @@ export function UploadTabContent({ onSwitchTab, detectedQAPairs, sourceDocumentI
                   )}
                   {/* Layer suggestion per file */}
                   {f.status === 'done' && state.suggestedLayer && (
-                    <div className="flex flex-wrap items-center gap-1.5 text-xs" data-testid={`layer-suggestion-${f.id}`}>
-                      <Layers className="size-3 text-primary" aria-hidden="true" />
+                    <div
+                      className="flex flex-wrap items-center gap-1.5 text-xs"
+                      data-testid={`layer-suggestion-${f.id}`}
+                    >
+                      <Layers
+                        className="size-3 text-primary"
+                        aria-hidden="true"
+                      />
                       {state.layerMode === 'applied' ? (
                         <span className="text-muted-foreground">
-                          Layer: <span className="font-medium text-foreground">{state.appliedLayerLabel}</span>
+                          Layer:{' '}
+                          <span className="font-medium text-foreground">
+                            {state.appliedLayerLabel}
+                          </span>
                         </span>
                       ) : state.layerMode === 'change' ? (
                         <>
                           <Select
                             value={state.selectedLayer}
-                            onValueChange={(val) => handleSetSelectedLayer(f.id, val)}
+                            onValueChange={(val) =>
+                              handleSetSelectedLayer(f.id, val)
+                            }
                           >
-                            <SelectTrigger className="h-6 w-36 text-xs" aria-label="Select a layer">
+                            <SelectTrigger
+                              className="h-6 w-36 text-xs"
+                              aria-label="Select a layer"
+                            >
                               <SelectValue placeholder="Select layer..." />
                             </SelectTrigger>
                             <SelectContent>
@@ -484,7 +561,9 @@ export function UploadTabContent({ onSwitchTab, detectedQAPairs, sourceDocumentI
                             size="sm"
                             variant="outline"
                             className="h-6 gap-1 px-1.5 text-xs"
-                            onClick={() => handleApplyLayer(f.id, state.selectedLayer)}
+                            onClick={() =>
+                              handleApplyLayer(f.id, state.selectedLayer)
+                            }
                           >
                             <Check className="size-3" aria-hidden="true" />
                             Apply
@@ -503,7 +582,9 @@ export function UploadTabContent({ onSwitchTab, detectedQAPairs, sourceDocumentI
                           <span className="text-muted-foreground">
                             Layer:{' '}
                             <span className="font-medium text-foreground">
-                              {getLayerLabel(state.suggestedLayer.suggestedLayer)}
+                              {getLayerLabel(
+                                state.suggestedLayer.suggestedLayer,
+                              )}
                             </span>
                           </span>
                           <Button
@@ -513,7 +594,10 @@ export function UploadTabContent({ onSwitchTab, detectedQAPairs, sourceDocumentI
                             onClick={() => handleSetLayerMode(f.id, 'change')}
                             aria-label="Change layer"
                           >
-                            <ChevronDown className="size-3" aria-hidden="true" />
+                            <ChevronDown
+                              className="size-3"
+                              aria-hidden="true"
+                            />
                             Change
                           </Button>
                         </>
@@ -529,10 +613,7 @@ export function UploadTabContent({ onSwitchTab, detectedQAPairs, sourceDocumentI
       {/* Action buttons */}
       <div className="flex items-center justify-end gap-2">
         {hasResults && !isUploading && (
-          <Button
-            variant="outline"
-            onClick={() => reset()}
-          >
+          <Button variant="outline" onClick={() => reset()}>
             Clear
           </Button>
         )}

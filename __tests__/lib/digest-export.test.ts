@@ -23,7 +23,8 @@ function makeDigest(overrides: Partial<Digest> = {}): Digest {
       {
         domain: 'SECURITY',
         item_count: 15,
-        summary: 'Significant developments in agent frameworks and LLM tooling.',
+        summary:
+          'Significant developments in agent frameworks and LLM tooling.',
         top_items: [
           {
             id: 'item-1',
@@ -71,7 +72,6 @@ function makeDigest(overrides: Partial<Digest> = {}): Digest {
   };
 }
 
-
 // ---------------------------------------------------------------------------
 // Tests — updated for "Change Report" vocabulary
 // ---------------------------------------------------------------------------
@@ -94,7 +94,7 @@ describe('digestToMarkdown', () => {
     // Domain sections
     expect(md).toContain('## SECURITY (15 items)');
     expect(md).toContain(
-      'Significant developments in agent frameworks and LLM tooling.'
+      'Significant developments in agent frameworks and LLM tooling.',
     );
     expect(md).toContain('### Top Items');
     expect(md).toContain('**Claude Code goes GA** (article)');
@@ -111,10 +111,10 @@ describe('digestToMarkdown', () => {
     // Theme clusters
     expect(md).toContain('## Cross-Domain Themes');
     expect(md).toContain(
-      '**AI-powered development** (12 items) -- Tools and practices'
+      '**AI-powered development** (12 items) -- Tools and practices',
     );
     expect(md).toContain(
-      '**Enterprise readiness** (7 items) -- Maturation of AI tools'
+      '**Enterprise readiness** (7 items) -- Maturation of AI tools',
     );
   });
 
@@ -130,13 +130,13 @@ describe('digestToMarkdown', () => {
 
     // item-1 should be a link
     expect(md).toContain(
-      '[Claude Code goes GA](https://example.com/items/item-1)'
+      '[Claude Code goes GA](https://example.com/items/item-1)',
     );
     // item-2 has no URL mapping, so should be bold
     expect(md).toContain('**OpenAI Agents SDK**');
     // item-3 should also be a link
     expect(md).toContain(
-      '[Enterprise AI Playbook](https://example.com/items/item-3)'
+      '[Enterprise AI Playbook](https://example.com/items/item-3)',
     );
   });
 
@@ -259,5 +259,4 @@ describe('digestToMarkdown', () => {
     expect(md).toContain('## SECURITY (5 items)');
     expect(md).toContain('Updates in AI.');
   });
-
 });

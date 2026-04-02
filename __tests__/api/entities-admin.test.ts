@@ -32,9 +32,8 @@ vi.mock('@/lib/rate-limit', () => ({
 
 // Import routes AFTER mocks are registered
 const { GET: entitiesGet } = await import('@/app/api/entities/route');
-const { GET: entityDetailGet } = await import(
-  '@/app/api/entities/[canonical_name]/route'
-);
+const { GET: entityDetailGet } =
+  await import('@/app/api/entities/[canonical_name]/route');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -62,23 +61,45 @@ beforeEach(() => {
   mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
 
   const chainable = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const m of chainable) {
     mockSupabase._chain[m].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockReset().mockResolvedValue({ data: null, error: null });
-  mockSupabase._chain.maybeSingle.mockReset().mockResolvedValue({ data: null, error: null });
-  mockSupabase._chain.then.mockReset().mockImplementation(
-    (resolve: (v: unknown) => void) => resolve({ data: [], error: null, count: 0 }),
-  );
+  mockSupabase._chain.single
+    .mockReset()
+    .mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.maybeSingle
+    .mockReset()
+    .mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.then
+    .mockReset()
+    .mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({ data: [], error: null, count: 0 }),
+    );
 
   mockCheckRateLimit.mockReturnValue({ allowed: true, remaining: 19 });
 });
-
 
 // ═══════════════════════════════════════════════════════════════════════════
 // GET /api/entities — list with counts
@@ -150,14 +171,17 @@ describe('GET /api/entities', () => {
     expect(acme.relationship_count).toBe(1);
 
     // Verify RPC was called with correct parameters (default limit is 100 per schema)
-    expect(mockSupabase.rpc).toHaveBeenCalledWith('get_entity_list_aggregated', {
-      p_type: undefined,
-      p_search: undefined,
-      p_variants_only: false,
-      p_type_conflicts: false,
-      p_limit: 100,
-      p_offset: 0,
-    });
+    expect(mockSupabase.rpc).toHaveBeenCalledWith(
+      'get_entity_list_aggregated',
+      {
+        p_type: undefined,
+        p_search: undefined,
+        p_variants_only: false,
+        p_type_conflicts: false,
+        p_limit: 100,
+        p_offset: 0,
+      },
+    );
   });
 
   it('filters by entity_type via RPC parameter', async () => {
@@ -193,9 +217,12 @@ describe('GET /api/entities', () => {
     expect(body.entities[0].entity_type).toBe('certification');
 
     // Verify the type filter was passed to the RPC
-    expect(mockSupabase.rpc).toHaveBeenCalledWith('get_entity_list_aggregated', expect.objectContaining({
-      p_type: 'certification',
-    }));
+    expect(mockSupabase.rpc).toHaveBeenCalledWith(
+      'get_entity_list_aggregated',
+      expect.objectContaining({
+        p_type: 'certification',
+      }),
+    );
   });
 
   it('searches by entity name via RPC parameter', async () => {
@@ -231,9 +258,12 @@ describe('GET /api/entities', () => {
     expect(body.entities[0].canonical_name).toBe('Acme Corp');
 
     // Verify search was passed to the RPC
-    expect(mockSupabase.rpc).toHaveBeenCalledWith('get_entity_list_aggregated', expect.objectContaining({
-      p_search: 'acme',
-    }));
+    expect(mockSupabase.rpc).toHaveBeenCalledWith(
+      'get_entity_list_aggregated',
+      expect.objectContaining({
+        p_search: 'acme',
+      }),
+    );
   });
 
   it('returns 500 when RPC fails', async () => {
@@ -249,7 +279,6 @@ describe('GET /api/entities', () => {
     expect(res.status).toBe(500);
   });
 });
-
 
 // ═══════════════════════════════════════════════════════════════════════════
 // GET /api/entities/[canonical_name] — entity detail
@@ -278,8 +307,7 @@ describe('GET /api/entities/[canonical_name]', () => {
     configureRole(mockSupabase, 'admin');
 
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const req = createTestRequest('/api/entities/Unknown');
@@ -296,55 +324,60 @@ describe('GET /api/entities/[canonical_name]', () => {
 
     // First .then: entity_mentions
     mockSupabase._chain.then
-      .mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({
-            data: [
-              {
-                entity_type: 'organisation',
-                entity_type_override: null,
-                entity_name: 'Acme Corp',
-                content_item_id: VALID_UUID,
-                confidence: 0.95,
-                context_snippet: 'Acme Corp was founded...',
-              },
-              {
-                entity_type: 'organisation',
-                entity_type_override: null,
-                entity_name: 'ACME',
-                content_item_id: VALID_UUID_2,
-                confidence: 0.8,
-                context_snippet: 'ACME provides...',
-              },
-            ],
-            error: null,
-          }),
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              entity_type: 'organisation',
+              entity_type_override: null,
+              entity_name: 'Acme Corp',
+              content_item_id: VALID_UUID,
+              confidence: 0.95,
+              context_snippet: 'Acme Corp was founded...',
+            },
+            {
+              entity_type: 'organisation',
+              entity_type_override: null,
+              entity_name: 'ACME',
+              content_item_id: VALID_UUID_2,
+              confidence: 0.8,
+              context_snippet: 'ACME provides...',
+            },
+          ],
+          error: null,
+        }),
       )
       // Second .then: content_items
-      .mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({
-            data: [
-              { id: VALID_UUID, title: 'Health & Safety Policy', content_type: 'article' },
-              { id: VALID_UUID_2, title: 'Company Overview', content_type: 'pdf' },
-            ],
-            error: null,
-          }),
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              id: VALID_UUID,
+              title: 'Health & Safety Policy',
+              content_type: 'article',
+            },
+            {
+              id: VALID_UUID_2,
+              title: 'Company Overview',
+              content_type: 'pdf',
+            },
+          ],
+          error: null,
+        }),
       )
       // Third .then: entity_relationships
-      .mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({
-            data: [
-              {
-                source_entity: 'Acme Corp',
-                relationship_type: 'holds',
-                target_entity: 'ISO 27001',
-                confidence: 0.9,
-              },
-            ],
-            error: null,
-          }),
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              source_entity: 'Acme Corp',
+              relationship_type: 'holds',
+              target_entity: 'ISO 27001',
+              confidence: 0.9,
+            },
+          ],
+          error: null,
+        }),
       );
 
     const req = createTestRequest('/api/entities/Acme%20Corp');
@@ -372,32 +405,29 @@ describe('GET /api/entities/[canonical_name]', () => {
     configureRole(mockSupabase, 'admin');
 
     mockSupabase._chain.then
-      .mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({
-            data: [
-              {
-                entity_type: 'person',
-                entity_type_override: 'organisation',
-                entity_name: 'AcmeTech',
-                content_item_id: VALID_UUID,
-                confidence: 0.95,
-                context_snippet: null,
-              },
-            ],
-            error: null,
-          }),
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              entity_type: 'person',
+              entity_type_override: 'organisation',
+              entity_name: 'AcmeTech',
+              content_item_id: VALID_UUID,
+              confidence: 0.95,
+              context_snippet: null,
+            },
+          ],
+          error: null,
+        }),
       )
-      .mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({
-            data: [{ id: VALID_UUID, title: 'Test Item', content_type: 'note' }],
-            error: null,
-          }),
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({
+          data: [{ id: VALID_UUID, title: 'Test Item', content_type: 'note' }],
+          error: null,
+        }),
       )
-      .mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: [], error: null }),
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null }),
       );
 
     const req = createTestRequest('/api/entities/AcmeTech');
@@ -418,32 +448,29 @@ describe('GET /api/entities/[canonical_name]', () => {
     configureRole(mockSupabase, 'admin');
 
     mockSupabase._chain.then
-      .mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({
-            data: [
-              {
-                entity_type: 'organisation',
-                entity_type_override: null,
-                entity_name: 'Acme Corp Ltd',
-                content_item_id: VALID_UUID,
-                confidence: 1,
-                context_snippet: null,
-              },
-            ],
-            error: null,
-          }),
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              entity_type: 'organisation',
+              entity_type_override: null,
+              entity_name: 'Acme Corp Ltd',
+              content_item_id: VALID_UUID,
+              confidence: 1,
+              context_snippet: null,
+            },
+          ],
+          error: null,
+        }),
       )
-      .mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({
-            data: [{ id: VALID_UUID, title: 'Test', content_type: 'note' }],
-            error: null,
-          }),
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({
+          data: [{ id: VALID_UUID, title: 'Test', content_type: 'note' }],
+          error: null,
+        }),
       )
-      .mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: [], error: null }),
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null }),
       );
 
     const encodedName = encodeURIComponent('Acme Corp Ltd');

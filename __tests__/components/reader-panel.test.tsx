@@ -14,8 +14,20 @@ import userEvent from '@testing-library/user-event';
 // ---------------------------------------------------------------------------
 
 vi.mock('@/components/reader/reader-view', () => ({
-  ReaderView: ({ html, fontSize, maxWidth }: { html: string; fontSize?: string; maxWidth?: string }) => (
-    <div data-testid="reader-view" data-font-size={fontSize} data-max-width={maxWidth}>
+  ReaderView: ({
+    html,
+    fontSize,
+    maxWidth,
+  }: {
+    html: string;
+    fontSize?: string;
+    maxWidth?: string;
+  }) => (
+    <div
+      data-testid="reader-view"
+      data-font-size={fontSize}
+      data-max-width={maxWidth}
+    >
       {html}
     </div>
   ),
@@ -51,7 +63,10 @@ vi.mock('@/components/reader-cards/transcript-reader-card', () => ({
 
 // Import AFTER mocks
 import { ReaderPanel } from '@/components/reader/reader-panel';
-import type { ReaderFontSize, ReaderMaxWidth } from '@/hooks/ui/use-reader-preferences';
+import type {
+  ReaderFontSize,
+  ReaderMaxWidth,
+} from '@/hooks/ui/use-reader-preferences';
 
 // ---------------------------------------------------------------------------
 // Default props factory
@@ -89,9 +104,13 @@ describe('ReaderPanel', () => {
   it('renders typography controls for article content', () => {
     render(<ReaderPanel {...defaultProps()} />);
     // Font size radio group
-    expect(screen.getByRole('radiogroup', { name: 'Font size' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('radiogroup', { name: 'Font size' }),
+    ).toBeInTheDocument();
     // Content width radio group
-    expect(screen.getByRole('radiogroup', { name: 'Content width' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('radiogroup', { name: 'Content width' }),
+    ).toBeInTheDocument();
   });
 
   it('calls onFontSizeChange when font size button is clicked', async () => {
@@ -99,7 +118,9 @@ describe('ReaderPanel', () => {
     const onFontSizeChange = vi.fn();
     render(<ReaderPanel {...defaultProps({ onFontSizeChange })} />);
 
-    const largeFontButton = screen.getByRole('radio', { name: 'Font size: large' });
+    const largeFontButton = screen.getByRole('radio', {
+      name: 'Font size: large',
+    });
     await user.click(largeFontButton);
     expect(onFontSizeChange).toHaveBeenCalledWith('large');
   });
@@ -109,7 +130,9 @@ describe('ReaderPanel', () => {
     const onMaxWidthChange = vi.fn();
     render(<ReaderPanel {...defaultProps({ onMaxWidthChange })} />);
 
-    const narrowButton = screen.getByRole('radio', { name: 'Content width: narrow' });
+    const narrowButton = screen.getByRole('radio', {
+      name: 'Content width: narrow',
+    });
     await user.click(narrowButton);
     expect(onMaxWidthChange).toHaveBeenCalledWith('narrow');
   });
@@ -140,7 +163,9 @@ describe('ReaderPanel', () => {
       />,
     );
     expect(
-      screen.getByText('Reader view has not been processed for this content yet.'),
+      screen.getByText(
+        'Reader view has not been processed for this content yet.',
+      ),
     ).toBeInTheDocument();
   });
 
@@ -186,7 +211,10 @@ describe('ReaderPanel', () => {
     );
     const link = screen.getByText('Open in new tab');
     expect(link).toBeInTheDocument();
-    expect(link.closest('a')).toHaveAttribute('href', 'https://example.com/article');
+    expect(link.closest('a')).toHaveAttribute(
+      'href',
+      'https://example.com/article',
+    );
     expect(link.closest('a')).toHaveAttribute('target', '_blank');
   });
 
@@ -200,7 +228,9 @@ describe('ReaderPanel', () => {
 
   it('shows dock label when isDetached is true', () => {
     const onDetachToggle = vi.fn();
-    render(<ReaderPanel {...defaultProps({ onDetachToggle, isDetached: true })} />);
+    render(
+      <ReaderPanel {...defaultProps({ onDetachToggle, isDetached: true })} />,
+    );
     expect(
       screen.getByLabelText('Dock to split view (Shift+R)'),
     ).toBeInTheDocument();

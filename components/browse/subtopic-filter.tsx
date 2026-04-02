@@ -23,7 +23,10 @@ export function SubtopicFilter({
   const { formatSubtopic, formatDomainName } = useTaxonomy();
 
   return (
-    <FilterSection title={`Subtopic (${formatDomainName(domainName)})`} defaultOpen={defaultOpen}>
+    <FilterSection
+      title={`Subtopic (${formatDomainName(domainName)})`}
+      defaultOpen={defaultOpen}
+    >
       <div className="flex flex-col gap-2">
         {subtopics.map((subtopic) => (
           <label

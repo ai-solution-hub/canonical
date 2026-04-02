@@ -14,19 +14,28 @@ import { render, screen } from '@testing-library/react';
 
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: Record<string, unknown>) => (
-    <a href={href as string} {...props}>{children as React.ReactNode}</a>
+    <a href={href as string} {...props}>
+      {children as React.ReactNode}
+    </a>
   ),
 }));
 
-import { QAUsedInBids, QARelatedPairs } from '@/components/item-detail/qa-provenance-sections';
+import {
+  QAUsedInBids,
+  QARelatedPairs,
+} from '@/components/item-detail/qa-provenance-sections';
 
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
 describe('QAUsedInBids', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
-  afterEach(() => { vi.unstubAllGlobals(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it('returns null when workspaces array is empty', () => {
     const { container } = render(<QAUsedInBids workspaces={[]} />);
@@ -48,14 +57,24 @@ describe('QAUsedInBids', () => {
       { id: 'w2', name: 'Project Beta' },
     ];
     render(<QAUsedInBids workspaces={workspaces} />);
-    expect(screen.getByText('Project Alpha').closest('a')).toHaveAttribute('href', '/bid/w1');
-    expect(screen.getByText('Project Beta').closest('a')).toHaveAttribute('href', '/bid/w2');
+    expect(screen.getByText('Project Alpha').closest('a')).toHaveAttribute(
+      'href',
+      '/bid/w1',
+    );
+    expect(screen.getByText('Project Beta').closest('a')).toHaveAttribute(
+      'href',
+      '/bid/w2',
+    );
   });
 });
 
 describe('QARelatedPairs', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
-  afterEach(() => { vi.unstubAllGlobals(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it('returns null when relatedQA array is empty', () => {
     const { container } = render(<QARelatedPairs relatedQA={[]} />);
@@ -68,8 +87,13 @@ describe('QARelatedPairs', () => {
       { id: 'q2', title: 'How do we handle GDPR?' },
     ];
     render(<QARelatedPairs relatedQA={relatedQA} />);
-    expect(screen.getByText('What is ISO 27001?').closest('a')).toHaveAttribute('href', '/item/q1');
-    expect(screen.getByText('How do we handle GDPR?').closest('a')).toHaveAttribute('href', '/item/q2');
+    expect(screen.getByText('What is ISO 27001?').closest('a')).toHaveAttribute(
+      'href',
+      '/item/q1',
+    );
+    expect(
+      screen.getByText('How do we handle GDPR?').closest('a'),
+    ).toHaveAttribute('href', '/item/q2');
   });
 
   it('shows "Untitled" for null titles', () => {

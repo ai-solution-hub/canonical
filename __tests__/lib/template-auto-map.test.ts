@@ -11,7 +11,9 @@ describe('normaliseText', () => {
   });
 
   it('removes punctuation', () => {
-    expect(normaliseText('What is your approach?')).toBe('what is your approach');
+    expect(normaliseText('What is your approach?')).toBe(
+      'what is your approach',
+    );
   });
 
   it('normalises whitespace', () => {
@@ -33,7 +35,9 @@ describe('normaliseText', () => {
   });
 
   it('preserves numbers', () => {
-    expect(normaliseText('Section 3.2 - Question 5')).toBe('section 32 question 5');
+    expect(normaliseText('Section 3.2 - Question 5')).toBe(
+      'section 32 question 5',
+    );
   });
 });
 
@@ -43,11 +47,15 @@ describe('normaliseText', () => {
 
 describe('similarity', () => {
   it('returns 1.0 for identical text', () => {
-    expect(similarity('information security', 'information security')).toBe(1.0);
+    expect(similarity('information security', 'information security')).toBe(
+      1.0,
+    );
   });
 
   it('returns 1.0 for identical text with different casing', () => {
-    expect(similarity('Information Security', 'information security')).toBe(1.0);
+    expect(similarity('Information Security', 'information security')).toBe(
+      1.0,
+    );
   });
 
   it('returns 0.0 for completely different text', () => {
@@ -69,7 +77,10 @@ describe('similarity', () => {
   });
 
   it('matches "information security" with "info security approach"', () => {
-    const score = similarity('information security', 'information security approach');
+    const score = similarity(
+      'information security',
+      'information security approach',
+    );
     expect(score).toBeGreaterThan(0.6);
   });
 
@@ -124,11 +135,17 @@ describe('similarity', () => {
 
 describe('auto-map scenarios', () => {
   const bidQuestions = [
-    { id: 'q1', text: 'Describe your approach to information security management' },
+    {
+      id: 'q1',
+      text: 'Describe your approach to information security management',
+    },
     { id: 'q2', text: 'List your relevant ISO certifications' },
     { id: 'q3', text: 'How do you ensure GDPR compliance in your operations?' },
     { id: 'q4', text: 'Describe your business continuity planning process' },
-    { id: 'q5', text: 'What is your approach to environmental sustainability?' },
+    {
+      id: 'q5',
+      text: 'What is your approach to environmental sustainability?',
+    },
   ];
 
   function findBestMatch(
@@ -148,7 +165,9 @@ describe('auto-map scenarios', () => {
   }
 
   it('maps fields to questions above threshold', () => {
-    const match = findBestMatch('Please describe your approach to information security');
+    const match = findBestMatch(
+      'Please describe your approach to information security',
+    );
     expect(match).not.toBeNull();
     expect(match!.questionId).toBe('q1');
     expect(match!.confidence).toBeGreaterThan(0.7);
@@ -160,7 +179,9 @@ describe('auto-map scenarios', () => {
   });
 
   it('handles no matching questions', () => {
-    const match = findBestMatch('Completely unrelated topic about cooking recipes');
+    const match = findBestMatch(
+      'Completely unrelated topic about cooking recipes',
+    );
     expect(match).toBeNull();
   });
 

@@ -18,8 +18,14 @@ import { describe, it, expect } from 'vitest';
 import { parseCanonicalTaxonomy } from '../../scripts/lib/taxonomy-parser';
 
 const PROJECT_ROOT = join(__dirname, '../..');
-const CANONICAL_PATH = join(PROJECT_ROOT, 'docs/reference/classification-prompt.md');
-const SNAPSHOT_PATH = join(PROJECT_ROOT, 'scripts/tests/fixtures/taxonomy_snapshot.json');
+const CANONICAL_PATH = join(
+  PROJECT_ROOT,
+  'docs/reference/classification-prompt.md',
+);
+const SNAPSHOT_PATH = join(
+  PROJECT_ROOT,
+  'scripts/tests/fixtures/taxonomy_snapshot.json',
+);
 
 // ---------------------------------------------------------------------------
 // Load fixtures
@@ -64,7 +70,9 @@ describe('Taxonomy Consistency', () => {
     });
 
     it('snapshot should contain at least 7 baseline domains', () => {
-      const baseline = snapshot.domains.filter((d) => d.provenance === 'baseline');
+      const baseline = snapshot.domains.filter(
+        (d) => d.provenance === 'baseline',
+      );
       expect(baseline.length).toBeGreaterThanOrEqual(7);
     });
 
@@ -75,7 +83,10 @@ describe('Taxonomy Consistency', () => {
     it('every subtopic should reference a valid domain_id', () => {
       const domainIds = new Set(snapshot.domains.map((d) => d.id));
       for (const st of snapshot.subtopics) {
-        expect(domainIds.has(st.domain_id), `Subtopic "${st.name}" references missing domain_id ${st.domain_id}`).toBe(true);
+        expect(
+          domainIds.has(st.domain_id),
+          `Subtopic "${st.name}" references missing domain_id ${st.domain_id}`,
+        ).toBe(true);
       }
     });
 
@@ -101,89 +112,105 @@ describe('Taxonomy Consistency', () => {
     });
 
     it('every baseline domain should have at least one subtopic', () => {
-      const baselineDomains = snapshot.domains.filter((d) => d.provenance === 'baseline');
+      const baselineDomains = snapshot.domains.filter(
+        (d) => d.provenance === 'baseline',
+      );
       for (const domain of baselineDomains) {
-        const subs = snapshot.subtopics.filter((s) => s.domain_id === domain.id);
-        expect(subs.length, `Domain "${domain.name}" has no subtopics`).toBeGreaterThan(0);
+        const subs = snapshot.subtopics.filter(
+          (s) => s.domain_id === domain.id,
+        );
+        expect(
+          subs.length,
+          `Domain "${domain.name}" has no subtopics`,
+        ).toBeGreaterThan(0);
       }
     });
   });
 
-  describe.skipIf(!SNAPSHOT_EXISTS || !PROMPT_EXISTS)('Classification Prompt vs DB Snapshot', () => {
-    let snapshot: TaxonomySnapshot;
-    let promptMap: Map<string, { slug: string; desc: string }[]>;
+  describe.skipIf(!SNAPSHOT_EXISTS || !PROMPT_EXISTS)(
+    'Classification Prompt vs DB Snapshot',
+    () => {
+      let snapshot: TaxonomySnapshot;
+      let promptMap: Map<string, { slug: string; desc: string }[]>;
 
-    beforeAll(() => {
-      snapshot = JSON.parse(readFileSync(SNAPSHOT_PATH, 'utf8'));
-      promptMap = parseCanonicalTaxonomy(CANONICAL_PATH);
-    });
+      beforeAll(() => {
+        snapshot = JSON.parse(readFileSync(SNAPSHOT_PATH, 'utf8'));
+        promptMap = parseCanonicalTaxonomy(CANONICAL_PATH);
+      });
 
-    it('prompt domains should match all active DB domains (case-insensitive)', () => {
-      const promptDomains = [...promptMap.keys()].sort();
-      const allDbDomains = snapshot.domains
-        .map((d) => d.name.toLowerCase())
-        .sort();
+      it('prompt domains should match all active DB domains (case-insensitive)', () => {
+        const promptDomains = [...promptMap.keys()].sort();
+        const allDbDomains = snapshot.domains
+          .map((d) => d.name.toLowerCase())
+          .sort();
 
-      expect(promptDomains).toEqual(allDbDomains);
-    });
+        expect(promptDomains).toEqual(allDbDomains);
+      });
 
-    it('prompt subtopics should be a subset of DB subtopics for each baseline domain', () => {
-      const baselineDomains = snapshot.domains.filter((d) => d.provenance === 'baseline');
-
-      for (const domain of baselineDomains) {
-        const domainKey = domain.name.toLowerCase();
-        const promptSubtopics = promptMap.get(domainKey);
-        if (!promptSubtopics) {
-          // Already caught by the domain-level test
-          continue;
-        }
-
-        const dbSubtopicNames = new Set(
-          snapshot.subtopics
-            .filter((s) => s.domain_id === domain.id)
-            .map((s) => s.name),
+      it('prompt subtopics should be a subset of DB subtopics for each baseline domain', () => {
+        const baselineDomains = snapshot.domains.filter(
+          (d) => d.provenance === 'baseline',
         );
 
-        const promptSlugs = promptSubtopics.map((s) => s.slug);
+        for (const domain of baselineDomains) {
+          const domainKey = domain.name.toLowerCase();
+          const promptSubtopics = promptMap.get(domainKey);
+          if (!promptSubtopics) {
+            // Already caught by the domain-level test
+            continue;
+          }
 
-        for (const slug of promptSlugs) {
-          expect(
-            dbSubtopicNames.has(slug),
-            `Prompt subtopic "${slug}" in domain "${domainKey}" not found in DB snapshot. DB has: [${[...dbSubtopicNames].join(', ')}]`,
-          ).toBe(true);
-        }
-      }
-    });
+          const dbSubtopicNames = new Set(
+            snapshot.subtopics
+              .filter((s) => s.domain_id === domain.id)
+              .map((s) => s.name),
+          );
 
-    it('DB baseline subtopics not in prompt should be flagged (recommended or client additions)', () => {
-      // This test documents drift — DB may have subtopics the prompt doesn't.
-      // Baseline subtopics missing from the prompt suggest the prompt needs updating.
-      const baselineDomains = snapshot.domains.filter((d) => d.provenance === 'baseline');
-      const missingFromPrompt: string[] = [];
+          const promptSlugs = promptSubtopics.map((s) => s.slug);
 
-      for (const domain of baselineDomains) {
-        const domainKey = domain.name.toLowerCase();
-        const promptSubtopics = promptMap.get(domainKey);
-        const promptSlugs = new Set(promptSubtopics?.map((s) => s.slug) ?? []);
-
-        const dbSubtopics = snapshot.subtopics.filter(
-          (s) => s.domain_id === domain.id && s.provenance === 'baseline',
-        );
-
-        for (const sub of dbSubtopics) {
-          if (!promptSlugs.has(sub.name)) {
-            missingFromPrompt.push(`${domainKey}/${sub.name}`);
+          for (const slug of promptSlugs) {
+            expect(
+              dbSubtopicNames.has(slug),
+              `Prompt subtopic "${slug}" in domain "${domainKey}" not found in DB snapshot. DB has: [${[...dbSubtopicNames].join(', ')}]`,
+            ).toBe(true);
           }
         }
-      }
+      });
 
-      // This is informational — baseline subtopics SHOULD be in the prompt
-      expect(
-        missingFromPrompt,
-        `Baseline subtopics in DB but missing from classification prompt: ${missingFromPrompt.join(', ')}. Run sync:taxonomy to update the prompt.`,
-      ).toHaveLength(0);
-    });
-  });
+      it('DB baseline subtopics not in prompt should be flagged (recommended or client additions)', () => {
+        // This test documents drift — DB may have subtopics the prompt doesn't.
+        // Baseline subtopics missing from the prompt suggest the prompt needs updating.
+        const baselineDomains = snapshot.domains.filter(
+          (d) => d.provenance === 'baseline',
+        );
+        const missingFromPrompt: string[] = [];
+
+        for (const domain of baselineDomains) {
+          const domainKey = domain.name.toLowerCase();
+          const promptSubtopics = promptMap.get(domainKey);
+          const promptSlugs = new Set(
+            promptSubtopics?.map((s) => s.slug) ?? [],
+          );
+
+          const dbSubtopics = snapshot.subtopics.filter(
+            (s) => s.domain_id === domain.id && s.provenance === 'baseline',
+          );
+
+          for (const sub of dbSubtopics) {
+            if (!promptSlugs.has(sub.name)) {
+              missingFromPrompt.push(`${domainKey}/${sub.name}`);
+            }
+          }
+        }
+
+        // This is informational — baseline subtopics SHOULD be in the prompt
+        expect(
+          missingFromPrompt,
+          `Baseline subtopics in DB but missing from classification prompt: ${missingFromPrompt.join(', ')}. Run sync:taxonomy to update the prompt.`,
+        ).toHaveLength(0);
+      });
+    },
+  );
 
   describe.skipIf(!SNAPSHOT_EXISTS)('Snapshot Freshness', () => {
     let snapshot: TaxonomySnapshot;

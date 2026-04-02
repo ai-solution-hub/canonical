@@ -5,7 +5,9 @@ interface GuidePageProps {
   params: Promise<{ slug: string }>;
 }
 
-export async function generateMetadata({ params }: GuidePageProps): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: GuidePageProps): Promise<Metadata> {
   const { slug } = await params;
   // Format slug into a readable title for the metadata
   const title = slug

@@ -1,9 +1,6 @@
 import { test, expect } from '../fixtures';
 import { isMobileViewport } from '../helpers/responsive';
-import {
-  createTestBid,
-  createExportReadyBid,
-} from '../helpers/data-factory';
+import { createTestBid, createExportReadyBid } from '../helpers/data-factory';
 import { createServiceClient } from '../fixtures/supabase';
 
 /**
@@ -32,7 +29,10 @@ test.describe('Bid export -- menu visibility', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    test.skip(isMobileViewport(page), 'Desktop-only test — export button is in desktop actions container');
+    test.skip(
+      isMobileViewport(page),
+      'Desktop-only test — export button is in desktop actions container',
+    );
 
     await page.goto(`/bid/${workerData.bidId}`);
 
@@ -63,9 +63,9 @@ test.describe('Bid export -- menu visibility', () => {
       await page.goto(`/bid/${emptyBidId}`);
 
       // Wait for page to load
-      await expect(
-        page.getByRole('heading', { name: /Temp Bid/ }),
-      ).toBeVisible({ timeout: 10000 });
+      await expect(page.getByRole('heading', { name: /Temp Bid/ })).toBeVisible(
+        { timeout: 10000 },
+      );
 
       // Export button should be present but disabled
       const exportButton = page.getByRole('button', {
@@ -130,9 +130,9 @@ test.describe('Bid export -- download triggers', () => {
       await page.goto(`/bid/${bidId}`);
 
       // Wait for page to load — bid name includes "Temp Bid" from the factory
-      await expect(
-        page.getByRole('heading', { name: /Temp Bid/ }),
-      ).toBeVisible({ timeout: 10000 });
+      await expect(page.getByRole('heading', { name: /Temp Bid/ })).toBeVisible(
+        { timeout: 10000 },
+      );
 
       // Click the Export button
       const exportButton = page.getByRole('button', {
@@ -178,9 +178,9 @@ test.describe('Bid export -- download triggers', () => {
       await page.goto(`/bid/${bidId}`);
 
       // Wait for page to load — bid name includes "Temp Bid" from the factory
-      await expect(
-        page.getByRole('heading', { name: /Temp Bid/ }),
-      ).toBeVisible({ timeout: 10000 });
+      await expect(page.getByRole('heading', { name: /Temp Bid/ })).toBeVisible(
+        { timeout: 10000 },
+      );
 
       // Click the Export button
       const exportButton = page.getByRole('button', {

@@ -4,7 +4,10 @@ import { safeErrorMessage } from '@/lib/error';
 import { generateBidDocx } from '@/lib/bid/bid-export-docx';
 import { DocxExportBodySchema } from '@/lib/validation/schemas';
 import { parseBody } from '@/lib/validation';
-import { fetchBidExportData, sanitiseFilename } from '@/lib/bid/bid-export-data';
+import {
+  fetchBidExportData,
+  sanitiseFilename,
+} from '@/lib/bid/bid-export-data';
 
 export const maxDuration = 30;
 

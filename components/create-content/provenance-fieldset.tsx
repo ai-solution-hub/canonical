@@ -82,7 +82,11 @@ export function ProvenanceFieldset({
             className={sourceUrlError ? 'border-destructive' : ''}
           />
           {sourceUrlError && (
-            <p id="source-url-error" className="text-destructive text-sm" role="alert">
+            <p
+              id="source-url-error"
+              className="text-destructive text-sm"
+              role="alert"
+            >
               {sourceUrlError}
             </p>
           )}
@@ -121,11 +125,7 @@ export function ProvenanceFieldset({
 
       <div className="space-y-2">
         <Label>Priority</Label>
-        <div
-          className="flex gap-4"
-          role="radiogroup"
-          aria-label="Priority"
-        >
+        <div className="flex gap-4" role="radiogroup" aria-label="Priority">
           {['', 'high', 'medium', 'low'].map((p) => (
             <label
               key={p || 'none'}

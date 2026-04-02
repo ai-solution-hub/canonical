@@ -3,7 +3,10 @@
 import { useMemo } from 'react';
 import DOMPurify from 'dompurify';
 import { cn } from '@/lib/utils';
-import type { ReaderFontSize, ReaderMaxWidth } from '@/hooks/ui/use-reader-preferences';
+import type {
+  ReaderFontSize,
+  ReaderMaxWidth,
+} from '@/hooks/ui/use-reader-preferences';
 
 interface ReaderViewProps {
   html: string;
@@ -13,14 +16,49 @@ interface ReaderViewProps {
 }
 
 const ALLOWED_TAGS = [
-  'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-  'a', 'img', 'ul', 'ol', 'li', 'blockquote',
-  'pre', 'code', 'em', 'strong', 'table', 'thead',
-  'tbody', 'tr', 'th', 'td', 'figure', 'figcaption',
-  'br', 'hr', 'span', 'div', 'sup', 'sub',
+  'p',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'a',
+  'img',
+  'ul',
+  'ol',
+  'li',
+  'blockquote',
+  'pre',
+  'code',
+  'em',
+  'strong',
+  'table',
+  'thead',
+  'tbody',
+  'tr',
+  'th',
+  'td',
+  'figure',
+  'figcaption',
+  'br',
+  'hr',
+  'span',
+  'div',
+  'sup',
+  'sub',
 ];
 
-const ALLOWED_ATTR = ['href', 'src', 'alt', 'title', 'class', 'id', 'target', 'rel'];
+const ALLOWED_ATTR = [
+  'href',
+  'src',
+  'alt',
+  'title',
+  'class',
+  'id',
+  'target',
+  'rel',
+];
 
 const FONT_SIZE_CLASSES: Record<ReaderFontSize, string> = {
   small: 'prose-sm',
@@ -34,7 +72,12 @@ const MAX_WIDTH_CLASSES: Record<ReaderMaxWidth, string> = {
   wide: 'max-w-none',
 };
 
-export function ReaderView({ html, fontSize, maxWidth, className }: ReaderViewProps) {
+export function ReaderView({
+  html,
+  fontSize,
+  maxWidth,
+  className,
+}: ReaderViewProps) {
   // Memoise DOMPurify.sanitize() — only re-sanitise when the raw HTML changes
   const sanitised = useMemo(
     () =>

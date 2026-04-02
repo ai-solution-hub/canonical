@@ -24,10 +24,23 @@ vi.mock('@/lib/utils', () => ({
 }));
 
 vi.mock('@/components/create-content/file-upload', () => ({
-  FileUpload: ({ files, onFilesAdded }: { files: unknown[]; onFilesAdded: (f: File[]) => void }) => (
+  FileUpload: ({
+    files,
+    onFilesAdded,
+  }: {
+    files: unknown[];
+    onFilesAdded: (f: File[]) => void;
+  }) => (
     <div data-testid="file-upload">
       FileUpload ({files.length} files)
-      <button data-testid="mock-add-files" onClick={() => onFilesAdded([new File(['test'], 'test.pdf', { type: 'application/pdf' })])}>
+      <button
+        data-testid="mock-add-files"
+        onClick={() =>
+          onFilesAdded([
+            new File(['test'], 'test.pdf', { type: 'application/pdf' }),
+          ])
+        }
+      >
         Add file
       </button>
     </div>
@@ -35,7 +48,13 @@ vi.mock('@/components/create-content/file-upload', () => ({
 }));
 
 vi.mock('@/components/create-content/ingestion-progress', () => ({
-  IngestionProgress: ({ steps, compact }: { steps: unknown[]; compact?: boolean }) => (
+  IngestionProgress: ({
+    steps,
+    compact,
+  }: {
+    steps: unknown[];
+    compact?: boolean;
+  }) => (
     <div data-testid="ingestion-progress" data-compact={compact}>
       IngestionProgress ({(steps as Array<{ label: string }>).length} steps)
     </div>
@@ -44,7 +63,9 @@ vi.mock('@/components/create-content/ingestion-progress', () => ({
 
 vi.mock('@/components/shared/dedup-warning', () => ({
   DedupWarning: ({ matches }: { matches: unknown[] }) => (
-    <div data-testid="dedup-warning">DedupWarning ({matches.length} matches)</div>
+    <div data-testid="dedup-warning">
+      DedupWarning ({matches.length} matches)
+    </div>
   ),
 }));
 
@@ -70,13 +91,32 @@ vi.mock('@/lib/claude-prompts', () => ({
 vi.mock('@/contexts/layer-vocabulary-context', () => ({
   useLayerVocabulary: () => ({
     layers: [
-      { id: '1', key: 'sales_brief', label: 'Sales Brief', description: null, display_order: 1, is_active: true },
-      { id: '2', key: 'bid_detail', label: 'Bid Detail', description: null, display_order: 2, is_active: true },
+      {
+        id: '1',
+        key: 'sales_brief',
+        label: 'Sales Brief',
+        description: null,
+        display_order: 1,
+        is_active: true,
+      },
+      {
+        id: '2',
+        key: 'bid_detail',
+        label: 'Bid Detail',
+        description: null,
+        display_order: 2,
+        is_active: true,
+      },
     ],
     loading: false,
     error: null,
     getLayerKeys: () => ['sales_brief', 'bid_detail'],
-    getLayerLabel: (key: string) => (key === 'sales_brief' ? 'Sales Brief' : key === 'bid_detail' ? 'Bid Detail' : key),
+    getLayerLabel: (key: string) =>
+      key === 'sales_brief'
+        ? 'Sales Brief'
+        : key === 'bid_detail'
+          ? 'Bid Detail'
+          : key,
     getLayerDescription: () => null,
     refresh: vi.fn(),
   }),
@@ -96,7 +136,13 @@ const defaultHookReturn = {
   files: [] as File[],
   fileStates: {} as Record<string, unknown>,
   isUploading: false,
-  reviewItems: [] as Array<{ id: string; title: string; contentType: string; warnings: string[]; dedupMatches: unknown[] }>,
+  reviewItems: [] as Array<{
+    id: string;
+    title: string;
+    contentType: string;
+    warnings: string[];
+    dedupMatches: unknown[];
+  }>,
   handleFilesAdded: mockHandleFilesAdded,
   handleFileRemoved: mockHandleFileRemoved,
   handleUpload: mockHandleUpload,
@@ -209,7 +255,9 @@ describe('FileUploadDialog', () => {
   it('does not show progress section when no files are processing', () => {
     render(<FileUploadDialog {...defaultProps} />);
 
-    expect(screen.queryByTestId('file-progress-section')).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('file-progress-section'),
+    ).not.toBeInTheDocument();
   });
 
   // --- Post-refactor: hook usage verification ---
@@ -223,14 +271,22 @@ describe('FileUploadDialog', () => {
   it('does not show a review step', () => {
     // Even with review items populated, the dialog should not render review UI
     defaultHookReturn.reviewItems = [
-      { id: 'item-1', title: 'Test', contentType: 'pdf', warnings: [], dedupMatches: [] },
+      {
+        id: 'item-1',
+        title: 'Test',
+        contentType: 'pdf',
+        warnings: [],
+        dedupMatches: [],
+      },
     ];
     Object.assign(defaultHookReturn, { phase: 'review' });
 
     render(<FileUploadDialog {...defaultProps} />);
 
     // No review step UI should be present — dialog always shows upload UI
-    expect(screen.queryByText('Review uploaded content')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Review uploaded content'),
+    ).not.toBeInTheDocument();
     expect(screen.queryByTestId('upload-review-step')).not.toBeInTheDocument();
     // The upload UI (FileUpload component) is always shown
     expect(screen.getByTestId('file-upload')).toBeInTheDocument();
@@ -302,13 +358,20 @@ describe('FileUploadDialog', () => {
     defaultProps.onOpenChange.mockImplementation(() => {});
 
     // Trigger close by re-rendering as closed
-    rerender(<FileUploadDialog open={false} onOpenChange={defaultProps.onOpenChange} />);
+    rerender(
+      <FileUploadDialog
+        open={false}
+        onOpenChange={defaultProps.onOpenChange}
+      />,
+    );
 
     // Since closing is handled by handleClose callback, let's verify
     // reset was called via the internal mechanism. We test this by verifying
     // the close prevention during upload:
     defaultHookReturn.isUploading = true;
-    rerender(<FileUploadDialog open={true} onOpenChange={defaultProps.onOpenChange} />);
+    rerender(
+      <FileUploadDialog open={true} onOpenChange={defaultProps.onOpenChange} />,
+    );
 
     // Dialog content should still be visible when uploading
     expect(screen.getByText('Upload Documents')).toBeInTheDocument();
@@ -328,7 +391,9 @@ describe('FileUploadDialog', () => {
 
     render(<FileUploadDialog {...defaultProps} />);
 
-    expect(screen.queryByRole('button', { name: /clear/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /clear/i }),
+    ).not.toBeInTheDocument();
   });
 
   it('shows Processing text when uploading', () => {

@@ -45,7 +45,10 @@ function getTextContent(children: React.ReactNode): string {
   if (typeof children === 'number') return String(children);
   if (Array.isArray(children)) return children.map(getTextContent).join('');
   if (children && typeof children === 'object' && 'props' in children) {
-    return getTextContent((children as React.ReactElement<{ children?: React.ReactNode }>).props.children);
+    return getTextContent(
+      (children as React.ReactElement<{ children?: React.ReactNode }>).props
+        .children,
+    );
   }
   return '';
 }
@@ -65,7 +68,11 @@ function createHeadingComponents(idCounts: Map<string, number>): Components {
       idCounts.set(baseId, count + 1);
       const id = count === 0 ? baseId : `${baseId}-${count + 1}`;
 
-      return <Tag {...rest} id={id}>{children}</Tag>;
+      return (
+        <Tag {...rest} id={id}>
+          {children}
+        </Tag>
+      );
     };
   }
 
@@ -108,7 +115,9 @@ export function ContentRenderer({ content, className }: ContentRendererProps) {
           className,
         )}
       >
-        <Markdown remarkPlugins={[remarkGfm]} components={headingComponents}>{content}</Markdown>
+        <Markdown remarkPlugins={[remarkGfm]} components={headingComponents}>
+          {content}
+        </Markdown>
       </div>
     );
   }

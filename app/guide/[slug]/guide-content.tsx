@@ -84,7 +84,11 @@ const GUIDE_TYPE_LABELS: Record<string, string> = {
 // ---------------------------------------------------------------------------
 
 /** Related Guides list — shared between mobile and desktop */
-function RelatedGuidesList({ relatedGuides }: { relatedGuides: RelatedGuide[] }) {
+function RelatedGuidesList({
+  relatedGuides,
+}: {
+  relatedGuides: RelatedGuide[];
+}) {
   if (relatedGuides.length === 0) return null;
   return (
     <div className="rounded-lg border bg-card p-4">
@@ -123,7 +127,12 @@ function GuideSidebarContent({
     <>
       <RelatedGuidesList relatedGuides={relatedGuides} />
       {canEdit && (
-        <div className={cn(relatedGuides.length > 0 && 'mt-4', 'rounded-lg border bg-card p-4')}>
+        <div
+          className={cn(
+            relatedGuides.length > 0 && 'mt-4',
+            'rounded-lg border bg-card p-4',
+          )}
+        >
           <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Guide Info
           </h3>
@@ -137,7 +146,9 @@ function GuideSidebarContent({
             {guide.domain_filter && (
               <div>
                 <dt className="text-xs text-muted-foreground">Domain</dt>
-                <dd><DomainBadge domain={guide.domain_filter} /></dd>
+                <dd>
+                  <DomainBadge domain={guide.domain_filter} />
+                </dd>
               </div>
             )}
             <div>
@@ -208,9 +219,19 @@ export function GuideContent({ slug }: { slug: string }) {
   // --- Loading state ---
   if (loading) {
     return (
-      <section aria-label="Guide" className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <div className="flex items-center justify-center py-16" role="status" aria-label="Loading guide">
-          <Loader2 className="size-6 animate-spin text-muted-foreground" aria-hidden="true" />
+      <section
+        aria-label="Guide"
+        className="mx-auto max-w-6xl px-4 py-8 sm:px-6"
+      >
+        <div
+          className="flex items-center justify-center py-16"
+          role="status"
+          aria-label="Loading guide"
+        >
+          <Loader2
+            className="size-6 animate-spin text-muted-foreground"
+            aria-hidden="true"
+          />
           <span className="sr-only">Loading guide...</span>
         </div>
       </section>
@@ -220,7 +241,10 @@ export function GuideContent({ slug }: { slug: string }) {
   // --- Error state ---
   if (error || !data) {
     return (
-      <section aria-label="Guide" className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+      <section
+        aria-label="Guide"
+        className="mx-auto max-w-6xl px-4 py-8 sm:px-6"
+      >
         <Link
           href="/guide"
           className="inline-flex items-center gap-1 rounded-sm text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
@@ -228,7 +252,10 @@ export function GuideContent({ slug }: { slug: string }) {
           <ArrowLeft className="size-3.5" aria-hidden="true" />
           Back to Guides
         </Link>
-        <div role="alert" className="mt-6 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+        <div
+          role="alert"
+          className="mt-6 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"
+        >
           {error ?? 'Guide not found'}
         </div>
       </section>
@@ -248,7 +275,10 @@ export function GuideContent({ slug }: { slug: string }) {
     section.expected_layer === 'research';
 
   return (
-    <section aria-label={`Guide: ${guide.name}`} className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <section
+      aria-label={`Guide: ${guide.name}`}
+      className="mx-auto max-w-6xl px-4 py-8 sm:px-6"
+    >
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
@@ -270,13 +300,13 @@ export function GuideContent({ slug }: { slug: string }) {
 
       <div className="mt-4">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-xl font-semibold text-foreground">{guide.name}</h1>
+          <h1 className="text-xl font-semibold text-foreground">
+            {guide.name}
+          </h1>
           <Badge variant="secondary" className="text-xs">
             {GUIDE_TYPE_LABELS[guide.guide_type] ?? guide.guide_type}
           </Badge>
-          {guide.domain_filter && (
-            <DomainBadge domain={guide.domain_filter} />
-          )}
+          {guide.domain_filter && <DomainBadge domain={guide.domain_filter} />}
         </div>
         {guide.description && (
           <p className="mt-1.5 text-sm text-muted-foreground">
@@ -339,7 +369,7 @@ export function GuideContent({ slug }: { slug: string }) {
       <div className="mt-6 flex gap-4 lg:gap-8">
         {/* Main content */}
         <div className="min-w-0 flex-1 space-y-6">
-          {sections.map((section, index) => (
+          {sections.map((section, index) =>
             isResearchSection(section) ? (
               <GuideResearchFeed
                 key={section.section_id}
@@ -357,8 +387,8 @@ export function GuideContent({ slug }: { slug: string }) {
                 domainFilter={guide.domain_filter}
                 guideName={guide.name}
               />
-            )
-          ))}
+            ),
+          )}
 
           {sections.length === 0 && (
             <div className="rounded-lg border border-dashed border-border px-6 py-12 text-center">

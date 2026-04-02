@@ -102,18 +102,22 @@ describe('AiProcessingIndicators', () => {
     const user = userEvent.setup();
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: () => Promise.resolve({
-        primary_domain: 'Corporate',
-        primary_subtopic: 'History',
-        ai_keywords: ['test'],
-      }),
+      json: () =>
+        Promise.resolve({
+          primary_domain: 'Corporate',
+          primary_subtopic: 'History',
+          ai_keywords: ['test'],
+        }),
     });
 
     const onItemUpdated = vi.fn();
     const item = createItem({ ai_summary: 'Has summary' });
 
     render(
-      <AiProcessingIndicators item={item as never} onItemUpdated={onItemUpdated} />,
+      <AiProcessingIndicators
+        item={item as never}
+        onItemUpdated={onItemUpdated}
+      />,
     );
 
     await user.click(screen.getByRole('button', { name: /classify now/i }));
@@ -130,19 +134,23 @@ describe('AiProcessingIndicators', () => {
     const user = userEvent.setup();
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: () => Promise.resolve({
-        primary_domain: 'Technical',
-        primary_subtopic: 'Infrastructure',
-        ai_keywords: ['infra'],
-        ai_summary: 'Tech summary',
-      }),
+      json: () =>
+        Promise.resolve({
+          primary_domain: 'Technical',
+          primary_subtopic: 'Infrastructure',
+          ai_keywords: ['infra'],
+          ai_summary: 'Tech summary',
+        }),
     });
 
     const onItemUpdated = vi.fn();
     const item = createItem({ ai_summary: 'Has summary' });
 
     render(
-      <AiProcessingIndicators item={item as never} onItemUpdated={onItemUpdated} />,
+      <AiProcessingIndicators
+        item={item as never}
+        onItemUpdated={onItemUpdated}
+      />,
     );
 
     await user.click(screen.getByRole('button', { name: /classify now/i }));

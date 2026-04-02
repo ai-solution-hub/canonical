@@ -121,7 +121,8 @@ interface ClientBidDetailData {
 // Fixtures
 // ---------------------------------------------------------------------------
 
-function makeCoverageMatrixData(): ServerCoverageMatrixData & ClientCoverageMatrixData {
+function makeCoverageMatrixData(): ServerCoverageMatrixData &
+  ClientCoverageMatrixData {
   return {
     total_items: 186,
     freshness: { fresh: 120, aging: 40, stale: 20, expired: 6 },
@@ -134,8 +135,22 @@ function makeCoverageMatrixData(): ServerCoverageMatrixData & ClientCoverageMatr
         stale: 3,
         expired: 2,
         subtopics: [
-          { name: 'Penetration Testing', total_items: 12, fresh: 8, aging: 3, stale: 1, expired: 0 },
-          { name: 'Incident Response', total_items: 8, fresh: 5, aging: 2, stale: 1, expired: 0 },
+          {
+            name: 'Penetration Testing',
+            total_items: 12,
+            fresh: 8,
+            aging: 3,
+            stale: 1,
+            expired: 0,
+          },
+          {
+            name: 'Incident Response',
+            total_items: 8,
+            fresh: 5,
+            aging: 2,
+            stale: 1,
+            expired: 0,
+          },
         ],
       },
     ],
@@ -144,13 +159,24 @@ function makeCoverageMatrixData(): ServerCoverageMatrixData & ClientCoverageMatr
       by_issue_type: { thin_content: 2, missing_summary: 1 },
     },
     gaps: [
-      { domain: 'Security', subtopic: 'Zero Trust', item_count: 0, issue: 'empty' as const },
-      { domain: 'Operations', subtopic: null, item_count: 2, issue: 'thin' as const },
+      {
+        domain: 'Security',
+        subtopic: 'Zero Trust',
+        item_count: 0,
+        issue: 'empty' as const,
+      },
+      {
+        domain: 'Operations',
+        subtopic: null,
+        item_count: 2,
+        issue: 'thin' as const,
+      },
     ],
   };
 }
 
-function makeBidDashboardData(): ServerBidDashboardData & ClientBidDashboardData {
+function makeBidDashboardData(): ServerBidDashboardData &
+  ClientBidDashboardData {
   return {
     offset: 0,
     count: 2,
@@ -206,12 +232,26 @@ function makeBidDetail(): ServerBidDetail & ClientBidDetailData {
       {
         name: 'Organisation',
         questions: [
-          { id: 'q1', question_text: 'Describe your organisation', status: 'complete', confidence_posture: 'strong_match', word_limit: 500, has_response: true, review_status: 'approved' },
+          {
+            id: 'q1',
+            question_text: 'Describe your organisation',
+            status: 'complete',
+            confidence_posture: 'strong_match',
+            word_limit: 500,
+            has_response: true,
+            review_status: 'approved',
+          },
         ],
       },
     ],
     status_breakdown: { complete: 10, ai_drafted: 5, not_started: 10 },
-    confidence_breakdown: { strong_match: 10, partial_match: 8, needs_sme: 3, no_content: 2, unmatched: 2 },
+    confidence_breakdown: {
+      strong_match: 10,
+      partial_match: 8,
+      needs_sme: 3,
+      no_content: 2,
+      unmatched: 2,
+    },
   };
 }
 
@@ -247,12 +287,17 @@ describe('MCP App contract: CoverageMatrixData', () => {
   it('gap issue field accepts all three valid values', () => {
     const data = makeCoverageMatrixData();
     // Existing values
-    const issues = data.gaps.map(g => g.issue);
+    const issues = data.gaps.map((g) => g.issue);
     expect(issues).toContain('empty');
     expect(issues).toContain('thin');
 
     // Add stale_only and verify the union type accepts it
-    data.gaps.push({ domain: 'Test', subtopic: 'Sub', item_count: 5, issue: 'stale_only' });
+    data.gaps.push({
+      domain: 'Test',
+      subtopic: 'Sub',
+      item_count: 5,
+      issue: 'stale_only',
+    });
     expect(data.gaps[data.gaps.length - 1].issue).toBe('stale_only');
   });
 
@@ -286,7 +331,7 @@ describe('MCP App contract: CoverageMatrixData', () => {
 
   it('gap subtopic can be null (domain-level gap)', () => {
     const data = makeCoverageMatrixData();
-    const domainGap = data.gaps.find(g => g.subtopic === null);
+    const domainGap = data.gaps.find((g) => g.subtopic === null);
     expect(domainGap).toBeDefined();
     expect(domainGap!.domain).toBe('Operations');
   });
@@ -319,14 +364,14 @@ describe('MCP App contract: BidDashboardData', () => {
 
   it('buyer can be null', () => {
     const data = makeBidDashboardData();
-    const nullBuyer = data.bids.find(b => b.buyer === null);
+    const nullBuyer = data.bids.find((b) => b.buyer === null);
     expect(nullBuyer).toBeDefined();
     expect(nullBuyer!.name).toBe('MoD Cyber Security');
   });
 
   it('days_until_deadline can be negative (overdue)', () => {
     const data = makeBidDashboardData();
-    const overdue = data.bids.find(b => (b.days_until_deadline ?? 0) < 0);
+    const overdue = data.bids.find((b) => (b.days_until_deadline ?? 0) < 0);
     expect(overdue).toBeDefined();
     expect(overdue!.days_until_deadline).toBe(-8);
   });
@@ -354,11 +399,13 @@ describe('MCP App contract: BidDashboardData', () => {
     // The server type uses Record<string, unknown>, the client uses BidDetailData.
     // The client app casts it: data.focused_bid_detail as unknown as BidDetailData
     // So assigning a full BidDetailData must be valid through the Record type.
-    (data as ServerBidDashboardData).focused_bid_detail = detail as unknown as Record<string, unknown>;
+    (data as ServerBidDashboardData).focused_bid_detail =
+      detail as unknown as Record<string, unknown>;
     expect((data as ServerBidDashboardData).focused_bid_detail).toBeDefined();
 
     // Verify the detail can be read back with client-expected fields
-    const readBack = (data as ServerBidDashboardData).focused_bid_detail as unknown as ClientBidDetailData;
+    const readBack = (data as ServerBidDashboardData)
+      .focused_bid_detail as unknown as ClientBidDetailData;
     expect(readBack.id).toBe('bid-001');
     expect(readBack.question_stats).toBeDefined();
     expect(readBack.question_stats!.total_questions).toBe(25);

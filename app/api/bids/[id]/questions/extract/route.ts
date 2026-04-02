@@ -8,7 +8,11 @@ import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { QuestionExtractBodySchema } from '@/lib/validation/schemas';
-import { extractPDFQuestions, extractDOCXQuestions, extractTenderMetadata } from '@/lib/ai/extract-questions';
+import {
+  extractPDFQuestions,
+  extractDOCXQuestions,
+  extractTenderMetadata,
+} from '@/lib/ai/extract-questions';
 import mammoth from 'mammoth';
 import type { TenderExtractedMetadata } from '@/types/bid-metadata';
 import { canTransition, type BidState } from '@/lib/bid/bid-state-machine';
@@ -63,10 +67,7 @@ export async function POST(
       .single();
 
     if (bidError || !bid) {
-      return NextResponse.json(
-        { error: 'Bid not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
     }
 
     // Download file from Supabase Storage
@@ -136,7 +137,9 @@ export async function POST(
         .eq('project_id', id);
 
       const existingTexts = new Set(
-        (existingQuestions ?? []).map((q) => q.question_text.toLowerCase().trim()),
+        (existingQuestions ?? []).map((q) =>
+          q.question_text.toLowerCase().trim(),
+        ),
       );
 
       const newQuestions = extractedQuestions.filter(
@@ -173,7 +176,10 @@ export async function POST(
       // and partial inserts from a timed-out first attempt may already exist.
       const { error: insertError } = await supabase
         .from('bid_questions')
-        .upsert(inserts, { onConflict: 'project_id,question_text', ignoreDuplicates: true });
+        .upsert(inserts, {
+          onConflict: 'project_id,question_text',
+          ignoreDuplicates: true,
+        });
 
       if (insertError) {
         console.error('Failed to insert extracted questions:', insertError);
@@ -194,10 +200,13 @@ export async function POST(
 
       const currentStatus = (currentBid?.status ?? 'draft') as BidState;
       if (canTransition(currentStatus, 'questions_extracted')) {
-        await supabase.from('workspaces').update({
-          status: 'questions_extracted',
-          updated_at: new Date().toISOString(),
-        }).eq('id', id);
+        await supabase
+          .from('workspaces')
+          .update({
+            status: 'questions_extracted',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', id);
       }
     }
 
@@ -206,7 +215,9 @@ export async function POST(
     try {
       if (format === 'docx') {
         const docxBuffer = Buffer.from(await fileData.arrayBuffer());
-        const { value: html } = await mammoth.convertToHtml({ buffer: docxBuffer });
+        const { value: html } = await mammoth.convertToHtml({
+          buffer: docxBuffer,
+        });
         if (html && html.trim().length > 0) {
           const result = await extractTenderMetadata(html, 'html');
           if (result) extracted_metadata = result;
@@ -243,7 +254,12 @@ export async function POST(
     });
   } catch (err) {
     return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to extract questions from tender document') },
+      {
+        error: safeErrorMessage(
+          err,
+          'Failed to extract questions from tender document',
+        ),
+      },
       { status: 500 },
     );
   }

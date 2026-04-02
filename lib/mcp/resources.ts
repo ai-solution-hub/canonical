@@ -25,7 +25,10 @@ import { z } from 'zod';
 import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
-import type { ServerRequest, ServerNotification } from '@modelcontextprotocol/sdk/types.js';
+import type {
+  ServerRequest,
+  ServerNotification,
+} from '@modelcontextprotocol/sdk/types.js';
 import type { Variables } from '@modelcontextprotocol/sdk/shared/uriTemplate.js';
 import { createMcpClient, getMcpUserId, getMcpUserRole } from '@/lib/mcp/auth';
 
@@ -56,12 +59,21 @@ export async function registerResources(server: McpServer): Promise<void> {
             .limit(10);
 
           return {
-            resources: (items ?? []).map((item: { id: string; title: string | null; suggested_title: string | null; content_type: string | null }) => ({
-              uri: `kb://items/${item.id}`,
-              name: item.suggested_title || item.title || 'Untitled',
-              description: item.content_type ? `Type: ${item.content_type}` : undefined,
-              mimeType: 'application/json',
-            })),
+            resources: (items ?? []).map(
+              (item: {
+                id: string;
+                title: string | null;
+                suggested_title: string | null;
+                content_type: string | null;
+              }) => ({
+                uri: `kb://items/${item.id}`,
+                name: item.suggested_title || item.title || 'Untitled',
+                description: item.content_type
+                  ? `Type: ${item.content_type}`
+                  : undefined,
+                mimeType: 'application/json',
+              }),
+            ),
           };
         } catch (err) {
           console.error('Failed to list content item resources:', err);
@@ -76,31 +88,47 @@ export async function registerResources(server: McpServer): Promise<void> {
     async (uri: URL, variables: Variables, extra: Extra) => {
       try {
         const supabase = createMcpClient(extra.authInfo);
-        const itemId = Array.isArray(variables.id) ? variables.id[0] : variables.id;
+        const itemId = Array.isArray(variables.id)
+          ? variables.id[0]
+          : variables.id;
         const { data: item, error } = await supabase
           .from('content_items')
-          .select('id, title, suggested_title, content_type, primary_domain, primary_subtopic, ai_summary, ai_keywords, freshness, content, created_at, updated_at')
+          .select(
+            'id, title, suggested_title, content_type, primary_domain, primary_subtopic, ai_summary, ai_keywords, freshness, content, created_at, updated_at',
+          )
           .eq('id', itemId)
           .single();
 
         if (error || !item) {
-          return { contents: [{ uri: uri.href, mimeType: 'text/plain', text: `Item not found: ${itemId}` }] };
+          return {
+            contents: [
+              {
+                uri: uri.href,
+                mimeType: 'text/plain',
+                text: `Item not found: ${itemId}`,
+              },
+            ],
+          };
         }
 
         return {
-          contents: [{
-            uri: uri.href,
-            mimeType: 'application/json',
-            text: JSON.stringify(item, null, 2),
-          }],
+          contents: [
+            {
+              uri: uri.href,
+              mimeType: 'application/json',
+              text: JSON.stringify(item, null, 2),
+            },
+          ],
         };
       } catch (err) {
         return {
-          contents: [{
-            uri: uri.href,
-            mimeType: 'text/plain',
-            text: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
-          }],
+          contents: [
+            {
+              uri: uri.href,
+              mimeType: 'text/plain',
+              text: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+            },
+          ],
         };
       }
     },
@@ -122,16 +150,25 @@ export async function registerResources(server: McpServer): Promise<void> {
             .limit(10);
 
           return {
-            resources: (workspaces ?? []).map((ws: { id: string; name: string | null; domain_metadata: unknown }) => {
-              const meta = ws.domain_metadata as Record<string, unknown> | null;
-              const buyer = (meta?.buyer as string) ?? null;
-              return {
-                uri: `kb://bids/${ws.id}`,
-                name: ws.name || 'Untitled Bid',
-                description: buyer ? `Buyer: ${buyer}` : undefined,
-                mimeType: 'application/json',
-              };
-            }),
+            resources: (workspaces ?? []).map(
+              (ws: {
+                id: string;
+                name: string | null;
+                domain_metadata: unknown;
+              }) => {
+                const meta = ws.domain_metadata as Record<
+                  string,
+                  unknown
+                > | null;
+                const buyer = (meta?.buyer as string) ?? null;
+                return {
+                  uri: `kb://bids/${ws.id}`,
+                  name: ws.name || 'Untitled Bid',
+                  description: buyer ? `Buyer: ${buyer}` : undefined,
+                  mimeType: 'application/json',
+                };
+              },
+            ),
           };
         } catch (err) {
           console.error('Failed to list bid workspace resources:', err);
@@ -146,7 +183,9 @@ export async function registerResources(server: McpServer): Promise<void> {
     async (uri: URL, variables: Variables, extra: Extra) => {
       try {
         const supabase = createMcpClient(extra.authInfo);
-        const bidId = Array.isArray(variables.id) ? variables.id[0] : variables.id;
+        const bidId = Array.isArray(variables.id)
+          ? variables.id[0]
+          : variables.id;
         const { data: workspace, error } = await supabase
           .from('workspaces')
           .select('id, name, description, domain_metadata, is_archived')
@@ -155,7 +194,15 @@ export async function registerResources(server: McpServer): Promise<void> {
           .single();
 
         if (error || !workspace) {
-          return { contents: [{ uri: uri.href, mimeType: 'text/plain', text: `Bid not found: ${bidId}` }] };
+          return {
+            contents: [
+              {
+                uri: uri.href,
+                mimeType: 'text/plain',
+                text: `Bid not found: ${bidId}`,
+              },
+            ],
+          };
         }
 
         const { data: questions } = await supabase
@@ -166,19 +213,27 @@ export async function registerResources(server: McpServer): Promise<void> {
           .order('question_sequence');
 
         return {
-          contents: [{
-            uri: uri.href,
-            mimeType: 'application/json',
-            text: JSON.stringify({ ...workspace, questions: questions ?? [] }, null, 2),
-          }],
+          contents: [
+            {
+              uri: uri.href,
+              mimeType: 'application/json',
+              text: JSON.stringify(
+                { ...workspace, questions: questions ?? [] },
+                null,
+                2,
+              ),
+            },
+          ],
         };
       } catch (err) {
         return {
-          contents: [{
-            uri: uri.href,
-            mimeType: 'text/plain',
-            text: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
-          }],
+          contents: [
+            {
+              uri: uri.href,
+              mimeType: 'text/plain',
+              text: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+            },
+          ],
         };
       }
     },
@@ -199,12 +254,21 @@ export async function registerResources(server: McpServer): Promise<void> {
             .limit(10);
 
           return {
-            resources: (items ?? []).map((item: { id: string; title: string | null; suggested_title: string | null; primary_domain: string | null }) => ({
-              uri: `kb://qa/${item.id}`,
-              name: item.suggested_title || item.title || 'Untitled Q&A',
-              description: item.primary_domain ? `Domain: ${item.primary_domain}` : undefined,
-              mimeType: 'application/json',
-            })),
+            resources: (items ?? []).map(
+              (item: {
+                id: string;
+                title: string | null;
+                suggested_title: string | null;
+                primary_domain: string | null;
+              }) => ({
+                uri: `kb://qa/${item.id}`,
+                name: item.suggested_title || item.title || 'Untitled Q&A',
+                description: item.primary_domain
+                  ? `Domain: ${item.primary_domain}`
+                  : undefined,
+                mimeType: 'application/json',
+              }),
+            ),
           };
         } catch (err) {
           console.error('Failed to list Q&A pair resources:', err);
@@ -219,32 +283,48 @@ export async function registerResources(server: McpServer): Promise<void> {
     async (uri: URL, variables: Variables, extra: Extra) => {
       try {
         const supabase = createMcpClient(extra.authInfo);
-        const qaId = Array.isArray(variables.id) ? variables.id[0] : variables.id;
+        const qaId = Array.isArray(variables.id)
+          ? variables.id[0]
+          : variables.id;
         const { data: item, error } = await supabase
           .from('content_items')
-          .select('id, title, suggested_title, content, answer_standard, answer_advanced, primary_domain, primary_subtopic, ai_summary')
+          .select(
+            'id, title, suggested_title, content, answer_standard, answer_advanced, primary_domain, primary_subtopic, ai_summary',
+          )
           .eq('id', qaId)
           .eq('content_type', 'q_a_pair')
           .single();
 
         if (error || !item) {
-          return { contents: [{ uri: uri.href, mimeType: 'text/plain', text: `Q&A pair not found: ${qaId}` }] };
+          return {
+            contents: [
+              {
+                uri: uri.href,
+                mimeType: 'text/plain',
+                text: `Q&A pair not found: ${qaId}`,
+              },
+            ],
+          };
         }
 
         return {
-          contents: [{
-            uri: uri.href,
-            mimeType: 'application/json',
-            text: JSON.stringify(item, null, 2),
-          }],
+          contents: [
+            {
+              uri: uri.href,
+              mimeType: 'application/json',
+              text: JSON.stringify(item, null, 2),
+            },
+          ],
         };
       } catch (err) {
         return {
-          contents: [{
-            uri: uri.href,
-            mimeType: 'text/plain',
-            text: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
-          }],
+          contents: [
+            {
+              uri: uri.href,
+              mimeType: 'text/plain',
+              text: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+            },
+          ],
         };
       }
     },
@@ -255,7 +335,8 @@ export async function registerResources(server: McpServer): Promise<void> {
     'coverage_matrix',
     'kb://coverage',
     {
-      description: 'Current taxonomy coverage state — domains, subtopics, and item counts',
+      description:
+        'Current taxonomy coverage state — domains, subtopics, and item counts',
       mimeType: 'application/json',
     },
     async (uri: URL, extra: Extra) => {
@@ -269,26 +350,33 @@ export async function registerResources(server: McpServer): Promise<void> {
           .not('primary_domain', 'is', null);
 
         const coverage: Record<string, number> = {};
-        for (const row of (domainCounts ?? []) as Array<{ primary_domain: string | null }>) {
+        for (const row of (domainCounts ?? []) as Array<{
+          primary_domain: string | null;
+        }>) {
           if (row.primary_domain) {
-            coverage[row.primary_domain] = (coverage[row.primary_domain] ?? 0) + 1;
+            coverage[row.primary_domain] =
+              (coverage[row.primary_domain] ?? 0) + 1;
           }
         }
 
         return {
-          contents: [{
-            uri: uri.href,
-            mimeType: 'application/json',
-            text: JSON.stringify({ domains: coverage }, null, 2),
-          }],
+          contents: [
+            {
+              uri: uri.href,
+              mimeType: 'application/json',
+              text: JSON.stringify({ domains: coverage }, null, 2),
+            },
+          ],
         };
       } catch (err) {
         return {
-          contents: [{
-            uri: uri.href,
-            mimeType: 'text/plain',
-            text: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
-          }],
+          contents: [
+            {
+              uri: uri.href,
+              mimeType: 'text/plain',
+              text: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+            },
+          ],
         };
       }
     },
@@ -299,7 +387,8 @@ export async function registerResources(server: McpServer): Promise<void> {
     'dashboard',
     'kb://dashboard',
     {
-      description: 'Current dashboard state — freshness, attention items, activity',
+      description:
+        'Current dashboard state — freshness, attention items, activity',
       mimeType: 'application/json',
     },
     async (uri: URL, extra: Extra) => {
@@ -308,24 +397,34 @@ export async function registerResources(server: McpServer): Promise<void> {
         const userId = getMcpUserId(extra.authInfo);
         const role = await getMcpUserRole(extra.authInfo!);
         const isAdmin = role === 'admin';
-        const { fetchUnifiedDashboardData, unifiedToDashboardData } = await getDashboardModule();
-        const unified = await fetchUnifiedDashboardData(supabase, userId, isAdmin, role);
+        const { fetchUnifiedDashboardData, unifiedToDashboardData } =
+          await getDashboardModule();
+        const unified = await fetchUnifiedDashboardData(
+          supabase,
+          userId,
+          isAdmin,
+          role,
+        );
         const data = unifiedToDashboardData(unified);
 
         return {
-          contents: [{
-            uri: uri.href,
-            mimeType: 'application/json',
-            text: JSON.stringify(data, null, 2),
-          }],
+          contents: [
+            {
+              uri: uri.href,
+              mimeType: 'application/json',
+              text: JSON.stringify(data, null, 2),
+            },
+          ],
         };
       } catch (err) {
         return {
-          contents: [{
-            uri: uri.href,
-            mimeType: 'text/plain',
-            text: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
-          }],
+          contents: [
+            {
+              uri: uri.href,
+              mimeType: 'text/plain',
+              text: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+            },
+          ],
         };
       }
     },
@@ -336,7 +435,8 @@ export async function registerResources(server: McpServer): Promise<void> {
     'taxonomy',
     'kb://taxonomy',
     {
-      description: 'The full taxonomy of domains and subtopics used to classify content',
+      description:
+        'The full taxonomy of domains and subtopics used to classify content',
       mimeType: 'application/json',
     },
     async (uri: URL, extra: Extra) => {
@@ -353,19 +453,27 @@ export async function registerResources(server: McpServer): Promise<void> {
           .order('display_order');
 
         return {
-          contents: [{
-            uri: uri.href,
-            mimeType: 'application/json',
-            text: JSON.stringify({ domains: domains ?? [], subtopics: subtopics ?? [] }, null, 2),
-          }],
+          contents: [
+            {
+              uri: uri.href,
+              mimeType: 'application/json',
+              text: JSON.stringify(
+                { domains: domains ?? [], subtopics: subtopics ?? [] },
+                null,
+                2,
+              ),
+            },
+          ],
         };
       } catch (err) {
         return {
-          contents: [{
-            uri: uri.href,
-            mimeType: 'text/plain',
-            text: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
-          }],
+          contents: [
+            {
+              uri: uri.href,
+              mimeType: 'text/plain',
+              text: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+            },
+          ],
         };
       }
     },
@@ -376,7 +484,8 @@ export async function registerResources(server: McpServer): Promise<void> {
     'entities',
     'kb://entities',
     {
-      description: 'Overview of all entities in the knowledge base — entity types, counts per type, and top entities by mention count',
+      description:
+        'Overview of all entities in the knowledge base — entity types, counts per type, and top entities by mention count',
       mimeType: 'application/json',
     },
     async (uri: URL, extra: Extra) => {
@@ -395,11 +504,13 @@ export async function registerResources(server: McpServer): Promise<void> {
 
         if (typeError) {
           return {
-            contents: [{
-              uri: uri.href,
-              mimeType: 'text/plain',
-              text: `Error: ${typeError.message}`,
-            }],
+            contents: [
+              {
+                uri: uri.href,
+                mimeType: 'text/plain',
+                text: `Error: ${typeError.message}`,
+              },
+            ],
           };
         }
 
@@ -407,7 +518,10 @@ export async function registerResources(server: McpServer): Promise<void> {
         const seen = new Set<string>();
         const byType: Record<string, number> = {};
         let totalEntities = 0;
-        for (const row of (typeRows ?? []) as Array<{ entity_type: string; canonical_name: string }>) {
+        for (const row of (typeRows ?? []) as Array<{
+          entity_type: string;
+          canonical_name: string;
+        }>) {
           const key = `${row.entity_type}:${row.canonical_name}`;
           if (!seen.has(key)) {
             seen.add(key);
@@ -424,23 +538,29 @@ export async function registerResources(server: McpServer): Promise<void> {
 
         if (topError) {
           return {
-            contents: [{
-              uri: uri.href,
-              mimeType: 'text/plain',
-              text: `Error: ${topError.message}`,
-            }],
+            contents: [
+              {
+                uri: uri.href,
+                mimeType: 'text/plain',
+                text: `Error: ${topError.message}`,
+              },
+            ],
           };
         }
 
-        const topEntities = ((topRows ?? []) as Array<{
-          canonical_name: string;
-          entity_type: string;
-          mention_count: number;
-        }>).slice(0, 20).map((e) => ({
-          canonical_name: e.canonical_name,
-          entity_type: e.entity_type,
-          mention_count: Number(e.mention_count),
-        }));
+        const topEntities = (
+          (topRows ?? []) as Array<{
+            canonical_name: string;
+            entity_type: string;
+            mention_count: number;
+          }>
+        )
+          .slice(0, 20)
+          .map((e) => ({
+            canonical_name: e.canonical_name,
+            entity_type: e.entity_type,
+            mention_count: Number(e.mention_count),
+          }));
 
         const overview = {
           total_entities: totalEntities,
@@ -449,26 +569,31 @@ export async function registerResources(server: McpServer): Promise<void> {
         };
 
         return {
-          contents: [{
-            uri: uri.href,
-            mimeType: 'application/json',
-            text: JSON.stringify(overview, null, 2),
-          }],
+          contents: [
+            {
+              uri: uri.href,
+              mimeType: 'application/json',
+              text: JSON.stringify(overview, null, 2),
+            },
+          ],
         };
       } catch (err) {
         return {
-          contents: [{
-            uri: uri.href,
-            mimeType: 'text/plain',
-            text: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
-          }],
+          contents: [
+            {
+              uri: uri.href,
+              mimeType: 'text/plain',
+              text: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+            },
+          ],
         };
       }
     },
   );
 
   // 8. ui://coverage-matrix/app.html — Coverage Matrix MCP App
-  const { registerAppResource, RESOURCE_MIME_TYPE } = await import('@modelcontextprotocol/ext-apps/server');
+  const { registerAppResource, RESOURCE_MIME_TYPE } =
+    await import('@modelcontextprotocol/ext-apps/server');
 
   // Lazy import — keeps the ~400 KB HTML string out of module evaluation
   async function getAppBundles() {
@@ -484,19 +609,23 @@ export async function registerResources(server: McpServer): Promise<void> {
       const { COVERAGE_MATRIX_HTML } = await getAppBundles();
       if (!COVERAGE_MATRIX_HTML) {
         return {
-          contents: [{
-            uri: 'ui://coverage-matrix/app.html',
-            mimeType: 'text/plain',
-            text: 'Coverage Matrix app not built. Run: bun run build:mcp-apps',
-          }],
+          contents: [
+            {
+              uri: 'ui://coverage-matrix/app.html',
+              mimeType: 'text/plain',
+              text: 'Coverage Matrix app not built. Run: bun run build:mcp-apps',
+            },
+          ],
         };
       }
       return {
-        contents: [{
-          uri: 'ui://coverage-matrix/app.html',
-          mimeType: RESOURCE_MIME_TYPE,
-          text: COVERAGE_MATRIX_HTML,
-        }],
+        contents: [
+          {
+            uri: 'ui://coverage-matrix/app.html',
+            mimeType: RESOURCE_MIME_TYPE,
+            text: COVERAGE_MATRIX_HTML,
+          },
+        ],
       };
     },
   );
@@ -511,19 +640,23 @@ export async function registerResources(server: McpServer): Promise<void> {
       const { BID_DASHBOARD_HTML } = await getAppBundles();
       if (!BID_DASHBOARD_HTML) {
         return {
-          contents: [{
-            uri: 'ui://bid-dashboard/app.html',
-            mimeType: 'text/plain',
-            text: 'Bid Dashboard app not built.',
-          }],
+          contents: [
+            {
+              uri: 'ui://bid-dashboard/app.html',
+              mimeType: 'text/plain',
+              text: 'Bid Dashboard app not built.',
+            },
+          ],
         };
       }
       return {
-        contents: [{
-          uri: 'ui://bid-dashboard/app.html',
-          mimeType: RESOURCE_MIME_TYPE,
-          text: BID_DASHBOARD_HTML,
-        }],
+        contents: [
+          {
+            uri: 'ui://bid-dashboard/app.html',
+            mimeType: RESOURCE_MIME_TYPE,
+            text: BID_DASHBOARD_HTML,
+          },
+        ],
       };
     },
   );
@@ -538,19 +671,23 @@ export async function registerResources(server: McpServer): Promise<void> {
       const { REORIENT_ME_HTML } = await getAppBundles();
       if (!REORIENT_ME_HTML) {
         return {
-          contents: [{
-            uri: 'ui://reorient-me/app.html',
-            mimeType: 'text/plain',
-            text: 'Reorient Me app not built. Run: bun run build:mcp-apps',
-          }],
+          contents: [
+            {
+              uri: 'ui://reorient-me/app.html',
+              mimeType: 'text/plain',
+              text: 'Reorient Me app not built. Run: bun run build:mcp-apps',
+            },
+          ],
         };
       }
       return {
-        contents: [{
-          uri: 'ui://reorient-me/app.html',
-          mimeType: RESOURCE_MIME_TYPE,
-          text: REORIENT_ME_HTML,
-        }],
+        contents: [
+          {
+            uri: 'ui://reorient-me/app.html',
+            mimeType: RESOURCE_MIME_TYPE,
+            text: REORIENT_ME_HTML,
+          },
+        ],
       };
     },
   );
@@ -560,32 +697,43 @@ export async function registerResources(server: McpServer): Promise<void> {
     'quality_briefing',
     'kb://quality-briefing',
     {
-      description: 'Aggregated quality intelligence briefing — below-threshold items, score drops, freshness transitions, quality flags, coverage alerts, and certification warnings. Use this for proactive "what needs attention" briefings.',
+      description:
+        'Aggregated quality intelligence briefing — below-threshold items, score drops, freshness transitions, quality flags, coverage alerts, and certification warnings. Use this for proactive "what needs attention" briefings.',
       mimeType: 'application/json',
     },
     async (uri: URL, extra: Extra) => {
       try {
         const supabase = createMcpClient(extra.authInfo);
-        const { fetchQualityBriefingData } = await import('@/lib/mcp/tools/shared');
-        const { formatQualityBriefing } = await import('@/lib/mcp/formatters/briefing');
+        const { fetchQualityBriefingData } =
+          await import('@/lib/mcp/tools/shared');
+        const { formatQualityBriefing } =
+          await import('@/lib/mcp/formatters/briefing');
 
         const briefingData = await fetchQualityBriefingData(supabase);
         const markdown = formatQualityBriefing(briefingData);
 
         return {
-          contents: [{
-            uri: uri.href,
-            mimeType: 'application/json',
-            text: JSON.stringify({ ...briefingData, formatted: markdown }, null, 2),
-          }],
+          contents: [
+            {
+              uri: uri.href,
+              mimeType: 'application/json',
+              text: JSON.stringify(
+                { ...briefingData, formatted: markdown },
+                null,
+                2,
+              ),
+            },
+          ],
         };
       } catch (err) {
         return {
-          contents: [{
-            uri: uri.href,
-            mimeType: 'text/plain',
-            text: `Error generating quality briefing: ${err instanceof Error ? err.message : 'Unknown error'}`,
-          }],
+          contents: [
+            {
+              uri: uri.href,
+              mimeType: 'text/plain',
+              text: `Error generating quality briefing: ${err instanceof Error ? err.message : 'Unknown error'}`,
+            },
+          ],
         };
       }
     },
@@ -599,7 +747,8 @@ export async function registerResources(server: McpServer): Promise<void> {
 /**
  * System context prepended to all prompt messages so the LLM has KB awareness.
  */
-const KB_SYSTEM_CONTEXT = 'You are an AI assistant for the Knowledge Hub, a UK bid management knowledge base. Use UK English throughout. The knowledge base contains articles, policies, case studies, Q&A pairs, and other content organised by domain and subtopic.\n\n';
+const KB_SYSTEM_CONTEXT =
+  'You are an AI assistant for the Knowledge Hub, a UK bid management knowledge base. Use UK English throughout. The knowledge base contains articles, policies, case studies, Q&A pairs, and other content organised by domain and subtopic.\n\n';
 
 export function registerPrompts(server: McpServer): void {
   // 1. reorient
@@ -607,16 +756,21 @@ export function registerPrompts(server: McpServer): void {
     'reorient',
     {
       title: 'Reorientation Briefing',
-      description: 'Get a briefing on what has changed since your last visit. Shows urgent items, team activity, and bid status.',
+      description:
+        'Get a briefing on what has changed since your last visit. Shows urgent items, team activity, and bid status.',
     },
     async () => ({
-      messages: [{
-        role: 'user',
-        content: {
-          type: 'text',
-          text: KB_SYSTEM_CONTEXT + 'What has changed in my knowledge base since I was last active? Give me a briefing covering urgent items, team activity, my recent work, and active bid status. Use the get_reorientation tool.',
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text:
+              KB_SYSTEM_CONTEXT +
+              'What has changed in my knowledge base since I was last active? Give me a briefing covering urgent items, team activity, my recent work, and active bid status. Use the get_reorientation tool.',
+          },
         },
-      }],
+      ],
     }),
   );
 
@@ -625,19 +779,24 @@ export function registerPrompts(server: McpServer): void {
     'bid_briefing',
     {
       title: 'Bid Briefing',
-      description: 'Get a comprehensive briefing on a specific bid including progress, gaps, and next steps.',
+      description:
+        'Get a comprehensive briefing on a specific bid including progress, gaps, and next steps.',
       argsSchema: {
         bid_name: z.string().describe('Name or ID of the bid to brief on'),
       },
     },
     async (args) => ({
-      messages: [{
-        role: 'user',
-        content: {
-          type: 'text',
-          text: KB_SYSTEM_CONTEXT + `Give me a comprehensive briefing on the bid "${args.bid_name}". Include the current status, question completion progress, any gaps or blockers, upcoming deadlines, and recommended next steps. First list bids to find the matching ID, then use get_bid_detail. Use the list_active_bids and get_bid_detail tools.`,
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text:
+              KB_SYSTEM_CONTEXT +
+              `Give me a comprehensive briefing on the bid "${args.bid_name}". Include the current status, question completion progress, any gaps or blockers, upcoming deadlines, and recommended next steps. First list bids to find the matching ID, then use get_bid_detail. Use the list_active_bids and get_bid_detail tools.`,
+          },
         },
-      }],
+      ],
     }),
   );
 
@@ -646,16 +805,21 @@ export function registerPrompts(server: McpServer): void {
     'coverage_analysis',
     {
       title: 'Coverage Analysis',
-      description: 'Analyse knowledge base coverage gaps and suggest content to create.',
+      description:
+        'Analyse knowledge base coverage gaps and suggest content to create.',
     },
     async () => ({
-      messages: [{
-        role: 'user',
-        content: {
-          type: 'text',
-          text: KB_SYSTEM_CONTEXT + 'Analyse the coverage of my knowledge base. Identify domains or topics with thin coverage and suggest specific content items to create to fill the gaps. Use the get_coverage_gaps tool to find prioritised gaps across taxonomy, templates, and guides, then use suggest_content_creation for actionable recommendations. Supplement with get_quality_summary and get_freshness_report for broader context.',
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text:
+              KB_SYSTEM_CONTEXT +
+              'Analyse the coverage of my knowledge base. Identify domains or topics with thin coverage and suggest specific content items to create to fill the gaps. Use the get_coverage_gaps tool to find prioritised gaps across taxonomy, templates, and guides, then use suggest_content_creation for actionable recommendations. Supplement with get_quality_summary and get_freshness_report for broader context.',
+          },
         },
-      }],
+      ],
     }),
   );
 
@@ -664,19 +828,24 @@ export function registerPrompts(server: McpServer): void {
     'draft_response',
     {
       title: 'Draft Bid Response',
-      description: 'Draft a response to a bid question using relevant knowledge base content.',
+      description:
+        'Draft a response to a bid question using relevant knowledge base content.',
       argsSchema: {
         question_text: z.string().describe('The bid question to respond to'),
       },
     },
     async (args) => ({
-      messages: [{
-        role: 'user',
-        content: {
-          type: 'text',
-          text: KB_SYSTEM_CONTEXT + `Draft a bid response to the following question, using relevant content from my knowledge base:\n\n"${args.question_text}"\n\nSearch the knowledge base and Q&A library for relevant content, then compose a well-structured response with citations. Use the search_knowledge_base and search_qa_library tools.`,
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text:
+              KB_SYSTEM_CONTEXT +
+              `Draft a bid response to the following question, using relevant content from my knowledge base:\n\n"${args.question_text}"\n\nSearch the knowledge base and Q&A library for relevant content, then compose a well-structured response with citations. Use the search_knowledge_base and search_qa_library tools.`,
+          },
         },
-      }],
+      ],
     }),
   );
 
@@ -685,19 +854,24 @@ export function registerPrompts(server: McpServer): void {
     'review_item',
     {
       title: 'Review Content Item',
-      description: 'Review a content item for quality, accuracy, and completeness.',
+      description:
+        'Review a content item for quality, accuracy, and completeness.',
       argsSchema: {
         item_id: z.string().describe('The UUID of the content item to review'),
       },
     },
     async (args) => ({
-      messages: [{
-        role: 'user',
-        content: {
-          type: 'text',
-          text: KB_SYSTEM_CONTEXT + `Review the content item with ID "${args.item_id}" for quality, accuracy, and completeness. Check: Is the classification correct? Is the summary accurate? Is the content up to date? Are there any quality issues? Use the get_content_item tool to fetch the item, then provide a detailed assessment with recommendations.`,
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text:
+              KB_SYSTEM_CONTEXT +
+              `Review the content item with ID "${args.item_id}" for quality, accuracy, and completeness. Check: Is the classification correct? Is the summary accurate? Is the content up to date? Are there any quality issues? Use the get_content_item tool to fetch the item, then provide a detailed assessment with recommendations.`,
+          },
         },
-      }],
+      ],
     }),
   );
 }

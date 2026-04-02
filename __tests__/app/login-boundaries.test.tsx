@@ -21,7 +21,7 @@ describe('Login Error Boundary', () => {
   it('renders the heading text', () => {
     render(<LoginError error={error} reset={reset} />);
     expect(
-      screen.getByText(/couldn.*t load the sign-in page/i)
+      screen.getByText(/couldn.*t load the sign-in page/i),
     ).toBeInTheDocument();
   });
 
@@ -60,7 +60,7 @@ describe('Login Loading Skeleton', () => {
     render(<LoginLoading />);
     expect(screen.getByRole('status')).toHaveAttribute(
       'aria-label',
-      'Loading sign-in'
+      'Loading sign-in',
     );
   });
 

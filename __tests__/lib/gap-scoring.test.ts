@@ -114,12 +114,18 @@ describe('scoreTaxonomyGap', () => {
   });
 
   it('produces medium tier for base score', () => {
-    const score = scoreTaxonomyGap({ target_unmet: false, domain_has_zero_items: false });
+    const score = scoreTaxonomyGap({
+      target_unmet: false,
+      domain_has_zero_items: false,
+    });
     expect(derivePriorityTier(score)).toBe('medium');
   });
 
   it('produces high tier for maximum score', () => {
-    const score = scoreTaxonomyGap({ target_unmet: true, domain_has_zero_items: true });
+    const score = scoreTaxonomyGap({
+      target_unmet: true,
+      domain_has_zero_items: true,
+    });
     expect(derivePriorityTier(score)).toBe('high');
   });
 });
@@ -224,31 +230,34 @@ describe('scoreTemplateGap', () => {
 
 describe('scoreGuideGap', () => {
   it('returns base score of 15 for non-required empty section', () => {
-    expect(
-      scoreGuideGap({ is_required: false, section_status: 'empty' }),
-    ).toBe(15);
+    expect(scoreGuideGap({ is_required: false, section_status: 'empty' })).toBe(
+      15,
+    );
   });
 
   it('adds 15 for required sections', () => {
-    expect(
-      scoreGuideGap({ is_required: true, section_status: 'empty' }),
-    ).toBe(30);
+    expect(scoreGuideGap({ is_required: true, section_status: 'empty' })).toBe(
+      30,
+    );
   });
 
   it('adds 5 for stale sections', () => {
-    expect(
-      scoreGuideGap({ is_required: false, section_status: 'stale' }),
-    ).toBe(20);
+    expect(scoreGuideGap({ is_required: false, section_status: 'stale' })).toBe(
+      20,
+    );
   });
 
   it('produces maximum score of 35 for required + stale', () => {
-    expect(
-      scoreGuideGap({ is_required: true, section_status: 'stale' }),
-    ).toBe(35);
+    expect(scoreGuideGap({ is_required: true, section_status: 'stale' })).toBe(
+      35,
+    );
   });
 
   it('base score falls in low tier', () => {
-    const score = scoreGuideGap({ is_required: false, section_status: 'empty' });
+    const score = scoreGuideGap({
+      is_required: false,
+      section_status: 'empty',
+    });
     expect(derivePriorityTier(score)).toBe('low');
   });
 
@@ -374,7 +383,9 @@ describe('scoreGap', () => {
     expect(result.gap_key).toBe('taxonomy:Engineering:DevOps');
     expect(result.domain_name).toBe('Engineering');
     expect(result.subtopic_name).toBe('DevOps');
-    expect(result.action_href).toBe('/browse?domain=Engineering&subtopic=DevOps');
+    expect(result.action_href).toBe(
+      '/browse?domain=Engineering&subtopic=DevOps',
+    );
   });
 });
 
@@ -384,8 +395,14 @@ describe('scoreGap', () => {
 
 describe('score ranges', () => {
   it('taxonomy gaps range from 25 to 50', () => {
-    const min = scoreTaxonomyGap({ target_unmet: false, domain_has_zero_items: false });
-    const max = scoreTaxonomyGap({ target_unmet: true, domain_has_zero_items: true });
+    const min = scoreTaxonomyGap({
+      target_unmet: false,
+      domain_has_zero_items: false,
+    });
+    const max = scoreTaxonomyGap({
+      target_unmet: true,
+      domain_has_zero_items: true,
+    });
     expect(min).toBe(25);
     expect(max).toBe(50);
   });

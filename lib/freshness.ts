@@ -10,7 +10,11 @@
  */
 
 export type FreshnessState = 'fresh' | 'aging' | 'stale' | 'expired';
-export type LifecycleType = 'evergreen' | 'date_bound' | 'regulation' | 'bid_discovered';
+export type LifecycleType =
+  | 'evergreen'
+  | 'date_bound'
+  | 'regulation'
+  | 'bid_discovered';
 
 interface FreshnessInput {
   lifecycle_type: LifecycleType | string | null;

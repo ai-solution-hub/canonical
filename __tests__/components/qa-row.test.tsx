@@ -22,7 +22,9 @@ vi.mock('sonner', () => ({ toast: mockToast }));
 
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: Record<string, unknown>) => (
-    <a href={href as string} {...props}>{children as React.ReactNode}</a>
+    <a href={href as string} {...props}>
+      {children as React.ReactNode}
+    </a>
   ),
 }));
 
@@ -36,7 +38,9 @@ import { QARow } from '@/components/qa/qa-row';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function createQAItem(overrides: Partial<ContentListItem> = {}): ContentListItem {
+function createQAItem(
+  overrides: Partial<ContentListItem> = {},
+): ContentListItem {
   return {
     id: 'qa-1',
     title: 'How does your organisation handle data security?',
@@ -81,13 +85,17 @@ describe('QARow', () => {
   it('renders question title', () => {
     const item = createQAItem();
     render(<QARow item={item} />);
-    expect(screen.getByText('How does your organisation handle data security?')).toBeInTheDocument();
+    expect(
+      screen.getByText('How does your organisation handle data security?'),
+    ).toBeInTheDocument();
   });
 
   it('shows domain and subtopic', () => {
     const item = createQAItem();
     render(<QARow item={item} />);
-    expect(screen.getByText('Technical > Information Security')).toBeInTheDocument();
+    expect(
+      screen.getByText('Technical > Information Security'),
+    ).toBeInTheDocument();
   });
 
   it('shows source file from direct column', () => {
@@ -165,7 +173,9 @@ describe('QARow', () => {
     render(<QARow item={item} />);
     const toggleBtn = screen.getByRole('button', { expanded: false });
     await user.click(toggleBtn);
-    expect(screen.getByText('Detailed cryptographic implementation.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Detailed cryptographic implementation.'),
+    ).toBeInTheDocument();
     expect(screen.getByText('Advanced')).toBeInTheDocument();
   });
 

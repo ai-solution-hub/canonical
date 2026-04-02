@@ -1,7 +1,11 @@
 /**
  * Dashboard and reorientation formatters for MCP tool responses.
  */
-import type { ActiveBidSummary, DashboardData, GroupedActivityItem } from '@/lib/dashboard';
+import type {
+  ActiveBidSummary,
+  DashboardData,
+  GroupedActivityItem,
+} from '@/lib/dashboard';
 import type { ReorientData } from '@/types/reorient';
 import { formatDeadline, formatProgress } from './shared';
 import { formatDateUK } from '@/lib/format';
@@ -50,19 +54,29 @@ export function formatDashboardSummary(data: DashboardData): string {
   const attentionItems: string[] = [];
 
   if (attn.expired_content_count && attn.expired_content_count > 0) {
-    attentionItems.push(`- ${attn.expired_content_count} expired content item${attn.expired_content_count === 1 ? '' : 's'}`);
+    attentionItems.push(
+      `- ${attn.expired_content_count} expired content item${attn.expired_content_count === 1 ? '' : 's'}`,
+    );
   }
   if (attn.stale_content_count && attn.stale_content_count > 0) {
-    attentionItems.push(`- ${attn.stale_content_count} stale content item${attn.stale_content_count === 1 ? '' : 's'}`);
+    attentionItems.push(
+      `- ${attn.stale_content_count} stale content item${attn.stale_content_count === 1 ? '' : 's'}`,
+    );
   }
   if (attn.governance_review_count && attn.governance_review_count > 0) {
-    attentionItems.push(`- ${attn.governance_review_count} governance review${attn.governance_review_count === 1 ? '' : 's'} pending`);
+    attentionItems.push(
+      `- ${attn.governance_review_count} governance review${attn.governance_review_count === 1 ? '' : 's'} pending`,
+    );
   }
   if (attn.quality_flag_count && attn.quality_flag_count > 0) {
-    attentionItems.push(`- ${attn.quality_flag_count} quality flag${attn.quality_flag_count === 1 ? '' : 's'} unresolved`);
+    attentionItems.push(
+      `- ${attn.quality_flag_count} quality flag${attn.quality_flag_count === 1 ? '' : 's'} unresolved`,
+    );
   }
   if (attn.unverified_count && attn.unverified_count > 0) {
-    attentionItems.push(`- ${attn.unverified_count} unverified item${attn.unverified_count === 1 ? '' : 's'}`);
+    attentionItems.push(
+      `- ${attn.unverified_count} unverified item${attn.unverified_count === 1 ? '' : 's'}`,
+    );
   }
 
   if (attentionItems.length === 0) {
@@ -75,23 +89,36 @@ export function formatDashboardSummary(data: DashboardData): string {
   lines.push('', '## Content Freshness', '');
   const f = data.freshness_summary;
   const totalContent = f.fresh + f.aging + f.stale + f.expired;
-  lines.push(`- **Fresh:** ${f.fresh} (${formatProgress(f.fresh, totalContent)})`);
-  lines.push(`- **Aging:** ${f.aging} (${formatProgress(f.aging, totalContent)})`);
-  lines.push(`- **Stale:** ${f.stale} (${formatProgress(f.stale, totalContent)})`);
-  lines.push(`- **Expired:** ${f.expired} (${formatProgress(f.expired, totalContent)})`);
+  lines.push(
+    `- **Fresh:** ${f.fresh} (${formatProgress(f.fresh, totalContent)})`,
+  );
+  lines.push(
+    `- **Aging:** ${f.aging} (${formatProgress(f.aging, totalContent)})`,
+  );
+  lines.push(
+    `- **Stale:** ${f.stale} (${formatProgress(f.stale, totalContent)})`,
+  );
+  lines.push(
+    `- **Expired:** ${f.expired} (${formatProgress(f.expired, totalContent)})`,
+  );
   lines.push(`- **Total:** ${totalContent} items`);
 
   // Active bids
   if (data.active_bids.length > 0) {
     lines.push('', '## Active Bids', '');
     for (const bid of data.active_bids) {
-      const progress = formatProgress(bid.answered_questions, bid.total_questions);
+      const progress = formatProgress(
+        bid.answered_questions,
+        bid.total_questions,
+      );
       const deadline = formatDeadline(bid.deadline, bid.days_until_deadline);
       lines.push(`### ${bid.name}`);
       lines.push(`- **Buyer:** ${bid.buyer ?? 'Not specified'}`);
       lines.push(`- **Status:** ${bid.status}`);
       lines.push(`- **Deadline:** ${deadline}`);
-      lines.push(`- **Progress:** ${bid.answered_questions}/${bid.total_questions} questions answered (${progress})`);
+      lines.push(
+        `- **Progress:** ${bid.answered_questions}/${bid.total_questions} questions answered (${progress})`,
+      );
       lines.push('');
     }
   } else {
@@ -110,7 +137,10 @@ export function formatDashboardSummary(data: DashboardData): string {
 
   // Notifications
   if (data.unread_notification_count > 0) {
-    lines.push('', `**${data.unread_notification_count} unread notification${data.unread_notification_count === 1 ? '' : 's'}**`);
+    lines.push(
+      '',
+      `**${data.unread_notification_count} unread notification${data.unread_notification_count === 1 ? '' : 's'}**`,
+    );
   }
 
   return lines.join('\n');
@@ -133,15 +163,22 @@ export function formatActiveBids(bids: ActiveBidSummary[]): string {
   ];
 
   for (const bid of bids) {
-    const progress = formatProgress(bid.answered_questions, bid.total_questions);
+    const progress = formatProgress(
+      bid.answered_questions,
+      bid.total_questions,
+    );
     const deadline = formatDeadline(bid.deadline, bid.days_until_deadline);
 
     lines.push(`## ${bid.name}`);
     lines.push(`- **Buyer:** ${bid.buyer ?? 'Not specified'}`);
     lines.push(`- **Status:** ${bid.status}`);
     lines.push(`- **Deadline:** ${deadline}`);
-    lines.push(`- **Questions:** ${bid.answered_questions}/${bid.total_questions} answered (${progress})`);
-    lines.push(`- **Approved:** ${bid.approved_questions}/${bid.total_questions}`);
+    lines.push(
+      `- **Questions:** ${bid.answered_questions}/${bid.total_questions} answered (${progress})`,
+    );
+    lines.push(
+      `- **Approved:** ${bid.approved_questions}/${bid.total_questions}`,
+    );
     lines.push(`- **ID:** ${bid.id}`);
     lines.push('');
   }
@@ -211,7 +248,9 @@ export function formatReorientation(data: ReorientData): string {
     const displayed = data.team_changes.slice(0, 10);
     for (const change of displayed) {
       const who = change.user_name ?? 'A team member';
-      lines.push(`- ${who} ${change.action} "${change.entity_title}"${change.domain ? ` (${change.domain})` : ''}`);
+      lines.push(
+        `- ${who} ${change.action} "${change.entity_title}"${change.domain ? ` (${change.domain})` : ''}`,
+      );
     }
     if (data.team_changes.length > 10) {
       lines.push(`- ...and ${data.team_changes.length - 10} more changes`);
@@ -232,17 +271,25 @@ export function formatReorientation(data: ReorientData): string {
   if (data.bid_summary.length > 0) {
     lines.push('## Bid Summary', '');
     for (const bid of data.bid_summary) {
-      const progress = formatProgress(bid.answered_questions, bid.total_questions);
+      const progress = formatProgress(
+        bid.answered_questions,
+        bid.total_questions,
+      );
       const deadline = formatDeadline(bid.deadline, bid.days_until_deadline);
-      const urgencyLabel = bid.urgency !== 'normal' && bid.urgency !== 'unknown'
-        ? ` [${bid.urgency.toUpperCase()}]`
-        : '';
+      const urgencyLabel =
+        bid.urgency !== 'normal' && bid.urgency !== 'unknown'
+          ? ` [${bid.urgency.toUpperCase()}]`
+          : '';
       lines.push(`### ${bid.name}${urgencyLabel}`);
       lines.push(`- **Status:** ${bid.status}`);
       lines.push(`- **Deadline:** ${deadline}`);
-      lines.push(`- **Progress:** ${bid.answered_questions}/${bid.total_questions} answered (${progress})`);
+      lines.push(
+        `- **Progress:** ${bid.answered_questions}/${bid.total_questions} answered (${progress})`,
+      );
       if (bid.gap_count > 0) {
-        lines.push(`- **Gaps:** ${bid.gap_count} question${bid.gap_count === 1 ? '' : 's'} need content`);
+        lines.push(
+          `- **Gaps:** ${bid.gap_count} question${bid.gap_count === 1 ? '' : 's'} need content`,
+        );
       }
       lines.push('');
     }
@@ -251,10 +298,22 @@ export function formatReorientation(data: ReorientData): string {
   // Counts summary
   const counts = data.counts;
   const countItems: string[] = [];
-  if (counts.unread_notifications > 0) countItems.push(`${counts.unread_notifications} unread notification${counts.unread_notifications === 1 ? '' : 's'}`);
-  if (counts.pending_reviews > 0) countItems.push(`${counts.pending_reviews} pending review${counts.pending_reviews === 1 ? '' : 's'}`);
-  if (counts.stale_or_expired > 0) countItems.push(`${counts.stale_or_expired} stale/expired item${counts.stale_or_expired === 1 ? '' : 's'}`);
-  if (counts.quality_flags > 0) countItems.push(`${counts.quality_flags} quality flag${counts.quality_flags === 1 ? '' : 's'}`);
+  if (counts.unread_notifications > 0)
+    countItems.push(
+      `${counts.unread_notifications} unread notification${counts.unread_notifications === 1 ? '' : 's'}`,
+    );
+  if (counts.pending_reviews > 0)
+    countItems.push(
+      `${counts.pending_reviews} pending review${counts.pending_reviews === 1 ? '' : 's'}`,
+    );
+  if (counts.stale_or_expired > 0)
+    countItems.push(
+      `${counts.stale_or_expired} stale/expired item${counts.stale_or_expired === 1 ? '' : 's'}`,
+    );
+  if (counts.quality_flags > 0)
+    countItems.push(
+      `${counts.quality_flags} quality flag${counts.quality_flags === 1 ? '' : 's'}`,
+    );
 
   if (countItems.length > 0) {
     lines.push('## At a Glance', '');
@@ -312,10 +371,13 @@ export function formatExpiringContent(data: ExpiringContentData): string {
       const urgency = urgencyIndicator(item.days_remaining);
       const domain = item.domain ?? 'Unclassified';
       const dateStr = formatDateUK(item.expiry_date);
-      const daysStr = item.days_remaining < 0
-        ? `${Math.abs(item.days_remaining)} overdue`
-        : `${item.days_remaining}`;
-      lines.push(`| ${item.title} | ${domain} | ${dateStr} | ${daysStr} | ${urgency} |`);
+      const daysStr =
+        item.days_remaining < 0
+          ? `${Math.abs(item.days_remaining)} overdue`
+          : `${item.days_remaining}`;
+      lines.push(
+        `| ${item.title} | ${domain} | ${dateStr} | ${daysStr} | ${urgency} |`,
+      );
     }
     lines.push('');
   } else {
@@ -325,22 +387,31 @@ export function formatExpiringContent(data: ExpiringContentData): string {
 
   // Section 2: Entity mentions (certifications/registrations)
   if (data.entity_mentions.length > 0) {
-    lines.push(`## Expiring Certifications/Registrations (${data.entity_mentions.length})`, '');
+    lines.push(
+      `## Expiring Certifications/Registrations (${data.entity_mentions.length})`,
+      '',
+    );
     lines.push('| Name | Type | Expiry Date | Days Remaining | Status |');
     lines.push('| ---- | ---- | ----------- | -------------- | ------ |');
 
     for (const entity of data.entity_mentions) {
       const urgency = urgencyIndicator(entity.days_remaining);
       const dateStr = formatDateUK(entity.expiry_date);
-      const daysStr = entity.days_remaining < 0
-        ? `${Math.abs(entity.days_remaining)} overdue`
-        : `${entity.days_remaining}`;
-      lines.push(`| ${formatEntityDisplayName(entity.canonical_name)} | ${entity.entity_type} | ${dateStr} | ${daysStr} | ${urgency} |`);
+      const daysStr =
+        entity.days_remaining < 0
+          ? `${Math.abs(entity.days_remaining)} overdue`
+          : `${entity.days_remaining}`;
+      lines.push(
+        `| ${formatEntityDisplayName(entity.canonical_name)} | ${entity.entity_type} | ${dateStr} | ${daysStr} | ${urgency} |`,
+      );
     }
     lines.push('');
   } else {
     lines.push('## Expiring Certifications/Registrations', '');
-    lines.push('No certifications or registrations expiring within this period.', '');
+    lines.push(
+      'No certifications or registrations expiring within this period.',
+      '',
+    );
   }
 
   return lines.join('\n');

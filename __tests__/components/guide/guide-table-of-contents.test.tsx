@@ -156,9 +156,7 @@ describe('GuideTableOfContents', () => {
     render(<GuideTableOfContents sections={sections} />);
 
     // Section with content should show green indicator
-    expect(
-      screen.getByLabelText('Section has content'),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Section has content')).toBeInTheDocument();
 
     // Required section without content should show red indicator
     expect(

@@ -60,7 +60,11 @@ export interface TaxonomyDialogsProps {
   // Deactivation dialog
   deactivateDialogOpen: boolean;
   setDeactivateDialogOpen: (open: boolean) => void;
-  deactivateTarget: { type: 'domain' | 'subtopic'; id: string; name: string } | null;
+  deactivateTarget: {
+    type: 'domain' | 'subtopic';
+    id: string;
+    name: string;
+  } | null;
   handleDeactivate: () => Promise<void>;
 }
 
@@ -107,7 +111,7 @@ export function TaxonomyDialogs({
             </DialogTitle>
             <DialogDescription>
               {editingDomain
-                ? 'Update this domain\'s configuration.'
+                ? "Update this domain's configuration."
                 : 'Create a new taxonomy domain.'}
             </DialogDescription>
           </DialogHeader>
@@ -134,7 +138,8 @@ export function TaxonomyDialogs({
                 placeholder="e.g. sustainability"
               />
               <p className="text-xs text-muted-foreground">
-                CSS variable key (maps to --domain-&#123;key&#125;-*). Leave empty for default.
+                CSS variable key (maps to --domain-&#123;key&#125;-*). Leave
+                empty for default.
               </p>
             </div>
             <div className="flex flex-col gap-1.5">
@@ -162,8 +167,8 @@ export function TaxonomyDialogs({
                 rows={3}
               />
               <p className="text-xs text-muted-foreground">
-                Describes how to identify content belonging to this domain.
-                Used by the classification prompt generator.
+                Describes how to identify content belonging to this domain. Used
+                by the classification prompt generator.
               </p>
             </div>
             <DialogFooter>
@@ -194,7 +199,7 @@ export function TaxonomyDialogs({
             </DialogTitle>
             <DialogDescription>
               {editingSubtopic
-                ? 'Update this subtopic\'s configuration.'
+                ? "Update this subtopic's configuration."
                 : 'Create a new subtopic for this domain.'}
             </DialogDescription>
           </DialogHeader>
@@ -247,25 +252,35 @@ export function TaxonomyDialogs({
       </Dialog>
 
       {/* Deactivation confirmation dialog */}
-      <AlertDialog open={deactivateDialogOpen} onOpenChange={setDeactivateDialogOpen}>
+      <AlertDialog
+        open={deactivateDialogOpen}
+        onOpenChange={setDeactivateDialogOpen}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Deactivate {deactivateTarget?.type === 'domain' ? 'Domain' : 'Subtopic'}
+              Deactivate{' '}
+              {deactivateTarget?.type === 'domain' ? 'Domain' : 'Subtopic'}
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="flex flex-col gap-3">
                 <p>
                   Are you sure you want to deactivate{' '}
                   <strong>
-                    &quot;{deactivateTarget ? formatDomainName(deactivateTarget.name) : ''}&quot;
+                    &quot;
+                    {deactivateTarget
+                      ? formatDomainName(deactivateTarget.name)
+                      : ''}
+                    &quot;
                   </strong>
                   ?
                 </p>
                 <div>
                   <p className="font-medium text-foreground">This will:</p>
                   <ul className="ml-4 mt-1 list-disc text-sm">
-                    <li>Hide it from browse filters and classification dropdowns</li>
+                    <li>
+                      Hide it from browse filters and classification dropdowns
+                    </li>
                     {deactivateTarget?.type === 'domain' && (
                       <li>Hide all its subtopics</li>
                     )}
@@ -274,7 +289,10 @@ export function TaxonomyDialogs({
                 <div>
                   <p className="font-medium text-foreground">It will NOT:</p>
                   <ul className="ml-4 mt-1 list-disc text-sm">
-                    <li>Delete any content classified under this {deactivateTarget?.type}</li>
+                    <li>
+                      Delete any content classified under this{' '}
+                      {deactivateTarget?.type}
+                    </li>
                     <li>Remove classifications from existing content items</li>
                   </ul>
                 </div>

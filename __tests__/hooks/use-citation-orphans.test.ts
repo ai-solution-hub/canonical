@@ -109,10 +109,9 @@ describe('useCitationOrphans', () => {
   it('passes deduplicated IDs to checkOrphanedSourceIds', async () => {
     mockCheckOrphanedSourceIds.mockResolvedValue(new Set());
 
-    renderHook(
-      () => useCitationOrphans(['source-1', 'source-1', 'source-2']),
-      { wrapper: createWrapper() },
-    );
+    renderHook(() => useCitationOrphans(['source-1', 'source-1', 'source-2']), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(mockCheckOrphanedSourceIds).toHaveBeenCalled();

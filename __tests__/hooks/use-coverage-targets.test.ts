@@ -151,7 +151,13 @@ describe('useCoverageTargets', () => {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        targets: [{ domain_id: DOMAIN_UUID, metric_name: 'item_count', target_value: 10 }],
+        targets: [
+          {
+            domain_id: DOMAIN_UUID,
+            metric_name: 'item_count',
+            target_value: 10,
+          },
+        ],
       }),
     });
 

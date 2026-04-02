@@ -89,7 +89,9 @@ const supabaseKey =
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
-  console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY in environment');
+  console.error(
+    'Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY in environment',
+  );
   process.exit(1);
 }
 
@@ -170,10 +172,13 @@ ${JSON.stringify(temporalRefs, null, 2)}
 
 And the following entities extracted from the same content item:
 ${JSON.stringify(
-    entities.map((e) => ({ canonical_name: e.canonical_name, entity_type: e.entity_type })),
-    null,
-    2,
-  )}
+  entities.map((e) => ({
+    canonical_name: e.canonical_name,
+    entity_type: e.entity_type,
+  })),
+  null,
+  2,
+)}
 
 For each temporal reference, determine which entity (if any) it relates to.
 Return a JSON array of matches. Only include matches where you are confident
@@ -195,7 +200,8 @@ Return ONLY a JSON array, no other text.`;
     messages: [{ role: 'user', content: prompt }],
   });
 
-  const text = response.content[0].type === 'text' ? response.content[0].text : '';
+  const text =
+    response.content[0].type === 'text' ? response.content[0].text : '';
   return parseClaudeResponse(text);
 }
 
@@ -283,7 +289,9 @@ async function main() {
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     const metadata = item.metadata as Record<string, unknown>;
-    const temporalRefs = metadata?.ai_temporal_references as TemporalRef[] | undefined;
+    const temporalRefs = metadata?.ai_temporal_references as
+      | TemporalRef[]
+      | undefined;
 
     if (!temporalRefs?.length) continue;
 
@@ -295,7 +303,9 @@ async function main() {
       .in('entity_type', TEMPORAL_ENTITY_TYPES);
 
     if (mentionError) {
-      console.error(`  ERROR fetching mentions for ${item.id}: ${mentionError.message}`);
+      console.error(
+        `  ERROR fetching mentions for ${item.id}: ${mentionError.message}`,
+      );
       totalErrors++;
       continue;
     }
@@ -336,13 +346,17 @@ async function main() {
 
         const ref = temporalRefs[match.temporal_ref_index];
         if (!ref) {
-          console.log(`    SKIP: invalid temporal_ref_index ${match.temporal_ref_index}`);
+          console.log(
+            `    SKIP: invalid temporal_ref_index ${match.temporal_ref_index}`,
+          );
           continue;
         }
 
         // Find the matching entity mention
         const mention = unbridgedMentions.find(
-          (m) => m.canonical_name.toLowerCase() === match.entity_canonical_name.toLowerCase(),
+          (m) =>
+            m.canonical_name.toLowerCase() ===
+            match.entity_canonical_name.toLowerCase(),
         );
         if (!mention) {
           console.log(
@@ -351,7 +365,8 @@ async function main() {
           continue;
         }
 
-        const existingMetadata = (mention.metadata as Record<string, unknown>) ?? {};
+        const existingMetadata =
+          (mention.metadata as Record<string, unknown>) ?? {};
         const newMetadata = { ...existingMetadata };
 
         const contextType = match.context_type || ref.context_type;
@@ -390,9 +405,12 @@ async function main() {
         );
 
         if (DRY_RUN) {
-          const dateField = contextType === 'expiry' ? 'expiry_date' : 'date_obtained';
+          const dateField =
+            contextType === 'expiry' ? 'expiry_date' : 'date_obtained';
           const dateValue =
-            contextType === 'expiry' ? newMetadata.expiry_date : newMetadata.date_obtained;
+            contextType === 'expiry'
+              ? newMetadata.expiry_date
+              : newMetadata.date_obtained;
           console.log(
             `    [DRY RUN] Would write ${dateField}=${dateValue} for ${mention.canonical_name}`,
           );
@@ -403,7 +421,9 @@ async function main() {
             .eq('id', mention.id);
 
           if (updateError) {
-            console.log(`    ERROR updating ${mention.id}: ${updateError.message}`);
+            console.log(
+              `    ERROR updating ${mention.id}: ${updateError.message}`,
+            );
             totalErrors++;
             continue;
           }
@@ -432,7 +452,9 @@ async function main() {
   console.log('='.repeat(60));
   console.log(`  Items processed:    ${totalProcessed}`);
   console.log(`  Matches found:      ${totalMatches}`);
-  console.log(`  Entities updated:   ${totalUpdated}${DRY_RUN ? ' (dry run)' : ''}`);
+  console.log(
+    `  Entities updated:   ${totalUpdated}${DRY_RUN ? ' (dry run)' : ''}`,
+  );
   console.log(`  Errors:             ${totalErrors}`);
   console.log(`  Time:               ${elapsed}s`);
 }

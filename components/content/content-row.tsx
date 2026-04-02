@@ -8,7 +8,12 @@ import { SimilarityBadge } from '@/components/shared/similarity-badge';
 import { StarButton } from '@/components/shared/star-button';
 import { PriorityBadge } from '@/components/shared/priority-selector';
 import { VerificationBadge } from '@/components/shared/verification-badge';
-import { getDisplayTitle, formatDate, formatSmartDate, formatContentType } from '@/lib/format';
+import {
+  getDisplayTitle,
+  formatDate,
+  formatSmartDate,
+  formatContentType,
+} from '@/lib/format';
 import { ContentTypeIcon } from '@/components/shared/content-type-icon';
 import { AlertTriangle, Copy } from 'lucide-react';
 import { FreshnessBadge } from '@/components/shared/freshness-badge';
@@ -40,7 +45,11 @@ interface ContentRowProps {
   /** Set of workspace IDs this item is assigned to */
   assignedWorkspaceIds?: Set<string>;
   /** Callback when workspace assignment changes */
-  onAssignmentChange?: (itemId: string, workspaceId: string, workspaceName: string) => void;
+  onAssignmentChange?: (
+    itemId: string,
+    workspaceId: string,
+    workspaceName: string,
+  ) => void;
   /** Workspace ID from ?from_bid= URL param for contextual quick-assign shortcut */
   fromBidId?: string;
   /** Map of user UUID to display name for verification badge attribution */
@@ -80,12 +89,12 @@ export const ContentRow = memo(function ContentRow({
     highlightQuery ? highlightTerms(text, highlightQuery) : text;
 
   const verifiedByName = item.verified_by
-    ? verifierNames?.get(item.verified_by) ?? null
+    ? (verifierNames?.get(item.verified_by) ?? null)
     : null;
 
   // Answer snippet for Q&A rows
   const answerSnippet = isQAPair
-    ? (item.content || item.brief || item.ai_summary || null)
+    ? item.content || item.brief || item.ai_summary || null
     : null;
 
   // --- Q&A PAIR ROW ---
@@ -127,10 +136,18 @@ export const ContentRow = memo(function ContentRow({
               className="shrink-0"
             />
             {isSearchResult(item) && (
-              <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0">Q&amp;A</Badge>
+              <Badge
+                variant="outline"
+                className="shrink-0 text-[10px] px-1.5 py-0"
+              >
+                Q&amp;A
+              </Badge>
             )}
             {isFeatureEnabled('content_layers') && !!item.layer && (
-              <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0 border-confidence-needs-sme-border text-confidence-needs-sme">
+              <Badge
+                variant="outline"
+                className="shrink-0 text-[10px] px-1.5 py-0 border-confidence-needs-sme-border text-confidence-needs-sme"
+              >
                 {getLayerLabel(item.layer)}
               </Badge>
             )}
@@ -138,7 +155,11 @@ export const ContentRow = memo(function ContentRow({
               <SimilarityBadge score={item.similarity} className="shrink-0" />
             )}
             {item.freshness && item.freshness !== 'fresh' && (
-              <FreshnessBadge freshness={item.freshness} compact className="shrink-0" />
+              <FreshnessBadge
+                freshness={item.freshness}
+                compact
+                className="shrink-0"
+              />
             )}
             {hasQualityFlag && (
               <AlertTriangle
@@ -173,12 +194,18 @@ export const ContentRow = memo(function ContentRow({
               </span>
             ) : item.source_document ? (
               <span className="flex items-center gap-1">
-                <ContentTypeIcon contentType={item.content_type} size="size-3" />
+                <ContentTypeIcon
+                  contentType={item.content_type}
+                  size="size-3"
+                />
                 {item.source_document}
               </span>
             ) : (
               <span className="flex items-center gap-1">
-                <ContentTypeIcon contentType={item.content_type} size="size-3" />
+                <ContentTypeIcon
+                  contentType={item.content_type}
+                  size="size-3"
+                />
                 {formatContentType(item.content_type)}
               </span>
             )}
@@ -217,7 +244,10 @@ export const ContentRow = memo(function ContentRow({
               );
             }}
           >
-            <Copy className="size-3.5 text-muted-foreground hover:text-foreground" aria-hidden="true" />
+            <Copy
+              className="size-3.5 text-muted-foreground hover:text-foreground"
+              aria-hidden="true"
+            />
           </button>
         )}
         {canEdit && (
@@ -279,7 +309,10 @@ export const ContentRow = memo(function ContentRow({
             className="shrink-0"
           />
           {isFeatureEnabled('content_layers') && !!item.layer && (
-            <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0 border-confidence-needs-sme-border text-confidence-needs-sme">
+            <Badge
+              variant="outline"
+              className="shrink-0 text-[10px] px-1.5 py-0 border-confidence-needs-sme-border text-confidence-needs-sme"
+            >
               {getLayerLabel(item.layer)}
             </Badge>
           )}
@@ -287,7 +320,11 @@ export const ContentRow = memo(function ContentRow({
             <SimilarityBadge score={item.similarity} className="shrink-0" />
           )}
           {item.freshness && item.freshness !== 'fresh' && (
-            <FreshnessBadge freshness={item.freshness} compact className="shrink-0" />
+            <FreshnessBadge
+              freshness={item.freshness}
+              compact
+              className="shrink-0"
+            />
           )}
           {hasQualityFlag && (
             <AlertTriangle
@@ -318,7 +355,9 @@ export const ContentRow = memo(function ContentRow({
           ) : item.brief || item.ai_summary ? (
             renderText(item.brief || item.ai_summary || '')
           ) : item.content ? (
-            <span className="truncate">{renderText(item.content.slice(0, 200))}</span>
+            <span className="truncate">
+              {renderText(item.content.slice(0, 200))}
+            </span>
           ) : (
             <span className="flex items-center gap-1">
               <ContentTypeIcon contentType={item.content_type} size="size-3" />
@@ -329,7 +368,13 @@ export const ContentRow = memo(function ContentRow({
               ]
                 .filter(Boolean)
                 .reduce<React.ReactNode[]>((acc, part, i) => {
-                  if (i > 0) acc.push(<span key={`sep-${i}`} aria-hidden="true"> &middot; </span>);
+                  if (i > 0)
+                    acc.push(
+                      <span key={`sep-${i}`} aria-hidden="true">
+                        {' '}
+                        &middot;{' '}
+                      </span>,
+                    );
                   acc.push(<span key={i}>{part}</span>);
                   return acc;
                 }, [])}

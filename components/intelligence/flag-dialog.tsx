@@ -75,17 +75,10 @@ export function FlagDialog({
         </div>
 
         <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={onClose}
-            disabled={isPending}
-          >
+          <Button variant="outline" onClick={onClose} disabled={isPending}>
             Cancel
           </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={isPending}
-          >
+          <Button onClick={handleSubmit} disabled={isPending}>
             {isPending ? 'Submitting...' : 'Submit flag'}
           </Button>
         </DialogFooter>

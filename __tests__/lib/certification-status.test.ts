@@ -80,10 +80,10 @@ describe('deriveExpiryStatus', () => {
     vi.setSystemTime(new Date('2026-06-15T00:00:00Z'));
 
     const statuses: ExpiryStatus[] = [
-      deriveExpiryStatus(undefined),     // unknown
-      deriveExpiryStatus('2027-01-01'),   // valid
-      deriveExpiryStatus('2026-07-01'),   // expiring_soon
-      deriveExpiryStatus('2026-01-01'),   // expired
+      deriveExpiryStatus(undefined), // unknown
+      deriveExpiryStatus('2027-01-01'), // valid
+      deriveExpiryStatus('2026-07-01'), // expiring_soon
+      deriveExpiryStatus('2026-01-01'), // expired
     ];
 
     expect(statuses).toEqual(['unknown', 'valid', 'expiring_soon', 'expired']);

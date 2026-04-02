@@ -3,7 +3,8 @@ import Parser from 'rss-parser';
 import type { ParsedFeedItem, PollResult } from './types';
 import { FEED_FETCH_TIMEOUT_MS } from './types';
 
-const USER_AGENT = 'KnowledgeHub/1.0 (+https://knowledge-hub-seven-kappa.vercel.app)';
+const USER_AGENT =
+  'KnowledgeHub/1.0 (+https://knowledge-hub-seven-kappa.vercel.app)';
 
 const parser = new Parser({
   customFields: {
@@ -62,7 +63,7 @@ export async function parseFeedItems(xml: string): Promise<ParsedFeedItem[]> {
       guid: item.guid ?? (rawItem.id as string) ?? null,
       publishedAt: item.isoDate ?? null,
       summary: item.contentSnippet ?? item.summary ?? null,
-      contentEncoded: rawItem.contentEncoded as string | null ?? null,
+      contentEncoded: (rawItem.contentEncoded as string | null) ?? null,
       categories: allCategories,
     };
   });
@@ -72,7 +73,8 @@ export async function parseFeedItems(xml: string): Promise<ParsedFeedItem[]> {
 export async function pollFeed(source: FeedSourceRef): Promise<PollResult> {
   const headers: Record<string, string> = {
     'User-Agent': USER_AGENT,
-    'Accept': 'application/atom+xml, application/rss+xml, application/xml, text/xml',
+    Accept:
+      'application/atom+xml, application/rss+xml, application/xml, text/xml',
   };
 
   if (source.etag) {
@@ -89,7 +91,13 @@ export async function pollFeed(source: FeedSourceRef): Promise<PollResult> {
     });
 
     if (response.status === 304) {
-      return { feedSourceId: source.id, status: 'not_modified', items: [], etag: source.etag, lastModified: source.last_modified };
+      return {
+        feedSourceId: source.id,
+        status: 'not_modified',
+        items: [],
+        etag: source.etag,
+        lastModified: source.last_modified,
+      };
     }
 
     if (!response.ok) {
@@ -115,7 +123,14 @@ export async function pollFeed(source: FeedSourceRef): Promise<PollResult> {
     };
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
-      return { feedSourceId: source.id, status: 'timeout', error: 'Feed fetch timed out', items: [], etag: null, lastModified: null };
+      return {
+        feedSourceId: source.id,
+        status: 'timeout',
+        error: 'Feed fetch timed out',
+        items: [],
+        etag: null,
+        lastModified: null,
+      };
     }
     return {
       feedSourceId: source.id,

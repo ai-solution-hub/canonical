@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import {
-  getAuthenticatedClient,
-  unauthorisedResponse,
-} from '@/lib/auth';
+import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
-import { fetchUnifiedDashboardData, unifiedToDashboardData } from '@/lib/dashboard';
+import {
+  fetchUnifiedDashboardData,
+  unifiedToDashboardData,
+} from '@/lib/dashboard';
 
 export const maxDuration = 30;
 
@@ -30,7 +30,12 @@ export async function GET() {
     const isAdmin = roleData?.role === 'admin';
 
     const role = roleData?.role ?? 'viewer';
-    const unified = await fetchUnifiedDashboardData(supabase, user.id, isAdmin, role);
+    const unified = await fetchUnifiedDashboardData(
+      supabase,
+      user.id,
+      isAdmin,
+      role,
+    );
     const dashboard = unifiedToDashboardData(unified);
 
     // If ALL queries failed, return 500

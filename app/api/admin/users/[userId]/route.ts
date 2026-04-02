@@ -31,10 +31,7 @@ export async function PATCH(
     try {
       raw = await request.json();
     } catch {
-      return NextResponse.json(
-        { error: 'Invalid JSON body' },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
     const parsed = parseBody(UserRoleUpdateBodySchema, raw);
@@ -46,10 +43,7 @@ export async function PATCH(
     // Upsert the role (handles both existing and missing user_roles entries)
     const { error } = await serviceClient
       .from('user_roles')
-      .upsert(
-        { user_id: userId, role },
-        { onConflict: 'user_id' },
-      );
+      .upsert({ user_id: userId, role }, { onConflict: 'user_id' });
 
     if (error) {
       console.error('Failed to update user role:', error);

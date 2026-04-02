@@ -86,7 +86,10 @@ export function EntityBadges({ contentItemId, className }: EntityBadgesProps) {
   // Empty state
   if (entities.length === 0) {
     return (
-      <section className={className} aria-label="Entities mentioned in this content">
+      <section
+        className={className}
+        aria-label="Entities mentioned in this content"
+      >
         <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
           Entities
         </h3>

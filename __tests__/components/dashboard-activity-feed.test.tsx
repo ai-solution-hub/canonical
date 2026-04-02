@@ -135,7 +135,10 @@ describe('DashboardActivityFeed', () => {
   describe('isPreGrouped detection', () => {
     it('detects pre-grouped data via event_count field', () => {
       const preGrouped: GroupedActivityItem[] = [
-        makeGroupedActivityItem({ event_count: 5, summary: 'Pre-grouped edit' }),
+        makeGroupedActivityItem({
+          event_count: 5,
+          summary: 'Pre-grouped edit',
+        }),
       ];
 
       render(<DashboardActivityFeed activities={preGrouped} />);
@@ -159,7 +162,11 @@ describe('DashboardActivityFeed', () => {
 
     it('does not merge different types when client-side grouping', () => {
       const rawItems: ActivityItem[] = [
-        makeActivityItem({ id: 'a1', type: 'edit', summary: 'Updated content' }),
+        makeActivityItem({
+          id: 'a1',
+          type: 'edit',
+          summary: 'Updated content',
+        }),
         makeActivityItem({
           id: 'a2',
           type: 'quality_flag',
@@ -238,8 +245,16 @@ describe('DashboardActivityFeed', () => {
   describe('client-side grouping fallback', () => {
     it('groups identical type+summary pairs', () => {
       const rawItems: ActivityItem[] = [
-        makeActivityItem({ id: 'a1', summary: 'Classification updated', type: 'edit' }),
-        makeActivityItem({ id: 'a2', summary: 'Classification updated', type: 'edit' }),
+        makeActivityItem({
+          id: 'a1',
+          summary: 'Classification updated',
+          type: 'edit',
+        }),
+        makeActivityItem({
+          id: 'a2',
+          summary: 'Classification updated',
+          type: 'edit',
+        }),
       ];
 
       render(<DashboardActivityFeed activities={rawItems} />);
@@ -253,7 +268,11 @@ describe('DashboardActivityFeed', () => {
     it('keeps different summaries separate', () => {
       const rawItems: ActivityItem[] = [
         makeActivityItem({ id: 'a1', summary: 'Updated title' }),
-        makeActivityItem({ id: 'a2', summary: 'Updated content', entity_id: 'item-2' }),
+        makeActivityItem({
+          id: 'a2',
+          summary: 'Updated content',
+          entity_id: 'item-2',
+        }),
       ];
 
       render(<DashboardActivityFeed activities={rawItems} />);
@@ -414,7 +433,13 @@ describe('DashboardActivityFeed', () => {
       for (const type of types) {
         const { unmount } = render(
           <DashboardActivityFeed
-            activities={[makeActivityItem({ id: `icon-${type}`, type, summary: `${type} action` })]}
+            activities={[
+              makeActivityItem({
+                id: `icon-${type}`,
+                type,
+                summary: `${type} action`,
+              }),
+            ]}
           />,
         );
         expect(screen.getByRole('feed')).toBeInTheDocument();
@@ -451,7 +476,10 @@ describe('DashboardActivityFeed', () => {
 
     it('shows "Unknown user" when user_id is not in displayNames map', () => {
       const items: ActivityItem[] = [
-        makeActivityItem({ user_id: 'user-unknown', summary: 'Unknown person edit' }),
+        makeActivityItem({
+          user_id: 'user-unknown',
+          summary: 'Unknown person edit',
+        }),
       ];
 
       render(<DashboardActivityFeed activities={items} />);

@@ -71,7 +71,9 @@ export function GovernanceSection() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editDomain, setEditDomain] = useState('');
-  const [editPosture, setEditPosture] = useState<'open' | 'review_on_change'>('open');
+  const [editPosture, setEditPosture] = useState<'open' | 'review_on_change'>(
+    'open',
+  );
   const [editTimeoutDays, setEditTimeoutDays] = useState('7');
   const [editAutoFlagQuality, setEditAutoFlagQuality] = useState(false);
   const [editAutoFlagFreshness, setEditAutoFlagFreshness] = useState(false);
@@ -91,15 +93,15 @@ export function GovernanceSection() {
     cooldownDays: '7',
     qualityThreshold: '40',
   });
-  const isDialogDirty = dialogOpen && (
-    editDomain !== initialDialogRef.current.domain ||
-    editPosture !== initialDialogRef.current.posture ||
-    editTimeoutDays !== initialDialogRef.current.timeout ||
-    editAutoFlagQuality !== initialDialogRef.current.autoFlagQuality ||
-    editAutoFlagFreshness !== initialDialogRef.current.autoFlagFreshness ||
-    editCooldownDays !== initialDialogRef.current.cooldownDays ||
-    editQualityThreshold !== initialDialogRef.current.qualityThreshold
-  );
+  const isDialogDirty =
+    dialogOpen &&
+    (editDomain !== initialDialogRef.current.domain ||
+      editPosture !== initialDialogRef.current.posture ||
+      editTimeoutDays !== initialDialogRef.current.timeout ||
+      editAutoFlagQuality !== initialDialogRef.current.autoFlagQuality ||
+      editAutoFlagFreshness !== initialDialogRef.current.autoFlagFreshness ||
+      editCooldownDays !== initialDialogRef.current.cooldownDays ||
+      editQualityThreshold !== initialDialogRef.current.qualityThreshold);
 
   const fetchConfigs = useCallback(async () => {
     setLoading(true);
@@ -215,7 +217,15 @@ export function GovernanceSection() {
     setEditAutoFlagFreshness(autoFlagFreshness);
     setEditCooldownDays(cooldownDays);
     setEditQualityThreshold(qualityThreshold);
-    initialDialogRef.current = { domain, posture, timeout, autoFlagQuality, autoFlagFreshness, cooldownDays, qualityThreshold };
+    initialDialogRef.current = {
+      domain,
+      posture,
+      timeout,
+      autoFlagQuality,
+      autoFlagFreshness,
+      cooldownDays,
+      qualityThreshold,
+    };
     setDialogOpen(true);
   }
 
@@ -230,9 +240,7 @@ export function GovernanceSection() {
         throw new Error(data.error || 'Failed to recalculate');
       }
       const result = await res.json();
-      toast.success(
-        `Freshness recalculated: ${result.updated} items updated`,
-      );
+      toast.success(`Freshness recalculated: ${result.updated} items updated`);
       setLastRecalcAt(result.recalculated_at);
     } catch (err) {
       toast.error(
@@ -255,7 +263,10 @@ export function GovernanceSection() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 id="governance-config-heading" className="flex items-center gap-1.5 text-base font-semibold">
+          <h3
+            id="governance-config-heading"
+            className="flex items-center gap-1.5 text-base font-semibold"
+          >
             Quality Review Rules
             <TooltipProvider>
               <Tooltip>
@@ -271,8 +282,8 @@ export function GovernanceSection() {
                 <TooltipContent side="right" className="max-w-xs">
                   &ldquo;Open&rdquo; posture means anyone can edit without
                   review. &ldquo;Review on Change&rdquo; means edits are flagged
-                  for a reviewer before being accepted. The timeout sets how many
-                  days a review can sit before it auto-approves. Freshness
+                  for a reviewer before being accepted. The timeout sets how
+                  many days a review can sit before it auto-approves. Freshness
                   recalculation checks whether content has gone stale based on
                   its type (e.g. policies expire faster than case studies).
                 </TooltipContent>
@@ -286,8 +297,8 @@ export function GovernanceSection() {
             )}
           </h3>
           <p className="text-sm text-muted-foreground">
-            Rules that determine when content changes need a second pair of eyes,
-            plus freshness monitoring.
+            Rules that determine when content changes need a second pair of
+            eyes, plus freshness monitoring.
           </p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -368,12 +379,14 @@ export function GovernanceSection() {
               <div className="flex flex-col gap-3">
                 <p className="text-sm font-medium">Automated Governance</p>
                 <p className="text-xs text-muted-foreground">
-                  Automatically flag items for governance review when quality or freshness
-                  thresholds are breached.
+                  Automatically flag items for governance review when quality or
+                  freshness thresholds are breached.
                 </p>
 
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="gov-quality-threshold">Quality Score Threshold</Label>
+                  <Label htmlFor="gov-quality-threshold">
+                    Quality Score Threshold
+                  </Label>
                   <Input
                     id="gov-quality-threshold"
                     type="number"
@@ -383,7 +396,8 @@ export function GovernanceSection() {
                     onChange={(e) => setEditQualityThreshold(e.target.value)}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Items scoring below this value are flagged for attention (0-100).
+                    Items scoring below this value are flagged for attention
+                    (0-100).
                   </p>
                 </div>
 
@@ -393,7 +407,8 @@ export function GovernanceSection() {
                       Auto-flag on quality drop
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Send items to governance review when their quality score drops below threshold.
+                      Send items to governance review when their quality score
+                      drops below threshold.
                     </p>
                   </div>
                   <Switch
@@ -405,11 +420,15 @@ export function GovernanceSection() {
 
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex-1">
-                    <Label htmlFor="gov-auto-flag-freshness" className="text-sm">
+                    <Label
+                      htmlFor="gov-auto-flag-freshness"
+                      className="text-sm"
+                    >
                       Auto-flag on freshness transition
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Send items to governance review when they transition to stale or expired.
+                      Send items to governance review when they transition to
+                      stale or expired.
                     </p>
                   </div>
                   <Switch
@@ -431,7 +450,8 @@ export function GovernanceSection() {
                       onChange={(e) => setEditCooldownDays(e.target.value)}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Don&apos;t re-flag items that were auto-flagged within this many days (1-90).
+                      Don&apos;t re-flag items that were auto-flagged within
+                      this many days (1-90).
                     </p>
                   </div>
                 )}
@@ -458,14 +478,24 @@ export function GovernanceSection() {
       <Card>
         {configs.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
-            <ShieldCheck className="size-8 text-muted-foreground/50" aria-hidden="true" />
-            <p className="text-sm font-medium text-foreground">No governance rules configured</p>
+            <ShieldCheck
+              className="size-8 text-muted-foreground/50"
+              aria-hidden="true"
+            />
+            <p className="text-sm font-medium text-foreground">
+              No governance rules configured
+            </p>
             <p className="text-xs text-muted-foreground">
-              All domains use the &quot;Open&quot; posture by default. Add rules to enforce freshness and ownership.
+              All domains use the &quot;Open&quot; posture by default. Add rules
+              to enforce freshness and ownership.
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-border" role="list" aria-labelledby="governance-config-heading">
+          <div
+            className="divide-y divide-border"
+            role="list"
+            aria-labelledby="governance-config-heading"
+          >
             {configs.map((config) => (
               <div
                 key={config.id}
@@ -479,7 +509,8 @@ export function GovernanceSection() {
                     {config.posture === 'review_on_change' &&
                       ` (${config.timeout_days ?? 7} day timeout)`}
                   </p>
-                  {(config.auto_flag_on_quality_drop || config.auto_flag_on_freshness_transition) && (
+                  {(config.auto_flag_on_quality_drop ||
+                    config.auto_flag_on_freshness_transition) && (
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       Auto-flag:{' '}
                       {[
@@ -487,8 +518,8 @@ export function GovernanceSection() {
                         config.auto_flag_on_freshness_transition && 'freshness',
                       ]
                         .filter(Boolean)
-                        .join(', ')}
-                      {' '}({config.auto_flag_cooldown_days ?? 7}d cooldown)
+                        .join(', ')}{' '}
+                      ({config.auto_flag_cooldown_days ?? 7}d cooldown)
                     </p>
                   )}
                 </div>

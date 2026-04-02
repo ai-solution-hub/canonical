@@ -10,8 +10,16 @@
 import ExcelJS from 'exceljs';
 import { format } from 'date-fns';
 import { enGB } from 'date-fns/locale';
-import { htmlToPlainText, countWords, wordCountPercentage } from '@/lib/editor-utils';
-import type { ExportQuestion, ExportBidMetadata, XlsxExportOptions } from '@/lib/bid/bid-export-types';
+import {
+  htmlToPlainText,
+  countWords,
+  wordCountPercentage,
+} from '@/lib/editor-utils';
+import type {
+  ExportQuestion,
+  ExportBidMetadata,
+  XlsxExportOptions,
+} from '@/lib/bid/bid-export-types';
 
 // ---------------------------------------------------------------------------
 // Constants — styling
@@ -80,43 +88,91 @@ function formatConfidence(posture: string | null): string {
 function getComplianceFill(percentage: number): ExcelJS.Fill {
   if (percentage > 100) {
     // Light red — over word limit
-    return { type: 'pattern' as const, pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } };
+    return {
+      type: 'pattern' as const,
+      pattern: 'solid',
+      fgColor: { argb: 'FFFEE2E2' },
+    };
   }
   if (percentage >= 80) {
     // Light green — within acceptable range
-    return { type: 'pattern' as const, pattern: 'solid', fgColor: { argb: 'FFDCFCE7' } };
+    return {
+      type: 'pattern' as const,
+      pattern: 'solid',
+      fgColor: { argb: 'FFDCFCE7' },
+    };
   }
   // Light amber — below 80% of word limit
-  return { type: 'pattern' as const, pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
+  return {
+    type: 'pattern' as const,
+    pattern: 'solid',
+    fgColor: { argb: 'FFFEF3C7' },
+  };
 }
 
 function getStatusFill(status: string | null): ExcelJS.Fill {
   switch (status) {
     case 'approved':
     case 'complete':
-      return { type: 'pattern' as const, pattern: 'solid', fgColor: { argb: 'FFDCFCE7' } };
+      return {
+        type: 'pattern' as const,
+        pattern: 'solid',
+        fgColor: { argb: 'FFDCFCE7' },
+      };
     case 'needs_review':
-      return { type: 'pattern' as const, pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
+      return {
+        type: 'pattern' as const,
+        pattern: 'solid',
+        fgColor: { argb: 'FFFEF3C7' },
+      };
     case 'not_started':
     case null:
-      return { type: 'pattern' as const, pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } };
+      return {
+        type: 'pattern' as const,
+        pattern: 'solid',
+        fgColor: { argb: 'FFFEE2E2' },
+      };
     default:
-      return { type: 'pattern' as const, pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
+      return {
+        type: 'pattern' as const,
+        pattern: 'solid',
+        fgColor: { argb: 'FFFFFFFF' },
+      };
   }
 }
 
 function getConfidenceFill(posture: string | null): ExcelJS.Fill {
   switch (posture) {
     case 'strong_match':
-      return { type: 'pattern' as const, pattern: 'solid', fgColor: { argb: 'FFDCFCE7' } };
+      return {
+        type: 'pattern' as const,
+        pattern: 'solid',
+        fgColor: { argb: 'FFDCFCE7' },
+      };
     case 'partial_match':
-      return { type: 'pattern' as const, pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
+      return {
+        type: 'pattern' as const,
+        pattern: 'solid',
+        fgColor: { argb: 'FFFEF3C7' },
+      };
     case 'needs_sme':
-      return { type: 'pattern' as const, pattern: 'solid', fgColor: { argb: 'FFDBEAFE' } };
+      return {
+        type: 'pattern' as const,
+        pattern: 'solid',
+        fgColor: { argb: 'FFDBEAFE' },
+      };
     case 'no_content':
-      return { type: 'pattern' as const, pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
+      return {
+        type: 'pattern' as const,
+        pattern: 'solid',
+        fgColor: { argb: 'FFF3F4F6' },
+      };
     default:
-      return { type: 'pattern' as const, pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
+      return {
+        type: 'pattern' as const,
+        pattern: 'solid',
+        fgColor: { argb: 'FFFFFFFF' },
+      };
   }
 }
 
@@ -133,7 +189,7 @@ function getConfidenceFill(posture: string | null): ExcelJS.Fill {
 function buildResponsesSheet(
   workbook: ExcelJS.Workbook,
   questions: ExportQuestion[],
-  useAdvancedVariant: boolean
+  useAdvancedVariant: boolean,
 ): void {
   const sheet = workbook.addWorksheet('Bid Responses');
 
@@ -164,7 +220,7 @@ function buildResponsesSheet(
   for (let i = 0; i < questions.length; i++) {
     const q = questions[i];
     const responseHtml = useAdvancedVariant
-      ? (q.response_text_advanced || q.response_text)
+      ? q.response_text_advanced || q.response_text
       : q.response_text;
     const plainText = responseHtml ? htmlToPlainText(responseHtml) : '';
     const wordCount = countWords(plainText);
@@ -231,7 +287,13 @@ function buildResponsesSheet(
 
   // Freeze header row and section column
   sheet.views = [
-    { state: 'frozen', xSplit: 1, ySplit: 1, topLeftCell: 'B2', activeCell: 'B2' },
+    {
+      state: 'frozen',
+      xSplit: 1,
+      ySplit: 1,
+      topLeftCell: 'B2',
+      activeCell: 'B2',
+    },
   ];
 }
 
@@ -241,7 +303,7 @@ function buildResponsesSheet(
 function buildSummarySheet(
   workbook: ExcelJS.Workbook,
   metadata: ExportBidMetadata,
-  questions: ExportQuestion[]
+  questions: ExportQuestion[],
 ): void {
   const sheet = workbook.addWorksheet('Summary');
   sheet.getColumn(1).width = 25;
@@ -292,16 +354,14 @@ function buildSummarySheet(
   // Calculate statistics
   const totalQuestions = questions.length;
   const responsesCompleted = questions.filter(
-    (q) => q.review_status === 'approved' || q.review_status === 'edited'
+    (q) => q.review_status === 'approved' || q.review_status === 'edited',
   ).length;
   const aiDrafted = questions.filter(
-    (q) => q.review_status === 'ai_drafted'
+    (q) => q.review_status === 'ai_drafted',
   ).length;
-  const notStarted = questions.filter(
-    (q) => q.response_text === null
-  ).length;
+  const notStarted = questions.filter((q) => q.response_text === null).length;
   const needsReview = questions.filter(
-    (q) => q.review_status === 'needs_review'
+    (q) => q.review_status === 'needs_review',
   ).length;
 
   // Statistics rows (rows 11–15)
@@ -367,7 +427,7 @@ function buildSummarySheet(
 export async function generateBidXlsx(
   metadata: ExportBidMetadata,
   questions: ExportQuestion[],
-  options: XlsxExportOptions = {}
+  options: XlsxExportOptions = {},
 ): Promise<Buffer> {
   const {
     includeSummary = true,

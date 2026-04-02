@@ -44,7 +44,10 @@ export function LoadingSkeleton({ viewMode }: { viewMode: ViewMode }) {
             <div
               key={i}
               className="flex flex-col gap-2.5 rounded-lg border border-border bg-card p-3"
-              style={{ borderLeftWidth: '4px', borderLeftColor: 'var(--border)' }}
+              style={{
+                borderLeftWidth: '4px',
+                borderLeftColor: 'var(--border)',
+              }}
             >
               <div className="flex items-center gap-1.5">
                 <Skeleton className="size-5 rounded" />
@@ -84,9 +87,15 @@ export function EmptyState({ hasFilters }: { hasFilters: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center">
       {hasFilters ? (
-        <SearchX className="size-10 text-muted-foreground/50" aria-hidden="true" />
+        <SearchX
+          className="size-10 text-muted-foreground/50"
+          aria-hidden="true"
+        />
       ) : (
-        <Archive className="size-10 text-muted-foreground/50" aria-hidden="true" />
+        <Archive
+          className="size-10 text-muted-foreground/50"
+          aria-hidden="true"
+        />
       )}
       <h3 className="mt-4 text-base font-medium text-foreground">
         {hasFilters ? 'No items match your filters' : 'No content yet'}

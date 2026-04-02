@@ -1,7 +1,13 @@
 'use client';
 
 import { forwardRef, useState, useRef, useEffect, type ReactNode } from 'react';
-import { AlertTriangle, ChevronDown, ChevronUp, Clock, FileText } from 'lucide-react';
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  FileText,
+} from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,7 +15,11 @@ import { DomainBadge } from '@/components/shared/domain-badge';
 import { VerificationBadge } from '@/components/shared/verification-badge';
 import { ContentRenderer } from '@/components/item-detail/content-renderer';
 import { cn } from '@/lib/utils';
-import { getDisplayTitle, formatDateUK, getConfidenceDisplay } from '@/lib/format';
+import {
+  getDisplayTitle,
+  formatDateUK,
+  getConfidenceDisplay,
+} from '@/lib/format';
 import { useDisplayNames } from '@/hooks/use-display-names';
 import { ReviewHistorySection } from '@/components/review/review-history-section';
 import type { ReviewQueueItem } from '@/types/review';
@@ -28,16 +38,15 @@ interface ReviewCardProps {
 
 /** Pre-process Q&A prefixes to markdown bold before rendering */
 function formatQaPrefixes(content: string): string {
-  return content.replace(
-    /^(Q:|Standard:|Advanced:|A:)\s*/gm,
-    '**$1** ',
-  );
+  return content.replace(/^(Q:|Standard:|Advanced:|A:)\s*/gm, '**$1** ');
 }
 
 function ContentBody({ content }: { content: string | null }) {
   if (!content) {
     return (
-      <p className="text-sm italic text-muted-foreground">No content available</p>
+      <p className="text-sm italic text-muted-foreground">
+        No content available
+      </p>
     );
   }
 
@@ -62,7 +71,8 @@ function CollapsibleContent({ children }: { children: ReactNode }) {
   useEffect(() => {
     const el = contentRef.current;
     if (!el) return;
-    const check = () => setNeedsCollapse(el.scrollHeight > COLLAPSE_HEIGHT + 40);
+    const check = () =>
+      setNeedsCollapse(el.scrollHeight > COLLAPSE_HEIGHT + 40);
     check();
     const observer = new ResizeObserver(check);
     observer.observe(el);
@@ -76,7 +86,11 @@ function CollapsibleContent({ children }: { children: ReactNode }) {
         className={cn(
           'overflow-hidden motion-safe:transition-[max-height] motion-safe:duration-300',
         )}
-        style={!expanded && needsCollapse ? { maxHeight: `${COLLAPSE_HEIGHT}px` } : undefined}
+        style={
+          !expanded && needsCollapse
+            ? { maxHeight: `${COLLAPSE_HEIGHT}px` }
+            : undefined
+        }
       >
         {children}
       </div>
@@ -100,7 +114,10 @@ function CollapsibleContent({ children }: { children: ReactNode }) {
             size="sm"
             onClick={() => {
               setExpanded(false);
-              contentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              contentRef.current?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'nearest',
+              });
             }}
             className="gap-1"
           >
@@ -118,7 +135,17 @@ function CollapsibleContent({ children }: { children: ReactNode }) {
  * Shows domain, content type, classification, provenance, and verification status.
  */
 export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
-  function ReviewCard({ item, position, total, reviewHistory, reviewHistoryLoading, className = '' }, ref) {
+  function ReviewCard(
+    {
+      item,
+      position,
+      total,
+      reviewHistory,
+      reviewHistoryLoading,
+      className = '',
+    },
+    ref,
+  ) {
     const title = getDisplayTitle({
       suggested_title: item.suggested_title,
       title: item.title,
@@ -128,13 +155,14 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
     // Resolve verified_by UUID to display name
     const displayNames = useDisplayNames([item.verified_by]);
     const verifiedByName = item.verified_by
-      ? displayNames.get(item.verified_by) ?? null
+      ? (displayNames.get(item.verified_by) ?? null)
       : null;
 
     const confidence = getConfidenceDisplay(item.classification_confidence);
     const metadata = (item.metadata ?? {}) as Record<string, unknown>;
 
-    const sourceFile = item.source_file ?? (metadata.source_file as string | undefined);
+    const sourceFile =
+      item.source_file ?? (metadata.source_file as string | undefined);
     const sectionName = metadata.section_name as string | undefined;
     const importBatch = metadata.import_batch as string | undefined;
 
@@ -142,7 +170,10 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
       <Card
         ref={ref}
         tabIndex={-1}
-        className={cn('mx-auto max-w-[800px] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 outline-none', className)}
+        className={cn(
+          'mx-auto max-w-[800px] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 outline-none',
+          className,
+        )}
         role="article"
         aria-label={`Review item ${position} of ${total}: ${title}`}
       >
@@ -150,7 +181,10 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
           {/* Header row: badges + position */}
           <div className="flex flex-wrap items-center gap-2">
             {item.governance_review_status === 'draft' && (
-              <Badge variant="outline" className="border-draft-badge-border bg-draft-badge-bg text-draft-badge-text text-xs">
+              <Badge
+                variant="outline"
+                className="border-draft-badge-border bg-draft-badge-bg text-draft-badge-text text-xs"
+              >
                 Draft
               </Badge>
             )}
@@ -162,15 +196,16 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
                 {item.content_type.replace(/_/g, ' ')}
               </Badge>
             )}
-            {item.classification_confidence != null && item.classification_confidence < 0.7 && (
-              <Badge
-                variant="outline"
-                className="border-confidence-low-border bg-confidence-low-bg text-confidence-low text-[10px]"
-                role="status"
-              >
-                Low confidence
-              </Badge>
-            )}
+            {item.classification_confidence != null &&
+              item.classification_confidence < 0.7 && (
+                <Badge
+                  variant="outline"
+                  className="border-confidence-low-border bg-confidence-low-bg text-confidence-low text-[10px]"
+                  role="status"
+                >
+                  Low confidence
+                </Badge>
+              )}
             <span className="ml-auto text-xs tabular-nums text-muted-foreground">
               #{position} of {total.toLocaleString('en-GB')}
             </span>
@@ -188,7 +223,9 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
                 verifiedByName={verifiedByName}
                 size="md"
               />
-              <DaysSinceReview reviewedAt={item.last_reviewed_at ?? item.verified_at} />
+              <DaysSinceReview
+                reviewedAt={item.last_reviewed_at ?? item.verified_at}
+              />
             </div>
           ) : item.last_reviewed_at ? (
             <DaysSinceReview reviewedAt={item.last_reviewed_at} />
@@ -224,17 +261,21 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
               {item.captured_date && (
                 <span>{formatDateUK(item.captured_date)}</span>
               )}
-              {item.classification_confidence != null && (() => {
-                const conf = getConfidenceDisplay(item.classification_confidence);
-                return <span className={conf.colourClass}>{conf.label}</span>;
-              })()}
+              {item.classification_confidence != null &&
+                (() => {
+                  const conf = getConfidenceDisplay(
+                    item.classification_confidence,
+                  );
+                  return <span className={conf.colourClass}>{conf.label}</span>;
+                })()}
             </div>
           </div>
         )}
 
         <CardContent className="flex flex-col gap-6">
           {/* Review history — only shown when there are entries or loading */}
-          {(reviewHistoryLoading || (reviewHistory && reviewHistory.length > 0)) && (
+          {(reviewHistoryLoading ||
+            (reviewHistory && reviewHistory.length > 0)) && (
             <ReviewHistorySection
               history={reviewHistory ?? []}
               isLoading={reviewHistoryLoading}
@@ -259,7 +300,10 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
                   <span className="text-muted-foreground">Domain: </span>
                   <span className="font-medium">{item.primary_domain}</span>
                   {item.primary_subtopic && (
-                    <span className="text-muted-foreground"> &gt; {item.primary_subtopic}</span>
+                    <span className="text-muted-foreground">
+                      {' '}
+                      &gt; {item.primary_subtopic}
+                    </span>
                   )}
                 </div>
               )}
@@ -268,7 +312,10 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
                   <span className="text-muted-foreground">Secondary: </span>
                   <span className="font-medium">{item.secondary_domain}</span>
                   {item.secondary_subtopic && (
-                    <span className="text-muted-foreground"> &gt; {item.secondary_subtopic}</span>
+                    <span className="text-muted-foreground">
+                      {' '}
+                      &gt; {item.secondary_subtopic}
+                    </span>
                   )}
                 </div>
               )}
@@ -293,13 +340,18 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
                     <span className="text-muted-foreground">Source: </span>
                     <span className="font-medium">{sourceFile}</span>
                     {sectionName && (
-                      <span className="text-muted-foreground"> &gt; {sectionName}</span>
+                      <span className="text-muted-foreground">
+                        {' '}
+                        &gt; {sectionName}
+                      </span>
                     )}
                   </div>
                 )}
                 {importBatch && (
                   <div>
-                    <span className="text-muted-foreground">Import batch: </span>
+                    <span className="text-muted-foreground">
+                      Import batch:{' '}
+                    </span>
                     <span className="font-mono text-xs">{importBatch}</span>
                   </div>
                 )}

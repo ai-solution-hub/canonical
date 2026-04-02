@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody, parseSearchParams } from '@/lib/validation';
-import { WorkspaceUpdateBodySchema, WorkspaceDeleteParamsSchema } from '@/lib/validation/schemas';
+import {
+  WorkspaceUpdateBodySchema,
+  WorkspaceDeleteParamsSchema,
+} from '@/lib/validation/schemas';
 
 export const maxDuration = 30;
 
@@ -31,7 +34,11 @@ export async function PATCH(
     const parsed = parseBody(WorkspaceUpdateBodySchema, raw);
     if (!parsed.success) return parsed.response;
 
-    const updates: Record<string, unknown> = { ...parsed.data, updated_at: new Date().toISOString(), updated_by: user.id };
+    const updates: Record<string, unknown> = {
+      ...parsed.data,
+      updated_at: new Date().toISOString(),
+      updated_by: user.id,
+    };
 
     const { data, error } = await supabase
       .from('workspaces')
@@ -88,7 +95,10 @@ export async function DELETE(
       );
     }
 
-    const parsed = parseSearchParams(WorkspaceDeleteParamsSchema, request.nextUrl.searchParams);
+    const parsed = parseSearchParams(
+      WorkspaceDeleteParamsSchema,
+      request.nextUrl.searchParams,
+    );
     if (!parsed.success) return parsed.response;
     const permanent = parsed.data.permanent === true;
 
@@ -110,10 +120,7 @@ export async function DELETE(
       }
 
       // Hard delete
-      const { error } = await supabase
-        .from('workspaces')
-        .delete()
-        .eq('id', id);
+      const { error } = await supabase.from('workspaces').delete().eq('id', id);
 
       if (error) {
         console.error('Failed to delete workspace:', error);

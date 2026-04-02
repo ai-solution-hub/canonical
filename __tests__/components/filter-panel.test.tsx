@@ -67,7 +67,9 @@ const {
   mockAuthorSearch: { value: '' },
   mockSetAuthorSearch: vi.fn(),
   mockPopularKeywords: { value: [] as string[] },
-  mockAllWorkspaces: { value: [] as Array<{ id: string; name: string; color: string }> },
+  mockAllWorkspaces: {
+    value: [] as Array<{ id: string; name: string; color: string }>,
+  },
   mockAllUserTags: { value: [] as Array<{ tag: string; count: number }> },
   mockAllEntities: { value: [] as Array<{ name: string; count: number }> },
   mockOnOpenChange: vi.fn(),
@@ -193,7 +195,9 @@ describe('FilterPanel', () => {
     render(<FilterPanel open={true} onOpenChange={mockOnOpenChange} />);
 
     expect(screen.getByText('Filters')).toBeInTheDocument();
-    expect(screen.getByText('Narrow down your content items')).toBeInTheDocument();
+    expect(
+      screen.getByText('Narrow down your content items'),
+    ).toBeInTheDocument();
   });
 
   it('renders domain filter section with taxonomy-driven options', () => {
@@ -228,7 +232,9 @@ describe('FilterPanel', () => {
     const freshTexts = ['fresh', 'aging', 'stale', 'expired'];
     for (const text of freshTexts) {
       // Each freshness button has a capitalized label span
-      const buttons = screen.getAllByRole('button', { name: new RegExp(text, 'i') });
+      const buttons = screen.getAllByRole('button', {
+        name: new RegExp(text, 'i'),
+      });
       expect(buttons.length).toBeGreaterThan(0);
     }
   });
@@ -245,8 +251,12 @@ describe('FilterPanel', () => {
   it('renders apply and clear buttons in the footer', () => {
     render(<FilterPanel open={true} onOpenChange={mockOnOpenChange} />);
 
-    expect(screen.getByRole('button', { name: 'Apply filters' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Clear all' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Apply filters' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Clear all' }),
+    ).toBeInTheDocument();
   });
 
   it('disables clear all button when no filters are active', () => {
@@ -274,9 +284,7 @@ describe('FilterPanel', () => {
   });
 
   it('does not render when open is false', () => {
-    render(
-      <FilterPanel open={false} onOpenChange={mockOnOpenChange} />,
-    );
+    render(<FilterPanel open={false} onOpenChange={mockOnOpenChange} />);
 
     // The Sheet component should not render content when closed
     expect(screen.queryByText('Filters')).not.toBeInTheDocument();

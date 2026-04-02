@@ -158,7 +158,12 @@ describe('guideSectionSchema', () => {
   });
 
   it('accepts all valid layer values', () => {
-    for (const layer of ['sales_brief', 'bid_detail', 'company_reference', 'research']) {
+    for (const layer of [
+      'sales_brief',
+      'bid_detail',
+      'company_reference',
+      'research',
+    ]) {
       const result = guideSectionSchema.safeParse({
         section_name: 'Test',
         expected_layer: layer,
@@ -237,9 +242,7 @@ describe('guideSectionsReorderSchema', () => {
 
   it('rejects invalid UUID', () => {
     const result = guideSectionsReorderSchema.safeParse({
-      sections: [
-        { id: 'not-a-uuid', display_order: 0 },
-      ],
+      sections: [{ id: 'not-a-uuid', display_order: 0 }],
     });
     expect(result.success).toBe(false);
   });

@@ -22,8 +22,12 @@ beforeEach(() => {
 
   vi.stubGlobal('localStorage', {
     getItem: vi.fn((key: string) => localStorageStore[key] ?? null),
-    setItem: vi.fn((key: string, value: string) => { localStorageStore[key] = value; }),
-    removeItem: vi.fn((key: string) => { delete localStorageStore[key]; }),
+    setItem: vi.fn((key: string, value: string) => {
+      localStorageStore[key] = value;
+    }),
+    removeItem: vi.fn((key: string) => {
+      delete localStorageStore[key];
+    }),
     clear: vi.fn(),
     length: 0,
     key: vi.fn(),
@@ -140,7 +144,10 @@ describe('useDetailMode — editor (canEdit: true)', () => {
       result.current.setDetailMode('reader');
     });
 
-    expect(localStorage.setItem).toHaveBeenCalledWith('kh-detail-mode', 'reader');
+    expect(localStorage.setItem).toHaveBeenCalledWith(
+      'kh-detail-mode',
+      'reader',
+    );
   });
 
   it('persists mode to localStorage on toggleDetailMode', () => {
@@ -150,7 +157,10 @@ describe('useDetailMode — editor (canEdit: true)', () => {
       result.current.toggleDetailMode();
     });
 
-    expect(localStorage.setItem).toHaveBeenCalledWith('kh-detail-mode', 'reader');
+    expect(localStorage.setItem).toHaveBeenCalledWith(
+      'kh-detail-mode',
+      'reader',
+    );
   });
 
   it('loads stored reader preference from localStorage', () => {

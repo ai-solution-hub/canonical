@@ -132,12 +132,17 @@ export async function checkForDuplicates(
     excludeId?: string;
   } = {},
 ): Promise<DedupResult> {
-  const threshold = options.nearDuplicateThreshold ?? DEFAULT_NEAR_DUPLICATE_THRESHOLD;
+  const threshold =
+    options.nearDuplicateThreshold ?? DEFAULT_NEAR_DUPLICATE_THRESHOLD;
   const allMatches: DuplicateMatch[] = [];
 
   // 1. Exact match check
   try {
-    const exactMatches = await findExactDuplicates(supabase, contentText, options.excludeId);
+    const exactMatches = await findExactDuplicates(
+      supabase,
+      contentText,
+      options.excludeId,
+    );
     allMatches.push(...exactMatches);
   } catch (err) {
     console.error('Exact dedup check failed:', err);
@@ -183,8 +188,12 @@ export async function checkForDuplicates(
 export function formatDedupWarning(result: DedupResult): string | null {
   if (!result.has_duplicates) return null;
 
-  const exactCount = result.matches.filter((m) => m.match_type === 'exact').length;
-  const nearCount = result.matches.filter((m) => m.match_type === 'near_duplicate').length;
+  const exactCount = result.matches.filter(
+    (m) => m.match_type === 'exact',
+  ).length;
+  const nearCount = result.matches.filter(
+    (m) => m.match_type === 'near_duplicate',
+  ).length;
 
   const parts: string[] = [];
   if (exactCount > 0) {
@@ -193,9 +202,7 @@ export function formatDedupWarning(result: DedupResult): string | null {
     );
   }
   if (nearCount > 0) {
-    parts.push(
-      `${nearCount} near-duplicate${nearCount > 1 ? 's' : ''} found`,
-    );
+    parts.push(`${nearCount} near-duplicate${nearCount > 1 ? 's' : ''} found`);
   }
 
   const titles = result.matches

@@ -15,7 +15,10 @@ export const MD_BREAKPOINT = 768;
 /**
  * Returns true if the current viewport width is below the given breakpoint.
  */
-export function isMobileViewport(page: Page, breakpoint = SM_BREAKPOINT): boolean {
+export function isMobileViewport(
+  page: Page,
+  breakpoint = SM_BREAKPOINT,
+): boolean {
   const viewport = page.viewportSize();
   return !!viewport && viewport.width < breakpoint;
 }
@@ -33,7 +36,9 @@ export async function navigateViaHeader(
     // Open hamburger menu
     await page.getByRole('button', { name: 'Open navigation menu' }).click();
     // Wait for Sheet to animate open
-    const mobileNav = page.getByRole('navigation', { name: 'Mobile navigation' });
+    const mobileNav = page.getByRole('navigation', {
+      name: 'Mobile navigation',
+    });
     await expect(mobileNav).toBeVisible();
     // Click the link inside the mobile nav
     await mobileNav.getByRole('link', { name: linkName }).click();
@@ -48,8 +53,12 @@ export async function navigateViaHeader(
  * On mobile (< 768px), opens the settings mobile sidebar Sheet first.
  * On desktop, returns the visible sidebar nav directly.
  */
-export async function getSettingsNav(page: Page): Promise<ReturnType<Page['getByRole']>> {
-  const desktopNav = page.getByRole('navigation', { name: 'Settings navigation' });
+export async function getSettingsNav(
+  page: Page,
+): Promise<ReturnType<Page['getByRole']>> {
+  const desktopNav = page.getByRole('navigation', {
+    name: 'Settings navigation',
+  });
 
   // Desktop: sidebar nav is already visible
   if (await desktopNav.isVisible({ timeout: 2000 }).catch(() => false)) {
@@ -61,7 +70,9 @@ export async function getSettingsNav(page: Page): Promise<ReturnType<Page['getBy
   await mobileTrigger.click();
 
   // After opening the Sheet, the nav inside it becomes visible
-  const sheetNav = page.getByRole('navigation', { name: 'Settings navigation' });
+  const sheetNav = page.getByRole('navigation', {
+    name: 'Settings navigation',
+  });
   await expect(sheetNav).toBeVisible({ timeout: 5000 });
   return sheetNav;
 }
@@ -97,7 +108,9 @@ export async function searchFromHeader(
     await searchInput.press('Enter');
   } else {
     // Desktop: use the compact search bar in the header (Radix Command input has role="combobox")
-    const searchInput = page.locator('header').getByRole('combobox', { name: /search/i });
+    const searchInput = page
+      .locator('header')
+      .getByRole('combobox', { name: /search/i });
     await searchInput.fill(query);
     await searchInput.press('Enter');
   }
@@ -109,11 +122,17 @@ export async function searchFromHeader(
  *
  * @returns The nav element containing the links (for further assertions).
  */
-export async function getVisibleNavLinks(page: Page): Promise<ReturnType<Page['getByRole']>> {
+export async function getVisibleNavLinks(
+  page: Page,
+): Promise<ReturnType<Page['getByRole']>> {
   if (isMobileViewport(page)) {
-    const hamburger = page.getByRole('button', { name: 'Open navigation menu' });
+    const hamburger = page.getByRole('button', {
+      name: 'Open navigation menu',
+    });
     await hamburger.click();
-    const mobileNav = page.getByRole('navigation', { name: 'Mobile navigation' });
+    const mobileNav = page.getByRole('navigation', {
+      name: 'Mobile navigation',
+    });
     await expect(mobileNav).toBeVisible();
     return mobileNav;
   }

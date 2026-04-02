@@ -33,8 +33,9 @@ interface AdminMockClient extends MockSupabaseClient {
 const mockSupabase = createMockSupabaseClient() as AdminMockClient;
 
 // Add inviteUserByEmail — not in the shared helper but needed by admin routes
-mockSupabase.auth.admin.inviteUserByEmail =
-  vi.fn().mockResolvedValue({ data: { user: null }, error: null });
+mockSupabase.auth.admin.inviteUserByEmail = vi
+  .fn()
+  .mockResolvedValue({ data: { user: null }, error: null });
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => mockSupabase),
@@ -78,16 +79,32 @@ function resetMocks() {
   mockSupabase._chain.single.mockResolvedValue({ data: null, error: null });
 
   mockSupabase._chain.then.mockReset();
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 
   const chain = mockSupabase._chain;
   const chainableMethods: (keyof typeof chain)[] = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ];
   for (const method of chainableMethods) {
     chain[method].mockReturnValue(chain);
@@ -231,9 +248,8 @@ describe('Cross-cutting input validation', () => {
     it('DELETE rejects non-UUID userId', async () => {
       configureRole(mockSupabase, 'admin');
 
-      const { DELETE: deactivateUser } = await import(
-        '@/app/api/admin/users/[userId]/route'
-      );
+      const { DELETE: deactivateUser } =
+        await import('@/app/api/admin/users/[userId]/route');
 
       const request = createTestRequest('/api/admin/users/xyz', {
         method: 'DELETE',
@@ -282,9 +298,7 @@ describe('Cross-cutting input validation', () => {
       const body = await response.json();
       expect(body.error).toBe('Validation failed');
       expect(body.details).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ field: 'role' }),
-        ]),
+        expect.arrayContaining([expect.objectContaining({ field: 'role' })]),
       );
     });
 
@@ -304,9 +318,7 @@ describe('Cross-cutting input validation', () => {
       const body = await response.json();
       expect(body.error).toBe('Validation failed');
       expect(body.details).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ field: 'role' }),
-        ]),
+        expect.arrayContaining([expect.objectContaining({ field: 'role' })]),
       );
     });
 

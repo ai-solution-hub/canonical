@@ -16,9 +16,16 @@ import { mockTaxonomyContext } from '../helpers/mock-contexts';
 
 const { mockFetch, mockToast, mockTaxonomy } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
-  mockToast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
+  mockToast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  },
   mockTaxonomy: {
-    value: null as ReturnType<typeof import('../helpers/mock-contexts').mockTaxonomyContext> | null,
+    value: null as ReturnType<
+      typeof import('../helpers/mock-contexts').mockTaxonomyContext
+    > | null,
   },
 }));
 
@@ -44,13 +51,21 @@ vi.mock('@/contexts/layer-vocabulary-context', () => ({
   useLayerVocabulary: () => ({
     layers: [
       { key: 'bid_detail', label: 'Bid Detail', description: '', order: 2 },
-      { key: 'company_reference', label: 'Company Reference', description: '', order: 3 },
+      {
+        key: 'company_reference',
+        label: 'Company Reference',
+        description: '',
+        order: 3,
+      },
     ],
     loading: false,
     error: null,
     getLayerKeys: () => ['bid_detail', 'company_reference'],
     getLayerLabel: (key: string) => {
-      const map: Record<string, string> = { bid_detail: 'Bid Detail', company_reference: 'Company Reference' };
+      const map: Record<string, string> = {
+        bid_detail: 'Bid Detail',
+        company_reference: 'Company Reference',
+      };
       return map[key] ?? key;
     },
     getLayerDescription: () => '',
@@ -64,8 +79,17 @@ vi.mock('@/lib/validation/guide-schemas', () => ({
 
 // Mock the Select components to simplify testing (avoids Radix portal rendering)
 vi.mock('@/components/ui/select', () => ({
-  Select: ({ children, value }: { children: React.ReactNode; value?: string; onValueChange?: (v: string) => void }) => (
-    <div data-testid="mock-select" data-value={value}>{children}</div>
+  Select: ({
+    children,
+    value,
+  }: {
+    children: React.ReactNode;
+    value?: string;
+    onValueChange?: (v: string) => void;
+  }) => (
+    <div data-testid="mock-select" data-value={value}>
+      {children}
+    </div>
   ),
   SelectTrigger: ({ children, ...props }: Record<string, unknown>) => (
     <button {...props}>{children as React.ReactNode}</button>
@@ -76,9 +100,13 @@ vi.mock('@/components/ui/select', () => ({
   SelectContent: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
-  SelectItem: ({ children, value }: { children: React.ReactNode; value: string }) => (
-    <div data-value={value}>{children}</div>
-  ),
+  SelectItem: ({
+    children,
+    value,
+  }: {
+    children: React.ReactNode;
+    value: string;
+  }) => <div data-value={value}>{children}</div>,
 }));
 
 import { GuidesSection } from '@/components/settings/guides-section';
@@ -144,8 +172,20 @@ describe('GuidesSection', () => {
 
   it('renders guide rows with name, type badge, and publish status', async () => {
     const guides = [
-      createGuide({ id: 'g1', name: 'Sector Overview', slug: 'sector-overview', guide_type: 'sector', is_published: true }),
-      createGuide({ id: 'g2', name: 'Product Guide', slug: 'product-guide', guide_type: 'product', is_published: false }),
+      createGuide({
+        id: 'g1',
+        name: 'Sector Overview',
+        slug: 'sector-overview',
+        guide_type: 'sector',
+        is_published: true,
+      }),
+      createGuide({
+        id: 'g2',
+        name: 'Product Guide',
+        slug: 'product-guide',
+        guide_type: 'product',
+        is_published: false,
+      }),
     ];
 
     mockFetch.mockResolvedValueOnce({
@@ -183,12 +223,16 @@ describe('GuidesSection', () => {
     });
 
     // The "Create Guide" button in the header (not inside the dialog)
-    const createButtons = screen.getAllByRole('button', { name: /create guide/i });
+    const createButtons = screen.getAllByRole('button', {
+      name: /create guide/i,
+    });
     await user.click(createButtons[0]);
 
     await waitFor(() => {
       // Dialog title and description text
-      expect(screen.getByText('Define a new curated guide for your knowledge base.')).toBeInTheDocument();
+      expect(
+        screen.getByText('Define a new curated guide for your knowledge base.'),
+      ).toBeInTheDocument();
     });
 
     // Dialog should contain form fields
@@ -207,7 +251,10 @@ describe('GuidesSection', () => {
     });
 
     // Mock window.confirm
-    vi.stubGlobal('confirm', vi.fn(() => true));
+    vi.stubGlobal(
+      'confirm',
+      vi.fn(() => true),
+    );
 
     render(<GuidesSection />);
 

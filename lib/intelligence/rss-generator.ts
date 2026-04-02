@@ -48,15 +48,17 @@ export function generateRss(
   const lines: string[] = [];
 
   lines.push('<?xml version="1.0" encoding="UTF-8"?>');
-  lines.push(
-    `<rss version="2.0" xmlns:kh="${escapeXml(KH_NAMESPACE)}">`,
-  );
+  lines.push(`<rss version="2.0" xmlns:kh="${escapeXml(KH_NAMESPACE)}">`);
   lines.push('  <channel>');
   lines.push(`    <title>${escapeXml(channel.title)}</title>`);
   lines.push(`    <link>${escapeXml(channel.link)}</link>`);
-  lines.push(`    <description>${escapeXml(channel.description)}</description>`);
+  lines.push(
+    `    <description>${escapeXml(channel.description)}</description>`,
+  );
   lines.push(`    <language>${escapeXml(channel.language)}</language>`);
-  lines.push(`    <lastBuildDate>${escapeXml(channel.lastBuildDate)}</lastBuildDate>`);
+  lines.push(
+    `    <lastBuildDate>${escapeXml(channel.lastBuildDate)}</lastBuildDate>`,
+  );
   lines.push(`    <ttl>${channel.ttl}</ttl>`);
   lines.push('    <generator>Knowledge Hub Sector Intelligence</generator>');
 
@@ -64,9 +66,13 @@ export function generateRss(
     lines.push('    <item>');
     lines.push(`      <title>${escapeXml(item.title)}</title>`);
     lines.push(`      <link>${escapeXml(item.link)}</link>`);
-    lines.push(`      <description><![CDATA[${item.description}]]></description>`);
+    lines.push(
+      `      <description><![CDATA[${item.description}]]></description>`,
+    );
     lines.push(`      <pubDate>${toRfc2822(item.pubDate)}</pubDate>`);
-    lines.push(`      <guid isPermaLink="false">${escapeXml(item.guid)}</guid>`);
+    lines.push(
+      `      <guid isPermaLink="false">${escapeXml(item.guid)}</guid>`,
+    );
 
     for (const category of item.categories) {
       lines.push(`      <category>${escapeXml(category)}</category>`);
@@ -77,7 +83,9 @@ export function generateRss(
     }
 
     if (item.relevanceScore !== undefined) {
-      lines.push(`      <kh:relevanceScore>${item.relevanceScore.toFixed(2)}</kh:relevanceScore>`);
+      lines.push(
+        `      <kh:relevanceScore>${item.relevanceScore.toFixed(2)}</kh:relevanceScore>`,
+      );
     }
 
     lines.push('    </item>');

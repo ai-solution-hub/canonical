@@ -26,14 +26,21 @@ test.describe('Change Reports page', () => {
     await expect(section).toBeVisible({ timeout: 15000 });
 
     // Verify the page does NOT use "Digest" as a heading anywhere.
-    await expect(page.getByRole('heading', { name: /^Digest$/i })).not.toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: /^Digest$/i }),
+    ).not.toBeVisible();
 
     // Positively assert "Change Reports" branding. In the empty state, an h1
     // heading "Change Reports" is shown. In the loaded state, the section
     // aria-label="Change reports" already confirms branding (asserted above),
     // and the page may show a digest view instead of the hero heading.
-    const heroHeading = page.getByRole('heading', { name: 'Change Reports', level: 1 });
-    const isEmptyState = await heroHeading.isVisible({ timeout: 3000 }).catch(() => false);
+    const heroHeading = page.getByRole('heading', {
+      name: 'Change Reports',
+      level: 1,
+    });
+    const isEmptyState = await heroHeading
+      .isVisible({ timeout: 3000 })
+      .catch(() => false);
 
     if (isEmptyState) {
       // Empty state: verify the hero heading and description
@@ -97,9 +104,7 @@ test.describe('Change Reports page', () => {
     ).toBeVisible();
 
     // A generate button is visible
-    await expect(
-      page.getByRole('button', { name: /Generate/ }),
-    ).toBeVisible();
+    await expect(page.getByRole('button', { name: /Generate/ })).toBeVisible();
   });
 
   test('clicking Custom tab shows custom filter panel', async ({
@@ -182,7 +187,9 @@ test.describe('Change Reports page', () => {
     // Locate the generate button — text varies by state:
     // Empty state (hero): "Generate Report"
     // Loaded state (bar): "Generate New Report"
-    const generateButton = page.getByRole('button', { name: /Generate.*Report/i });
+    const generateButton = page.getByRole('button', {
+      name: /Generate.*Report/i,
+    });
     await expect(generateButton).toBeVisible();
     await expect(generateButton).toBeEnabled();
 
@@ -193,9 +200,9 @@ test.describe('Change Reports page', () => {
     // Verify the click registered — the section remains visible (no crash)
     // and the button changes to "Generating..." state. Wait for the button
     // state change rather than an arbitrary timeout.
-    await expect(
-      page.getByRole('button', { name: /Generating/ }),
-    ).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('button', { name: /Generating/ })).toBeVisible({
+      timeout: 5000,
+    });
   });
 
   test('past reports section shows previous entries when reports exist', async ({
@@ -208,14 +215,23 @@ test.describe('Change Reports page', () => {
 
     // Wait for data to load by checking for the mode selector (always present
     // once loading is complete) or the hero heading (empty state)
-    const modeSelector = page.locator('[role="tablist"][aria-label="Report mode"]');
-    const heroHeading = page.getByRole('heading', { name: 'Change Reports', level: 1 });
+    const modeSelector = page.locator(
+      '[role="tablist"][aria-label="Report mode"]',
+    );
+    const heroHeading = page.getByRole('heading', {
+      name: 'Change Reports',
+      level: 1,
+    });
     await expect(modeSelector.or(heroHeading)).toBeVisible({ timeout: 10000 });
 
     // Check if "Previous Reports" heading exists (only rendered when past reports exist)
     const previousReportsHeading = page.getByText('Previous Reports');
 
-    if (await previousReportsHeading.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (
+      await previousReportsHeading
+        .isVisible({ timeout: 3000 })
+        .catch(() => false)
+    ) {
       // Report list should contain at least one entry
       const reportList = page.locator('[aria-label="Previous reports"]');
       await expect(reportList).toBeVisible();
@@ -229,7 +245,9 @@ test.describe('Change Reports page', () => {
       await expect(firstButton).toBeVisible();
 
       // Each entry shows a type label (Weekly/Daily/Custom)
-      const typeLabel = firstButton.locator('span.text-xs.text-muted-foreground').first();
+      const typeLabel = firstButton
+        .locator('span.text-xs.text-muted-foreground')
+        .first();
       const typeLabelText = await typeLabel.textContent();
       expect(typeLabelText?.trim()).toMatch(/Weekly|Daily|Custom/);
 
@@ -260,12 +278,22 @@ test.describe('Change Reports page', () => {
 
     // Wait for loading to complete by checking for the mode selector (always
     // present once loading finishes) or the hero heading (empty state)
-    const modeSelector = page.locator('[role="tablist"][aria-label="Report mode"]');
-    const heroCandidate = page.getByRole('heading', { name: 'Change Reports', level: 1 });
-    await expect(modeSelector.or(heroCandidate)).toBeVisible({ timeout: 10000 });
+    const modeSelector = page.locator(
+      '[role="tablist"][aria-label="Report mode"]',
+    );
+    const heroCandidate = page.getByRole('heading', {
+      name: 'Change Reports',
+      level: 1,
+    });
+    await expect(modeSelector.or(heroCandidate)).toBeVisible({
+      timeout: 10000,
+    });
 
     // Check if the hero empty state is shown (appears when no digest generated yet)
-    const heroHeading = page.getByRole('heading', { name: 'Change Reports', level: 1 });
+    const heroHeading = page.getByRole('heading', {
+      name: 'Change Reports',
+      level: 1,
+    });
 
     if (await heroHeading.isVisible({ timeout: 3000 }).catch(() => false)) {
       // Description text is visible
@@ -274,7 +302,9 @@ test.describe('Change Reports page', () => {
       ).toBeVisible();
 
       // Mode selector is present
-      const tablist = page.locator('[role="tablist"][aria-label="Report mode"]');
+      const tablist = page.locator(
+        '[role="tablist"][aria-label="Report mode"]',
+      );
       await expect(tablist).toBeVisible();
 
       // Generate button is present
@@ -323,11 +353,15 @@ test.describe('Change Reports -- custom filter interactions', () => {
       await options.nth(1).click();
 
       // An "Active filters:" label appears
-      await expect(page.getByText('Active filters:')).toBeVisible({ timeout: 5000 });
+      await expect(page.getByText('Active filters:')).toBeVisible({
+        timeout: 5000,
+      });
 
       // A badge with the selected domain name is visible
       // The badge has a remove button
-      const removeDomainButton = page.locator('[aria-label^="Remove domain filter"]');
+      const removeDomainButton = page.locator(
+        '[aria-label^="Remove domain filter"]',
+      );
       await expect(removeDomainButton).toBeVisible();
     }
   });
@@ -351,7 +385,9 @@ test.describe('Change Reports -- custom filter interactions', () => {
     await keywordsInput.fill('ai agents, cloud');
 
     // "Active filters:" label appears
-    await expect(page.getByText('Active filters:')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Active filters:')).toBeVisible({
+      timeout: 5000,
+    });
 
     // Two keyword badges are visible: "ai agents" and "cloud"
     const aiAgentsBadge = page.getByText('ai agents', { exact: true });
@@ -361,7 +397,9 @@ test.describe('Change Reports -- custom filter interactions', () => {
     await expect(cloudBadge).toBeVisible();
 
     // Each badge has a remove button
-    const removeCloudButton = page.locator('[aria-label="Remove keyword filter: cloud"]');
+    const removeCloudButton = page.locator(
+      '[aria-label="Remove keyword filter: cloud"]',
+    );
     await expect(removeCloudButton).toBeVisible();
 
     // Clicking the remove button on "cloud" leaves only "ai agents" badge

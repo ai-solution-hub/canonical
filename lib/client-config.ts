@@ -100,7 +100,8 @@ export const CLIENT_CONFIG = {
     content_layers: {
       enabled: true,
       label: 'Content Layers',
-      description: 'Metadata-driven content depth layers (sales_brief → bid_detail → company_reference → research)',
+      description:
+        'Metadata-driven content depth layers (sales_brief → bid_detail → company_reference → research)',
     },
     draft_status: {
       enabled: true,
@@ -172,7 +173,8 @@ export type LayerKey = (typeof CLIENT_CONFIG.layer_vocabulary)[number]['key'];
  * When adding new layers via the admin UI, also add them here and redeploy
  * so that server-side validation accepts them.
  */
-export const FALLBACK_LAYERS: readonly LayerDefinition[] = CLIENT_CONFIG.layer_vocabulary;
+export const FALLBACK_LAYERS: readonly LayerDefinition[] =
+  CLIENT_CONFIG.layer_vocabulary;
 
 /**
  * Check whether a feature is enabled in the static config.

@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse, rateLimitResponse } from '@/lib/auth';
+import {
+  getAuthorisedClient,
+  authFailureResponse,
+  rateLimitResponse,
+} from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
@@ -86,15 +90,13 @@ export async function POST(request: NextRequest) {
         .eq('flag_type', 'review_needed')
         .eq('resolved', false);
     } else if (action === 'flag') {
-      const { error } = await supabase
-        .from('ingestion_quality_log')
-        .insert({
-          content_item_id: item_id,
-          flag_type: 'review_needed',
-          severity: 'warning',
-          details: flag_details ? { notes: flag_details } : {},
-          created_by: user.id,
-        });
+      const { error } = await supabase.from('ingestion_quality_log').insert({
+        content_item_id: item_id,
+        flag_type: 'review_needed',
+        severity: 'warning',
+        details: flag_details ? { notes: flag_details } : {},
+        created_by: user.id,
+      });
 
       if (error) {
         console.error('Failed to flag content item:', error);

@@ -11,7 +11,13 @@ vi.mock('next/navigation', () => ({
 
 // Mock child components that are reused (not owned by this wizard)
 vi.mock('@/components/bid/tender-upload', () => ({
-  TenderUpload: ({ bidId, onUploadComplete }: { bidId: string; onUploadComplete: (result?: unknown) => void }) => (
+  TenderUpload: ({
+    bidId,
+    onUploadComplete,
+  }: {
+    bidId: string;
+    onUploadComplete: (result?: unknown) => void;
+  }) => (
     <div data-testid="tender-upload" data-bid-id={bidId}>
       <button
         onClick={() =>
@@ -47,9 +53,7 @@ vi.mock('@/components/bid/tender-upload', () => ({
       >
         Simulate Upload Complete
       </button>
-      <button onClick={() => onUploadComplete()}>
-        Simulate Empty Upload
-      </button>
+      <button onClick={() => onUploadComplete()}>Simulate Empty Upload</button>
     </div>
   ),
 }));
@@ -74,7 +78,11 @@ vi.mock('@/components/bid/question-review', () => ({
     onConfirmed: () => void;
     onCancelled: () => void;
   }) => (
-    <div data-testid="question-review" data-bid-id={bidId} data-count={questions.length}>
+    <div
+      data-testid="question-review"
+      data-bid-id={bidId}
+      data-count={questions.length}
+    >
       <button onClick={onConfirmed}>Confirm Questions</button>
       <button onClick={onCancelled}>Cancel Review</button>
     </div>
@@ -128,12 +136,16 @@ describe('BidCreationWizard', () => {
 
   it('shows "Next: Upload Tender" as the primary action', () => {
     renderWizard();
-    expect(screen.getByRole('button', { name: /Next: Upload Tender/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Next: Upload Tender/ }),
+    ).toBeInTheDocument();
   });
 
   it('shows "Create Without Document" link', () => {
     renderWizard();
-    expect(screen.getByRole('button', { name: /Create Without Document/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Create Without Document/ }),
+    ).toBeInTheDocument();
   });
 
   // ----------------------------------------------------------
@@ -142,7 +154,9 @@ describe('BidCreationWizard', () => {
 
   it('disables submit when required fields are empty', () => {
     renderWizard();
-    const submitBtn = screen.getByRole('button', { name: /Next: Upload Tender/ });
+    const submitBtn = screen.getByRole('button', {
+      name: /Next: Upload Tender/,
+    });
     expect(submitBtn).toBeDisabled();
   });
 
@@ -153,7 +167,9 @@ describe('BidCreationWizard', () => {
     await user.type(screen.getByLabelText(/Bid Name/), 'NHS Trust ITT');
     await user.type(screen.getByLabelText(/Buyer/), 'NHS Digital');
 
-    expect(screen.getByRole('button', { name: /Next: Upload Tender/ })).toBeEnabled();
+    expect(
+      screen.getByRole('button', { name: /Next: Upload Tender/ }),
+    ).toBeEnabled();
   });
 
   // ----------------------------------------------------------
@@ -171,14 +187,19 @@ describe('BidCreationWizard', () => {
 
     await user.type(screen.getByLabelText(/Bid Name/), 'NHS Trust ITT');
     await user.type(screen.getByLabelText(/Buyer/), 'NHS Digital');
-    await user.click(screen.getByRole('button', { name: /Next: Upload Tender/ }));
+    await user.click(
+      screen.getByRole('button', { name: /Next: Upload Tender/ }),
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId('tender-upload')).toBeInTheDocument();
     });
 
     // Verify the tender upload gets the correct bid ID
-    expect(screen.getByTestId('tender-upload')).toHaveAttribute('data-bid-id', 'bid-123');
+    expect(screen.getByTestId('tender-upload')).toHaveAttribute(
+      'data-bid-id',
+      'bid-123',
+    );
   });
 
   // ----------------------------------------------------------
@@ -197,7 +218,9 @@ describe('BidCreationWizard', () => {
 
     await user.type(screen.getByLabelText(/Bid Name/), 'Quick Bid');
     await user.type(screen.getByLabelText(/Buyer/), 'HMRC');
-    await user.click(screen.getByRole('button', { name: /Create Without Document/ }));
+    await user.click(
+      screen.getByRole('button', { name: /Create Without Document/ }),
+    );
 
     await waitFor(() => {
       expect(onCreated).toHaveBeenCalledWith(created);
@@ -221,10 +244,14 @@ describe('BidCreationWizard', () => {
 
     await user.type(screen.getByLabelText(/Bid Name/), 'Test Bid');
     await user.type(screen.getByLabelText(/Buyer/), 'Test Org');
-    await user.click(screen.getByRole('button', { name: /Next: Upload Tender/ }));
+    await user.click(
+      screen.getByRole('button', { name: /Next: Upload Tender/ }),
+    );
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('Server error occurred');
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Server error occurred',
+      );
     });
   });
 
@@ -244,7 +271,9 @@ describe('BidCreationWizard', () => {
 
     await user.type(screen.getByLabelText(/Bid Name/), 'Skip Test');
     await user.type(screen.getByLabelText(/Buyer/), 'Test Org');
-    await user.click(screen.getByRole('button', { name: /Next: Upload Tender/ }));
+    await user.click(
+      screen.getByRole('button', { name: /Next: Upload Tender/ }),
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId('tender-upload')).toBeInTheDocument();
@@ -271,7 +300,9 @@ describe('BidCreationWizard', () => {
 
     await user.type(screen.getByLabelText(/Bid Name/), 'Upload Test');
     await user.type(screen.getByLabelText(/Buyer/), 'Test Org');
-    await user.click(screen.getByRole('button', { name: /Next: Upload Tender/ }));
+    await user.click(
+      screen.getByRole('button', { name: /Next: Upload Tender/ }),
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId('tender-upload')).toBeInTheDocument();
@@ -287,7 +318,10 @@ describe('BidCreationWizard', () => {
     expect(screen.getByTestId('tender-metadata-prompt')).toBeInTheDocument();
 
     // QuestionReview should receive 1 flattened question
-    expect(screen.getByTestId('question-review')).toHaveAttribute('data-count', '1');
+    expect(screen.getByTestId('question-review')).toHaveAttribute(
+      'data-count',
+      '1',
+    );
   });
 
   // ----------------------------------------------------------
@@ -306,7 +340,9 @@ describe('BidCreationWizard', () => {
 
     await user.type(screen.getByLabelText(/Bid Name/), 'Empty Upload');
     await user.type(screen.getByLabelText(/Buyer/), 'Test Org');
-    await user.click(screen.getByRole('button', { name: /Next: Upload Tender/ }));
+    await user.click(
+      screen.getByRole('button', { name: /Next: Upload Tender/ }),
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId('tender-upload')).toBeInTheDocument();
@@ -334,7 +370,9 @@ describe('BidCreationWizard', () => {
     // Step 1
     await user.type(screen.getByLabelText(/Bid Name/), 'Confirm Test');
     await user.type(screen.getByLabelText(/Buyer/), 'Test Org');
-    await user.click(screen.getByRole('button', { name: /Next: Upload Tender/ }));
+    await user.click(
+      screen.getByRole('button', { name: /Next: Upload Tender/ }),
+    );
 
     // Step 2
     await waitFor(() => {
@@ -368,7 +406,9 @@ describe('BidCreationWizard', () => {
 
     await user.type(screen.getByLabelText(/Bid Name/), 'Cancel Test');
     await user.type(screen.getByLabelText(/Buyer/), 'Test Org');
-    await user.click(screen.getByRole('button', { name: /Next: Upload Tender/ }));
+    await user.click(
+      screen.getByRole('button', { name: /Next: Upload Tender/ }),
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId('tender-upload')).toBeInTheDocument();
@@ -414,7 +454,9 @@ describe('BidCreationWizard', () => {
     await user.type(screen.getByLabelText(/Reference Number/), 'ITT-2026-042');
     await user.type(screen.getByLabelText(/Estimated Value/), '£50,000');
 
-    await user.click(screen.getByRole('button', { name: /Next: Upload Tender/ }));
+    await user.click(
+      screen.getByRole('button', { name: /Next: Upload Tender/ }),
+    );
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledOnce();

@@ -11,32 +11,30 @@ export async function createClient() {
   }
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!supabaseAnonKey) {
-    throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable is not set');
+    throw new Error(
+      'NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable is not set',
+    );
   }
 
   const cookieStore = await cookies();
 
-  return createSupabaseServerClient<Database>(
-    supabaseUrl,
-    supabaseAnonKey,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
-            );
-          } catch {
-            // The `setAll` method is called from a Server Component.
-            // This is safe — proxy.ts refreshes sessions on every request.
-          }
-        },
+  return createSupabaseServerClient<Database>(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options),
+          );
+        } catch {
+          // The `setAll` method is called from a Server Component.
+          // This is safe — proxy.ts refreshes sessions on every request.
+        }
       },
     },
-  );
+  });
 }
 
 /**
@@ -61,14 +59,10 @@ export function createServiceClient() {
     throw new Error('SUPABASE_SECRET_KEY environment variable is not set');
   }
 
-  return createSupabaseClient<Database>(
-    supabaseUrl,
-    supabaseSecretKey,
-    {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
+  return createSupabaseClient<Database>(supabaseUrl, supabaseSecretKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
     },
-  );
+  });
 }

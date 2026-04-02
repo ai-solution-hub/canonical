@@ -28,9 +28,14 @@ async function loginAndSave(
   const email = process.env[emailEnv] || defaultEmail;
   const password = process.env[passwordEnv] || defaultPassword;
 
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
   if (error || !data.session) {
-    throw new Error(`Auth setup failed for ${email}: ${error?.message ?? 'No session returned'}`);
+    throw new Error(
+      `Auth setup failed for ${email}: ${error?.message ?? 'No session returned'}`,
+    );
   }
 
   // Build session cookies matching @supabase/ssr chunked format

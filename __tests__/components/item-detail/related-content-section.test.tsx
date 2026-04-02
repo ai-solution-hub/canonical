@@ -37,7 +37,10 @@ import type { ContentListItem } from '@/types/content';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function createRelatedItem(id: string, title: string): ContentListItem & { similarity: number } {
+function createRelatedItem(
+  id: string,
+  title: string,
+): ContentListItem & { similarity: number } {
   return {
     id,
     title,
@@ -61,8 +64,12 @@ function createRelatedItem(id: string, title: string): ContentListItem & { simil
 // ---------------------------------------------------------------------------
 
 describe('RelatedContentSection', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
-  afterEach(() => { vi.unstubAllGlobals(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it('renders "Related Content" heading when items exist', () => {
     render(
@@ -104,11 +111,7 @@ describe('RelatedContentSection', () => {
 
   it('renders RelatedByEntities container', () => {
     render(
-      <RelatedContentSection
-        relatedItems={[]}
-        itemId="item-1"
-        userTags={[]}
-      />,
+      <RelatedContentSection relatedItems={[]} itemId="item-1" userTags={[]} />,
     );
     expect(screen.getByTestId('related-by-entities')).toBeInTheDocument();
   });
@@ -128,11 +131,7 @@ describe('RelatedContentSection', () => {
     // With no relatedItems and no tags, section still shows because
     // entities loading state (hasEntities === null) keeps it visible
     const { container } = render(
-      <RelatedContentSection
-        relatedItems={[]}
-        itemId="item-1"
-        userTags={[]}
-      />,
+      <RelatedContentSection relatedItems={[]} itemId="item-1" userTags={[]} />,
     );
     // The section should still render (entities loading = isEntitiesLoading = true)
     expect(container.querySelector('section')).toBeInTheDocument();

@@ -96,7 +96,8 @@ export async function GET(
     // Get bid list: content_citations -> bid_responses -> bid_questions -> workspaces
     const { data: citations, error: citationsError } = await supabase
       .from('content_citations')
-      .select(`
+      .select(
+        `
         created_at,
         bid_responses!inner (
           id,
@@ -109,7 +110,8 @@ export async function GET(
             )
           )
         )
-      `)
+      `,
+      )
       .eq('content_item_id', id)
       .order('created_at', { ascending: false });
 

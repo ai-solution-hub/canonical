@@ -31,11 +31,7 @@ export function formatContentItem(item: ContentItemDetail): string {
   const title = item.suggested_title || item.title || 'Untitled';
   const type = formatContentType(item.content_type);
 
-  const lines: string[] = [
-    `# ${title}`,
-    '',
-    `**Type:** ${type}`,
-  ];
+  const lines: string[] = [`# ${title}`, '', `**Type:** ${type}`];
 
   if (item.primary_domain) {
     const domain = item.primary_subtopic
@@ -53,7 +49,9 @@ export function formatContentItem(item: ContentItemDetail): string {
   }
 
   if (item.classification_confidence !== null) {
-    lines.push(`**Classification confidence:** ${Math.round(item.classification_confidence * 100)}%`);
+    lines.push(
+      `**Classification confidence:** ${Math.round(item.classification_confidence * 100)}%`,
+    );
   }
 
   if (item.governance_review_status) {
@@ -159,7 +157,10 @@ export function formatBatchContentItems(data: BatchContentItemsResult): string {
   ];
 
   if (data.not_found.length > 0) {
-    lines.push(`**Not found:** ${data.not_found.length} ID${data.not_found.length === 1 ? '' : 's'} returned no result`, '');
+    lines.push(
+      `**Not found:** ${data.not_found.length} ID${data.not_found.length === 1 ? '' : 's'} returned no result`,
+      '',
+    );
   }
 
   for (const item of data.items) {

@@ -8,7 +8,10 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createTestRequest, createTestParams } from '../helpers/mock-next';
-import { createMockSupabaseClient, configureRole as configureRoleHelper } from '../helpers/mock-supabase';
+import {
+  createMockSupabaseClient,
+  configureRole as configureRoleHelper,
+} from '../helpers/mock-supabase';
 
 // ---------------------------------------------------------------------------
 // Shared mock client — lazy references in vi.mock() avoid hoisting issues
@@ -86,16 +89,32 @@ function resetMocks() {
   mockSupabase._chain.single.mockResolvedValue({ data: null, error: null });
 
   mockSupabase._chain.then.mockReset();
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 
   const chain = mockSupabase._chain;
   const chainableMethods: (keyof typeof chain)[] = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ];
   for (const method of chainableMethods) {
     chain[method].mockReturnValue(chain);
@@ -139,7 +158,9 @@ describe('Governance chain via PATCH /api/items/[id]', () => {
       body: { field: 'primary_domain', value: 'Technical' },
     });
 
-    const response = await PATCH(request, { params: createTestParams({ id: VALID_UUID }) });
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     expect(response.status).toBe(200);
 
     // Verify governance_config was queried (from('governance_config') called)
@@ -165,7 +186,9 @@ describe('Governance chain via PATCH /api/items/[id]', () => {
       body: { field: 'author_name', value: 'New Author' },
     });
 
-    const response = await PATCH(request, { params: createTestParams({ id: VALID_UUID }) });
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     expect(response.status).toBe(200);
 
     // Verify governance_config was NOT queried
@@ -193,7 +216,9 @@ describe('Governance chain via PATCH /api/items/[id]', () => {
       body: { field: 'content', value: 'Updated content for governance test' },
     });
 
-    const response = await PATCH(request, { params: createTestParams({ id: VALID_UUID }) });
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     // Main update should still succeed — governance is best-effort
     expect(response.status).toBe(200);
   });
@@ -219,7 +244,9 @@ describe('Governance chain via PATCH /api/items/[id]', () => {
       body: { field: 'content', value: 'Updated content here' },
     });
 
-    const response = await PATCH(request, { params: createTestParams({ id: VALID_UUID }) });
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
     expect(response.status).toBe(200);
 
     // Governance config IS queried (content is a significant field)

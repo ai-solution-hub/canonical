@@ -159,7 +159,10 @@ export interface TemplateSummary {
  * Compute cosine similarity between two vectors.
  * Returns 0 if either vector is null/empty.
  */
-export function cosineSimilarity(a: number[] | null, b: number[] | null): number {
+export function cosineSimilarity(
+  a: number[] | null,
+  b: number[] | null,
+): number {
   if (!a || !b || a.length === 0 || b.length === 0 || a.length !== b.length) {
     return 0;
   }
@@ -241,13 +244,21 @@ export function matchRequirement(
       requirement.primary_subtopic !== null &&
       item.primary_domain !== null &&
       item.primary_subtopic !== null &&
-      item.primary_domain.toLowerCase() === requirement.primary_domain.toLowerCase() &&
-      item.primary_subtopic.toLowerCase() === requirement.primary_subtopic.toLowerCase();
+      item.primary_domain.toLowerCase() ===
+        requirement.primary_domain.toLowerCase() &&
+      item.primary_subtopic.toLowerCase() ===
+        requirement.primary_subtopic.toLowerCase();
 
     // --- Tier 2: Keyword overlap ---
     let keywordOverlap = 0;
-    if (requirement.matching_keywords && requirement.matching_keywords.length > 0 && item.ai_keywords) {
-      const reqKeywords = new Set(requirement.matching_keywords.map(k => k.toLowerCase()));
+    if (
+      requirement.matching_keywords &&
+      requirement.matching_keywords.length > 0 &&
+      item.ai_keywords
+    ) {
+      const reqKeywords = new Set(
+        requirement.matching_keywords.map((k) => k.toLowerCase()),
+      );
       for (const kw of item.ai_keywords) {
         if (reqKeywords.has(kw.toLowerCase())) {
           keywordOverlap++;
@@ -256,10 +267,17 @@ export function matchRequirement(
     }
 
     // --- Tier 3: Semantic similarity ---
-    const similarity = cosineSimilarity(requirement.requirement_embedding, item.embedding);
+    const similarity = cosineSimilarity(
+      requirement.requirement_embedding,
+      item.embedding,
+    );
 
     // Skip items with no signal at all
-    if (!taxonomyMatch && keywordOverlap === 0 && similarity < partialThreshold) {
+    if (
+      !taxonomyMatch &&
+      keywordOverlap === 0 &&
+      similarity < partialThreshold
+    ) {
       continue;
     }
 
@@ -267,7 +285,8 @@ export function matchRequirement(
     const contentLength = (item.content ?? '').length;
 
     // Q&A fragment check: if content_type is q_a_pair and content is very short
-    const isQAFragment = item.content_type === 'q_a_pair' && contentLength < QA_FRAGMENT_THRESHOLD;
+    const isQAFragment =
+      item.content_type === 'q_a_pair' && contentLength < QA_FRAGMENT_THRESHOLD;
 
     matches.push({
       id: item.id,
@@ -286,14 +305,16 @@ export function matchRequirement(
 
   // Sort by composite score: taxonomy match first, then similarity, then keyword overlap
   matches.sort((a, b) => {
-    const aScore = (a.taxonomyMatch ? 1000 : 0) + a.similarity * 100 + a.keywordOverlap * 10;
-    const bScore = (b.taxonomyMatch ? 1000 : 0) + b.similarity * 100 + b.keywordOverlap * 10;
+    const aScore =
+      (a.taxonomyMatch ? 1000 : 0) + a.similarity * 100 + a.keywordOverlap * 10;
+    const bScore =
+      (b.taxonomyMatch ? 1000 : 0) + b.similarity * 100 + b.keywordOverlap * 10;
     return bScore - aScore;
   });
 
   const best = matches[0];
   result.best_similarity_score = best.similarity;
-  result.matching_content_ids = matches.slice(0, 5).map(m => m.id);
+  result.matching_content_ids = matches.slice(0, 5).map((m) => m.id);
   result.content_length_met = best.contentLength >= contentLengthThreshold;
 
   // Determine coverage status
@@ -303,12 +324,20 @@ export function matchRequirement(
   if (best.isQAFragment) {
     // Q&A fragments are capped at partial regardless of other signals
     result.coverage_status = 'partial';
-  } else if (best.taxonomyMatch && hasStrongSemantic && result.content_length_met) {
+  } else if (
+    best.taxonomyMatch &&
+    hasStrongSemantic &&
+    result.content_length_met
+  ) {
     result.coverage_status = 'strong';
   } else if (hasStrongSemantic && result.content_length_met) {
     // Strong semantic match alone can give strong coverage (spec: "semantic > 0.7")
     result.coverage_status = 'strong';
-  } else if (best.taxonomyMatch || hasPartialSemantic || best.keywordOverlap > 0) {
+  } else if (
+    best.taxonomyMatch ||
+    hasPartialSemantic ||
+    best.keywordOverlap > 0
+  ) {
     result.coverage_status = 'partial';
   } else {
     result.coverage_status = 'gap';
@@ -343,7 +372,7 @@ export function computeTemplateCoverage(
   partialThreshold: number = SIMILARITY_PARTIAL_THRESHOLD,
 ): TemplateCoverageResult {
   // Match each requirement
-  const allCoverage = requirements.map(req =>
+  const allCoverage = requirements.map((req) =>
     matchRequirement(req, contentItems, strongThreshold, partialThreshold),
   );
 
@@ -367,7 +396,7 @@ export function computeTemplateCoverage(
     }
   }
 
-  const sections: SectionCoverage[] = sectionOrder.map(ref => ({
+  const sections: SectionCoverage[] = sectionOrder.map((ref) => ({
     section_ref: ref,
     section_name: sectionNameMap.get(ref) ?? ref,
     requirements: sectionMap.get(ref) ?? [],
@@ -381,18 +410,27 @@ export function computeTemplateCoverage(
 
   for (const cov of allCoverage) {
     switch (cov.coverage_status) {
-      case 'strong': strongCount++; break;
-      case 'partial': partialCount++; break;
-      case 'gap': gapCount++; break;
-      case 'na': naCount++; break;
+      case 'strong':
+        strongCount++;
+        break;
+      case 'partial':
+        partialCount++;
+        break;
+      case 'gap':
+        gapCount++;
+        break;
+      case 'na':
+        naCount++;
+        break;
     }
   }
 
   // Score: spec §3.2
   const denominator = allCoverage.length - naCount;
-  const score = denominator > 0
-    ? (strongCount * 1.0 + partialCount * 0.5) / denominator
-    : 0;
+  const score =
+    denominator > 0
+      ? (strongCount * 1.0 + partialCount * 0.5) / denominator
+      : 0;
 
   return {
     template_name: templateName,
@@ -425,7 +463,9 @@ export async function fetchTemplateRequirements(
 ): Promise<TemplateRequirement[]> {
   let query = supabase
     .from('template_requirements')
-    .select('id, template_name, template_version, template_type, section_ref, section_name, question_number, requirement_text, description, requirement_type, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, matching_keywords, matching_guidance, requirement_embedding, is_mandatory, sector_applicability, word_limit_guidance, display_order')
+    .select(
+      'id, template_name, template_version, template_type, section_ref, section_name, question_number, requirement_text, description, requirement_type, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, matching_keywords, matching_guidance, requirement_embedding, is_mandatory, sector_applicability, word_limit_guidance, display_order',
+    )
     .eq('template_name', templateName)
     .order('display_order');
 
@@ -442,7 +482,7 @@ export async function fetchTemplateRequirements(
   }
 
   // Parse embedding strings back to number arrays
-  return (data ?? []).map(row => ({
+  return (data ?? []).map((row) => ({
     id: row.id,
     template_name: row.template_name,
     template_version: row.template_version,
@@ -460,9 +500,9 @@ export async function fetchTemplateRequirements(
     matching_keywords: row.matching_keywords,
     matching_guidance: row.matching_guidance,
     requirement_embedding: row.requirement_embedding
-      ? (typeof row.requirement_embedding === 'string'
-          ? JSON.parse(row.requirement_embedding)
-          : row.requirement_embedding)
+      ? typeof row.requirement_embedding === 'string'
+        ? JSON.parse(row.requirement_embedding)
+        : row.requirement_embedding
       : null,
     is_mandatory: row.is_mandatory,
     sector_applicability: row.sector_applicability,
@@ -480,14 +520,16 @@ export async function fetchContentForMatching(
 ): Promise<ContentItemForMatching[]> {
   const { data, error } = await supabase
     .from('content_items')
-    .select('id, content, brief, detail, title, suggested_title, primary_domain, primary_subtopic, content_type, ai_keywords, embedding')
+    .select(
+      'id, content, brief, detail, title, suggested_title, primary_domain, primary_subtopic, content_type, ai_keywords, embedding',
+    )
     .is('archived_at', null);
 
   if (error) {
     throw new Error(`Failed to fetch content items: ${error.message}`);
   }
 
-  return (data ?? []).map(row => ({
+  return (data ?? []).map((row) => ({
     id: row.id,
     content: row.content,
     brief: row.brief,
@@ -499,9 +541,9 @@ export async function fetchContentForMatching(
     content_type: row.content_type,
     ai_keywords: row.ai_keywords,
     embedding: row.embedding
-      ? (typeof row.embedding === 'string'
-          ? JSON.parse(row.embedding)
-          : row.embedding)
+      ? typeof row.embedding === 'string'
+        ? JSON.parse(row.embedding)
+        : row.embedding
       : null,
   }));
 }
@@ -526,7 +568,12 @@ export interface GapSummary {
   templates_assessed: number;
   gaps_by_type: Record<string, number>;
   partial_by_type: Record<string, number>;
-  gaps_by_template: { template_name: string; gap_count: number; partial_count: number; total: number }[];
+  gaps_by_template: {
+    template_name: string;
+    gap_count: number;
+    partial_count: number;
+    total: number;
+  }[];
   top_gaps: GapDetail[];
 }
 
@@ -561,7 +608,8 @@ export function computeGapSummary(
       for (const req of section.requirements) {
         if (req.coverage_status === 'gap') {
           totalGaps++;
-          gapsByType[req.requirement_type] = (gapsByType[req.requirement_type] ?? 0) + 1;
+          gapsByType[req.requirement_type] =
+            (gapsByType[req.requirement_type] ?? 0) + 1;
 
           if (topGaps.length < maxTopGaps) {
             topGaps.push({
@@ -574,7 +622,8 @@ export function computeGapSummary(
           }
         } else if (req.coverage_status === 'partial') {
           totalPartial++;
-          partialByType[req.requirement_type] = (partialByType[req.requirement_type] ?? 0) + 1;
+          partialByType[req.requirement_type] =
+            (partialByType[req.requirement_type] ?? 0) + 1;
         }
       }
     }
@@ -620,7 +669,7 @@ export async function listAvailableTemplates(
   // Group by template_name + template_version to get counts
   const templateMap = new Map<string, TemplateSummary & { count: number }>();
 
-  for (const row of (data ?? [])) {
+  for (const row of data ?? []) {
     const key = `${row.template_name}||${row.template_version ?? ''}`;
     const existing = templateMap.get(key);
     if (existing) {
@@ -637,7 +686,7 @@ export async function listAvailableTemplates(
     }
   }
 
-  return Array.from(templateMap.values()).map(t => ({
+  return Array.from(templateMap.values()).map((t) => ({
     template_name: t.template_name,
     template_version: t.template_version,
     template_type: t.template_type,

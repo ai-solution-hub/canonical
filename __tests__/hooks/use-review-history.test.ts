@@ -180,7 +180,10 @@ describe('useReviewHistory', () => {
 
     const { result, rerender } = renderHook(
       ({ itemId }: { itemId: string | null }) => useReviewHistory(itemId),
-      { initialProps: { itemId: ITEM_ID } as { itemId: string | null }, wrapper },
+      {
+        initialProps: { itemId: ITEM_ID } as { itemId: string | null },
+        wrapper,
+      },
     );
 
     await waitFor(() => {

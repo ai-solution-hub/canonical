@@ -1,7 +1,14 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { ChevronDown, ChevronRight, Plus, Tag, FolderOpen, Hash } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  Tag,
+  FolderOpen,
+  Hash,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { WorkspaceSelector } from '@/components/workspace/workspace-selector';
@@ -43,7 +50,8 @@ export function OrganiseSection({
     setExpanded((prev) => !prev);
   }, []);
 
-  const allEmpty = keywords.length === 0 && tags.length === 0 && workspaces.length === 0;
+  const allEmpty =
+    keywords.length === 0 && tags.length === 0 && workspaces.length === 0;
 
   // When canEdit=false AND all arrays empty: render null
   if (!canEdit && allEmpty) {
@@ -55,15 +63,31 @@ export function OrganiseSection({
   const hasWorkspaces = workspaces.length > 0;
 
   // Build the inline "Add" links for empty categories
-  const emptyCategories: { label: string; icon: React.ReactNode; key: string }[] = [];
+  const emptyCategories: {
+    label: string;
+    icon: React.ReactNode;
+    key: string;
+  }[] = [];
   if (!hasKeywords) {
-    emptyCategories.push({ label: 'Add keywords', icon: <Hash className="size-3" />, key: 'keywords' });
+    emptyCategories.push({
+      label: 'Add keywords',
+      icon: <Hash className="size-3" />,
+      key: 'keywords',
+    });
   }
   if (!hasWorkspaces) {
-    emptyCategories.push({ label: 'Assign to...', icon: <FolderOpen className="size-3" />, key: 'workspaces' });
+    emptyCategories.push({
+      label: 'Assign to...',
+      icon: <FolderOpen className="size-3" />,
+      key: 'workspaces',
+    });
   }
   if (!hasTags) {
-    emptyCategories.push({ label: 'Add tags', icon: <Tag className="size-3" />, key: 'tags' });
+    emptyCategories.push({
+      label: 'Add tags',
+      icon: <Tag className="size-3" />,
+      key: 'tags',
+    });
   }
 
   // All empty AND canEdit: show single collapsed row
@@ -235,7 +259,11 @@ function KeywordsRow({
       </h3>
       <div className="flex flex-wrap gap-1.5">
         {keywords.map((keyword) => (
-          <Badge key={keyword} variant="secondary" className="group/kw gap-1 pr-1">
+          <Badge
+            key={keyword}
+            variant="secondary"
+            className="group/kw gap-1 pr-1"
+          >
             <Link
               href={`/browse?keywords=${encodeURIComponent(keyword)}`}
               className="hover:underline"

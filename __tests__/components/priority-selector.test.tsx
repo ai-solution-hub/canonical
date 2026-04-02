@@ -27,7 +27,10 @@ vi.mock('sonner', () => ({
 }));
 
 // Import AFTER mocks
-import { PrioritySelector, PriorityBadge } from '@/components/shared/priority-selector';
+import {
+  PrioritySelector,
+  PriorityBadge,
+} from '@/components/shared/priority-selector';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -89,7 +92,11 @@ describe('PrioritySelector', () => {
     const onChanged = vi.fn();
 
     render(
-      <PrioritySelector itemId="item-1" priority={null} onChanged={onChanged} />,
+      <PrioritySelector
+        itemId="item-1"
+        priority={null}
+        onChanged={onChanged}
+      />,
     );
 
     await user.click(screen.getByLabelText('Set priority'));
@@ -106,9 +113,16 @@ describe('PrioritySelector', () => {
     const user = userEvent.setup();
     // Delay the fetch so we can observe the optimistic state
     vi.spyOn(globalThis, 'fetch').mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve(
-        new Response(JSON.stringify({ ok: true }), { status: 200 }),
-      ), 100)),
+      () =>
+        new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve(
+                new Response(JSON.stringify({ ok: true }), { status: 200 }),
+              ),
+            100,
+          ),
+        ),
     );
 
     render(<PrioritySelector itemId="item-1" priority={null} />);
@@ -169,15 +183,19 @@ describe('PrioritySelector', () => {
     await user.click(screen.getByText('High'));
 
     await waitFor(() => {
-      expect(mockToast).toHaveBeenCalledWith('Priority: High', { duration: 1500 });
+      expect(mockToast).toHaveBeenCalledWith('Priority: High', {
+        duration: 1500,
+      });
     });
   });
 
   it('sends PATCH request to correct API endpoint', async () => {
     const user = userEvent.setup();
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ ok: true }), { status: 200 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(
+        new Response(JSON.stringify({ ok: true }), { status: 200 }),
+      );
 
     render(<PrioritySelector itemId="item-42" priority={null} />);
 

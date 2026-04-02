@@ -34,7 +34,9 @@ vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
     from: mockFrom,
     rpc: mockRpc,
-    auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }) },
+    auth: {
+      getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
+    },
   }),
 }));
 
@@ -52,7 +54,9 @@ vi.mock('@/hooks/browse/use-browse-filters', () => ({
 
 vi.mock('@/lib/browse-helpers', () => ({
   getCursorFromItem: vi.fn(() => '2026-01-01'),
-  isOffsetSort: vi.fn((sort: string) => sort === 'freshness' || sort === 'quality_score'),
+  isOffsetSort: vi.fn(
+    (sort: string) => sort === 'freshness' || sort === 'quality_score',
+  ),
 }));
 
 vi.mock('@/lib/supabase/escape', () => ({
@@ -84,7 +88,11 @@ function createQueryChain(
   resolvedCount: number | null = null,
   resolvedError: unknown = null,
 ) {
-  const result = { data: resolvedData, count: resolvedCount, error: resolvedError };
+  const result = {
+    data: resolvedData,
+    count: resolvedCount,
+    error: resolvedError,
+  };
 
   const handler: ProxyHandler<object> = {
     get(_target, prop) {
@@ -232,7 +240,9 @@ describe('useBrowseData', () => {
 
   it('handles query error gracefully', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    mockFrom.mockReturnValue(createQueryChain([], null, { message: 'DB error' }));
+    mockFrom.mockReturnValue(
+      createQueryChain([], null, { message: 'DB error' }),
+    );
 
     const { Wrapper } = createQueryWrapper();
     const { result } = renderHook(() => useBrowseData(), { wrapper: Wrapper });
@@ -254,7 +264,8 @@ describe('useBrowseData', () => {
     mockFilters.keywords = ['nonexistent'];
     mockRpc.mockImplementation(async (name: string) => {
       if (name === 'filter_by_keywords') return { data: [], error: null };
-      if (name === 'get_items_with_quality_flags') return { data: [], error: null };
+      if (name === 'get_items_with_quality_flags')
+        return { data: [], error: null };
       return { data: null, error: null };
     });
 
@@ -276,7 +287,9 @@ describe('useBrowseData', () => {
 
   it('does not crash during rapid re-renders (TanStack Query handles deduplication)', async () => {
     const { Wrapper } = createQueryWrapper();
-    const { result, rerender } = renderHook(() => useBrowseData(), { wrapper: Wrapper });
+    const { result, rerender } = renderHook(() => useBrowseData(), {
+      wrapper: Wrapper,
+    });
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
@@ -475,7 +488,9 @@ describe('useBrowseData', () => {
       mockFetchSuccess();
 
       const { Wrapper } = createQueryWrapper();
-      const { result } = renderHook(() => useBrowseData(), { wrapper: Wrapper });
+      const { result } = renderHook(() => useBrowseData(), {
+        wrapper: Wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -491,7 +506,9 @@ describe('useBrowseData', () => {
       mockFetchSuccess();
 
       const { Wrapper } = createQueryWrapper();
-      const { result } = renderHook(() => useBrowseData(), { wrapper: Wrapper });
+      const { result } = renderHook(() => useBrowseData(), {
+        wrapper: Wrapper,
+      });
 
       expect(result.current.isSearchMode).toBe(true);
 
@@ -506,7 +523,9 @@ describe('useBrowseData', () => {
       mockSearchQuery.value = undefined;
 
       const { Wrapper } = createQueryWrapper();
-      const { result } = renderHook(() => useBrowseData(), { wrapper: Wrapper });
+      const { result } = renderHook(() => useBrowseData(), {
+        wrapper: Wrapper,
+      });
 
       expect(result.current.isSearchMode).toBe(false);
     });
@@ -516,7 +535,9 @@ describe('useBrowseData', () => {
       mockFetchSuccess();
 
       const { Wrapper } = createQueryWrapper();
-      const { result } = renderHook(() => useBrowseData(), { wrapper: Wrapper });
+      const { result } = renderHook(() => useBrowseData(), {
+        wrapper: Wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -533,7 +554,9 @@ describe('useBrowseData', () => {
       } as Response);
 
       const { Wrapper } = createQueryWrapper();
-      const { result } = renderHook(() => useBrowseData(), { wrapper: Wrapper });
+      const { result } = renderHook(() => useBrowseData(), {
+        wrapper: Wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -547,11 +570,16 @@ describe('useBrowseData', () => {
       mockSearchQuery.value = 'failing query';
       vi.spyOn(globalThis, 'fetch').mockResolvedValue({
         ok: false,
-        json: async () => ({ code: 'EMBEDDING_FAILED', error: 'Embedding error' }),
+        json: async () => ({
+          code: 'EMBEDDING_FAILED',
+          error: 'Embedding error',
+        }),
       } as Response);
 
       const { Wrapper } = createQueryWrapper();
-      const { result } = renderHook(() => useBrowseData(), { wrapper: Wrapper });
+      const { result } = renderHook(() => useBrowseData(), {
+        wrapper: Wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -564,10 +592,14 @@ describe('useBrowseData', () => {
 
     it('sets searchError when fetch throws a network error', async () => {
       mockSearchQuery.value = 'failing query';
-      vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Network failure'));
+      vi.spyOn(globalThis, 'fetch').mockRejectedValue(
+        new Error('Network failure'),
+      );
 
       const { Wrapper } = createQueryWrapper();
-      const { result } = renderHook(() => useBrowseData(), { wrapper: Wrapper });
+      const { result } = renderHook(() => useBrowseData(), {
+        wrapper: Wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -581,7 +613,9 @@ describe('useBrowseData', () => {
       mockFetchSuccess();
 
       const { Wrapper } = createQueryWrapper();
-      const { result } = renderHook(() => useBrowseData(), { wrapper: Wrapper });
+      const { result } = renderHook(() => useBrowseData(), {
+        wrapper: Wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -605,7 +639,9 @@ describe('useBrowseData', () => {
       mockFetchSuccess();
 
       const { Wrapper } = createQueryWrapper();
-      const { result } = renderHook(() => useBrowseData(), { wrapper: Wrapper });
+      const { result } = renderHook(() => useBrowseData(), {
+        wrapper: Wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -613,7 +649,9 @@ describe('useBrowseData', () => {
 
       // Only items with primary_domain 'Technology' should remain
       expect(result.current.items).toHaveLength(2);
-      expect(result.current.items.every((i) => i.primary_domain === 'Technology')).toBe(true);
+      expect(
+        result.current.items.every((i) => i.primary_domain === 'Technology'),
+      ).toBe(true);
     });
 
     it('filters search results by content_type via applyPostFilters', async () => {
@@ -622,7 +660,9 @@ describe('useBrowseData', () => {
       mockFetchSuccess();
 
       const { Wrapper } = createQueryWrapper();
-      const { result } = renderHook(() => useBrowseData(), { wrapper: Wrapper });
+      const { result } = renderHook(() => useBrowseData(), {
+        wrapper: Wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -638,7 +678,9 @@ describe('useBrowseData', () => {
       mockFetchSuccess();
 
       const { Wrapper } = createQueryWrapper();
-      const { result } = renderHook(() => useBrowseData(), { wrapper: Wrapper });
+      const { result } = renderHook(() => useBrowseData(), {
+        wrapper: Wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -659,7 +701,9 @@ describe('useBrowseData', () => {
       mockFetchSuccess();
 
       const { Wrapper } = createQueryWrapper();
-      const { result } = renderHook(() => useBrowseData(), { wrapper: Wrapper });
+      const { result } = renderHook(() => useBrowseData(), {
+        wrapper: Wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -675,7 +719,9 @@ describe('useBrowseData', () => {
       mockFetchSuccess();
 
       const { Wrapper } = createQueryWrapper();
-      const { result } = renderHook(() => useBrowseData(), { wrapper: Wrapper });
+      const { result } = renderHook(() => useBrowseData(), {
+        wrapper: Wrapper,
+      });
 
       expect(result.current.searchQuery).toBe('my query');
       expect(result.current.setSearchQuery).toBe(mockSetSearchQuery);
@@ -690,7 +736,9 @@ describe('useBrowseData', () => {
   describe('TanStack Query features', () => {
     it('provides clearFilters passthrough', () => {
       const { Wrapper } = createQueryWrapper();
-      const { result } = renderHook(() => useBrowseData(), { wrapper: Wrapper });
+      const { result } = renderHook(() => useBrowseData(), {
+        wrapper: Wrapper,
+      });
       expect(result.current.clearFilters).toBe(mockClearFilters);
     });
 
@@ -705,7 +753,9 @@ describe('useBrowseData', () => {
       });
 
       const { Wrapper } = createQueryWrapper();
-      const { result } = renderHook(() => useBrowseData(), { wrapper: Wrapper });
+      const { result } = renderHook(() => useBrowseData(), {
+        wrapper: Wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);

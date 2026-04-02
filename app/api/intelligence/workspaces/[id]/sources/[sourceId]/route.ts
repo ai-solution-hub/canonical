@@ -8,10 +8,7 @@ import { FeedSourceUpdateSchema } from '@/lib/validation/schemas';
 type RouteContext = { params: Promise<{ id: string; sourceId: string }> };
 
 /** GET /api/intelligence/workspaces/:id/sources/:sourceId — get a single feed source */
-export async function GET(
-  _request: NextRequest,
-  context: RouteContext,
-) {
+export async function GET(_request: NextRequest, context: RouteContext) {
   try {
     const { id, sourceId } = await context.params;
     const auth = await getAuthorisedClient(['admin', 'editor']);
@@ -42,10 +39,7 @@ export async function GET(
 }
 
 /** PATCH /api/intelligence/workspaces/:id/sources/:sourceId — update a feed source */
-export async function PATCH(
-  request: NextRequest,
-  context: RouteContext,
-) {
+export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
     const { id, sourceId } = await context.params;
     const auth = await getAuthorisedClient(['admin', 'editor']);
@@ -81,10 +75,7 @@ export async function PATCH(
 }
 
 /** DELETE /api/intelligence/workspaces/:id/sources/:sourceId — soft-delete (archive) a feed source */
-export async function DELETE(
-  request: NextRequest,
-  context: RouteContext,
-) {
+export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
     const { id, sourceId } = await context.params;
     const auth = await getAuthorisedClient(['admin']);

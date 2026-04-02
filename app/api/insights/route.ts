@@ -20,7 +20,10 @@ export async function GET(request: NextRequest) {
     const { allowed } = checkRateLimit(`insights:${user.id}`, 20, 60 * 1000);
     if (!allowed) return rateLimitResponse();
 
-    const parsed = parseSearchParams(InsightsParamsSchema, request.nextUrl.searchParams);
+    const parsed = parseSearchParams(
+      InsightsParamsSchema,
+      request.nextUrl.searchParams,
+    );
     if (!parsed.success) return parsed.response;
     const { type, days, min_count: minCount, keyword, author } = parsed.data;
 
@@ -103,7 +106,9 @@ export async function GET(request: NextRequest) {
 
       default:
         return NextResponse.json(
-          { error: `Unknown insight type: ${type}. Valid types: trends, topic, author, gaps, reading` },
+          {
+            error: `Unknown insight type: ${type}. Valid types: trends, topic, author, gaps, reading`,
+          },
           { status: 400 },
         );
     }

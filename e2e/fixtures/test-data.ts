@@ -69,7 +69,8 @@ export function buildCoreContentItems(timestamps: {
       platform: 'manual',
       source_url: 'https://e2e-test.example.com/it-support',
       content: 'This is an E2E test content item covering IT support policies.',
-      brief: 'IT support policy overview covering response times and escalation procedures.',
+      brief:
+        'IT support policy overview covering response times and escalation procedures.',
       detail:
         'Our IT support policy defines tiered response times: P1 critical issues receive a 15-minute response, P2 high-priority issues within 1 hour, and P3 standard issues within 4 hours. The policy covers escalation procedures, on-call rotations, and service desk operating hours.',
       reference:
@@ -92,7 +93,8 @@ export function buildCoreContentItems(timestamps: {
       title: 'Project Management Approach',
       content_type: 'q_a_pair',
       primary_domain: 'Technical Capability',
-      ai_summary: 'Q&A pair about project management methodology and governance.',
+      ai_summary:
+        'Q&A pair about project management methodology and governance.',
       platform: 'manual',
       content:
         'Q: Describe your project management approach.\nA: We follow PRINCE2 with agile delivery sprints.',
@@ -106,7 +108,8 @@ export function buildCoreContentItems(timestamps: {
       title: 'Cyber Essentials Compliance',
       content_type: 'policy',
       primary_domain: 'Security & Compliance',
-      ai_summary: 'Policy document covering Cyber Essentials certification requirements.',
+      ai_summary:
+        'Policy document covering Cyber Essentials certification requirements.',
       platform: 'manual',
       content:
         'This policy outlines our approach to maintaining Cyber Essentials Plus certification, including annual reassessment procedures and remediation workflows.',
@@ -133,7 +136,8 @@ export function buildCoreContentItems(timestamps: {
       title: 'ISO 27001 Certification',
       content_type: 'certification',
       primary_domain: 'Security & Compliance',
-      ai_summary: 'ISO 27001 information security management system certification details.',
+      ai_summary:
+        'ISO 27001 information security management system certification details.',
       platform: 'manual',
       content:
         'We hold ISO 27001:2022 certification for our information security management system, covering all managed service operations. Certificate number: IS 12345. Certified by BSI. Valid until December 2027.',
@@ -162,7 +166,8 @@ export function buildCoreContentItems(timestamps: {
       title: 'Cloud Migration Methodology',
       content_type: 'methodology',
       primary_domain: 'Technical Capability',
-      ai_summary: 'Our structured approach to cloud migration using the 6R framework.',
+      ai_summary:
+        'Our structured approach to cloud migration using the 6R framework.',
       platform: 'manual',
       content:
         'Our cloud migration methodology follows the 6R framework (Rehost, Replatform, Repurchase, Refactor, Retain, Retire). Each migration begins with a discovery phase to assess application dependencies, followed by a proof of concept, pilot migration, and full rollout with rollback procedures.',
@@ -172,7 +177,8 @@ export function buildCoreContentItems(timestamps: {
       title: 'Social Value Framework',
       content_type: 'policy',
       primary_domain: 'Social Value',
-      ai_summary: 'Framework for delivering social value through public sector contracts.',
+      ai_summary:
+        'Framework for delivering social value through public sector contracts.',
       platform: 'manual',
       content:
         'Our Social Value Framework aligns with the Social Value Act 2012 and the PPN 06/20 Social Value Model. We commit to local employment, apprenticeships, environmental sustainability, and community engagement on every public sector contract.',
@@ -184,7 +190,8 @@ export function buildCoreContentItems(timestamps: {
       title: 'Data Protection Policy',
       content_type: 'policy',
       primary_domain: 'Security & Compliance',
-      ai_summary: 'Data protection policy covering GDPR compliance and data handling procedures.',
+      ai_summary:
+        'Data protection policy covering GDPR compliance and data handling procedures.',
       platform: 'manual',
       content:
         'This policy sets out our approach to data protection in compliance with UK GDPR and the Data Protection Act 2018. It covers data processing principles, lawful bases for processing, data subject rights, breach notification procedures, and international transfer safeguards.',
@@ -195,7 +202,8 @@ export function buildCoreContentItems(timestamps: {
       title: 'Staff CVs and Experience',
       content_type: 'other',
       primary_domain: 'People & Skills',
-      ai_summary: 'Overview of key staff qualifications and experience for bid submissions.',
+      ai_summary:
+        'Overview of key staff qualifications and experience for bid submissions.',
       platform: 'manual',
       content:
         'Our team includes 45 certified engineers across ITIL, PRINCE2, AWS, Azure, and Cisco disciplines. Key personnel have an average of 12 years public sector IT experience.',
@@ -205,7 +213,8 @@ export function buildCoreContentItems(timestamps: {
       title: 'Environmental Policy',
       content_type: 'policy',
       primary_domain: 'Sustainability',
-      ai_summary: 'Environmental policy covering carbon reduction and sustainable operations.',
+      ai_summary:
+        'Environmental policy covering carbon reduction and sustainable operations.',
       platform: 'manual',
       content:
         'We are committed to achieving net zero carbon emissions by 2030. Our environmental policy covers energy efficiency in data centres, sustainable procurement, waste reduction, and carbon offset programmes. We report annually against the GHG Protocol Scope 1-3 framework.',

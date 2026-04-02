@@ -24,9 +24,13 @@ vi.mock('next/navigation', () => ({
 
 // Stub TemplateCoverageSection to isolate this component
 vi.mock('@/components/coverage/template-coverage-section', () => ({
-  TemplateCoverageSection: ({ sectionRef, sectionName }: { sectionRef: string; sectionName: string }) => (
-    <div data-testid={`template-section-${sectionRef}`}>{sectionName}</div>
-  ),
+  TemplateCoverageSection: ({
+    sectionRef,
+    sectionName,
+  }: {
+    sectionRef: string;
+    sectionName: string;
+  }) => <div data-testid={`template-section-${sectionRef}`}>{sectionName}</div>,
 }));
 
 import { TemplateCoverageContent } from '@/components/coverage/template-coverage-content';
@@ -91,7 +95,9 @@ describe('TemplateCoverageContent', () => {
 
     render(<TemplateCoverageContent />);
 
-    expect(screen.getByRole('status', { name: /loading templates/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('status', { name: /loading templates/i }),
+    ).toBeInTheDocument();
   });
 
   it('shows empty state when no templates exist', async () => {
@@ -146,7 +152,9 @@ describe('TemplateCoverageContent', () => {
 
     // The second fetch should have been called with the first template name
     const coverageCall = mockFetch.mock.calls.find(
-      (call: string[]) => typeof call[0] === 'string' && call[0].includes('/api/coverage/templates?'),
+      (call: string[]) =>
+        typeof call[0] === 'string' &&
+        call[0].includes('/api/coverage/templates?'),
     );
     expect(coverageCall).toBeDefined();
     expect(coverageCall![0]).toContain('template_name=template-1');

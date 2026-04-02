@@ -65,7 +65,9 @@ vi.mock('@/lib/ai/match', () => ({
 
 vi.mock('mammoth', () => ({
   default: {
-    convertToHtml: vi.fn().mockResolvedValue({ value: '<p>Tender content</p>' }),
+    convertToHtml: vi
+      .fn()
+      .mockResolvedValue({ value: '<p>Tender content</p>' }),
   },
 }));
 
@@ -77,7 +79,10 @@ vi.spyOn(console, 'warn').mockImplementation(() => {});
 // Import handlers under test (AFTER mocks are registered)
 // ---------------------------------------------------------------------------
 
-import { GET as getQuestions, POST as postQuestion } from '@/app/api/bids/[id]/questions/route';
+import {
+  GET as getQuestions,
+  POST as postQuestion,
+} from '@/app/api/bids/[id]/questions/route';
 import { POST as extractQuestions } from '@/app/api/bids/[id]/questions/extract/route';
 import { POST as matchQuestions } from '@/app/api/bids/[id]/questions/match/route';
 
@@ -103,16 +108,41 @@ function resetMocks() {
   });
 
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockResolvedValue({ data: null, error: null, count: null });
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null, count: null });
+  mockSupabase._chain.single.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
@@ -122,11 +152,17 @@ function resetMocks() {
 
   // Reset storage mock
   const storageBucket = {
-    upload: vi.fn().mockResolvedValue({ data: { path: 'test-path' }, error: null }),
-    download: vi.fn().mockResolvedValue({ data: new Blob(['test']), error: null }),
+    upload: vi
+      .fn()
+      .mockResolvedValue({ data: { path: 'test-path' }, error: null }),
+    download: vi
+      .fn()
+      .mockResolvedValue({ data: new Blob(['test']), error: null }),
     remove: vi.fn().mockResolvedValue({ data: [], error: null }),
     list: vi.fn().mockResolvedValue({ data: [], error: null }),
-    getPublicUrl: vi.fn().mockReturnValue({ data: { publicUrl: 'https://example.com/file' } }),
+    getPublicUrl: vi
+      .fn()
+      .mockReturnValue({ data: { publicUrl: 'https://example.com/file' } }),
   };
   mockSupabase.storage.from.mockReturnValue(storageBucket);
 
@@ -222,18 +258,20 @@ describe('GET /api/bids/:id/questions', () => {
     ];
 
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) {
-        // Fetch questions
-        return resolve({ data: mockQuestions, error: null });
-      }
-      if (thenCallCount === 2) {
-        // Fetch response previews
-        return resolve({ data: mockResponses, error: null });
-      }
-      return resolve({ data: [], error: null, count: 0 });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) {
+          // Fetch questions
+          return resolve({ data: mockQuestions, error: null });
+        }
+        if (thenCallCount === 2) {
+          // Fetch response previews
+          return resolve({ data: mockResponses, error: null });
+        }
+        return resolve({ data: [], error: null, count: 0 });
+      },
+    );
 
     mockSupabase.rpc.mockResolvedValue({
       data: [{ total: 1, matched: 1, unmatched: 0 }],
@@ -339,8 +377,8 @@ describe('POST /api/bids/:id/questions', () => {
     });
 
     // Max sequence query returns empty (first question)
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     // Insert returns the created question
@@ -382,19 +420,21 @@ describe('POST /api/bids/:id/questions', () => {
     // Batch insert
     const mockBatch = [
       { id: QUESTION_UUID, question_text: 'Q1', question_sequence: 0 },
-      { id: '00000000-0000-4000-8000-000000000021', question_text: 'Q2', question_sequence: 1 },
+      {
+        id: '00000000-0000-4000-8000-000000000021',
+        question_text: 'Q2',
+        question_sequence: 1,
+      },
     ];
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: mockBatch, error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: mockBatch, error: null }),
     );
 
     const req = createTestRequest(`/api/bids/${BID_UUID}/questions`, {
       method: 'POST',
       body: {
-        questions: [
-          { question_text: 'Q1' },
-          { question_text: 'Q2' },
-        ],
+        questions: [{ question_text: 'Q1' }, { question_text: 'Q2' }],
       },
     });
     const params = createTestParams({ id: BID_UUID });
@@ -507,7 +547,12 @@ describe('POST /api/bids/:id/questions/extract', () => {
           section_name: 'Technical Approach',
           section_sequence: 1,
           questions: [
-            { question_text: 'Describe your methodology', question_sequence: 1, word_limit: 500, evaluation_weight: 20 },
+            {
+              question_text: 'Describe your methodology',
+              question_sequence: 1,
+              word_limit: 500,
+              evaluation_weight: 20,
+            },
           ],
         },
       ],
@@ -515,44 +560,48 @@ describe('POST /api/bids/:id/questions/extract', () => {
 
     // No existing questions (dedup check), insert, status update, fetch saved
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) {
-        // Existing questions check
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) {
+          // Existing questions check
+          return resolve({ data: [], error: null });
+        }
+        if (thenCallCount === 2) {
+          // Insert result
+          return resolve({ data: null, error: null });
+        }
+        if (thenCallCount === 3) {
+          // Status update
+          return resolve({ data: null, error: null });
+        }
+        if (thenCallCount === 4) {
+          // Fetch saved questions
+          return resolve({
+            data: [
+              {
+                id: QUESTION_UUID,
+                project_id: BID_UUID,
+                section_name: 'Technical Approach',
+                question_text: 'Describe your methodology',
+                question_sequence: 1,
+                section_sequence: 1,
+                word_limit: 500,
+                evaluation_weight: 20,
+                confidence_posture: null,
+                matched_content_ids: null,
+                assigned_to: null,
+                created_by: 'test-user-id',
+                created_at: '2026-01-01T00:00:00Z',
+                updated_at: '2026-01-01T00:00:00Z',
+              },
+            ],
+            error: null,
+          });
+        }
         return resolve({ data: [], error: null });
-      }
-      if (thenCallCount === 2) {
-        // Insert result
-        return resolve({ data: null, error: null });
-      }
-      if (thenCallCount === 3) {
-        // Status update
-        return resolve({ data: null, error: null });
-      }
-      if (thenCallCount === 4) {
-        // Fetch saved questions
-        return resolve({
-          data: [{
-            id: QUESTION_UUID,
-            project_id: BID_UUID,
-            section_name: 'Technical Approach',
-            question_text: 'Describe your methodology',
-            question_sequence: 1,
-            section_sequence: 1,
-            word_limit: 500,
-            evaluation_weight: 20,
-            confidence_posture: null,
-            matched_content_ids: null,
-            assigned_to: null,
-            created_by: 'test-user-id',
-            created_at: '2026-01-01T00:00:00Z',
-            updated_at: '2026-01-01T00:00:00Z',
-          }],
-          error: null,
-        });
-      }
-      return resolve({ data: [], error: null });
-    });
+      },
+    );
 
     const req = createTestRequest(`/api/bids/${BID_UUID}/questions/extract`, {
       method: 'POST',
@@ -588,7 +637,12 @@ describe('POST /api/bids/:id/questions/extract', () => {
           section_name: 'Section 1',
           section_sequence: 1,
           questions: [
-            { question_text: 'Existing question?', question_sequence: 1, word_limit: null, evaluation_weight: null },
+            {
+              question_text: 'Existing question?',
+              question_sequence: 1,
+              word_limit: null,
+              evaluation_weight: null,
+            },
           ],
         },
       ],
@@ -596,16 +650,18 @@ describe('POST /api/bids/:id/questions/extract', () => {
 
     // Existing questions already contain this question
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) {
-        return resolve({
-          data: [{ question_text: 'Existing question?' }],
-          error: null,
-        });
-      }
-      return resolve({ data: [], error: null });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) {
+          return resolve({
+            data: [{ question_text: 'Existing question?' }],
+            error: null,
+          });
+        }
+        return resolve({ data: [], error: null });
+      },
+    );
 
     const req = createTestRequest(`/api/bids/${BID_UUID}/questions/extract`, {
       method: 'POST',
@@ -695,13 +751,17 @@ describe('POST /api/bids/:id/questions/match', () => {
 
     // Bid exists
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: BID_UUID, status: 'questions_extracted', domain_metadata: {} },
+      data: {
+        id: BID_UUID,
+        status: 'questions_extracted',
+        domain_metadata: {},
+      },
       error: null,
     });
 
     // No unmatched questions found
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
     const req = createTestRequest(`/api/bids/${BID_UUID}/questions/match`, {
@@ -723,22 +783,33 @@ describe('POST /api/bids/:id/questions/match', () => {
 
     // Bid exists
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: BID_UUID, status: 'questions_extracted', domain_metadata: {} },
+      data: {
+        id: BID_UUID,
+        status: 'questions_extracted',
+        domain_metadata: {},
+      },
       error: null,
     });
 
     // One unmatched question
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({
-        data: [
-          { id: QUESTION_UUID, question_text: 'What is your approach?', confidence_posture: null },
-        ],
-        error: null,
-      }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              id: QUESTION_UUID,
+              question_text: 'What is your approach?',
+              confidence_posture: null,
+            },
+          ],
+          error: null,
+        }),
     );
 
     // generateSearchQueries returns queries
-    mockGenerateSearchQueries.mockResolvedValueOnce({ queries: ['approach methodology'] });
+    mockGenerateSearchQueries.mockResolvedValueOnce({
+      queries: ['approach methodology'],
+    });
 
     // generateEmbedding returns a vector
     mockGenerateEmbedding.mockResolvedValueOnce(new Array(1024).fill(0.1));
@@ -746,22 +817,33 @@ describe('POST /api/bids/:id/questions/match', () => {
     // RPC search returns matches
     mockSupabase.rpc.mockResolvedValueOnce({
       data: [
-        { id: VALID_UUID, similarity: 0.85, title: 'Our Methodology', content_type: 'q_a_pair' },
+        {
+          id: VALID_UUID,
+          similarity: 0.85,
+          title: 'Our Methodology',
+          content_type: 'q_a_pair',
+        },
       ],
       error: null,
     });
 
     // deduplicateResults passes through
     mockDeduplicateResults.mockReturnValueOnce([
-      { id: VALID_UUID, similarity: 0.85, suggested_title: 'Our Methodology', content_type: 'q_a_pair' },
+      {
+        id: VALID_UUID,
+        similarity: 0.85,
+        suggested_title: 'Our Methodology',
+        content_type: 'q_a_pair',
+      },
     ]);
 
     // assessConfidence returns strong
     mockAssessConfidence.mockReturnValueOnce('strong');
 
     // Update question + unmatched count check (via chain)
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null, count: 0 }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: null, count: 0 }),
     );
 
     const req = createTestRequest(`/api/bids/${BID_UUID}/questions/match`, {
@@ -779,7 +861,9 @@ describe('POST /api/bids/:id/questions/match', () => {
     expect(json.results[0].confidence_posture).toBe('strong');
     expect(json.results[0].matched_content_ids).toContain(VALID_UUID);
 
-    expect(mockGenerateSearchQueries).toHaveBeenCalledWith('What is your approach?');
+    expect(mockGenerateSearchQueries).toHaveBeenCalledWith(
+      'What is your approach?',
+    );
     expect(mockGenerateEmbedding).toHaveBeenCalled();
     expect(mockAssessConfidence).toHaveBeenCalled();
   });

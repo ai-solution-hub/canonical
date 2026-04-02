@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ExtractedEntity, ExtractedRelationship } from '@/lib/ai/classify';
-import { createMockSupabaseClient, type MockSupabaseClient } from '../helpers/mock-supabase';
+import {
+  createMockSupabaseClient,
+  type MockSupabaseClient,
+} from '../helpers/mock-supabase';
 
 // ──────────────────────────────────────────
 // Mock dependencies
@@ -28,7 +31,8 @@ vi.mock('@/lib/ai/skills/loader', () => ({
 }));
 
 vi.mock('@/lib/entities/entity-aliases', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/entities/entity-aliases')>();
+  const actual =
+    await importOriginal<typeof import('@/lib/entities/entity-aliases')>();
   return {
     ...actual,
     loadAliases: vi.fn().mockResolvedValue({}),
@@ -83,7 +87,8 @@ const baseClassificationInput = {
   ai_summary: 'Overview of security certifications held by the organisation.',
   suggested_title: 'Security Certifications Overview',
   classification_confidence: 0.92,
-  classification_reasoning: 'Content explicitly discusses security certifications.',
+  classification_reasoning:
+    'Content explicitly discusses security certifications.',
 };
 
 const sampleEntities: ExtractedEntity[] = [
@@ -153,8 +158,9 @@ describe('classifyContent — entity extraction', () => {
     });
 
     // Default: taxonomy queries return empty
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null, count: 0 }),
     );
 
     // Default: update succeeds
@@ -186,9 +192,15 @@ describe('classifyContent — entity extraction', () => {
       // Verify entities array exists in schema
       expect(tool.input_schema.properties).toHaveProperty('entities');
       expect(tool.input_schema.properties.entities.type).toBe('array');
-      expect(tool.input_schema.properties.entities.items.properties).toHaveProperty('name');
-      expect(tool.input_schema.properties.entities.items.properties).toHaveProperty('type');
-      expect(tool.input_schema.properties.entities.items.properties).toHaveProperty('canonical_name');
+      expect(
+        tool.input_schema.properties.entities.items.properties,
+      ).toHaveProperty('name');
+      expect(
+        tool.input_schema.properties.entities.items.properties,
+      ).toHaveProperty('type');
+      expect(
+        tool.input_schema.properties.entities.items.properties,
+      ).toHaveProperty('canonical_name');
     });
 
     it('sends relationships array in the tool schema to Claude', async () => {
@@ -209,9 +221,15 @@ describe('classifyContent — entity extraction', () => {
       // Verify relationships array exists in schema
       expect(tool.input_schema.properties).toHaveProperty('relationships');
       expect(tool.input_schema.properties.relationships.type).toBe('array');
-      expect(tool.input_schema.properties.relationships.items.properties).toHaveProperty('source');
-      expect(tool.input_schema.properties.relationships.items.properties).toHaveProperty('relationship');
-      expect(tool.input_schema.properties.relationships.items.properties).toHaveProperty('target');
+      expect(
+        tool.input_schema.properties.relationships.items.properties,
+      ).toHaveProperty('source');
+      expect(
+        tool.input_schema.properties.relationships.items.properties,
+      ).toHaveProperty('relationship');
+      expect(
+        tool.input_schema.properties.relationships.items.properties,
+      ).toHaveProperty('target');
     });
 
     it('does not require entities or relationships in the tool schema', async () => {
@@ -248,7 +266,8 @@ describe('classifyContent — entity extraction', () => {
 
       const callArgs = mockCreate.mock.calls[0][0];
       const entityTypeEnum =
-        callArgs.tools[0].input_schema.properties.entities.items.properties.type.enum;
+        callArgs.tools[0].input_schema.properties.entities.items.properties.type
+          .enum;
 
       expect(entityTypeEnum).toEqual([
         'organisation',
@@ -280,7 +299,8 @@ describe('classifyContent — entity extraction', () => {
 
       const callArgs = mockCreate.mock.calls[0][0];
       const relTypeEnum =
-        callArgs.tools[0].input_schema.properties.relationships.items.properties.relationship.enum;
+        callArgs.tools[0].input_schema.properties.relationships.items.properties
+          .relationship.enum;
 
       expect(relTypeEnum).toEqual([
         'holds',
@@ -314,9 +334,13 @@ describe('classifyContent — entity extraction', () => {
       const promptText = callArgs.messages[0].content;
 
       // Verify the prompt contains the configured entity examples
-      expect(promptText).toContain(CLIENT_CONFIG.entity_examples.organisation_name);
+      expect(promptText).toContain(
+        CLIENT_CONFIG.entity_examples.organisation_name,
+      );
       expect(promptText).toContain(CLIENT_CONFIG.entity_examples.product_name);
-      expect(promptText).toContain(CLIENT_CONFIG.entity_examples.organisation_short);
+      expect(promptText).toContain(
+        CLIENT_CONFIG.entity_examples.organisation_short,
+      );
       expect(promptText).toContain(CLIENT_CONFIG.entity_examples.product_short);
     });
   });
@@ -453,7 +477,10 @@ describe('classifyContent — entity extraction', () => {
       mockSupabase._chain.upsert.mockReturnValueOnce({
         ...mockSupabase._chain,
         then: vi.fn((resolve: (v: unknown) => void) =>
-          resolve({ data: null, error: { message: 'entity_mentions table not found' } }),
+          resolve({
+            data: null,
+            error: { message: 'entity_mentions table not found' },
+          }),
         ),
       });
 
@@ -465,7 +492,9 @@ describe('classifyContent — entity extraction', () => {
         }),
       );
 
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {});
 
       // Classification should still succeed
       const result = await classifyContent({
@@ -501,7 +530,9 @@ describe('classifyContent — entity extraction', () => {
         }),
       );
 
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {});
 
       // Classification should still succeed
       const result = await classifyContent({
@@ -539,7 +570,9 @@ describe('classifyContent — entity extraction', () => {
       });
 
       // entity_mentions should not be called (empty array is falsy for .length)
-      const fromCalls = mockSupabase.from.mock.calls.map((c: unknown[]) => c[0]);
+      const fromCalls = mockSupabase.from.mock.calls.map(
+        (c: unknown[]) => c[0],
+      );
       expect(fromCalls).not.toContain('entity_mentions');
       expect(fromCalls).not.toContain('entity_relationships');
     });
@@ -547,7 +580,11 @@ describe('classifyContent — entity extraction', () => {
     it('applies canonicalise() to entity canonical_name values', async () => {
       const entitiesWithRawNames: ExtractedEntity[] = [
         { name: 'ISO27001', type: 'certification', canonical_name: 'ISO27001' },
-        { name: 'cyber essentials', type: 'certification', canonical_name: 'cyber essentials' },
+        {
+          name: 'cyber essentials',
+          type: 'certification',
+          canonical_name: 'cyber essentials',
+        },
       ];
 
       mockCreate.mockResolvedValueOnce(

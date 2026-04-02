@@ -1,11 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import {
-  Loader2,
-  Save,
-  ChevronDown,
-} from 'lucide-react';
+import { Loader2, Save, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -54,9 +50,7 @@ export function SaveActionsBar({
             <Checkbox
               id="auto-classify"
               checked={autoClassify}
-              onCheckedChange={(checked) =>
-                setAutoClassify(checked === true)
-              }
+              onCheckedChange={(checked) => setAutoClassify(checked === true)}
             />
             <Label htmlFor="auto-classify" className="text-sm font-normal">
               Classify automatically
@@ -66,9 +60,7 @@ export function SaveActionsBar({
             <Checkbox
               id="auto-summarise"
               checked={autoSummarise}
-              onCheckedChange={(checked) =>
-                setAutoSummarise(checked === true)
-              }
+              onCheckedChange={(checked) => setAutoSummarise(checked === true)}
             />
             <Label htmlFor="auto-summarise" className="text-sm font-normal">
               Generate summary
@@ -79,9 +71,7 @@ export function SaveActionsBar({
           <Checkbox
             id="save-as-draft"
             checked={saveAsDraft}
-            onCheckedChange={(checked) =>
-              setSaveAsDraft(checked === true)
-            }
+            onCheckedChange={(checked) => setSaveAsDraft(checked === true)}
           />
           <Label htmlFor="save-as-draft" className="text-sm font-normal">
             Save as draft (hidden from search and matching)
@@ -91,11 +81,7 @@ export function SaveActionsBar({
 
       {/* Actions — visually separated from options */}
       <div className="flex items-center justify-end gap-3 border-t border-border pt-4">
-        <Button
-          type="button"
-          variant="ghost"
-          asChild
-        >
+        <Button type="button" variant="ghost" asChild>
           <Link href="/browse">Cancel</Link>
         </Button>
         <div className="inline-flex items-stretch">

@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse, rateLimitResponse } from '@/lib/auth';
+import {
+  getAuthorisedClient,
+  authFailureResponse,
+  rateLimitResponse,
+} from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
@@ -21,7 +25,11 @@ export async function POST(request: NextRequest) {
     if (!auth.success) return authFailureResponse(auth);
     const { user, supabase } = auth;
 
-    const { allowed } = checkRateLimit(`freshness:calculate:${user.id}`, 5, 60_000);
+    const { allowed } = checkRateLimit(
+      `freshness:calculate:${user.id}`,
+      5,
+      60_000,
+    );
     if (!allowed) return rateLimitResponse();
 
     const raw = await request.json();
@@ -37,7 +45,10 @@ export async function POST(request: NextRequest) {
       .in('id', item_ids);
 
     if (fetchError) {
-      console.error('Failed to fetch items for freshness calculation:', fetchError);
+      console.error(
+        'Failed to fetch items for freshness calculation:',
+        fetchError,
+      );
       return NextResponse.json(
         { error: 'Failed to fetch items' },
         { status: 500 },

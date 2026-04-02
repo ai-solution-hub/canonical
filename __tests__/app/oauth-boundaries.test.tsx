@@ -38,7 +38,7 @@ describe('OAuth Consent Error Boundary', () => {
   it('renders the heading text', () => {
     render(<ConsentError error={error} reset={reset} />);
     expect(
-      screen.getByText(/couldn.*t load the authorisation page/i)
+      screen.getByText(/couldn.*t load the authorisation page/i),
     ).toBeInTheDocument();
   });
 
@@ -60,16 +60,13 @@ describe('OAuth Consent Error Boundary', () => {
     render(<ConsentError error={error} reset={reset} />);
     expect(screen.getByRole('link', { name: /return home/i })).toHaveAttribute(
       'href',
-      '/'
+      '/',
     );
   });
 
   it('calls console.error with the error via useEffect', () => {
     render(<ConsentError error={error} reset={reset} />);
-    expect(console.error).toHaveBeenCalledWith(
-      'OAuth consent error:',
-      error
-    );
+    expect(console.error).toHaveBeenCalledWith('OAuth consent error:', error);
   });
 });
 

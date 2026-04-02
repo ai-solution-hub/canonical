@@ -65,7 +65,7 @@ describe('Bid Error Boundary', () => {
     render(<BidError error={error} reset={reset} />);
     expect(screen.getByRole('link', { name: /return home/i })).toHaveAttribute(
       'href',
-      '/'
+      '/',
     );
   });
 
@@ -86,7 +86,7 @@ describe('Bid Loading Skeleton', () => {
     render(<BidLoading />);
     expect(screen.getByRole('status')).toHaveAttribute(
       'aria-label',
-      'Loading bids'
+      'Loading bids',
     );
   });
 
@@ -132,9 +132,10 @@ describe('Bid Detail Error Boundary', () => {
 
   it('has a navigation link to /bid', () => {
     render(<BidDetailError error={error} reset={reset} />);
-    expect(
-      screen.getByRole('link', { name: /back to bids/i })
-    ).toHaveAttribute('href', '/bid');
+    expect(screen.getByRole('link', { name: /back to bids/i })).toHaveAttribute(
+      'href',
+      '/bid',
+    );
   });
 
   it('calls console.error with the error via useEffect', () => {
@@ -154,7 +155,7 @@ describe('Bid Detail Loading Skeleton', () => {
     render(<BidDetailLoading />);
     expect(screen.getByRole('status')).toHaveAttribute(
       'aria-label',
-      'Loading bid details'
+      'Loading bid details',
     );
   });
 
@@ -182,7 +183,7 @@ describe('Bid Session Error Boundary', () => {
   it('renders the heading text', () => {
     render(<BidSessionError error={error} reset={reset} />);
     expect(
-      screen.getByText(/couldn.*t load the drafting session/i)
+      screen.getByText(/couldn.*t load the drafting session/i),
     ).toBeInTheDocument();
   });
 
@@ -202,9 +203,10 @@ describe('Bid Session Error Boundary', () => {
 
   it('has a navigation link to /bid', () => {
     render(<BidSessionError error={error} reset={reset} />);
-    expect(
-      screen.getByRole('link', { name: /back to bids/i })
-    ).toHaveAttribute('href', '/bid');
+    expect(screen.getByRole('link', { name: /back to bids/i })).toHaveAttribute(
+      'href',
+      '/bid',
+    );
   });
 
   it('calls console.error with the error via useEffect', () => {
@@ -224,7 +226,7 @@ describe('Bid Session Loading Skeleton', () => {
     render(<BidSessionLoading />);
     expect(screen.getByRole('status')).toHaveAttribute(
       'aria-label',
-      'Loading drafting session'
+      'Loading drafting session',
     );
   });
 
@@ -252,7 +254,7 @@ describe('Template Completion Error Boundary', () => {
   it('renders the heading text', () => {
     render(<TemplateCompletionError error={error} reset={reset} />);
     expect(
-      screen.getByText(/couldn.*t load template completion/i)
+      screen.getByText(/couldn.*t load template completion/i),
     ).toBeInTheDocument();
   });
 
@@ -272,16 +274,17 @@ describe('Template Completion Error Boundary', () => {
 
   it('has a navigation link to /bid', () => {
     render(<TemplateCompletionError error={error} reset={reset} />);
-    expect(
-      screen.getByRole('link', { name: /back to bids/i })
-    ).toHaveAttribute('href', '/bid');
+    expect(screen.getByRole('link', { name: /back to bids/i })).toHaveAttribute(
+      'href',
+      '/bid',
+    );
   });
 
   it('calls console.error with the error via useEffect', () => {
     render(<TemplateCompletionError error={error} reset={reset} />);
     expect(console.error).toHaveBeenCalledWith(
       'Template completion error:',
-      error
+      error,
     );
   });
 });
@@ -297,14 +300,14 @@ describe('Template Completion Loading Skeleton', () => {
     render(<TemplateCompletionLoading />);
     expect(screen.getByRole('status')).toHaveAttribute(
       'aria-label',
-      'Loading template completion'
+      'Loading template completion',
     );
   });
 
   it('contains screen-reader text', () => {
     render(<TemplateCompletionLoading />);
     expect(
-      screen.getByText('Loading template completion...')
+      screen.getByText('Loading template completion...'),
     ).toBeInTheDocument();
   });
 });

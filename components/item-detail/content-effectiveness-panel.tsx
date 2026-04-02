@@ -57,10 +57,17 @@ function getWinRateTextClass(winRate: number): string {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function OutcomeBadge({ outcome }: { outcome: 'won' | 'lost' | 'withdrawn' | null }) {
+function OutcomeBadge({
+  outcome,
+}: {
+  outcome: 'won' | 'lost' | 'withdrawn' | null;
+}) {
   if (outcome === 'won') {
     return (
-      <span className="inline-flex items-center gap-1 text-freshness-fresh" aria-label="Outcome: Won">
+      <span
+        className="inline-flex items-center gap-1 text-freshness-fresh"
+        aria-label="Outcome: Won"
+      >
         <Check className="size-3.5" aria-hidden="true" />
         <span className="text-xs font-medium">Won</span>
       </span>
@@ -69,7 +76,10 @@ function OutcomeBadge({ outcome }: { outcome: 'won' | 'lost' | 'withdrawn' | nul
 
   if (outcome === 'lost') {
     return (
-      <span className="inline-flex items-center gap-1 text-freshness-stale" aria-label="Outcome: Lost">
+      <span
+        className="inline-flex items-center gap-1 text-freshness-stale"
+        aria-label="Outcome: Lost"
+      >
         <X className="size-3.5" aria-hidden="true" />
         <span className="text-xs font-medium">Lost</span>
       </span>
@@ -78,7 +88,10 @@ function OutcomeBadge({ outcome }: { outcome: 'won' | 'lost' | 'withdrawn' | nul
 
   if (outcome === 'withdrawn') {
     return (
-      <span className="inline-flex items-center gap-1 text-muted-foreground" aria-label="Outcome: Withdrawn">
+      <span
+        className="inline-flex items-center gap-1 text-muted-foreground"
+        aria-label="Outcome: Withdrawn"
+      >
         <Minus className="size-3.5" aria-hidden="true" />
         <span className="text-xs font-medium">Withdrawn</span>
       </span>
@@ -86,7 +99,10 @@ function OutcomeBadge({ outcome }: { outcome: 'won' | 'lost' | 'withdrawn' | nul
   }
 
   return (
-    <span className="inline-flex items-center gap-1 text-muted-foreground" aria-label="Outcome: Pending">
+    <span
+      className="inline-flex items-center gap-1 text-muted-foreground"
+      aria-label="Outcome: Pending"
+    >
       <Minus className="size-3.5" aria-hidden="true" />
       <span className="text-xs font-medium">Pending</span>
     </span>
@@ -200,8 +216,8 @@ export function ContentEffectivenessPanel({
           Content Effectiveness
         </h2>
         <p className="text-sm text-muted-foreground">
-          This content has not yet been cited in any bid responses. Win rate data
-          will appear here once this content is used in bids.
+          This content has not yet been cited in any bid responses. Win rate
+          data will appear here once this content is used in bids.
         </p>
       </section>
     );

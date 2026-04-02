@@ -77,7 +77,11 @@ export function getCursorFromItem(
       : null;
   }
   // Freshness, quality_score, and relevance use offset-based pagination (no cursor)
-  if (sort === 'freshness' || sort === 'quality_score' || sort === 'relevance') {
+  if (
+    sort === 'freshness' ||
+    sort === 'quality_score' ||
+    sort === 'relevance'
+  ) {
     return null;
   }
   // Default: captured_date

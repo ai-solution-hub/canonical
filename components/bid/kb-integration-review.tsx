@@ -152,7 +152,10 @@ export function KBIntegrationReview({
           candidate.source_content_ids &&
           candidate.source_content_ids.length > 0;
         // Default to new_entry for integrate all
-        next.set(candidate.question_id, canUpdate ? 'update_existing' : 'new_entry');
+        next.set(
+          candidate.question_id,
+          canUpdate ? 'update_existing' : 'new_entry',
+        );
       }
       return next;
     });
@@ -181,8 +184,7 @@ export function KBIntegrationReview({
           question_id: candidate.question_id,
           action,
           target_content_id:
-            action === 'update_existing' &&
-            candidate.source_content_ids?.length
+            action === 'update_existing' && candidate.source_content_ids?.length
               ? candidate.source_content_ids[0]
               : undefined,
         };
@@ -196,9 +198,7 @@ export function KBIntegrationReview({
 
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(
-          body?.error ?? `Integration failed (${res.status})`,
-        );
+        throw new Error(body?.error ?? `Integration failed (${res.status})`);
       }
 
       const result = await res.json();
@@ -208,11 +208,8 @@ export function KBIntegrationReview({
       if (created > 0)
         parts.push(`${created} ${created === 1 ? 'entry' : 'entries'} created`);
       if (updated > 0)
-        parts.push(
-          `${updated} ${updated === 1 ? 'entry' : 'entries'} updated`,
-        );
-      if (skipped > 0)
-        parts.push(`${skipped} skipped`);
+        parts.push(`${updated} ${updated === 1 ? 'entry' : 'entries'} updated`);
+      if (skipped > 0) parts.push(`${skipped} skipped`);
 
       toast.success(
         parts.length > 0
@@ -296,9 +293,7 @@ export function KBIntegrationReview({
                 role="listitem"
                 className={cn(
                   'flex flex-col gap-2 rounded-md px-3 py-3 transition-colors',
-                  action === 'skip'
-                    ? 'opacity-60'
-                    : 'bg-primary/5',
+                  action === 'skip' ? 'opacity-60' : 'bg-primary/5',
                 )}
               >
                 {/* Question text and action selector row */}
@@ -308,7 +303,8 @@ export function KBIntegrationReview({
                     className={cn(
                       'mt-0.5 size-4 shrink-0',
                       action === 'new_entry' && 'text-status-success',
-                      action === 'update_existing' && 'text-confidence-needs-sme',
+                      action === 'update_existing' &&
+                        'text-confidence-needs-sme',
                       action === 'skip' && 'text-muted-foreground',
                     )}
                     aria-hidden="true"
@@ -391,7 +387,8 @@ export function KBIntegrationReview({
           {candidates.length === 0 && (
             <div className="flex flex-col items-center gap-2 py-8 text-center">
               <p className="text-sm text-muted-foreground">
-                No responses available for integration. Draft responses first to integrate them into the knowledge base.
+                No responses available for integration. Draft responses first to
+                integrate them into the knowledge base.
               </p>
             </div>
           )}
@@ -416,10 +413,7 @@ export function KBIntegrationReview({
             >
               {submitting ? (
                 <>
-                  <Loader2
-                    className="size-4 animate-spin"
-                    aria-hidden="true"
-                  />
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
                   Integrating...
                 </>
               ) : nonSkipCount > 0 ? (

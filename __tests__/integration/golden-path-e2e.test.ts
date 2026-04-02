@@ -87,24 +87,50 @@ function createIsoClassificationResult(
     secondary_domain: 'compliance',
     secondary_subtopic: 'audit',
     ai_keywords: ['iso 27001', 'information security', 'certification'],
-    ai_summary: 'Organisation holds ISO 27001:2022 certification with BSI, valid until March 2028.',
+    ai_summary:
+      'Organisation holds ISO 27001:2022 certification with BSI, valid until March 2028.',
     suggested_title: 'ISO 27001 Information Security Certification',
     classification_confidence: 0.95,
-    classification_reasoning: 'Content describes ISO 27001 certification details including issuing body and expiry.',
+    classification_reasoning:
+      'Content describes ISO 27001 certification details including issuing body and expiry.',
     entities: [
-      { name: 'ISO 27001:2022', type: 'certification', canonical_name: 'ISO 27001' },
+      {
+        name: 'ISO 27001:2022',
+        type: 'certification',
+        canonical_name: 'ISO 27001',
+      },
       { name: 'BSI', type: 'organisation', canonical_name: 'BSI' },
-      { name: 'Cyber Essentials Plus', type: 'certification', canonical_name: 'Cyber Essentials Plus' },
+      {
+        name: 'Cyber Essentials Plus',
+        type: 'certification',
+        canonical_name: 'Cyber Essentials Plus',
+      },
       { name: 'ICO', type: 'organisation', canonical_name: 'ICO' },
     ],
     relationships: [
       { source: 'Company', relationship: 'holds', target: 'ISO 27001' },
-      { source: 'Company', relationship: 'holds', target: 'Cyber Essentials Plus' },
+      {
+        source: 'Company',
+        relationship: 'holds',
+        target: 'Cyber Essentials Plus',
+      },
     ],
     temporal_references: [
-      { date: '2028-03-15', context: 'ISO 27001 certification valid until 15 March 2028', context_type: 'expiry' },
-      { date: '2025-12-01', context: 'Last surveillance audit completed December 2025', context_type: 'historical' },
-      { date: '2027-09-30', context: 'ICO registration expires on 30 September 2027', context_type: 'expiry' },
+      {
+        date: '2028-03-15',
+        context: 'ISO 27001 certification valid until 15 March 2028',
+        context_type: 'expiry',
+      },
+      {
+        date: '2025-12-01',
+        context: 'Last surveillance audit completed December 2025',
+        context_type: 'historical',
+      },
+      {
+        date: '2027-09-30',
+        context: 'ICO registration expires on 30 September 2027',
+        context_type: 'expiry',
+      },
     ],
     ...overrides,
   };
@@ -117,24 +143,54 @@ function createMultiEntityClassificationResult(): ClassificationResult {
     secondary_domain: 'compliance',
     secondary_subtopic: 'audit',
     ai_keywords: ['iso 27001', 'iso 9001', 'cyber essentials plus'],
-    ai_summary: 'Organisation holds three certifications: ISO 27001, ISO 9001, and Cyber Essentials Plus.',
+    ai_summary:
+      'Organisation holds three certifications: ISO 27001, ISO 9001, and Cyber Essentials Plus.',
     suggested_title: 'Certification Portfolio Overview',
     classification_confidence: 0.92,
-    classification_reasoning: 'Content describes multiple certifications with expiry dates.',
+    classification_reasoning:
+      'Content describes multiple certifications with expiry dates.',
     entities: [
-      { name: 'ISO 27001:2022', type: 'certification', canonical_name: 'ISO 27001' },
-      { name: 'ISO 9001:2015', type: 'certification', canonical_name: 'ISO 9001' },
-      { name: 'Cyber Essentials Plus', type: 'certification', canonical_name: 'Cyber Essentials Plus' },
+      {
+        name: 'ISO 27001:2022',
+        type: 'certification',
+        canonical_name: 'ISO 27001',
+      },
+      {
+        name: 'ISO 9001:2015',
+        type: 'certification',
+        canonical_name: 'ISO 9001',
+      },
+      {
+        name: 'Cyber Essentials Plus',
+        type: 'certification',
+        canonical_name: 'Cyber Essentials Plus',
+      },
     ],
     relationships: [
       { source: 'Company', relationship: 'holds', target: 'ISO 27001' },
       { source: 'Company', relationship: 'holds', target: 'ISO 9001' },
-      { source: 'Company', relationship: 'holds', target: 'Cyber Essentials Plus' },
+      {
+        source: 'Company',
+        relationship: 'holds',
+        target: 'Cyber Essentials Plus',
+      },
     ],
     temporal_references: [
-      { date: '2028-03-15', context: 'ISO 27001 expires 15 March 2028', context_type: 'expiry' },
-      { date: '2027-06-22', context: 'ISO 9001 expires 22 June 2027', context_type: 'expiry' },
-      { date: '2026-01-01', context: 'Cyber Essentials Plus renewed 1 January 2026', context_type: 'effective' },
+      {
+        date: '2028-03-15',
+        context: 'ISO 27001 expires 15 March 2028',
+        context_type: 'expiry',
+      },
+      {
+        date: '2027-06-22',
+        context: 'ISO 9001 expires 22 June 2027',
+        context_type: 'expiry',
+      },
+      {
+        date: '2026-01-01',
+        context: 'Cyber Essentials Plus renewed 1 January 2026',
+        context_type: 'effective',
+      },
     ],
   };
 }
@@ -146,10 +202,12 @@ function createNoEntityClassificationResult(): ClassificationResult {
     secondary_domain: null,
     secondary_subtopic: null,
     ai_keywords: ['technology company', 'public sector', 'digital services'],
-    ai_summary: 'UK-based technology company providing digital services to the public sector.',
+    ai_summary:
+      'UK-based technology company providing digital services to the public sector.',
     suggested_title: 'Company Overview',
     classification_confidence: 0.88,
-    classification_reasoning: 'General company description with no specific certifications or regulations.',
+    classification_reasoning:
+      'General company description with no specific certifications or regulations.',
     entities: [],
     relationships: [],
     temporal_references: [],
@@ -391,7 +449,9 @@ beforeEach(() => {
   mockCanonicalise.mockImplementation((name: string) => name);
   mockResolveAlias.mockImplementation((name: string) => name);
   mockLoadAliases.mockResolvedValue(undefined);
-  mockHtmlToPlainText.mockImplementation((html: string) => html.replace(/<[^>]*>/g, ''));
+  mockHtmlToPlainText.mockImplementation((html: string) =>
+    html.replace(/<[^>]*>/g, ''),
+  );
   mockDeriveExpiryStatus.mockReturnValue('unknown');
   mockGenerateEmbedding.mockResolvedValue(new Array(1024).fill(0.1));
 });
@@ -446,14 +506,17 @@ describe('GP1: Full golden path — content creation through certification statu
     expect(isoEntities[0].entity_type).toBe('certification');
 
     const ceEntities = store.entityMentions.filter(
-      (e) => e.content_item_id === itemId && e.canonical_name === 'Cyber Essentials Plus',
+      (e) =>
+        e.content_item_id === itemId &&
+        e.canonical_name === 'Cyber Essentials Plus',
     );
     expect(ceEntities.length).toBeGreaterThanOrEqual(1);
     expect(ceEntities[0].entity_type).toBe('certification');
 
     // Step 4: Verify temporal references stored in content_items.metadata
     const metadata = classifiedItem.metadata as Record<string, unknown>;
-    const temporalRefs = metadata.ai_temporal_references as ClassificationTemporalReference[];
+    const temporalRefs =
+      metadata.ai_temporal_references as ClassificationTemporalReference[];
     expect(temporalRefs).toBeDefined();
     expect(temporalRefs.length).toBe(3);
     const expiryRefs = temporalRefs.filter((r) => r.context_type === 'expiry');
@@ -491,7 +554,9 @@ describe('GP1: Full golden path — content creation through certification statu
       (r) => r.relationship_type === 'holds',
     );
     expect(holdsRelationships.length).toBeGreaterThanOrEqual(1);
-    const targetNames = holdsRelationships.map((r) => r.target_entity as string);
+    const targetNames = holdsRelationships.map(
+      (r) => r.target_entity as string,
+    );
     expect(targetNames).toContain('ISO 27001');
     expect(targetNames).toContain('Cyber Essentials Plus');
   });
@@ -516,8 +581,16 @@ describe('GP2: Upload path golden path', () => {
       metadata: {
         // Regex path stores temporal_references (not ai_temporal_references)
         temporal_references: [
-          { date: '2028-03-15', context: 'valid until 15 March 2028', type: 'expiry' },
-          { date: '2027-09-30', context: 'expires on 30 September 2027', type: 'expiry' },
+          {
+            date: '2028-03-15',
+            context: 'valid until 15 March 2028',
+            type: 'expiry',
+          },
+          {
+            date: '2027-09-30',
+            context: 'expires on 30 September 2027',
+            type: 'expiry',
+          },
         ],
         ingestion_source: 'upload',
       },
@@ -534,19 +607,24 @@ describe('GP2: Upload path golden path', () => {
     // Verify: Both temporal reference paths are stored
     // Regex path: metadata.temporal_references (from upload)
     expect(metadata.temporal_references).toBeDefined();
-    const regexRefs = metadata.temporal_references as Array<Record<string, unknown>>;
+    const regexRefs = metadata.temporal_references as Array<
+      Record<string, unknown>
+    >;
     expect(regexRefs.length).toBeGreaterThanOrEqual(2);
 
     // AI path: metadata.ai_temporal_references (from classification)
     expect(metadata.ai_temporal_references).toBeDefined();
-    const aiRefs = metadata.ai_temporal_references as ClassificationTemporalReference[];
+    const aiRefs =
+      metadata.ai_temporal_references as ClassificationTemporalReference[];
     expect(aiRefs.length).toBe(3);
 
     // Verify: Classification completed successfully
     expect(classifiedItem.primary_domain).toBe('security');
 
     // Verify: Entities stored
-    const entities = store.entityMentions.filter((e) => e.content_item_id === itemId);
+    const entities = store.entityMentions.filter(
+      (e) => e.content_item_id === itemId,
+    );
     expect(entities.length).toBeGreaterThanOrEqual(2);
   });
 });
@@ -585,7 +663,9 @@ describe('GP3: URL ingest golden path', () => {
     expect(classifiedItem.classified_at).toBeTruthy();
 
     // Verify: Classification -> Entity storage connection
-    const entities = store.entityMentions.filter((e) => e.content_item_id === itemId);
+    const entities = store.entityMentions.filter(
+      (e) => e.content_item_id === itemId,
+    );
     expect(entities.length).toBeGreaterThanOrEqual(2);
 
     // Verify: Source URL metadata preserved through classification
@@ -617,7 +697,11 @@ describe('GP4: Reclassification golden path', () => {
       primary_subtopic: 'company-overview',
       metadata: {
         ai_temporal_references: [
-          { date: '2025-01-01', context: 'Old date', context_type: 'historical' },
+          {
+            date: '2025-01-01',
+            context: 'Old date',
+            context_type: 'historical',
+          },
         ],
       },
     });
@@ -643,16 +727,21 @@ describe('GP4: Reclassification golden path', () => {
 
     // Verify: Temporal references updated (overwritten by new classification)
     const metadata = reclassifiedItem.metadata as Record<string, unknown>;
-    const temporalRefs = metadata.ai_temporal_references as ClassificationTemporalReference[];
+    const temporalRefs =
+      metadata.ai_temporal_references as ClassificationTemporalReference[];
     expect(temporalRefs.length).toBe(3);
     // New temporal refs should contain the ISO 27001 expiry
     expect(temporalRefs.some((r) => r.date === '2028-03-15')).toBe(true);
 
     // Verify: New entities added (old + new in store)
-    const allEntities = store.entityMentions.filter((e) => e.content_item_id === itemId);
+    const allEntities = store.entityMentions.filter(
+      (e) => e.content_item_id === itemId,
+    );
     // Old entity (1) + new entities from reclassification (4)
     expect(allEntities.length).toBe(5);
-    expect(allEntities.some((e) => e.canonical_name === 'ISO 27001')).toBe(true);
+    expect(allEntities.some((e) => e.canonical_name === 'ISO 27001')).toBe(
+      true,
+    );
 
     // Verify: Guide matching would now use new domain
     expect(reclassifiedItem.primary_domain).toBe('security');
@@ -701,7 +790,8 @@ describe('GP5: Multi-entity golden path', () => {
     // Verify: All temporal references stored with correct dates
     const classifiedItem = store.contentItems.get(itemId)!;
     const metadata = classifiedItem.metadata as Record<string, unknown>;
-    const temporalRefs = metadata.ai_temporal_references as ClassificationTemporalReference[];
+    const temporalRefs =
+      metadata.ai_temporal_references as ClassificationTemporalReference[];
     expect(temporalRefs.length).toBe(3);
 
     const dates = temporalRefs.map((r) => r.date);
@@ -711,7 +801,9 @@ describe('GP5: Multi-entity golden path', () => {
 
     // Verify: Expiry and effective types are distinct
     const expiryRefs = temporalRefs.filter((r) => r.context_type === 'expiry');
-    const effectiveRefs = temporalRefs.filter((r) => r.context_type === 'effective');
+    const effectiveRefs = temporalRefs.filter(
+      (r) => r.context_type === 'effective',
+    );
     expect(expiryRefs.length).toBe(2);
     expect(effectiveRefs.length).toBe(1);
   });
@@ -832,7 +924,10 @@ describe('GP7: MCP search finds classified content', () => {
         ai_summary: classifiedItem.ai_summary,
       },
     ];
-    mockSupabase.rpc.mockResolvedValueOnce({ data: mockSearchResults, error: null });
+    mockSupabase.rpc.mockResolvedValueOnce({
+      data: mockSearchResults,
+      error: null,
+    });
 
     // 3. Verify the RPC would be called with correct shape
     const searchResult = await mockSupabase.rpc('hybrid_search', {
@@ -849,9 +944,8 @@ describe('GP7: MCP search finds classified content', () => {
 
     // Verify: Domain filter post-processing would match
     const domainFilter = 'security';
-    const filtered = searchResult.data.filter(
-      (r: Record<string, unknown>) =>
-        (r.primary_domain as string).toLowerCase().includes(domainFilter),
+    const filtered = searchResult.data.filter((r: Record<string, unknown>) =>
+      (r.primary_domain as string).toLowerCase().includes(domainFilter),
     );
     expect(filtered.length).toBe(1);
   });
@@ -917,11 +1011,15 @@ describe('GP8: Content without entities — graceful handling', () => {
     expect(classifiedItem.classified_at).toBeTruthy();
 
     // Verify: No entity mentions stored
-    const entities = store.entityMentions.filter((e) => e.content_item_id === itemId);
+    const entities = store.entityMentions.filter(
+      (e) => e.content_item_id === itemId,
+    );
     expect(entities.length).toBe(0);
 
     // Verify: No entity relationships stored
-    const relationships = store.entityRelationships.filter((r) => r.source_item_id === itemId);
+    const relationships = store.entityRelationships.filter(
+      (r) => r.source_item_id === itemId,
+    );
     expect(relationships.length).toBe(0);
 
     // Verify: No temporal references in metadata (empty array case)
@@ -971,8 +1069,11 @@ describe('GP9: Content with conflicting temporal references', () => {
     const metadata = classifiedItem.metadata as Record<string, unknown>;
 
     // Verify: Both paths stored independently
-    const regexRefs = metadata.temporal_references as Array<Record<string, unknown>>;
-    const aiRefs = metadata.ai_temporal_references as ClassificationTemporalReference[];
+    const regexRefs = metadata.temporal_references as Array<
+      Record<string, unknown>
+    >;
+    const aiRefs =
+      metadata.ai_temporal_references as ClassificationTemporalReference[];
 
     expect(regexRefs).toBeDefined();
     expect(aiRefs).toBeDefined();
@@ -1013,28 +1114,48 @@ describe('GP9: Content with conflicting temporal references', () => {
 
     const firstClassResult = createIsoClassificationResult({
       temporal_references: [
-        { date: '2028-03-15', context: 'Expires March 2028', context_type: 'expiry' },
+        {
+          date: '2028-03-15',
+          context: 'Expires March 2028',
+          context_type: 'expiry',
+        },
       ],
     });
     await simulateClassificationFlow(store, itemId, firstClassResult);
 
     // Verify first classification stored
-    let metadata = (store.contentItems.get(itemId)!.metadata as Record<string, unknown>);
-    let aiRefs = metadata.ai_temporal_references as ClassificationTemporalReference[];
+    let metadata = store.contentItems.get(itemId)!.metadata as Record<
+      string,
+      unknown
+    >;
+    let aiRefs =
+      metadata.ai_temporal_references as ClassificationTemporalReference[];
     expect(aiRefs.length).toBe(1);
 
     // Second classification with different date
     const secondClassResult = createIsoClassificationResult({
       temporal_references: [
-        { date: '2029-06-30', context: 'Extended to June 2029', context_type: 'expiry' },
-        { date: '2028-03-15', context: 'Original expiry March 2028', context_type: 'historical' },
+        {
+          date: '2029-06-30',
+          context: 'Extended to June 2029',
+          context_type: 'expiry',
+        },
+        {
+          date: '2028-03-15',
+          context: 'Original expiry March 2028',
+          context_type: 'historical',
+        },
       ],
     });
     await simulateClassificationFlow(store, itemId, secondClassResult);
 
     // Verify: Second classification overwrites ai_temporal_references
-    metadata = (store.contentItems.get(itemId)!.metadata as Record<string, unknown>);
-    aiRefs = metadata.ai_temporal_references as ClassificationTemporalReference[];
+    metadata = store.contentItems.get(itemId)!.metadata as Record<
+      string,
+      unknown
+    >;
+    aiRefs =
+      metadata.ai_temporal_references as ClassificationTemporalReference[];
     expect(aiRefs.length).toBe(2);
     expect(aiRefs.some((r) => r.date === '2029-06-30')).toBe(true);
   });
@@ -1065,7 +1186,9 @@ describe('GP10: Cross-feature data integrity', () => {
     // Verify: Every entity_mention has a valid content_item_id
     for (const mention of store.entityMentions) {
       expect(mention.content_item_id).toBe(itemId);
-      expect(store.contentItems.has(mention.content_item_id as string)).toBe(true);
+      expect(store.contentItems.has(mention.content_item_id as string)).toBe(
+        true,
+      );
     }
 
     // Verify: Every entity_relationship has a valid source_item_id
@@ -1150,19 +1273,35 @@ describe('GP10: Cross-feature data integrity', () => {
     store.contentItems.set(itemId2, { ...item2 });
 
     // Classify both
-    await simulateClassificationFlow(store, itemId1, createIsoClassificationResult());
-    await simulateClassificationFlow(store, itemId2, createNoEntityClassificationResult());
+    await simulateClassificationFlow(
+      store,
+      itemId1,
+      createIsoClassificationResult(),
+    );
+    await simulateClassificationFlow(
+      store,
+      itemId2,
+      createNoEntityClassificationResult(),
+    );
 
     // Verify: Item 1 has entities, item 2 does not
-    const item1Entities = store.entityMentions.filter((e) => e.content_item_id === itemId1);
-    const item2Entities = store.entityMentions.filter((e) => e.content_item_id === itemId2);
+    const item1Entities = store.entityMentions.filter(
+      (e) => e.content_item_id === itemId1,
+    );
+    const item2Entities = store.entityMentions.filter(
+      (e) => e.content_item_id === itemId2,
+    );
 
     expect(item1Entities.length).toBeGreaterThan(0);
     expect(item2Entities.length).toBe(0);
 
     // Verify: Item 1 has relationships, item 2 does not
-    const item1Rels = store.entityRelationships.filter((r) => r.source_item_id === itemId1);
-    const item2Rels = store.entityRelationships.filter((r) => r.source_item_id === itemId2);
+    const item1Rels = store.entityRelationships.filter(
+      (r) => r.source_item_id === itemId1,
+    );
+    const item2Rels = store.entityRelationships.filter(
+      (r) => r.source_item_id === itemId2,
+    );
 
     expect(item1Rels.length).toBeGreaterThan(0);
     expect(item2Rels.length).toBe(0);

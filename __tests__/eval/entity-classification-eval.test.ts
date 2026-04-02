@@ -171,9 +171,7 @@ describe.skipIf(!isEvalEnabled)(
       const itemIds = goldStandard.map((g) => g.content_item_id);
       const { data, error } = await supabase
         .from('entity_mentions')
-        .select(
-          'content_item_id, entity_type, entity_name, canonical_name',
-        )
+        .select('content_item_id, entity_type, entity_name, canonical_name')
         .in('content_item_id', itemIds);
 
       if (error) throw new Error(`DB fetch failed: ${error.message}`);
@@ -201,8 +199,7 @@ describe.skipIf(!isEvalEnabled)(
         totalExtracted += extracted.length;
       }
 
-      const precision =
-        totalExtracted > 0 ? totalTp / totalExtracted : 0;
+      const precision = totalExtracted > 0 ? totalTp / totalExtracted : 0;
       expect(precision).toBeGreaterThan(0.5);
     });
 
@@ -217,8 +214,7 @@ describe.skipIf(!isEvalEnabled)(
         totalExpected += gold.expected_entities.length;
       }
 
-      const recall =
-        totalExpected > 0 ? totalTp / totalExpected : 0;
+      const recall = totalExpected > 0 ? totalTp / totalExpected : 0;
       expect(recall).toBeGreaterThan(0.4);
     });
 
@@ -256,9 +252,7 @@ describe.skipIf(!isEvalEnabled)(
       }
 
       const compliance =
-        totalExcluded > 0
-          ? (totalExcluded - totalFailures) / totalExcluded
-          : 1;
+        totalExcluded > 0 ? (totalExcluded - totalFailures) / totalExcluded : 1;
 
       console.log(
         `Exclusion compliance: ${(compliance * 100).toFixed(1)}% (${totalExcluded - totalFailures}/${totalExcluded} correctly excluded)`,
@@ -275,9 +269,7 @@ describe.skipIf(!isEvalEnabled)(
       expect(domains.size).toBeGreaterThanOrEqual(5);
 
       // Check that we have both articles and Q&A pairs
-      const contentTypes = new Set(
-        goldStandard.map((g) => g.content_type),
-      );
+      const contentTypes = new Set(goldStandard.map((g) => g.content_type));
       expect(contentTypes.has('q_a_pair')).toBe(true);
       expect(contentTypes.has('article')).toBe(true);
     });

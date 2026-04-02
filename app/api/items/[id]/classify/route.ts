@@ -75,7 +75,10 @@ export async function POST(
           }
         }
       } catch (topicErr) {
-        console.error('Topic suggestion after classification failed:', topicErr);
+        console.error(
+          'Topic suggestion after classification failed:',
+          topicErr,
+        );
         // Non-fatal — classification result is still valid
       }
     }

@@ -135,9 +135,8 @@ export function PromptEditor({
       {/* Explanation text */}
       {!isEditing && (
         <p className="text-xs text-muted-foreground">
-          This prompt guides the AI when scoring articles for relevance.
-          Changes create a new version and take effect on the next pipeline
-          poll.
+          This prompt guides the AI when scoring articles for relevance. Changes
+          create a new version and take effect on the next pipeline poll.
         </p>
       )}
     </div>

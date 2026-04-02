@@ -25,17 +25,14 @@ vi.mock('@/lib/format', () => ({
     if (bytes === 0) return '0 B';
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    if (bytes < 1024 * 1024 * 1024)
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
   },
 }));
 
 vi.mock('next/link', () => ({
-  default: ({
-    children,
-    href,
-    ...props
-  }: Record<string, unknown>) => (
+  default: ({ children, href, ...props }: Record<string, unknown>) => (
     <a href={href as string} {...props}>
       {children as React.ReactNode}
     </a>
@@ -99,12 +96,8 @@ describe('ReuploadBanner', () => {
       />,
     );
 
-    expect(
-      screen.getByText('Updated document detected'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Creating version 3/),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Updated document detected')).toBeInTheDocument();
+    expect(screen.getByText(/Creating version 3/)).toBeInTheDocument();
   });
 
   it('has the previous document ID as a data attribute', () => {
@@ -159,8 +152,16 @@ describe('SourceDocumentHistory', () => {
 
   it('renders version chain correctly', async () => {
     const versions = [
-      makeVersion({ id: 'doc-v2', version: 2, original_filename: 'Profile-v2.docx' }),
-      makeVersion({ id: 'doc-v1', version: 1, original_filename: 'Profile-v1.docx' }),
+      makeVersion({
+        id: 'doc-v2',
+        version: 2,
+        original_filename: 'Profile-v2.docx',
+      }),
+      makeVersion({
+        id: 'doc-v1',
+        version: 1,
+        original_filename: 'Profile-v1.docx',
+      }),
     ];
 
     mockFetch.mockResolvedValueOnce({
@@ -208,7 +209,8 @@ describe('SourceDocumentInfo', () => {
       id: 'doc-1',
       filename: 'upload-xyz.docx',
       original_filename: 'Bid-Response.docx',
-      mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      mime_type:
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       file_size: 128_000,
       content_hash: 'hash-xyz',
       version: 3,
@@ -246,7 +248,8 @@ describe('SourceDocumentInfo', () => {
       id: 'doc-1',
       filename: 'upload-xyz.docx',
       original_filename: 'Bid-Response.docx',
-      mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      mime_type:
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       file_size: 128_000,
       content_hash: 'hash-xyz',
       version: 1,

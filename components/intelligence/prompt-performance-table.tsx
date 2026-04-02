@@ -57,7 +57,11 @@ export function PromptPerformanceTable({
               )}
             >
               <td className="px-3 py-2 font-medium text-foreground">
-                <span className={cn(row.is_active && 'border-l-2 border-foreground pl-2')}>
+                <span
+                  className={cn(
+                    row.is_active && 'border-l-2 border-foreground pl-2',
+                  )}
+                >
                   v{row.version}
                 </span>
               </td>
@@ -80,7 +84,8 @@ export function PromptPerformanceTable({
               <td className="px-3 py-2 text-right text-muted-foreground">
                 {row.total_flags > 0 ? (
                   <span>
-                    {row.false_positive_flags} FP / {row.false_negative_flags} FN
+                    {row.false_positive_flags} FP / {row.false_negative_flags}{' '}
+                    FN
                   </span>
                 ) : (
                   '\u2014'

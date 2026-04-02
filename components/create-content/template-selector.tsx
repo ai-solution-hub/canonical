@@ -26,7 +26,10 @@ export function TemplateSelector({
 
   return (
     <div className={cn('space-y-2', className)}>
-      <p className="text-sm font-medium text-foreground" id="template-selector-label">
+      <p
+        className="text-sm font-medium text-foreground"
+        id="template-selector-label"
+      >
         Start from a template
       </p>
       <div
@@ -50,7 +53,10 @@ export function TemplateSelector({
           )}
         >
           <div className="flex items-center gap-2">
-            <FileText className="size-4 text-muted-foreground" aria-hidden="true" />
+            <FileText
+              className="size-4 text-muted-foreground"
+              aria-hidden="true"
+            />
             <span className="text-sm font-medium text-foreground">Blank</span>
           </div>
           <span className="text-xs text-muted-foreground">
@@ -78,7 +84,10 @@ export function TemplateSelector({
               )}
             >
               <div className="flex items-center gap-2">
-                <FileText className="size-4 text-muted-foreground" aria-hidden="true" />
+                <FileText
+                  className="size-4 text-muted-foreground"
+                  aria-hidden="true"
+                />
                 <span className="text-sm font-medium text-foreground">
                   {template.name}
                 </span>

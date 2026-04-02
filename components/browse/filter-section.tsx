@@ -11,7 +11,11 @@ interface FilterSectionProps {
 }
 
 /** Collapsible section wrapper for filter groups */
-export function FilterSection({ title, children, defaultOpen = true }: FilterSectionProps) {
+export function FilterSection({
+  title,
+  children,
+  defaultOpen = true,
+}: FilterSectionProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const contentId = useId();
 

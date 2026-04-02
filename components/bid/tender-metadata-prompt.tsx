@@ -1,7 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { Building2, Calendar, Hash, PoundSterling, FileText, X } from 'lucide-react';
+import {
+  Building2,
+  Calendar,
+  Hash,
+  PoundSterling,
+  FileText,
+  X,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { formatDateUK } from '@/lib/format';
@@ -41,7 +48,12 @@ function ConfidenceIndicator({ confidence }: { confidence: number }) {
  * Dismissable card shown on the bid detail page when tender metadata
  * has been extracted. Displays key fields and allows applying to the bid.
  */
-export function TenderMetadataPrompt({ metadata, bidId, onUpdated, className }: TenderMetadataPromptProps) {
+export function TenderMetadataPrompt({
+  metadata,
+  bidId,
+  onUpdated,
+  className,
+}: TenderMetadataPromptProps) {
   const [dismissed, setDismissed] = useState(false);
   const [applying, setApplying] = useState(false);
 
@@ -62,8 +74,10 @@ export function TenderMetadataPrompt({ metadata, bidId, onUpdated, className }: 
       const body: Record<string, string | null> = {};
       if (metadata.buyer_name) body.buyer = metadata.buyer_name;
       if (metadata.deadline) body.deadline = metadata.deadline;
-      if (metadata.reference_number) body.reference_number = metadata.reference_number;
-      if (metadata.estimated_value) body.estimated_value = metadata.estimated_value;
+      if (metadata.reference_number)
+        body.reference_number = metadata.reference_number;
+      if (metadata.estimated_value)
+        body.estimated_value = metadata.estimated_value;
       if (metadata.title) body.name = metadata.title;
 
       const res = await fetch(`/api/bids/${bidId}`, {
@@ -81,7 +95,9 @@ export function TenderMetadataPrompt({ metadata, bidId, onUpdated, className }: 
       }
     } catch (err) {
       console.error('Failed to apply tender metadata:', err);
-      toast.error('Failed to apply tender metadata. Check your connection and try again.');
+      toast.error(
+        'Failed to apply tender metadata. Check your connection and try again.',
+      );
     } finally {
       setApplying(false);
     }
@@ -146,7 +162,10 @@ export function TenderMetadataPrompt({ metadata, bidId, onUpdated, className }: 
           {metadata.estimated_value && (
             <div className="flex items-start gap-2">
               <dt className="flex items-center gap-1.5 text-muted-foreground">
-                <PoundSterling className="size-3.5 shrink-0" aria-hidden="true" />
+                <PoundSterling
+                  className="size-3.5 shrink-0"
+                  aria-hidden="true"
+                />
                 Value
               </dt>
               <dd className="font-medium">{metadata.estimated_value}</dd>

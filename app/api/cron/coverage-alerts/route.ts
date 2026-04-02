@@ -252,14 +252,15 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      const newAlerts = Object.keys(previousSnapshot).length === 0
-        ? alerts // First run — no previous snapshot, create all
-        : alerts.filter((a) => {
-            if (a.entityType === 'domain') {
-              return !existingTitles.has(a.title);
-            }
-            return !existingIds.has(a.entityId);
-          });
+      const newAlerts =
+        Object.keys(previousSnapshot).length === 0
+          ? alerts // First run — no previous snapshot, create all
+          : alerts.filter((a) => {
+              if (a.entityType === 'domain') {
+                return !existingTitles.has(a.title);
+              }
+              return !existingIds.has(a.entityId);
+            });
 
       if (newAlerts.length > 0) {
         const notifications = newAlerts.flatMap((alert) =>
@@ -273,7 +274,10 @@ export async function GET(request: NextRequest) {
           })),
         );
 
-        const { error: bulkError } = await createBulkNotifications(supabase, notifications);
+        const { error: bulkError } = await createBulkNotifications(
+          supabase,
+          notifications,
+        );
         if (!bulkError) notificationsCreated = notifications.length;
       }
     }
@@ -284,7 +288,11 @@ export async function GET(request: NextRequest) {
       status: 'completed',
       items_processed: currentCoverage.length,
       completed_at: new Date().toISOString(),
-      result: { ...currentSnapshot as Record<string, unknown>, notifications_created: notificationsCreated, target_breaches: targetBreaches } as unknown as Json,
+      result: {
+        ...(currentSnapshot as Record<string, unknown>),
+        notifications_created: notificationsCreated,
+        target_breaches: targetBreaches,
+      } as unknown as Json,
     });
 
     return NextResponse.json({

@@ -16,7 +16,10 @@
  */
 
 import { parse as parseHTML, type HTMLElement } from 'node-html-parser';
-import { stringSimilarity, extractStructuredPairs } from '@/lib/source-documents/document-diff';
+import {
+  stringSimilarity,
+  extractStructuredPairs,
+} from '@/lib/source-documents/document-diff';
 
 // ---------------------------------------------------------------------------
 // Public types — exported for Phase 2/3 consumption
@@ -83,19 +86,19 @@ export interface QACreateInput {
  */
 const HEADER_MAP: Record<string, string> = {
   // Question columns
-  'question': 'question',
-  'questions': 'question',
-  'query': 'question',
-  'requirement': 'question',
-  'requirements': 'question',
+  question: 'question',
+  questions: 'question',
+  query: 'question',
+  requirement: 'question',
+  requirements: 'question',
   'suggested questions': 'question',
 
   // Standard response columns
   'standard response': 'standard',
   'standard answer': 'standard',
-  'standard': 'standard',
-  'response': 'standard',
-  'answer': 'standard',
+  standard: 'standard',
+  response: 'standard',
+  answer: 'standard',
   'answer for standard audit system': 'standard',
   'answer for standard audits': 'standard',
   'standard configuration answer': 'standard',
@@ -103,31 +106,31 @@ const HEADER_MAP: Record<string, string> = {
   // Advanced response columns
   'advanced response': 'advanced',
   'advanced answer': 'advanced',
-  'advanced': 'advanced',
+  advanced: 'advanced',
   'enhanced response': 'advanced',
   'enhanced answer': 'advanced',
   'answer for advanced audits': 'advanced',
   'advanced audits answer': 'advanced',
 
   // Section columns
-  'section': 'section',
-  'category': 'section',
-  'topic': 'section',
-  'area': 'section',
+  section: 'section',
+  category: 'section',
+  topic: 'section',
+  area: 'section',
 
   // Number columns
-  'no': 'number',
+  no: 'number',
   'no.': 'number',
   '#': 'number',
-  'number': 'number',
-  'ref': 'number',
-  'id': 'number',
+  number: 'number',
+  ref: 'number',
+  id: 'number',
 
   // Notes columns
-  'notes': 'notes',
-  'comments': 'notes',
-  'note': 'notes',
-  'comment': 'notes',
+  notes: 'notes',
+  comments: 'notes',
+  note: 'notes',
+  comment: 'notes',
 
   // Standard Selection Questionnaire (PPN 03/24) columns
   'supplier information': 'section',
@@ -138,7 +141,7 @@ const HEADER_MAP: Record<string, string> = {
   'company registration number': 'question',
   'trading status': 'question',
   'date of registration': 'question',
-  'sme': 'question',
+  sme: 'question',
   'company size': 'question',
 
   // Exclusion grounds
@@ -158,15 +161,15 @@ const HEADER_MAP: Record<string, string> = {
   'environmental management': 'section',
   'quality management': 'section',
   'carbon reduction': 'section',
-  'steel': 'section',
+  steel: 'section',
   'additional conditions of participation': 'section',
 
   // Common SQ question-like headers
-  'declaration': 'question',
-  'statement': 'question',
-  'evidence': 'question',
-  'details': 'question',
-  'description': 'question',
+  declaration: 'question',
+  statement: 'question',
+  evidence: 'question',
+  details: 'question',
+  description: 'question',
   'please provide': 'question',
   'please confirm': 'question',
   'please describe': 'question',
@@ -188,12 +191,12 @@ const HEADER_MAP: Record<string, string> = {
   'organisation response': 'standard',
 
   // Guidance/instruction columns (treat as notes)
-  'guidance': 'notes',
+  guidance: 'notes',
   'guidance notes': 'notes',
-  'instructions': 'notes',
+  instructions: 'notes',
   'max score': 'notes',
-  'weighting': 'notes',
-  'scoring': 'notes',
+  weighting: 'notes',
+  scoring: 'notes',
   'max marks': 'notes',
   'pass/fail': 'notes',
 };
@@ -457,8 +460,7 @@ function extractFromNumberedLists(text: string): DetectedQAPair[] {
   // The question text runs to end of line; the answer (optional) is on the
   // next line starting with A + same number. No `s` flag — `.` must NOT
   // match newlines so that captures stay within single lines.
-  const qaNumberedPattern =
-    /^\s*Q(\d+)\s*[.:]\s*(.+)$/gim;
+  const qaNumberedPattern = /^\s*Q(\d+)\s*[.:]\s*(.+)$/gim;
   const answerPattern = (num: string) =>
     new RegExp(`^\\s*A${num}\\s*[.:]\\s*(.+)$`, 'im');
 
@@ -516,7 +518,9 @@ function extractFromNumberedLists(text: string): DetectedQAPair[] {
   for (const nq of nqMatches) {
     // Look for the answer between this Q and the next Q (or end of text)
     const nextQIdx = nqMatches.find((m) => m.index > nq.index);
-    const searchEnd = nextQIdx ? nq.index + (nextQIdx.index - nq.index) : undefined;
+    const searchEnd = nextQIdx
+      ? nq.index + (nextQIdx.index - nq.index)
+      : undefined;
     const searchText = text.slice(nq.index, searchEnd);
     const aMatch = numberedAPattern.exec(searchText);
     const answer = aMatch ? aMatch[1].trim() : '';
@@ -561,9 +565,22 @@ function isLikelyQuestion(text: string): boolean {
 
   // Starts with an interrogative word
   const interrogatives = [
-    'what', 'how', 'why', 'when', 'where', 'who', 'which',
-    'do you', 'does your', 'can you', 'will you', 'have you',
-    'is your', 'are you', 'is there', 'are there',
+    'what',
+    'how',
+    'why',
+    'when',
+    'where',
+    'who',
+    'which',
+    'do you',
+    'does your',
+    'can you',
+    'will you',
+    'have you',
+    'is your',
+    'are you',
+    'is there',
+    'are there',
   ];
   for (const q of interrogatives) {
     if (lower.startsWith(q + ' ') || lower.startsWith(q + ',')) return true;
@@ -571,10 +588,17 @@ function isLikelyQuestion(text: string): boolean {
 
   // Common bid document imperative prompts
   const imperatives = [
-    'please describe', 'please explain', 'please provide',
-    'please detail', 'please outline', 'please confirm',
-    'describe your', 'explain your', 'provide details',
-    'outline your', 'detail your',
+    'please describe',
+    'please explain',
+    'please provide',
+    'please detail',
+    'please outline',
+    'please confirm',
+    'describe your',
+    'explain your',
+    'provide details',
+    'outline your',
+    'detail your',
   ];
   for (const imp of imperatives) {
     if (lower.startsWith(imp)) return true;
@@ -613,7 +637,12 @@ function extractFromHeadingParagraphs(root: HTMLElement): DetectedQAPair[] {
           const nextEl = children[j];
           const nextTag = nextEl.tagName?.toLowerCase() ?? '';
           if (/^h[1-6]$/.test(nextTag)) break;
-          if (nextTag === 'p' || nextTag === 'div' || nextTag === 'ul' || nextTag === 'ol') {
+          if (
+            nextTag === 'p' ||
+            nextTag === 'div' ||
+            nextTag === 'ul' ||
+            nextTag === 'ol'
+          ) {
             const text = nextEl.textContent.trim();
             if (text.length > 0) answerParts.push(text);
           }
@@ -837,7 +866,9 @@ export function splitIntoQAPairs(pairs: DetectedQAPair[]): QACreateInput[] {
     } else {
       // Duplicate found — keep the one with higher confidence
       const existing = deduped[existingIdx];
-      if (confidenceRank[pair.confidence] > confidenceRank[existing.confidence]) {
+      if (
+        confidenceRank[pair.confidence] > confidenceRank[existing.confidence]
+      ) {
         deduped[existingIdx] = pair;
       }
     }
@@ -854,4 +885,3 @@ export function splitIntoQAPairs(pairs: DetectedQAPair[]): QACreateInput[] {
     confidence: pair.confidence,
   }));
 }
-

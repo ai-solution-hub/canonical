@@ -54,15 +54,14 @@ export async function POST(
       .single();
 
     if (bidError || !bid) {
-      return NextResponse.json(
-        { error: 'Bid not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
     }
 
     const bidStatus = (bid.status as BidState) ?? 'draft';
     const draftableStates: BidState[] = [
-      'drafting', 'in_review', 'ready_for_export',
+      'drafting',
+      'in_review',
+      'ready_for_export',
     ];
     if (!draftableStates.includes(bidStatus)) {
       return NextResponse.json(
@@ -77,7 +76,9 @@ export async function POST(
     // Fetch questions to draft
     let questionsQuery = supabase
       .from('bid_questions')
-      .select('id, question_text, word_limit, section_name, confidence_posture, matched_content_ids')
+      .select(
+        'id, question_text, word_limit, section_name, confidence_posture, matched_content_ids',
+      )
       .eq('project_id', id);
 
     if (question_ids && question_ids.length > 0) {
@@ -185,7 +186,8 @@ export async function POST(
         totalTokens += draftResult.total_tokens;
 
         // Upsert the response (overall_score written to both column and metadata for backward compat)
-        const overallScore = draftResult.metadata.quality_data?.overall_score ?? null;
+        const overallScore =
+          draftResult.metadata.quality_data?.overall_score ?? null;
         const { data: response, error: upsertError } = await supabase
           .from('bid_responses')
           .upsert(
@@ -205,7 +207,10 @@ export async function POST(
           .single();
 
         if (upsertError) {
-          console.error(`Failed to save response for question ${question.id}:`, upsertError);
+          console.error(
+            `Failed to save response for question ${question.id}:`,
+            upsertError,
+          );
           results.push({
             question_id: question.id,
             status: 'failed',
@@ -232,7 +237,10 @@ export async function POST(
         results.push({
           question_id: question.id,
           status: 'failed',
-          error: draftErr instanceof Error ? draftErr.message : 'Drafting pipeline failed',
+          error:
+            draftErr instanceof Error
+              ? draftErr.message
+              : 'Drafting pipeline failed',
         });
       }
     }

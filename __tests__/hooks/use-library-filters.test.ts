@@ -88,7 +88,10 @@ describe('useLibraryFilters', () => {
     const { result } = renderHook(() => useLibraryFilters());
 
     act(() => {
-      result.current.setFilters({ source_file: 'tender.docx', search: 'approach' });
+      result.current.setFilters({
+        source_file: 'tender.docx',
+        search: 'approach',
+      });
     });
 
     const url = mockRouter.replace.mock.calls[0][0] as string;
@@ -99,7 +102,9 @@ describe('useLibraryFilters', () => {
   });
 
   it('removes params when value is falsy', () => {
-    mockSearchParamsStore.current = new URLSearchParams('domain=security&q=test');
+    mockSearchParamsStore.current = new URLSearchParams(
+      'domain=security&q=test',
+    );
     const { result } = renderHook(() => useLibraryFilters());
 
     act(() => {
@@ -116,14 +121,18 @@ describe('useLibraryFilters', () => {
   // -------------------------------------------------------------------------
 
   it('clears all filters', () => {
-    mockSearchParamsStore.current = new URLSearchParams('domain=security&q=test');
+    mockSearchParamsStore.current = new URLSearchParams(
+      'domain=security&q=test',
+    );
     const { result } = renderHook(() => useLibraryFilters());
 
     act(() => {
       result.current.clearFilters();
     });
 
-    expect(mockRouter.replace).toHaveBeenCalledWith('/qa-library', { scroll: false });
+    expect(mockRouter.replace).toHaveBeenCalledWith('/qa-library', {
+      scroll: false,
+    });
   });
 
   // -------------------------------------------------------------------------

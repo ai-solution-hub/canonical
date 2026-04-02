@@ -19,7 +19,10 @@ export async function GET() {
       .order('name');
 
     if (error) {
-      return NextResponse.json({ error: 'Failed to fetch profiles' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Failed to fetch profiles' },
+        { status: 500 },
+      );
     }
 
     return NextResponse.json(data ?? []);
@@ -50,9 +53,15 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       if (error.code === '23505') {
-        return NextResponse.json({ error: 'A profile with this slug already exists' }, { status: 409 });
+        return NextResponse.json(
+          { error: 'A profile with this slug already exists' },
+          { status: 409 },
+        );
       }
-      return NextResponse.json({ error: 'Failed to create profile' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Failed to create profile' },
+        { status: 500 },
+      );
     }
 
     return NextResponse.json(data, { status: 201 });

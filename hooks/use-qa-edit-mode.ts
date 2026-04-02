@@ -44,7 +44,11 @@ interface SaveAllVariables {
   onFieldSaved: (field: string, value: string | null) => void;
 }
 
-async function patchField(itemId: string, field: string, value: string | null): Promise<void> {
+async function patchField(
+  itemId: string,
+  field: string,
+  value: string | null,
+): Promise<void> {
   const res = await fetch(`/api/items/${itemId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -79,11 +83,19 @@ export function useQAEditMode({
       // Save Q&A fields if changed
       if (vars.isQAPair) {
         if (vars.editStandard !== (vars.answerStandard ?? '')) {
-          await patchField(vars.itemId, 'answer_standard', vars.editStandard || null);
+          await patchField(
+            vars.itemId,
+            'answer_standard',
+            vars.editStandard || null,
+          );
           vars.onFieldSaved('answer_standard', vars.editStandard || null);
         }
         if (vars.editAdvanced !== (vars.answerAdvanced ?? '')) {
-          await patchField(vars.itemId, 'answer_advanced', vars.editAdvanced || null);
+          await patchField(
+            vars.itemId,
+            'answer_advanced',
+            vars.editAdvanced || null,
+          );
           vars.onFieldSaved('answer_advanced', vars.editAdvanced || null);
         }
       }
@@ -91,7 +103,9 @@ export function useQAEditMode({
     onSuccess: () => {
       setIsEditing(false);
       setEditDirty(false);
-      queryClient.invalidateQueries({ queryKey: queryKeys.contentItems.detail(itemId) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.contentItems.detail(itemId),
+      });
       toast.success('Changes saved');
     },
     onError: (err) => {
@@ -132,7 +146,18 @@ export function useQAEditMode({
     } catch {
       // Error already handled via onError callback
     }
-  }, [saveAllMutateAsync, editTitle, title, editStandard, editAdvanced, answerStandard, answerAdvanced, isQAPair, itemId, onFieldSaved]);
+  }, [
+    saveAllMutateAsync,
+    editTitle,
+    title,
+    editStandard,
+    editAdvanced,
+    answerStandard,
+    answerAdvanced,
+    isQAPair,
+    itemId,
+    onFieldSaved,
+  ]);
 
   return {
     isEditing,

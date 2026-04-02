@@ -12,7 +12,12 @@ import { generateDocumentDiffReviewPrompt } from '@/lib/claude-prompts';
 const mocks = vi.hoisted(() => {
   // Each .from() call needs its own independent chain so different tables
   // can return different results within the same handler invocation.
-  function makeChain(resolvedValue: { data: unknown; error: unknown } = { data: null, error: null }) {
+  function makeChain(
+    resolvedValue: { data: unknown; error: unknown } = {
+      data: null,
+      error: null,
+    },
+  ) {
     const chain: Record<string, ReturnType<typeof vi.fn>> = {};
     chain.select = vi.fn().mockReturnValue(chain);
     chain.eq = vi.fn().mockReturnValue(chain);
@@ -21,7 +26,9 @@ const mocks = vi.hoisted(() => {
     chain.limit = vi.fn().mockReturnValue(chain);
     chain.filter = vi.fn().mockReturnValue(chain);
     chain.single = vi.fn().mockResolvedValue(resolvedValue);
-    chain.then = vi.fn((resolve: (v: unknown) => void) => resolve(resolvedValue));
+    chain.then = vi.fn((resolve: (v: unknown) => void) =>
+      resolve(resolvedValue),
+    );
     return chain;
   }
 
@@ -53,13 +60,20 @@ vi.mock('@/lib/ai/embed', () => ({ generateEmbedding: vi.fn() }));
 vi.mock('@/lib/ai/classify', () => ({ classifyContent: vi.fn() }));
 vi.mock('@/lib/ai/summarise', () => ({ generateSummary: vi.fn() }));
 
-type ToolHandler = (args: Record<string, unknown>, extra: Record<string, unknown>) => Promise<unknown>;
+type ToolHandler = (
+  args: Record<string, unknown>,
+  extra: Record<string, unknown>,
+) => Promise<unknown>;
 
 function createMockMcpServer() {
   const tools: Record<string, { handler: ToolHandler }> = {};
   return {
     tools,
-    registerTool(name: string, _config: Record<string, unknown>, handler: ToolHandler) {
+    registerTool(
+      name: string,
+      _config: Record<string, unknown>,
+      handler: ToolHandler,
+    ) {
       tools[name] = { handler };
     },
     getHandler(name: string): ToolHandler | undefined {
@@ -92,7 +106,8 @@ const fullDiff: DocumentDiffData = {
     {
       diff_type: 'added',
       new_question: 'What is your data retention policy?',
-      new_content: 'We retain data for 7 years in line with regulatory requirements.',
+      new_content:
+        'We retain data for 7 years in line with regulatory requirements.',
     },
     {
       diff_type: 'modified',
@@ -198,7 +213,9 @@ const removedOnlyDiff: DocumentDiffData = {
 describe('formatDocumentDiff', () => {
   it('produces correct markdown heading with filenames', () => {
     const result = formatDocumentDiff(fullDiff);
-    expect(result).toContain('# Document Diff: bid-library-v1.docx \u2192 bid-library-v2.docx');
+    expect(result).toContain(
+      '# Document Diff: bid-library-v1.docx \u2192 bid-library-v2.docx',
+    );
   });
 
   it('includes summary section with correct counts', () => {
@@ -214,14 +231,18 @@ describe('formatDocumentDiff', () => {
     const result = formatDocumentDiff(fullDiff);
     expect(result).toContain('### Added (2)');
     expect(result).toContain('| # | Question | Answer |');
-    expect(result).toContain('| 1 | Do you hold ISO 27001? | Yes, certified since 2023. |');
+    expect(result).toContain(
+      '| 1 | Do you hold ISO 27001? | Yes, certified since 2023. |',
+    );
     expect(result).toContain('| 2 | What is your data retention policy?');
   });
 
   it('renders Modified section with similarity and affected items', () => {
     const result = formatDocumentDiff(fullDiff);
     expect(result).toContain('### Modified (1)');
-    expect(result).toContain('| # | Old Question | New Question | Similarity | Affected KB Item |');
+    expect(result).toContain(
+      '| # | Old Question | New Question | Similarity | Affected KB Item |',
+    );
     expect(result).toContain('100%');
     expect(result).toContain('Employee Count Q&A');
   });
@@ -237,7 +258,9 @@ describe('formatDocumentDiff', () => {
   it('handles empty diff with no changes message', () => {
     const result = formatDocumentDiff(emptyDiff);
     expect(result).toContain('# Document Diff: doc-v1.docx \u2192 doc-v2.docx');
-    expect(result).toContain('No changes detected between the two document versions.');
+    expect(result).toContain(
+      'No changes detected between the two document versions.',
+    );
     expect(result).not.toContain('### Added');
     expect(result).not.toContain('### Modified');
     expect(result).not.toContain('### Removed');
@@ -267,7 +290,14 @@ describe('formatDocumentDiff', () => {
     const diff: DocumentDiffData = {
       old_filename: 'a.docx',
       new_filename: 'b.docx',
-      summary: { added: 1, removed: 0, modified: 0, unchanged: 0, total_old: 0, total_new: 1 },
+      summary: {
+        added: 1,
+        removed: 0,
+        modified: 0,
+        unchanged: 0,
+        total_old: 0,
+        total_new: 1,
+      },
       entries: [
         {
           diff_type: 'added',
@@ -289,12 +319,33 @@ describe('formatDocumentDiff', () => {
     const singleDiff: DocumentDiffData = {
       old_filename: 'a.docx',
       new_filename: 'b.docx',
-      summary: { added: 1, removed: 1, modified: 1, unchanged: 1, total_old: 3, total_new: 3 },
+      summary: {
+        added: 1,
+        removed: 1,
+        modified: 1,
+        unchanged: 1,
+        total_old: 3,
+        total_new: 3,
+      },
       entries: [
         { diff_type: 'added', new_question: 'Q1?', new_content: 'A1' },
         { diff_type: 'removed', old_question: 'Q2?', old_content: 'A2' },
-        { diff_type: 'modified', old_question: 'Q3?', new_question: 'Q3?', old_content: 'A3', new_content: 'A3b', similarity_score: 1.0 },
-        { diff_type: 'unchanged', old_question: 'Q4?', new_question: 'Q4?', old_content: 'A4', new_content: 'A4', similarity_score: 1.0 },
+        {
+          diff_type: 'modified',
+          old_question: 'Q3?',
+          new_question: 'Q3?',
+          old_content: 'A3',
+          new_content: 'A3b',
+          similarity_score: 1.0,
+        },
+        {
+          diff_type: 'unchanged',
+          old_question: 'Q4?',
+          new_question: 'Q4?',
+          old_content: 'A4',
+          new_content: 'A4',
+          similarity_score: 1.0,
+        },
       ],
     };
 
@@ -334,7 +385,8 @@ describe('formatDocumentDiff', () => {
         diff_type: 'modified',
         diff_mode: 'full_text',
         old_content: 'Staff must complete training annually.',
-        new_content: 'All staff must complete mandatory training every 12 months.',
+        new_content:
+          'All staff must complete mandatory training every 12 months.',
       },
       {
         diff_type: 'removed',
@@ -369,14 +421,20 @@ describe('formatDocumentDiff', () => {
 
   it('renders full-text added entries correctly', () => {
     const result = formatDocumentDiff(fullTextDiff);
-    expect(result).toContain('New paragraph about data retention requirements.');
-    expect(result).toContain('Additional compliance clause added in section 4.');
+    expect(result).toContain(
+      'New paragraph about data retention requirements.',
+    );
+    expect(result).toContain(
+      'Additional compliance clause added in section 4.',
+    );
   });
 
   it('renders full-text modified entries with old and new text', () => {
     const result = formatDocumentDiff(fullTextDiff);
     expect(result).toContain('Staff must complete training annually.');
-    expect(result).toContain('All staff must complete mandatory training every 12 months.');
+    expect(result).toContain(
+      'All staff must complete mandatory training every 12 months.',
+    );
   });
 
   it('Q&A fixtures still produce Q&A-specific language (regression guard)', () => {
@@ -458,7 +516,10 @@ describe('get_document_diff handler — diff_id parameter', () => {
       if (table === 'source_document_diffs' && fromCallCount === 1) {
         // First call: look up the diff entry by diff_id
         return mocks.makeChain({
-          data: { old_document_id: 'old-doc-id', new_document_id: 'new-doc-id' },
+          data: {
+            old_document_id: 'old-doc-id',
+            new_document_id: 'new-doc-id',
+          },
           error: null,
         });
       }
@@ -498,10 +559,13 @@ describe('get_document_diff handler — diff_id parameter', () => {
       return mocks.makeChain({ data: [], error: null });
     });
 
-    const result = await handler!(
-      { document_id: '00000000-0000-0000-0000-000000000099', diff_id: 'diff-id-123' },
+    const result = (await handler!(
+      {
+        document_id: '00000000-0000-0000-0000-000000000099',
+        diff_id: 'diff-id-123',
+      },
       extra,
-    ) as { content: { text: string }[]; isError?: boolean };
+    )) as { content: { text: string }[]; isError?: boolean };
 
     // Should have queried source_document_diffs first (not source_documents)
     expect(mocks.fromMock.mock.calls[0][0]).toBe('source_document_diffs');
@@ -520,10 +584,13 @@ describe('get_document_diff handler — diff_id parameter', () => {
       });
     });
 
-    const result = await handler!(
-      { document_id: '00000000-0000-0000-0000-000000000099', diff_id: 'nonexistent' },
+    const result = (await handler!(
+      {
+        document_id: '00000000-0000-0000-0000-000000000099',
+        diff_id: 'nonexistent',
+      },
       extra,
-    ) as { content: { text: string }[]; isError?: boolean };
+    )) as { content: { text: string }[]; isError?: boolean };
 
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain('Diff entry not found');

@@ -25,7 +25,15 @@ vi.mock('next/navigation', () => ({
 
 // Mock the Select components with simple HTML selects for testability
 vi.mock('@/components/ui/select', () => ({
-  Select: ({ children, value, onValueChange }: { children: React.ReactNode; value?: string; onValueChange?: (v: string) => void }) => (
+  Select: ({
+    children,
+    value,
+    onValueChange,
+  }: {
+    children: React.ReactNode;
+    value?: string;
+    onValueChange?: (v: string) => void;
+  }) => (
     <div data-current-value={value}>
       <select
         data-testid={`native-select-${value}`}
@@ -36,12 +44,22 @@ vi.mock('@/components/ui/select', () => ({
       </select>
     </div>
   ),
-  SelectTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
-  SelectContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  SelectItem: ({ children, value }: { children: React.ReactNode; value: string }) => (
-    <option value={value}>{children}</option>
+  SelectTrigger: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
   ),
+  SelectValue: ({ placeholder }: { placeholder?: string }) => (
+    <span>{placeholder}</span>
+  ),
+  SelectContent: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+  SelectItem: ({
+    children,
+    value,
+  }: {
+    children: React.ReactNode;
+    value: string;
+  }) => <option value={value}>{children}</option>,
 }));
 
 // Stub the ActivityFeed to capture its props
@@ -49,7 +67,11 @@ vi.mock('@/components/dashboard/activity-feed', () => ({
   ActivityFeed: (props: Record<string, unknown>) => {
     mockActivityFeedProps.value = props;
     return (
-      <div data-testid="activity-feed" data-event-filter={props.eventFilter} data-date-range={props.dateRange}>
+      <div
+        data-testid="activity-feed"
+        data-event-filter={props.eventFilter}
+        data-date-range={props.dateRange}
+      >
         ActivityFeed
       </div>
     );

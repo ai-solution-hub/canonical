@@ -47,9 +47,15 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { BidStateBadge, BidStateStepper } from '@/components/bid/bid-state-indicator';
+import {
+  BidStateBadge,
+  BidStateStepper,
+} from '@/components/bid/bid-state-indicator';
 import { BidExportMenu } from '@/components/bid/bid-export-menu';
-import { ReadinessChecklist, ReadinessBadge } from '@/components/bid/readiness-checklist';
+import {
+  ReadinessChecklist,
+  ReadinessBadge,
+} from '@/components/bid/readiness-checklist';
 import { CostEstimateDialog } from '@/components/coverage/cost-estimate-dialog';
 import { BidOutcomeDialog } from '@/components/bid/bid-outcome';
 import { KBIntegrationReview } from '@/components/bid/kb-integration-review';
@@ -66,9 +72,21 @@ import { formatDateUK } from '@/lib/format';
 import { getDeadlineProximity } from '@/lib/bid/bid-helpers';
 import { BID_STATE_LABELS } from '@/lib/bid/bid-state-machine';
 import { cn } from '@/lib/utils';
-import type { Bid, BidMetadata, BidQuestionStats, TenderDocument, ConfidencePosture, BidState, ExtractionResult } from '@/types/bid';
+import type {
+  Bid,
+  BidMetadata,
+  BidQuestionStats,
+  TenderDocument,
+  ConfidencePosture,
+  BidState,
+  ExtractionResult,
+} from '@/types/bid';
 
-export default function BidDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default function BidDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = use(params);
   const { canEdit, role } = useUserRole();
   const {
@@ -140,9 +158,17 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
           <ArrowLeft className="size-4" aria-hidden="true" />
           Back to Bids
         </Link>
-        <div className="mt-8 flex flex-col items-center justify-center py-20 text-center" role="alert">
-          <AlertCircle className="size-10 text-muted-foreground/50" aria-hidden="true" />
-          <h2 className="mt-4 text-lg font-semibold text-foreground">Bid not found</h2>
+        <div
+          className="mt-8 flex flex-col items-center justify-center py-20 text-center"
+          role="alert"
+        >
+          <AlertCircle
+            className="size-10 text-muted-foreground/50"
+            aria-hidden="true"
+          />
+          <h2 className="mt-4 text-lg font-semibold text-foreground">
+            Bid not found
+          </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             This bid may have been deleted or you may not have access.
           </p>
@@ -169,7 +195,9 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
       <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-2">
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-semibold text-foreground">{bid.name}</h1>
+            <h1 className="text-xl font-semibold text-foreground">
+              {bid.name}
+            </h1>
             <BidStateBadge state={bidStatus} />
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
@@ -215,23 +243,29 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
           <>
             {/* Desktop actions — hidden on mobile */}
             <div className="hidden items-center gap-2 sm:flex">
-              {regularTransitions.filter(t => t !== 'withdrawn').length > 0 && (
+              {regularTransitions.filter((t) => t !== 'withdrawn').length >
+                0 && (
                 <div className="flex items-center gap-1">
-                  {regularTransitions.filter(t => t !== 'withdrawn').map((transition) => (
-                    <Button
-                      key={transition}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleStatusTransition(transition)}
-                      disabled={transitioning}
-                      aria-label={BID_STATE_LABELS[transition]}
-                    >
-                      {transitioning ? (
-                        <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-                      ) : null}
-                      {BID_STATE_LABELS[transition]}
-                    </Button>
-                  ))}
+                  {regularTransitions
+                    .filter((t) => t !== 'withdrawn')
+                    .map((transition) => (
+                      <Button
+                        key={transition}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleStatusTransition(transition)}
+                        disabled={transitioning}
+                        aria-label={BID_STATE_LABELS[transition]}
+                      >
+                        {transitioning ? (
+                          <Loader2
+                            className="size-3.5 animate-spin"
+                            aria-hidden="true"
+                          />
+                        ) : null}
+                        {BID_STATE_LABELS[transition]}
+                      </Button>
+                    ))}
                 </div>
               )}
               {isSubmitted && (
@@ -243,7 +277,10 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
                   Record Outcome
                 </Button>
               )}
-              <ReadinessBadge readiness={readiness} isLoading={readinessLoading} />
+              <ReadinessBadge
+                readiness={readiness}
+                isLoading={readinessLoading}
+              />
               <BidExportMenu
                 bidId={id}
                 bidName={bid.name}
@@ -258,15 +295,8 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
               {role === 'admin' && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      title="More actions"
-                    >
-                      <MoreHorizontal
-                        className="size-4"
-                        aria-hidden="true"
-                      />
+                    <Button variant="ghost" size="icon-sm" title="More actions">
+                      <MoreHorizontal className="size-4" aria-hidden="true" />
                       <span className="sr-only">More actions</span>
                     </Button>
                   </DropdownMenuTrigger>
@@ -275,10 +305,7 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
                       onClick={handleDelete}
                       className="text-destructive focus:text-destructive"
                     >
-                      <Trash2
-                        className="mr-2 size-4"
-                        aria-hidden="true"
-                      />
+                      <Trash2 className="mr-2 size-4" aria-hidden="true" />
                       Delete bid
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -330,7 +357,12 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
 
       {/* Tabs */}
       <div className="mt-6 border-b">
-        <div className="flex gap-4" role="tablist" aria-label="Bid sections" onKeyDown={handleTablistKeyDown}>
+        <div
+          className="flex gap-4"
+          role="tablist"
+          aria-label="Bid sections"
+          onKeyDown={handleTablistKeyDown}
+        >
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -356,7 +388,9 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
               <span
                 className={cn(
                   'absolute inset-x-0 bottom-0 h-0.5 bg-primary transition-all duration-200',
-                  activeTab === tab.id ? 'opacity-100 scale-x-100' : 'opacity-0 scale-x-0',
+                  activeTab === tab.id
+                    ? 'opacity-100 scale-x-100'
+                    : 'opacity-0 scale-x-0',
                 )}
               />
             </button>
@@ -365,7 +399,12 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
       </div>
 
       {/* Tab content */}
-      <div className="mt-6" role="tabpanel" id="bid-tabpanel" aria-labelledby={`bid-tab-${activeTab}`}>
+      <div
+        className="mt-6"
+        role="tabpanel"
+        id="bid-tabpanel"
+        aria-labelledby={`bid-tab-${activeTab}`}
+      >
         {activeTab === 'overview' && (
           <OverviewTab
             bid={bid}
@@ -425,7 +464,10 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
                     onClick={() => setShowCostEstimate(true)}
                   >
                     {draftingAll ? (
-                      <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                      <Loader2
+                        className="size-3.5 animate-spin"
+                        aria-hidden="true"
+                      />
                     ) : (
                       <PenLine className="size-3.5" aria-hidden="true" />
                     )}
@@ -444,20 +486,24 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
               bidId={id}
               questions={questions}
               canEdit={canEdit}
-              onQuestionsChanged={() => { fetchQuestions(); fetchBid(); }}
+              onQuestionsChanged={() => {
+                fetchQuestions();
+                fetchBid();
+              }}
             />
           </>
         )}
         {activeTab === 'responses' && (
           <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center">
-            <FileText className="size-8 text-muted-foreground/50" aria-hidden="true" />
+            <FileText
+              className="size-8 text-muted-foreground/50"
+              aria-hidden="true"
+            />
             <p className="mt-3 text-sm text-muted-foreground">
               Draft and review responses in the drafting workspace.
             </p>
             <Button asChild className="mt-4">
-              <Link href={`/bid/${id}/session`}>
-                Open Drafting Session
-              </Link>
+              <Link href={`/bid/${id}/session`}>Open Drafting Session</Link>
             </Button>
           </div>
         )}
@@ -491,16 +537,13 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
       />
 
       {/* Delete confirmation dialog */}
-      <AlertDialog
-        open={deleteConfirmOpen}
-        onOpenChange={setDeleteConfirmOpen}
-      >
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete bid</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &ldquo;{bid?.name}&rdquo;? This cannot be
-              undone.
+              Are you sure you want to delete &ldquo;{bid?.name}&rdquo;? This
+              cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -546,10 +589,13 @@ function MobileActionMenu({
     bidName,
   });
 
-  const filteredTransitions = regularTransitions.filter(t => t !== 'withdrawn');
+  const filteredTransitions = regularTransitions.filter(
+    (t) => t !== 'withdrawn',
+  );
   const hasTransitions = filteredTransitions.length > 0;
   const hasExport = totalQuestions > 0;
-  const hasAnyItems = hasTransitions || isSubmitted || hasExport || role === 'admin';
+  const hasAnyItems =
+    hasTransitions || isSubmitted || hasExport || role === 'admin';
 
   if (!hasAnyItems) return null;
 
@@ -570,7 +616,10 @@ function MobileActionMenu({
             disabled={transitioning}
           >
             {transitioning && (
-              <Loader2 className="mr-2 size-3.5 animate-spin" aria-hidden="true" />
+              <Loader2
+                className="mr-2 size-3.5 animate-spin"
+                aria-hidden="true"
+              />
             )}
             {BID_STATE_LABELS[transition]}
           </DropdownMenuItem>
@@ -590,7 +639,10 @@ function MobileActionMenu({
             <DropdownMenuSub>
               <DropdownMenuSubTrigger disabled={isExporting}>
                 {isExporting ? (
-                  <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
+                  <Loader2
+                    className="mr-2 size-4 animate-spin"
+                    aria-hidden="true"
+                  />
                 ) : (
                   <Download className="mr-2 size-4" aria-hidden="true" />
                 )}
@@ -602,7 +654,10 @@ function MobileActionMenu({
                   disabled={isExporting}
                 >
                   {exporting === 'docx' ? (
-                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                    <Loader2
+                      className="size-4 animate-spin"
+                      aria-hidden="true"
+                    />
                   ) : (
                     <FileText className="size-4" aria-hidden="true" />
                   )}
@@ -613,7 +668,10 @@ function MobileActionMenu({
                   disabled={isExporting}
                 >
                   {exporting === 'xlsx' ? (
-                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                    <Loader2
+                      className="size-4 animate-spin"
+                      aria-hidden="true"
+                    />
                   ) : (
                     <Sheet className="size-4" aria-hidden="true" />
                   )}
@@ -682,7 +740,9 @@ function OverviewTab({
   onShowCostEstimate: (open: boolean) => void;
   draftingAll: boolean;
   onDraftAll: () => void;
-  onSwitchTab: (tab: 'overview' | 'questions' | 'responses' | 'documents') => void;
+  onSwitchTab: (
+    tab: 'overview' | 'questions' | 'responses' | 'documents',
+  ) => void;
   onShowOutcomeDialog: () => void;
   onShowKBReview: () => void;
   readiness: import('@/hooks/bid/use-bid-readiness').ReadinessData | null;
@@ -692,12 +752,26 @@ function OverviewTab({
 }) {
   const metadata = bid.domain_metadata as BidMetadata;
   const overviewStatus = bid.status as BidState;
-  const postureBreakdown = stats ? ([
-    { posture: 'strong_match' as ConfidencePosture, count: stats.strong_match_count },
-    { posture: 'partial_match' as ConfidencePosture, count: stats.partial_match_count },
-    { posture: 'needs_sme' as ConfidencePosture, count: stats.needs_sme_count },
-    { posture: 'no_content' as ConfidencePosture, count: stats.no_content_count },
-  ]).filter(p => p.count > 0) : [];
+  const postureBreakdown = stats
+    ? [
+        {
+          posture: 'strong_match' as ConfidencePosture,
+          count: stats.strong_match_count,
+        },
+        {
+          posture: 'partial_match' as ConfidencePosture,
+          count: stats.partial_match_count,
+        },
+        {
+          posture: 'needs_sme' as ConfidencePosture,
+          count: stats.needs_sme_count,
+        },
+        {
+          posture: 'no_content' as ConfidencePosture,
+          count: stats.no_content_count,
+        },
+      ].filter((p) => p.count > 0)
+    : [];
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -717,17 +791,22 @@ function OverviewTab({
           <div className="mt-3 space-y-2">
             <Progress value={progressPercent} className="h-2" />
             <p className="text-sm text-muted-foreground">
-              {completedCount} of {totalQuestions} questions drafted ({progressPercent}%)
+              {completedCount} of {totalQuestions} questions drafted (
+              {progressPercent}%)
             </p>
           </div>
         ) : (
           <div className="mt-3 flex flex-col items-center gap-2 rounded-lg border border-dashed border-border py-6 text-center">
-            <Upload className="size-6 text-muted-foreground/50" aria-hidden="true" />
+            <Upload
+              className="size-6 text-muted-foreground/50"
+              aria-hidden="true"
+            />
             <p className="text-sm text-muted-foreground">
               No questions extracted yet.
             </p>
             <p className="text-xs text-muted-foreground/70">
-              Questions will be automatically extracted from your tender document.
+              Questions will be automatically extracted from your tender
+              document.
             </p>
             {canEdit && (
               <Button
@@ -745,39 +824,46 @@ function OverviewTab({
       </div>
 
       {/* Draft All Responses action */}
-      {canEdit && totalQuestions > 0 && ['drafting', 'in_review'].includes(overviewStatus) && (
-        <div className="rounded-lg border bg-card p-4">
-          <h2 className="text-sm font-medium text-foreground">Knowledge-based Drafting</h2>
-          <p className="mt-1.5 text-sm text-muted-foreground">
-            Draft responses for all eligible questions using your knowledge base.
-          </p>
-          <Button
-            variant="default"
-            size="sm"
-            className="mt-3 gap-1.5"
-            disabled={draftingAll}
-            onClick={() => onShowCostEstimate(true)}
-          >
-            {draftingAll ? (
-              <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-            ) : (
-              <PenLine className="size-3.5" aria-hidden="true" />
-            )}
-            {draftingAll ? 'Drafting...' : 'Draft All Responses'}
-          </Button>
-          <CostEstimateDialog
-            open={showCostEstimate}
-            onOpenChange={onShowCostEstimate}
-            bidId={bidId}
-            onProceed={onDraftAll}
-          />
-        </div>
-      )}
+      {canEdit &&
+        totalQuestions > 0 &&
+        ['drafting', 'in_review'].includes(overviewStatus) && (
+          <div className="rounded-lg border bg-card p-4">
+            <h2 className="text-sm font-medium text-foreground">
+              Knowledge-based Drafting
+            </h2>
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              Draft responses for all eligible questions using your knowledge
+              base.
+            </p>
+            <Button
+              variant="default"
+              size="sm"
+              className="mt-3 gap-1.5"
+              disabled={draftingAll}
+              onClick={() => onShowCostEstimate(true)}
+            >
+              {draftingAll ? (
+                <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+              ) : (
+                <PenLine className="size-3.5" aria-hidden="true" />
+              )}
+              {draftingAll ? 'Drafting...' : 'Draft All Responses'}
+            </Button>
+            <CostEstimateDialog
+              open={showCostEstimate}
+              onOpenChange={onShowCostEstimate}
+              bidId={bidId}
+              onProceed={onDraftAll}
+            />
+          </div>
+        )}
 
       {/* Confidence breakdown */}
       {postureBreakdown.length > 0 && (
         <div className="rounded-lg border bg-card p-4">
-          <h2 className="text-sm font-medium text-foreground">Confidence Breakdown</h2>
+          <h2 className="text-sm font-medium text-foreground">
+            Confidence Breakdown
+          </h2>
           <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
             {postureBreakdown.map(({ posture, count }) => (
               <ConfidenceDot key={posture} posture={posture} count={count} />
@@ -811,12 +897,19 @@ function OverviewTab({
 
       {/* Bid details — spans 2 columns when confidence card is absent to avoid grid asymmetry */}
       {(() => {
-        const hasDetails = metadata.estimated_value || metadata.reference_number || metadata.deadline || bid.description || metadata.notes;
+        const hasDetails =
+          metadata.estimated_value ||
+          metadata.reference_number ||
+          metadata.deadline ||
+          bid.description ||
+          metadata.notes;
         return (
-          <div className={cn(
-            'rounded-lg border bg-card p-4',
-            postureBreakdown.length === 0 && 'lg:col-span-2',
-          )}>
+          <div
+            className={cn(
+              'rounded-lg border bg-card p-4',
+              postureBreakdown.length === 0 && 'lg:col-span-2',
+            )}
+          >
             <h2 className="text-sm font-medium text-foreground">Details</h2>
             {hasDetails ? (
               <dl className="mt-3 space-y-2 text-sm">
@@ -835,7 +928,9 @@ function OverviewTab({
                 {metadata.deadline && (
                   <div className="flex justify-between">
                     <dt className="text-muted-foreground">Deadline</dt>
-                    <dd className="font-medium">{formatDateUK(metadata.deadline)}</dd>
+                    <dd className="font-medium">
+                      {formatDateUK(metadata.deadline)}
+                    </dd>
                   </div>
                 )}
                 {bid.description && (
@@ -853,12 +948,16 @@ function OverviewTab({
               </dl>
             ) : (
               <div className="mt-3 flex flex-col items-center gap-2 rounded-lg border border-dashed border-border py-6 text-center">
-                <ClipboardList className="size-6 text-muted-foreground/50" aria-hidden="true" />
+                <ClipboardList
+                  className="size-6 text-muted-foreground/50"
+                  aria-hidden="true"
+                />
                 <p className="text-sm text-muted-foreground">
                   No details added yet.
                 </p>
                 <p className="text-xs text-muted-foreground/70">
-                  Add bid details like deadline, estimated value, and reference number to track this opportunity.
+                  Add bid details like deadline, estimated value, and reference
+                  number to track this opportunity.
                 </p>
               </div>
             )}
@@ -868,12 +967,17 @@ function OverviewTab({
 
       {/* Tender documents summary */}
       <div className="rounded-lg border bg-card p-4">
-        <h2 className="text-sm font-medium text-foreground">Tender Documents</h2>
+        <h2 className="text-sm font-medium text-foreground">
+          Tender Documents
+        </h2>
         {(bid.tender_documents?.length ?? 0) > 0 ? (
           <ul className="mt-3 space-y-2">
             {bid.tender_documents?.map((doc) => (
               <li key={doc.path} className="flex items-center gap-2 text-sm">
-                <FileText className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <FileText
+                  className="size-4 shrink-0 text-muted-foreground"
+                  aria-hidden="true"
+                />
                 <span className="min-w-0 truncate">{doc.filename}</span>
                 <span className="shrink-0 text-xs text-muted-foreground">
                   ({Math.round(doc.size / 1024)} KB)
@@ -884,12 +988,16 @@ function OverviewTab({
           </ul>
         ) : (
           <div className="mt-3 flex flex-col items-center gap-2 rounded-lg border border-dashed border-border py-6 text-center">
-            <Upload className="size-6 text-muted-foreground/50" aria-hidden="true" />
+            <Upload
+              className="size-6 text-muted-foreground/50"
+              aria-hidden="true"
+            />
             <p className="text-sm text-muted-foreground">
               No tender documents uploaded yet.
             </p>
             <p className="text-xs text-muted-foreground/70">
-              Upload your tender document to extract questions and start drafting responses.
+              Upload your tender document to extract questions and start
+              drafting responses.
             </p>
             {canEdit && (
               <Button
@@ -926,7 +1034,9 @@ function NextActionCard({
   type NextAction = {
     title: string;
     description: string;
-    action: { type: 'link'; href: string; label: string } | { type: 'button'; onClick: () => void; label: string };
+    action:
+      | { type: 'link'; href: string; label: string }
+      | { type: 'button'; onClick: () => void; label: string };
     icon: React.ReactNode;
   };
 
@@ -938,31 +1048,53 @@ function NextActionCard({
       case 'drafting':
         return {
           title: 'Start answering questions',
-          description: 'Open the drafting session to work through your bid responses using the knowledge base.',
-          action: { type: 'link', href: `/bid/${bidId}/session`, label: 'Open Session' },
+          description:
+            'Open the drafting session to work through your bid responses using the knowledge base.',
+          action: {
+            type: 'link',
+            href: `/bid/${bidId}/session`,
+            label: 'Open Session',
+          },
           icon: <PenLine className="size-5 text-primary" aria-hidden="true" />,
         };
       case 'in_review':
       case 'ready_for_export':
         return {
           title: 'Review responses before submission',
-          description: 'Check your drafted responses for quality and completeness before exporting or submitting.',
-          action: { type: 'link', href: `/bid/${bidId}/session`, label: 'Review Responses' },
+          description:
+            'Check your drafted responses for quality and completeness before exporting or submitting.',
+          action: {
+            type: 'link',
+            href: `/bid/${bidId}/session`,
+            label: 'Review Responses',
+          },
           icon: <Eye className="size-5 text-primary" aria-hidden="true" />,
         };
       case 'submitted':
         return {
           title: 'Record the outcome when you hear back',
-          description: 'Once you receive a decision, record whether the bid was won or lost to track your success rate.',
-          action: { type: 'button', onClick: onShowOutcomeDialog, label: 'Record Outcome' },
-          icon: <ClipboardList className="size-5 text-primary" aria-hidden="true" />,
+          description:
+            'Once you receive a decision, record whether the bid was won or lost to track your success rate.',
+          action: {
+            type: 'button',
+            onClick: onShowOutcomeDialog,
+            label: 'Record Outcome',
+          },
+          icon: (
+            <ClipboardList className="size-5 text-primary" aria-hidden="true" />
+          ),
         };
       case 'won':
       case 'lost':
         return {
           title: 'Review responses for your knowledge base',
-          description: 'Identify strong responses worth adding to your knowledge base for future bids.',
-          action: { type: 'button', onClick: onShowKBReview, label: 'Review for KB' },
+          description:
+            'Identify strong responses worth adding to your knowledge base for future bids.',
+          action: {
+            type: 'button',
+            onClick: onShowKBReview,
+            label: 'Review for KB',
+          },
           icon: <Award className="size-5 text-primary" aria-hidden="true" />,
         };
       default:
@@ -981,10 +1113,19 @@ function NextActionCard({
           {nextAction.icon}
         </div>
         <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-semibold text-foreground">{nextAction.title}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{nextAction.description}</p>
+          <h2 className="text-sm font-semibold text-foreground">
+            {nextAction.title}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {nextAction.description}
+          </p>
           {nextAction.action.type === 'link' ? (
-            <Button asChild variant="default" size="sm" className="mt-3 gap-1.5">
+            <Button
+              asChild
+              variant="default"
+              size="sm"
+              className="mt-3 gap-1.5"
+            >
               <Link href={nextAction.action.href}>
                 {nextAction.action.label}
                 <ArrowRight className="size-3.5" aria-hidden="true" />
@@ -1034,12 +1175,16 @@ function DocumentsTab({
           <div className="divide-y">
             {tenderDocuments.map((doc) => (
               <div key={doc.path} className="flex items-center gap-3 px-4 py-3">
-                <FileText className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <FileText
+                  className="size-5 shrink-0 text-muted-foreground"
+                  aria-hidden="true"
+                />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{doc.filename}</p>
                   <p className="text-xs text-muted-foreground">
                     {Math.round(doc.size / 1024)} KB
-                    {doc.uploaded_at && ` · Uploaded ${formatDateUK(doc.uploaded_at)}`}
+                    {doc.uploaded_at &&
+                      ` · Uploaded ${formatDateUK(doc.uploaded_at)}`}
                   </p>
                 </div>
                 <TenderDownloadLink bidId={bidId} doc={doc} />
@@ -1049,7 +1194,10 @@ function DocumentsTab({
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12 text-center">
-          <Upload className="size-8 text-muted-foreground/50" aria-hidden="true" />
+          <Upload
+            className="size-8 text-muted-foreground/50"
+            aria-hidden="true"
+          />
           <p className="mt-2 text-sm text-muted-foreground">
             No tender documents uploaded yet.
           </p>
@@ -1059,7 +1207,13 @@ function DocumentsTab({
   );
 }
 
-function TenderDownloadLink({ bidId, doc }: { bidId: string; doc: TenderDocument }) {
+function TenderDownloadLink({
+  bidId,
+  doc,
+}: {
+  bidId: string;
+  doc: TenderDocument;
+}) {
   const [downloading, setDownloading] = useState(false);
 
   async function handleDownload() {

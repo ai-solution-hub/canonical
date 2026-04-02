@@ -55,7 +55,10 @@ export function TagDomainView({ groups }: TagDomainViewProps) {
   if (groups.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-        <Layers className="size-8 text-muted-foreground/50" aria-hidden="true" />
+        <Layers
+          className="size-8 text-muted-foreground/50"
+          aria-hidden="true"
+        />
         <p className="text-sm text-muted-foreground">
           No tags found grouped by domain.
         </p>

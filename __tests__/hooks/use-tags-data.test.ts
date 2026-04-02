@@ -137,7 +137,9 @@ describe('useTagsData', () => {
     );
 
     expect(toast.success).toHaveBeenCalledWith(
-      expect.stringContaining('Renamed "compliance" to "regulatory-compliance"'),
+      expect.stringContaining(
+        'Renamed "compliance" to "regulatory-compliance"',
+      ),
     );
   });
 

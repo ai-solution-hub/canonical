@@ -73,12 +73,15 @@ export async function GET(
       .map((f) => f.question_id)
       .filter((id): id is string => id !== null);
 
-    const questionMap = new Map<string, {
-      id: string;
-      question_text: string;
-      status: string;
-      response_preview: string | null;
-    }>();
+    const questionMap = new Map<
+      string,
+      {
+        id: string;
+        question_text: string;
+        status: string;
+        response_preview: string | null;
+      }
+    >();
 
     if (questionIds.length > 0) {
       // Fetch bid questions
@@ -113,7 +116,8 @@ export async function GET(
               const q = questionMap.get(r.question_id);
               if (q) {
                 q.response_preview = r.response_text
-                  ? r.response_text.substring(0, 200) + (r.response_text.length > 200 ? '...' : '')
+                  ? r.response_text.substring(0, 200) +
+                    (r.response_text.length > 200 ? '...' : '')
                   : null;
               }
             }
@@ -124,14 +128,15 @@ export async function GET(
 
     const enrichedFields = (fields ?? []).map((f) => ({
       ...f,
-      matched_question: f.question_id ? questionMap.get(f.question_id) ?? null : null,
+      matched_question: f.question_id
+        ? (questionMap.get(f.question_id) ?? null)
+        : null,
     }));
 
     // Fetch summary via RPC
-    const { data: summaryRows } = await supabase.rpc(
-      'get_template_summary',
-      { p_template_id: templateId },
-    );
+    const { data: summaryRows } = await supabase.rpc('get_template_summary', {
+      p_template_id: templateId,
+    });
 
     const summary = summaryRows?.[0] ?? {
       total_fields: 0,

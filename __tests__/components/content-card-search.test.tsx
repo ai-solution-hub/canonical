@@ -46,7 +46,9 @@ import { ContentCard } from '@/components/content/content-card';
 // Factory helpers
 // ---------------------------------------------------------------------------
 
-function makeContentItem(overrides: Partial<ContentListItem> = {}): ContentListItem {
+function makeContentItem(
+  overrides: Partial<ContentListItem> = {},
+): ContentListItem {
   return {
     id: 'item-1',
     title: 'Default Article Title',

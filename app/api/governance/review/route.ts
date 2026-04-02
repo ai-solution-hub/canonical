@@ -3,7 +3,10 @@ import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody, parseSearchParams } from '@/lib/validation';
-import { GovernanceReviewBodySchema, GovernanceReviewParamsSchema } from '@/lib/validation/schemas';
+import {
+  GovernanceReviewBodySchema,
+  GovernanceReviewParamsSchema,
+} from '@/lib/validation/schemas';
 
 export const maxDuration = 30;
 
@@ -19,7 +22,10 @@ export async function GET(request: NextRequest) {
     if (!auth) return unauthorisedResponse();
     const { supabase } = auth;
 
-    const parsed = parseSearchParams(GovernanceReviewParamsSchema, request.nextUrl.searchParams);
+    const parsed = parseSearchParams(
+      GovernanceReviewParamsSchema,
+      request.nextUrl.searchParams,
+    );
     if (!parsed.success) return parsed.response;
     const { count_only: countOnly, limit, offset } = parsed.data;
 
@@ -90,10 +96,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (fetchError || !item) {
-      return NextResponse.json(
-        { error: 'Item not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Item not found' }, { status: 404 });
     }
 
     if (item.governance_review_status !== 'pending') {
@@ -131,10 +134,7 @@ export async function POST(request: NextRequest) {
         break;
 
       default:
-        return NextResponse.json(
-          { error: 'Invalid action' },
-          { status: 400 },
-        );
+        return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
 
     const { data: updated, error: updateError } = await supabase

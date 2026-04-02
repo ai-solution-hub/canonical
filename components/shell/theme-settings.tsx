@@ -109,9 +109,7 @@ export function ThemeSettings() {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Appearance Settings</DialogTitle>
-          <DialogDescription>
-            Customise your experience
-          </DialogDescription>
+          <DialogDescription>Customise your experience</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-6 py-4">

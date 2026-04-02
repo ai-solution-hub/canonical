@@ -17,7 +17,11 @@ import type { Database } from '@/supabase/types/database.types';
 import type { ClassificationTemporalReference } from '@/lib/ai/classify';
 import type { TemporalReference } from '@/lib/date-extraction';
 import { reconcileTemporalReferences } from '@/lib/entities/temporal-reconciliation';
-import { tokenMatch, isDuration, addDurationToDate } from '@/lib/entities/token-match';
+import {
+  tokenMatch,
+  isDuration,
+  addDurationToDate,
+} from '@/lib/entities/token-match';
 
 /** Entity types that can receive temporal metadata */
 const TEMPORAL_ENTITY_TYPES = new Set([
@@ -31,10 +35,14 @@ const TEMPORAL_ENTITY_TYPES = new Set([
  * This ensures date_obtained is available when computing duration-based expiry dates.
  * See Appendix C of the pipeline parity spec.
  */
-function sortRefsEffectiveFirst<T extends { context_type: string }>(refs: T[]): T[] {
+function sortRefsEffectiveFirst<T extends { context_type: string }>(
+  refs: T[],
+): T[] {
   return [...refs].sort((a, b) => {
-    if (a.context_type === 'effective' && b.context_type !== 'effective') return -1;
-    if (a.context_type !== 'effective' && b.context_type === 'effective') return 1;
+    if (a.context_type === 'effective' && b.context_type !== 'effective')
+      return -1;
+    if (a.context_type !== 'effective' && b.context_type === 'effective')
+      return 1;
     return 0;
   });
 }
@@ -93,7 +101,8 @@ export async function bridgeTemporalReferencesToEntities(
 
   // 3. Match temporal references to entity mentions using token-level matching
   for (const mention of mentions) {
-    const existingMetadata = (mention.metadata as Record<string, unknown>) ?? {};
+    const existingMetadata =
+      (mention.metadata as Record<string, unknown>) ?? {};
     let updated = false;
     const newMetadata = { ...existingMetadata };
 

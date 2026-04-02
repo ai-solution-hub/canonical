@@ -43,7 +43,12 @@ export function GuidesSection() {
   }, [fetchGuides]);
 
   const handleDelete = async (guide: Guide) => {
-    if (!confirm(`Delete "${guide.name}"? This will also delete all its sections.`)) return;
+    if (
+      !confirm(
+        `Delete "${guide.name}"? This will also delete all its sections.`,
+      )
+    )
+      return;
 
     try {
       const res = await fetch(`/api/guides/${encodeURIComponent(guide.slug)}`, {
@@ -71,7 +76,9 @@ export function GuidesSection() {
       });
 
       if (res.ok) {
-        toast.success(guide.is_published ? 'Guide unpublished' : 'Guide published');
+        toast.success(
+          guide.is_published ? 'Guide unpublished' : 'Guide published',
+        );
         fetchGuides();
       } else {
         const data = await res.json().catch(() => ({}));
@@ -101,8 +108,8 @@ export function GuidesSection() {
                 </TooltipTrigger>
                 <TooltipContent side="right" className="max-w-xs">
                   A guide is a curated reading experience — a sequence of
-                  sections that pulls in relevant knowledge items. For example, a
-                  &ldquo;Health &amp; Safety Overview&rdquo; guide might have
+                  sections that pulls in relevant knowledge items. For example,
+                  a &ldquo;Health &amp; Safety Overview&rdquo; guide might have
                   sections for policies, certifications, and risk assessments.
                   Guides can be published or kept as drafts.
                 </TooltipContent>
@@ -136,7 +143,10 @@ export function GuidesSection() {
 
         {!loading && guides.length === 0 && (
           <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border px-6 py-12 text-center">
-            <BookOpen className="size-8 text-muted-foreground/50" aria-hidden="true" />
+            <BookOpen
+              className="size-8 text-muted-foreground/50"
+              aria-hidden="true"
+            />
             <p className="mt-3 text-sm text-muted-foreground">
               No guides created yet. Create your first guide to get started.
             </p>

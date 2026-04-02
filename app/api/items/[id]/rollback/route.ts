@@ -53,10 +53,7 @@ export async function POST(
 
     // Step 2: Return 404 if target version doesn't exist
     if (versionError || !targetVersion) {
-      return NextResponse.json(
-        { error: 'Version not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Version not found' }, { status: 404 });
     }
 
     // Step 3: Fetch current state of the content item
@@ -68,10 +65,7 @@ export async function POST(
 
     // Step 4: Return 404 if content item doesn't exist
     if (currentError || !currentItem) {
-      return NextResponse.json(
-        { error: 'Item not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Item not found' }, { status: 404 });
     }
 
     // Step 5: Snapshot current state into content_history before overwriting
@@ -85,22 +79,27 @@ export async function POST(
 
     const nextVersion = (maxVersionData?.version ?? 0) + 1;
 
-    const { error: snapshotError } = await supabase.from('content_history').insert({
-      content_item_id: id,
-      version: nextVersion,
-      title: currentItem.title ?? '',
-      content: currentItem.content ?? '',
-      brief: currentItem.brief ?? null,
-      detail: currentItem.detail ?? null,
-      reference: currentItem.reference ?? null,
-      metadata: currentItem.metadata ?? null,
-      change_summary: `Rolled back to version ${targetVersion.version}`,
-      change_type: 'rollback',
-      created_by: user.id,
-    });
+    const { error: snapshotError } = await supabase
+      .from('content_history')
+      .insert({
+        content_item_id: id,
+        version: nextVersion,
+        title: currentItem.title ?? '',
+        content: currentItem.content ?? '',
+        brief: currentItem.brief ?? null,
+        detail: currentItem.detail ?? null,
+        reference: currentItem.reference ?? null,
+        metadata: currentItem.metadata ?? null,
+        change_summary: `Rolled back to version ${targetVersion.version}`,
+        change_type: 'rollback',
+        created_by: user.id,
+      });
 
     if (snapshotError) {
-      console.error('Failed to snapshot current state before rollback:', snapshotError);
+      console.error(
+        'Failed to snapshot current state before rollback:',
+        snapshotError,
+      );
       return NextResponse.json(
         { error: 'Failed to save current version snapshot — rollback aborted' },
         { status: 500 },

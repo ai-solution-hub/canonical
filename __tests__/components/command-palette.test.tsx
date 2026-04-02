@@ -46,10 +46,14 @@ vi.mock('@/hooks/use-user-role', () => ({
 
 // Mock motion/react to avoid animation complexity in jsdom
 vi.mock('motion/react', () => ({
-  AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  AnimatePresence: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
   motion: {
     div: ({ children, ...props }: Record<string, unknown>) => (
-      <div {...(props as React.HTMLAttributes<HTMLDivElement>)}>{children as React.ReactNode}</div>
+      <div {...(props as React.HTMLAttributes<HTMLDivElement>)}>
+        {children as React.ReactNode}
+      </div>
     ),
   },
 }));
@@ -86,7 +90,9 @@ describe('CommandPalette', () => {
     await user.keyboard('{Meta>}k{/Meta}');
 
     await waitFor(() => {
-      expect(screen.getByRole('dialog', { name: 'Command palette' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('dialog', { name: 'Command palette' }),
+      ).toBeInTheDocument();
     });
   });
 
@@ -120,7 +126,9 @@ describe('CommandPalette', () => {
     // Admin-only entries should not be visible
     expect(screen.queryByText('Settings › Categories')).not.toBeInTheDocument();
     expect(screen.queryByText('Settings › Team')).not.toBeInTheDocument();
-    expect(screen.queryByText('Settings › Quality Review')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Settings › Quality Review'),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText('Settings › Activity')).not.toBeInTheDocument();
   });
 

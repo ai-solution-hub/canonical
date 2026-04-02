@@ -144,8 +144,7 @@ export function ImageGallery({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [lightboxIndex, navigateLightbox]);
 
-  const currentImage =
-    lightboxIndex !== null ? images[lightboxIndex] : null;
+  const currentImage = lightboxIndex !== null ? images[lightboxIndex] : null;
 
   return (
     <section className={className} aria-label="PDF images">
@@ -199,15 +198,12 @@ export function ImageGallery({
       )}
 
       {/* Empty state after extraction */}
-      {!isLoading &&
-        !isExtracting &&
-        images.length === 0 &&
-        extractedAt && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <ImageIcon className="size-4 shrink-0" aria-hidden="true" />
-            <span>No extractable images found in this PDF.</span>
-          </div>
-        )}
+      {!isLoading && !isExtracting && images.length === 0 && extractedAt && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <ImageIcon className="size-4 shrink-0" aria-hidden="true" />
+          <span>No extractable images found in this PDF.</span>
+        </div>
+      )}
 
       {/* Image grid */}
       {images.length > 0 && (
@@ -273,8 +269,8 @@ export function ImageGallery({
               : 'Image preview'}
           </DialogTitle>
           <DialogDescription className="sr-only">
-            Full-size preview of the extracted PDF image. Use arrow keys
-            or buttons to navigate between images.
+            Full-size preview of the extracted PDF image. Use arrow keys or
+            buttons to navigate between images.
           </DialogDescription>
 
           {currentImage && (
@@ -326,8 +322,8 @@ export function ImageGallery({
               {/* Image info bar */}
               <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between bg-background/80 px-4 py-2 text-xs text-muted-foreground backdrop-blur-sm">
                 <span>
-                  Page {currentImage.page} &middot;{' '}
-                  {currentImage.width} &times; {currentImage.height} px
+                  Page {currentImage.page} &middot; {currentImage.width} &times;{' '}
+                  {currentImage.height} px
                 </span>
                 {images.length > 1 && (
                   <span>

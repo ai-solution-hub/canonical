@@ -33,12 +33,16 @@ export default function ConsentError({
         </div>
         <Card className="w-full max-w-md border-t-2 border-t-destructive">
           <CardContent className="flex flex-col items-center gap-4 px-8 py-8 text-center">
-            <ShieldX className="size-10 text-muted-foreground/50" aria-hidden="true" />
+            <ShieldX
+              className="size-10 text-muted-foreground/50"
+              aria-hidden="true"
+            />
             <h2 className="text-lg font-semibold text-foreground">
               Couldn&apos;t load the authorisation page
             </h2>
             <p className="text-sm text-muted-foreground">
-              The OAuth flow may have expired. Please try again from your application.
+              The OAuth flow may have expired. Please try again from your
+              application.
             </p>
             <div className="flex gap-3">
               <Button onClick={reset} variant="outline">

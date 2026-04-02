@@ -149,7 +149,10 @@ ${content}`;
     !parsed.detailed ||
     !Array.isArray(parsed.takeaways)
   ) {
-    throw new AIServiceError('Invalid summary structure returned by Claude', 500);
+    throw new AIServiceError(
+      'Invalid summary structure returned by Claude',
+      500,
+    );
   }
 
   const inputTokens = response.usage?.input_tokens ?? 0;
@@ -177,7 +180,9 @@ ${content}`;
  *
  * @throws AIServiceError for domain errors (404, 400, 409, 413, 500)
  */
-export async function generateSummary(params: SummariseParams): Promise<SummariseResult> {
+export async function generateSummary(
+  params: SummariseParams,
+): Promise<SummariseResult> {
   const { supabase, itemId, force, userId } = params;
 
   // Fetch the content item
@@ -195,7 +200,10 @@ export async function generateSummary(params: SummariseParams): Promise<Summaris
 
   // Check if summary already exists (unless force=true)
   if (item.summary_data && !force) {
-    throw new AIServiceError('Summary already exists. Pass force=true to regenerate.', 409);
+    throw new AIServiceError(
+      'Summary already exists. Pass force=true to regenerate.',
+      409,
+    );
   }
 
   if (!item.content?.trim()) {

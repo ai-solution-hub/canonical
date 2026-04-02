@@ -16,4 +16,3 @@ export async function loadSkill(name: string): Promise<string> {
   skillCache.set(name, content);
   return content;
 }
-

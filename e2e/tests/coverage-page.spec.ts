@@ -21,7 +21,9 @@ test.describe('Coverage page', () => {
   // 1. Page Load and Structure
   // ---------------------------------------------------------------------------
 
-  test('coverage page loads with heading and subtitle', async ({ authenticatedPage: page }) => {
+  test('coverage page loads with heading and subtitle', async ({
+    authenticatedPage: page,
+  }) => {
     await expect(
       page.getByRole('heading', { name: 'Coverage Dashboard' }),
     ).toBeVisible();
@@ -32,12 +34,12 @@ test.describe('Coverage page', () => {
   });
 
   test('refresh button is displayed', async ({ authenticatedPage: page }) => {
-    await expect(
-      page.getByRole('button', { name: /refresh/i }),
-    ).toBeVisible();
+    await expect(page.getByRole('button', { name: /refresh/i })).toBeVisible();
   });
 
-  test('loading skeleton appears before data loads', async ({ authenticatedPage: page }) => {
+  test('loading skeleton appears before data loads', async ({
+    authenticatedPage: page,
+  }) => {
     // Navigate again to catch the skeleton on fresh load
     const skeletonPromise = page
       .getByRole('status', { name: 'Loading coverage data' })
@@ -61,18 +63,26 @@ test.describe('Coverage page', () => {
   // 2. Summary Cards
   // ---------------------------------------------------------------------------
 
-  test('summary cards are displayed with statistics', async ({ authenticatedPage: page }) => {
+  test('summary cards are displayed with statistics', async ({
+    authenticatedPage: page,
+  }) => {
     // Summary cards are inside a grid container — scope to avoid matching freshness badges
     const summaryGrid = page.locator('.grid.gap-4').first();
-    await expect(summaryGrid.getByText('Total Items')).toBeVisible({ timeout: 15000 });
+    await expect(summaryGrid.getByText('Total Items')).toBeVisible({
+      timeout: 15000,
+    });
     await expect(summaryGrid.getByText('Fresh')).toBeVisible();
     await expect(summaryGrid.getByText('Content Gaps')).toBeVisible();
     await expect(summaryGrid.getByText('Expired Items')).toBeVisible();
   });
 
-  test('summary card values are numeric', async ({ authenticatedPage: page }) => {
+  test('summary card values are numeric', async ({
+    authenticatedPage: page,
+  }) => {
     // Total Items should show a number > 0 (production KB has 186+ items)
-    const totalItemsCard = page.locator('p:has-text("Total Items")').locator('..');
+    const totalItemsCard = page
+      .locator('p:has-text("Total Items")')
+      .locator('..');
     const totalValue = totalItemsCard.locator('p.text-2xl');
     await expect(totalValue).toBeVisible({ timeout: 10000 });
     const totalText = await totalValue.textContent();
@@ -91,7 +101,9 @@ test.describe('Coverage page', () => {
   // 3. Domain Sections
   // ---------------------------------------------------------------------------
 
-  test('domain sections are displayed as expandable panels', async ({ authenticatedPage: page }) => {
+  test('domain sections are displayed as expandable panels', async ({
+    authenticatedPage: page,
+  }) => {
     const sections = page.locator('section[aria-label$="coverage"]');
     await expect(sections.first()).toBeVisible({ timeout: 10000 });
 
@@ -103,7 +115,9 @@ test.describe('Coverage page', () => {
     await expect(firstButton).toHaveAttribute('aria-expanded');
   });
 
-  test('first domain section is expanded by default', async ({ authenticatedPage: page }) => {
+  test('first domain section is expanded by default', async ({
+    authenticatedPage: page,
+  }) => {
     const sections = page.locator('section[aria-label$="coverage"]');
     await expect(sections.first()).toBeVisible({ timeout: 10000 });
 
@@ -119,7 +133,9 @@ test.describe('Coverage page', () => {
     }
   });
 
-  test('clicking a collapsed domain section expands it', async ({ authenticatedPage: page }) => {
+  test('clicking a collapsed domain section expands it', async ({
+    authenticatedPage: page,
+  }) => {
     const sections = page.locator('section[aria-label$="coverage"]');
     await expect(sections.first()).toBeVisible({ timeout: 10000 });
 
@@ -143,7 +159,9 @@ test.describe('Coverage page', () => {
     await expect(links.first()).toBeVisible({ timeout: 5000 });
   });
 
-  test('domain sections show item counts', async ({ authenticatedPage: page }) => {
+  test('domain sections show item counts', async ({
+    authenticatedPage: page,
+  }) => {
     const sections = page.locator('section[aria-label$="coverage"]');
     await expect(sections.first()).toBeVisible({ timeout: 10000 });
 
@@ -156,10 +174,14 @@ test.describe('Coverage page', () => {
   // 4. Gap Identification
   // ---------------------------------------------------------------------------
 
-  test('gap badges are displayed on domains with missing subtopics', async ({ authenticatedPage: page }) => {
+  test('gap badges are displayed on domains with missing subtopics', async ({
+    authenticatedPage: page,
+  }) => {
     // Wait for summary cards to confirm data is loaded
     const summaryGrid = page.locator('.grid.gap-4').first();
-    await expect(summaryGrid.getByText('Total Items')).toBeVisible({ timeout: 15000 });
+    await expect(summaryGrid.getByText('Total Items')).toBeVisible({
+      timeout: 15000,
+    });
 
     // Check if there are gaps from the summary card
     const gapsCard = summaryGrid.locator('p.text-2xl').nth(2); // Content Gaps is the 3rd card
@@ -179,7 +201,10 @@ test.describe('Coverage page', () => {
     for (let i = 0; i < sectionCount; i++) {
       const section = allSections.nth(i);
       await section.scrollIntoViewIfNeeded();
-      const hasGap = await section.getByText(/\d+ gaps?/).isVisible({ timeout: 1000 }).catch(() => false);
+      const hasGap = await section
+        .getByText(/\d+ gaps?/)
+        .isVisible({ timeout: 1000 })
+        .catch(() => false);
       if (hasGap) {
         foundGapBadge = true;
         break;
@@ -189,10 +214,14 @@ test.describe('Coverage page', () => {
     expect(foundGapBadge).toBe(true);
   });
 
-  test('gap cells show no content message', async ({ authenticatedPage: page }) => {
+  test('gap cells show no content message', async ({
+    authenticatedPage: page,
+  }) => {
     // Wait for summary cards to confirm data is loaded
     const summaryGrid = page.locator('.grid.gap-4').first();
-    await expect(summaryGrid.getByText('Total Items')).toBeVisible({ timeout: 15000 });
+    await expect(summaryGrid.getByText('Total Items')).toBeVisible({
+      timeout: 15000,
+    });
 
     // Check if there are gaps
     const gapsCard = summaryGrid.locator('p.text-2xl').nth(2);
@@ -216,7 +245,10 @@ test.describe('Coverage page', () => {
       const section = allSections.nth(i);
       await section.scrollIntoViewIfNeeded();
       const button = section.getByRole('button');
-      const hasGap = await section.getByText(/\d+ gaps?/).isVisible({ timeout: 1000 }).catch(() => false);
+      const hasGap = await section
+        .getByText(/\d+ gaps?/)
+        .isVisible({ timeout: 1000 })
+        .catch(() => false);
 
       if (hasGap) {
         // Expand if collapsed
@@ -227,7 +259,9 @@ test.describe('Coverage page', () => {
         }
 
         // Look for "No content" text in gap cells (dashed border)
-        await expect(section.getByText('No content').first()).toBeVisible({ timeout: 5000 });
+        await expect(section.getByText('No content').first()).toBeVisible({
+          timeout: 5000,
+        });
         foundGap = true;
         break;
       }
@@ -240,7 +274,9 @@ test.describe('Coverage page', () => {
   // 5. Navigation to Browse
   // ---------------------------------------------------------------------------
 
-  test('subtopic cell links to browse with correct filters', async ({ authenticatedPage: page }) => {
+  test('subtopic cell links to browse with correct filters', async ({
+    authenticatedPage: page,
+  }) => {
     const sections = page.locator('section[aria-label$="coverage"]');
     await expect(sections.first()).toBeVisible({ timeout: 10000 });
 
@@ -256,7 +292,9 @@ test.describe('Coverage page', () => {
     expect(href).toContain('include_qa=true');
   });
 
-  test('gap cell links to browse with domain and subtopic', async ({ authenticatedPage: page }) => {
+  test('gap cell links to browse with domain and subtopic', async ({
+    authenticatedPage: page,
+  }) => {
     const sections = page.locator('section[aria-label$="coverage"]');
     await expect(sections.first()).toBeVisible({ timeout: 10000 });
 
@@ -267,7 +305,10 @@ test.describe('Coverage page', () => {
     for (let i = 0; i < sectionCount; i++) {
       const section = allSections.nth(i);
       const button = section.getByRole('button');
-      const hasGap = await section.getByText(/\d+ gaps?/).isVisible().catch(() => false);
+      const hasGap = await section
+        .getByText(/\d+ gaps?/)
+        .isVisible()
+        .catch(() => false);
 
       if (hasGap) {
         const expanded = await button.getAttribute('aria-expanded');
@@ -293,7 +334,9 @@ test.describe('Coverage page', () => {
   // 6. Refresh
   // ---------------------------------------------------------------------------
 
-  test('refresh button reloads coverage data', async ({ authenticatedPage: page }) => {
+  test('refresh button reloads coverage data', async ({
+    authenticatedPage: page,
+  }) => {
     const refreshButton = page.getByRole('button', { name: /refresh/i });
     await expect(refreshButton).toBeVisible();
 
@@ -305,14 +348,18 @@ test.describe('Coverage page', () => {
       page.getByRole('heading', { name: 'Coverage Dashboard' }),
     ).toBeVisible();
     const summaryGrid = page.locator('.grid.gap-4').first();
-    await expect(summaryGrid.getByText('Total Items')).toBeVisible({ timeout: 15000 });
+    await expect(summaryGrid.getByText('Total Items')).toBeVisible({
+      timeout: 15000,
+    });
   });
 
   // ---------------------------------------------------------------------------
   // 7. Accessibility
   // ---------------------------------------------------------------------------
 
-  test('all domain sections have accessible names', async ({ authenticatedPage: page }) => {
+  test('all domain sections have accessible names', async ({
+    authenticatedPage: page,
+  }) => {
     const sections = page.locator('section[aria-label$="coverage"]');
     await expect(sections.first()).toBeVisible({ timeout: 10000 });
 
@@ -338,7 +385,9 @@ test.describe('Coverage page', () => {
 
     // Scope to summary cards grid to avoid matching freshness badges
     const summaryGrid = page.locator('.grid.gap-4').first();
-    await expect(summaryGrid.getByText('Total Items')).toBeVisible({ timeout: 15000 });
+    await expect(summaryGrid.getByText('Total Items')).toBeVisible({
+      timeout: 15000,
+    });
 
     // All 4 summary card labels should be visible on mobile (stacked layout)
     await expect(summaryGrid.getByText('Fresh')).toBeVisible();

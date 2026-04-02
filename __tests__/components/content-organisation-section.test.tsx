@@ -56,7 +56,9 @@ import { getValidSection } from '@/components/settings/settings-sidebar';
 describe('ContentOrganisationSection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockSearchParams.value = new URLSearchParams('section=content-organisation');
+    mockSearchParams.value = new URLSearchParams(
+      'section=content-organisation',
+    );
   });
 
   afterEach(() => {

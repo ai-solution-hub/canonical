@@ -41,10 +41,7 @@ export async function GET(
       .single();
 
     if (error || !data) {
-      return NextResponse.json(
-        { error: 'Version not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Version not found' }, { status: 404 });
     }
 
     return NextResponse.json(data);

@@ -8,7 +8,11 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { EmbedBodySchema } from '@/lib/validation/schemas';
-import { generateEmbedding, EMBEDDING_MODEL, EMBEDDING_DIMENSIONS } from '@/lib/ai/embed';
+import {
+  generateEmbedding,
+  EMBEDDING_MODEL,
+  EMBEDDING_DIMENSIONS,
+} from '@/lib/ai/embed';
 
 export const maxDuration = 60;
 

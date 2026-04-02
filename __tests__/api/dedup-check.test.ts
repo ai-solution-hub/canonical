@@ -40,7 +40,11 @@ vi.mock('@/lib/dedup', () => ({
 
 // Mock rate limiter — allow all by default
 vi.mock('@/lib/rate-limit', () => ({
-  checkRateLimit: vi.fn(() => ({ allowed: true, remaining: 29, resetAt: Date.now() + 60000 })),
+  checkRateLimit: vi.fn(() => ({
+    allowed: true,
+    remaining: 29,
+    resetAt: Date.now() + 60000,
+  })),
 }));
 
 // Import route AFTER mocks are registered
@@ -238,7 +242,9 @@ describe('POST /api/dedup/check', () => {
   describe('error handling', () => {
     it('returns 500 when checkForDuplicates throws', async () => {
       configureRole(mockSupabase, 'editor');
-      mockCheckForDuplicates.mockRejectedValue(new Error('DB connection failed'));
+      mockCheckForDuplicates.mockRejectedValue(
+        new Error('DB connection failed'),
+      );
 
       const res = await POST(makeRequest({ text: 'content' }));
       expect(res.status).toBe(500);

@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  getAuthenticatedClient,
-  unauthorisedResponse,
-} from '@/lib/auth';
+import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 
 const UUID_RE =
@@ -40,10 +37,7 @@ export async function GET(
       .single();
 
     if (error || !job) {
-      return NextResponse.json(
-        { error: 'Job not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 
     return NextResponse.json(job);

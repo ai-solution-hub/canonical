@@ -122,9 +122,7 @@ export function useDiffReview(
 
       // Optimistic update
       setEntries((prev) =>
-        prev.map((e) =>
-          entryIds.includes(e.id) ? { ...e, status } : e,
-        ),
+        prev.map((e) => (entryIds.includes(e.id) ? { ...e, status } : e)),
       );
       setLoadingIds((prev) => new Set([...prev, ...entryIds]));
 

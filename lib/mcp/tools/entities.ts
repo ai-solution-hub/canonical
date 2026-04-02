@@ -6,10 +6,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createMcpClient } from '@/lib/mcp/auth';
-import {
-  formatEntitySummary,
-  truncateResponse,
-} from '@/lib/mcp/formatters';
+import { formatEntitySummary, truncateResponse } from '@/lib/mcp/formatters';
 import type {
   EntitySummaryResult,
   EntityRelationship,
@@ -26,10 +23,19 @@ export async function registerEntityTools(server: McpServer): Promise<void> {
     'get_entity_relationships',
     {
       title: 'Entity Relationships',
-      description: 'Query entity relationships in the knowledge base. Find what certifications the company holds, what technologies are used, what sectors are served, and how entities connect to each other. Returns structured data from the entity graph at zero AI cost.',
+      description:
+        'Query entity relationships in the knowledge base. Find what certifications the company holds, what technologies are used, what sectors are served, and how entities connect to each other. Returns structured data from the entity graph at zero AI cost.',
       inputSchema: {
-        entity_name: z.string().optional().describe('Entity name to search for (partial match supported)'),
-        entity_type: z.string().optional().describe('Filter by entity type: organisation, certification, regulation, framework, capability, person, technology, project, sector'),
+        entity_name: z
+          .string()
+          .optional()
+          .describe('Entity name to search for (partial match supported)'),
+        entity_type: z
+          .string()
+          .optional()
+          .describe(
+            'Filter by entity type: organisation, certification, regulation, framework, capability, person, technology, project, sector',
+          ),
       },
       annotations: {
         readOnlyHint: true,
@@ -43,7 +49,8 @@ export async function registerEntityTools(server: McpServer): Promise<void> {
 
         // Resolve entity name aliases before querying
         const { canonicalise } = await import('@/lib/entities/entity-dedup');
-        const { resolveAlias, loadAliases } = await import('@/lib/entities/entity-aliases');
+        const { resolveAlias, loadAliases } =
+          await import('@/lib/entities/entity-aliases');
         await loadAliases(supabase);
         const resolvedName = args.entity_name
           ? resolveAlias(canonicalise(args.entity_name))
@@ -61,17 +68,29 @@ export async function registerEntityTools(server: McpServer): Promise<void> {
 
         if (summaryError) {
           return {
-            content: [{ type: 'text' as const, text: `Entity query failed: ${summaryError.message}. The database function may be temporarily unavailable.` }],
+            content: [
+              {
+                type: 'text' as const,
+                text: `Entity query failed: ${summaryError.message}. The database function may be temporarily unavailable.`,
+              },
+            ],
             isError: true,
           };
         }
 
-        const summaries: EntitySummaryResult[] = ((summaryRows ?? []) as Record<string, unknown>[]).map((row) => ({
+        const summaries: EntitySummaryResult[] = (
+          (summaryRows ?? []) as Record<string, unknown>[]
+        ).map((row) => ({
           canonical_name: row.canonical_name as string,
           entity_type: row.entity_type as string,
           mention_count: Number(row.mention_count),
           content_item_ids: (row.content_item_ids as string[]) ?? [],
-          related_entities: (row.related_entities as Array<{ relationship: string; target?: string; source?: string }>) ?? [],
+          related_entities:
+            (row.related_entities as Array<{
+              relationship: string;
+              target?: string;
+              source?: string;
+            }>) ?? [],
         }));
 
         // If a specific entity_name was provided, also fetch relationship details
@@ -83,18 +102,25 @@ export async function registerEntityTools(server: McpServer): Promise<void> {
           );
 
           if (!relError && relRows) {
-            relationships = ((relRows ?? []) as Record<string, unknown>[]).map((row) => ({
-              source_entity: row.source_entity as string,
-              relationship_type: row.relationship_type as string,
-              target_entity: row.target_entity as string,
-              source_item_id: row.source_item_id as string,
-              confidence: Number(row.confidence),
-            }));
+            relationships = ((relRows ?? []) as Record<string, unknown>[]).map(
+              (row) => ({
+                source_entity: row.source_entity as string,
+                relationship_type: row.relationship_type as string,
+                target_entity: row.target_entity as string,
+                source_item_id: row.source_item_id as string,
+                confidence: Number(row.confidence),
+              }),
+            );
           }
         }
 
         const markdown = truncateResponse(
-          formatEntitySummary(args.entity_name, args.entity_type, summaries, relationships),
+          formatEntitySummary(
+            args.entity_name,
+            args.entity_type,
+            summaries,
+            relationships,
+          ),
         );
 
         return {
@@ -110,7 +136,12 @@ export async function registerEntityTools(server: McpServer): Promise<void> {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Entity query failed: ${message}. The database function may be temporarily unavailable.` }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Entity query failed: ${message}. The database function may be temporarily unavailable.`,
+            },
+          ],
           isError: true,
         };
       }
@@ -197,12 +228,10 @@ export async function registerEntityTools(server: McpServer): Promise<void> {
         }
 
         // Lazy imports to avoid serverless cold-start issues
-        const { deriveExpiryStatus } = await import(
-          '@/lib/certification-status'
-        );
-        const { formatCertificationReport, truncateResponse } = await import(
-          '@/lib/mcp/formatters'
-        );
+        const { deriveExpiryStatus } =
+          await import('@/lib/certification-status');
+        const { formatCertificationReport, truncateResponse } =
+          await import('@/lib/mcp/formatters');
 
         // Group by canonical_name and categorise
         const entityMap = new Map<
@@ -219,7 +248,8 @@ export async function registerEntityTools(server: McpServer): Promise<void> {
         for (const mention of mentions ?? []) {
           const name = mention.canonical_name as string;
           const existing = entityMap.get(name);
-          const mentionMeta = (mention.metadata as Record<string, unknown>) ?? {};
+          const mentionMeta =
+            (mention.metadata as Record<string, unknown>) ?? {};
           const effectiveType =
             (mention.entity_type_override as string) ??
             (mention.entity_type as string);
@@ -255,7 +285,10 @@ export async function registerEntityTools(server: McpServer): Promise<void> {
         }
 
         // Also look up holder information from relationships
-        const holderMap = new Map<string, { holder: string; supplier_name?: string }>();
+        const holderMap = new Map<
+          string,
+          { holder: string; supplier_name?: string }
+        >();
         for (const rel of relationships ?? []) {
           const source = rel.source_entity as string;
           const target = rel.target_entity as string;
@@ -266,7 +299,10 @@ export async function registerEntityTools(server: McpServer): Promise<void> {
             const holder = (meta.holder as string) ?? 'self';
             holderMap.set(target, {
               holder,
-              supplier_name: holder === 'supplier' ? (meta.supplier_name as string) ?? source : undefined,
+              supplier_name:
+                holder === 'supplier'
+                  ? ((meta.supplier_name as string) ?? source)
+                  : undefined,
             });
           }
         }

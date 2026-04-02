@@ -43,7 +43,10 @@ describe('useSearch', () => {
     });
   }
 
-  function mockErrorResponse(status = 500, body: Record<string, unknown> = { error: 'Internal error' }) {
+  function mockErrorResponse(
+    status = 500,
+    body: Record<string, unknown> = { error: 'Internal error' },
+  ) {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status,
@@ -159,7 +162,10 @@ describe('useSearch', () => {
   it('shows embedding-specific error message for EMBEDDING_FAILED code', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
-      json: async () => ({ code: 'EMBEDDING_FAILED', error: 'Embedding failed' }),
+      json: async () => ({
+        code: 'EMBEDDING_FAILED',
+        error: 'Embedding failed',
+      }),
     });
 
     const { result } = renderHook(() => useSearch(), {

@@ -44,7 +44,10 @@ export async function POST(request: NextRequest) {
       const invalid = (existing ?? []).filter((s) => s.domain_id !== domain_id);
       if (invalid.length > 0) {
         return NextResponse.json(
-          { error: 'One or more subtopics do not belong to the specified domain' },
+          {
+            error:
+              'One or more subtopics do not belong to the specified domain',
+          },
           { status: 400 },
         );
       }

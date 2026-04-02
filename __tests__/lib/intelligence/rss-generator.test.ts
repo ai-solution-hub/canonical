@@ -34,7 +34,8 @@ const CHANNEL: RssChannelConfig = {
 const ITEM: RssItem = {
   title: 'New Safeguarding Guidance Released',
   link: 'https://www.gov.uk/safeguarding-update',
-  description: 'The DfE has released updated safeguarding guidance for schools.',
+  description:
+    'The DfE has released updated safeguarding guidance for schools.',
   pubDate: '2025-04-01T10:00:00Z',
   categories: ['safeguarding', 'education'],
   guid: 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d',
@@ -86,9 +87,7 @@ describe('generateRss', () => {
 
   it('renders item title, link, pubDate, and guid', () => {
     const xml = generateRss(CHANNEL, [ITEM]);
-    expect(xml).toContain(
-      '<title>New Safeguarding Guidance Released</title>',
-    );
+    expect(xml).toContain('<title>New Safeguarding Guidance Released</title>');
     expect(xml).toContain(
       '<link>https://www.gov.uk/safeguarding-update</link>',
     );

@@ -39,7 +39,11 @@ vi.mock('@/components/shared/verification-badge', () => ({
       data-verified-by-name={verifiedByName ?? ''}
       data-show-detailed-trust={showDetailedTrust}
     >
-      {verified ? (verifiedByName ? `Verified by ${verifiedByName}` : 'Verified') : 'Unverified'}
+      {verified
+        ? verifiedByName
+          ? `Verified by ${verifiedByName}`
+          : 'Verified'
+        : 'Unverified'}
     </span>
   ),
 }));
@@ -51,12 +55,14 @@ vi.mock('@/components/shared/freshness-badge', () => ({
 }));
 
 vi.mock('@/lib/format', () => ({
-  formatSmartDate: (date: string) => date ? 'Recently' : '',
+  formatSmartDate: (date: string) => (date ? 'Recently' : ''),
 }));
 
 vi.mock('@/components/ui/button', () => ({
   Button: ({ children, onClick, ...props }: Record<string, unknown>) => (
-    <button onClick={onClick as () => void} {...props}>{children as React.ReactNode}</button>
+    <button onClick={onClick as () => void} {...props}>
+      {children as React.ReactNode}
+    </button>
   ),
 }));
 
@@ -113,7 +119,9 @@ function createMockItem(overrides: Partial<ItemData> = {}): ItemData {
   };
 }
 
-function createDefaultProps(overrides: Partial<ItemTitleSectionProps> = {}): ItemTitleSectionProps {
+function createDefaultProps(
+  overrides: Partial<ItemTitleSectionProps> = {},
+): ItemTitleSectionProps {
   return {
     item: createMockItem(),
     title: 'Test Title',
@@ -143,7 +151,9 @@ describe('ItemTitleSection', () => {
       canAdmin: false,
     });
   });
-  afterEach(() => { vi.unstubAllGlobals(); });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it('renders title as h1 when not editing', () => {
     render(<ItemTitleSection {...createDefaultProps()} />);

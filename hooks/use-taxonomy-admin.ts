@@ -72,7 +72,11 @@ export interface UseTaxonomyAdminReturn {
   // Deactivation dialog state
   deactivateDialogOpen: boolean;
   setDeactivateDialogOpen: (open: boolean) => void;
-  deactivateTarget: { type: 'domain' | 'subtopic'; id: string; name: string } | null;
+  deactivateTarget: {
+    type: 'domain' | 'subtopic';
+    id: string;
+    name: string;
+  } | null;
 
   // Screen reader announcement
   announcement: string;
@@ -85,25 +89,53 @@ export interface UseTaxonomyAdminReturn {
   openAddSubtopic: (domainId: string) => void;
   openEditSubtopic: (subtopic: AdminSubtopic) => void;
   handleSubtopicSubmit: (e: React.FormEvent) => Promise<void>;
-  confirmDeactivate: (type: 'domain' | 'subtopic', id: string, name: string) => void;
+  confirmDeactivate: (
+    type: 'domain' | 'subtopic',
+    id: string,
+    name: string,
+  ) => void;
   handleDeactivate: () => Promise<void>;
-  handleReactivate: (type: 'domain' | 'subtopic', id: string, domainId?: string) => Promise<void>;
-  handleAcceptRecommended: (type: 'domain' | 'subtopic', id: string, domainId?: string) => Promise<void>;
-  handleRejectRecommended: (type: 'domain' | 'subtopic', id: string, name: string, domainId?: string) => Promise<void>;
-  handleMoveDomain: (domainId: string, direction: 'up' | 'down') => Promise<void>;
-  handleMoveSubtopic: (domainId: string, subtopicId: string, direction: 'up' | 'down') => Promise<void>;
+  handleReactivate: (
+    type: 'domain' | 'subtopic',
+    id: string,
+    domainId?: string,
+  ) => Promise<void>;
+  handleAcceptRecommended: (
+    type: 'domain' | 'subtopic',
+    id: string,
+    domainId?: string,
+  ) => Promise<void>;
+  handleRejectRecommended: (
+    type: 'domain' | 'subtopic',
+    id: string,
+    name: string,
+    domainId?: string,
+  ) => Promise<void>;
+  handleMoveDomain: (
+    domainId: string,
+    direction: 'up' | 'down',
+  ) => Promise<void>;
+  handleMoveSubtopic: (
+    domainId: string,
+    subtopicId: string,
+    direction: 'up' | 'down',
+  ) => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
 // Standalone fetcher for subtopics (used by queryFn and ensureQueryData)
 // ---------------------------------------------------------------------------
 
-async function fetchSubtopicsForDomain(domainId: string): Promise<AdminSubtopic[]> {
+async function fetchSubtopicsForDomain(
+  domainId: string,
+): Promise<AdminSubtopic[]> {
   const { createClient } = await import('@/lib/supabase/client');
   const supabase = createClient();
   const { data, error } = await supabase
     .from('taxonomy_subtopics')
-    .select('id, domain_id, name, display_order, is_active, provenance, description')
+    .select(
+      'id, domain_id, name, display_order, is_active, provenance, description',
+    )
     .eq('domain_id', domainId)
     .order('display_order', { ascending: true });
   if (error) throw error;
@@ -123,17 +155,16 @@ export function useTaxonomyAdmin({
   // Data fetching — domains via useQuery
   // -----------------------------------------------------------------------
 
-  const {
-    data: domains = [],
-    isLoading: loading,
-  } = useQuery({
+  const { data: domains = [], isLoading: loading } = useQuery({
     queryKey: queryKeys.taxonomy.adminDomains,
     queryFn: async () => {
       try {
         return await fetchJson<AdminDomain[]>('/api/taxonomy/domains');
       } catch (err) {
         toast.error(
-          err instanceof Error ? err.message : 'Failed to load taxonomy domains',
+          err instanceof Error
+            ? err.message
+            : 'Failed to load taxonomy domains',
         );
         throw err;
       }
@@ -145,7 +176,9 @@ export function useTaxonomyAdmin({
   // Expand / collapse — subtopics via ensureQueryData + cache version
   // -----------------------------------------------------------------------
 
-  const [expandedDomains, setExpandedDomains] = useState<Set<string>>(new Set());
+  const [expandedDomains, setExpandedDomains] = useState<Set<string>>(
+    new Set(),
+  );
 
   // Track a counter to force subtopicsByDomain recomputation after cache updates
   const [subtopicCacheVersion, setSubtopicCacheVersion] = useState(0);
@@ -212,7 +245,9 @@ export function useTaxonomyAdmin({
   // -----------------------------------------------------------------------
 
   const [subtopicDialogOpen, setSubtopicDialogOpen] = useState(false);
-  const [editingSubtopic, setEditingSubtopic] = useState<AdminSubtopic | null>(null);
+  const [editingSubtopic, setEditingSubtopic] = useState<AdminSubtopic | null>(
+    null,
+  );
   const [subtopicDomainId, setSubtopicDomainId] = useState('');
   const [subtopicName, setSubtopicName] = useState('');
   const [subtopicOrder, setSubtopicOrder] = useState('');
@@ -240,7 +275,9 @@ export function useTaxonomyAdmin({
 
   const invalidateAfterMutation = useCallback(
     async (domainId?: string) => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.taxonomy.adminDomains });
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.taxonomy.adminDomains,
+      });
       if (domainId) {
         await queryClient.invalidateQueries({
           queryKey: queryKeys.taxonomy.adminSubtopics(domainId),
@@ -359,11 +396,15 @@ export function useTaxonomyAdmin({
           break;
         case 'accept':
           toast.success(`${entityLabel} accepted and activated`);
-          setAnnouncement(`Recommended ${variables.type} accepted and activated`);
+          setAnnouncement(
+            `Recommended ${variables.type} accepted and activated`,
+          );
           break;
         case 'reject':
           toast.success(`Recommendation '${variables.name}' rejected`);
-          setAnnouncement(`Recommended ${variables.type} '${variables.name}' rejected`);
+          setAnnouncement(
+            `Recommended ${variables.type} '${variables.name}' rejected`,
+          );
           break;
       }
 
@@ -445,7 +486,8 @@ export function useTaxonomyAdmin({
       const queryKey = queryKeys.taxonomy.adminSubtopics(variables.domainId);
       await queryClient.cancelQueries({ queryKey });
 
-      const previousSubtopics = queryClient.getQueryData<AdminSubtopic[]>(queryKey);
+      const previousSubtopics =
+        queryClient.getQueryData<AdminSubtopic[]>(queryKey);
 
       if (previousSubtopics) {
         const updated = previousSubtopics.map((s) => {
@@ -506,7 +548,8 @@ export function useTaxonomyAdmin({
 
     if (editingDomain) {
       const body: Record<string, unknown> = {};
-      if (domainName.trim() !== editingDomain.name) body.name = domainName.trim();
+      if (domainName.trim() !== editingDomain.name)
+        body.name = domainName.trim();
       if ((domainColour.trim() || null) !== editingDomain.colour) {
         body.colour = domainColour.trim() || null;
       }
@@ -565,7 +608,8 @@ export function useTaxonomyAdmin({
 
     if (editingSubtopic) {
       const body: Record<string, unknown> = {};
-      if (subtopicName.trim() !== editingSubtopic.name) body.name = subtopicName.trim();
+      if (subtopicName.trim() !== editingSubtopic.name)
+        body.name = subtopicName.trim();
       const orderVal = parseInt(subtopicOrder, 10);
       if (!isNaN(orderVal) && orderVal !== editingSubtopic.display_order) {
         body.display_order = orderVal;
@@ -602,7 +646,11 @@ export function useTaxonomyAdmin({
   // Activation / deactivation handlers
   // -----------------------------------------------------------------------
 
-  function confirmDeactivate(type: 'domain' | 'subtopic', id: string, name: string) {
+  function confirmDeactivate(
+    type: 'domain' | 'subtopic',
+    id: string,
+    name: string,
+  ) {
     setDeactivateTarget({ type, id, name });
     setDeactivateDialogOpen(true);
   }
@@ -615,8 +663,8 @@ export function useTaxonomyAdmin({
     // For subtopics, find which domain they belong to
     let domainId: string | undefined;
     if (type === 'subtopic') {
-      domainId = Array.from(subtopicsByDomain.entries()).find(
-        ([, subs]) => subs.some((s) => s.id === id),
+      domainId = Array.from(subtopicsByDomain.entries()).find(([, subs]) =>
+        subs.some((s) => s.id === id),
       )?.[0];
     }
 

@@ -56,7 +56,8 @@ const VALID_UUID = '00000000-0000-4000-8000-000000000001';
 const MOCK_SUMMARY_RESULT = {
   summary_data: {
     executive: 'A concise executive summary of the content item.',
-    detailed: 'A detailed multi-paragraph summary covering the key points in depth.',
+    detailed:
+      'A detailed multi-paragraph summary covering the key points in depth.',
     takeaways: [
       'First key takeaway from the content',
       'Second key takeaway from the content',
@@ -77,16 +78,41 @@ function resetMocks() {
   });
 
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockResolvedValue({ data: null, error: null, count: null });
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null, count: null });
+  mockSupabase._chain.single.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
@@ -171,9 +197,7 @@ describe('POST /api/summaries/generate', () => {
     const json = await res.json();
     expect(json.error).toBe('Validation failed');
     expect(json.details).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ field: 'item_id' }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ field: 'item_id' })]),
     );
   });
 
@@ -264,7 +288,10 @@ describe('POST /api/summaries/generate', () => {
   it('returns 409 when summary already exists and force is not set', async () => {
     configureRole(mockSupabase, 'editor');
     mockGenerateSummary.mockRejectedValue(
-      new AIServiceError('Summary already exists. Pass force=true to regenerate.', 409),
+      new AIServiceError(
+        'Summary already exists. Pass force=true to regenerate.',
+        409,
+      ),
     );
 
     const req = createTestRequest('/api/summaries/generate', {

@@ -112,9 +112,26 @@ beforeEach(() => {
   mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
 
   const chainable = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const m of chainable) {
     mockSupabase._chain[m].mockReturnValue(mockSupabase._chain);
@@ -123,11 +140,13 @@ beforeEach(() => {
   mockSupabase._chain.single.mockReset();
   mockSupabase._chain.single.mockResolvedValue({ data: null, error: null });
   mockSupabase._chain.maybeSingle.mockReset();
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+  });
   mockSupabase._chain.then.mockReset();
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 
   mockCheckRateLimit.mockReturnValue({ allowed: true, remaining: 19 });
@@ -148,14 +167,32 @@ describe('GET /api/guides?include=stats', () => {
     // RPC returns coverage rows for guide A (2 sections) and guide B (1 section)
     mockSupabase.rpc.mockResolvedValueOnce({
       data: [
-        makeCoverageRow({ guide_id: GUIDE_A_ID, section_id: 'sec-1', is_required: true, content_count: 3 }),
-        makeCoverageRow({ guide_id: GUIDE_A_ID, section_id: 'sec-2', is_required: false, content_count: 0 }),
-        makeCoverageRow({ guide_id: GUIDE_B_ID, section_id: 'sec-3', is_required: true, content_count: 5, guide_name: 'LMS Product Guide' }),
+        makeCoverageRow({
+          guide_id: GUIDE_A_ID,
+          section_id: 'sec-1',
+          is_required: true,
+          content_count: 3,
+        }),
+        makeCoverageRow({
+          guide_id: GUIDE_A_ID,
+          section_id: 'sec-2',
+          is_required: false,
+          content_count: 0,
+        }),
+        makeCoverageRow({
+          guide_id: GUIDE_B_ID,
+          section_id: 'sec-3',
+          is_required: true,
+          content_count: 5,
+          guide_name: 'LMS Product Guide',
+        }),
       ],
       error: null,
     });
 
-    const req = createTestRequest('/api/guides', { searchParams: { include: 'stats' } });
+    const req = createTestRequest('/api/guides', {
+      searchParams: { include: 'stats' },
+    });
     const res = await listGuides(req);
     const body = await res.json();
 
@@ -194,7 +231,9 @@ describe('GET /api/guides?include=stats', () => {
       error: { message: 'RPC function not found', code: '42883' },
     });
 
-    const req = createTestRequest('/api/guides', { searchParams: { include: 'stats' } });
+    const req = createTestRequest('/api/guides', {
+      searchParams: { include: 'stats' },
+    });
     const res = await listGuides(req);
     const body = await res.json();
 
@@ -208,11 +247,12 @@ describe('GET /api/guides?include=stats', () => {
 
   it('returns empty array when no guides exist', async () => {
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
-    const req = createTestRequest('/api/guides', { searchParams: { include: 'stats' } });
+    const req = createTestRequest('/api/guides', {
+      searchParams: { include: 'stats' },
+    });
     const res = await listGuides(req);
     const body = await res.json();
 
@@ -231,24 +271,42 @@ describe('GET /api/guides?include=stats', () => {
     // 4 sections for guide A with varying properties
     mockSupabase.rpc.mockResolvedValueOnce({
       data: [
-        makeCoverageRow({ section_id: 'sec-1', is_required: true, content_count: 5 }),
-        makeCoverageRow({ section_id: 'sec-2', is_required: true, content_count: 0 }),
-        makeCoverageRow({ section_id: 'sec-3', is_required: false, content_count: 2 }),
-        makeCoverageRow({ section_id: 'sec-4', is_required: false, content_count: 0 }),
+        makeCoverageRow({
+          section_id: 'sec-1',
+          is_required: true,
+          content_count: 5,
+        }),
+        makeCoverageRow({
+          section_id: 'sec-2',
+          is_required: true,
+          content_count: 0,
+        }),
+        makeCoverageRow({
+          section_id: 'sec-3',
+          is_required: false,
+          content_count: 2,
+        }),
+        makeCoverageRow({
+          section_id: 'sec-4',
+          is_required: false,
+          content_count: 0,
+        }),
       ],
       error: null,
     });
 
-    const req = createTestRequest('/api/guides', { searchParams: { include: 'stats' } });
+    const req = createTestRequest('/api/guides', {
+      searchParams: { include: 'stats' },
+    });
     const res = await listGuides(req);
     const body = await res.json();
 
     expect(res.status).toBe(200);
     expect(body[0].stats).toEqual({
       total_sections: 4,
-      populated_sections: 2,  // sec-1 and sec-3 have content
-      required_sections: 2,   // sec-1 and sec-2 are required
-      populated_required: 1,  // only sec-1 is both required and populated
+      populated_sections: 2, // sec-1 and sec-3 have content
+      required_sections: 2, // sec-1 and sec-2 are required
+      populated_required: 1, // only sec-1 is both required and populated
     });
   });
 
@@ -261,13 +319,25 @@ describe('GET /api/guides?include=stats', () => {
     // All sections have content_count = 0
     mockSupabase.rpc.mockResolvedValueOnce({
       data: [
-        makeCoverageRow({ guide_id: GUIDE_A_ID, section_id: 'sec-1', is_required: true, content_count: 0 }),
-        makeCoverageRow({ guide_id: GUIDE_A_ID, section_id: 'sec-2', is_required: false, content_count: 0 }),
+        makeCoverageRow({
+          guide_id: GUIDE_A_ID,
+          section_id: 'sec-1',
+          is_required: true,
+          content_count: 0,
+        }),
+        makeCoverageRow({
+          guide_id: GUIDE_A_ID,
+          section_id: 'sec-2',
+          is_required: false,
+          content_count: 0,
+        }),
       ],
       error: null,
     });
 
-    const req = createTestRequest('/api/guides', { searchParams: { include: 'stats' } });
+    const req = createTestRequest('/api/guides', {
+      searchParams: { include: 'stats' },
+    });
     const res = await listGuides(req);
     const body = await res.json();
 

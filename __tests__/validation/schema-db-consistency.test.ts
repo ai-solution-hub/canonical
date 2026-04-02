@@ -10,10 +10,16 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
-import { VALID_CONTENT_TYPES, VALID_PLATFORMS } from '../../lib/validation/schemas';
+import {
+  VALID_CONTENT_TYPES,
+  VALID_PLATFORMS,
+} from '../../lib/validation/schemas';
 
 const PROJECT_ROOT = join(__dirname, '../..');
-const SNAPSHOT_PATH = join(PROJECT_ROOT, 'scripts/tests/fixtures/taxonomy_snapshot.json');
+const SNAPSHOT_PATH = join(
+  PROJECT_ROOT,
+  'scripts/tests/fixtures/taxonomy_snapshot.json',
+);
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,31 +60,34 @@ const snapshot: TaxonomySnapshot | null = SNAPSHOT_EXISTS
 // ---------------------------------------------------------------------------
 
 describe('Schema-DB Consistency', () => {
-  describe.skipIf(!snapshot?.content_types)('Content Types (from snapshot)', () => {
-    it('VALID_CONTENT_TYPES should match DB CHECK constraint values', () => {
-      const tsTypes = [...VALID_CONTENT_TYPES].sort();
-      const dbTypes = [...snapshot!.content_types!].sort();
-      expect(tsTypes).toEqual(dbTypes);
-    });
+  describe.skipIf(!snapshot?.content_types)(
+    'Content Types (from snapshot)',
+    () => {
+      it('VALID_CONTENT_TYPES should match DB CHECK constraint values', () => {
+        const tsTypes = [...VALID_CONTENT_TYPES].sort();
+        const dbTypes = [...snapshot!.content_types!].sort();
+        expect(tsTypes).toEqual(dbTypes);
+      });
 
-    it('no content types should be in DB but missing from TypeScript', () => {
-      const tsSet = new Set<string>(VALID_CONTENT_TYPES);
-      const missing = snapshot!.content_types!.filter((t) => !tsSet.has(t));
-      expect(
-        missing,
-        `Content types in DB but missing from schemas.ts: ${missing.join(', ')}`,
-      ).toHaveLength(0);
-    });
+      it('no content types should be in DB but missing from TypeScript', () => {
+        const tsSet = new Set<string>(VALID_CONTENT_TYPES);
+        const missing = snapshot!.content_types!.filter((t) => !tsSet.has(t));
+        expect(
+          missing,
+          `Content types in DB but missing from schemas.ts: ${missing.join(', ')}`,
+        ).toHaveLength(0);
+      });
 
-    it('no content types should be in TypeScript but missing from DB', () => {
-      const dbSet = new Set(snapshot!.content_types!);
-      const extra = VALID_CONTENT_TYPES.filter((t) => !dbSet.has(t));
-      expect(
-        extra,
-        `Content types in schemas.ts but missing from DB: ${extra.join(', ')}`,
-      ).toHaveLength(0);
-    });
-  });
+      it('no content types should be in TypeScript but missing from DB', () => {
+        const dbSet = new Set(snapshot!.content_types!);
+        const extra = VALID_CONTENT_TYPES.filter((t) => !dbSet.has(t));
+        expect(
+          extra,
+          `Content types in schemas.ts but missing from DB: ${extra.join(', ')}`,
+        ).toHaveLength(0);
+      });
+    },
+  );
 
   describe.skipIf(!snapshot?.platforms)('Platforms (from snapshot)', () => {
     it('VALID_PLATFORMS should match DB CHECK constraint values', () => {
@@ -107,9 +116,10 @@ describe('Schema-DB Consistency', () => {
   });
 
   describe.skipIf(!SNAPSHOT_EXISTS)('Taxonomy Domain Coverage', () => {
-
     it('every baseline domain should have a colour key assigned', () => {
-      const baselineDomains = snapshot!.domains.filter((d) => d.provenance === 'baseline');
+      const baselineDomains = snapshot!.domains.filter(
+        (d) => d.provenance === 'baseline',
+      );
       for (const domain of baselineDomains) {
         expect(
           domain.colour,
@@ -119,7 +129,9 @@ describe('Schema-DB Consistency', () => {
     });
 
     it('baseline domain names should be lowercase kebab-case', () => {
-      const baselineDomains = snapshot!.domains.filter((d) => d.provenance === 'baseline');
+      const baselineDomains = snapshot!.domains.filter(
+        (d) => d.provenance === 'baseline',
+      );
       for (const domain of baselineDomains) {
         expect(
           domain.name,

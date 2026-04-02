@@ -13,12 +13,8 @@ import {
   type CertificationReportData,
   type CertificationReportEntry,
 } from '@/lib/mcp/formatters/entities';
-import {
-  deriveExpiryStatus,
-} from '@/lib/certification-status';
-import {
-  generateCertificationReviewPrompt,
-} from '@/lib/claude-prompts';
+import { deriveExpiryStatus } from '@/lib/certification-status';
+import { generateCertificationReviewPrompt } from '@/lib/claude-prompts';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -96,7 +92,9 @@ const sampleRegistration: CertificationReportEntry = {
   content_item_count: 1,
 };
 
-function buildReportData(overrides?: Partial<CertificationReportData>): CertificationReportData {
+function buildReportData(
+  overrides?: Partial<CertificationReportData>,
+): CertificationReportData {
   return {
     certifications: [sampleCertification, expiringCertification],
     frameworks: [sampleFramework],
@@ -133,7 +131,9 @@ describe('formatCertificationReport', () => {
   it('includes certification table with columns', () => {
     const result = formatCertificationReport(buildReportData());
     expect(result).toContain('## Certifications (2 held)');
-    expect(result).toContain('| Certification | Version | Issuer | Obtained | Expires | Status |');
+    expect(result).toContain(
+      '| Certification | Version | Issuer | Obtained | Expires | Status |',
+    );
     expect(result).toContain('| ISO 27001 | 2022 | BSI |');
     expect(result).toContain('| Cyber Essentials Plus |');
   });
@@ -141,7 +141,9 @@ describe('formatCertificationReport', () => {
   it('includes framework table', () => {
     const result = formatCertificationReport(buildReportData());
     expect(result).toContain('## Frameworks (1 active)');
-    expect(result).toContain('| Framework | Round | Status | Joined | Expires |');
+    expect(result).toContain(
+      '| Framework | Round | Status | Joined | Expires |',
+    );
     expect(result).toContain('| G-Cloud 14 | 14 | active |');
   });
 

@@ -87,6 +87,8 @@ describe('reconcileTemporalReferences', () => {
     const result = reconcileTemporalReferences(aiRefs, undefined);
     expect(result).toHaveLength(2);
     expect(result.find((r) => r.related_entity === 'ISO 27001')).toBeDefined();
-    expect(result.find((r) => r.related_entity === 'Cyber Essentials Plus')).toBeDefined();
+    expect(
+      result.find((r) => r.related_entity === 'Cyber Essentials Plus'),
+    ).toBeDefined();
   });
 });

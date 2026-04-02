@@ -21,7 +21,10 @@ import { ManagePresetsDialog } from '@/components/browse/manage-presets-dialog';
 import dynamic from 'next/dynamic';
 
 const FileUploadDialog = dynamic(
-  () => import('@/components/create-content/file-upload-dialog').then((mod) => mod.FileUploadDialog),
+  () =>
+    import('@/components/create-content/file-upload-dialog').then(
+      (mod) => mod.FileUploadDialog,
+    ),
   { ssr: false },
 );
 import { Button } from '@/components/ui/button';
@@ -107,7 +110,9 @@ export function BrowseContent() {
   }, [canEdit, items, loadAssignments]);
 
   // Trigger lazy loading of read marks counts for this page
-  useEffect(() => { loadReadMarks(); }, [loadReadMarks]);
+  useEffect(() => {
+    loadReadMarks();
+  }, [loadReadMarks]);
 
   // UI-only state
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
@@ -319,7 +324,10 @@ export function BrowseContent() {
   );
 
   return (
-    <section aria-label={isSearchMode ? 'Browse and search results' : 'Browse content'} className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+    <section
+      aria-label={isSearchMode ? 'Browse and search results' : 'Browse content'}
+      className="mx-auto max-w-7xl px-4 py-8 sm:px-6"
+    >
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -343,13 +351,19 @@ export function BrowseContent() {
                 {freshnessCounts && (
                   <span className="text-muted-foreground">
                     {' \u2014 '}
-                    <span className="text-freshness-fresh">{freshnessCounts.fresh} fresh</span>
+                    <span className="text-freshness-fresh">
+                      {freshnessCounts.fresh} fresh
+                    </span>
                     {', '}
-                    <span className="text-freshness-stale">{freshnessCounts.stale} stale</span>
+                    <span className="text-freshness-stale">
+                      {freshnessCounts.stale} stale
+                    </span>
                     {freshnessCounts.expired > 0 && (
                       <>
                         {', '}
-                        <span className="text-freshness-expired">{freshnessCounts.expired} expired</span>
+                        <span className="text-freshness-expired">
+                          {freshnessCounts.expired} expired
+                        </span>
                       </>
                     )}
                   </span>
@@ -366,12 +380,7 @@ export function BrowseContent() {
         <div className="flex items-center gap-2">
           {canEdit && (
             <>
-              <Button
-                variant="default"
-                size="sm"
-                asChild
-                className="gap-1.5"
-              >
+              <Button variant="default" size="sm" asChild className="gap-1.5">
                 <Link href="/item/new">
                   <Plus className="size-3.5" />
                   New Content
@@ -415,7 +424,11 @@ export function BrowseContent() {
 
       {/* Browse search bar */}
       <div className="mt-4">
-        <form onSubmit={handleSearchSubmit} role="search" aria-label="Search content">
+        <form
+          onSubmit={handleSearchSubmit}
+          role="search"
+          aria-label="Search content"
+        >
           <div className="relative">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -433,7 +446,10 @@ export function BrowseContent() {
 
       {/* Search error */}
       {searchError && (
-        <div className="mt-3 flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+        <div
+          className="mt-3 flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          role="alert"
+        >
           <AlertCircle className="size-4 shrink-0" />
           {searchError}
         </div>
@@ -459,7 +475,9 @@ export function BrowseContent() {
         />
       </div>
 
-      <div className="mt-3"><FilterBadges /></div>
+      <div className="mt-3">
+        <FilterBadges />
+      </div>
 
       {multiSelectMode && selectedIds.size > 0 && (
         <BulkActions
@@ -481,7 +499,9 @@ export function BrowseContent() {
           isSearchMode ? (
             <div className="flex flex-col items-center gap-2 py-16 text-center">
               <Search className="size-8 text-muted-foreground" />
-              <p className="text-lg font-medium text-foreground">No results found</p>
+              <p className="text-lg font-medium text-foreground">
+                No results found
+              </p>
               <p className="text-sm text-muted-foreground">
                 Try different search terms or adjust your filters.
               </p>
@@ -536,15 +556,26 @@ export function BrowseContent() {
       {!isLoading && items.length > 0 && (
         <div className="mt-8 flex flex-col items-center gap-2">
           {hasMore && !isSearchMode && (
-            <div ref={sentinelCallbackRef} aria-hidden="true" className="h-px w-full" />
+            <div
+              ref={sentinelCallbackRef}
+              aria-hidden="true"
+              className="h-px w-full"
+            />
           )}
           {isLoadingMore && (
             <div role="status" aria-label="Loading more items">
-              <Loader2 className="size-5 animate-spin text-muted-foreground" aria-hidden="true" />
+              <Loader2
+                className="size-5 animate-spin text-muted-foreground"
+                aria-hidden="true"
+              />
               <span className="sr-only">Loading more items...</span>
             </div>
           )}
-          <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
+          <p
+            className="text-sm text-muted-foreground"
+            role="status"
+            aria-live="polite"
+          >
             {isSearchMode
               ? `Showing top ${displayItems.length} result${displayItems.length !== 1 ? 's' : ''}`
               : `Showing ${displayItems.length} of ${totalCount?.toLocaleString('en-GB') ?? '...'} items`}

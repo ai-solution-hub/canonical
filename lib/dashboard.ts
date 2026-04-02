@@ -1,10 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
-import type {
-  TeamChange,
-  RecentWorkItem,
-  BidBriefing,
-} from '@/types/reorient';
+import type { TeamChange, RecentWorkItem, BidBriefing } from '@/types/reorient';
 import { fetchActiveBidsWithStats } from '@/lib/bid/bid-queries';
 import { formatRelativeDate } from '@/lib/format';
 
@@ -65,7 +61,12 @@ export interface GroupedActivityItem extends ActivityItem {
 // Urgency helpers
 // ---------------------------------------------------------------------------
 
-export type DeadlineUrgency = 'overdue' | 'urgent' | 'approaching' | 'normal' | 'unknown';
+export type DeadlineUrgency =
+  | 'overdue'
+  | 'urgent'
+  | 'approaching'
+  | 'normal'
+  | 'unknown';
 
 export function getDeadlineUrgency(deadline: string | null): DeadlineUrgency {
   if (!deadline) return 'unknown';
@@ -84,7 +85,9 @@ export function getDaysUntilDeadline(deadline: string | null): number | null {
   if (!deadline) return null;
   const now = new Date();
   const deadlineDate = new Date(deadline);
-  return Math.ceil((deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  return Math.ceil(
+    (deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -92,7 +95,9 @@ export function getDaysUntilDeadline(deadline: string | null): number | null {
 // for backward-compatible API responses and formatters.
 // ---------------------------------------------------------------------------
 
-export function unifiedToDashboardData(unified: UnifiedDashboardData): DashboardData {
+export function unifiedToDashboardData(
+  unified: UnifiedDashboardData,
+): DashboardData {
   const src = unified.attention_sources;
   return {
     needs_attention: {
@@ -133,7 +138,12 @@ export interface UnifiedDashboardData {
   active_bids: ActiveBidSummary[];
 
   /** Freshness summary for QuickStatsStrip */
-  freshness_summary: { fresh: number; aging: number; stale: number; expired: number };
+  freshness_summary: {
+    fresh: number;
+    aging: number;
+    stale: number;
+    expired: number;
+  };
 
   /** Reorient data — personal context only */
   reorient: {
@@ -160,7 +170,9 @@ export interface UnifiedDashboardData {
 // Change type mapping (mirrored from reorient.ts for unified fetch)
 // ---------------------------------------------------------------------------
 
-function mapChangeTypeToAction(changeType: string): TeamChange['action'] | RecentWorkItem['action'] {
+function mapChangeTypeToAction(
+  changeType: string,
+): TeamChange['action'] | RecentWorkItem['action'] {
   switch (changeType) {
     case 'create':
     case 'import':
@@ -226,7 +238,9 @@ export async function fetchUnifiedDashboardData(
     email?: string | null;
   } | null = null;
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     authUser = user;
   } catch {
     // Non-critical — will fall back to defaults
@@ -234,7 +248,8 @@ export async function fetchUnifiedDashboardData(
 
   let lastActiveAt: string | null = null;
   if (lastWriteAt && lastReadAt) {
-    lastActiveAt = new Date(lastWriteAt) >= new Date(lastReadAt) ? lastWriteAt : lastReadAt;
+    lastActiveAt =
+      new Date(lastWriteAt) >= new Date(lastReadAt) ? lastWriteAt : lastReadAt;
   } else if (lastWriteAt) {
     lastActiveAt = lastWriteAt;
   } else if (lastReadAt) {
@@ -270,7 +285,9 @@ export async function fetchUnifiedDashboardData(
       // 2: Team changes — content_history since last active (others' work)
       supabase
         .from('content_history')
-        .select('id, content_item_id, change_type, change_summary, created_by, created_at, content_items!inner(title, primary_domain)')
+        .select(
+          'id, content_item_id, change_type, change_summary, created_by, created_at, content_items!inner(title, primary_domain)',
+        )
         .gt('created_at', sinceDate)
         .neq('created_by', userId)
         .order('created_at', { ascending: false })
@@ -279,7 +296,9 @@ export async function fetchUnifiedDashboardData(
       // 3: User's own recent work — content_history
       supabase
         .from('content_history')
-        .select('id, content_item_id, change_type, change_summary, created_at, content_items!inner(title)')
+        .select(
+          'id, content_item_id, change_type, change_summary, created_at, content_items!inner(title)',
+        )
         .eq('created_by', userId)
         .order('created_at', { ascending: false })
         .limit(5),
@@ -287,7 +306,9 @@ export async function fetchUnifiedDashboardData(
       // 4: Bid response changes by others (team changes)
       supabase
         .from('bid_response_history')
-        .select('id, response_id, edited_by, created_at, bid_responses!inner(question_id, bid_questions!inner(project_id, workspaces!inner(name)))')
+        .select(
+          'id, response_id, edited_by, created_at, bid_responses!inner(question_id, bid_questions!inner(project_id, workspaces!inner(name)))',
+        )
         .gt('created_at', sinceDate)
         .neq('edited_by', userId)
         .order('created_at', { ascending: false })
@@ -296,7 +317,9 @@ export async function fetchUnifiedDashboardData(
       // 5: User's own bid response edits (recent work)
       supabase
         .from('bid_response_history')
-        .select('id, response_id, edited_by, created_at, bid_responses!inner(question_id, bid_questions!inner(project_id, question_text, workspaces!inner(id, name)))')
+        .select(
+          'id, response_id, edited_by, created_at, bid_responses!inner(question_id, bid_questions!inner(project_id, question_text, workspaces!inner(id, name)))',
+        )
         .eq('edited_by', userId)
         .order('created_at', { ascending: false })
         .limit(5),
@@ -311,7 +334,9 @@ export async function fetchUnifiedDashboardData(
               'canonical_name',
               certRelResult.data.map((r) => r.target_entity),
             )
-            .or('entity_type.eq.certification,entity_type_override.eq.certification')
+            .or(
+              'entity_type.eq.certification,entity_type_override.eq.certification',
+            )
         : Promise.resolve({ data: [], error: null }),
     ]),
     fetchActiveBidsWithStats(supabase),
@@ -342,7 +367,12 @@ export async function fetchUnifiedDashboardData(
         expiring_content_date_count: number;
         unread_notification_count: number;
         coverage_gap_count: number;
-        freshness_summary: { fresh: number; aging: number; stale: number; expired: number };
+        freshness_summary: {
+          fresh: number;
+          aging: number;
+          stale: number;
+          expired: number;
+        };
       };
       governance_review_count = counts.governance_review_count ?? 0;
       unverified_count = counts.unverified_count ?? 0;
@@ -370,17 +400,19 @@ export async function fetchUnifiedDashboardData(
     if (error) {
       errors.push('recent_activity query failed');
     } else if (data) {
-      recent_activity = (data as Array<{
-        id: string;
-        type: string;
-        entity_type: string;
-        entity_id: string;
-        summary: string;
-        user_id: string | null;
-        latest_at: string | null;
-        earliest_at: string | null;
-        event_count: number;
-      }>).map((row) => ({
+      recent_activity = (
+        data as Array<{
+          id: string;
+          type: string;
+          entity_type: string;
+          entity_id: string;
+          summary: string;
+          user_id: string | null;
+          latest_at: string | null;
+          earliest_at: string | null;
+          event_count: number;
+        }>
+      ).map((row) => ({
         id: row.id,
         type: row.type,
         entity_type: row.entity_type,
@@ -405,11 +437,16 @@ export async function fetchUnifiedDashboardData(
       errors.push('team_changes query failed');
     } else if (data) {
       for (const row of data) {
-        const ci = row.content_items as unknown as { title: string; primary_domain: string } | null;
+        const ci = row.content_items as unknown as {
+          title: string;
+          primary_domain: string;
+        } | null;
         team_changes.push({
           user_id: row.created_by ?? '',
           user_name: null,
-          action: mapChangeTypeToAction(row.change_type ?? 'edit') as TeamChange['action'],
+          action: mapChangeTypeToAction(
+            row.change_type ?? 'edit',
+          ) as TeamChange['action'],
           entity_type: 'content_item',
           entity_id: row.content_item_id ?? '',
           entity_title: ci?.title ?? 'Untitled',
@@ -435,7 +472,9 @@ export async function fetchUnifiedDashboardData(
           entity_type: 'content_item',
           entity_id: row.content_item_id ?? '',
           entity_title: ci?.title ?? 'Untitled',
-          action: mapChangeTypeToAction(row.change_type ?? 'edit') as RecentWorkItem['action'],
+          action: mapChangeTypeToAction(
+            row.change_type ?? 'edit',
+          ) as RecentWorkItem['action'],
           href: `/item/${row.content_item_id}`,
           created_at: row.created_at,
         });
@@ -478,8 +517,9 @@ export async function fetchUnifiedDashboardData(
   }
 
   // Sort combined team changes by date (content_history + bid_response_history)
-  team_changes.sort((a, b) =>
-    new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  team_changes.sort(
+    (a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
 
   // --- Extract user's own bid response edits (query 5) ---
@@ -497,14 +537,16 @@ export async function fetchUnifiedDashboardData(
             workspaces: { id: string; name: string };
           };
         } | null;
-        const questionText = br?.bid_questions?.question_text ?? 'Untitled question';
+        const questionText =
+          br?.bid_questions?.question_text ?? 'Untitled question';
         const bidId = br?.bid_questions?.workspaces?.id;
         my_recent_work.push({
           entity_type: 'bid_response',
           entity_id: row.response_id,
-          entity_title: questionText.length > 60
-            ? `${questionText.slice(0, 57)}...`
-            : questionText,
+          entity_title:
+            questionText.length > 60
+              ? `${questionText.slice(0, 57)}...`
+              : questionText,
           action: 'edited',
           href: bidId ? `/bid/${bidId}/session` : '/bid',
           created_at: row.created_at,
@@ -518,8 +560,9 @@ export async function fetchUnifiedDashboardData(
   }
 
   // Sort combined recent work by date and limit to 5
-  my_recent_work.sort((a, b) =>
-    new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  my_recent_work.sort(
+    (a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
   my_recent_work.splice(5);
 
@@ -538,7 +581,8 @@ export async function fetchUnifiedDashboardData(
       deadline,
       days_until_deadline: getDaysUntilDeadline(deadline),
       total_questions: stats?.total_questions ?? 0,
-      answered_questions: (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0),
+      answered_questions:
+        (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0),
       approved_questions: stats?.complete_count ?? 0,
     };
   });
@@ -564,7 +608,8 @@ export async function fetchUnifiedDashboardData(
     const deadline = (meta?.deadline as string) ?? null;
     const urgency = getDeadlineUrgency(deadline);
     const totalQ = stats?.total_questions ?? 0;
-    const answeredQ = (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0);
+    const answeredQ =
+      (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0);
 
     return {
       id: workspace.id,
@@ -584,10 +629,14 @@ export async function fetchUnifiedDashboardData(
 
   // Sort bid_summary by deadline urgency
   const urgencyOrder: Record<string, number> = {
-    overdue: 0, urgent: 1, approaching: 2, normal: 3, unknown: 4,
+    overdue: 0,
+    urgent: 1,
+    approaching: 2,
+    normal: 3,
+    unknown: 4,
   };
-  bid_summary.sort((a, b) =>
-    (urgencyOrder[a.urgency] ?? 4) - (urgencyOrder[b.urgency] ?? 4),
+  bid_summary.sort(
+    (a, b) => (urgencyOrder[a.urgency] ?? 4) - (urgencyOrder[b.urgency] ?? 4),
   );
 
   // --- Resolve user display name ---
@@ -618,10 +667,14 @@ export async function fetchUnifiedDashboardData(
       const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
       // Deduplicate by canonical_name and count those with expiry within 90 days
       const seen = new Set<string>();
-      for (const row of data as { canonical_name: string; metadata: Record<string, unknown> | null }[]) {
+      for (const row of data as {
+        canonical_name: string;
+        metadata: Record<string, unknown> | null;
+      }[]) {
         if (seen.has(row.canonical_name)) continue;
         seen.add(row.canonical_name);
-        const expiryDate = (row.metadata as Record<string, unknown> | null)?.expiry_date as string | undefined;
+        const expiryDate = (row.metadata as Record<string, unknown> | null)
+          ?.expiry_date as string | undefined;
         if (expiryDate) {
           const expiry = new Date(expiryDate);
           const diffMs = expiry.getTime() - now.getTime();

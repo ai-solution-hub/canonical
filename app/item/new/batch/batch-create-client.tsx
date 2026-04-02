@@ -77,7 +77,9 @@ export function BatchCreateClient() {
   const [sourceDocumentLink, setSourceDocumentLink] = useState('');
 
   // Duplicate warning dialog
-  const [duplicateMatches, setDuplicateMatches] = useState<DuplicateMatch[]>([]);
+  const [duplicateMatches, setDuplicateMatches] = useState<DuplicateMatch[]>(
+    [],
+  );
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
 
   // Item statuses after submission
@@ -95,7 +97,8 @@ export function BatchCreateClient() {
     [pairs],
   );
 
-  const canSubmit = validPairs.length > 0 && validPairs.length <= MAX_PAIRS && !isSubmitting;
+  const canSubmit =
+    validPairs.length > 0 && validPairs.length <= MAX_PAIRS && !isSubmitting;
 
   // ---------------------------------------------------------------------------
   // Handlers
@@ -104,11 +107,15 @@ export function BatchCreateClient() {
   const handleParse = useCallback(() => {
     const parsed = parsePastedQA(pasteText);
     if (parsed.length === 0) {
-      toast.error('No valid Q&A pairs found. Ensure each line has a question and answer separated by a tab or pipe character.');
+      toast.error(
+        'No valid Q&A pairs found. Ensure each line has a question and answer separated by a tab or pipe character.',
+      );
       return;
     }
     if (parsed.length > MAX_PAIRS) {
-      toast.warning(`Only the first ${MAX_PAIRS} pairs will be used. ${parsed.length - MAX_PAIRS} pairs were trimmed.`);
+      toast.warning(
+        `Only the first ${MAX_PAIRS} pairs will be used. ${parsed.length - MAX_PAIRS} pairs were trimmed.`,
+      );
       setPairs(parsed.slice(0, MAX_PAIRS));
     } else {
       setPairs(parsed);
@@ -137,7 +144,10 @@ export function BatchCreateClient() {
 
     if (result) {
       // Build item status map from results
-      const statusMap = new Map<number, { status: 'created' | 'failed'; error?: string }>();
+      const statusMap = new Map<
+        number,
+        { status: 'created' | 'failed'; error?: string }
+      >();
       result.items.forEach((item, index) => {
         statusMap.set(index, {
           status: item.status,
@@ -176,17 +186,16 @@ export function BatchCreateClient() {
   }, [executeSubmission]);
 
   // Reset subtopic when domain changes
-  const handleDomainChange = useCallback(
-    (value: string) => {
-      setDomain(value);
-      setSubtopic('');
-    },
-    [],
-  );
+  const handleDomainChange = useCallback((value: string) => {
+    setDomain(value);
+    setSubtopic('');
+  }, []);
 
   // Progress percentage for the progress bar
   const progressPercentage =
-    progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
+    progress.total > 0
+      ? Math.round((progress.current / progress.total) * 100)
+      : 0;
 
   return (
     <ErrorBoundary label="Error loading batch create">
@@ -226,9 +235,7 @@ export function BatchCreateClient() {
           {/* Paste area */}
           {!hasParsed && (
             <div className="space-y-3">
-              <Label htmlFor="paste-area">
-                Paste Q&A pairs
-              </Label>
+              <Label htmlFor="paste-area">Paste Q&A pairs</Label>
               <Textarea
                 id="paste-area"
                 value={pasteText}
@@ -260,7 +267,8 @@ export function BatchCreateClient() {
             <>
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold">
-                  Preview ({validPairs.length} valid pair{validPairs.length !== 1 ? 's' : ''})
+                  Preview ({validPairs.length} valid pair
+                  {validPairs.length !== 1 ? 's' : ''})
                 </h2>
                 <Button
                   type="button"
@@ -283,7 +291,10 @@ export function BatchCreateClient() {
               {/* Shared metadata — domain/subtopic are collected for future per-item
                   metadata support. Currently the batch API auto-classifies all items
                   via the pipeline, so these values are informational only. */}
-              <fieldset className="space-y-4 rounded-md border p-4" disabled={isSubmitting}>
+              <fieldset
+                className="space-y-4 rounded-md border p-4"
+                disabled={isSubmitting}
+              >
                 <legend className="px-2 text-sm font-medium text-muted-foreground">
                   Shared metadata (optional)
                 </legend>
@@ -291,10 +302,7 @@ export function BatchCreateClient() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="batch-domain">Domain</Label>
-                    <Select
-                      value={domain}
-                      onValueChange={handleDomainChange}
-                    >
+                    <Select value={domain} onValueChange={handleDomainChange}>
                       <SelectTrigger id="batch-domain">
                         <SelectValue placeholder="Select domain..." />
                       </SelectTrigger>
@@ -317,7 +325,11 @@ export function BatchCreateClient() {
                     >
                       <SelectTrigger id="batch-subtopic">
                         <SelectValue
-                          placeholder={domain ? 'Select subtopic...' : 'Select a domain first'}
+                          placeholder={
+                            domain
+                              ? 'Select subtopic...'
+                              : 'Select a domain first'
+                          }
                         />
                       </SelectTrigger>
                       <SelectContent>
@@ -347,7 +359,11 @@ export function BatchCreateClient() {
 
               {/* Progress bar during submission */}
               {isSubmitting && (
-                <div className="space-y-2" role="status" aria-label="Batch creation progress">
+                <div
+                  className="space-y-2"
+                  role="status"
+                  aria-label="Batch creation progress"
+                >
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">
                       Creating items...
@@ -378,7 +394,8 @@ export function BatchCreateClient() {
               {results && !isSubmitting && (
                 <div className="rounded-md border bg-muted/30 p-4 space-y-2">
                   <p className="text-sm font-medium">
-                    Batch creation complete: {results.created} created, {results.failed} failed.
+                    Batch creation complete: {results.created} created,{' '}
+                    {results.failed} failed.
                   </p>
                   <div className="flex gap-3">
                     <Link
@@ -408,12 +425,18 @@ export function BatchCreateClient() {
                   >
                     {isCheckingDuplicates ? (
                       <>
-                        <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                        <Loader2
+                          className="size-4 animate-spin"
+                          aria-hidden="true"
+                        />
                         Checking for duplicates...
                       </>
                     ) : isSubmitting ? (
                       <>
-                        <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                        <Loader2
+                          className="size-4 animate-spin"
+                          aria-hidden="true"
+                        />
                         Creating...
                       </>
                     ) : (
@@ -435,9 +458,9 @@ export function BatchCreateClient() {
             <AlertDialogHeader>
               <AlertDialogTitle>Potential duplicates found</AlertDialogTitle>
               <AlertDialogDescription>
-                The following pasted questions may already exist in the knowledge
-                base. This is a best-effort title match — full semantic dedup
-                runs after creation.
+                The following pasted questions may already exist in the
+                knowledge base. This is a best-effort title match — full
+                semantic dedup runs after creation.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="max-h-[300px] overflow-y-auto space-y-3 my-2">
@@ -447,10 +470,18 @@ export function BatchCreateClient() {
                   className="rounded-md border p-3 text-sm space-y-1"
                 >
                   <p className="font-medium">
-                    Pasted: &ldquo;{match.question.length > 80 ? `${match.question.slice(0, 80)}...` : match.question}&rdquo;
+                    Pasted: &ldquo;
+                    {match.question.length > 80
+                      ? `${match.question.slice(0, 80)}...`
+                      : match.question}
+                    &rdquo;
                   </p>
                   <p className="text-muted-foreground">
-                    Existing: &ldquo;{match.title.length > 80 ? `${match.title.slice(0, 80)}...` : match.title}&rdquo;
+                    Existing: &ldquo;
+                    {match.title.length > 80
+                      ? `${match.title.slice(0, 80)}...`
+                      : match.title}
+                    &rdquo;
                   </p>
                 </div>
               ))}

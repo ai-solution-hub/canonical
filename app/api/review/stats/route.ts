@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse, rateLimitResponse } from '@/lib/auth';
+import {
+  getAuthorisedClient,
+  authFailureResponse,
+  rateLimitResponse,
+} from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import type { ReviewStatsResponse } from '@/types/review';
@@ -38,7 +42,10 @@ export async function GET() {
     }
 
     // The RPC returns the full ReviewStatsResponse shape (minus unverified)
-    const stats = data as Omit<ReviewStatsResponse, 'unverified'> & { total: number; verified: number };
+    const stats = data as Omit<ReviewStatsResponse, 'unverified'> & {
+      total: number;
+      verified: number;
+    };
 
     // Compute unverified from total - verified (same as before)
     const response: ReviewStatsResponse = {

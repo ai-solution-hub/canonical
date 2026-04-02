@@ -79,7 +79,10 @@ export interface QualityBriefingData {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function itemTitle(item: { title: string | null; suggested_title: string | null }): string {
+function itemTitle(item: {
+  title: string | null;
+  suggested_title: string | null;
+}): string {
   return item.suggested_title || item.title || 'Untitled';
 }
 
@@ -91,8 +94,13 @@ function describeDeficiencies(item: BelowThresholdItem): string {
   if (!item.ai_summary) {
     issues.push('no summary');
   }
-  if (item.classification_confidence !== null && item.classification_confidence < 0.6) {
-    issues.push(`low confidence (${Math.round(item.classification_confidence * 100)}%)`);
+  if (
+    item.classification_confidence !== null &&
+    item.classification_confidence < 0.6
+  ) {
+    issues.push(
+      `low confidence (${Math.round(item.classification_confidence * 100)}%)`,
+    );
   }
   return issues.length > 0 ? issues.join(', ') : 'composite score low';
 }
@@ -122,7 +130,9 @@ export function formatQualityBriefing(data: QualityBriefingData): string {
       const item = data.below_threshold[i];
       const title = itemTitle(item);
       const domain = item.primary_domain
-        ? (item.primary_subtopic ? `${item.primary_domain} > ${item.primary_subtopic}` : item.primary_domain)
+        ? item.primary_subtopic
+          ? `${item.primary_domain} > ${item.primary_subtopic}`
+          : item.primary_domain
         : 'Unclassified';
       const issues = describeDeficiencies(item);
       lines.push(`### ${i + 1}. "${title}" (Score: ${item.quality_score})`);
@@ -134,7 +144,9 @@ export function formatQualityBriefing(data: QualityBriefingData): string {
 
   // Section 2: Score drops
   lines.push(`## Quality Score Drops`);
-  lines.push(`**Count:** ${data.score_drops.length} item${data.score_drops.length === 1 ? '' : 's'} dropped since last check`);
+  lines.push(
+    `**Count:** ${data.score_drops.length} item${data.score_drops.length === 1 ? '' : 's'} dropped since last check`,
+  );
   lines.push('');
 
   if (data.score_drops.length === 0) {
@@ -144,14 +156,18 @@ export function formatQualityBriefing(data: QualityBriefingData): string {
     for (const item of data.score_drops) {
       const title = itemTitle(item);
       const delta = item.previous_quality_score - item.quality_score;
-      lines.push(`- **"${title}"** — ${item.previous_quality_score} -> ${item.quality_score} (dropped ${delta} points)`);
+      lines.push(
+        `- **"${title}"** — ${item.previous_quality_score} -> ${item.quality_score} (dropped ${delta} points)`,
+      );
     }
     lines.push('');
   }
 
   // Section 3: Freshness transitions
   lines.push(`## Freshness Transitions`);
-  lines.push(`**${data.freshness_transitions.length} item${data.freshness_transitions.length === 1 ? '' : 's'}** changed freshness state`);
+  lines.push(
+    `**${data.freshness_transitions.length} item${data.freshness_transitions.length === 1 ? '' : 's'}** changed freshness state`,
+  );
   lines.push('');
 
   if (data.freshness_transitions.length === 0) {
@@ -160,14 +176,18 @@ export function formatQualityBriefing(data: QualityBriefingData): string {
   } else {
     for (const item of data.freshness_transitions) {
       const title = itemTitle(item);
-      lines.push(`- **"${title}"** — ${item.previous_freshness} -> ${item.freshness}`);
+      lines.push(
+        `- **"${title}"** — ${item.previous_freshness} -> ${item.freshness}`,
+      );
     }
     lines.push('');
   }
 
   // Section 4: Outstanding quality flags
   lines.push(`## Outstanding Quality Flags`);
-  lines.push(`**${data.quality_flags.length} flag${data.quality_flags.length === 1 ? '' : 's'}** awaiting resolution`);
+  lines.push(
+    `**${data.quality_flags.length} flag${data.quality_flags.length === 1 ? '' : 's'}** awaiting resolution`,
+  );
   lines.push('');
 
   if (data.quality_flags.length === 0) {
@@ -184,7 +204,9 @@ export function formatQualityBriefing(data: QualityBriefingData): string {
 
   // Section 5: Coverage alerts
   lines.push(`## Coverage Alerts`);
-  lines.push(`**${data.coverage_alerts.length} alert${data.coverage_alerts.length === 1 ? '' : 's'}** active`);
+  lines.push(
+    `**${data.coverage_alerts.length} alert${data.coverage_alerts.length === 1 ? '' : 's'}** active`,
+  );
   lines.push('');
 
   if (data.coverage_alerts.length === 0) {
@@ -201,7 +223,9 @@ export function formatQualityBriefing(data: QualityBriefingData): string {
 
   // Section 6: Certification warnings
   lines.push(`## Certification Warnings`);
-  lines.push(`**${data.certification_warnings.length} certification${data.certification_warnings.length === 1 ? '' : 's'}** expiring or expired`);
+  lines.push(
+    `**${data.certification_warnings.length} certification${data.certification_warnings.length === 1 ? '' : 's'}** expiring or expired`,
+  );
   lines.push('');
 
   if (data.certification_warnings.length === 0) {
@@ -209,8 +233,11 @@ export function formatQualityBriefing(data: QualityBriefingData): string {
   } else {
     for (const cert of data.certification_warnings) {
       const expiryDate = formatDateUK(cert.expiry_date);
-      const statusLabel = cert.status === 'expired' ? 'EXPIRED' : 'EXPIRING SOON';
-      lines.push(`- **${formatEntityDisplayName(cert.canonical_name)}** (${cert.entity_type}) — ${statusLabel}, expires ${expiryDate}`);
+      const statusLabel =
+        cert.status === 'expired' ? 'EXPIRED' : 'EXPIRING SOON';
+      lines.push(
+        `- **${formatEntityDisplayName(cert.canonical_name)}** (${cert.entity_type}) — ${statusLabel}, expires ${expiryDate}`,
+      );
     }
   }
 

@@ -30,11 +30,7 @@ export default defineConfig({
     poolOptions: { forks: { singleFork: true } },
     coverage: {
       provider: 'v8',
-      include: [
-        'lib/**/*.ts',
-        'lib/**/*.tsx',
-        'app/api/**/*.ts',
-      ],
+      include: ['lib/**/*.ts', 'lib/**/*.tsx', 'app/api/**/*.ts'],
     },
   },
 });

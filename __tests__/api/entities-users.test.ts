@@ -51,13 +51,18 @@ vi.mock('@/lib/ai/extract-content', () => ({
 
 // Import routes AFTER mocks are registered
 const { GET: entitiesGet } = await import('@/app/api/entities/route');
-const { POST: entitiesMergePost } = await import('@/app/api/entities/merge/route');
-const { POST: entitiesSplitPost } = await import('@/app/api/entities/split/route');
-const { PATCH: entityTypePatch } = await import('@/app/api/entities/[canonical_name]/type/route');
+const { POST: entitiesMergePost } =
+  await import('@/app/api/entities/merge/route');
+const { POST: entitiesSplitPost } =
+  await import('@/app/api/entities/split/route');
+const { PATCH: entityTypePatch } =
+  await import('@/app/api/entities/[canonical_name]/type/route');
 const { POST: embedPost } = await import('@/app/api/embed/route');
 const { POST: extractPost } = await import('@/app/api/extract/route');
-const { GET: suggestionsGet } = await import('@/app/api/search/suggestions/route');
-const { POST: displayNamesPost } = await import('@/app/api/users/display-names/route');
+const { GET: suggestionsGet } =
+  await import('@/app/api/search/suggestions/route');
+const { POST: displayNamesPost } =
+  await import('@/app/api/users/display-names/route');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -85,32 +90,55 @@ beforeEach(() => {
   mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
 
   // Add getUserById to mock auth.admin (not in shared helper)
-  (mockSupabase.auth.admin as Record<string, unknown>).getUserById = mockGetUserById;
+  (mockSupabase.auth.admin as Record<string, unknown>).getUserById =
+    mockGetUserById;
   mockGetUserById.mockResolvedValue({
     data: { user: null },
     error: null,
   });
 
   const chainable = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const m of chainable) {
     mockSupabase._chain[m].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockReset().mockResolvedValue({ data: null, error: null });
-  mockSupabase._chain.maybeSingle.mockReset().mockResolvedValue({ data: null, error: null });
-  mockSupabase._chain.then.mockReset().mockImplementation(
-    (resolve: (v: unknown) => void) => resolve({ data: [], error: null, count: 0 }),
-  );
+  mockSupabase._chain.single
+    .mockReset()
+    .mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.maybeSingle
+    .mockReset()
+    .mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.then
+    .mockReset()
+    .mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({ data: [], error: null, count: 0 }),
+    );
 
   mockCheckRateLimit.mockReturnValue({ allowed: true, remaining: 19 });
   mockGenerateEmbedding.mockResolvedValue(new Array(1024).fill(0));
   mockExtractStructuredContent.mockResolvedValue({ extracted: true });
 });
-
 
 // ═══════════════════════════════════════════════════════════════════════════
 // GET /api/entities
@@ -235,10 +263,13 @@ describe('GET /api/entities', () => {
     expect(body.total).toBe(5);
 
     // Verify pagination params passed to RPC
-    expect(mockSupabase.rpc).toHaveBeenCalledWith('get_entity_list_aggregated', expect.objectContaining({
-      p_limit: 2,
-      p_offset: 1,
-    }));
+    expect(mockSupabase.rpc).toHaveBeenCalledWith(
+      'get_entity_list_aggregated',
+      expect.objectContaining({
+        p_limit: 2,
+        p_offset: 1,
+      }),
+    );
   });
 
   it('filters by type_conflicts showing only entities with multiple types', async () => {
@@ -276,9 +307,12 @@ describe('GET /api/entities', () => {
     expect(body.entities[0].has_type_conflict).toBe(true);
 
     // Verify type_conflicts filter passed to RPC
-    expect(mockSupabase.rpc).toHaveBeenCalledWith('get_entity_list_aggregated', expect.objectContaining({
-      p_type_conflicts: true,
-    }));
+    expect(mockSupabase.rpc).toHaveBeenCalledWith(
+      'get_entity_list_aggregated',
+      expect.objectContaining({
+        p_type_conflicts: true,
+      }),
+    );
   });
 
   it('returns 500 when RPC fails', async () => {
@@ -295,7 +329,6 @@ describe('GET /api/entities', () => {
   });
 });
 
-
 // ═══════════════════════════════════════════════════════════════════════════
 // POST /api/entities/merge
 // ═══════════════════════════════════════════════════════════════════════════
@@ -310,7 +343,10 @@ describe('POST /api/entities/merge', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest('/api/entities/merge', { method: 'POST', body: validMergeBody });
+    const req = createTestRequest('/api/entities/merge', {
+      method: 'POST',
+      body: validMergeBody,
+    });
     const res = await entitiesMergePost(req);
     expect(res.status).toBe(401);
   });
@@ -318,7 +354,10 @@ describe('POST /api/entities/merge', () => {
   it('returns 403 for editor role (requires admin)', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const req = createTestRequest('/api/entities/merge', { method: 'POST', body: validMergeBody });
+    const req = createTestRequest('/api/entities/merge', {
+      method: 'POST',
+      body: validMergeBody,
+    });
     const res = await entitiesMergePost(req);
     expect(res.status).toBe(403);
   });
@@ -364,7 +403,10 @@ describe('POST /api/entities/merge', () => {
       error: null,
     });
 
-    const req = createTestRequest('/api/entities/merge', { method: 'POST', body: validMergeBody });
+    const req = createTestRequest('/api/entities/merge', {
+      method: 'POST',
+      body: validMergeBody,
+    });
     const res = await entitiesMergePost(req);
     expect(res.status).toBe(200);
 
@@ -376,7 +418,11 @@ describe('POST /api/entities/merge', () => {
 
     // Verify RPC called with correct params (sources + target deduplicated)
     expect(mockSupabase.rpc).toHaveBeenCalledWith('merge_entities', {
-      p_source_names: expect.arrayContaining(['Acme', 'ACME Corp', 'Acme Corporation']),
+      p_source_names: expect.arrayContaining([
+        'Acme',
+        'ACME Corp',
+        'Acme Corporation',
+      ]),
       p_target_name: 'Acme Corporation',
       p_entity_type: 'organisation',
     });
@@ -390,12 +436,14 @@ describe('POST /api/entities/merge', () => {
       error: { message: 'RPC error', code: '50000' },
     });
 
-    const req = createTestRequest('/api/entities/merge', { method: 'POST', body: validMergeBody });
+    const req = createTestRequest('/api/entities/merge', {
+      method: 'POST',
+      body: validMergeBody,
+    });
     const res = await entitiesMergePost(req);
     expect(res.status).toBe(500);
   });
 });
-
 
 // ═══════════════════════════════════════════════════════════════════════════
 // POST /api/entities/split
@@ -411,7 +459,10 @@ describe('POST /api/entities/split', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest('/api/entities/split', { method: 'POST', body: validSplitBody });
+    const req = createTestRequest('/api/entities/split', {
+      method: 'POST',
+      body: validSplitBody,
+    });
     const res = await entitiesSplitPost(req);
     expect(res.status).toBe(401);
   });
@@ -419,7 +470,10 @@ describe('POST /api/entities/split', () => {
   it('returns 403 for viewer role (requires admin)', async () => {
     configureRole(mockSupabase, 'viewer');
 
-    const req = createTestRequest('/api/entities/split', { method: 'POST', body: validSplitBody });
+    const req = createTestRequest('/api/entities/split', {
+      method: 'POST',
+      body: validSplitBody,
+    });
     const res = await entitiesSplitPost(req);
     expect(res.status).toBe(403);
   });
@@ -429,13 +483,19 @@ describe('POST /api/entities/split', () => {
 
     const req = createTestRequest('/api/entities/split', {
       method: 'POST',
-      body: { canonical_name: 'Acme', variant_names: ['ACME'], new_canonical_name: 'Acme' },
+      body: {
+        canonical_name: 'Acme',
+        variant_names: ['ACME'],
+        new_canonical_name: 'Acme',
+      },
     });
     const res = await entitiesSplitPost(req);
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.error).toBe('New canonical name must differ from the current one');
+    expect(body.error).toBe(
+      'New canonical name must differ from the current one',
+    );
   });
 
   it('returns 404 when no matching variant mentions found', async () => {
@@ -446,7 +506,10 @@ describe('POST /api/entities/split', () => {
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
-    const req = createTestRequest('/api/entities/split', { method: 'POST', body: validSplitBody });
+    const req = createTestRequest('/api/entities/split', {
+      method: 'POST',
+      body: validSplitBody,
+    });
     const res = await entitiesSplitPost(req);
     expect(res.status).toBe(404);
 
@@ -458,13 +521,17 @@ describe('POST /api/entities/split', () => {
     configureRole(mockSupabase, 'admin');
 
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({
-        data: [{ id: 1 }, { id: 2 }],
-        error: null,
-      }),
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [{ id: 1 }, { id: 2 }],
+          error: null,
+        }),
     );
 
-    const req = createTestRequest('/api/entities/split', { method: 'POST', body: validSplitBody });
+    const req = createTestRequest('/api/entities/split', {
+      method: 'POST',
+      body: validSplitBody,
+    });
     const res = await entitiesSplitPost(req);
     expect(res.status).toBe(200);
 
@@ -475,7 +542,6 @@ describe('POST /api/entities/split', () => {
     expect(body.mentions_moved).toBe(2);
   });
 });
-
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PATCH /api/entities/[canonical_name]/type
@@ -511,10 +577,11 @@ describe('PATCH /api/entities/[canonical_name]/type', () => {
     const encodedName = encodeURIComponent('Acme Corp Ltd');
 
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({
-        data: [{ id: 1 }],
-        error: null,
-      }),
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [{ id: 1 }],
+          error: null,
+        }),
     );
 
     const req = createTestRequest(`/api/entities/${encodedName}/type`, {
@@ -549,10 +616,11 @@ describe('PATCH /api/entities/[canonical_name]/type', () => {
     configureRole(mockSupabase, 'admin');
 
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({
-        data: [{ id: 1 }, { id: 2 }, { id: 3 }],
-        error: null,
-      }),
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [{ id: 1 }, { id: 2 }, { id: 3 }],
+          error: null,
+        }),
     );
 
     const req = createTestRequest('/api/entities/Acme/type', {
@@ -569,7 +637,6 @@ describe('PATCH /api/entities/[canonical_name]/type', () => {
     expect(body.mentions_updated).toBe(3);
   });
 });
-
 
 // ═══════════════════════════════════════════════════════════════════════════
 // POST /api/embed
@@ -655,7 +722,6 @@ describe('POST /api/embed', () => {
   });
 });
 
-
 // ═══════════════════════════════════════════════════════════════════════════
 // POST /api/extract
 // ═══════════════════════════════════════════════════════════════════════════
@@ -669,7 +735,10 @@ describe('POST /api/extract', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest('/api/extract', { method: 'POST', body: validExtractBody });
+    const req = createTestRequest('/api/extract', {
+      method: 'POST',
+      body: validExtractBody,
+    });
     const res = await extractPost(req);
     expect(res.status).toBe(401);
   });
@@ -677,7 +746,10 @@ describe('POST /api/extract', () => {
   it('returns 403 for viewer role (requires editor+)', async () => {
     configureRole(mockSupabase, 'viewer');
 
-    const req = createTestRequest('/api/extract', { method: 'POST', body: validExtractBody });
+    const req = createTestRequest('/api/extract', {
+      method: 'POST',
+      body: validExtractBody,
+    });
     const res = await extractPost(req);
     expect(res.status).toBe(403);
   });
@@ -701,7 +773,10 @@ describe('POST /api/extract', () => {
       new AIServiceError('Content item not found', 404),
     );
 
-    const req = createTestRequest('/api/extract', { method: 'POST', body: validExtractBody });
+    const req = createTestRequest('/api/extract', {
+      method: 'POST',
+      body: validExtractBody,
+    });
     const res = await extractPost(req);
     expect(res.status).toBe(404);
 
@@ -714,7 +789,10 @@ describe('POST /api/extract', () => {
     const extractResult = { data: { name: 'Test', age: 25 }, confidence: 0.95 };
     mockExtractStructuredContent.mockResolvedValueOnce(extractResult);
 
-    const req = createTestRequest('/api/extract', { method: 'POST', body: validExtractBody });
+    const req = createTestRequest('/api/extract', {
+      method: 'POST',
+      body: validExtractBody,
+    });
     const res = await extractPost(req);
     expect(res.status).toBe(200);
 
@@ -722,7 +800,6 @@ describe('POST /api/extract', () => {
     expect(body).toEqual(extractResult);
   });
 });
-
 
 // ═══════════════════════════════════════════════════════════════════════════
 // GET /api/search/suggestions
@@ -768,7 +845,6 @@ describe('GET /api/search/suggestions', () => {
   });
 });
 
-
 // ═══════════════════════════════════════════════════════════════════════════
 // POST /api/users/display-names
 // ═══════════════════════════════════════════════════════════════════════════
@@ -807,8 +883,9 @@ describe('POST /api/users/display-names', () => {
   });
 
   it('returns 400 when more than 50 IDs provided', async () => {
-    const ids = Array.from({ length: 51 }, (_, i) =>
-      `a1b2c3d4-e5f6-4890-abcd-ef12345${String(i).padStart(5, '0')}`,
+    const ids = Array.from(
+      { length: 51 },
+      (_, i) => `a1b2c3d4-e5f6-4890-abcd-ef12345${String(i).padStart(5, '0')}`,
     );
 
     const req = createTestRequest('/api/users/display-names', {

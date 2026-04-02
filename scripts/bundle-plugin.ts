@@ -11,16 +11,22 @@
 import { readdir, readFile, writeFile, stat } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { VALID_CONTENT_TYPES } from '../lib/validation/schemas';
-import { 
-  parseCanonicalTaxonomy, 
-  parsePluginTaxonomy, 
-  parsePluginDomainSlugs, 
-  parsePluginContentTypes, 
-  compareSets 
+import {
+  parseCanonicalTaxonomy,
+  parsePluginTaxonomy,
+  parsePluginDomainSlugs,
+  parsePluginContentTypes,
+  compareSets,
 } from './lib/taxonomy-parser';
 
 const PROJECT_ROOT = join(import.meta.dirname, '..');
-const PLUGIN_DIR = join(PROJECT_ROOT, '.claude', 'plugins', 'knowledge-hub', '1.0.0');
+const PLUGIN_DIR = join(
+  PROJECT_ROOT,
+  '.claude',
+  'plugins',
+  'knowledge-hub',
+  '1.0.0',
+);
 const OUTPUT_PATH = join(PROJECT_ROOT, 'lib', 'mcp', 'plugin-bundle.ts');
 
 const EXCLUDED = new Set(['.DS_Store', 'node_modules', '.git']);
@@ -70,7 +76,9 @@ function crc32(data: Uint8Array): number {
 /**
  * Build a ZIP from file entries.
  */
-function buildZip(files: Array<{ path: string; content: Uint8Array }>): Uint8Array {
+function buildZip(
+  files: Array<{ path: string; content: Uint8Array }>,
+): Uint8Array {
   const localHeaders: Uint8Array[] = [];
   const centralHeaders: Uint8Array[] = [];
   let offset = 0;
@@ -161,8 +169,14 @@ function buildZip(files: Array<{ path: string; content: Uint8Array }>): Uint8Arr
  * Validate taxonomy consistency before bundling.
  */
 function validate(): void {
-  const CANONICAL_PATH = join(PROJECT_ROOT, 'docs/reference/classification-prompt.md');
-  const CLASSIFICATION_SKILL_PATH = join(PLUGIN_DIR, 'skills/classification/SKILL.md');
+  const CANONICAL_PATH = join(
+    PROJECT_ROOT,
+    'docs/reference/classification-prompt.md',
+  );
+  const CLASSIFICATION_SKILL_PATH = join(
+    PLUGIN_DIR,
+    'skills/classification/SKILL.md',
+  );
   const SEARCH_SKILL_PATH = join(PLUGIN_DIR, 'skills/search-strategy/SKILL.md');
 
   const canonicalMap = parseCanonicalTaxonomy(CANONICAL_PATH);
@@ -172,21 +186,28 @@ function validate(): void {
   // 1. Check Domains
   const pluginMap = parsePluginTaxonomy(CLASSIFICATION_SKILL_PATH);
   const pluginDomains = new Set(pluginMap.keys());
-  const { missing: mD, extra: eD } = compareSets(canonicalDomains, pluginDomains);
-  
+  const { missing: mD, extra: eD } = compareSets(
+    canonicalDomains,
+    pluginDomains,
+  );
+
   if (mD.length || eD.length) {
-    console.error(`❌ Mismatch in domains! Missing: ${mD.join(', ')} | Extra: ${eD.join(', ')}`);
+    console.error(
+      `❌ Mismatch in domains! Missing: ${mD.join(', ')} | Extra: ${eD.join(', ')}`,
+    );
     errors++;
   }
 
   // 2. Check Subtopics
   for (const [domain, canonicalSubtopics] of canonicalMap.entries()) {
     const pluginSubtopics = new Set(pluginMap.get(domain) || []);
-    const canonicalSlugs = new Set(canonicalSubtopics.map(s => s.slug));
+    const canonicalSlugs = new Set(canonicalSubtopics.map((s) => s.slug));
     const { missing, extra } = compareSets(canonicalSlugs, pluginSubtopics);
-    
+
     if (missing.length || extra.length) {
-      console.error(`❌ Mismatch in subtopics for domain "${domain}"! Missing: ${missing.join(', ')} | Extra: ${extra.join(', ')}`);
+      console.error(
+        `❌ Mismatch in subtopics for domain "${domain}"! Missing: ${missing.join(', ')} | Extra: ${extra.join(', ')}`,
+      );
       errors++;
     }
   }
@@ -195,25 +216,33 @@ function validate(): void {
   const pluginSlugs = new Set(parsePluginDomainSlugs(SEARCH_SKILL_PATH));
   const { missing: mS, extra: eS } = compareSets(canonicalDomains, pluginSlugs);
   if (mS.length || eS.length) {
-    console.error(`❌ Mismatch in search-strategy domain slugs! Missing: ${mS.join(', ')} | Extra: ${eS.join(', ')}`);
+    console.error(
+      `❌ Mismatch in search-strategy domain slugs! Missing: ${mS.join(', ')} | Extra: ${eS.join(', ')}`,
+    );
     errors++;
   }
 
   // 4. Check Content Types
-  const pluginTypes = new Set(parsePluginContentTypes(CLASSIFICATION_SKILL_PATH));
+  const pluginTypes = new Set(
+    parsePluginContentTypes(CLASSIFICATION_SKILL_PATH),
+  );
   const canonicalTypes = new Set(VALID_CONTENT_TYPES);
   const { missing: mT, extra: eT } = compareSets(canonicalTypes, pluginTypes);
   if (mT.length || eT.length) {
-    console.error(`❌ Mismatch in content types! Missing: ${mT.join(', ')} | Extra: ${eT.join(', ')}`);
+    console.error(
+      `❌ Mismatch in content types! Missing: ${mT.join(', ')} | Extra: ${eT.join(', ')}`,
+    );
     errors++;
   }
 
   if (errors > 0) {
     console.error(`\n❌ Validation failed with ${errors} errors.`);
-    console.error('👉 Run "bun run sync:plugin-taxonomy" to fix automatically.');
+    console.error(
+      '👉 Run "bun run sync:plugin-taxonomy" to fix automatically.',
+    );
     process.exit(1);
   }
-  
+
   console.log('✅ Taxonomy validation passed.');
 }
 
@@ -249,7 +278,9 @@ async function main(): Promise<void> {
   ].join('\n');
 
   await writeFile(OUTPUT_PATH, output);
-  console.log(`Written ${base64.length} chars (${zip.length} bytes ZIP) to ${OUTPUT_PATH}`);
+  console.log(
+    `Written ${base64.length} chars (${zip.length} bytes ZIP) to ${OUTPUT_PATH}`,
+  );
 }
 
 main().catch((err) => {

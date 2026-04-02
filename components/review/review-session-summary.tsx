@@ -1,7 +1,14 @@
 'use client';
 
 import { useCallback } from 'react';
-import { CheckCircle2, AlertTriangle, SkipForward, ClipboardList, Download, Clock } from 'lucide-react';
+import {
+  CheckCircle2,
+  AlertTriangle,
+  SkipForward,
+  ClipboardList,
+  Download,
+  Clock,
+} from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -61,7 +68,10 @@ function formatUkDateTime(date: Date): string {
 /**
  * Generates a plain-text summary of the review session for download.
  */
-function generateSummaryText(stats: ReviewSessionStats, durationMs?: number): string {
+function generateSummaryText(
+  stats: ReviewSessionStats,
+  durationMs?: number,
+): string {
   const lines = [
     'Review Session Summary',
     `Date: ${formatUkDateTime(new Date())}`,
@@ -148,7 +158,10 @@ export function ReviewSessionSummary({
           <DialogDescription>
             {sessionDuration != null ? (
               <>
-                <Clock className="mr-1 inline-block size-3.5 align-text-bottom" aria-hidden="true" />
+                <Clock
+                  className="mr-1 inline-block size-3.5 align-text-bottom"
+                  aria-hidden="true"
+                />
                 Session duration: {formatDuration(sessionDuration)}
               </>
             ) : (
@@ -157,24 +170,44 @@ export function ReviewSessionSummary({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-2 gap-3" role="list" aria-label="Session statistics">
-          {statItems.map(({ label, value, icon: Icon, colourClass, bgClass }) => (
-            <div
-              key={label}
-              role="listitem"
-              className={cn('flex items-center gap-3 rounded-lg p-3', bgClass)}
-            >
-              <div className={cn('flex size-9 shrink-0 items-center justify-center rounded-full', bgClass, colourClass)}>
-                <Icon className="size-4" aria-hidden="true" />
-              </div>
-              <div className="min-w-0">
-                <div className={cn('text-lg font-semibold tabular-nums', colourClass)}>
-                  {value.toLocaleString('en-GB')}
+        <div
+          className="grid grid-cols-2 gap-3"
+          role="list"
+          aria-label="Session statistics"
+        >
+          {statItems.map(
+            ({ label, value, icon: Icon, colourClass, bgClass }) => (
+              <div
+                key={label}
+                role="listitem"
+                className={cn(
+                  'flex items-center gap-3 rounded-lg p-3',
+                  bgClass,
+                )}
+              >
+                <div
+                  className={cn(
+                    'flex size-9 shrink-0 items-center justify-center rounded-full',
+                    bgClass,
+                    colourClass,
+                  )}
+                >
+                  <Icon className="size-4" aria-hidden="true" />
                 </div>
-                <div className="text-xs text-muted-foreground">{label}</div>
+                <div className="min-w-0">
+                  <div
+                    className={cn(
+                      'text-lg font-semibold tabular-nums',
+                      colourClass,
+                    )}
+                  >
+                    {value.toLocaleString('en-GB')}
+                  </div>
+                  <div className="text-xs text-muted-foreground">{label}</div>
+                </div>
               </div>
-            </div>
-          ))}
+            ),
+          )}
         </div>
 
         <DialogFooter className="flex-row gap-2 sm:justify-between">
@@ -187,10 +220,7 @@ export function ReviewSessionSummary({
             <Download className="size-3.5" aria-hidden="true" />
             Download summary
           </Button>
-          <Button
-            size="sm"
-            onClick={() => onOpenChange(false)}
-          >
+          <Button size="sm" onClick={() => onOpenChange(false)}>
             Close
           </Button>
         </DialogFooter>

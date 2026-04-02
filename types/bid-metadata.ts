@@ -22,7 +22,11 @@ export interface CitationsData {
 
 /** Quality issue from deterministic or AI checks */
 export interface QualityIssueEntry {
-  type: 'word_limit' | 'unsupported_claim' | 'weak_language' | 'missing_section';
+  type:
+    | 'word_limit'
+    | 'unsupported_claim'
+    | 'weak_language'
+    | 'missing_section';
   severity: 'error' | 'warning' | 'info';
   message: string;
   location?: string;

@@ -90,10 +90,7 @@ export function RelatedContentSection({
               }}
             >
               {relatedItems.map((related) => (
-                <ContentCard
-                  key={related.id as string}
-                  item={related}
-                />
+                <ContentCard key={related.id as string} item={related} />
               ))}
             </div>
           </div>
@@ -102,18 +99,13 @@ export function RelatedContentSection({
         {/* Shared tags — RelatedByTags renders its own heading */}
         {hasTags && (
           <div>
-            <RelatedByTags
-              itemId={itemId}
-              tags={userTags}
-            />
+            <RelatedByTags itemId={itemId} tags={userTags} />
           </div>
         )}
 
         {/* Shared entities — RelatedByEntities renders its own heading */}
         <div ref={entitiesRef}>
-          <RelatedByEntities
-            contentItemId={itemId}
-          />
+          <RelatedByEntities contentItemId={itemId} />
         </div>
       </div>
     </section>

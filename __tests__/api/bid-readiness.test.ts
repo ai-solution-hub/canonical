@@ -70,9 +70,26 @@ function resetMocks() {
   });
 
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
@@ -133,7 +150,11 @@ function mockResponse(
 // ---------------------------------------------------------------------------
 
 function configureBidAndQuestions(
-  questions: Array<{ id: string; question_text: string; question_sequence: number }>,
+  questions: Array<{
+    id: string;
+    question_text: string;
+    question_sequence: number;
+  }>,
   responses: unknown[],
 ) {
   // Call 1: getAuthorisedClient -> user_roles (role check)
@@ -148,25 +169,27 @@ function configureBidAndQuestions(
 
   // Call 3: from('bid_questions').select().eq().order().order() -> questions
   // This is awaited directly (not .single()), so we override .then
-  mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-    resolve({
-      data: questions.map((q) => ({
-        id: q.id,
-        question_text: q.question_text,
-        question_sequence: q.question_sequence,
-        section_name: 'General',
-        word_limit: 500,
-      })),
-      error: null,
-    }),
+  mockSupabase._chain.then.mockImplementationOnce(
+    (resolve: (v: unknown) => void) =>
+      resolve({
+        data: questions.map((q) => ({
+          id: q.id,
+          question_text: q.question_text,
+          question_sequence: q.question_sequence,
+          section_name: 'General',
+          word_limit: 500,
+        })),
+        error: null,
+      }),
   );
 
   // Call 4: from('bid_responses').select().in() -> responses
-  mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-    resolve({
-      data: responses,
-      error: null,
-    }),
+  mockSupabase._chain.then.mockImplementationOnce(
+    (resolve: (v: unknown) => void) =>
+      resolve({
+        data: responses,
+        error: null,
+      }),
   );
 }
 
@@ -221,13 +244,18 @@ describe('GET /api/bids/:id/readiness', () => {
 
   it('returns ready=true when all criteria pass', async () => {
     const questions = [
-      { id: Q1_UUID, question_text: 'Describe your approach', question_sequence: 1 },
-      { id: Q2_UUID, question_text: 'Risk management plan', question_sequence: 2 },
+      {
+        id: Q1_UUID,
+        question_text: 'Describe your approach',
+        question_sequence: 1,
+      },
+      {
+        id: Q2_UUID,
+        question_text: 'Risk management plan',
+        question_sequence: 2,
+      },
     ];
-    const responses = [
-      mockResponse(Q1_UUID),
-      mockResponse(Q2_UUID),
-    ];
+    const responses = [mockResponse(Q1_UUID), mockResponse(Q2_UUID)];
     configureBidAndQuestions(questions, responses);
 
     const req = createTestRequest(`/api/bids/${BID_UUID}/readiness`);
@@ -240,7 +268,9 @@ describe('GET /api/bids/:id/readiness', () => {
     expect(body.summary.total_questions).toBe(2);
     expect(body.summary.answered).toBe(2);
     expect(body.summary.approved).toBe(2);
-    expect(body.criteria.every((c: { passed: boolean }) => c.passed)).toBe(true);
+    expect(body.criteria.every((c: { passed: boolean }) => c.passed)).toBe(
+      true,
+    );
     expect(body.issues).toHaveLength(0);
   });
 
@@ -248,8 +278,16 @@ describe('GET /api/bids/:id/readiness', () => {
 
   it('fails "has response" check when response_text is empty', async () => {
     const questions = [
-      { id: Q1_UUID, question_text: 'Describe your approach', question_sequence: 1 },
-      { id: Q2_UUID, question_text: 'Risk management plan', question_sequence: 2 },
+      {
+        id: Q1_UUID,
+        question_text: 'Describe your approach',
+        question_sequence: 1,
+      },
+      {
+        id: Q2_UUID,
+        question_text: 'Risk management plan',
+        question_sequence: 2,
+      },
     ];
     const responses = [
       mockResponse(Q1_UUID),
@@ -276,11 +314,13 @@ describe('GET /api/bids/:id/readiness', () => {
 
   it('fails review status check when response is draft', async () => {
     const questions = [
-      { id: Q1_UUID, question_text: 'Describe your approach', question_sequence: 1 },
+      {
+        id: Q1_UUID,
+        question_text: 'Describe your approach',
+        question_sequence: 1,
+      },
     ];
-    const responses = [
-      mockResponse(Q1_UUID, { review_status: 'draft' }),
-    ];
+    const responses = [mockResponse(Q1_UUID, { review_status: 'draft' })];
     configureBidAndQuestions(questions, responses);
 
     const req = createTestRequest(`/api/bids/${BID_UUID}/readiness`);
@@ -301,8 +341,16 @@ describe('GET /api/bids/:id/readiness', () => {
 
   it('fails quality check when score is below threshold', async () => {
     const questions = [
-      { id: Q1_UUID, question_text: 'Describe your approach', question_sequence: 1 },
-      { id: Q2_UUID, question_text: 'Risk management plan', question_sequence: 2 },
+      {
+        id: Q1_UUID,
+        question_text: 'Describe your approach',
+        question_sequence: 1,
+      },
+      {
+        id: Q2_UUID,
+        question_text: 'Risk management plan',
+        question_sequence: 2,
+      },
     ];
     const responses = [
       mockResponse(Q1_UUID, { overall_score: 45 }),
@@ -358,11 +406,13 @@ describe('GET /api/bids/:id/readiness', () => {
 
   it('reports word limit violations in issues', async () => {
     const questions = [
-      { id: Q1_UUID, question_text: 'Describe your approach', question_sequence: 1 },
+      {
+        id: Q1_UUID,
+        question_text: 'Describe your approach',
+        question_sequence: 1,
+      },
     ];
-    const responses = [
-      mockResponse(Q1_UUID, { word_limit_compliance: false }),
-    ];
+    const responses = [mockResponse(Q1_UUID, { word_limit_compliance: false })];
     configureBidAndQuestions(questions, responses);
 
     const req = createTestRequest(`/api/bids/${BID_UUID}/readiness`);
@@ -383,7 +433,9 @@ describe('GET /api/bids/:id/readiness', () => {
       { id: Q1_UUID, question_text: 'Our track record', question_sequence: 1 },
     ];
     const responses = [
-      mockResponse(Q1_UUID, { unsupported_claims: ['We are the market leader'] }),
+      mockResponse(Q1_UUID, {
+        unsupported_claims: ['We are the market leader'],
+      }),
     ];
     configureBidAndQuestions(questions, responses);
 
@@ -406,7 +458,13 @@ describe('GET /api/bids/:id/readiness', () => {
     ];
     const responses = [
       mockResponse(Q1_UUID, {
-        issues: [{ type: 'weak_language', severity: 'error', message: 'Vague language' }],
+        issues: [
+          {
+            type: 'weak_language',
+            severity: 'error',
+            message: 'Vague language',
+          },
+        ],
       }),
     ];
     configureBidAndQuestions(questions, responses);
@@ -438,22 +496,24 @@ describe('GET /api/bids/:id/readiness', () => {
     });
 
     // Questions
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({
-        data: questions.map((q) => ({
-          id: q.id,
-          question_text: q.question_text,
-          question_sequence: q.question_sequence,
-          section_name: 'General',
-          word_limit: 500,
-        })),
-        error: null,
-      }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: questions.map((q) => ({
+            id: q.id,
+            question_text: q.question_text,
+            question_sequence: q.question_sequence,
+            section_name: 'General',
+            word_limit: 500,
+          })),
+          error: null,
+        }),
     );
 
     // Responses
-    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: responses, error: null }),
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: responses, error: null }),
     );
 
     const req = createTestRequest(`/api/bids/${BID_UUID}/readiness`);

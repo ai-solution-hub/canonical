@@ -62,7 +62,10 @@ describe('pollFeed', () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      headers: new Headers({ 'ETag': '"abc123"', 'Last-Modified': 'Tue, 01 Apr 2026 10:00:00 GMT' }),
+      headers: new Headers({
+        ETag: '"abc123"',
+        'Last-Modified': 'Tue, 01 Apr 2026 10:00:00 GMT',
+      }),
       text: () => Promise.resolve(ATOM_FEED),
     });
 
@@ -113,7 +116,9 @@ describe('pollFeed', () => {
   });
 
   it('returns timeout on fetch timeout', async () => {
-    mockFetch.mockRejectedValueOnce(new DOMException('The operation was aborted', 'AbortError'));
+    mockFetch.mockRejectedValueOnce(
+      new DOMException('The operation was aborted', 'AbortError'),
+    );
 
     const result = await pollFeed(mockSource);
     expect(result.status).toBe('timeout');

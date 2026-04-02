@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  getAuthorisedClient,
-  authFailureResponse,
-} from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { CostEstimateBodySchema } from '@/lib/validation/schemas';
@@ -51,15 +48,14 @@ export async function POST(
       .single();
 
     if (bidError || !bid) {
-      return NextResponse.json(
-        { error: 'Bid not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
     }
 
     const bidStatus = (bid.status as BidState) ?? 'draft';
     const draftableStates: BidState[] = [
-      'drafting', 'in_review', 'ready_for_export',
+      'drafting',
+      'in_review',
+      'ready_for_export',
     ];
     if (!draftableStates.includes(bidStatus)) {
       return NextResponse.json(
@@ -80,7 +76,10 @@ export async function POST(
       .order('question_sequence', { ascending: true });
 
     if (questionsError) {
-      console.error('Failed to fetch questions for cost estimate:', questionsError);
+      console.error(
+        'Failed to fetch questions for cost estimate:',
+        questionsError,
+      );
       return NextResponse.json(
         { error: 'Failed to fetch questions' },
         { status: 500 },
@@ -113,7 +112,9 @@ export async function POST(
         .in('question_id', eligibleIds);
 
       if (existingResponses && existingResponses.length > 0) {
-        const existingIds = new Set(existingResponses.map((r) => r.question_id));
+        const existingIds = new Set(
+          existingResponses.map((r) => r.question_id),
+        );
         eligible = eligible.filter((q) => !existingIds.has(q.id));
       }
     }

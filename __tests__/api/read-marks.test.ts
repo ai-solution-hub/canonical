@@ -40,7 +40,10 @@ vi.spyOn(console, 'error').mockImplementation(() => {});
 // Import route handlers AFTER mocks
 // ---------------------------------------------------------------------------
 
-import { GET as getReadMarks, POST as postReadMark } from '@/app/api/read-marks/route';
+import {
+  GET as getReadMarks,
+  POST as postReadMark,
+} from '@/app/api/read-marks/route';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -61,16 +64,41 @@ function resetMocks() {
   });
 
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockResolvedValue({ data: null, error: null, count: null });
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null, count: null });
+  mockSupabase._chain.single.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
@@ -218,8 +246,14 @@ describe('Read Marks API', () => {
       // Verify delete chain was called
       expect(mockSupabase._chain.delete).toHaveBeenCalled();
       // eq should have been called with content_item_id and user_id
-      expect(mockSupabase._chain.eq).toHaveBeenCalledWith('content_item_id', ITEM_UUID);
-      expect(mockSupabase._chain.eq).toHaveBeenCalledWith('user_id', 'test-user-id');
+      expect(mockSupabase._chain.eq).toHaveBeenCalledWith(
+        'content_item_id',
+        ITEM_UUID,
+      );
+      expect(mockSupabase._chain.eq).toHaveBeenCalledWith(
+        'user_id',
+        'test-user-id',
+      );
     });
   });
 

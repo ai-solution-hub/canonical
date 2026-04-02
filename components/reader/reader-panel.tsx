@@ -1,14 +1,31 @@
 'use client';
 
-import { X, BookOpen, FileText, ExternalLink, Maximize2, PanelRightClose } from 'lucide-react';
+import {
+  X,
+  BookOpen,
+  FileText,
+  ExternalLink,
+  Maximize2,
+  PanelRightClose,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ReaderView } from '@/components/reader/reader-view';
 import { IframeViewer } from '@/components/reader/iframe-viewer';
 import dynamic from 'next/dynamic';
 
 const PdfReaderView = dynamic(
-  () => import('@/components/reader/pdf-reader-view').then((mod) => mod.PdfReaderView),
-  { ssr: false, loading: () => <div className="flex h-full items-center justify-center"><div className="h-8 w-32 animate-pulse rounded bg-accent" /></div> },
+  () =>
+    import('@/components/reader/pdf-reader-view').then(
+      (mod) => mod.PdfReaderView,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full items-center justify-center">
+        <div className="h-8 w-32 animate-pulse rounded bg-accent" />
+      </div>
+    ),
+  },
 );
 import { NewsletterReaderCard } from '@/components/reader-cards/newsletter-reader-card';
 import { TranscriptReaderCard } from '@/components/reader-cards/transcript-reader-card';
@@ -120,10 +137,10 @@ export function ReaderPanel({
     !!transcriptChapters &&
     transcriptChapters.length > 0;
   const isPdf = contentType === 'pdf' && !!(sourceUrl || filePath);
-  const hasPlatformCard =
-    isNewsletter || isTranscript || isPdf;
+  const hasPlatformCard = isNewsletter || isTranscript || isPdf;
   const canIframe = !!frameable && !!sourceUrl;
-  const hasReaderContent = !!readerHtml || hasPlatformCard || canIframe || !!sourceUrl;
+  const hasReaderContent =
+    !!readerHtml || hasPlatformCard || canIframe || !!sourceUrl;
 
   if (!hasReaderContent) {
     const { icon, message } = getEmptyStateMessage(contentType);
@@ -140,11 +157,23 @@ export function ReaderPanel({
                 variant="ghost"
                 size="icon-sm"
                 onClick={onDetachToggle}
-                aria-label={isDetached ? 'Dock to split view (Shift+R)' : 'Pop out to floating window (Shift+R)'}
-                title={isDetached ? 'Dock to split view (Shift+R)' : 'Pop out (Shift+R)'}
+                aria-label={
+                  isDetached
+                    ? 'Dock to split view (Shift+R)'
+                    : 'Pop out to floating window (Shift+R)'
+                }
+                title={
+                  isDetached
+                    ? 'Dock to split view (Shift+R)'
+                    : 'Pop out (Shift+R)'
+                }
                 className="hidden md:inline-flex"
               >
-                {isDetached ? <PanelRightClose className="size-4" /> : <Maximize2 className="size-4" />}
+                {isDetached ? (
+                  <PanelRightClose className="size-4" />
+                ) : (
+                  <Maximize2 className="size-4" />
+                )}
               </Button>
             )}
             {!hideCloseButton && (
@@ -199,15 +228,17 @@ export function ReaderPanel({
     }
     if (readerHtml) {
       return (
-        <ReaderView
-          html={readerHtml}
-          fontSize={fontSize}
-          maxWidth={maxWidth}
-        />
+        <ReaderView html={readerHtml} fontSize={fontSize} maxWidth={maxWidth} />
       );
     }
     if (canIframe) {
-      return <IframeViewer src={sourceUrl!} title="Content preview" height="calc(100vh - 8rem)" />;
+      return (
+        <IframeViewer
+          src={sourceUrl!}
+          title="Content preview"
+          height="calc(100vh - 8rem)"
+        />
+      );
     }
     if (sourceUrl) {
       return (
@@ -249,11 +280,23 @@ export function ReaderPanel({
                 variant="ghost"
                 size="icon-sm"
                 onClick={onDetachToggle}
-                aria-label={isDetached ? 'Dock to split view (Shift+R)' : 'Pop out to floating window (Shift+R)'}
-                title={isDetached ? 'Dock to split view (Shift+R)' : 'Pop out (Shift+R)'}
+                aria-label={
+                  isDetached
+                    ? 'Dock to split view (Shift+R)'
+                    : 'Pop out to floating window (Shift+R)'
+                }
+                title={
+                  isDetached
+                    ? 'Dock to split view (Shift+R)'
+                    : 'Pop out (Shift+R)'
+                }
                 className="hidden md:inline-flex"
               >
-                {isDetached ? <PanelRightClose className="size-4" /> : <Maximize2 className="size-4" />}
+                {isDetached ? (
+                  <PanelRightClose className="size-4" />
+                ) : (
+                  <Maximize2 className="size-4" />
+                )}
               </Button>
             )}
             {!hideCloseButton && (
@@ -349,11 +392,23 @@ export function ReaderPanel({
               variant="ghost"
               size="icon-sm"
               onClick={onDetachToggle}
-              aria-label={isDetached ? 'Dock to split view (Shift+R)' : 'Pop out to floating window (Shift+R)'}
-              title={isDetached ? 'Dock to split view (Shift+R)' : 'Pop out (Shift+R)'}
+              aria-label={
+                isDetached
+                  ? 'Dock to split view (Shift+R)'
+                  : 'Pop out to floating window (Shift+R)'
+              }
+              title={
+                isDetached
+                  ? 'Dock to split view (Shift+R)'
+                  : 'Pop out (Shift+R)'
+              }
               className="hidden md:inline-flex"
             >
-              {isDetached ? <PanelRightClose className="size-4" /> : <Maximize2 className="size-4" />}
+              {isDetached ? (
+                <PanelRightClose className="size-4" />
+              ) : (
+                <Maximize2 className="size-4" />
+              )}
             </Button>
           )}
           {!hideCloseButton && (
@@ -373,9 +428,7 @@ export function ReaderPanel({
         {!hasPlatformCard && (
           <h2 className="mb-6 text-xl font-bold leading-tight">{title}</h2>
         )}
-        <div className="mx-auto">
-          {renderPlatformContent()}
-        </div>
+        <div className="mx-auto">{renderPlatformContent()}</div>
       </div>
     </div>
   );

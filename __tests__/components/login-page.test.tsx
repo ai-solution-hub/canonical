@@ -19,7 +19,11 @@ vi.mock('@/lib/supabase/client', () => ({
 }));
 
 vi.mock('sonner', () => ({
-  toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), info: vi.fn() }),
+  toast: Object.assign(vi.fn(), {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+  }),
 }));
 
 import LoginPage from '@/app/login/page';
@@ -32,7 +36,9 @@ describe('LoginPage', () => {
   describe('ARIA label', () => {
     it('has aria-label "Sign in to Knowledge Hub" on outer container', () => {
       render(<LoginPage />);
-      expect(screen.getByLabelText('Sign in to Knowledge Hub')).toBeInTheDocument();
+      expect(
+        screen.getByLabelText('Sign in to Knowledge Hub'),
+      ).toBeInTheDocument();
     });
   });
 
@@ -58,12 +64,16 @@ describe('LoginPage', () => {
 
     it('displays sign-in subtitle on email step', () => {
       render(<LoginPage />);
-      expect(screen.getByText('Sign in to your knowledge base')).toBeInTheDocument();
+      expect(
+        screen.getByText('Sign in to your knowledge base'),
+      ).toBeInTheDocument();
     });
 
     it('has a Continue button', () => {
       render(<LoginPage />);
-      expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Continue' }),
+      ).toBeInTheDocument();
     });
 
     it('announces step 1 of 3 for screen readers', () => {

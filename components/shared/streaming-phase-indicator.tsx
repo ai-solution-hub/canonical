@@ -1,6 +1,15 @@
 'use client';
 
-import { Loader2, Search, PenLine, ShieldCheck, Save, CheckCircle2, AlertCircle, X } from 'lucide-react';
+import {
+  Loader2,
+  Search,
+  PenLine,
+  ShieldCheck,
+  Save,
+  CheckCircle2,
+  AlertCircle,
+  X,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { StreamPhase } from '@/hooks/streaming/use-draft-stream';
@@ -77,7 +86,10 @@ export function StreamingPhaseIndicator({
       aria-live="polite"
     >
       {isActive ? (
-        <Loader2 className={cn('size-4 animate-spin', config.colour)} aria-hidden="true" />
+        <Loader2
+          className={cn('size-4 animate-spin', config.colour)}
+          aria-hidden="true"
+        />
       ) : (
         <Icon className={cn('size-4', config.colour)} aria-hidden="true" />
       )}
@@ -87,16 +99,19 @@ export function StreamingPhaseIndicator({
       </span>
 
       {/* Quality score on done */}
-      {phase === 'done' && qualityScore !== null && qualityScore !== undefined && (
-        <span className="ml-auto text-xs text-muted-foreground">
-          Quality: {Math.round(qualityScore * 100)}%
-        </span>
-      )}
+      {phase === 'done' &&
+        qualityScore !== null &&
+        qualityScore !== undefined && (
+          <span className="ml-auto text-xs text-muted-foreground">
+            Quality: {Math.round(qualityScore * 100)}%
+          </span>
+        )}
 
       {/* Cost on done */}
       {phase === 'done' && totalCost !== null && totalCost !== undefined && (
         <span className="text-xs text-muted-foreground">
-          Cost: {'\u00A3'}{totalCost.toFixed(4)}
+          Cost: {'\u00A3'}
+          {totalCost.toFixed(4)}
         </span>
       )}
 

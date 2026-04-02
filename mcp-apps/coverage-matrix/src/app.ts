@@ -4,16 +4,22 @@ import {
   applyHostStyleVariables,
   applyHostFonts,
   type McpUiHostContext,
-} from "@modelcontextprotocol/ext-apps";
-import type { CoverageMatrixData, DomainRow, DetailPanelState, SearchResultItem, FreshnessKey } from "./types";
-import { FRESHNESS_LABELS } from "./types";
-import "./styles.css";
+} from '@modelcontextprotocol/ext-apps';
+import type {
+  CoverageMatrixData,
+  DomainRow,
+  DetailPanelState,
+  SearchResultItem,
+  FreshnessKey,
+} from './types';
+import { FRESHNESS_LABELS } from './types';
+import './styles.css';
 
 // ── App setup ──────────────────────────────────────────────
 
-const app = new App({ name: "Coverage Matrix", version: "1.0.0" });
+const app = new App({ name: 'Coverage Matrix', version: '1.0.0' });
 
-const root = document.getElementById("app")!;
+const root = document.getElementById('app')!;
 let matrixData: CoverageMatrixData | null = null;
 let domainRows: DomainRow[] = [];
 let showGapsOnly = false;
@@ -45,12 +51,12 @@ function handleHostContextChanged(ctx: McpUiHostContext): void {
 app.ontoolresult = (result) => {
   try {
     const data = result.structuredContent as unknown as CoverageMatrixData;
-    if (!data || typeof data.total_items !== "number") {
+    if (!data || typeof data.total_items !== 'number') {
       // Fall back to showing Markdown content if structuredContent is missing
       const text = result.content?.find(
-        (c: { type: string }) => c.type === "text"
+        (c: { type: string }) => c.type === 'text',
       ) as { text?: string } | undefined;
-      renderEmpty(text?.text ?? "No coverage data available.");
+      renderEmpty(text?.text ?? 'No coverage data available.');
       return;
     }
     matrixData = data;
@@ -60,7 +66,7 @@ app.ontoolresult = (result) => {
     maxCellCount = computeMaxCellCount(data);
     renderMatrix();
   } catch {
-    renderEmpty("Failed to parse coverage data.");
+    renderEmpty('Failed to parse coverage data.');
   }
 };
 
@@ -70,11 +76,11 @@ app.ontoolinput = () => {
 };
 
 app.ontoolcancelled = () => {
-  renderEmpty("Coverage analysis was cancelled.");
+  renderEmpty('Coverage analysis was cancelled.');
 };
 
 app.onerror = (error) => {
-  renderEmpty(`Connection error: ${error?.message ?? "Unknown error"}`);
+  renderEmpty(`Connection error: ${error?.message ?? 'Unknown error'}`);
 };
 
 app.onhostcontextchanged = handleHostContextChanged;
@@ -102,16 +108,16 @@ app.connect().then(() => {
 
 function renderLoading(): void {
   clearElement(root);
-  const container = createElement("div", {
-    className: "loading-state",
-    attrs: { role: "status", "aria-label": "Loading coverage data" },
+  const container = createElement('div', {
+    className: 'loading-state',
+    attrs: { role: 'status', 'aria-label': 'Loading coverage data' },
   });
-  const spinner = createElement("div", {
-    className: "loading-spinner",
-    attrs: { "aria-hidden": "true" },
+  const spinner = createElement('div', {
+    className: 'loading-spinner',
+    attrs: { 'aria-hidden': 'true' },
   });
-  const text = createElement("p");
-  text.textContent = "Waiting for coverage data\u2026";
+  const text = createElement('p');
+  text.textContent = 'Waiting for coverage data\u2026';
   container.appendChild(spinner);
   container.appendChild(text);
   root.appendChild(container);
@@ -119,16 +125,16 @@ function renderLoading(): void {
 
 function renderEmpty(message: string): void {
   clearElement(root);
-  const container = createElement("div", {
-    className: "empty-state",
-    attrs: { role: "status" },
+  const container = createElement('div', {
+    className: 'empty-state',
+    attrs: { role: 'status' },
   });
-  const icon = createElement("div", {
-    className: "empty-state-icon",
-    attrs: { "aria-hidden": "true" },
+  const icon = createElement('div', {
+    className: 'empty-state-icon',
+    attrs: { 'aria-hidden': 'true' },
   });
-  icon.textContent = "\u{1F4CA}";
-  const text = createElement("p");
+  icon.textContent = '\u{1F4CA}';
+  const text = createElement('p');
   text.textContent = message;
   container.appendChild(icon);
   container.appendChild(text);
@@ -146,12 +152,12 @@ function renderMatrix(): void {
   clearElement(root);
 
   // Header
-  const header = createElement("header", { className: "matrix-header" });
-  const title = createElement("h1", { className: "matrix-title" });
-  title.textContent = "Coverage Matrix";
-  const subtitle = createElement("p", { className: "matrix-subtitle" });
+  const header = createElement('header', { className: 'matrix-header' });
+  const title = createElement('h1', { className: 'matrix-title' });
+  title.textContent = 'Coverage Matrix';
+  const subtitle = createElement('p', { className: 'matrix-subtitle' });
   subtitle.textContent =
-    "Knowledge base coverage by domain and freshness state";
+    'Knowledge base coverage by domain and freshness state';
   header.appendChild(title);
   header.appendChild(subtitle);
   root.appendChild(header);
@@ -167,12 +173,12 @@ function renderMatrix(): void {
 
   // Table or empty
   if (filteredDomains.length === 0) {
-    const empty = createElement("div", {
-      className: "empty-state",
-      attrs: { role: "status" },
+    const empty = createElement('div', {
+      className: 'empty-state',
+      attrs: { role: 'status' },
     });
-    const p = createElement("p");
-    p.textContent = "No domains match the current filter.";
+    const p = createElement('p');
+    p.textContent = 'No domains match the current filter.';
     empty.appendChild(p);
     root.appendChild(empty);
   } else {
@@ -187,11 +193,11 @@ function renderMatrix(): void {
 
 function buildSummaryBar(
   total: number,
-  freshness: CoverageMatrixData["freshness"]
+  freshness: CoverageMatrixData['freshness'],
 ): HTMLElement {
-  const bar = createElement("div", {
-    className: "summary-bar",
-    attrs: { role: "region", "aria-label": "Freshness summary" },
+  const bar = createElement('div', {
+    className: 'summary-bar',
+    attrs: { role: 'region', 'aria-label': 'Freshness summary' },
   });
 
   const cards: Array<{
@@ -199,22 +205,22 @@ function buildSummaryBar(
     value: number;
     modifier?: string;
   }> = [
-    { label: "Total Items", value: total },
-    { label: "Fresh", value: freshness.fresh, modifier: "fresh" },
-    { label: "Ageing", value: freshness.aging, modifier: "aging" },
-    { label: "Stale", value: freshness.stale, modifier: "stale" },
-    { label: "Expired", value: freshness.expired, modifier: "expired" },
+    { label: 'Total Items', value: total },
+    { label: 'Fresh', value: freshness.fresh, modifier: 'fresh' },
+    { label: 'Ageing', value: freshness.aging, modifier: 'aging' },
+    { label: 'Stale', value: freshness.stale, modifier: 'stale' },
+    { label: 'Expired', value: freshness.expired, modifier: 'expired' },
   ];
 
   for (const card of cards) {
-    const cardEl = createElement("div", {
+    const cardEl = createElement('div', {
       className: card.modifier
         ? `summary-card summary-card--${card.modifier}`
-        : "summary-card",
+        : 'summary-card',
     });
-    const labelEl = createElement("div", { className: "summary-card-label" });
+    const labelEl = createElement('div', { className: 'summary-card-label' });
     labelEl.textContent = card.label;
-    const valueEl = createElement("div", { className: "summary-card-value" });
+    const valueEl = createElement('div', { className: 'summary-card-value' });
     valueEl.textContent = String(card.value);
     cardEl.appendChild(labelEl);
     cardEl.appendChild(valueEl);
@@ -226,16 +232,15 @@ function buildSummaryBar(
 
 function buildFreshnessBar(
   total: number,
-  freshness: CoverageMatrixData["freshness"]
+  freshness: CoverageMatrixData['freshness'],
 ): HTMLElement {
-  const pct = (n: number) =>
-    total > 0 ? ((n / total) * 100).toFixed(1) : "0";
+  const pct = (n: number) => (total > 0 ? ((n / total) * 100).toFixed(1) : '0');
 
-  const bar = createElement("div", {
-    className: "freshness-bar",
+  const bar = createElement('div', {
+    className: 'freshness-bar',
     attrs: {
-      role: "img",
-      "aria-label": `Freshness distribution: ${pct(freshness.fresh)}% fresh, ${pct(freshness.aging)}% ageing, ${pct(freshness.stale)}% stale, ${pct(freshness.expired)}% expired`,
+      role: 'img',
+      'aria-label': `Freshness distribution: ${pct(freshness.fresh)}% fresh, ${pct(freshness.aging)}% ageing, ${pct(freshness.stale)}% stale, ${pct(freshness.expired)}% expired`,
     },
   });
 
@@ -243,14 +248,14 @@ function buildFreshnessBar(
     key: keyof typeof freshness;
     cls: string;
   }> = [
-    { key: "fresh", cls: "freshness-bar-segment--fresh" },
-    { key: "aging", cls: "freshness-bar-segment--aging" },
-    { key: "stale", cls: "freshness-bar-segment--stale" },
-    { key: "expired", cls: "freshness-bar-segment--expired" },
+    { key: 'fresh', cls: 'freshness-bar-segment--fresh' },
+    { key: 'aging', cls: 'freshness-bar-segment--aging' },
+    { key: 'stale', cls: 'freshness-bar-segment--stale' },
+    { key: 'expired', cls: 'freshness-bar-segment--expired' },
   ];
 
   for (const state of states) {
-    const segment = createElement("div", {
+    const segment = createElement('div', {
       className: `freshness-bar-segment ${state.cls}`,
     });
     segment.style.width = `${pct(freshness[state.key])}%`;
@@ -261,51 +266,51 @@ function buildFreshnessBar(
 }
 
 function buildControls(
-  quality: CoverageMatrixData["quality"],
-  gaps: CoverageMatrixData["gaps"]
+  quality: CoverageMatrixData['quality'],
+  gaps: CoverageMatrixData['gaps'],
 ): HTMLElement {
-  const controls = createElement("div", { className: "controls" });
+  const controls = createElement('div', { className: 'controls' });
 
-  const label = createElement("label", { className: "toggle-label" });
-  const checkbox = document.createElement("input");
-  checkbox.type = "checkbox";
-  checkbox.id = "gaps-toggle";
+  const label = createElement('label', { className: 'toggle-label' });
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.id = 'gaps-toggle';
   checkbox.checked = showGapsOnly;
-  checkbox.addEventListener("change", () => {
+  checkbox.addEventListener('change', () => {
     showGapsOnly = checkbox.checked;
     renderMatrix();
   });
-  const labelText = document.createTextNode(" Show gaps only");
+  const labelText = document.createTextNode(' Show gaps only');
   label.appendChild(checkbox);
   label.appendChild(labelText);
   controls.appendChild(label);
 
-  const badgeContainer = createElement("div");
+  const badgeContainer = createElement('div');
 
   if (quality.total_flagged > 0) {
-    const badge = createElement("span", {
-      className: "quality-badge",
+    const badge = createElement('span', {
+      className: 'quality-badge',
       attrs: {
-        "aria-label": `${quality.total_flagged} quality issues flagged`,
+        'aria-label': `${quality.total_flagged} quality issues flagged`,
       },
     });
-    const icon = createElement("span", { attrs: { "aria-hidden": "true" } });
-    icon.textContent = "\u26A0";
+    const icon = createElement('span', { attrs: { 'aria-hidden': 'true' } });
+    icon.textContent = '\u26A0';
     badge.appendChild(icon);
     badge.appendChild(
-      document.createTextNode(` ${quality.total_flagged} flagged`)
+      document.createTextNode(` ${quality.total_flagged} flagged`),
     );
     badgeContainer.appendChild(badge);
   }
 
   if (gaps.length > 0) {
-    const badge = createElement("span", {
-      className: "quality-badge",
+    const badge = createElement('span', {
+      className: 'quality-badge',
       attrs: {
-        "aria-label": `${gaps.length} coverage gaps identified`,
+        'aria-label': `${gaps.length} coverage gaps identified`,
       },
     });
-    badge.textContent = `${gaps.length} gap${gaps.length !== 1 ? "s" : ""}`;
+    badge.textContent = `${gaps.length} gap${gaps.length !== 1 ? 's' : ''}`;
     badgeContainer.appendChild(badge);
   }
 
@@ -314,19 +319,19 @@ function buildControls(
 }
 
 function buildTable(domains: DomainRow[]): HTMLElement {
-  const table = createElement("table", {
-    className: "matrix-table",
+  const table = createElement('table', {
+    className: 'matrix-table',
     attrs: {
-      "aria-label": "Coverage matrix by domain and freshness",
+      'aria-label': 'Coverage matrix by domain and freshness',
     },
   });
 
   // thead
-  const thead = createElement("thead");
-  const headerRow = createElement("tr");
-  const headers = ["Domain", "Fresh", "Ageing", "Stale", "Expired", "Total"];
+  const thead = createElement('thead');
+  const headerRow = createElement('tr');
+  const headers = ['Domain', 'Fresh', 'Ageing', 'Stale', 'Expired', 'Total'];
   for (const h of headers) {
-    const th = createElement("th", { attrs: { scope: "col" } });
+    const th = createElement('th', { attrs: { scope: 'col' } });
     th.textContent = h;
     headerRow.appendChild(th);
   }
@@ -334,36 +339,36 @@ function buildTable(domains: DomainRow[]): HTMLElement {
   table.appendChild(thead);
 
   // tbody
-  const tbody = createElement("tbody");
+  const tbody = createElement('tbody');
 
   for (const domain of domains) {
     const gapCount = getGapCount(domain.name);
-    const domainTr = createElement("tr", {
-      className: "domain-row",
+    const domainTr = createElement('tr', {
+      className: 'domain-row',
       attrs: {
-        tabindex: "0",
-        role: "button",
-        "aria-expanded": String(domain.expanded),
-        "data-domain": domain.name,
+        tabindex: '0',
+        role: 'button',
+        'aria-expanded': String(domain.expanded),
+        'data-domain': domain.name,
       },
     });
 
     // Domain name cell
-    const nameTd = createElement("td");
-    const nameSpan = createElement("span", { className: "domain-name" });
+    const nameTd = createElement('td');
+    const nameSpan = createElement('span', { className: 'domain-name' });
 
-    const chevron = createElement("span", {
-      className: `domain-chevron${domain.expanded ? " domain-chevron--expanded" : ""}`,
-      attrs: { "aria-hidden": "true" },
+    const chevron = createElement('span', {
+      className: `domain-chevron${domain.expanded ? ' domain-chevron--expanded' : ''}`,
+      attrs: { 'aria-hidden': 'true' },
     });
-    chevron.textContent = "\u25B6";
+    chevron.textContent = '\u25B6';
     nameSpan.appendChild(chevron);
     nameSpan.appendChild(document.createTextNode(` ${domain.name}`));
 
     if (gapCount > 0) {
-      const gapInd = createElement("span", { className: "gap-indicator" });
-      gapInd.textContent = `${gapCount} gap${gapCount !== 1 ? "s" : ""}`;
-      nameSpan.appendChild(document.createTextNode(" "));
+      const gapInd = createElement('span', { className: 'gap-indicator' });
+      gapInd.textContent = `${gapCount} gap${gapCount !== 1 ? 's' : ''}`;
+      nameSpan.appendChild(document.createTextNode(' '));
       nameSpan.appendChild(gapInd);
     }
 
@@ -374,33 +379,33 @@ function buildTable(domains: DomainRow[]): HTMLElement {
     appendFreshnessCells(domainTr, domain, false, domain.name);
 
     // Total cell with drill-down button
-    const totalTd = createElement("td", { className: "cell--total" });
+    const totalTd = createElement('td', { className: 'cell--total' });
     if (domain.total_items > 0) {
-      const drillBtn = createElement("button", {
-        className: "drill-btn",
+      const drillBtn = createElement('button', {
+        className: 'drill-btn',
         attrs: {
-          type: "button",
-          "aria-label": `View ${domain.total_items} items in ${domain.name}`,
-          title: "View items",
+          type: 'button',
+          'aria-label': `View ${domain.total_items} items in ${domain.name}`,
+          title: 'View items',
         },
       });
       drillBtn.textContent = String(domain.total_items);
-      drillBtn.addEventListener("click", (e: Event) => {
+      drillBtn.addEventListener('click', (e: Event) => {
         e.stopPropagation();
         drillDown(domain.name);
       });
       totalTd.appendChild(drillBtn);
     } else {
-      totalTd.textContent = "0";
+      totalTd.textContent = '0';
     }
     domainTr.appendChild(totalTd);
 
     // Click/keyboard handlers (expand/collapse subtopics)
     const toggleHandler = () => toggleDomain(domain.name);
-    domainTr.addEventListener("click", toggleHandler);
-    domainTr.addEventListener("keydown", (e: Event) => {
+    domainTr.addEventListener('click', toggleHandler);
+    domainTr.addEventListener('keydown', (e: Event) => {
       const ke = e as KeyboardEvent;
-      if (ke.key === "Enter" || ke.key === " ") {
+      if (ke.key === 'Enter' || ke.key === ' ') {
         ke.preventDefault();
         toggleHandler();
       }
@@ -412,11 +417,11 @@ function buildTable(domains: DomainRow[]): HTMLElement {
     if (domain.expanded && domain.subtopics.length > 0) {
       for (const sub of domain.subtopics) {
         const isGap = isSubtopicGap(domain.name, sub.name);
-        const subTr = createElement("tr", { className: "subtopic-row" });
+        const subTr = createElement('tr', { className: 'subtopic-row' });
 
-        const subNameTd = createElement("td");
-        const subNameSpan = createElement("span", {
-          className: "subtopic-name",
+        const subNameTd = createElement('td');
+        const subNameSpan = createElement('span', {
+          className: 'subtopic-name',
         });
         subNameSpan.textContent = sub.name;
         subNameTd.appendChild(subNameSpan);
@@ -424,24 +429,24 @@ function buildTable(domains: DomainRow[]): HTMLElement {
 
         appendFreshnessCells(subTr, sub, isGap, domain.name, sub.name);
 
-        const subTotalTd = createElement("td", { className: "cell--total" });
+        const subTotalTd = createElement('td', { className: 'cell--total' });
         if (sub.total_items > 0) {
-          const subDrillBtn = createElement("button", {
-            className: "drill-btn",
+          const subDrillBtn = createElement('button', {
+            className: 'drill-btn',
             attrs: {
-              type: "button",
-              "aria-label": `View ${sub.total_items} items in ${domain.name} > ${sub.name}`,
-              title: "View items",
+              type: 'button',
+              'aria-label': `View ${sub.total_items} items in ${domain.name} > ${sub.name}`,
+              title: 'View items',
             },
           });
           subDrillBtn.textContent = String(sub.total_items);
-          subDrillBtn.addEventListener("click", (e: Event) => {
+          subDrillBtn.addEventListener('click', (e: Event) => {
             e.stopPropagation();
             drillDown(domain.name, sub.name);
           });
           subTotalTd.appendChild(subDrillBtn);
         } else {
-          subTotalTd.textContent = "0";
+          subTotalTd.textContent = '0';
         }
         subTr.appendChild(subTotalTd);
 
@@ -459,16 +464,16 @@ function appendFreshnessCells(
   item: { fresh: number; aging: number; stale: number; expired: number },
   isGap: boolean,
   domainName: string,
-  subtopicName?: string
+  subtopicName?: string,
 ): void {
   const states: Array<{
     key: FreshnessKey;
     cls: string;
   }> = [
-    { key: "fresh", cls: "cell--fresh" },
-    { key: "aging", cls: "cell--aging" },
-    { key: "stale", cls: "cell--stale" },
-    { key: "expired", cls: "cell--expired" },
+    { key: 'fresh', cls: 'cell--fresh' },
+    { key: 'aging', cls: 'cell--aging' },
+    { key: 'stale', cls: 'cell--stale' },
+    { key: 'expired', cls: 'cell--expired' },
   ];
 
   // Check whether this domain has a stale_only gap (for quality indicator)
@@ -476,8 +481,8 @@ function appendFreshnessCells(
     ? matrixData.gaps.some(
         (g) =>
           g.domain === domainName &&
-          g.issue === "stale_only" &&
-          (subtopicName ? g.subtopic === subtopicName : true)
+          g.issue === 'stale_only' &&
+          (subtopicName ? g.subtopic === subtopicName : true),
       )
     : false;
 
@@ -485,13 +490,13 @@ function appendFreshnessCells(
     const count = item[state.key];
     let className: string;
     if (count === 0 && isGap) {
-      className = "cell--gap";
+      className = 'cell--gap';
     } else if (count === 0) {
-      className = "cell--zero";
+      className = 'cell--zero';
     } else {
       className = state.cls;
     }
-    const td = createElement("td", { className });
+    const td = createElement('td', { className });
 
     // Heat map density: compute background lightness based on count.
     // Higher counts → lower lightness (darker/more saturated background).
@@ -500,8 +505,8 @@ function appendFreshnessCells(
     if (count > 0) {
       const ratio = count / maxCellCount; // 0..1
       const bgColor = getCellDensityBg(state.key, ratio);
-      td.style.setProperty("--cell-bg", bgColor);
-      td.classList.add("cell--has-density");
+      td.style.setProperty('--cell-bg', bgColor);
+      td.classList.add('cell--has-density');
     }
 
     if (count > 0) {
@@ -510,83 +515,83 @@ function appendFreshnessCells(
       const context = subtopicName
         ? `${domainName} > ${subtopicName}`
         : domainName;
-      const drillBtn = createElement("button", {
-        className: "drill-btn drill-btn--cell",
+      const drillBtn = createElement('button', {
+        className: 'drill-btn drill-btn--cell',
         attrs: {
-          type: "button",
-          "aria-label": `View ${count} ${label.toLowerCase()} items in ${context}`,
-          title: `${label}: ${count} item${count !== 1 ? "s" : ""}`,
+          type: 'button',
+          'aria-label': `View ${count} ${label.toLowerCase()} items in ${context}`,
+          title: `${label}: ${count} item${count !== 1 ? 's' : ''}`,
         },
       });
       drillBtn.textContent = String(count);
-      drillBtn.addEventListener("click", (e: Event) => {
+      drillBtn.addEventListener('click', (e: Event) => {
         e.stopPropagation();
         drillDown(domainName, subtopicName, state.key);
       });
       td.appendChild(drillBtn);
     } else {
-      td.textContent = "0";
+      td.textContent = '0';
     }
 
     // Quality indicator: small dot for stale_only gap cells
     // Show on stale and expired cells when the domain/subtopic has a stale_only gap
     if (
       hasStaleOnlyGap &&
-      (state.key === "stale" || state.key === "expired") &&
+      (state.key === 'stale' || state.key === 'expired') &&
       count > 0
     ) {
-      const dot = createElement("span", {
-        className: "cell-quality-dot",
+      const dot = createElement('span', {
+        className: 'cell-quality-dot',
         attrs: {
-          "aria-label": "Quality concern: all content is stale or expired",
-          title: "All content ageing or expired",
+          'aria-label': 'Quality concern: all content is stale or expired',
+          title: 'All content ageing or expired',
         },
       });
-      dot.textContent = "\u26A0";
+      dot.textContent = '\u26A0';
       td.appendChild(dot);
-      td.classList.add("cell--has-quality-indicator");
+      td.classList.add('cell--has-quality-indicator');
     }
 
     row.appendChild(td);
   }
 }
 
-function buildGapsSection(gaps: CoverageMatrixData["gaps"]): HTMLElement {
+function buildGapsSection(gaps: CoverageMatrixData['gaps']): HTMLElement {
   const issueLabels: Record<string, string> = {
-    empty: "No content",
-    thin: "Thin coverage",
-    stale_only: "All stale/expired",
+    empty: 'No content',
+    thin: 'Thin coverage',
+    stale_only: 'All stale/expired',
   };
 
-  const section = createElement("section", {
-    className: "gaps-section",
-    attrs: { "aria-label": "Coverage gaps" },
+  const section = createElement('section', {
+    className: 'gaps-section',
+    attrs: { 'aria-label': 'Coverage gaps' },
   });
 
-  const heading = createElement("h2", { className: "gaps-title" });
-  const headingIcon = createElement("span", {
-    attrs: { "aria-hidden": "true" },
+  const heading = createElement('h2', { className: 'gaps-title' });
+  const headingIcon = createElement('span', {
+    attrs: { 'aria-hidden': 'true' },
   });
-  headingIcon.textContent = "\u26A0";
+  headingIcon.textContent = '\u26A0';
   heading.appendChild(headingIcon);
-  heading.appendChild(document.createTextNode(" Coverage Gaps"));
+  heading.appendChild(document.createTextNode(' Coverage Gaps'));
   section.appendChild(heading);
 
-  const list = createElement("div", { className: "gaps-list" });
+  const list = createElement('div', { className: 'gaps-list' });
 
   for (const gap of gaps) {
-    const card = createElement("div", { className: "gap-card" });
+    const card = createElement('div', { className: 'gap-card' });
 
-    const left = createElement("div", { className: "gap-card-left" });
-    const domainSpan = createElement("span", {
-      className: "gap-card-domain",
+    const left = createElement('div', { className: 'gap-card-left' });
+    const domainSpan = createElement('span', {
+      className: 'gap-card-domain',
     });
     domainSpan.textContent = gap.domain;
     left.appendChild(domainSpan);
 
     if (gap.subtopic) {
-      const subSpan = createElement("span", {
-        className: "gap-card-subtopic",
+      const subSpan = createElement('span', {
+        className: 'gap-card-subtopic',
       });
       subSpan.textContent = gap.subtopic;
       left.appendChild(subSpan);
@@ -594,7 +599,7 @@ function buildGapsSection(gaps: CoverageMatrixData["gaps"]): HTMLElement {
 
     card.appendChild(left);
 
-    const issueSpan = createElement("span", {
+    const issueSpan = createElement('span', {
       className: `gap-card-issue gap-card-issue--${gap.issue}`,
     });
     let issueText = issueLabels[gap.issue] ?? gap.issue;
@@ -636,7 +641,7 @@ function getGapCount(domainName: string): number {
 function isSubtopicGap(domain: string, subtopic: string): boolean {
   if (!matrixData) return false;
   return matrixData.gaps.some(
-    (g) => g.domain === domain && g.subtopic === subtopic
+    (g) => g.domain === domain && g.subtopic === subtopic,
   );
 }
 
@@ -645,7 +650,7 @@ function isSubtopicGap(domain: string, subtopic: string): boolean {
 async function drillDown(
   domain: string,
   subtopic?: string,
-  freshnessFilter?: FreshnessKey
+  freshnessFilter?: FreshnessKey,
 ): Promise<void> {
   detailPanel = {
     domain,
@@ -662,9 +667,9 @@ async function drillDown(
     const queryParts = [domain];
     if (subtopic) queryParts.push(subtopic);
     if (freshnessFilter) queryParts.push(freshnessFilter);
-    const query = queryParts.join(" ");
+    const query = queryParts.join(' ');
     const result = await app.callServerTool({
-      name: "search_knowledge_base",
+      name: 'search_knowledge_base',
       arguments: { query, domain, limit: 15 },
     });
 
@@ -689,7 +694,7 @@ async function drillDown(
         : undefined,
       loading: false,
       items: [],
-      error: err instanceof Error ? err.message : "Search failed",
+      error: err instanceof Error ? err.message : 'Search failed',
     };
   }
 
@@ -698,21 +703,21 @@ async function drillDown(
 
 function closeDetailPanel(): void {
   detailPanel = null;
-  const panel = document.getElementById("detail-panel");
+  const panel = document.getElementById('detail-panel');
   if (panel) panel.remove();
 }
 
 function renderDetailPanel(): void {
-  let panel = document.getElementById("detail-panel");
+  let panel = document.getElementById('detail-panel');
   if (!detailPanel) {
     if (panel) panel.remove();
     return;
   }
 
   if (!panel) {
-    panel = createElement("aside", {
-      className: "detail-panel",
-      attrs: { id: "detail-panel", "aria-label": "Domain detail" },
+    panel = createElement('aside', {
+      className: 'detail-panel',
+      attrs: { id: 'detail-panel', 'aria-label': 'Domain detail' },
     });
     root.appendChild(panel);
   }
@@ -720,8 +725,8 @@ function renderDetailPanel(): void {
   clearElement(panel);
 
   // Header
-  const header = createElement("div", { className: "detail-header" });
-  const title = createElement("h2", { className: "detail-title" });
+  const header = createElement('div', { className: 'detail-header' });
+  const title = createElement('h2', { className: 'detail-title' });
   let titleText = detailPanel.domain;
   if (detailPanel.subtopic) {
     titleText += ` \u203A ${detailPanel.subtopic}`;
@@ -732,65 +737,67 @@ function renderDetailPanel(): void {
   title.textContent = titleText;
   header.appendChild(title);
 
-  const closeBtn = createElement("button", {
-    className: "detail-close",
-    attrs: { "aria-label": "Close detail panel", type: "button" },
+  const closeBtn = createElement('button', {
+    className: 'detail-close',
+    attrs: { 'aria-label': 'Close detail panel', type: 'button' },
   });
-  closeBtn.textContent = "\u2715";
-  closeBtn.addEventListener("click", closeDetailPanel);
+  closeBtn.textContent = '\u2715';
+  closeBtn.addEventListener('click', closeDetailPanel);
   header.appendChild(closeBtn);
   panel.appendChild(header);
 
   // Content
   if (detailPanel.loading) {
-    const loading = createElement("div", {
-      className: "detail-loading",
-      attrs: { role: "status" },
+    const loading = createElement('div', {
+      className: 'detail-loading',
+      attrs: { role: 'status' },
     });
-    loading.textContent = "Searching knowledge base\u2026";
+    loading.textContent = 'Searching knowledge base\u2026';
     panel.appendChild(loading);
     return;
   }
 
   if (detailPanel.error) {
-    const error = createElement("div", { className: "detail-error" });
+    const error = createElement('div', { className: 'detail-error' });
     error.textContent = detailPanel.error;
     panel.appendChild(error);
     return;
   }
 
   if (detailPanel.items.length === 0) {
-    const empty = createElement("div", { className: "detail-empty" });
-    empty.textContent = "No items found in this area.";
+    const empty = createElement('div', { className: 'detail-empty' });
+    empty.textContent = 'No items found in this area.';
     panel.appendChild(empty);
     return;
   }
 
-  const count = createElement("p", { className: "detail-count" });
-  count.textContent = `${detailPanel.items.length} item${detailPanel.items.length !== 1 ? "s" : ""}`;
+  const count = createElement('p', { className: 'detail-count' });
+  count.textContent = `${detailPanel.items.length} item${detailPanel.items.length !== 1 ? 's' : ''}`;
   panel.appendChild(count);
 
-  const list = createElement("div", { className: "detail-list" });
+  const list = createElement('div', { className: 'detail-list' });
   for (const item of detailPanel.items) {
-    const card = createElement("div", { className: "detail-item" });
+    const card = createElement('div', { className: 'detail-item' });
 
-    const itemTitle = createElement("div", { className: "detail-item-title" });
-    itemTitle.textContent = item.suggested_title || item.title || "Untitled";
+    const itemTitle = createElement('div', { className: 'detail-item-title' });
+    itemTitle.textContent = item.suggested_title || item.title || 'Untitled';
     card.appendChild(itemTitle);
 
-    const meta = createElement("div", { className: "detail-item-meta" });
+    const meta = createElement('div', { className: 'detail-item-meta' });
     const parts: string[] = [];
-    if (item.content_type) parts.push(item.content_type.replace(/_/g, " "));
+    if (item.content_type) parts.push(item.content_type.replace(/_/g, ' '));
     if (item.primary_subtopic) parts.push(item.primary_subtopic);
     parts.push(`${Math.round(item.similarity * 100)}% match`);
-    meta.textContent = parts.join(" \u00B7 ");
+    meta.textContent = parts.join(' \u00B7 ');
     card.appendChild(meta);
 
     if (item.ai_summary) {
-      const summary = createElement("div", { className: "detail-item-summary" });
+      const summary = createElement('div', {
+        className: 'detail-item-summary',
+      });
       summary.textContent =
         item.ai_summary.length > 200
-          ? item.ai_summary.slice(0, 197) + "\u2026"
+          ? item.ai_summary.slice(0, 197) + '\u2026'
           : item.ai_summary;
       card.appendChild(summary);
     }
@@ -805,7 +812,13 @@ function renderDetailPanel(): void {
 function computeMaxCellCount(data: CoverageMatrixData): number {
   let max = 1;
   for (const domain of data.domains) {
-    max = Math.max(max, domain.fresh, domain.aging, domain.stale, domain.expired);
+    max = Math.max(
+      max,
+      domain.fresh,
+      domain.aging,
+      domain.stale,
+      domain.expired,
+    );
     for (const sub of domain.subtopics) {
       max = Math.max(max, sub.fresh, sub.aging, sub.stale, sub.expired);
     }
@@ -819,9 +832,9 @@ function computeMaxCellCount(data: CoverageMatrixData): number {
  */
 function isDarkMode(): boolean {
   const root = document.documentElement;
-  if (root.getAttribute("data-theme") === "dark") return true;
-  if (root.getAttribute("data-theme") === "light") return false;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  if (root.getAttribute('data-theme') === 'dark') return true;
+  if (root.getAttribute('data-theme') === 'light') return false;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
 /**
@@ -843,13 +856,9 @@ function getCellDensityBg(key: FreshnessKey, ratio: number): string {
   const dark = isDarkMode();
   // Light mode: lightness 0.96 (low density) → 0.82 (high density)
   // Dark mode: lightness 0.22 (low density) → 0.35 (high density)
-  const l = dark
-    ? 0.22 + ratio * 0.13
-    : 0.96 - ratio * 0.14;
+  const l = dark ? 0.22 + ratio * 0.13 : 0.96 - ratio * 0.14;
   // Chroma increases slightly with density for more saturation
-  const cScaled = dark
-    ? 0.04 + ratio * 0.04
-    : c + ratio * 0.02;
+  const cScaled = dark ? 0.04 + ratio * 0.04 : c + ratio * 0.02;
   return `oklch(${l.toFixed(3)} ${cScaled.toFixed(4)} ${h})`;
 }
 
@@ -862,7 +871,7 @@ interface CreateElementOptions {
 
 function createElement(
   tag: string,
-  options?: CreateElementOptions
+  options?: CreateElementOptions,
 ): HTMLElement {
   const el = document.createElement(tag);
   if (options?.className) {

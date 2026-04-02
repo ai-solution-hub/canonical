@@ -46,7 +46,8 @@ vi.mock('@/hooks/browse/use-browse-filters', () => ({
 }));
 
 vi.mock('@/lib/taxonomy/taxonomy-format', () => ({
-  formatSubtopic: (s: string) => s.replace(/-/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+  formatSubtopic: (s: string) =>
+    s.replace(/-/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
 }));
 
 vi.mock('@/lib/format', () => ({
@@ -56,7 +57,8 @@ vi.mock('@/lib/format', () => ({
 }));
 
 vi.mock('@/lib/validation/layer-schemas', () => ({
-  getLayerLabel: (key: string) => key.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+  getLayerLabel: (key: string) =>
+    key.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
 }));
 
 import { FilterBadges } from '@/components/browse/filter-badges';
@@ -87,7 +89,9 @@ describe('FilterBadges', () => {
     mockFilters.value = { domain: ['Corporate'] };
     render(<FilterBadges />);
     expect(screen.getByText('Corporate')).toBeInTheDocument();
-    expect(screen.getByLabelText('Remove Domain filter: Corporate')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Remove Domain filter: Corporate'),
+    ).toBeInTheDocument();
   });
 
   it('shows content type badges', () => {
@@ -115,7 +119,9 @@ describe('FilterBadges', () => {
     mockActiveFilterCount.value = 2;
     mockFilters.value = { domain: ['Corporate'], platform: ['web'] };
     render(<FilterBadges />);
-    expect(screen.getByRole('button', { name: 'Clear all' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Clear all' }),
+    ).toBeInTheDocument();
   });
 
   it('remove button calls removeFilterValue', async () => {
@@ -164,10 +170,13 @@ describe('FilterBadges', () => {
   it('search query badge truncates at 40 characters', () => {
     mockActiveFilterCount.value = 1;
     // 50 character query — should be truncated to 37 + ellipsis
-    mockSearchQuery.value = 'This is a very long search query that exceeds fort';
+    mockSearchQuery.value =
+      'This is a very long search query that exceeds fort';
     render(<FilterBadges />);
     // Should show first 37 chars + ellipsis character
-    expect(screen.getByText('This is a very long search query that\u2026')).toBeInTheDocument();
+    expect(
+      screen.getByText('This is a very long search query that\u2026'),
+    ).toBeInTheDocument();
     // Full text should not appear
     expect(screen.queryByText(mockSearchQuery.value)).not.toBeInTheDocument();
   });

@@ -1,6 +1,10 @@
 export default function LibraryLoading() {
   return (
-    <div role="status" aria-label="Loading Q&A library" className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+    <div
+      role="status"
+      aria-label="Loading Q&A library"
+      className="mx-auto max-w-7xl px-4 py-8 sm:px-6"
+    >
       <span className="sr-only">Loading Q&amp;A library...</span>
 
       {/* Header: title + search input */}

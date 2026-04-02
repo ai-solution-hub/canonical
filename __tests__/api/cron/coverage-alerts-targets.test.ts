@@ -33,10 +33,11 @@ vi.mock('@/lib/cron-auth', () => ({
   getUsersByRole: mockGetUsersByRole,
 }));
 
-const { mockCreateBulkNotifications, mockGetExistingNotificationIds } = vi.hoisted(() => ({
-  mockCreateBulkNotifications: vi.fn(),
-  mockGetExistingNotificationIds: vi.fn(),
-}));
+const { mockCreateBulkNotifications, mockGetExistingNotificationIds } =
+  vi.hoisted(() => ({
+    mockCreateBulkNotifications: vi.fn(),
+    mockGetExistingNotificationIds: vi.fn(),
+  }));
 
 vi.mock('@/lib/notifications', () => ({
   createBulkNotifications: mockCreateBulkNotifications,
@@ -121,7 +122,8 @@ function configureMock(options: {
   mockSupabase.rpc.mockResolvedValue({ data: coverage, error: null });
 
   // Track insert calls for pipeline_runs
-  const insertCalls: Array<{ table: string; data: Record<string, unknown> }> = [];
+  const insertCalls: Array<{ table: string; data: Record<string, unknown> }> =
+    [];
 
   mockSupabase.from.mockImplementation((table: string) => {
     if (table === 'coverage_targets') {
@@ -144,7 +146,9 @@ function configureMock(options: {
               order: vi.fn().mockReturnValue({
                 limit: vi.fn().mockReturnValue({
                   single: vi.fn().mockResolvedValue({
-                    data: previousSnapshot ? { result: previousSnapshot } : null,
+                    data: previousSnapshot
+                      ? { result: previousSnapshot }
+                      : null,
                     error: previousSnapshot ? null : { code: 'PGRST116' },
                   }),
                 }),
@@ -216,7 +220,12 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
         },
       ],
       previousSnapshot: {
-        Operations: { total_items: 50, fresh_pct: 65, gap_count: 0, expired_count: 3 },
+        Operations: {
+          total_items: 50,
+          fresh_pct: 65,
+          gap_count: 0,
+          expired_count: 3,
+        },
       },
     });
 
@@ -228,7 +237,8 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
 
     // Verify the notification was created with correct title format
     expect(mockCreateBulkNotifications).toHaveBeenCalled();
-    const notifications = mockCreateBulkNotifications.mock.calls[0][1] as Array<{
+    const notifications = mockCreateBulkNotifications.mock
+      .calls[0][1] as Array<{
       title: string;
       entityType: string;
       type: string;
@@ -263,7 +273,12 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
         },
       ],
       previousSnapshot: {
-        Compliance: { total_items: 30, fresh_pct: 85, gap_count: 0, expired_count: 3 },
+        Compliance: {
+          total_items: 30,
+          fresh_pct: 85,
+          gap_count: 0,
+          expired_count: 3,
+        },
       },
     });
 
@@ -274,7 +289,8 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
     expect(body.target_breaches).toBe(1);
 
     expect(mockCreateBulkNotifications).toHaveBeenCalled();
-    const notifications = mockCreateBulkNotifications.mock.calls[0][1] as Array<{
+    const notifications = mockCreateBulkNotifications.mock
+      .calls[0][1] as Array<{
       title: string;
     }>;
 
@@ -305,7 +321,12 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
         },
       ],
       previousSnapshot: {
-        Safety: { total_items: 8, fresh_pct: 90, gap_count: 0, expired_count: 0 },
+        Safety: {
+          total_items: 8,
+          fresh_pct: 90,
+          gap_count: 0,
+          expired_count: 0,
+        },
       },
     });
 
@@ -316,7 +337,8 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
     expect(body.target_breaches).toBe(1);
 
     expect(mockCreateBulkNotifications).toHaveBeenCalled();
-    const notifications = mockCreateBulkNotifications.mock.calls[0][1] as Array<{
+    const notifications = mockCreateBulkNotifications.mock
+      .calls[0][1] as Array<{
       title: string;
     }>;
 
@@ -359,7 +381,12 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
         },
       ],
       previousSnapshot: {
-        Operations: { total_items: 50, fresh_pct: 80, gap_count: 0, expired_count: 2 },
+        Operations: {
+          total_items: 50,
+          fresh_pct: 80,
+          gap_count: 0,
+          expired_count: 2,
+        },
       },
     });
 
@@ -387,7 +414,12 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
       ],
       targets: [], // No targets configured
       previousSnapshot: {
-        Finance: { total_items: 20, fresh_pct: 50, gap_count: 1, expired_count: 5 },
+        Finance: {
+          total_items: 20,
+          fresh_pct: 50,
+          gap_count: 1,
+          expired_count: 5,
+        },
       },
     });
 
@@ -428,7 +460,12 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
       // Previous fresh_pct is 50 — drop of 10 points, below the 20-point
       // degradation threshold so no hardcoded alert fires.
       previousSnapshot: {
-        Operations: { total_items: 50, fresh_pct: 50, gap_count: 0, expired_count: 3 },
+        Operations: {
+          total_items: 50,
+          fresh_pct: 50,
+          gap_count: 0,
+          expired_count: 3,
+        },
       },
       existingTitles: [existingTitle],
     });
@@ -456,7 +493,12 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
       ],
       targets: [],
       previousSnapshot: {
-        Operations: { total_items: 50, fresh_pct: 80, gap_count: 0, expired_count: 2 },
+        Operations: {
+          total_items: 50,
+          fresh_pct: 80,
+          gap_count: 0,
+          expired_count: 2,
+        },
       },
     });
 
@@ -502,7 +544,12 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
         },
       ],
       previousSnapshot: {
-        Operations: { total_items: 5, fresh_pct: 30, gap_count: 0, expired_count: 10 },
+        Operations: {
+          total_items: 5,
+          fresh_pct: 30,
+          gap_count: 0,
+          expired_count: 10,
+        },
       },
     });
 
@@ -535,7 +582,12 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
         },
       ],
       previousSnapshot: {
-        Operations: { total_items: 5, fresh_pct: 30, gap_count: 0, expired_count: 0 },
+        Operations: {
+          total_items: 5,
+          fresh_pct: 30,
+          gap_count: 0,
+          expired_count: 0,
+        },
       },
     });
 
@@ -568,7 +620,12 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
         },
       ],
       previousSnapshot: {
-        Operations: { total_items: 50, fresh_pct: 65, gap_count: 0, expired_count: 3 },
+        Operations: {
+          total_items: 50,
+          fresh_pct: 65,
+          gap_count: 0,
+          expired_count: 3,
+        },
       },
     });
 
@@ -576,7 +633,9 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
     expect(res.status).toBe(200);
 
     // pipeline_runs insert should include target_breaches
-    const pipelineInserts = insertCalls.filter((c) => c.table === 'pipeline_runs');
+    const pipelineInserts = insertCalls.filter(
+      (c) => c.table === 'pipeline_runs',
+    );
     expect(pipelineInserts.length).toBe(1);
     const result = pipelineInserts[0].data.result as Record<string, unknown>;
     expect(result.target_breaches).toBe(1);
@@ -603,7 +662,12 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
         },
       ],
       previousSnapshot: {
-        Compliance: { total_items: 30, fresh_pct: 80, gap_count: 0, expired_count: 5 },
+        Compliance: {
+          total_items: 30,
+          fresh_pct: 80,
+          gap_count: 0,
+          expired_count: 5,
+        },
       },
     });
 
@@ -635,7 +699,12 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
         },
       ],
       previousSnapshot: {
-        Safety: { total_items: 20, fresh_pct: 90, gap_count: 0, expired_count: 0 },
+        Safety: {
+          total_items: 20,
+          fresh_pct: 90,
+          gap_count: 0,
+          expired_count: 0,
+        },
       },
     });
 
@@ -667,7 +736,12 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
         },
       ],
       previousSnapshot: {
-        Operations: { total_items: 50, fresh_pct: 65, gap_count: 0, expired_count: 2 },
+        Operations: {
+          total_items: 50,
+          fresh_pct: 65,
+          gap_count: 0,
+          expired_count: 2,
+        },
       },
     });
 
@@ -707,7 +781,12 @@ describe('GET /api/cron/coverage-alerts — target-based thresholds', () => {
         },
       ],
       previousSnapshot: {
-        Operations: { total_items: 20, fresh_pct: 50, gap_count: 0, expired_count: 5 },
+        Operations: {
+          total_items: 20,
+          fresh_pct: 50,
+          gap_count: 0,
+          expired_count: 5,
+        },
       },
     });
 

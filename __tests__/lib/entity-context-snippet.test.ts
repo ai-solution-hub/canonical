@@ -38,7 +38,8 @@ describe('extractEntityContext', () => {
   });
 
   it('T4.4: no leading ellipsis when entity is at start of text', () => {
-    const text = 'ISO 27001 is an international standard for information security.';
+    const text =
+      'ISO 27001 is an international standard for information security.';
     const snippet = extractEntityContext(text, 'ISO 27001');
 
     expect(snippet).not.toBeNull();

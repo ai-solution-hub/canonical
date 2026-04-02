@@ -98,10 +98,7 @@ export function useLayerAdmin({
   // Data fetching via TanStack Query
   // -----------------------------------------------------------------------
 
-  const {
-    data: layers = [],
-    isLoading: loading,
-  } = useQuery({
+  const { data: layers = [], isLoading: loading } = useQuery({
     queryKey: queryKeys.layers.list,
     queryFn: () => fetchJson<AdminLayer[]>('/api/layers'),
   });
@@ -121,8 +118,11 @@ export function useLayerAdmin({
       if (args.editingLayer) {
         // Update (key is not updatable)
         const body: Record<string, unknown> = {};
-        if (args.label.trim() !== args.editingLayer.label) body.label = args.label.trim();
-        if ((args.description.trim() || null) !== args.editingLayer.description) {
+        if (args.label.trim() !== args.editingLayer.label)
+          body.label = args.label.trim();
+        if (
+          (args.description.trim() || null) !== args.editingLayer.description
+        ) {
           body.description = args.description.trim() || null;
         }
         const orderVal = parseInt(args.order, 10);
@@ -134,11 +134,9 @@ export function useLayerAdmin({
           return { action: 'no-change' as const };
         }
 
-        await mutationFetchJson(
-          `/api/layers/${args.editingLayer.id}`,
-          body,
-          { method: 'PATCH' },
-        );
+        await mutationFetchJson(`/api/layers/${args.editingLayer.id}`, body, {
+          method: 'PATCH',
+        });
         return { action: 'update' as const, label: args.label.trim() };
       } else {
         // Create
@@ -187,22 +185,24 @@ export function useLayerAdmin({
     },
     onSuccess: ({ layer, newActive }) => {
       toast.success(`Layer ${newActive ? 'reactivated' : 'deactivated'}`);
-      setAnnouncement(`Layer '${layer.label}' ${newActive ? 'reactivated' : 'deactivated'}`);
+      setAnnouncement(
+        `Layer '${layer.label}' ${newActive ? 'reactivated' : 'deactivated'}`,
+      );
       queryClient.invalidateQueries({ queryKey: queryKeys.layers.all });
       refresh();
     },
     onError: (err) => {
-      toast.error(err instanceof Error ? err.message : 'Failed to update layer');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to update layer',
+      );
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (layer: AdminLayer) => {
-      await mutationFetchJson(
-        `/api/layers/${layer.id}`,
-        null,
-        { method: 'DELETE' },
-      );
+      await mutationFetchJson(`/api/layers/${layer.id}`, null, {
+        method: 'DELETE',
+      });
       return layer;
     },
     onSuccess: (layer) => {
@@ -212,7 +212,9 @@ export function useLayerAdmin({
       refresh();
     },
     onError: (err) => {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete layer');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to delete layer',
+      );
     },
   });
 
@@ -230,7 +232,9 @@ export function useLayerAdmin({
     },
     onMutate: async (args) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.layers.list });
-      const previous = queryClient.getQueryData<AdminLayer[]>(queryKeys.layers.list);
+      const previous = queryClient.getQueryData<AdminLayer[]>(
+        queryKeys.layers.list,
+      );
 
       queryClient.setQueryData<AdminLayer[]>(queryKeys.layers.list, (old) => {
         if (!old) return old;
@@ -289,51 +293,71 @@ export function useLayerAdmin({
   const { mutateAsync: deleteMutateAsync } = deleteMutation;
   const { mutateAsync: moveMutateAsync } = moveMutation;
 
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!layerLabel.trim()) return;
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!layerLabel.trim()) return;
 
-    const resolvedKey = layerKey.trim() || generateKey(layerLabel);
-    if (!resolvedKey) {
-      toast.error('A valid key is required');
-      return;
-    }
+      const resolvedKey = layerKey.trim() || generateKey(layerLabel);
+      if (!resolvedKey) {
+        toast.error('A valid key is required');
+        return;
+      }
 
-    await submitMutateAsync({
+      await submitMutateAsync({
+        editingLayer,
+        resolvedKey,
+        label: layerLabel,
+        description: layerDescription,
+        order: layerOrder,
+      });
+    },
+    [
+      layerLabel,
+      layerKey,
+      layerDescription,
+      layerOrder,
       editingLayer,
-      resolvedKey,
-      label: layerLabel,
-      description: layerDescription,
-      order: layerOrder,
-    });
-  }, [layerLabel, layerKey, layerDescription, layerOrder, editingLayer, submitMutateAsync]);
+      submitMutateAsync,
+    ],
+  );
 
-  const handleToggleActive = useCallback(async (layer: AdminLayer) => {
-    await toggleActiveMutateAsync(layer);
-  }, [toggleActiveMutateAsync]);
+  const handleToggleActive = useCallback(
+    async (layer: AdminLayer) => {
+      await toggleActiveMutateAsync(layer);
+    },
+    [toggleActiveMutateAsync],
+  );
 
-  const handleDelete = useCallback(async (layer: AdminLayer) => {
-    await deleteMutateAsync(layer);
-  }, [deleteMutateAsync]);
+  const handleDelete = useCallback(
+    async (layer: AdminLayer) => {
+      await deleteMutateAsync(layer);
+    },
+    [deleteMutateAsync],
+  );
 
-  const handleMove = useCallback(async (layerId: string, direction: 'up' | 'down') => {
-    const currentLayers = queryClient.getQueryData<AdminLayer[]>(queryKeys.layers.list) ?? [];
-    const idx = currentLayers.findIndex((l) => l.id === layerId);
-    if (idx === -1) return;
+  const handleMove = useCallback(
+    async (layerId: string, direction: 'up' | 'down') => {
+      const currentLayers =
+        queryClient.getQueryData<AdminLayer[]>(queryKeys.layers.list) ?? [];
+      const idx = currentLayers.findIndex((l) => l.id === layerId);
+      if (idx === -1) return;
 
-    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
-    if (swapIdx < 0 || swapIdx >= currentLayers.length) return;
+      const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (swapIdx < 0 || swapIdx >= currentLayers.length) return;
 
-    const current = currentLayers[idx];
-    const swap = currentLayers[swapIdx];
+      const current = currentLayers[idx];
+      const swap = currentLayers[swapIdx];
 
-    const items = [
-      { id: current.id, display_order: swap.display_order },
-      { id: swap.id, display_order: current.display_order },
-    ];
+      const items = [
+        { id: current.id, display_order: swap.display_order },
+        { id: swap.id, display_order: current.display_order },
+      ];
 
-    await moveMutateAsync({ layerId, direction, items });
-  }, [moveMutateAsync, queryClient]);
+      await moveMutateAsync({ layerId, direction, items });
+    },
+    [moveMutateAsync, queryClient],
+  );
 
   return {
     layers,

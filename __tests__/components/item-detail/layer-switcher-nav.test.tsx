@@ -33,16 +33,39 @@ vi.mock('@/lib/validation/layer-schemas', () => ({
 
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: Record<string, unknown>) => (
-    <a href={href as string} {...props}>{children as React.ReactNode}</a>
+    <a href={href as string} {...props}>
+      {children as React.ReactNode}
+    </a>
   ),
 }));
 
 vi.mock('@/contexts/layer-vocabulary-context', () => ({
   useLayerVocabulary: () => ({
     layers: [
-      { key: 'sales_brief', label: 'Sales Brief', description: '', display_order: 1, is_active: true, id: 'l-1' },
-      { key: 'bid_detail', label: 'Bid Detail', description: '', display_order: 2, is_active: true, id: 'l-2' },
-      { key: 'company_reference', label: 'Company Reference', description: '', display_order: 3, is_active: true, id: 'l-3' },
+      {
+        key: 'sales_brief',
+        label: 'Sales Brief',
+        description: '',
+        display_order: 1,
+        is_active: true,
+        id: 'l-1',
+      },
+      {
+        key: 'bid_detail',
+        label: 'Bid Detail',
+        description: '',
+        display_order: 2,
+        is_active: true,
+        id: 'l-2',
+      },
+      {
+        key: 'company_reference',
+        label: 'Company Reference',
+        description: '',
+        display_order: 3,
+        is_active: true,
+        id: 'l-3',
+      },
     ],
     loading: false,
     error: null,
@@ -81,13 +104,20 @@ function createLayers(count: number): TopicLayerItem[] {
 // ---------------------------------------------------------------------------
 
 describe('LayerSwitcherNav', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
-  afterEach(() => { vi.unstubAllGlobals(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it('returns null when content_layers feature is disabled', () => {
     mockIsFeatureEnabled.mockReturnValue(false);
     const { container } = render(
-      <LayerSwitcherNav currentItemId="layer-0" topicLayers={createLayers(3)} />,
+      <LayerSwitcherNav
+        currentItemId="layer-0"
+        topicLayers={createLayers(3)}
+      />,
     );
     expect(container.innerHTML).toBe('');
   });
@@ -95,7 +125,10 @@ describe('LayerSwitcherNav', () => {
   it('returns null when topicLayers has only one item', () => {
     mockIsFeatureEnabled.mockReturnValue(true);
     const { container } = render(
-      <LayerSwitcherNav currentItemId="layer-0" topicLayers={createLayers(1)} />,
+      <LayerSwitcherNav
+        currentItemId="layer-0"
+        topicLayers={createLayers(1)}
+      />,
     );
     expect(container.innerHTML).toBe('');
   });
@@ -103,7 +136,10 @@ describe('LayerSwitcherNav', () => {
   it('shows current layer as default Badge (not a link)', () => {
     mockIsFeatureEnabled.mockReturnValue(true);
     render(
-      <LayerSwitcherNav currentItemId="layer-0" topicLayers={createLayers(2)} />,
+      <LayerSwitcherNav
+        currentItemId="layer-0"
+        topicLayers={createLayers(2)}
+      />,
     );
     const currentBadge = screen.getByText('Sales Brief');
     // Current layer badge should not be wrapped in a link
@@ -113,7 +149,10 @@ describe('LayerSwitcherNav', () => {
   it('shows other layers as outline Badge links', () => {
     mockIsFeatureEnabled.mockReturnValue(true);
     render(
-      <LayerSwitcherNav currentItemId="layer-0" topicLayers={createLayers(3)} />,
+      <LayerSwitcherNav
+        currentItemId="layer-0"
+        topicLayers={createLayers(3)}
+      />,
     );
     const bidDetail = screen.getByText('Bid Detail');
     expect(bidDetail.closest('a')).toHaveAttribute('href', '/item/layer-1');
@@ -125,7 +164,10 @@ describe('LayerSwitcherNav', () => {
   it('has nav with aria-label="Content depth"', () => {
     mockIsFeatureEnabled.mockReturnValue(true);
     render(
-      <LayerSwitcherNav currentItemId="layer-0" topicLayers={createLayers(2)} />,
+      <LayerSwitcherNav
+        currentItemId="layer-0"
+        topicLayers={createLayers(2)}
+      />,
     );
     expect(screen.getByLabelText('Content depth')).toBeInTheDocument();
   });
@@ -144,7 +186,9 @@ describe('LayerSwitcherNav', () => {
       <LayerSwitcherNav currentItemId="item-1" topicLayers={duplicated} />,
     );
     // Should show exactly 3 badges (one per unique layer), not 5
-    const badges = screen.getAllByText(/Sales Brief|Bid Detail|Company Reference/);
+    const badges = screen.getAllByText(
+      /Sales Brief|Bid Detail|Company Reference/,
+    );
     expect(badges).toHaveLength(3);
   });
 
@@ -155,9 +199,7 @@ describe('LayerSwitcherNav', () => {
       { id: 'item-2', title: 'No layer', layer: null },
       { id: 'item-3', title: 'Bid detail', layer: 'bid_detail' },
     ];
-    render(
-      <LayerSwitcherNav currentItemId="item-1" topicLayers={withNulls} />,
-    );
+    render(<LayerSwitcherNav currentItemId="item-1" topicLayers={withNulls} />);
     // Only 2 unique layers (null excluded)
     const badges = screen.getAllByText(/Sales Brief|Bid Detail/);
     expect(badges).toHaveLength(2);

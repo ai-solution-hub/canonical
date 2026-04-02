@@ -7,7 +7,9 @@ import { AssignmentManager } from '@/components/review/assignment-manager';
 // Mocks
 // ---------------------------------------------------------------------------
 
-const mockGetDomainNames = vi.fn().mockReturnValue(['H&S', 'Environmental', 'Quality']);
+const mockGetDomainNames = vi
+  .fn()
+  .mockReturnValue(['H&S', 'Environmental', 'Quality']);
 
 vi.mock('@/contexts/taxonomy-context', () => ({
   useTaxonomy: () => ({
@@ -42,7 +44,11 @@ beforeEach(() => {
     if (typeof url === 'string' && url.includes('/api/entities/users')) {
       return new Response(
         JSON.stringify([
-          { id: 'user-1', email: 'alice@example.com', display_name: 'Alice Smith' },
+          {
+            id: 'user-1',
+            email: 'alice@example.com',
+            display_name: 'Alice Smith',
+          },
           { id: 'user-2', email: 'bob@example.com', display_name: 'Bob Jones' },
         ]),
         { status: 200 },
@@ -50,17 +56,13 @@ beforeEach(() => {
     }
 
     if (typeof url === 'string' && url.includes('/api/review/assignments')) {
-      return new Response(
-        JSON.stringify({ assignments: [] }),
-        { status: 200 },
-      );
+      return new Response(JSON.stringify({ assignments: [] }), { status: 200 });
     }
 
     if (typeof url === 'string' && url.includes('/api/review/queue')) {
-      return new Response(
-        JSON.stringify({ total: 42, items: [] }),
-        { status: 200 },
-      );
+      return new Response(JSON.stringify({ total: 42, items: [] }), {
+        status: 200,
+      });
     }
 
     return new Response(JSON.stringify({}), { status: 200 });
@@ -87,7 +89,9 @@ describe('AssignmentManager', () => {
     expect(screen.getByText('Freshness')).toBeInTheDocument();
     expect(screen.getByText('Due Date (optional)')).toBeInTheDocument();
     expect(screen.getByText('Notes (optional)')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /create assignment/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /create assignment/i }),
+    ).toBeInTheDocument();
   });
 
   it('loads and displays team members', async () => {
@@ -98,7 +102,9 @@ describe('AssignmentManager', () => {
 
     // Wait for members to load
     await waitFor(() => {
-      expect(screen.queryByText(/loading team members/i)).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(/loading team members/i),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -107,7 +113,9 @@ describe('AssignmentManager', () => {
 
     // Domain names from the mocked taxonomy
     expect(screen.getByLabelText('Filter by H&S')).toBeInTheDocument();
-    expect(screen.getByLabelText('Filter by Environmental')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Filter by Environmental'),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText('Filter by Quality')).toBeInTheDocument();
   });
 
@@ -186,10 +194,9 @@ describe('AssignmentManager', () => {
       }
 
       if (typeof url === 'string' && url.includes('/api/review/queue')) {
-        return new Response(
-          JSON.stringify({ total: 42, items: [] }),
-          { status: 200 },
-        );
+        return new Response(JSON.stringify({ total: 42, items: [] }), {
+          status: 200,
+        });
       }
 
       return new Response(JSON.stringify({}), { status: 200 });
@@ -206,7 +213,9 @@ describe('AssignmentManager', () => {
     expect(screen.getByText('Review H&S items')).toBeInTheDocument();
 
     // Action buttons visible (within the Active Assignments card)
-    expect(screen.getByRole('button', { name: /complete/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /complete/i }),
+    ).toBeInTheDocument();
     // Use getAllByRole since there may be other cancel-like buttons; just check it exists
     const cancelButtons = screen.getAllByRole('button', { name: /cancel/i });
     expect(cancelButtons.length).toBeGreaterThan(0);
@@ -228,7 +237,9 @@ describe('AssignmentManager', () => {
       if (typeof url === 'string' && url.includes('/api/review/assignments')) {
         if (options?.method === 'PATCH') {
           return new Response(
-            JSON.stringify({ assignment: { id: 'assign-1', status: 'completed' } }),
+            JSON.stringify({
+              assignment: { id: 'assign-1', status: 'completed' },
+            }),
             { status: 200 },
           );
         }
@@ -255,10 +266,9 @@ describe('AssignmentManager', () => {
       }
 
       if (typeof url === 'string' && url.includes('/api/review/queue')) {
-        return new Response(
-          JSON.stringify({ total: 5, items: [] }),
-          { status: 200 },
-        );
+        return new Response(JSON.stringify({ total: 5, items: [] }), {
+          status: 200,
+        });
       }
 
       return new Response(JSON.stringify({}), { status: 200 });

@@ -2,7 +2,15 @@
 
 import { useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
-import { PanelRight, CheckCircle2, BookOpen, ClipboardList, Activity, ClipboardCheck, X } from 'lucide-react';
+import {
+  PanelRight,
+  CheckCircle2,
+  BookOpen,
+  ClipboardList,
+  Activity,
+  ClipboardCheck,
+  X,
+} from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -86,9 +94,8 @@ export function ReviewContent() {
   } = useReviewQueue();
 
   // Fetch review history for the current item
-  const { history: reviewHistory, isLoading: reviewHistoryLoading } = useReviewHistory(
-    currentItem?.id ?? null,
-  );
+  const { history: reviewHistory, isLoading: reviewHistoryLoading } =
+    useReviewHistory(currentItem?.id ?? null);
 
   // Session summary dialog state
   const [showSummary, setShowSummary] = useState(false);
@@ -132,12 +139,15 @@ export function ReviewContent() {
   }, [progress, handleExit, updateSessionStats, sessionStart]);
 
   // Close summary and navigate away
-  const handleSummaryClose = useCallback((open: boolean) => {
-    setShowSummary(open);
-    if (!open) {
-      handleExit();
-    }
-  }, [handleExit]);
+  const handleSummaryClose = useCallback(
+    (open: boolean) => {
+      setShowSummary(open);
+      if (!open) {
+        handleExit();
+      }
+    },
+    [handleExit],
+  );
 
   // Show verify note input instead of verifying immediately
   const handleVerifyClick = useCallback(() => {
@@ -148,29 +158,38 @@ export function ReviewContent() {
 
   // Actually verify with an optional note (tracks session stats)
   const originalHandleVerify = handleVerify;
-  const handleVerifyWithNote = useCallback(async (note?: string) => {
-    setShowVerifyNote(false);
-    setVerifyNote('');
-    setSessionStats((prev) => ({ ...prev, verified: prev.verified + 1 }));
-    await originalHandleVerify(note);
-  }, [originalHandleVerify]);
+  const handleVerifyWithNote = useCallback(
+    async (note?: string) => {
+      setShowVerifyNote(false);
+      setVerifyNote('');
+      setSessionStats((prev) => ({ ...prev, verified: prev.verified + 1 }));
+      await originalHandleVerify(note);
+    },
+    [originalHandleVerify],
+  );
 
   // Legacy alias for action bar (it just opens the note input)
   const handleVerifyWithTracking = handleVerifyClick;
 
   // Wrap flag submit to track session stats
   const originalHandleFlagSubmit = handleFlagSubmit;
-  const handleFlagSubmitWithTracking = useCallback(async (details?: string) => {
-    setSessionStats((prev) => ({ ...prev, flagged: prev.flagged + 1 }));
-    await originalHandleFlagSubmit(details);
-  }, [originalHandleFlagSubmit]);
+  const handleFlagSubmitWithTracking = useCallback(
+    async (details?: string) => {
+      setSessionStats((prev) => ({ ...prev, flagged: prev.flagged + 1 }));
+      await originalHandleFlagSubmit(details);
+    },
+    [originalHandleFlagSubmit],
+  );
 
   // -- Render States --
 
   // Loading skeleton
   if (isLoading) {
     return (
-      <section aria-label="Review queue — loading" className="mx-auto max-w-[800px] px-4 py-8 sm:px-6">
+      <section
+        aria-label="Review queue — loading"
+        className="mx-auto max-w-[800px] px-4 py-8 sm:px-6"
+      >
         <div role="status" aria-label="Loading review queue">
           <div className="mb-6 flex items-center justify-between">
             <div>
@@ -213,17 +232,23 @@ export function ReviewContent() {
       filters.source_file ||
       filters.source_document_id;
 
-    const allVerified = !hasFilters && progress.total > 0 && progress.verified >= progress.total;
+    const allVerified =
+      !hasFilters && progress.total > 0 && progress.verified >= progress.total;
 
     const emptyAriaLabel = allVerified
       ? 'Review queue — no items to review'
       : 'Review queue — no items to review';
 
     return (
-      <section aria-label={emptyAriaLabel} className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-[800px] flex-col px-4 py-8 sm:px-6">
+      <section
+        aria-label={emptyAriaLabel}
+        className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-[800px] flex-col px-4 py-8 sm:px-6"
+      >
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-foreground">Review Queue</h1>
+            <h1 className="text-xl font-semibold text-foreground">
+              Review Queue
+            </h1>
           </div>
           <ReviewFilters
             filters={filters}
@@ -244,12 +269,17 @@ export function ReviewContent() {
 
         <div className="flex flex-col items-center justify-center rounded-xl border bg-card px-6 py-16 text-center">
           <div className="mb-4 text-muted-foreground" aria-hidden="true">
-            {allVerified ? <CheckCircle2 className="size-10" /> : <BookOpen className="size-10" />}
+            {allVerified ? (
+              <CheckCircle2 className="size-10" />
+            ) : (
+              <BookOpen className="size-10" />
+            )}
           </div>
           {allVerified ? (
             <>
               <h2 className="text-lg font-semibold">
-                All {progress.total.toLocaleString('en-GB')} items have been verified.
+                All {progress.total.toLocaleString('en-GB')} items have been
+                verified.
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 Nice work! The knowledge base is fully reviewed.
@@ -260,9 +290,7 @@ export function ReviewContent() {
             </>
           ) : (
             <>
-              <h2 className="text-lg font-semibold">
-                All caught up!
-              </h2>
+              <h2 className="text-lg font-semibold">All caught up!</h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 No unverified items match your filters.
               </p>
@@ -286,9 +314,14 @@ export function ReviewContent() {
   const isAtEnd = currentIndex >= queue.length;
   if (isAtEnd) {
     return (
-      <section aria-label="Review queue — no items to review" className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-[800px] flex-col px-4 py-8 sm:px-6">
+      <section
+        aria-label="Review queue — no items to review"
+        className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-[800px] flex-col px-4 py-8 sm:px-6"
+      >
         <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-foreground">Review Queue</h1>
+          <h1 className="text-xl font-semibold text-foreground">
+            Review Queue
+          </h1>
           <ReviewFilters
             filters={filters}
             onFiltersChange={handleFiltersChange}
@@ -316,9 +349,14 @@ export function ReviewContent() {
   // Main review content (shared between panel and non-panel layouts)
   const mainAriaLabel = `Review queue — ${queue.length} ${queue.length === 1 ? 'item' : 'items'} pending review`;
   const reviewMainContent = (
-    <section aria-label={mainAriaLabel} className="flex min-h-full flex-col px-4 py-8 sm:px-6">
+    <section
+      aria-label={mainAriaLabel}
+      className="flex min-h-full flex-col px-4 py-8 sm:px-6"
+    >
       {/* Screen reader announcements */}
-      <div aria-live="polite" className="sr-only">{announcement}</div>
+      <div aria-live="polite" className="sr-only">
+        {announcement}
+      </div>
 
       {/* Header */}
       <div className="mx-auto w-full max-w-[800px]">
@@ -354,7 +392,9 @@ export function ReviewContent() {
               variant="ghost"
               size="sm"
               onClick={() => setShowCadence(!showCadence)}
-              aria-label={showCadence ? 'Hide review health' : 'Show review health'}
+              aria-label={
+                showCadence ? 'Hide review health' : 'Show review health'
+              }
               aria-expanded={showCadence}
               className="gap-1.5 text-xs text-muted-foreground"
             >
@@ -366,7 +406,11 @@ export function ReviewContent() {
               variant="ghost"
               size="icon-sm"
               onClick={handleTogglePanel}
-              aria-label={showQueuePanel ? 'Hide review queue panel' : 'Show review queue panel'}
+              aria-label={
+                showQueuePanel
+                  ? 'Hide review queue panel'
+                  : 'Show review queue panel'
+              }
               aria-expanded={showQueuePanel}
             >
               <PanelRight className="size-4" />
@@ -380,9 +424,7 @@ export function ReviewContent() {
         </div>
 
         {/* Review health cadence card (collapsible) */}
-        {showCadence && (
-          <ReviewCadenceCard className="mb-4" />
-        )}
+        {showCadence && <ReviewCadenceCard className="mb-4" />}
 
         {/* Progress bar */}
         <ReviewProgressBar
@@ -399,14 +441,21 @@ export function ReviewContent() {
             role="status"
             className="mb-6 flex items-center gap-3 rounded-lg border bg-muted px-4 py-3"
           >
-            <ClipboardCheck className="size-5 shrink-0 text-primary" aria-hidden="true" />
+            <ClipboardCheck
+              className="size-5 shrink-0 text-primary"
+              aria-hidden="true"
+            />
             <p className="flex-1 text-sm text-foreground">
               {activeAssignment.notes
                 ? `You have a review assignment: ${activeAssignment.notes}`
                 : 'You have a review assignment'}
               {activeAssignment.due_date && (
                 <span className="ml-1 text-muted-foreground">
-                  (due {new Date(activeAssignment.due_date).toLocaleDateString('en-GB')})
+                  (due{' '}
+                  {new Date(activeAssignment.due_date).toLocaleDateString(
+                    'en-GB',
+                  )}
+                  )
                 </span>
               )}
             </p>
@@ -441,7 +490,10 @@ export function ReviewContent() {
         {showVerifyNote && (
           <div className="mt-3 rounded-lg border bg-card p-3">
             <div className="flex items-start gap-2">
-              <label htmlFor="verify-note" className="shrink-0 pt-1.5 text-sm text-muted-foreground">
+              <label
+                htmlFor="verify-note"
+                className="shrink-0 pt-1.5 text-sm text-muted-foreground"
+              >
                 Add a note (optional):
               </label>
               <div className="flex-1">
@@ -467,7 +519,10 @@ export function ReviewContent() {
                   rows={2}
                   maxLength={500}
                 />
-                <div className="mt-1 text-right text-xs text-muted-foreground" aria-live="polite">
+                <div
+                  className="mt-1 text-right text-xs text-muted-foreground"
+                  aria-live="polite"
+                >
                   {verifyNote.length}/500
                 </div>
               </div>
@@ -507,7 +562,10 @@ export function ReviewContent() {
         {/* Flag input (inline below card, above action bar) */}
         {showFlagInput && (
           <div className="mt-3 flex items-center gap-2 rounded-lg border bg-card p-3">
-            <label htmlFor="flag-reason" className="shrink-0 text-sm text-muted-foreground">
+            <label
+              htmlFor="flag-reason"
+              className="shrink-0 text-sm text-muted-foreground"
+            >
               Reason (optional):
             </label>
             <Input
@@ -593,7 +651,9 @@ export function ReviewContent() {
                 <kbd className="inline-flex h-6 items-center justify-center rounded border border-border bg-muted px-2 font-mono text-xs font-medium text-muted-foreground">
                   {key}
                 </kbd>
-                <span className="self-center text-muted-foreground">{desc}</span>
+                <span className="self-center text-muted-foreground">
+                  {desc}
+                </span>
               </div>
             ))}
           </div>
@@ -607,13 +667,16 @@ export function ReviewContent() {
     <>
       {reviewMainContent}
 
-      <Sheet open={showQueuePanel} onOpenChange={handleTogglePanel} modal={false}>
-        <SheetContent
-          side="right"
-          className="w-[320px] p-0 sm:w-[360px]"
-        >
+      <Sheet
+        open={showQueuePanel}
+        onOpenChange={handleTogglePanel}
+        modal={false}
+      >
+        <SheetContent side="right" className="w-[320px] p-0 sm:w-[360px]">
           <SheetHeader>
-            <SheetTitle className="px-4 pt-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Review Queue</SheetTitle>
+            <SheetTitle className="px-4 pt-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Review Queue
+            </SheetTitle>
             <SheetDescription className="sr-only">
               Items in the current review batch
             </SheetDescription>

@@ -2,7 +2,8 @@
 import type { ParsedFeedItem, ExtractionResult } from './types';
 import { MIN_CONTENT_WORDS, EXTRACTION_TIMEOUT_MS } from './types';
 
-const USER_AGENT = 'KnowledgeHub/1.0 (+https://knowledge-hub-seven-kappa.vercel.app)';
+const USER_AGENT =
+  'KnowledgeHub/1.0 (+https://knowledge-hub-seven-kappa.vercel.app)';
 
 /** Count words in a string */
 function wordCount(text: string): number {
@@ -37,7 +38,15 @@ export function normaliseUrl(url: string): string {
     const parsed = new URL(url);
     parsed.hostname = parsed.hostname.toLowerCase();
     // Remove common tracking query params
-    const trackingParams = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'ref', 'source'];
+    const trackingParams = [
+      'utm_source',
+      'utm_medium',
+      'utm_campaign',
+      'utm_term',
+      'utm_content',
+      'ref',
+      'source',
+    ];
     for (const param of trackingParams) {
       parsed.searchParams.delete(param);
     }
@@ -55,7 +64,9 @@ export function normaliseUrl(url: string): string {
  * Extract full content for a feed article.
  * Priority: RSS content:encoded > direct fetch > Firecrawl > summary fallback
  */
-export async function extractContent(item: ParsedFeedItem): Promise<ExtractionResult> {
+export async function extractContent(
+  item: ParsedFeedItem,
+): Promise<ExtractionResult> {
   const baseResult = {
     title: item.title,
     description: item.summary,
@@ -85,7 +96,10 @@ export async function extractContent(item: ParsedFeedItem): Promise<ExtractionRe
 
     if (response.ok) {
       const contentType = response.headers.get('content-type') ?? '';
-      if (contentType.includes('text/html') || contentType.includes('application/xhtml')) {
+      if (
+        contentType.includes('text/html') ||
+        contentType.includes('application/xhtml')
+      ) {
         const html = await response.text();
         const text = extractMainContent(html);
         if (wordCount(text) >= MIN_CONTENT_WORDS) {
@@ -106,16 +120,23 @@ export async function extractContent(item: ParsedFeedItem): Promise<ExtractionRe
   try {
     const { default: Firecrawl } = await import('@mendable/firecrawl-js');
     const firecrawl = new Firecrawl({ apiKey: process.env.FIRECRAWL_API_KEY });
-    const doc = await firecrawl.scrape(item.url, { formats: ['markdown'] as const });
+    const doc = await firecrawl.scrape(item.url, {
+      formats: ['markdown'] as const,
+    });
 
     if (doc.markdown) {
       const text = doc.markdown;
       return {
         ...baseResult,
         content: text,
-        title: (doc.metadata as Record<string, string> | undefined)?.title ?? item.title,
-        description: (doc.metadata as Record<string, string> | undefined)?.description ?? item.summary,
-        thumbnailUrl: (doc.metadata as Record<string, string> | undefined)?.ogImage ?? null,
+        title:
+          (doc.metadata as Record<string, string> | undefined)?.title ??
+          item.title,
+        description:
+          (doc.metadata as Record<string, string> | undefined)?.description ??
+          item.summary,
+        thumbnailUrl:
+          (doc.metadata as Record<string, string> | undefined)?.ogImage ?? null,
         method: 'firecrawl',
         wordCount: wordCount(text),
       };

@@ -21,7 +21,9 @@ export async function GET() {
     // Fetch all domains with subtopic counts via relational count
     const { data: domains, error } = await supabase
       .from('taxonomy_domains')
-      .select('id, name, display_order, colour, key_signal, is_active, provenance, taxonomy_subtopics(count)')
+      .select(
+        'id, name, display_order, colour, key_signal, is_active, provenance, taxonomy_subtopics(count)',
+      )
       .order('display_order', { ascending: true });
 
     if (error) {

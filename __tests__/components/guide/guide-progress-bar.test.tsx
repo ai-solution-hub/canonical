@@ -29,7 +29,9 @@ describe('GuideProgressBar', () => {
   it('shows correct populated/total count', () => {
     render(<GuideProgressBar populated={3} total={7} />);
 
-    expect(screen.getByText('Coverage: 3/7 required sections populated')).toBeInTheDocument();
+    expect(
+      screen.getByText('Coverage: 3/7 required sections populated'),
+    ).toBeInTheDocument();
   });
 
   it('calculates percentage correctly', () => {

@@ -73,7 +73,9 @@ export async function createTestBid(
       domain_metadata: {
         buyer: 'E2E Temp Corp',
         status: 'draft',
-        deadline: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
+        deadline: new Date(Date.now() + 14 * 86400000)
+          .toISOString()
+          .split('T')[0],
       },
       ...overrides,
     })

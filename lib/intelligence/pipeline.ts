@@ -12,10 +12,7 @@ import type {
   PipelineRunResult,
   PollResult,
 } from './types';
-import {
-  PIPELINE_SYSTEM_USER_ID,
-  SOURCES_PER_INVOCATION,
-} from './types';
+import { PIPELINE_SYSTEM_USER_ID, SOURCES_PER_INVOCATION } from './types';
 
 type Supabase = SupabaseClient<Database>;
 
@@ -36,8 +33,9 @@ export async function getDueFeedSources(
   supabase: Supabase,
   limit: number = SOURCES_PER_INVOCATION,
 ): Promise<FeedSource[]> {
-  const { data, error } = await supabase
-    .rpc('get_due_feed_sources', { max_sources: limit });
+  const { data, error } = await supabase.rpc('get_due_feed_sources', {
+    max_sources: limit,
+  });
 
   if (error) {
     throw new Error(`Failed to query feed sources: ${error.message}`);
@@ -58,12 +56,15 @@ async function loadCompanyContext(
     .eq('id', workspaceId)
     .single();
 
-  const profileId = (workspace?.domain_metadata as Record<string, unknown>)?.company_profile_id as string | undefined;
+  const profileId = (workspace?.domain_metadata as Record<string, unknown>)
+    ?.company_profile_id as string | undefined;
   if (!profileId) return null;
 
   const { data: profile } = await supabase
     .from('company_profiles')
-    .select('name, sectors, services, key_topics, target_customers, value_proposition')
+    .select(
+      'name, sectors, services, key_topics, target_customers, value_proposition',
+    )
     .eq('id', profileId)
     .single();
 
@@ -163,7 +164,14 @@ export async function processFeedSource(
   }
 
   // Update source polling metadata (including etag and lastModified from response)
-  await updateSourceAfterPoll(supabase, source, pollResult.status, pollResult.etag, pollResult.lastModified, pollResult.error);
+  await updateSourceAfterPoll(
+    supabase,
+    source,
+    pollResult.status,
+    pollResult.etag,
+    pollResult.lastModified,
+    pollResult.error,
+  );
 
   if (pollResult.status !== 'success' || pollResult.items.length === 0) {
     result.durationMs = Date.now() - startTime;
@@ -183,7 +191,12 @@ export async function processFeedSource(
     const normalisedUrl = normaliseUrl(item.url);
 
     // 2a. Dedup check
-    const duplicate = await isDuplicate(supabase, source.workspace_id, normalisedUrl, item.guid);
+    const duplicate = await isDuplicate(
+      supabase,
+      source.workspace_id,
+      normalisedUrl,
+      item.guid,
+    );
     if (duplicate) continue;
 
     result.articlesNew++;
@@ -195,7 +208,8 @@ export async function processFeedSource(
       // 2c. Relevance scoring — behaviour depends on company profile availability
       let passed = false;
       let relevanceScore = 0;
-      let relevanceCategory: 'high' | 'medium' | 'low' | 'irrelevant' = 'irrelevant';
+      let relevanceCategory: 'high' | 'medium' | 'low' | 'irrelevant' =
+        'irrelevant';
       let relevanceReasoning = '';
       let matchedCategories: string[] = [];
 
@@ -205,7 +219,10 @@ export async function processFeedSource(
         relevanceReasoning = 'No company profile configured — scoring skipped';
       } else if (companyEmbedding) {
         // Stage 1: Embedding pre-filter
-        const preFilter = await embeddingPreFilter(extraction.content, companyEmbedding);
+        const preFilter = await embeddingPreFilter(
+          extraction.content,
+          companyEmbedding,
+        );
 
         if (!preFilter.passed) {
           // Failed pre-filter — store as filtered, skip LLM scoring
@@ -254,7 +271,9 @@ export async function processFeedSource(
       if (insertError) {
         // Likely a unique constraint violation (race condition)
         if (insertError.code === '23505') continue;
-        result.errors.push(`Insert failed for ${normalisedUrl}: ${insertError.message}`);
+        result.errors.push(
+          `Insert failed for ${normalisedUrl}: ${insertError.message}`,
+        );
         result.articlesFailed++;
         continue;
       }
@@ -267,7 +286,9 @@ export async function processFeedSource(
           await storeAsContentItem(supabase, source, item, extraction);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          result.errors.push(`Content item creation failed for ${normalisedUrl}: ${msg}`);
+          result.errors.push(
+            `Content item creation failed for ${normalisedUrl}: ${msg}`,
+          );
         }
       }
     } catch (err) {
@@ -294,7 +315,12 @@ async function storeAsContentItem(
   supabase: Supabase,
   source: FeedSource,
   item: { title: string; url: string; publishedAt: string | null },
-  extraction: { content: string; title: string | null; description: string | null; thumbnailUrl: string | null },
+  extraction: {
+    content: string;
+    title: string | null;
+    description: string | null;
+    thumbnailUrl: string | null;
+  },
 ): Promise<void> {
   // Create content item — no `status` column on content_items
   const { data: contentItem, error } = await supabase
@@ -327,18 +353,21 @@ async function storeAsContentItem(
   // Classify the content item (adds taxonomy, entities, AND embeddings)
   // classifyContent already generates and stores embeddings — no separate embedding call needed
   try {
-    await classifyContent({ supabase, itemId: contentItem.id, force: true, userId: PIPELINE_SYSTEM_USER_ID });
+    await classifyContent({
+      supabase,
+      itemId: contentItem.id,
+      force: true,
+      userId: PIPELINE_SYSTEM_USER_ID,
+    });
   } catch {
     // Classification failure is non-fatal — item is still stored
   }
 
   // Assign to workspace via content_item_workspaces (NOT workspace_content)
-  await supabase
-    .from('content_item_workspaces')
-    .insert({
-      workspace_id: source.workspace_id,
-      content_item_id: contentItem.id,
-    });
+  await supabase.from('content_item_workspaces').insert({
+    workspace_id: source.workspace_id,
+    content_item_id: contentItem.id,
+  });
 }
 
 /** Update feed_sources after a poll attempt (including etag/lastModified for conditional requests) */
@@ -354,7 +383,11 @@ async function updateSourceAfterPoll(
 
   const updateData: Record<string, unknown> = {
     last_polled_at: new Date().toISOString(),
-    last_polled_status: status as 'success' | 'error' | 'timeout' | 'not_modified',
+    last_polled_status: status as
+      | 'success'
+      | 'error'
+      | 'timeout'
+      | 'not_modified',
     last_polled_error: error ?? null,
     consecutive_failures: isSuccess ? 0 : source.consecutive_failures + 1,
   };
@@ -367,14 +400,13 @@ async function updateSourceAfterPoll(
     updateData.last_modified = lastModified;
   }
 
-  await supabase
-    .from('feed_sources')
-    .update(updateData)
-    .eq('id', source.id);
+  await supabase.from('feed_sources').update(updateData).eq('id', source.id);
 }
 
 /** Run the full pipeline: query due sources, process each, track in queue */
-export async function runPipeline(supabase: Supabase): Promise<PipelineRunResult> {
+export async function runPipeline(
+  supabase: Supabase,
+): Promise<PipelineRunResult> {
   const startedAt = new Date().toISOString();
 
   // Concurrency guard: skip feeds that already have an in-progress queue entry
@@ -383,10 +415,12 @@ export async function runPipeline(supabase: Supabase): Promise<PipelineRunResult
     .select('feed_source_id')
     .eq('status', 'processing');
 
-  const inProgressSourceIds = new Set((inProgress ?? []).map(r => r.feed_source_id));
+  const inProgressSourceIds = new Set(
+    (inProgress ?? []).map((r) => r.feed_source_id),
+  );
 
   const allSources = await getDueFeedSources(supabase);
-  const sources = allSources.filter(s => !inProgressSourceIds.has(s.id));
+  const sources = allSources.filter((s) => !inProgressSourceIds.has(s.id));
 
   const feedResults: FeedProcessingResult[] = [];
   const errors: string[] = [];
@@ -405,7 +439,10 @@ export async function runPipeline(supabase: Supabase): Promise<PipelineRunResult
       .single();
 
     // Load company context for this workspace
-    const companyContext = await loadCompanyContext(supabase, source.workspace_id);
+    const companyContext = await loadCompanyContext(
+      supabase,
+      source.workspace_id,
+    );
 
     // Load active prompt for this workspace (fetched once, passed to all articles)
     const activePrompt = await getActivePrompt(supabase, source.workspace_id);
@@ -427,7 +464,13 @@ export async function runPipeline(supabase: Supabase): Promise<PipelineRunResult
     }
 
     // Process the feed
-    const feedResult = await processFeedSource(supabase, source, companyContext, companyEmbedding, activePrompt);
+    const feedResult = await processFeedSource(
+      supabase,
+      source,
+      companyContext,
+      companyEmbedding,
+      activePrompt,
+    );
     feedResults.push(feedResult);
     errors.push(...feedResult.errors);
 
@@ -438,7 +481,8 @@ export async function runPipeline(supabase: Supabase): Promise<PipelineRunResult
         .update({
           status: feedResult.errors.length > 0 ? 'failed' : 'complete',
           completed_at: new Date().toISOString(),
-          error_message: feedResult.errors.length > 0 ? feedResult.errors.join('; ') : null,
+          error_message:
+            feedResult.errors.length > 0 ? feedResult.errors.join('; ') : null,
           articles_found: feedResult.articlesFound,
           articles_new: feedResult.articlesNew,
           articles_passed: feedResult.articlesPassed,
@@ -452,9 +496,15 @@ export async function runPipeline(supabase: Supabase): Promise<PipelineRunResult
     startedAt,
     completedAt: new Date().toISOString(),
     sourcesProcessed: sources.length,
-    totalArticlesFound: feedResults.reduce((sum, r) => sum + r.articlesFound, 0),
+    totalArticlesFound: feedResults.reduce(
+      (sum, r) => sum + r.articlesFound,
+      0,
+    ),
     totalArticlesNew: feedResults.reduce((sum, r) => sum + r.articlesNew, 0),
-    totalArticlesPassed: feedResults.reduce((sum, r) => sum + r.articlesPassed, 0),
+    totalArticlesPassed: feedResults.reduce(
+      (sum, r) => sum + r.articlesPassed,
+      0,
+    ),
     feedResults,
     errors,
   };

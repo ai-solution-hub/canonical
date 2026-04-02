@@ -41,15 +41,22 @@ vi.mock('@/components/shared/similarity-badge', () => ({
 
 vi.mock('@/components/shared/verification-badge', () => ({
   VerificationBadge: ({ verified }: { verified: boolean }) => (
-    <span data-testid="verification-badge">{verified ? 'Verified' : 'Unverified'}</span>
+    <span data-testid="verification-badge">
+      {verified ? 'Verified' : 'Unverified'}
+    </span>
   ),
 }));
 
 vi.mock('@/lib/format', () => ({
-  getDisplayTitle: (item: { suggested_title?: string | null; title?: string | null }) =>
-    item.suggested_title || item.title || 'Untitled',
+  getDisplayTitle: (item: {
+    suggested_title?: string | null;
+    title?: string | null;
+  }) => item.suggested_title || item.title || 'Untitled',
   formatContentType: (type: string) =>
-    type.split(/[-_]/).map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+    type
+      .split(/[-_]/)
+      .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' '),
 }));
 
 vi.mock('@/lib/utils', () => ({
@@ -134,7 +141,10 @@ describe('ContentLibraryResult', () => {
   it('shows content type and domain badges', () => {
     render(
       <ContentLibraryResult
-        result={createResult({ content_type: 'case_study', primary_domain: 'Technical' })}
+        result={createResult({
+          content_type: 'case_study',
+          primary_domain: 'Technical',
+        })}
         onCopy={mockOnCopy}
       />,
     );
@@ -191,7 +201,11 @@ describe('ContentLibraryResult', () => {
 
     await user.click(screen.getByRole('button', { name: /insert answer/i }));
 
-    expect(mockOnInsert).toHaveBeenCalledWith('The answer', 'item-1', 'Test Article');
+    expect(mockOnInsert).toHaveBeenCalledWith(
+      'The answer',
+      'item-1',
+      'Test Article',
+    );
   });
 
   it('view button opens item page', async () => {

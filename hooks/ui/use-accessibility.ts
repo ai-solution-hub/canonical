@@ -31,7 +31,8 @@ function getInitialA11yMode(): A11yMode | null {
   if (typeof window === 'undefined') return null;
   const stored = localStorage.getItem(`${STORAGE_PREFIX}-a11y-mode`);
   if (stored) return stored as A11yMode;
-  if (window.matchMedia('(prefers-contrast: more)').matches) return 'high-contrast';
+  if (window.matchMedia('(prefers-contrast: more)').matches)
+    return 'high-contrast';
   return null;
 }
 
@@ -42,8 +43,12 @@ function getInitialA11yFont(): A11yFont | null {
 }
 
 export function useAccessibility() {
-  const [a11yMode, setA11yModeState] = useState<A11yMode | null>(getInitialA11yMode);
-  const [a11yFont, setA11yFontState] = useState<A11yFont | null>(getInitialA11yFont);
+  const [a11yMode, setA11yModeState] = useState<A11yMode | null>(
+    getInitialA11yMode,
+  );
+  const [a11yFont, setA11yFontState] = useState<A11yFont | null>(
+    getInitialA11yFont,
+  );
 
   // Apply DOM attributes on mount and listen for system contrast changes
   useEffect(() => {

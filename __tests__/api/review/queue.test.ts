@@ -85,16 +85,41 @@ function resetMocks() {
   });
 
   const chainableMethods = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ] as const;
   for (const method of chainableMethods) {
     mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
   }
 
-  mockSupabase._chain.single.mockResolvedValue({ data: null, error: null, count: null });
-  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null, count: null });
+  mockSupabase._chain.single.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+    count: null,
+  });
   mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
     resolve({ data: [], error: null, count: 0 }),
   );
@@ -115,21 +140,23 @@ describe('GET /api/review/queue — sort parameter', () => {
 
     const mockItems = [makeMockItem()];
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) return resolve({ data: mockItems, error: null, count: 1 });
-      return resolve({ data: null, error: null, count: 0 });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1)
+          return resolve({ data: mockItems, error: null, count: 1 });
+        return resolve({ data: null, error: null, count: 0 });
+      },
+    );
 
     const req = createTestRequest('/api/review/queue');
     const res = await getQueue(req);
 
     expect(res.status).toBe(200);
     // Verify order was called with created_at descending
-    expect(mockSupabase._chain.order).toHaveBeenCalledWith(
-      'created_at',
-      { ascending: false },
-    );
+    expect(mockSupabase._chain.order).toHaveBeenCalledWith('created_at', {
+      ascending: false,
+    });
   });
 
   it('sorts by classification_confidence ASC NULLS FIRST when sort=confidence_asc', async () => {
@@ -137,11 +164,14 @@ describe('GET /api/review/queue — sort parameter', () => {
 
     const mockItems = [makeMockItem()];
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) return resolve({ data: mockItems, error: null, count: 1 });
-      return resolve({ data: null, error: null, count: 0 });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1)
+          return resolve({ data: mockItems, error: null, count: 1 });
+        return resolve({ data: null, error: null, count: 0 });
+      },
+    );
 
     const req = createTestRequest('/api/review/queue', {
       searchParams: { sort: 'confidence_asc' },
@@ -160,11 +190,14 @@ describe('GET /api/review/queue — sort parameter', () => {
 
     const mockItems = [makeMockItem()];
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) return resolve({ data: mockItems, error: null, count: 1 });
-      return resolve({ data: null, error: null, count: 0 });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1)
+          return resolve({ data: mockItems, error: null, count: 1 });
+        return resolve({ data: null, error: null, count: 0 });
+      },
+    );
 
     const req = createTestRequest('/api/review/queue', {
       searchParams: { sort: 'quality_score_asc' },
@@ -172,10 +205,10 @@ describe('GET /api/review/queue — sort parameter', () => {
     const res = await getQueue(req);
 
     expect(res.status).toBe(200);
-    expect(mockSupabase._chain.order).toHaveBeenCalledWith(
-      'quality_score',
-      { ascending: true, nullsFirst: true },
-    );
+    expect(mockSupabase._chain.order).toHaveBeenCalledWith('quality_score', {
+      ascending: true,
+      nullsFirst: true,
+    });
   });
 
   it('falls back to created_at when sort=created_at is explicit', async () => {
@@ -183,11 +216,14 @@ describe('GET /api/review/queue — sort parameter', () => {
 
     const mockItems = [makeMockItem()];
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) return resolve({ data: mockItems, error: null, count: 1 });
-      return resolve({ data: null, error: null, count: 0 });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1)
+          return resolve({ data: mockItems, error: null, count: 1 });
+        return resolve({ data: null, error: null, count: 0 });
+      },
+    );
 
     const req = createTestRequest('/api/review/queue', {
       searchParams: { sort: 'created_at' },
@@ -195,10 +231,9 @@ describe('GET /api/review/queue — sort parameter', () => {
     const res = await getQueue(req);
 
     expect(res.status).toBe(200);
-    expect(mockSupabase._chain.order).toHaveBeenCalledWith(
-      'created_at',
-      { ascending: false },
-    );
+    expect(mockSupabase._chain.order).toHaveBeenCalledWith('created_at', {
+      ascending: false,
+    });
   });
 });
 
@@ -210,11 +245,14 @@ describe('GET /api/review/queue — quality_score in response', () => {
 
     const mockItems = [makeMockItem({ quality_score: 85 })];
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) return resolve({ data: mockItems, error: null, count: 1 });
-      return resolve({ data: null, error: null, count: 0 });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1)
+          return resolve({ data: mockItems, error: null, count: 1 });
+        return resolve({ data: null, error: null, count: 0 });
+      },
+    );
 
     const req = createTestRequest('/api/review/queue');
     const res = await getQueue(req);
@@ -229,11 +267,14 @@ describe('GET /api/review/queue — quality_score in response', () => {
 
     const mockItems = [makeMockItem({ quality_score: null })];
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) return resolve({ data: mockItems, error: null, count: 1 });
-      return resolve({ data: null, error: null, count: 0 });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1)
+          return resolve({ data: mockItems, error: null, count: 1 });
+        return resolve({ data: null, error: null, count: 0 });
+      },
+    );
 
     const req = createTestRequest('/api/review/queue');
     const res = await getQueue(req);
@@ -248,11 +289,14 @@ describe('GET /api/review/queue — quality_score in response', () => {
 
     const mockItems = [makeMockItem({ quality_score: undefined })];
     let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) return resolve({ data: mockItems, error: null, count: 1 });
-      return resolve({ data: null, error: null, count: 0 });
-    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1)
+          return resolve({ data: mockItems, error: null, count: 1 });
+        return resolve({ data: null, error: null, count: 0 });
+      },
+    );
 
     const req = createTestRequest('/api/review/queue');
     const res = await getQueue(req);

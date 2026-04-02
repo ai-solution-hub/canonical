@@ -15,7 +15,10 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const PROJECT_ROOT = join(import.meta.dir, '..');
-const OUTPUT_PATH = join(PROJECT_ROOT, 'scripts/tests/fixtures/taxonomy_snapshot.json');
+const OUTPUT_PATH = join(
+  PROJECT_ROOT,
+  'scripts/tests/fixtures/taxonomy_snapshot.json',
+);
 
 // ---------------------------------------------------------------------------
 // Supabase client (service role — bypasses RLS)
@@ -50,7 +53,9 @@ async function main() {
   // Fetch active subtopics
   const { data: subtopics, error: subtopicError } = await supabase
     .from('taxonomy_subtopics')
-    .select('id, domain_id, name, display_order, is_active, provenance, description')
+    .select(
+      'id, domain_id, name, display_order, is_active, provenance, description',
+    )
     .eq('is_active', true)
     .order('display_order', { ascending: true });
 
@@ -81,16 +86,26 @@ async function main() {
   // If RPC not available, use the known values from schema reference
   if (contentTypes.length === 0) {
     contentTypes = [
-      'article', 'blog', 'pdf', 'note', 'research', 'other',
-      'q_a_pair', 'case_study', 'policy', 'certification', 'compliance',
-      'methodology', 'capability', 'product_description', 'document',
+      'article',
+      'blog',
+      'pdf',
+      'note',
+      'research',
+      'other',
+      'q_a_pair',
+      'case_study',
+      'policy',
+      'certification',
+      'compliance',
+      'methodology',
+      'capability',
+      'product_description',
+      'document',
     ];
     console.warn('  Using fallback content_types (RPC not available)');
   }
   if (platforms.length === 0) {
-    platforms = [
-      'web', 'email', 'manual', 'upload', 'extraction', 'other',
-    ];
+    platforms = ['web', 'email', 'manual', 'upload', 'extraction', 'other'];
     console.warn('  Using fallback platforms (RPC not available)');
   }
 
@@ -119,12 +134,20 @@ async function main() {
   writeFileSync(OUTPUT_PATH, JSON.stringify(snapshot, null, 2) + '\n', 'utf8');
 
   // Summary
-  const baselineDomains = snapshot.domains.filter((d) => d.provenance === 'baseline');
-  const clientDomains = snapshot.domains.filter((d) => d.provenance === 'client');
-  const recommendedDomains = snapshot.domains.filter((d) => d.provenance === 'recommended');
+  const baselineDomains = snapshot.domains.filter(
+    (d) => d.provenance === 'baseline',
+  );
+  const clientDomains = snapshot.domains.filter(
+    (d) => d.provenance === 'client',
+  );
+  const recommendedDomains = snapshot.domains.filter(
+    (d) => d.provenance === 'recommended',
+  );
 
   console.log(`Taxonomy snapshot written to ${OUTPUT_PATH}`);
-  console.log(`  Domains: ${snapshot.domains.length} (${baselineDomains.length} baseline, ${clientDomains.length} client, ${recommendedDomains.length} recommended)`);
+  console.log(
+    `  Domains: ${snapshot.domains.length} (${baselineDomains.length} baseline, ${clientDomains.length} client, ${recommendedDomains.length} recommended)`,
+  );
   console.log(`  Subtopics: ${snapshot.subtopics.length}`);
   console.log(`  Content types: ${snapshot.content_types.length}`);
   console.log(`  Platforms: ${snapshot.platforms.length}`);

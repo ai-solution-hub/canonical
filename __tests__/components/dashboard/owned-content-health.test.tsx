@@ -81,7 +81,9 @@ describe('OwnedContentHealth', () => {
     // Make getUser hang to keep loading
     mockGetUser.mockReturnValue(new Promise(() => {}));
     render(<OwnedContentHealth />);
-    expect(screen.getByLabelText('Loading owned content health')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Loading owned content health'),
+    ).toBeInTheDocument();
   });
 
   it('renders nothing when user is not authenticated', async () => {
@@ -94,7 +96,9 @@ describe('OwnedContentHealth', () => {
 
     await waitFor(() => {
       // Should render nothing (container empty or just the loading removed)
-      expect(container.querySelector('[data-testid="owned-content-health"]')).not.toBeInTheDocument();
+      expect(
+        container.querySelector('[data-testid="owned-content-health"]'),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -104,7 +108,9 @@ describe('OwnedContentHealth', () => {
     const { container } = render(<OwnedContentHealth />);
 
     await waitFor(() => {
-      expect(container.querySelector('[data-testid="owned-content-health"]')).not.toBeInTheDocument();
+      expect(
+        container.querySelector('[data-testid="owned-content-health"]'),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -114,7 +120,9 @@ describe('OwnedContentHealth', () => {
     render(<OwnedContentHealth />);
 
     await waitFor(() => {
-      expect(screen.getByText(/8 owned items are all up to date/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/8 owned items are all up to date/),
+      ).toBeInTheDocument();
     });
 
     expect(screen.getByText(/No stale or expired content/)).toBeInTheDocument();
@@ -126,7 +134,9 @@ describe('OwnedContentHealth', () => {
     render(<OwnedContentHealth />);
 
     await waitFor(() => {
-      expect(screen.getByText(/5 of your 10 owned items need attention/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/5 of your 10 owned items need attention/),
+      ).toBeInTheDocument();
     });
 
     expect(screen.getByText(/3 stale, 2 expired/)).toBeInTheDocument();
@@ -139,7 +149,9 @@ describe('OwnedContentHealth', () => {
     render(<OwnedContentHealth />);
 
     await waitFor(() => {
-      expect(screen.getByText(/4 of your 12 owned items need attention/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/4 of your 12 owned items need attention/),
+      ).toBeInTheDocument();
     });
 
     expect(screen.getByText(/4 stale/)).toBeInTheDocument();
@@ -151,7 +163,9 @@ describe('OwnedContentHealth', () => {
     render(<OwnedContentHealth />);
 
     await waitFor(() => {
-      expect(screen.getByText(/1 of your 5 owned items need attention/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/1 of your 5 owned items need attention/),
+      ).toBeInTheDocument();
     });
 
     expect(screen.getByText(/1 expired/)).toBeInTheDocument();
@@ -167,7 +181,10 @@ describe('OwnedContentHealth', () => {
     });
 
     const link = screen.getByText('View my stale content').closest('a');
-    expect(link).toHaveAttribute('href', '/browse?owner=me&freshness=stale,expired');
+    expect(link).toHaveAttribute(
+      'href',
+      '/browse?owner=me&freshness=stale,expired',
+    );
   });
 
   it('handles singular item text correctly', async () => {
@@ -176,7 +193,9 @@ describe('OwnedContentHealth', () => {
     render(<OwnedContentHealth />);
 
     await waitFor(() => {
-      expect(screen.getByText(/1 of your 1 owned item needs attention/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/1 of your 1 owned item needs attention/),
+      ).toBeInTheDocument();
     });
   });
 });

@@ -60,16 +60,19 @@ describe('useThemeMode', () => {
     document.startViewTransition = mockStartViewTransition;
 
     // Also need matchMedia to return false for reduced motion
-    vi.stubGlobal('matchMedia', vi.fn(() => ({
-      matches: false,
-      media: '',
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      onchange: null,
-      dispatchEvent: vi.fn(),
-    })));
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn(() => ({
+        matches: false,
+        media: '',
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        onchange: null,
+        dispatchEvent: vi.fn(),
+      })),
+    );
 
     const { result } = renderHook(() => useThemeMode());
 
@@ -89,16 +92,19 @@ describe('useThemeMode', () => {
     const mockStartViewTransition = vi.fn((cb: () => void) => cb());
     document.startViewTransition = mockStartViewTransition;
 
-    vi.stubGlobal('matchMedia', vi.fn(() => ({
-      matches: true, // prefers-reduced-motion: reduce
-      media: '(prefers-reduced-motion: reduce)',
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      onchange: null,
-      dispatchEvent: vi.fn(),
-    })));
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn(() => ({
+        matches: true, // prefers-reduced-motion: reduce
+        media: '(prefers-reduced-motion: reduce)',
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        onchange: null,
+        dispatchEvent: vi.fn(),
+      })),
+    );
 
     const { result } = renderHook(() => useThemeMode());
 

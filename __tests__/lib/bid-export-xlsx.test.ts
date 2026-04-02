@@ -1,13 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import ExcelJS from 'exceljs';
 import { generateBidXlsx } from '@/lib/bid/bid-export-xlsx';
-import type { ExportBidMetadata, ExportQuestion } from '@/lib/bid/bid-export-types';
+import type {
+  ExportBidMetadata,
+  ExportQuestion,
+} from '@/lib/bid/bid-export-types';
 
 // ---------------------------------------------------------------------------
 // Test fixtures
 // ---------------------------------------------------------------------------
 
-function makeMetadata(overrides: Partial<ExportBidMetadata> = {}): ExportBidMetadata {
+function makeMetadata(
+  overrides: Partial<ExportBidMetadata> = {},
+): ExportBidMetadata {
   return {
     bid_name: 'IT Support Services',
     buyer: 'NHS Greater Manchester',
@@ -150,7 +155,8 @@ describe('generateBidXlsx', () => {
     // "AES-256 for data at rest" — roughly 13 words from HTML strip
     // word_limit is 500, so compliance should be well under 100%
     const question = makeQuestion({
-      response_text: '<p>Our approach to data encryption involves AES-256 for data at rest.</p>',
+      response_text:
+        '<p>Our approach to data encryption involves AES-256 for data at rest.</p>',
       word_limit: 500,
     });
 
@@ -322,10 +328,10 @@ describe('generateBidXlsx', () => {
     const wbAdvanced = await loadWorkbook(bufferAdvanced);
 
     const standardResponse = String(
-      wbStandard.getWorksheet('Bid Responses')!.getRow(2).getCell(4).value
+      wbStandard.getWorksheet('Bid Responses')!.getRow(2).getCell(4).value,
     );
     const advancedResponse = String(
-      wbAdvanced.getWorksheet('Bid Responses')!.getRow(2).getCell(4).value
+      wbAdvanced.getWorksheet('Bid Responses')!.getRow(2).getCell(4).value,
     );
 
     expect(standardResponse).toContain('Standard version');
@@ -335,7 +341,7 @@ describe('generateBidXlsx', () => {
   it('should format deadline as DD/MM/YYYY in summary sheet', async () => {
     const buffer = await generateBidXlsx(
       makeMetadata({ deadline: '2026-04-15T17:00:00Z' }),
-      [makeQuestion()]
+      [makeQuestion()],
     );
     const workbook = await loadWorkbook(buffer);
     const summarySheet = workbook.getWorksheet('Summary')!;

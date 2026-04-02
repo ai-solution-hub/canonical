@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedClient, unauthorisedResponse, getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import {
+  getAuthenticatedClient,
+  unauthorisedResponse,
+  getAuthorisedClient,
+  authFailureResponse,
+} from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
-import { guideSectionSchema, guideSectionsReorderSchema } from '@/lib/validation/guide-schemas';
+import {
+  guideSectionSchema,
+  guideSectionsReorderSchema,
+} from '@/lib/validation/guide-schemas';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { rateLimitResponse } from '@/lib/auth';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -45,10 +53,7 @@ export async function GET(
 
     const guide = await resolveGuideId(supabase, slug);
     if (!guide) {
-      return NextResponse.json(
-        { error: 'Guide not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Guide not found' }, { status: 404 });
     }
 
     const { data, error } = await supabase
@@ -97,10 +102,7 @@ export async function POST(
 
     const guide = await resolveGuideId(supabase, slug);
     if (!guide) {
-      return NextResponse.json(
-        { error: 'Guide not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Guide not found' }, { status: 404 });
     }
 
     const raw = await request.json();
@@ -156,10 +158,7 @@ export async function PUT(
 
     const guide = await resolveGuideId(supabase, slug);
     if (!guide) {
-      return NextResponse.json(
-        { error: 'Guide not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Guide not found' }, { status: 404 });
     }
 
     const raw = await request.json();
@@ -170,7 +169,10 @@ export async function PUT(
     const updates = parsed.data.sections.map((section) =>
       supabase
         .from('guide_sections')
-        .update({ display_order: section.display_order, updated_at: new Date().toISOString() })
+        .update({
+          display_order: section.display_order,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', section.id)
         .eq('guide_id', guide.id),
     );

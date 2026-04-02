@@ -27,7 +27,8 @@ describe('Upload route — date extraction integration', () => {
   it('extractTemporalReferences returns temporal references from text with expiry dates', async () => {
     const { extractTemporalReferences } = await import('@/lib/date-extraction');
 
-    const text = 'ISO 27001 certificate valid until 15/06/2027. This accreditation was issued on 01/01/2024.';
+    const text =
+      'ISO 27001 certificate valid until 15/06/2027. This accreditation was issued on 01/01/2024.';
     const refs = extractTemporalReferences(text);
 
     expect(refs.length).toBeGreaterThanOrEqual(1);
@@ -39,7 +40,8 @@ describe('Upload route — date extraction integration', () => {
   });
 
   it('findExpiryDate returns the earliest future expiry date with high/medium confidence', async () => {
-    const { extractDates, findExpiryDate } = await import('@/lib/date-extraction');
+    const { extractDates, findExpiryDate } =
+      await import('@/lib/date-extraction');
 
     const text = 'Certificate expires 15/06/2027. Renewal date 01/12/2028.';
     const dates = extractDates(text);
@@ -68,10 +70,12 @@ describe('Upload route — date extraction integration', () => {
   });
 
   it('does not return expiry date for low confidence dates', async () => {
-    const { extractDates, findExpiryDate } = await import('@/lib/date-extraction');
+    const { extractDates, findExpiryDate } =
+      await import('@/lib/date-extraction');
 
     // Historical date without expiry context — should be classified as historical/low
-    const text = 'The company was founded in 2015 and has been operating since then.';
+    const text =
+      'The company was founded in 2015 and has been operating since then.';
     const dates = extractDates(text);
     const expiry = findExpiryDate(dates);
 
@@ -79,7 +83,8 @@ describe('Upload route — date extraction integration', () => {
   });
 
   it('does not return expiry date when only effective dates are found', async () => {
-    const { extractDates, findExpiryDate } = await import('@/lib/date-extraction');
+    const { extractDates, findExpiryDate } =
+      await import('@/lib/date-extraction');
 
     const text = 'Registered on 15/03/2024. Date of issue: 01/01/2023.';
     const dates = extractDates(text);
@@ -127,10 +132,11 @@ describe('Freshness cron — date expiry reminders', () => {
     getUsersByRole: mockGetUsersByRole,
   }));
 
-  const { mockCreateBulkNotifications, mockGetExistingNotificationIds } = vi.hoisted(() => ({
-    mockCreateBulkNotifications: vi.fn(),
-    mockGetExistingNotificationIds: vi.fn(),
-  }));
+  const { mockCreateBulkNotifications, mockGetExistingNotificationIds } =
+    vi.hoisted(() => ({
+      mockCreateBulkNotifications: vi.fn(),
+      mockGetExistingNotificationIds: vi.fn(),
+    }));
 
   vi.mock('@/lib/notifications', () => ({
     createBulkNotifications: mockCreateBulkNotifications,
@@ -145,7 +151,7 @@ describe('Freshness cron — date expiry reminders', () => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});
 
   // Import handler AFTER mocks
-   
+
   let GET: typeof import('@/app/api/cron/freshness-transitions/route').GET;
 
   beforeEach(async () => {
@@ -181,11 +187,35 @@ describe('Freshness cron — date expiry reminders', () => {
 
     // Track call counts for .from()
     mockSupabase.from.mockImplementation((table: string) => {
-
       // Make all chain methods return the chain object
-      const makeChain = (finalData: unknown = null, finalError: unknown = null) => {
+      const makeChain = (
+        finalData: unknown = null,
+        finalError: unknown = null,
+      ) => {
         const chain: Record<string, unknown> = {};
-        const methods = ['select', 'insert', 'update', 'delete', 'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains', 'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range', 'single', 'maybeSingle'];
+        const methods = [
+          'select',
+          'insert',
+          'update',
+          'delete',
+          'eq',
+          'neq',
+          'in',
+          'is',
+          'not',
+          'ilike',
+          'contains',
+          'gte',
+          'lte',
+          'gt',
+          'lt',
+          'or',
+          'order',
+          'limit',
+          'range',
+          'single',
+          'maybeSingle',
+        ];
 
         for (const method of methods) {
           chain[method] = vi.fn().mockReturnValue(chain);
@@ -208,7 +238,10 @@ describe('Freshness cron — date expiry reminders', () => {
 
         // Override select to track what we're querying
         chain.select = vi.fn().mockImplementation((columns: string) => {
-          if (columns.includes('expiry_date') && columns.includes('content_owner_id')) {
+          if (
+            columns.includes('expiry_date') &&
+            columns.includes('content_owner_id')
+          ) {
             // This is the expiring items query
             const innerChain = makeChain(expiringItems, null);
             return innerChain;
@@ -240,12 +273,16 @@ describe('Freshness cron — date expiry reminders', () => {
   it('returns 401 if cron auth fails', async () => {
     mockVerifyCronAuth.mockReturnValue(false);
 
-    const response = await GET(createRequest() as import('next/server').NextRequest);
+    const response = await GET(
+      createRequest() as import('next/server').NextRequest,
+    );
     expect(response.status).toBe(401);
   });
 
   it('creates date_expiry_approaching notifications for expiring content items', async () => {
-    const tenDaysFromNow = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString();
+    const tenDaysFromNow = new Date(
+      Date.now() + 10 * 24 * 60 * 60 * 1000,
+    ).toISOString();
 
     setupMockChain({
       transitions: [], // No freshness transitions
@@ -261,7 +298,9 @@ describe('Freshness cron — date expiry reminders', () => {
       entityMentions: [],
     });
 
-    const response = await GET(createRequest() as import('next/server').NextRequest);
+    const response = await GET(
+      createRequest() as import('next/server').NextRequest,
+    );
     await response.json();
 
     expect(response.status).toBe(200);
@@ -284,7 +323,9 @@ describe('Freshness cron — date expiry reminders', () => {
         title: string;
         message: string;
       }>;
-      const notification = notifications.find((n) => n.type === 'date_expiry_approaching');
+      const notification = notifications.find(
+        (n) => n.type === 'date_expiry_approaching',
+      );
       expect(notification).toBeDefined();
       expect(notification!.userId).toBe('owner-1');
       expect(notification!.entityType).toBe('content_item');
@@ -295,7 +336,9 @@ describe('Freshness cron — date expiry reminders', () => {
   });
 
   it('sends notifications to admins when content has no owner', async () => {
-    const fiveDaysFromNow = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString();
+    const fiveDaysFromNow = new Date(
+      Date.now() + 5 * 24 * 60 * 60 * 1000,
+    ).toISOString();
 
     setupMockChain({
       transitions: [],
@@ -327,7 +370,9 @@ describe('Freshness cron — date expiry reminders', () => {
   });
 
   it('deduplicates notifications — does not resend for same item on same day', async () => {
-    const tenDaysFromNow = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString();
+    const tenDaysFromNow = new Date(
+      Date.now() + 10 * 24 * 60 * 60 * 1000,
+    ).toISOString();
 
     // Simulate that a notification already exists for item-1 today
     mockGetExistingNotificationIds.mockResolvedValue(new Set(['item-1']));
@@ -380,7 +425,9 @@ describe('Freshness cron — date expiry reminders', () => {
           canonical_name: 'ISO 27001',
           entity_type: 'certification',
           metadata: {
-            expiry_date: new Date(Date.now() + 25 * 24 * 60 * 60 * 1000).toISOString(),
+            expiry_date: new Date(
+              Date.now() + 25 * 24 * 60 * 60 * 1000,
+            ).toISOString(),
           },
         },
       ],
@@ -401,7 +448,9 @@ describe('Freshness cron — date expiry reminders', () => {
         title: string;
       }>;
       // Should be deduplicated by canonical_name — only one notification for ISO 27001
-      const entityNotifs = notifications.filter((n) => n.entityType === 'entity_mention');
+      const entityNotifs = notifications.filter(
+        (n) => n.entityType === 'entity_mention',
+      );
       expect(entityNotifs.length).toBe(1);
       // Should use the mention with nearest expiry (em-1, 15 days vs em-2, 25 days)
       expect(entityNotifs[0].entityId).toBe('em-1');
@@ -485,9 +534,11 @@ describe('Notification type — date_expiry_approaching', () => {
 
 describe('Date extraction — upload pipeline context', () => {
   it('high confidence expiry date triggers expiry_date + lifecycle_type update', async () => {
-    const { extractDates, findExpiryDate } = await import('@/lib/date-extraction');
+    const { extractDates, findExpiryDate } =
+      await import('@/lib/date-extraction');
 
-    const text = 'This certificate expires on 15/06/2027. Please ensure timely renewal.';
+    const text =
+      'This certificate expires on 15/06/2027. Please ensure timely renewal.';
     const dates = extractDates(text);
     const expiryDate = findExpiryDate(dates);
 
@@ -503,7 +554,8 @@ describe('Date extraction — upload pipeline context', () => {
   });
 
   it('low confidence date does not trigger expiry_date update', async () => {
-    const { extractDates, findExpiryDate } = await import('@/lib/date-extraction');
+    const { extractDates, findExpiryDate } =
+      await import('@/lib/date-extraction');
 
     // Text with only a historical/unknown date
     const text = 'We have been in business since 2015 and continue to grow.';
@@ -543,7 +595,8 @@ describe('Date extraction — upload pipeline context', () => {
   });
 
   it('warning message includes formatted date when expiry date is detected', async () => {
-    const { extractDates, findExpiryDate } = await import('@/lib/date-extraction');
+    const { extractDates, findExpiryDate } =
+      await import('@/lib/date-extraction');
 
     const text = 'Valid until 30/09/2027.';
     const dates = extractDates(text);
@@ -552,7 +605,9 @@ describe('Date extraction — upload pipeline context', () => {
     const warnings: string[] = [];
     if (expiryDate) {
       const formatted = new Date(expiryDate).toLocaleDateString('en-GB');
-      warnings.push(`Expiry date detected: ${formatted} — lifecycle type set to date_bound`);
+      warnings.push(
+        `Expiry date detected: ${formatted} — lifecycle type set to date_bound`,
+      );
     }
 
     expect(warnings.length).toBe(1);

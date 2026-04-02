@@ -54,10 +54,7 @@ export async function POST(
       .single();
 
     if (bidError || !bid) {
-      return NextResponse.json(
-        { error: 'Bid not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
     }
 
     const bidMetadata = (bid.domain_metadata ?? {}) as Record<string, unknown>;
@@ -165,7 +162,10 @@ export async function POST(
           .single();
 
         if (insertError) {
-          console.error(`Failed to create KB entry for question ${integration.question_id}:`, insertError);
+          console.error(
+            `Failed to create KB entry for question ${integration.question_id}:`,
+            insertError,
+          );
           skipped++;
           items.push({
             question_id: integration.question_id,
@@ -181,7 +181,10 @@ export async function POST(
           content_item_id: newItem?.id ?? '',
           action: 'created',
         });
-      } else if (integration.action === 'update_existing' && integration.target_content_id) {
+      } else if (
+        integration.action === 'update_existing' &&
+        integration.target_content_id
+      ) {
         // Update existing content item with winning response
         const { error: updateError } = await supabase
           .from('content_items')
@@ -194,7 +197,10 @@ export async function POST(
           .eq('id', integration.target_content_id);
 
         if (updateError) {
-          console.error(`Failed to update KB entry ${integration.target_content_id}:`, updateError);
+          console.error(
+            `Failed to update KB entry ${integration.target_content_id}:`,
+            updateError,
+          );
           skipped++;
           items.push({
             question_id: integration.question_id,
@@ -213,8 +219,13 @@ export async function POST(
             .update({ embedding: JSON.stringify(embedding) })
             .eq('id', integration.target_content_id);
         } catch (embedErr) {
-          console.error(`Re-embedding failed for ${integration.target_content_id}:`, embedErr);
-          warnings.push(`Re-embedding failed for ${integration.target_content_id}: ${safeErrorMessage(embedErr, 'Unknown error')}`);
+          console.error(
+            `Re-embedding failed for ${integration.target_content_id}:`,
+            embedErr,
+          );
+          warnings.push(
+            `Re-embedding failed for ${integration.target_content_id}: ${safeErrorMessage(embedErr, 'Unknown error')}`,
+          );
           // Item is still updated — embedding will be stale but content is correct
         }
 

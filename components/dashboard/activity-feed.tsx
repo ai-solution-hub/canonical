@@ -17,7 +17,12 @@ import { formatRelativeDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { GroupedActivityItem } from '@/lib/dashboard';
 
-export type ActivityEventFilter = 'all' | 'content' | 'governance' | 'bid' | 'system';
+export type ActivityEventFilter =
+  | 'all'
+  | 'content'
+  | 'governance'
+  | 'bid'
+  | 'system';
 export type ActivityDateRange = 'all' | 'today' | 'week' | 'month';
 
 interface ActivityFeedProps {
@@ -35,11 +40,26 @@ function activityIcon(type: string) {
     case 'edit':
       return <Edit3 className="size-3.5 text-primary" aria-hidden="true" />;
     case 'rollback':
-      return <RotateCcw className="size-3.5 text-status-warning" aria-hidden="true" />;
+      return (
+        <RotateCcw
+          className="size-3.5 text-status-warning"
+          aria-hidden="true"
+        />
+      );
     case 'quality_flag':
-      return <AlertTriangle className="size-3.5 text-destructive" aria-hidden="true" />;
+      return (
+        <AlertTriangle
+          className="size-3.5 text-destructive"
+          aria-hidden="true"
+        />
+      );
     default:
-      return <Activity className="size-3.5 text-muted-foreground" aria-hidden="true" />;
+      return (
+        <Activity
+          className="size-3.5 text-muted-foreground"
+          aria-hidden="true"
+        />
+      );
   }
 }
 
@@ -219,7 +239,10 @@ export function ActivityFeed({
           className,
         )}
       >
-        <Activity className="size-8 text-muted-foreground/50" aria-hidden="true" />
+        <Activity
+          className="size-8 text-muted-foreground/50"
+          aria-hidden="true"
+        />
         <p className="text-sm font-medium text-foreground">No activity yet</p>
         <p className="text-xs text-muted-foreground">
           Activity will appear here as changes are made to the knowledge base.
@@ -236,8 +259,13 @@ export function ActivityFeed({
           className,
         )}
       >
-        <Activity className="size-8 text-muted-foreground/50" aria-hidden="true" />
-        <p className="text-sm font-medium text-foreground">No matching activity</p>
+        <Activity
+          className="size-8 text-muted-foreground/50"
+          aria-hidden="true"
+        />
+        <p className="text-sm font-medium text-foreground">
+          No matching activity
+        </p>
         <p className="text-xs text-muted-foreground">
           Try adjusting your filters to see more activity.
         </p>

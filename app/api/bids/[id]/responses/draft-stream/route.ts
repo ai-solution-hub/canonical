@@ -47,10 +47,10 @@ export async function POST(
 
     const { id } = await params;
     if (!UUID_RE.test(id)) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid bid ID' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } },
-      );
+      return new Response(JSON.stringify({ error: 'Invalid bid ID' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     const rl = checkRateLimit(`draft-stream:${user.id}`, 5, 60_000);
@@ -71,17 +71,23 @@ export async function POST(
       .single();
 
     if (bidError || !bid) {
-      return new Response(
-        JSON.stringify({ error: 'Bid not found' }),
-        { status: 404, headers: { 'Content-Type': 'application/json' } },
-      );
+      return new Response(JSON.stringify({ error: 'Bid not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     const bidStatus = (bid.status as BidState) ?? 'draft';
-    const draftableStates: BidState[] = ['drafting', 'in_review', 'ready_for_export'];
+    const draftableStates: BidState[] = [
+      'drafting',
+      'in_review',
+      'ready_for_export',
+    ];
     if (!draftableStates.includes(bidStatus)) {
       return new Response(
-        JSON.stringify({ error: `Bid is in "${bidStatus}" state -- must be drafting or later` }),
+        JSON.stringify({
+          error: `Bid is in "${bidStatus}" state -- must be drafting or later`,
+        }),
         { status: 400, headers: { 'Content-Type': 'application/json' } },
       );
     }
@@ -89,7 +95,9 @@ export async function POST(
     // Fetch the question
     const { data: question, error: qError } = await supabase
       .from('bid_questions')
-      .select('id, question_text, word_limit, section_name, confidence_posture, matched_content_ids')
+      .select(
+        'id, question_text, word_limit, section_name, confidence_posture, matched_content_ids',
+      )
       .eq('id', question_id)
       .eq('project_id', id)
       .single();
@@ -133,7 +141,9 @@ export async function POST(
       async start(controller) {
         function send(event: string, data: unknown) {
           controller.enqueue(
-            encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
+            encoder.encode(
+              `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`,
+            ),
           );
         }
 
@@ -268,9 +278,7 @@ export async function POST(
                 .delete()
                 .eq('bid_response_id', response.id);
 
-              await supabase
-                .from('content_citations')
-                .insert(citationRows);
+              await supabase.from('content_citations').insert(citationRows);
             } catch (citationErr) {
               console.error('Failed to record content citations:', citationErr);
               // Non-fatal — response is already saved
@@ -309,7 +317,9 @@ export async function POST(
     });
   } catch (err) {
     return new Response(
-      JSON.stringify({ error: safeErrorMessage(err, 'Failed to start streaming draft') }),
+      JSON.stringify({
+        error: safeErrorMessage(err, 'Failed to start streaming draft'),
+      }),
       { status: 500, headers: { 'Content-Type': 'application/json' } },
     );
   }

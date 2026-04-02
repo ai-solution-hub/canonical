@@ -8,10 +8,7 @@ import { FeedFlagCreateSchema } from '@/lib/validation/schemas';
 type RouteContext = { params: Promise<{ id: string; articleId: string }> };
 
 /** POST /api/intelligence/workspaces/:id/articles/:articleId/flag — create a flag */
-export async function POST(
-  request: NextRequest,
-  context: RouteContext,
-) {
+export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const { articleId } = await context.params;
     const auth = await getAuthorisedClient(['admin', 'editor']);
@@ -30,10 +27,7 @@ export async function POST(
       .single();
 
     if (articleError || !article) {
-      return NextResponse.json(
-        { error: 'Article not found' },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'Article not found' }, { status: 404 });
     }
 
     const { data, error } = await supabase
@@ -43,7 +37,8 @@ export async function POST(
         flagged_by: user.id,
         flag_type: parsed.data.flag_type,
         notes: parsed.data.notes ?? null,
-        prompt_version_id: (article as { prompt_version_id: string | null }).prompt_version_id,
+        prompt_version_id: (article as { prompt_version_id: string | null })
+          .prompt_version_id,
       })
       .select()
       .single();
@@ -65,10 +60,7 @@ export async function POST(
 }
 
 /** GET /api/intelligence/workspaces/:id/articles/:articleId/flag — list flags for article */
-export async function GET(
-  _request: NextRequest,
-  context: RouteContext,
-) {
+export async function GET(_request: NextRequest, context: RouteContext) {
   try {
     const { articleId } = await context.params;
     const auth = await getAuthorisedClient(['admin', 'editor']);

@@ -8,10 +8,38 @@ import { LayerSuggestionBanner } from '@/components/content/layer-suggestion-ban
 // ---------------------------------------------------------------------------
 
 const mockLayers = [
-  { id: '1', key: 'sales_brief', label: 'Sales Brief', description: null, display_order: 1, is_active: true },
-  { id: '2', key: 'bid_detail', label: 'Bid Detail', description: null, display_order: 2, is_active: true },
-  { id: '3', key: 'company_reference', label: 'Company Reference', description: null, display_order: 3, is_active: true },
-  { id: '4', key: 'research', label: 'Research', description: null, display_order: 4, is_active: true },
+  {
+    id: '1',
+    key: 'sales_brief',
+    label: 'Sales Brief',
+    description: null,
+    display_order: 1,
+    is_active: true,
+  },
+  {
+    id: '2',
+    key: 'bid_detail',
+    label: 'Bid Detail',
+    description: null,
+    display_order: 2,
+    is_active: true,
+  },
+  {
+    id: '3',
+    key: 'company_reference',
+    label: 'Company Reference',
+    description: null,
+    display_order: 3,
+    is_active: true,
+  },
+  {
+    id: '4',
+    key: 'research',
+    label: 'Research',
+    description: null,
+    display_order: 4,
+    is_active: true,
+  },
 ];
 
 const mockGetLayerLabel = vi.fn((key: string) => {
@@ -106,7 +134,9 @@ describe('LayerSuggestionBanner', () => {
 
     render(<LayerSuggestionBanner {...defaultProps} />);
 
-    const acceptButton = screen.getByRole('button', { name: /accept suggested layer/i });
+    const acceptButton = screen.getByRole('button', {
+      name: /accept suggested layer/i,
+    });
     await user.click(acceptButton);
 
     await waitFor(() => {
@@ -124,11 +154,15 @@ describe('LayerSuggestionBanner', () => {
     const user = userEvent.setup();
     render(<LayerSuggestionBanner {...defaultProps} />);
 
-    const changeButton = screen.getByRole('button', { name: /change suggested layer/i });
+    const changeButton = screen.getByRole('button', {
+      name: /change suggested layer/i,
+    });
     await user.click(changeButton);
 
     // Should now be in change mode — look for the Apply button
-    expect(screen.getByRole('button', { name: /apply layer/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /apply layer/i }),
+    ).toBeInTheDocument();
     // Cancel button should appear
     expect(screen.getByText('Cancel')).toBeInTheDocument();
   });
@@ -139,7 +173,9 @@ describe('LayerSuggestionBanner', () => {
     render(<LayerSuggestionBanner {...defaultProps} onDismiss={onDismiss} />);
 
     // Use getAllBy and pick the first (X icon button)
-    const dismissButtons = screen.getAllByRole('button', { name: /dismiss layer suggestion/i });
+    const dismissButtons = screen.getAllByRole('button', {
+      name: /dismiss layer suggestion/i,
+    });
     await user.click(dismissButtons[0]);
 
     // The banner should be gone
@@ -183,7 +219,9 @@ describe('LayerSuggestionBanner', () => {
       render(<LayerSuggestionBanner {...defaultProps} />);
 
       expect(
-        screen.getByRole('button', { name: /accept suggested layer: bid detail/i }),
+        screen.getByRole('button', {
+          name: /accept suggested layer: bid detail/i,
+        }),
       ).toBeInTheDocument();
     });
 
@@ -215,7 +253,9 @@ describe('LayerSuggestionBanner', () => {
 
     render(<LayerSuggestionBanner {...defaultProps} />);
 
-    const acceptButton = screen.getByRole('button', { name: /accept suggested layer/i });
+    const acceptButton = screen.getByRole('button', {
+      name: /accept suggested layer/i,
+    });
     await user.click(acceptButton);
 
     await waitFor(() => {
@@ -233,7 +273,9 @@ describe('LayerSuggestionBanner', () => {
 
     render(<LayerSuggestionBanner {...defaultProps} />);
 
-    const acceptButton = screen.getByRole('button', { name: /accept suggested layer/i });
+    const acceptButton = screen.getByRole('button', {
+      name: /accept suggested layer/i,
+    });
     await user.click(acceptButton);
 
     await waitFor(() => {

@@ -44,7 +44,9 @@ const MAX_CONTENT_LENGTH = 100_000;
  *
  * @throws AIServiceError for domain errors (404, 400, 413, 500)
  */
-export async function extractStructuredContent(params: ExtractContentParams): Promise<ExtractContentResult> {
+export async function extractStructuredContent(
+  params: ExtractContentParams,
+): Promise<ExtractContentResult> {
   const { supabase, itemId, schema, prompt: userPrompt } = params;
 
   // Fetch the content item
@@ -59,7 +61,10 @@ export async function extractStructuredContent(params: ExtractContentParams): Pr
   }
 
   if (!item.content || item.content.length < 50) {
-    throw new AIServiceError('Item has insufficient content for extraction', 400);
+    throw new AIServiceError(
+      'Item has insufficient content for extraction',
+      400,
+    );
   }
 
   // Build the extraction prompt
@@ -117,7 +122,10 @@ ${contentSlice}`;
     const jsonStr = jsonMatch ? jsonMatch[1].trim() : text.trim();
     result = JSON.parse(jsonStr);
   } catch {
-    throw new AIServiceError('Failed to parse structured output from Claude', 500);
+    throw new AIServiceError(
+      'Failed to parse structured output from Claude',
+      500,
+    );
   }
 
   // Calculate cost using shared pricing constants
@@ -147,6 +155,8 @@ ${contentSlice}`;
     model,
     tokens_used: inputTokens + outputTokens,
     cost: parseFloat(cost.toFixed(4)),
-    ...(mergeError ? { warning: 'Extraction succeeded but failed to persist to metadata' } : {}),
+    ...(mergeError
+      ? { warning: 'Extraction succeeded but failed to persist to metadata' }
+      : {}),
   };
 }

@@ -21,8 +21,22 @@ import type { CoverageTargetRow } from '@/hooks/use-coverage-targets';
 // ---------------------------------------------------------------------------
 
 const mockDomains = [
-  { id: '00000000-0000-4000-8000-000000000001', name: 'Compliance', display_order: 0, colour: 'corporate', is_active: true, provenance: 'baseline' as const },
-  { id: '00000000-0000-4000-8000-000000000002', name: 'HR', display_order: 1, colour: 'hr', is_active: true, provenance: 'baseline' as const },
+  {
+    id: '00000000-0000-4000-8000-000000000001',
+    name: 'Compliance',
+    display_order: 0,
+    colour: 'corporate',
+    is_active: true,
+    provenance: 'baseline' as const,
+  },
+  {
+    id: '00000000-0000-4000-8000-000000000002',
+    name: 'HR',
+    display_order: 1,
+    colour: 'hr',
+    is_active: true,
+    provenance: 'baseline' as const,
+  },
 ];
 
 vi.mock('@/contexts/taxonomy-context', () => ({
@@ -31,7 +45,7 @@ vi.mock('@/contexts/taxonomy-context', () => ({
     subtopics: [],
     loading: false,
     error: null,
-    getDomainNames: () => mockDomains.map(d => d.name),
+    getDomainNames: () => mockDomains.map((d) => d.name),
     getSubtopics: () => [],
     getDomainColourKey: () => 'corporate',
     formatSubtopic: (s: string) => s,
@@ -69,7 +83,9 @@ describe('CoverageTargetEditor', () => {
     mockOnSave.mockResolvedValue({ success: true });
   });
 
-  function renderEditor(overrides: { targets?: CoverageTargetRow[]; open?: boolean } = {}) {
+  function renderEditor(
+    overrides: { targets?: CoverageTargetRow[]; open?: boolean } = {},
+  ) {
     return render(
       <CoverageTargetEditor
         open={overrides.open ?? true}
@@ -91,20 +107,26 @@ describe('CoverageTargetEditor', () => {
     renderEditor();
 
     expect(screen.getByText('Coverage Targets')).toBeInTheDocument();
-    expect(screen.getByText(/Set coverage targets per domain/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Set coverage targets per domain/),
+    ).toBeInTheDocument();
   });
 
   it('populates inputs from existing targets', () => {
     renderEditor();
 
-    const complianceItemInput = screen.getByLabelText('Compliance Min items') as HTMLInputElement;
+    const complianceItemInput = screen.getByLabelText(
+      'Compliance Min items',
+    ) as HTMLInputElement;
     expect(complianceItemInput.value).toBe('10');
   });
 
   it('leaves empty inputs for domains without targets', () => {
     renderEditor();
 
-    const hrItemInput = screen.getByLabelText('HR Min items') as HTMLInputElement;
+    const hrItemInput = screen.getByLabelText(
+      'HR Min items',
+    ) as HTMLInputElement;
     expect(hrItemInput.value).toBe('');
   });
 
@@ -112,7 +134,9 @@ describe('CoverageTargetEditor', () => {
     renderEditor();
 
     // Change the Compliance item_count
-    const input = screen.getByLabelText('Compliance Min items') as HTMLInputElement;
+    const input = screen.getByLabelText(
+      'Compliance Min items',
+    ) as HTMLInputElement;
     fireEvent.change(input, { target: { value: '20' } });
 
     const saveButton = screen.getByRole('button', { name: /Save All/i });
@@ -134,7 +158,9 @@ describe('CoverageTargetEditor', () => {
     renderEditor({ targets: [] });
 
     // Set only one value
-    const input = screen.getByLabelText('Compliance Min items') as HTMLInputElement;
+    const input = screen.getByLabelText(
+      'Compliance Min items',
+    ) as HTMLInputElement;
     fireEvent.change(input, { target: { value: '5' } });
 
     const saveButton = screen.getByRole('button', { name: /Save All/i });
@@ -171,7 +197,10 @@ describe('CoverageTargetEditor', () => {
   });
 
   it('displays error on save failure', async () => {
-    mockOnSave.mockResolvedValueOnce({ success: false, error: 'Permission denied' });
+    mockOnSave.mockResolvedValueOnce({
+      success: false,
+      error: 'Permission denied',
+    });
 
     renderEditor();
 
@@ -190,7 +219,9 @@ describe('CoverageTargetEditor', () => {
     fireEvent.click(saveButton);
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('No valid targets to save');
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'No valid targets to save',
+      );
     });
   });
 

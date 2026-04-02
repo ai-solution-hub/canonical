@@ -6,10 +6,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import {
-  ChevronDown,
-  ChevronUp,
-} from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -22,8 +19,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { BreadcrumbNav } from '@/components/shell/breadcrumb-nav';
-import { DedupWarning, type DedupMatch } from '@/components/shared/dedup-warning';
-import { LayerSuggestionBanner, type LayerSuggestionData } from '@/components/content/layer-suggestion-banner';
+import {
+  DedupWarning,
+  type DedupMatch,
+} from '@/components/shared/dedup-warning';
+import {
+  LayerSuggestionBanner,
+  type LayerSuggestionData,
+} from '@/components/content/layer-suggestion-banner';
 import { GuideSectionBanner } from '@/components/guide/guide-section-banner';
 import type { GuideSectionMatch } from '@/lib/guide-section-mapping';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
@@ -41,8 +44,22 @@ import { useContentTemplates } from '@/hooks/use-content-templates';
 import type { ContentTemplate } from '@/lib/content/content-templates';
 
 const ContentEditor = dynamic(
-  () => import('@/components/item-detail/content-editor').then((mod) => mod.ContentEditor),
-  { ssr: false, loading: () => <div className="h-48 animate-pulse rounded-lg bg-accent" role="status" aria-label="Loading editor"><span className="sr-only">Loading editor...</span></div> },
+  () =>
+    import('@/components/item-detail/content-editor').then(
+      (mod) => mod.ContentEditor,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        className="h-48 animate-pulse rounded-lg bg-accent"
+        role="status"
+        aria-label="Loading editor"
+      >
+        <span className="sr-only">Loading editor...</span>
+      </div>
+    ),
+  },
 );
 import { toast } from 'sonner';
 import { VALID_CONTENT_TYPES } from '@/lib/validation/schemas';
@@ -108,7 +125,9 @@ export function CreateContentClient() {
 
   // Template selection state
   const { templates } = useContentTemplates();
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | undefined>();
+  const [selectedTemplateId, setSelectedTemplateId] = useState<
+    string | undefined
+  >();
 
   const handleTemplateSelect = useCallback(
     (template: ContentTemplate | null) => {
@@ -241,12 +260,15 @@ export function CreateContentClient() {
 
         // Optional fields
         if (data.primary_domain) body.primary_domain = data.primary_domain;
-        if (data.primary_subtopic) body.primary_subtopic = data.primary_subtopic;
-        if (data.author_name?.trim()) body.author_name = data.author_name.trim();
+        if (data.primary_subtopic)
+          body.primary_subtopic = data.primary_subtopic;
+        if (data.author_name?.trim())
+          body.author_name = data.author_name.trim();
         if (data.source_url?.trim()) body.source_url = data.source_url.trim();
         if (data.priority) body.priority = data.priority;
         if (keywords.length > 0) body.ai_keywords = keywords;
-        if (data.user_tags && data.user_tags.length > 0) body.user_tags = data.user_tags;
+        if (data.user_tags && data.user_tags.length > 0)
+          body.user_tags = data.user_tags;
         if (data.brief?.trim()) body.brief = data.brief.trim();
         if (data.detail?.trim()) body.detail = data.detail.trim();
         if (data.reference?.trim()) body.reference = data.reference.trim();
@@ -261,7 +283,9 @@ export function CreateContentClient() {
         const responseData = await res.json();
 
         if (!res.ok) {
-          throw new Error(responseData.error || 'Failed to create content item');
+          throw new Error(
+            responseData.error || 'Failed to create content item',
+          );
         }
 
         const tasks: string[] = [];
@@ -291,7 +315,9 @@ export function CreateContentClient() {
 
         // Show guide section suggestions if the API returned any
         if (responseData.guide_section_suggestions?.length > 0) {
-          setGuideSections(responseData.guide_section_suggestions as GuideSectionMatch[]);
+          setGuideSections(
+            responseData.guide_section_suggestions as GuideSectionMatch[],
+          );
           setGuideSectionsDismissed(false);
         } else {
           setGuideSections([]);
@@ -349,267 +375,327 @@ export function CreateContentClient() {
 
   return (
     <ErrorBoundary label="Error loading content editor">
-    <section aria-label="Create content" className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
-      {/* Breadcrumb + Header */}
-      <BreadcrumbNav
-        title={isQAPair ? 'New Q&A Pair' : 'New Item'}
-        className="mb-4"
-      />
-      <div className="mb-6">
-        <h1 className="text-xl font-bold">
-          {isQAPair ? 'New Q&A Pair' : 'Create New Content'}
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Need to create multiple items?{' '}
-          <Link
-            href="/item/new/batch"
-            className="font-medium text-primary underline-offset-2 hover:underline"
-          >
-            Use batch create
-          </Link>
-        </p>
-      </div>
-
-      {/* Layer suggestion banner (shown after item creation) */}
-      {layerSuggestion && (
+      <section
+        aria-label="Create content"
+        className="mx-auto max-w-4xl px-4 py-6 sm:px-6"
+      >
+        {/* Breadcrumb + Header */}
+        <BreadcrumbNav
+          title={isQAPair ? 'New Q&A Pair' : 'New Item'}
+          className="mb-4"
+        />
         <div className="mb-6">
-          <LayerSuggestionBanner
-            itemId={layerSuggestion.itemId}
-            suggestedLayer={layerSuggestion.data}
-            onDismiss={() => setLayerSuggestion(null)}
-          />
+          <h1 className="text-xl font-bold">
+            {isQAPair ? 'New Q&A Pair' : 'Create New Content'}
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Need to create multiple items?{' '}
+            <Link
+              href="/item/new/batch"
+              className="font-medium text-primary underline-offset-2 hover:underline"
+            >
+              Use batch create
+            </Link>
+          </p>
         </div>
-      )}
 
-      {/* Guide section suggestions banner (shown after item creation) */}
-      {!guideSectionsDismissed && guideSections.length > 0 && (
-        <div className="mb-6">
-          <GuideSectionBanner
-            guideSections={guideSections}
-            onDismiss={() => setGuideSectionsDismissed(true)}
-          />
-        </div>
-      )}
-
-      {/* Dedup warning (shown after item creation if duplicates found) */}
-      {dedupMatches.length > 0 && (
-        <div className="mb-6">
-          <DedupWarning
-            matches={dedupMatches}
-            onViewMatch={(id) => window.open(`/item/${id}`, '_blank')}
-            onDismiss={() => setDedupMatches([])}
-          />
-        </div>
-      )}
-
-      {/* Mobile step indicator */}
-      <MobileStepIndicator activeStep={activeStep} />
-
-      <FormProvider {...methods}>
-        <form
-          onSubmit={handleSubmit((data) => onSubmit(data, false))}
-          noValidate
-          className="space-y-6"
-        >
-          {/* Template selector */}
-          <TemplateSelector
-            templates={templates}
-            selectedId={selectedTemplateId}
-            onSelect={handleTemplateSelect}
-          />
-
-          {/* Title / Question */}
-          <div ref={basicsRef} data-step="1" className="space-y-2">
-            <Label htmlFor="title">
-              {isQAPair ? 'Question' : 'Title'}{' '}
-              <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="title"
-              {...register('title')}
-              placeholder={
-                isQAPair ? 'Enter the question...' : 'Enter title...'
-              }
-              autoFocus
-              maxLength={500}
-              aria-invalid={!!errors.title || undefined}
-              aria-describedby={[errors.title ? 'title-error' : '', 'title-char-count'].filter(Boolean).join(' ') || undefined}
-              className={errors.title ? 'border-destructive' : ''}
+        {/* Layer suggestion banner (shown after item creation) */}
+        {layerSuggestion && (
+          <div className="mb-6">
+            <LayerSuggestionBanner
+              itemId={layerSuggestion.itemId}
+              suggestedLayer={layerSuggestion.data}
+              onDismiss={() => setLayerSuggestion(null)}
             />
-            <div className="flex items-center justify-between">
-              {errors.title ? (
-                <p id="title-error" className="text-destructive text-sm" role="alert">
-                  {isQAPair
-                    ? errors.title.message?.replace('Title', 'Question')
-                    : errors.title.message}
-                </p>
-              ) : (
-                <span />
-              )}
-              <span
-                id="title-char-count"
-                className={`text-xs ${title.length >= 450 ? 'text-status-warning' : 'text-muted-foreground'}`}
-                aria-live="polite"
-              >
-                {title.length} / 500
-              </span>
-            </div>
           </div>
+        )}
 
-          {/* Content Type */}
-          <div className="space-y-2">
-            <Label htmlFor="content-type">
-              Content Type <span className="text-destructive">*</span>
-            </Label>
-            <Select
-              value={contentType}
-              onValueChange={(val) => {
-                setValue('content_type', val, { shouldValidate: true, shouldDirty: true, shouldTouch: true });
-              }}
-            >
-              <SelectTrigger
-                id="content-type"
-                onBlur={() => trigger('content_type')}
-                className={errors.content_type ? 'border-destructive' : ''}
-                aria-invalid={!!errors.content_type || undefined}
-                aria-describedby={errors.content_type ? 'content-type-error' : undefined}
-              >
-                <SelectValue placeholder="Select content type..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectLabel>Common</SelectLabel>
-                  {COMMON_TYPES.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {formatContentType(type)}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-                <SelectGroup>
-                  <SelectLabel>More types</SelectLabel>
-                  {VALID_CONTENT_TYPES.filter(
-                    (t) => !(COMMON_TYPES as readonly string[]).includes(t),
-                  ).map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {formatContentType(type)}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            {errors.content_type && (
-              <p id="content-type-error" className="text-destructive text-sm" role="alert">
-                {errors.content_type.message}
-              </p>
-            )}
+        {/* Guide section suggestions banner (shown after item creation) */}
+        {!guideSectionsDismissed && guideSections.length > 0 && (
+          <div className="mb-6">
+            <GuideSectionBanner
+              guideSections={guideSections}
+              onDismiss={() => setGuideSectionsDismissed(true)}
+            />
           </div>
+        )}
 
-          {/* Content / Answer */}
-          <div ref={contentRef} data-step="2" className="space-y-2">
-            <Label id="content-editor-label">
-              {isQAPair ? 'Answer' : 'Content'}{' '}
-              <span className="text-destructive">*</span>
-            </Label>
-            <div
-              onBlur={() => trigger('content')}
-            >
-              <ContentEditor
-                content={contentHtml}
-                onChange={(val: string) => {
-                  setValue('content', val, { shouldValidate: true, shouldDirty: true });
-                }}
-                placeholder={
-                  isQAPair ? 'Write the answer...' : 'Start writing...'
-                }
-                minHeight="300px"
-                labelId="content-editor-label"
-              />
-            </div>
-            {errors.content && (
-              <p id="content-error" className="text-destructive text-sm" role="alert">
-                {isQAPair
-                  ? errors.content.message?.replace('Content', 'Answer')
-                  : errors.content.message}
-              </p>
-            )}
+        {/* Dedup warning (shown after item creation if duplicates found) */}
+        {dedupMatches.length > 0 && (
+          <div className="mb-6">
+            <DedupWarning
+              matches={dedupMatches}
+              onViewMatch={(id) => window.open(`/item/${id}`, '_blank')}
+              onDismiss={() => setDedupMatches([])}
+            />
           </div>
+        )}
 
-          {/* More details toggle */}
-          <button
-            ref={detailsRef as React.RefObject<HTMLButtonElement>}
-            data-step="3"
-            type="button"
-            onClick={() => setShowMoreDetails(!showMoreDetails)}
-            aria-expanded={showMoreDetails}
-            className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+        {/* Mobile step indicator */}
+        <MobileStepIndicator activeStep={activeStep} />
+
+        <FormProvider {...methods}>
+          <form
+            onSubmit={handleSubmit((data) => onSubmit(data, false))}
+            noValidate
+            className="space-y-6"
           >
-            {showMoreDetails ? (
-              <ChevronUp className="size-4" />
-            ) : (
-              <ChevronDown className="size-4" />
-            )}
-            Classification, tags, and source info
-          </button>
+            {/* Template selector */}
+            <TemplateSelector
+              templates={templates}
+              selectedId={selectedTemplateId}
+              onSelect={handleTemplateSelect}
+            />
 
-          {showMoreDetails && (
-            <div className="space-y-6">
-              <ClassificationFieldset
-                primaryDomain={primaryDomain ?? ''}
-                setPrimaryDomain={(val) => setValue('primary_domain', val, { shouldDirty: true })}
-                primarySubtopic={watch('primary_subtopic') ?? ''}
-                setPrimarySubtopic={(val) => setValue('primary_subtopic', val, { shouldDirty: true })}
-                keywordsInput={watch('keywords_input') ?? ''}
-                setKeywordsInput={(val) => setValue('keywords_input', val, { shouldDirty: true })}
-                domainNames={domainNames}
-                subtopicNames={subtopicNames}
-                formatDomainName={formatDomainName}
-                formatSubtopic={formatSubtopic}
+            {/* Title / Question */}
+            <div ref={basicsRef} data-step="1" className="space-y-2">
+              <Label htmlFor="title">
+                {isQAPair ? 'Question' : 'Title'}{' '}
+                <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="title"
+                {...register('title')}
+                placeholder={
+                  isQAPair ? 'Enter the question...' : 'Enter title...'
+                }
+                autoFocus
+                maxLength={500}
+                aria-invalid={!!errors.title || undefined}
+                aria-describedby={
+                  [errors.title ? 'title-error' : '', 'title-char-count']
+                    .filter(Boolean)
+                    .join(' ') || undefined
+                }
+                className={errors.title ? 'border-destructive' : ''}
               />
-
-              <ProvenanceFieldset
-                authorName={watch('author_name') ?? ''}
-                setAuthorName={(val) => setValue('author_name', val, { shouldDirty: true })}
-                sourceUrl={watch('source_url') ?? ''}
-                setSourceUrl={(val) => setValue('source_url', val, { shouldDirty: true })}
-                tags={tags}
-                setTags={(val) => setValue('user_tags', val, { shouldDirty: true })}
-                tagsInput={tagsInput ?? ''}
-                setTagsInput={(val) => setValue('tags_input', val, { shouldDirty: true })}
-                priority={watch('priority') ?? ''}
-                setPriority={(val) => setValue('priority', val as '' | 'high' | 'medium' | 'low', { shouldDirty: true })}
-                sourceUrlError={errors.source_url?.message}
-              />
-
-              <ProgressiveDepthFieldset
-                brief={watch('brief') ?? ''}
-                setBrief={(val) => setValue('brief', val, { shouldDirty: true })}
-                detail={watch('detail') ?? ''}
-                setDetail={(val) => setValue('detail', val, { shouldDirty: true })}
-                reference={watch('reference') ?? ''}
-                setReference={(val) => setValue('reference', val, { shouldDirty: true })}
-                briefError={errors.brief?.message}
-                detailError={errors.detail?.message}
-                referenceError={errors.reference?.message}
-              />
+              <div className="flex items-center justify-between">
+                {errors.title ? (
+                  <p
+                    id="title-error"
+                    className="text-destructive text-sm"
+                    role="alert"
+                  >
+                    {isQAPair
+                      ? errors.title.message?.replace('Title', 'Question')
+                      : errors.title.message}
+                  </p>
+                ) : (
+                  <span />
+                )}
+                <span
+                  id="title-char-count"
+                  className={`text-xs ${title.length >= 450 ? 'text-status-warning' : 'text-muted-foreground'}`}
+                  aria-live="polite"
+                >
+                  {title.length} / 500
+                </span>
+              </div>
             </div>
-          )}
 
-          {/* Bottom bar: AI options + save buttons */}
-          <SaveActionsBar
-            autoClassify={autoClassify}
-            setAutoClassify={(val) => setValue('auto_classify', val, { shouldDirty: true })}
-            autoSummarise={autoSummarise}
-            setAutoSummarise={(val) => setValue('auto_summarise', val, { shouldDirty: true })}
-            saveAsDraft={saveAsDraft}
-            setSaveAsDraft={(val) => setValue('save_as_draft', val, { shouldDirty: true })}
-            canSave={canSave}
-            isSaving={isSaving}
-            isSavingAndContinue={isSavingAndContinue}
-            onSaveAndContinue={() => handleSubmit((data) => onSubmit(data, true))()}
-          />
-        </form>
-      </FormProvider>
-    </section>
+            {/* Content Type */}
+            <div className="space-y-2">
+              <Label htmlFor="content-type">
+                Content Type <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                value={contentType}
+                onValueChange={(val) => {
+                  setValue('content_type', val, {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                    shouldTouch: true,
+                  });
+                }}
+              >
+                <SelectTrigger
+                  id="content-type"
+                  onBlur={() => trigger('content_type')}
+                  className={errors.content_type ? 'border-destructive' : ''}
+                  aria-invalid={!!errors.content_type || undefined}
+                  aria-describedby={
+                    errors.content_type ? 'content-type-error' : undefined
+                  }
+                >
+                  <SelectValue placeholder="Select content type..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>Common</SelectLabel>
+                    {COMMON_TYPES.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {formatContentType(type)}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                  <SelectGroup>
+                    <SelectLabel>More types</SelectLabel>
+                    {VALID_CONTENT_TYPES.filter(
+                      (t) => !(COMMON_TYPES as readonly string[]).includes(t),
+                    ).map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {formatContentType(type)}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              {errors.content_type && (
+                <p
+                  id="content-type-error"
+                  className="text-destructive text-sm"
+                  role="alert"
+                >
+                  {errors.content_type.message}
+                </p>
+              )}
+            </div>
+
+            {/* Content / Answer */}
+            <div ref={contentRef} data-step="2" className="space-y-2">
+              <Label id="content-editor-label">
+                {isQAPair ? 'Answer' : 'Content'}{' '}
+                <span className="text-destructive">*</span>
+              </Label>
+              <div onBlur={() => trigger('content')}>
+                <ContentEditor
+                  content={contentHtml}
+                  onChange={(val: string) => {
+                    setValue('content', val, {
+                      shouldValidate: true,
+                      shouldDirty: true,
+                    });
+                  }}
+                  placeholder={
+                    isQAPair ? 'Write the answer...' : 'Start writing...'
+                  }
+                  minHeight="300px"
+                  labelId="content-editor-label"
+                />
+              </div>
+              {errors.content && (
+                <p
+                  id="content-error"
+                  className="text-destructive text-sm"
+                  role="alert"
+                >
+                  {isQAPair
+                    ? errors.content.message?.replace('Content', 'Answer')
+                    : errors.content.message}
+                </p>
+              )}
+            </div>
+
+            {/* More details toggle */}
+            <button
+              ref={detailsRef as React.RefObject<HTMLButtonElement>}
+              data-step="3"
+              type="button"
+              onClick={() => setShowMoreDetails(!showMoreDetails)}
+              aria-expanded={showMoreDetails}
+              className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+            >
+              {showMoreDetails ? (
+                <ChevronUp className="size-4" />
+              ) : (
+                <ChevronDown className="size-4" />
+              )}
+              Classification, tags, and source info
+            </button>
+
+            {showMoreDetails && (
+              <div className="space-y-6">
+                <ClassificationFieldset
+                  primaryDomain={primaryDomain ?? ''}
+                  setPrimaryDomain={(val) =>
+                    setValue('primary_domain', val, { shouldDirty: true })
+                  }
+                  primarySubtopic={watch('primary_subtopic') ?? ''}
+                  setPrimarySubtopic={(val) =>
+                    setValue('primary_subtopic', val, { shouldDirty: true })
+                  }
+                  keywordsInput={watch('keywords_input') ?? ''}
+                  setKeywordsInput={(val) =>
+                    setValue('keywords_input', val, { shouldDirty: true })
+                  }
+                  domainNames={domainNames}
+                  subtopicNames={subtopicNames}
+                  formatDomainName={formatDomainName}
+                  formatSubtopic={formatSubtopic}
+                />
+
+                <ProvenanceFieldset
+                  authorName={watch('author_name') ?? ''}
+                  setAuthorName={(val) =>
+                    setValue('author_name', val, { shouldDirty: true })
+                  }
+                  sourceUrl={watch('source_url') ?? ''}
+                  setSourceUrl={(val) =>
+                    setValue('source_url', val, { shouldDirty: true })
+                  }
+                  tags={tags}
+                  setTags={(val) =>
+                    setValue('user_tags', val, { shouldDirty: true })
+                  }
+                  tagsInput={tagsInput ?? ''}
+                  setTagsInput={(val) =>
+                    setValue('tags_input', val, { shouldDirty: true })
+                  }
+                  priority={watch('priority') ?? ''}
+                  setPriority={(val) =>
+                    setValue(
+                      'priority',
+                      val as '' | 'high' | 'medium' | 'low',
+                      { shouldDirty: true },
+                    )
+                  }
+                  sourceUrlError={errors.source_url?.message}
+                />
+
+                <ProgressiveDepthFieldset
+                  brief={watch('brief') ?? ''}
+                  setBrief={(val) =>
+                    setValue('brief', val, { shouldDirty: true })
+                  }
+                  detail={watch('detail') ?? ''}
+                  setDetail={(val) =>
+                    setValue('detail', val, { shouldDirty: true })
+                  }
+                  reference={watch('reference') ?? ''}
+                  setReference={(val) =>
+                    setValue('reference', val, { shouldDirty: true })
+                  }
+                  briefError={errors.brief?.message}
+                  detailError={errors.detail?.message}
+                  referenceError={errors.reference?.message}
+                />
+              </div>
+            )}
+
+            {/* Bottom bar: AI options + save buttons */}
+            <SaveActionsBar
+              autoClassify={autoClassify}
+              setAutoClassify={(val) =>
+                setValue('auto_classify', val, { shouldDirty: true })
+              }
+              autoSummarise={autoSummarise}
+              setAutoSummarise={(val) =>
+                setValue('auto_summarise', val, { shouldDirty: true })
+              }
+              saveAsDraft={saveAsDraft}
+              setSaveAsDraft={(val) =>
+                setValue('save_as_draft', val, { shouldDirty: true })
+              }
+              canSave={canSave}
+              isSaving={isSaving}
+              isSavingAndContinue={isSavingAndContinue}
+              onSaveAndContinue={() =>
+                handleSubmit((data) => onSubmit(data, true))()
+              }
+            />
+          </form>
+        </FormProvider>
+      </section>
     </ErrorBoundary>
   );
 }

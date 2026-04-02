@@ -15,7 +15,12 @@ import userEvent from '@testing-library/user-event';
 
 const { mockGetUser, mockToast } = vi.hoisted(() => ({
   mockGetUser: vi.fn(),
-  mockToast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
+  mockToast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  },
 }));
 
 vi.mock('next/navigation', () => ({
@@ -77,7 +82,9 @@ function createFetchMock(...responses: Array<{ ok: boolean; data: unknown }>) {
 describe('TeamSection', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    mockGetUser.mockResolvedValue({ data: { user: { id: 'current-user-id' } } });
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: 'current-user-id' } },
+    });
   });
 
   afterEach(() => {
@@ -103,8 +110,19 @@ describe('TeamSection', () => {
 
   it('renders user table with names, emails, roles, and last sign-in', async () => {
     const users = [
-      createTeamUser({ id: 'user-1', display_name: 'Alice Smith', email: 'alice@example.com', role: 'admin' }),
-      createTeamUser({ id: 'user-2', display_name: 'Bob Jones', email: 'bob@example.com', role: 'editor', last_sign_in_at: null }),
+      createTeamUser({
+        id: 'user-1',
+        display_name: 'Alice Smith',
+        email: 'alice@example.com',
+        role: 'admin',
+      }),
+      createTeamUser({
+        id: 'user-2',
+        display_name: 'Bob Jones',
+        email: 'bob@example.com',
+        role: 'editor',
+        last_sign_in_at: null,
+      }),
     ];
     vi.stubGlobal('fetch', createFetchMock({ ok: true, data: users }));
     render(<TeamSection />);
@@ -122,8 +140,18 @@ describe('TeamSection', () => {
 
   it('marks the current user with "(you)" and shows a non-editable role badge', async () => {
     const users = [
-      createTeamUser({ id: 'current-user-id', display_name: 'Me', email: 'me@example.com', role: 'admin' }),
-      createTeamUser({ id: 'other-user', display_name: 'Other', email: 'other@example.com', role: 'viewer' }),
+      createTeamUser({
+        id: 'current-user-id',
+        display_name: 'Me',
+        email: 'me@example.com',
+        role: 'admin',
+      }),
+      createTeamUser({
+        id: 'other-user',
+        display_name: 'Other',
+        email: 'other@example.com',
+        role: 'viewer',
+      }),
     ];
     vi.stubGlobal('fetch', createFetchMock({ ok: true, data: users }));
     render(<TeamSection />);
@@ -139,12 +167,20 @@ describe('TeamSection', () => {
 
   it('renders role select for non-self users and has correct initial fetch', async () => {
     const users = [
-      createTeamUser({ id: 'current-user-id', display_name: 'Me', email: 'me@example.com', role: 'admin' }),
-      createTeamUser({ id: 'other-user', display_name: 'Other Person', email: 'other@example.com', role: 'viewer' }),
+      createTeamUser({
+        id: 'current-user-id',
+        display_name: 'Me',
+        email: 'me@example.com',
+        role: 'admin',
+      }),
+      createTeamUser({
+        id: 'other-user',
+        display_name: 'Other Person',
+        email: 'other@example.com',
+        role: 'viewer',
+      }),
     ];
-    const fetchMock = createFetchMock(
-      { ok: true, data: users },
-    );
+    const fetchMock = createFetchMock({ ok: true, data: users });
     vi.stubGlobal('fetch', fetchMock);
 
     render(<TeamSection />);
@@ -164,7 +200,10 @@ describe('TeamSection', () => {
 
   it('handles non-array API response gracefully', async () => {
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    vi.stubGlobal('fetch', createFetchMock({ ok: true, data: { success: true } }));
+    vi.stubGlobal(
+      'fetch',
+      createFetchMock({ ok: true, data: { success: true } }),
+    );
     render(<TeamSection />);
 
     await waitFor(() => {
@@ -180,8 +219,18 @@ describe('TeamSection', () => {
 
   it('calls DELETE API when deactivating a user', async () => {
     const users = [
-      createTeamUser({ id: 'current-user-id', display_name: 'Me', email: 'me@example.com', role: 'admin' }),
-      createTeamUser({ id: 'other-user', display_name: 'Other Person', email: 'other@example.com', role: 'viewer' }),
+      createTeamUser({
+        id: 'current-user-id',
+        display_name: 'Me',
+        email: 'me@example.com',
+        role: 'admin',
+      }),
+      createTeamUser({
+        id: 'other-user',
+        display_name: 'Other Person',
+        email: 'other@example.com',
+        role: 'viewer',
+      }),
     ];
     const fetchMock = createFetchMock(
       { ok: true, data: users },
@@ -211,7 +260,9 @@ describe('TeamSection', () => {
     });
 
     // Click the confirm "Deactivate" button in the alert dialog
-    const confirmButtons = screen.getAllByRole('button', { name: 'Deactivate' });
+    const confirmButtons = screen.getAllByRole('button', {
+      name: 'Deactivate',
+    });
     const confirmButton = confirmButtons[confirmButtons.length - 1];
     await user.click(confirmButton);
 
