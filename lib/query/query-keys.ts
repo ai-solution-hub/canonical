@@ -149,8 +149,8 @@ export const queryKeys = {
     metrics: {
       summary: (workspaceId: string, period?: string) =>
         ['intelligence', 'metrics', workspaceId, period ?? '30d'] as const,
-      trend: (workspaceId: string, granularity: string) =>
-        ['intelligence', 'metrics', workspaceId, 'trend', granularity] as const,
+      trend: (workspaceId: string, granularity: string, period?: string) =>
+        ['intelligence', 'metrics', workspaceId, 'trend', granularity, period ?? '90d'] as const,
       promptPerformance: (workspaceId: string) =>
         ['intelligence', 'metrics', workspaceId, 'prompt-performance'] as const,
     },

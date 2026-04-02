@@ -138,5 +138,5 @@ export async function createIntelligenceGuide(
     return null;
   }
 
-  return { guideId, sectionCount: sectionRows.length };
+  return { guideId: guideId!, sectionCount: sectionRows.length };
 }

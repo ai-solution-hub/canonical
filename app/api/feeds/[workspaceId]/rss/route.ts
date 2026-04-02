@@ -77,7 +77,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       categories: a.matched_categories ?? [],
       guid: a.id,
       source: (a.feed_sources as { name: string } | null)?.name,
-      relevanceScore: a.relevance_score,
+      relevanceScore: a.relevance_score ?? undefined,
     }));
 
     const xml = generateRss(channel, items);
