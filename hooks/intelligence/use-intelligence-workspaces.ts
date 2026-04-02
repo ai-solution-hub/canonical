@@ -12,6 +12,7 @@ export interface IntelligenceWorkspace {
   type: 'intelligence';
   domain_metadata: {
     company_profile_id: string;
+    guide_id?: string;
   };
   is_archived: boolean;
   created_at: string;

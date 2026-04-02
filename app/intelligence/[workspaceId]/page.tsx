@@ -3,11 +3,13 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Rss, FileText, Settings2, Play } from 'lucide-react';
+import { Rss, FileText, Settings2, Play, BarChart3, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MetricsPanel } from '@/components/intelligence/metrics-panel';
+import { RssFeedPanel } from '@/components/intelligence/rss-feed-panel';
 import { useIntelligenceMetrics } from '@/hooks/intelligence/use-intelligence-metrics';
+import { useIntelligenceWorkspace } from '@/hooks/intelligence/use-intelligence-workspaces';
 import { useFeedArticles } from '@/hooks/intelligence/use-feed-articles';
 import { useUserRole } from '@/hooks/use-user-role';
 
@@ -20,6 +22,8 @@ export default function WorkspaceOverviewPage() {
   const [period, setPeriod] = useState('30d');
   const { data: metrics, isLoading: metricsLoading } =
     useIntelligenceMetrics(workspaceId, period);
+  const { data: workspace } = useIntelligenceWorkspace(workspaceId);
+  const guideId = workspace?.domain_metadata?.guide_id;
 
   // Recent passed articles (last 5)
   const { data: passedData } = useFeedArticles(workspaceId, {
@@ -58,6 +62,14 @@ export default function WorkspaceOverviewPage() {
             onPeriodChange={setPeriod}
           />
         </div>
+      )}
+
+      {/* RSS Feed Panel */}
+      {workspace && (
+        <RssFeedPanel
+          workspaceId={workspaceId}
+          workspaceName={workspace.name}
+        />
       )}
 
       {/* Content sections */}
@@ -189,11 +201,25 @@ export default function WorkspaceOverviewPage() {
             </Link>
           </Button>
           <Button variant="outline" size="sm" asChild>
+            <Link href={`/intelligence/${workspaceId}/metrics`}>
+              <BarChart3 className="mr-1.5 size-3.5" aria-hidden="true" />
+              View Full Metrics
+            </Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
             <Link href={`/intelligence/${workspaceId}/prompts`}>
               <Settings2 className="mr-1.5 size-3.5" aria-hidden="true" />
               Edit Prompt
             </Link>
           </Button>
+          {guideId && (
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/guides`}>
+                <BookOpen className="mr-1.5 size-3.5" aria-hidden="true" />
+                Intelligence Guide
+              </Link>
+            </Button>
+          )}
           {isAdmin && (
             <Button variant="outline" size="sm" disabled>
               <Play className="mr-1.5 size-3.5" aria-hidden="true" />
