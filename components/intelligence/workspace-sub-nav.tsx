@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Rss, FileText, Settings2 } from 'lucide-react';
+import { LayoutDashboard, Rss, FileText, BarChart3, Settings2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface WorkspaceSubNavProps {
@@ -13,6 +13,7 @@ const SUB_NAV_ITEMS = [
   { segment: '', label: 'Overview', icon: LayoutDashboard },
   { segment: '/sources', label: 'Sources', icon: Rss },
   { segment: '/articles', label: 'Articles', icon: FileText },
+  { segment: '/metrics', label: 'Metrics', icon: BarChart3 },
   { segment: '/prompts', label: 'Prompts', icon: Settings2 },
 ] as const;
 
