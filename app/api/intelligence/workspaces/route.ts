@@ -174,7 +174,53 @@ export async function POST(request: NextRequest) {
       change_notes: 'Auto-generated from company profile',
     });
 
-    return NextResponse.json(workspace, { status: 201 });
+    // Auto-create intelligence guide (non-blocking — failure does not prevent workspace creation)
+    let guideCreated = false;
+    let guideId: string | null = null;
+
+    try {
+      const { createIntelligenceGuide } = await import('@/lib/intelligence/guide-generator');
+      const guideResult = await createIntelligenceGuide(
+        supabase,
+        workspace.id,
+        parsed.data.name,
+        {
+          id: profile.id,
+          name: profile.name,
+          sectors: (profile.sectors as string[]) ?? [],
+          services: (profile.services as string[]) ?? [],
+          key_topics: (profile.key_topics as string[]) ?? [],
+        },
+        user.id,
+      );
+
+      if (guideResult) {
+        guideCreated = true;
+        guideId = guideResult.guideId;
+
+        // Store guide_id in workspace domain_metadata
+        await supabase
+          .from('workspaces')
+          .update({
+            domain_metadata: {
+              company_profile_id: parsed.data.company_profile_id,
+              guide_id: guideResult.guideId,
+            },
+          })
+          .eq('id', workspace.id);
+      }
+    } catch {
+      // Guide creation failed — workspace still succeeds
+    }
+
+    return NextResponse.json(
+      {
+        ...workspace,
+        guide_created: guideCreated,
+        guide_id: guideId,
+      },
+      { status: 201 },
+    );
   } catch (err) {
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to create workspace') },

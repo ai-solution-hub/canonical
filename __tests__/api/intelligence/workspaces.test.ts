@@ -172,7 +172,7 @@ describe('Intelligence Workspaces API', () => {
   // ─── POST /api/intelligence/workspaces ───
 
   describe('POST /api/intelligence/workspaces', () => {
-    it('creates workspace with valid data', async () => {
+    it('creates workspace with valid data and includes guide fields', async () => {
       configureRole(mockSupabase, 'admin');
       // Profile lookup
       mockSupabase._chain.single.mockResolvedValueOnce({
@@ -189,6 +189,21 @@ describe('Intelligence Workspaces API', () => {
         (resolve: (v: unknown) => void) =>
           resolve({ data: [{ id: 'prompt-1' }], error: null }),
       );
+      // Guide insert (.single() for guide creation)
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: { id: 'guide-id-123' },
+        error: null,
+      });
+      // Guide sections insert (returns via then)
+      mockSupabase._chain.then.mockImplementationOnce(
+        (resolve: (v: unknown) => void) =>
+          resolve({ data: [], error: null }),
+      );
+      // Workspace domain_metadata update (returns via then)
+      mockSupabase._chain.then.mockImplementationOnce(
+        (resolve: (v: unknown) => void) =>
+          resolve({ data: null, error: null }),
+      );
 
       const request = createTestRequest('/api/intelligence/workspaces', {
         method: 'POST',
@@ -200,6 +215,53 @@ describe('Intelligence Workspaces API', () => {
 
       expect(response.status).toBe(201);
       expect(body.name).toBe('Education Watch');
+      expect(body).toHaveProperty('guide_created');
+      expect(body).toHaveProperty('guide_id');
+      expect(body.guide_created).toBe(true);
+      expect(body.guide_id).toBe('guide-id-123');
+    });
+
+    it('returns guide_created false when guide creation fails', async () => {
+      configureRole(mockSupabase, 'admin');
+      // Profile lookup
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: MOCK_PROFILE,
+        error: null,
+      });
+      // Workspace insert
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: MOCK_WORKSPACE,
+        error: null,
+      });
+      // Feed prompt insert (returns via then)
+      mockSupabase._chain.then.mockImplementationOnce(
+        (resolve: (v: unknown) => void) =>
+          resolve({ data: [{ id: 'prompt-1' }], error: null }),
+      );
+      // Guide insert fails (first attempt)
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'guide insert failed' },
+      });
+      // Guide insert fails (retry attempt)
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'guide insert failed again' },
+      });
+
+      const request = createTestRequest('/api/intelligence/workspaces', {
+        method: 'POST',
+        body: VALID_WORKSPACE_INPUT,
+      });
+
+      const response = await listPOST(request);
+      const body = await response.json();
+
+      // Workspace creation still succeeds
+      expect(response.status).toBe(201);
+      expect(body.name).toBe('Education Watch');
+      expect(body.guide_created).toBe(false);
+      expect(body.guide_id).toBeNull();
     });
 
     it('rejects missing company_profile_id', async () => {
