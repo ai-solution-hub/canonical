@@ -8,9 +8,7 @@ code in this repository.
 ## Project Overview
 
 Knowledge Hub is a knowledge base platform where the core value is high-quality,
-structured data accessible by AI. The first domain application is bid management
-for UK SMBs. The knowledge base is the foundation; bids are the first use case,
-not the only one.
+structured data accessible by AI. The first domain applications are bid management and intelligence (research pipelines) for UK SMBs. The knowledge base is the foundation for these and future applications.
 
 **Team:** Liam (product owner, zero development experience) + Claude Code as
 development partner. All code is written through human-AI collaboration.
@@ -20,7 +18,7 @@ development partner. All code is written through human-AI collaboration.
 | Command | Description |
 |---------|-------------|
 | `bun install` | Install Node dependencies |
-| `bun dev` | Start Next.js dev server (Turbopack) |
+| `bun dev` | Start Next.js dev server (Turbopack) - default port is localhost:3000 |
 | `bun build` | Production build |
 | `bun run test` | Run Vitest tests (NOT `bun test` — see Gotchas) |
 | `bun lint` | ESLint |
@@ -100,10 +98,8 @@ Required env vars (in `.env` and `.env.local`; see `.env.example` for template):
 - Use Supabase MCP tools (`execute_sql`, `list_tables`, etc.) for queries and
   quick DML
 - **Never use MCP `execute_sql` for DDL** (CREATE TABLE, ALTER TABLE, etc.) —
-  always use `supabase migration new` + `supabase db push`. S118 migration
-  squash found ~20 columns and 25 functions applied via MCP that were never
-  captured in migration files, blocking replay for 3+ months.
-- **Function search_path:** All new PL/pgSQL functions MUST include
+  always use `supabase migration new` + `supabase db push`.
+- **Function search_path:** All new PL/pgSQL functions **MUST** include
   `SET search_path = public, extensions` to avoid security warnings
 - **Prefer proper schema** -- tables and columns over JSONB for key data
 - One Supabase project per client — simple isolation, not multi-tenant RLS
@@ -118,20 +114,15 @@ columns use CHECK constraints. Canonical constants: `lib/validation/schemas.ts`.
 
 ## Testing
 
-- **Framework:** Vitest — run via `bun run test` (NOT `bun test` — see Gotchas)
+- **Framework:** Vitest — run via `bun run test`
 - **Coverage:** `bun run test:coverage` (via `@vitest/coverage-v8`)
 - **Location:** `__tests__/` — see `docs/generated/codebase-stats.md` for current counts
 - **Mock pattern:** Shared `createMockSupabaseClient()` in
   `__tests__/helpers/mock-supabase.ts` — all API tests use this
+- **Integration testing:** Integrate with Supabase DB for testing real data flows
 - **Python tests:** `python3 -m pytest scripts/tests/`
 - **E2E:** Playwright — specs in `e2e/tests/`. Worker-scoped fixtures,
   multi-role auth (admin/editor/viewer).
-- **Agent escalation rule:** When test agents encounter unexpected production
-  behaviour (e.g. a component renders incorrectly, a function returns wrong
-  data, dead code paths, or tests that can only pass by not actually testing
-  the real logic), they MUST escalate these findings rather than silently
-  working around them with mocks. Tests that pass but don't verify real
-  functionality are worse than no tests.
 
 ## Deployment
 
@@ -140,15 +131,13 @@ columns use CHECK constraints. Canonical constants: `lib/validation/schemas.ts`.
 - **GitHub:** https://github.com/liam-jons/knowledge-hub (private)
 - **Region:** eu-west-2 (London) — matches Supabase region
 
-## Key Design Principles
+## Key Product Design Principles
 
 - **"One record, many views"** — no content duplication. One authoritative
   record per topic, multiple views for different audiences (the Wikipedia
   principle)
-- **"Observe and intervene" governance** — not "prevent and approve". Trust
-  users by default, flag for review when quality dips
 - **"Helping you get organised, not learning from you"** — AI is invisible
-  infrastructure, not a visible product feature
+  infrastructure, **not** a visible product feature - see `docs/reference/ai-visibility-policy.md` for guidance when creating/updating UI
 - **Programmatic where possible** — save AI for response generation and
   classification. Use deterministic functions for deterministic tasks
 - **Generic over specific** — containers, workflows, lifecycle machines should
@@ -158,12 +147,8 @@ columns use CHECK constraints. Canonical constants: `lib/validation/schemas.ts`.
 - **WCAG 2.1 AA** — never colour alone for meaning
 - **Package manager: bun** (NOT npm/yarn) — `bun install`, `bun dev`,
   `bun run test`, `bun build`
-- **Nav items earn their place** — each nav item must have a genuinely
-  different interaction model (Browse=filter, Q&A Library=copy-to-bid,
-  Coverage=gap analysis, Bids=pipeline, Review=speed triage). New
-  application types only get nav items if the interaction model is distinct
-- **The KB is the product** — bids are the first application, not the only
-  one. Navigation and IA must lead with the knowledge base
+- **The KB is the product** — bids and intelligence are the first applications, not the only
+  ones. Data quality is of the utmost importance
 
 ## Design Context
 
@@ -183,15 +168,14 @@ Consult these references when adding or modifying UI elements.
 |----------|----------|
 | State of the Product | `docs/reference/state-of-the-product.md` |
 | Codebase mapping (7 docs) | `.planning/codebase/` |
-| Schema quick reference | `docs/reference/SCHEMA-QUICK-REFERENCE.md` |
-| Field-consumer dependency map | `docs/reference/field-consumer-dependency-map.md` |
-| SI gap analysis | `docs/reference/si-gap-analysis.md` |
 | Quality checks (10 files) | `.claude/checks/` |
+| Schema quick reference | `docs/reference/SCHEMA-QUICK-REFERENCE.md` |
 | Auto-generated stats | `docs/generated/codebase-stats.md`, `docs/generated/mcp-inventory.md` |
 | Documentation inventory | `docs/reference/documentation-inventory.md` |
 | Session handoffs | `docs/continuation-prompts/` |
 | Classification prompt | `docs/reference/classification-prompt.md` |
 | Classification architecture | `docs/reference/classification-architecture.md` |
+| Field-consumer dependency map | `docs/reference/field-consumer-dependency-map.md` |
 | Data entry points | `docs/reference/data-entry-points.md` |
 | Taxonomy change runbook | `docs/reference/taxonomy-change-runbook.md` |
 | Roadmap | `docs/reference/post-mvp-roadmap.md` |
@@ -202,7 +186,7 @@ Consult these references when adding or modifying UI elements.
 | Product differentiation audit | `docs/reference/product-differentiation-audit.md` |
 | Pipeline parity spec | `docs/specs/pipeline-parity-spec.md` |
 
-Historical planning documents are in `.planning/`.
+Historical planning documents are in `.planning/.archive/.specs/`.
 
 ## Implementation Workflow
 
@@ -234,9 +218,6 @@ findings before merge, worktrees for parallel work, sequential merges only.
   file content after cherry-pick. If an empty migration was already
   recorded, the SQL must be applied directly via `execute_sql` and the
   local file backfilled.
-- **Default row limit:** Max Rows is set to 5000 (raised from 1000). Scripts
-  fetching large result sets should still paginate with `.range()` or add
-  explicit `.limit()` rather than relying on the default.
 
 ### Testing
 
@@ -252,6 +233,10 @@ findings before merge, worktrees for parallel work, sequential merges only.
 - **Date-sensitive tests need pinned time:** Tests that compute "days ago"
   must use `vi.spyOn(Date, 'now')` with a fixed timestamp or the `daysAgo()`
   buffer pattern — `setDate()` rounding causes midnight-boundary flakiness.
+- **Agent escalation rule:** When test agents encounter unexpected production
+  behaviour (e.g. a component renders incorrectly, a function returns wrong
+  data, dead code paths, or tests that can only pass by not actually testing
+  the real logic), **they MUST escalate these findings to the main session**.
 
 ### E2E / Playwright
 
@@ -294,6 +279,10 @@ findings before merge, worktrees for parallel work, sequential merges only.
   review cards). `/api/governance/review` = freshness/ownership. Separate workflows.
 - **"Change Reports" not "Digest":** User-facing label is "Change Reports".
   Internal code, types, routes, and file names still use "digest".
+- **Entity classification: false positives, not type errors:** S140 eval
+  showed 99.2% type accuracy but 45.7% precision. The problem is extracting
+  non-entities (policies, generic concepts, job titles), not mistyping real
+  ones. Source of truth: `docs/reference/entity-type-taxonomy-spec.md`.
 
 ### UI / Frontend
 
