@@ -192,7 +192,13 @@ Historical planning documents are in `.planning/.archive/.specs/`.
 
 Spec-Code-Verify workflow is loaded via `/start-session` skill at session start.
 Key rules: max 2-4h per agent, verification gates after every phase, fix ALL
-findings before merge, worktrees for parallel work, sequential merges only.
+findings before merge, sequential merges only.
+
+**Parallel agent isolation:** Use `isolation: "worktree"` on Agent tool calls
+for parallel implementation work. This auto-creates a git worktree, runs the
+agent there, and returns changes on a branch. Merge sequentially on main —
+check `git status` for leaked files before each merge. Reserve manual worktree
+management only for merge-conflict-prone work requiring interactive resolution.
 
 ## Gotchas
 
@@ -305,8 +311,10 @@ findings before merge, worktrees for parallel work, sequential merges only.
   `scripts/docx_utils.py`, not `Document(path)` directly. Mammoth (TypeScript
   path) handles Track Changes correctly.
 - **Concurrent Claude sessions:** Two sessions on same working tree destroy each
-  other's files. Use git worktrees or sequence sessions.
-- **Worktree agents leak files:** Before merging worktree branches, run
-  `git status` on main and clean with `git checkout -- .` and `git clean -fd`.
+  other's files. Use `isolation: "worktree"` for parallel agents, or sequence
+  sessions.
+- **Worktree merges leak files:** After merging worktree branches (including
+  `isolation: worktree` agent branches), run `git status` on main and clean
+  with `git checkout -- .` and `git clean -fd`.
 - **Proxy blocks non-API public routes:** New public endpoints must be added to
   `publicRoutes` in `proxy.ts` (project root) or they silently redirect to `/login`.
