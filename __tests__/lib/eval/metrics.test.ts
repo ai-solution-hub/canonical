@@ -99,14 +99,14 @@ describe('eval metrics', () => {
   });
 
   describe('rouge1', () => {
-    it('returns correct unigram overlap', () => {
-      // "the cat sat on the mat" vs "the cat on the mat" — 5 of 6 candidate tokens match
+    it('returns correct unigram overlap (Set-based)', () => {
+      // "the cat sat on the mat" vs "the cat on the mat"
       const result = rouge1('the cat sat on the mat', 'the cat on the mat');
-      // Candidate tokens: [the, cat, sat, on, the, mat] (6)
-      // Reference tokens: [the, cat, on, the, mat] (5)
-      // Overlap: the(2), cat(1), on(1), mat(1) = 5 (sat doesn't match)
-      expect(result.precision).toBeCloseTo(5 / 6, 3);
-      expect(result.recall).toBeCloseTo(5 / 5, 3);
+      // Candidate set: {the, cat, sat, on, mat} (5 unique)
+      // Reference set: {the, cat, on, mat} (4 unique)
+      // Overlap: {the, cat, on, mat} = 4
+      expect(result.precision).toBeCloseTo(4 / 5, 3);
+      expect(result.recall).toBeCloseTo(4 / 4, 3);
     });
 
     it('returns 1.0 for identical strings', () => {

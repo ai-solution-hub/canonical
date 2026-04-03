@@ -112,32 +112,24 @@ export function rouge1(
   candidate: string,
   reference: string
 ): { precision: number; recall: number; f1: number } {
-  const candTokens = tokenise(candidate);
-  const refTokens = tokenise(reference);
+  const candidateTokens = tokenise(candidate);
+  const referenceTokens = tokenise(reference);
 
-  if (candTokens.length === 0 || refTokens.length === 0) {
+  if (candidateTokens.length === 0 || referenceTokens.length === 0) {
     return { precision: 0, recall: 0, f1: 0 };
   }
 
-  // Count overlapping unigrams (handling duplicates)
-  const refCounts = new Map<string, number>();
-  for (const token of refTokens) {
-    refCounts.set(token, (refCounts.get(token) ?? 0) + 1);
-  }
+  const candidateSet = new Set(candidateTokens);
+  const referenceSet = new Set(referenceTokens);
 
   let overlap = 0;
-  const usedCounts = new Map<string, number>();
-  for (const token of candTokens) {
-    const available = (refCounts.get(token) ?? 0) - (usedCounts.get(token) ?? 0);
-    if (available > 0) {
-      overlap++;
-      usedCounts.set(token, (usedCounts.get(token) ?? 0) + 1);
-    }
+  for (const token of candidateSet) {
+    if (referenceSet.has(token)) overlap++;
   }
 
-  const p = overlap / candTokens.length;
-  const r = overlap / refTokens.length;
-  const f = f1Score(p, r);
+  const p = overlap / candidateSet.size;
+  const r = overlap / referenceSet.size;
+  const f = p + r === 0 ? 0 : (2 * p * r) / (p + r);
 
   return { precision: p, recall: r, f1: f };
 }

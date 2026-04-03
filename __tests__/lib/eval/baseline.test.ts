@@ -123,39 +123,76 @@ describe('eval baseline', () => {
       expect(accuracyResult?.current_value).toBe(0.85);
     });
 
+    it('produces one result per metric', () => {
+      const bothThresholds: EvalBaseline = {
+        suite_name: 'test',
+        created_at: '2026-04-01T00:00:00.000Z',
+        metrics: { accuracy: 0.95 },
+        thresholds: { accuracy: { min: 0.9, max_drop: 0.05 } },
+      };
+      const results = checkRegression(bothThresholds, { accuracy: 0.93 });
+      const accuracyResults = results.filter((r) => r.metric_name === 'accuracy');
+      expect(accuracyResults).toHaveLength(1);
+    });
+
     it('passes when drop is within max_drop tolerance', () => {
       // Baseline recall = 0.85, current = 0.82, drop = 0.03, max_drop = 0.05
       const results = checkRegression(baseline, { accuracy: 0.95, recall: 0.82 });
-      const recallResult = results.find(
-        (r) => r.metric_name === 'recall' && r.threshold === 0.05
-      );
+      const recallResult = results.find((r) => r.metric_name === 'recall');
       expect(recallResult?.passed).toBe(true);
     });
 
     it('fails when drop exceeds max_drop tolerance', () => {
       // Baseline recall = 0.85, current = 0.75, drop = 0.10, max_drop = 0.05
       const results = checkRegression(baseline, { accuracy: 0.95, recall: 0.75 });
-      const recallResult = results.find(
-        (r) => r.metric_name === 'recall' && r.threshold === 0.05
-      );
+      const recallResult = results.find((r) => r.metric_name === 'recall');
       expect(recallResult?.passed).toBe(false);
       expect(recallResult?.delta).toBeCloseTo(-0.1);
+    });
+
+    it('fails when either min or max_drop is violated', () => {
+      const bothThresholds: EvalBaseline = {
+        suite_name: 'test',
+        created_at: '2026-04-01T00:00:00.000Z',
+        metrics: { accuracy: 0.95 },
+        thresholds: { accuracy: { min: 0.9, max_drop: 0.02 } },
+      };
+      // Current = 0.92 passes min (>= 0.9) but fails max_drop (drop = 0.03 > 0.02)
+      const results = checkRegression(bothThresholds, { accuracy: 0.92 });
+      const accuracyResult = results.find((r) => r.metric_name === 'accuracy');
+      expect(accuracyResult?.passed).toBe(false);
     });
   });
 
   describe('evalPassed', () => {
-    const makeResult = (metrics: Record<string, number>): EvalResult => ({
+    const makeResult = (metrics: Record<string, number>, passed = true): EvalResult => ({
       suite_name: 'test',
       timestamp: '2026-04-01T00:00:00.000Z',
       total_items: 10,
       metrics,
-      passed: true,
+      passed,
       failures: [],
     });
 
-    it('returns true when no baseline exists (first run)', () => {
-      const result = makeResult({ accuracy: 0.5 });
-      expect(evalPassed(result, null)).toBe(true);
+    it('returns result.passed when no baseline exists (first run)', () => {
+      const passingResult = makeResult({ accuracy: 0.5 }, true);
+      expect(evalPassed(passingResult, null)).toBe(true);
+
+      const failingResult = makeResult({ accuracy: 0.5 }, false);
+      expect(evalPassed(failingResult, null)).toBe(false);
+    });
+
+    it('returns false when result.passed is false even with no regressions', () => {
+      const baseline: EvalBaseline = {
+        suite_name: 'test',
+        created_at: '2026-04-01T00:00:00.000Z',
+        metrics: { accuracy: 0.95 },
+        thresholds: { accuracy: { min: 0.9 } },
+      };
+
+      // Accuracy is 0.92, above min of 0.9 (no regression), but result.passed is false
+      const result = makeResult({ accuracy: 0.92 }, false);
+      expect(evalPassed(result, baseline)).toBe(false);
     });
 
     it('returns false when regressions are detected', () => {

@@ -73,28 +73,32 @@ export function checkRegression(
     const currentValue = currentMetrics[metricName] ?? 0;
     const delta = currentValue - baselineValue;
 
+    let passed = true;
+    let thresholdValue = threshold.min ?? 0;
+
     if (threshold.min !== undefined) {
-      results.push({
-        metric_name: metricName,
-        baseline_value: baselineValue,
-        current_value: currentValue,
-        threshold: threshold.min,
-        passed: currentValue >= threshold.min,
-        delta,
-      });
+      if (currentValue < threshold.min) {
+        passed = false;
+        thresholdValue = threshold.min;
+      }
     }
 
     if (threshold.max_drop !== undefined) {
       const drop = baselineValue - currentValue;
-      results.push({
-        metric_name: metricName,
-        baseline_value: baselineValue,
-        current_value: currentValue,
-        threshold: threshold.max_drop,
-        passed: drop <= threshold.max_drop,
-        delta,
-      });
+      if (drop > threshold.max_drop) {
+        passed = false;
+        thresholdValue = threshold.max_drop;
+      }
     }
+
+    results.push({
+      metric_name: metricName,
+      baseline_value: baselineValue,
+      current_value: currentValue,
+      threshold: thresholdValue,
+      passed,
+      delta,
+    });
   }
 
   return results;
@@ -114,9 +118,9 @@ export function evalPassed(
   baseline: EvalBaseline | null
 ): boolean {
   if (!baseline) {
-    return true;
+    return result.passed;
   }
 
   const regressions = checkRegression(baseline, result.metrics);
-  return regressions.every((r) => r.passed);
+  return result.passed && regressions.every((r) => r.passed);
 }

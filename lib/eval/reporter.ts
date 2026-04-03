@@ -15,6 +15,16 @@ function formatMetricName(name: string): string {
     .join(' ');
 }
 
+/** Format a metric value as a percentage if it's in the 0-1 range, otherwise as-is */
+function formatMetricValue(value: number): string {
+  if (value >= 0 && value <= 1) {
+    return `${(value * 100).toFixed(1)}%`;
+  }
+  return value.toFixed(4);
+}
+
+const REPORT_WIDTH = 72;
+
 /**
  * Print a human-readable eval report to the console.
  *
@@ -26,17 +36,17 @@ export function printReport(
   regressions?: RegressionResult[]
 ): void {
   const status = result.passed ? 'PASS' : 'FAIL';
-  console.log(`\n${'═'.repeat(60)}`);
-  console.log(`  ${result.suite_name} — ${status}`);
+  console.log(`\n${'='.repeat(REPORT_WIDTH)}`);
+  console.log(`  ${result.suite_name} -- ${status}`);
   console.log(`  ${result.timestamp}`);
-  console.log(`${'═'.repeat(60)}`);
+  console.log(`${'='.repeat(REPORT_WIDTH)}`);
   console.log(`  Total items: ${result.total_items}`);
-  console.log(`${'─'.repeat(60)}`);
+  console.log(`${'-'.repeat(REPORT_WIDTH)}`);
 
   // Metrics table
   for (const [name, value] of Object.entries(result.metrics)) {
     const formatted = formatMetricName(name);
-    const valueStr = typeof value === 'number' ? value.toFixed(4) : String(value);
+    const valueStr = typeof value === 'number' ? formatMetricValue(value) : String(value);
 
     let regressionMarker = '';
     if (regressions) {
@@ -52,7 +62,7 @@ export function printReport(
 
   // Failures
   if (result.failures.length > 0) {
-    console.log(`${'─'.repeat(60)}`);
+    console.log(`${'-'.repeat(REPORT_WIDTH)}`);
     console.log(`  Failures (${result.failures.length}):`);
     for (const failure of result.failures) {
       console.log(`    - ${failure}`);
@@ -61,17 +71,17 @@ export function printReport(
 
   // Regression details
   if (regressions && regressions.some((r) => !r.passed)) {
-    console.log(`${'─'.repeat(60)}`);
+    console.log(`${'-'.repeat(REPORT_WIDTH)}`);
     console.log('  Regressions detected:');
     for (const reg of regressions.filter((r) => !r.passed)) {
       const name = formatMetricName(reg.metric_name);
       console.log(
-        `    ${name}: ${reg.baseline_value.toFixed(4)} → ${reg.current_value.toFixed(4)} (delta: ${reg.delta.toFixed(4)}, threshold: ${reg.threshold.toFixed(4)})`
+        `    ${name}: ${formatMetricValue(reg.baseline_value)} -> ${formatMetricValue(reg.current_value)} (delta: ${reg.delta.toFixed(4)}, threshold: ${formatMetricValue(reg.threshold)})`
       );
     }
   }
 
-  console.log(`${'═'.repeat(60)}\n`);
+  console.log(`${'='.repeat(REPORT_WIDTH)}\n`);
 }
 
 /**
