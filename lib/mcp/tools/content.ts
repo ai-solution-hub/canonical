@@ -805,7 +805,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           .select('content_item_id')
           .eq('workspace_id', args.workspace_id)
           .order('assigned_at', { ascending: false })
-          .range(itemOffset, itemOffset + itemLimit); // Supabase range is inclusive
+          .range(itemOffset, itemOffset + itemLimit - 1); // Supabase range is inclusive on both ends
 
         if (junctionError) {
           return {
