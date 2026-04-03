@@ -138,6 +138,50 @@ describe('isGenericConcept', () => {
     'physical destruction',
     'security monitoring',
     'threat detection',
+    // Security principles
+    'principle of least privilege',
+    'least privilege',
+    'defence in depth',
+    'defense in depth',
+    'zero trust',
+    'segregation of duty',
+    'separation of duties',
+    // Generic technology categories
+    'cloud computing',
+    'artificial intelligence',
+    'machine learning',
+    'blockchain',
+    // Service tiers
+    'standard support',
+    'premium support',
+    'set-up fee',
+    'setup fee',
+    // Generic software categories
+    'content management system',
+    'learning management system',
+    // Generic activities
+    'cloud migration',
+    'security improvement',
+    // Product features
+    'single sign-on',
+    // Internal departments
+    'it department',
+    'hr team',
+    'the project team',
+    'senior management',
+    // Generic capability activities
+    'online training',
+    'staff training',
+    // Geographic regions
+    'england',
+    'wales',
+    'scotland',
+    'northern ireland',
+    'european economic area',
+    'eea',
+    // Demographic descriptions
+    'vulnerable adults',
+    'children and young people',
   ])('identifies generic concept: %s', (name) => {
     expect(isGenericConcept(name)).toBe(true);
   });
@@ -234,6 +278,8 @@ describe('isProtocolOrFormat', () => {
     'JSON',
     'XML',
     'JavaScript',
+    'Python',
+    'Java',
     'SQL',
     'AES-256',
     'SHA-256',
@@ -481,5 +527,58 @@ describe('shouldExcludeEntity', () => {
         entity('info sec', 'capability', 'information security'),
       ),
     ).toBe(true);
+  });
+
+  it('excludes security principles', () => {
+    expect(
+      shouldExcludeEntity(
+        entity('Principle of Least Privilege', 'methodology'),
+      ),
+    ).toBe(true);
+    expect(
+      shouldExcludeEntity(entity('Defence in Depth', 'methodology')),
+    ).toBe(true);
+    expect(shouldExcludeEntity(entity('Zero Trust', 'framework'))).toBe(true);
+  });
+
+  it('excludes generic technology categories', () => {
+    expect(
+      shouldExcludeEntity(entity('cloud computing', 'technology')),
+    ).toBe(true);
+    expect(
+      shouldExcludeEntity(entity('artificial intelligence', 'technology')),
+    ).toBe(true);
+    expect(
+      shouldExcludeEntity(entity('machine learning', 'technology')),
+    ).toBe(true);
+    expect(shouldExcludeEntity(entity('blockchain', 'technology'))).toBe(true);
+  });
+
+  it('excludes service tiers and generic descriptors', () => {
+    expect(
+      shouldExcludeEntity(entity('standard support', 'product')),
+    ).toBe(true);
+    expect(
+      shouldExcludeEntity(entity('premium support', 'product')),
+    ).toBe(true);
+  });
+
+  it('excludes programming languages as protocols', () => {
+    expect(shouldExcludeEntity(entity('Python', 'technology'))).toBe(true);
+    expect(shouldExcludeEntity(entity('Java', 'technology'))).toBe(true);
+  });
+
+  it('excludes geographic regions', () => {
+    expect(shouldExcludeEntity(entity('England', 'sector'))).toBe(true);
+    expect(shouldExcludeEntity(entity('Wales', 'sector'))).toBe(true);
+    expect(
+      shouldExcludeEntity(
+        entity('European Economic Area', 'sector'),
+      ),
+    ).toBe(true);
+  });
+
+  it('does not exclude SAML (it is a standard)', () => {
+    expect(shouldExcludeEntity(entity('SAML', 'standard'))).toBe(false);
   });
 });

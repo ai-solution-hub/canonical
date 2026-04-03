@@ -83,10 +83,10 @@ describe('audit_content brief_content logic', () => {
     );
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test helper, result shape varies
   const runAudit = async (
     rows: Record<string, unknown>[],
     issueType?: string,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test helper, result shape varies
   ): Promise<any> => {
     const handler = mockServer.getHandler('audit_content')!;
     mocks.rpcMock.mockResolvedValue({ data: rows, error: null });

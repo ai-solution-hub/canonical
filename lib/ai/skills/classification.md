@@ -82,19 +82,20 @@ Key distinctions:
 - **product:** Named commercial software products. NOT insurance products or
   contract types.
 - **standard** — published technical standards (ISO, BS, WCAG, HL7, IEEE). Not
-  regulations (those have legal force) or frameworks (those are management
-  systems). Examples: BS 5839, WCAG 2.1, HL7.
-- **methodology** — named delivery approaches (Agile, Lean, Six Sigma, PRINCE2).
-  Not internal processes.
+  regulations (those have legal force) or frameworks (those are published
+  guidance). Examples: BS 5839, WCAG 2.1, HL7.
+- **methodology** — named delivery approaches with their own body of knowledge
+  (Agile, Lean, Six Sigma, PRINCE2). Not internal processes or security
+  principles.
 - **standard vs certification:** A standard is the document itself; a
   certification is proof of compliance.
-- **methodology vs framework:** Methodologies are ways of working; frameworks
-  provide structured management systems.
+- **methodology vs framework:** Methodologies are named delivery approaches;
+  frameworks are published, externally maintained guidance.
 
 ## Edge Cases
 
-- **Q&A pairs:** Classify based on the answer content, not the question. The
-  answer reveals the domain expertise being demonstrated.
+- **Q&A pairs:** The QUESTION TEXT is the primary classification signal — it
+  reveals what the tender is asking about. Use the answer to confirm or refine.
 - **Case studies:** Classify by the primary capability or service demonstrated,
   not the client's industry. Use secondary domain for the delivery methodology
   if applicable.

@@ -89,6 +89,50 @@ const GENERIC_CONCEPTS = new Set([
   'security monitoring',
   'threat detection',
   'security best practices',
+  // Security principles (not methodologies or frameworks)
+  'principle of least privilege',
+  'least privilege',
+  'defence in depth',
+  'defense in depth',
+  'zero trust',
+  'segregation of duty',
+  'separation of duties',
+  // Generic technology categories (not specific products)
+  'cloud computing',
+  'artificial intelligence',
+  'machine learning',
+  'blockchain',
+  // Service tiers and generic descriptors
+  'standard support',
+  'premium support',
+  'set-up fee',
+  'setup fee',
+  // Generic software categories
+  'content management system',
+  'learning management system',
+  // Generic activities (not named projects)
+  'cloud migration',
+  'security improvement',
+  // Product features (not products themselves)
+  'single sign-on',
+  // Internal departments and informal groupings
+  'it department',
+  'hr team',
+  'the project team',
+  'senior management',
+  // Generic capability activities
+  'online training',
+  'staff training',
+  // Geographic regions (not sectors)
+  'england',
+  'wales',
+  'scotland',
+  'northern ireland',
+  'european economic area',
+  'eea',
+  // Demographic descriptions (not sectors)
+  'vulnerable adults',
+  'children and young people',
 ]);
 
 /** Patterns matching job titles and role descriptions (not person names) */
@@ -118,7 +162,6 @@ const PROTOCOL_FORMATS = new Set([
   'tcp',
   'udp',
   'ldap',
-  'saml',
   'oauth',
   'pdf',
   'csv',
@@ -126,6 +169,8 @@ const PROTOCOL_FORMATS = new Set([
   'xml',
   'json',
   'javascript',
+  'python',
+  'java',
   'sql',
   'css',
   'aes-256',
