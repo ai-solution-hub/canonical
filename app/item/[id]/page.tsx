@@ -23,7 +23,7 @@ export default async function ItemDetailPage({
   for (let attempt = 0; attempt < 3; attempt++) {
     const result = await supabase
       .from('content_items')
-      .select(`${CONTENT_DETAIL_COLUMNS}, embedding`)
+      .select(CONTENT_DETAIL_COLUMNS)
       .eq('id', id)
       .single();
     item = result.data;
@@ -41,54 +41,27 @@ export default async function ItemDetailPage({
     notFound();
   }
 
-  // Separate embedding from item data (embedding stays server-side)
-  const { embedding, ...itemWithoutEmbedding } = item;
-
-  // Fetch related items server-side
-  let relatedItems: Array<ContentListItem & { similarity: number }> = [];
-  if (embedding) {
-    const { data: similar } = await supabase.rpc('find_similar_content', {
-      query_embedding: embedding,
-      similarity_threshold: 0.6,
-      limit_count: 7,
-    });
-
-    if (similar) {
-      const filtered = similar
-        .filter((r: { id: string }) => r.id !== id)
-        .slice(0, 6);
-
-      if (filtered.length > 0) {
-        const ids = filtered.map((r: { id: string }) => r.id);
-        const { data: details } = await supabase
-          .from('content_items')
-          .select(
-            'id, title, suggested_title, ai_summary, primary_domain, primary_subtopic, content_type, platform, author_name, source_domain, thumbnail_url, captured_date, ai_keywords, classification_confidence, priority, user_tags',
-          )
-          .in('id', ids);
-
-        if (details) {
-          relatedItems = filtered.map(
-            (r: { id: string; similarity: number }) => ({
-              ...(details.find((d) => d.id === r.id) as ContentListItem),
-              similarity: r.similarity,
-            }),
-          );
-        }
-      }
-    }
-  }
+  // Fetch related items server-side (single RPC — no embedding round-trip)
+  const { data: relatedItems } = await supabase.rpc('find_related_items', {
+    p_item_id: id,
+    p_similarity_threshold: 0.6,
+    p_limit_count: 6,
+  });
 
   // Parse JSONB columns with runtime validation
   // Scalar fields match between Supabase row and ItemData; only JSONB columns
   // differ and are immediately overridden below with validated versions.
   const itemData: ItemData = {
-    ...(itemWithoutEmbedding as ItemData),
-    summary_data: parseJsonb(
-      SummaryDataSchema,
-      itemWithoutEmbedding.summary_data,
-    ),
+    ...(item as ItemData),
+    summary_data: parseJsonb(SummaryDataSchema, item.summary_data),
   };
 
-  return <ItemDetailClient item={itemData} relatedItems={relatedItems} />;
+  return (
+    <ItemDetailClient
+      item={itemData}
+      relatedItems={
+        (relatedItems as Array<ContentListItem & { similarity: number }>) ?? []
+      }
+    />
+  );
 }
