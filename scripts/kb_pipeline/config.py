@@ -18,24 +18,24 @@ SUPABASE_URL = None  # loaded from .env via get_env()
 # Load .env into os.environ (does not override existing env vars)
 load_dotenv(ENV_PATH)
 
-# Models
-CLASSIFICATION_MODEL = "claude-opus-4-6"
-EMBEDDING_MODEL = "text-embedding-3-large"
-EMBEDDING_DIMS = 1024
+# Models (overridable via env vars)
+CLASSIFICATION_MODEL = os.environ.get("CLASSIFICATION_MODEL", "claude-opus-4-6")
+EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "text-embedding-3-large")
+EMBEDDING_DIMS = int(os.environ.get("EMBEDDING_DIMS", "1024"))
 
-# Pricing (per token)
-OPUS_INPUT_PRICE = 5.00 / 1_000_000
-OPUS_OUTPUT_PRICE = 25.00 / 1_000_000
-OPUS_CACHE_WRITE_PRICE = 6.25 / 1_000_000
-OPUS_CACHE_READ_PRICE = 0.50 / 1_000_000
+# Pricing (per token) — must match lib/ai/pricing.ts
+OPUS_INPUT_PRICE = 15.00 / 1_000_000
+OPUS_OUTPUT_PRICE = 75.00 / 1_000_000
+OPUS_CACHE_WRITE_PRICE = 18.75 / 1_000_000
+OPUS_CACHE_READ_PRICE = 1.50 / 1_000_000
 EMBEDDING_PRICE = 0.13 / 1_000_000
 
-# Dedup thresholds
-DEDUP_SIMILARITY_THRESHOLD = 0.90
+# Dedup thresholds (overridable via env vars)
+DEDUP_SIMILARITY_THRESHOLD = float(os.environ.get("DEDUP_SIMILARITY_THRESHOLD", "0.90"))
 
-# Quality thresholds
-SHORT_CONTENT_THRESHOLD = 100  # chars
-LOW_CONFIDENCE_THRESHOLD = 0.60
+# Quality thresholds (overridable via env vars)
+SHORT_CONTENT_THRESHOLD = int(os.environ.get("SHORT_CONTENT_THRESHOLD", "100"))  # chars
+LOW_CONFIDENCE_THRESHOLD = float(os.environ.get("LOW_CONFIDENCE_THRESHOLD", "0.60"))
 
 
 def load_env():
