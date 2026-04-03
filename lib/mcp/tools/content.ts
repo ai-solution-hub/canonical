@@ -1,9 +1,10 @@
 /**
- * Content item tool registrations (7 tools):
+ * Content item tool registrations (8 tools):
  *   4. get_content_item
  *  12. create_content_item
  *  19. update_content_item
  *  21. get_content_items
+ *      get_workspace_items
  *  31. assign_content_owner
  *  33. get_document_versions
  *  35. get_document_diff
@@ -33,6 +34,75 @@ import {
   getClassifyContent,
   getGenerateSummary,
 } from './shared';
+
+// ---------------------------------------------------------------------------
+// Shared helper: fetch content items by ID array and format as batch result.
+// Used by get_content_items and get_workspace_items.
+// ---------------------------------------------------------------------------
+
+async function fetchAndFormatContentItems(
+  supabase: ReturnType<typeof createMcpClient>,
+  itemIds: string[],
+): Promise<BatchContentItemsResult> {
+  if (itemIds.length === 0) {
+    return { count: 0, items: [], not_found: [] };
+  }
+
+  const { data: rows, error } = await supabase
+    .from('content_items')
+    .select(
+      'id, title, suggested_title, content_type, primary_domain, primary_subtopic, ai_summary, ai_keywords, freshness, classification_confidence, source_url, content, created_at, updated_at, governance_review_status, priority',
+    )
+    .in('id', itemIds);
+
+  if (error) {
+    throw new Error(`Batch fetch failed: ${error.message}`);
+  }
+
+  const foundIds = new Set(
+    (rows ?? []).map((r: Record<string, unknown>) => r.id as string),
+  );
+  const notFound = itemIds.filter((id) => !foundIds.has(id));
+
+  const items: ContentItemDetail[] = (
+    (rows ?? []) as Record<string, unknown>[]
+  ).map((item) => {
+    let content = item.content as string | null;
+    if (typeof content === 'string' && content.length > CHARACTER_LIMIT) {
+      content =
+        content.slice(0, CHARACTER_LIMIT) + '\n\n... (content truncated)';
+    }
+
+    return {
+      id: item.id as string,
+      title: item.title as string | null,
+      suggested_title: item.suggested_title as string | null,
+      content_type: item.content_type as string | null,
+      primary_domain: item.primary_domain as string | null,
+      primary_subtopic: item.primary_subtopic as string | null,
+      ai_summary: item.ai_summary as string | null,
+      ai_keywords: item.ai_keywords as string[] | null,
+      freshness: item.freshness as string | null,
+      classification_confidence: item.classification_confidence as
+        | number
+        | null,
+      source_url: item.source_url as string | null,
+      content,
+      created_at: item.created_at as string | null,
+      updated_at: item.updated_at as string | null,
+      governance_review_status: item.governance_review_status as string | null,
+      priority: item.priority as string | null,
+    };
+  });
+
+  // Reorder to match input ID order
+  const idOrder = new Map(itemIds.map((id, index) => [id, index]));
+  items.sort(
+    (a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0),
+  );
+
+  return { count: items.length, items, not_found: notFound };
+}
 
 export async function registerContentTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
@@ -674,76 +744,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
     async (args, extra: ToolExtra) => {
       try {
         const supabase = createMcpClient(extra.authInfo);
-
-        const { data: rows, error } = await supabase
-          .from('content_items')
-          .select(
-            'id, title, suggested_title, content_type, primary_domain, primary_subtopic, ai_summary, ai_keywords, freshness, classification_confidence, source_url, content, created_at, updated_at, governance_review_status, priority',
-          )
-          .in('id', args.ids);
-
-        if (error) {
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: `Batch fetch failed: ${error.message}.`,
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        const foundIds = new Set(
-          (rows ?? []).map((r: Record<string, unknown>) => r.id as string),
-        );
-        const notFound = args.ids.filter((id) => !foundIds.has(id));
-
-        const items: ContentItemDetail[] = (
-          (rows ?? []) as Record<string, unknown>[]
-        ).map((item) => {
-          // Truncate content in results to prevent oversized responses
-          let content = item.content as string | null;
-          if (typeof content === 'string' && content.length > CHARACTER_LIMIT) {
-            content =
-              content.slice(0, CHARACTER_LIMIT) + '\n\n... (content truncated)';
-          }
-
-          return {
-            id: item.id as string,
-            title: item.title as string | null,
-            suggested_title: item.suggested_title as string | null,
-            content_type: item.content_type as string | null,
-            primary_domain: item.primary_domain as string | null,
-            primary_subtopic: item.primary_subtopic as string | null,
-            ai_summary: item.ai_summary as string | null,
-            ai_keywords: item.ai_keywords as string[] | null,
-            freshness: item.freshness as string | null,
-            classification_confidence: item.classification_confidence as
-              | number
-              | null,
-            source_url: item.source_url as string | null,
-            content,
-            created_at: item.created_at as string | null,
-            updated_at: item.updated_at as string | null,
-            governance_review_status: item.governance_review_status as
-              | string
-              | null,
-            priority: item.priority as string | null,
-          };
-        });
-
-        // Reorder to match input ID order
-        const idOrder = new Map(args.ids.map((id, index) => [id, index]));
-        items.sort(
-          (a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0),
-        );
-
-        const result: BatchContentItemsResult = {
-          count: items.length,
-          items,
-          not_found: notFound,
-        };
+        const result = await fetchAndFormatContentItems(supabase, args.ids);
 
         const markdown = truncateResponse(formatBatchContentItems(result));
         return {
@@ -755,6 +756,92 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         return {
           content: [
             { type: 'text' as const, text: `Batch fetch failed: ${message}.` },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // get_workspace_items
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'get_workspace_items',
+    {
+      title: 'Get Workspace Items',
+      description:
+        'Fetch content items assigned to a specific workspace via the content_item_workspaces junction table. Returns paginated items with full detail. Use this to browse all content within a workspace without needing to know individual item IDs.',
+      inputSchema: {
+        workspace_id: z
+          .string()
+          .uuid()
+          .describe('Workspace UUID to fetch items for'),
+        limit: z
+          .number()
+          .optional()
+          .describe('Maximum items to return (default: 20, max: 50)'),
+        offset: z
+          .number()
+          .optional()
+          .describe('Pagination offset (default: 0)'),
+      },
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+        destructiveHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+        const itemLimit = Math.min(args.limit ?? 20, 50);
+        const itemOffset = args.offset ?? 0;
+
+        // Query junction table for workspace content items, ordered by assignment date
+        const { data: junctionRows, error: junctionError } = await supabase
+          .from('content_item_workspaces')
+          .select('content_item_id')
+          .eq('workspace_id', args.workspace_id)
+          .order('assigned_at', { ascending: false })
+          .range(itemOffset, itemOffset + itemLimit); // Supabase range is inclusive
+
+        if (junctionError) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Failed to fetch workspace items: ${junctionError.message}.`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const itemIds = (junctionRows ?? []).map(
+          (row: { content_item_id: string }) => row.content_item_id,
+        );
+
+        const result = await fetchAndFormatContentItems(supabase, itemIds);
+
+        const markdown = truncateResponse(formatBatchContentItems(result));
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent({
+            workspace_id: args.workspace_id,
+            offset: itemOffset,
+            ...result,
+          }),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Failed to fetch workspace items: ${message}. Check the workspace_id is a valid UUID.`,
+            },
           ],
           isError: true,
         };
