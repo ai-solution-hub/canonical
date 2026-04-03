@@ -42,11 +42,17 @@ import { GET } from '@/app/api/intelligence/workspaces/[id]/metrics/trend/route'
 
 const WORKSPACE_UUID = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 
-function makeArticles(entries: Array<{ date: string; passed: boolean }>) {
-  return entries.map((e) => ({
-    ingested_at: `${e.date}T12:00:00Z`,
-    passed: e.passed,
-  }));
+/** Build RPC-shaped trend rows (matches get_filter_ratio_trend return type) */
+function makeTrendRows(
+  entries: Array<{
+    date: string;
+    total: number;
+    passed: number;
+    filtered: number;
+    ratio: number;
+  }>,
+) {
+  return entries;
 }
 
 // ---------------------------------------------------------------------------
@@ -70,18 +76,12 @@ describe('GET /api/intelligence/workspaces/:id/metrics/trend', () => {
   it('returns trend data points with daily granularity', async () => {
     configureRole(mockSupabase, 'admin');
 
-    const articles = makeArticles([
-      { date: '2026-03-01', passed: true },
-      { date: '2026-03-01', passed: false },
-      { date: '2026-03-01', passed: true },
-      { date: '2026-03-02', passed: false },
-      { date: '2026-03-02', passed: false },
+    const rows = makeTrendRows([
+      { date: '2026-03-01', total: 3, passed: 2, filtered: 1, ratio: 67 },
+      { date: '2026-03-02', total: 2, passed: 0, filtered: 2, ratio: 0 },
     ]);
 
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: articles, error: null, count: articles.length }),
-    );
+    mockSupabase.rpc.mockResolvedValueOnce({ data: rows, error: null });
 
     const request = createTestRequest(
       `/api/intelligence/workspaces/${WORKSPACE_UUID}/metrics/trend`,
@@ -94,12 +94,12 @@ describe('GET /api/intelligence/workspaces/:id/metrics/trend', () => {
     expect(response.status).toBe(200);
     expect(data).toHaveLength(2);
 
-    // Sorted oldest first
+    // Sorted oldest first (RPC returns pre-sorted)
     expect(data[0].date).toBe('2026-03-01');
     expect(data[0].total).toBe(3);
     expect(data[0].passed).toBe(2);
     expect(data[0].filtered).toBe(1);
-    expect(data[0].ratio).toBe(67); // Math.round(2/3 * 100)
+    expect(data[0].ratio).toBe(67);
 
     expect(data[1].date).toBe('2026-03-02');
     expect(data[1].total).toBe(2);
@@ -111,17 +111,12 @@ describe('GET /api/intelligence/workspaces/:id/metrics/trend', () => {
   it('returns weekly aggregated buckets', async () => {
     configureRole(mockSupabase, 'admin');
 
-    // All dates in the same ISO week (Mon 2 March to Sun 8 March 2026)
-    const articles = makeArticles([
-      { date: '2026-03-02', passed: true }, // Monday
-      { date: '2026-03-04', passed: true }, // Wednesday
-      { date: '2026-03-06', passed: false }, // Friday
+    // RPC returns pre-aggregated weekly bucket
+    const rows = makeTrendRows([
+      { date: '2026-03-02', total: 3, passed: 2, filtered: 1, ratio: 67 },
     ]);
 
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: articles, error: null, count: articles.length }),
-    );
+    mockSupabase.rpc.mockResolvedValueOnce({ data: rows, error: null });
 
     const request = createTestRequest(
       `/api/intelligence/workspaces/${WORKSPACE_UUID}/metrics/trend`,
@@ -141,10 +136,7 @@ describe('GET /api/intelligence/workspaces/:id/metrics/trend', () => {
   it('uses default granularity (daily) and period (90d)', async () => {
     configureRole(mockSupabase, 'admin');
 
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null, count: 0 }),
-    );
+    mockSupabase.rpc.mockResolvedValueOnce({ data: [], error: null });
 
     const request = createTestRequest(
       `/api/intelligence/workspaces/${WORKSPACE_UUID}/metrics/trend`,
@@ -155,15 +147,19 @@ describe('GET /api/intelligence/workspaces/:id/metrics/trend', () => {
 
     expect(response.status).toBe(200);
     expect(data).toEqual([]);
+
+    // Verify RPC was called with defaults
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('get_filter_ratio_trend', {
+      p_workspace_id: WORKSPACE_UUID,
+      p_granularity: 'daily',
+      p_period_days: 90,
+    });
   });
 
   it('returns empty array when no articles exist', async () => {
     configureRole(mockSupabase, 'admin');
 
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null, count: 0 }),
-    );
+    mockSupabase.rpc.mockResolvedValueOnce({ data: [], error: null });
 
     const request = createTestRequest(
       `/api/intelligence/workspaces/${WORKSPACE_UUID}/metrics/trend`,
@@ -177,19 +173,17 @@ describe('GET /api/intelligence/workspaces/:id/metrics/trend', () => {
     expect(data).toEqual([]);
   });
 
-  it('sorts results oldest-first', async () => {
+  it('returns results in order from RPC (oldest-first)', async () => {
     configureRole(mockSupabase, 'admin');
 
-    const articles = makeArticles([
-      { date: '2026-03-10', passed: true },
-      { date: '2026-03-01', passed: true },
-      { date: '2026-03-05', passed: false },
+    // RPC returns pre-sorted oldest-first
+    const rows = makeTrendRows([
+      { date: '2026-03-01', total: 1, passed: 1, filtered: 0, ratio: 100 },
+      { date: '2026-03-05', total: 1, passed: 0, filtered: 1, ratio: 0 },
+      { date: '2026-03-10', total: 1, passed: 1, filtered: 0, ratio: 100 },
     ]);
 
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: articles, error: null, count: articles.length }),
-    );
+    mockSupabase.rpc.mockResolvedValueOnce({ data: rows, error: null });
 
     const request = createTestRequest(
       `/api/intelligence/workspaces/${WORKSPACE_UUID}/metrics/trend`,
@@ -204,20 +198,14 @@ describe('GET /api/intelligence/workspaces/:id/metrics/trend', () => {
     expect(data[2].date).toBe('2026-03-10');
   });
 
-  it('computes ratio as percentage 0-100', async () => {
+  it('passes through ratio from RPC as percentage 0-100', async () => {
     configureRole(mockSupabase, 'admin');
 
-    const articles = makeArticles([
-      { date: '2026-03-01', passed: true },
-      { date: '2026-03-01', passed: true },
-      { date: '2026-03-01', passed: true },
-      { date: '2026-03-01', passed: false },
+    const rows = makeTrendRows([
+      { date: '2026-03-01', total: 4, passed: 3, filtered: 1, ratio: 75 },
     ]);
 
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: articles, error: null, count: articles.length }),
-    );
+    mockSupabase.rpc.mockResolvedValueOnce({ data: rows, error: null });
 
     const request = createTestRequest(
       `/api/intelligence/workspaces/${WORKSPACE_UUID}/metrics/trend`,
@@ -285,12 +273,11 @@ describe('GET /api/intelligence/workspaces/:id/metrics/trend', () => {
   it('each data point has required fields', async () => {
     configureRole(mockSupabase, 'admin');
 
-    const articles = makeArticles([{ date: '2026-03-01', passed: true }]);
+    const rows = makeTrendRows([
+      { date: '2026-03-01', total: 1, passed: 1, filtered: 0, ratio: 100 },
+    ]);
 
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: articles, error: null, count: articles.length }),
-    );
+    mockSupabase.rpc.mockResolvedValueOnce({ data: rows, error: null });
 
     const request = createTestRequest(
       `/api/intelligence/workspaces/${WORKSPACE_UUID}/metrics/trend`,
