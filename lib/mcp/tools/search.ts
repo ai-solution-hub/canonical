@@ -58,7 +58,7 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
     'search_knowledge_base',
     {
       title: 'Search Knowledge Base',
-      description: `Search the knowledge base using semantic and keyword search. Returns content items matching your query, ranked by relevance. Use this to find articles, policies, case studies, Q&A pairs, and other knowledge base content. For Q&A pairs specifically, prefer search_qa_library instead. Valid domains: ${domainList}. Use the kb://taxonomy resource for the full subtopic list.`,
+      description: `Search the knowledge base using semantic and keyword search. Returns content items matching your query, ranked by relevance. Use this to find articles, policies, case studies, Q&A pairs, and other knowledge base content. For Q&A pairs specifically, prefer search_qa_library instead. Supports optional domain and workspace_id filters (AND logic when both provided). Valid domains: ${domainList}. Use the kb://taxonomy resource for the full subtopic list.`,
       inputSchema: {
         query: z
           .string()
@@ -78,6 +78,13 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
           .optional()
           .describe(
             `Filter results to a specific domain. Valid values: ${domainList}`,
+          ),
+        workspace_id: z
+          .string()
+          .uuid()
+          .optional()
+          .describe(
+            'Filter results to a specific workspace. Items matched via content_item_workspaces junction table.',
           ),
       },
       annotations: {
@@ -124,6 +131,22 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
             const domain = r.primary_domain as string | null;
             return domain && domain.toLowerCase().includes(domainLower);
           });
+        }
+
+        // Post-filter by workspace if specified (AND logic with domain filter)
+        if (args.workspace_id) {
+          const { data: junctionRows } = await supabase
+            .from('content_item_workspaces')
+            .select('content_item_id')
+            .eq('workspace_id', args.workspace_id);
+          const workspaceItemIds = new Set(
+            (junctionRows ?? []).map(
+              (row: { content_item_id: string }) => row.content_item_id,
+            ),
+          );
+          filtered = filtered.filter((r: Record<string, unknown>) =>
+            workspaceItemIds.has(r.id as string),
+          );
         }
 
         // Apply pagination via slice
