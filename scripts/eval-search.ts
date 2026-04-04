@@ -140,7 +140,7 @@ async function executeSearch(
   const { data, error } = await supabase.rpc('hybrid_search', {
     query_embedding: JSON.stringify(embedding),
     query_text: query,
-    match_count: 20,
+    limit_count: 20,
     similarity_threshold: 0.35,
   });
 
