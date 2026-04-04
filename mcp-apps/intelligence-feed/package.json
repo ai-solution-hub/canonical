@@ -1,0 +1,17 @@
+{
+  "name": "intelligence-feed",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "INPUT=app.html vite build",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "1.3.2"
+  },
+  "devDependencies": {
+    "typescript": "^5",
+    "vite": "^6",
+    "vite-plugin-singlefile": "^2"
+  }
+}

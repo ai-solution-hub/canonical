@@ -16,7 +16,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e:ui": "playwright test --ui",
     "bundle:mcp-apps": "bun run scripts/bundle-mcp-apps.ts",
-    "build:mcp-apps": "cd mcp-apps/coverage-matrix && bun install && INPUT=app.html bunx vite build && cd ../bid-dashboard && bun install && INPUT=app.html bunx vite build && cd ../reorient-me && bun install && INPUT=app.html bunx vite build && cd ../.. && bun scripts/bundle-mcp-apps.ts",
+    "build:mcp-apps": "cd mcp-apps/coverage-matrix && bun install && INPUT=app.html bunx vite build && cd ../bid-dashboard && bun install && INPUT=app.html bunx vite build && cd ../reorient-me && bun install && INPUT=app.html bunx vite build && cd ../intelligence-feed && bun install && INPUT=app.html bunx vite build && cd ../.. && bun scripts/bundle-mcp-apps.ts",
     "build:plugin": "bun run scripts/bundle-plugin.ts",
     "sync:plugin-taxonomy": "bun run scripts/sync-plugin-taxonomy.ts",
     "sync:taxonomy": "bun run scripts/generate-classification-prompt-taxonomy.ts && bun run scripts/generate-taxonomy-snapshot.ts && bun run scripts/sync-plugin-taxonomy.ts && bun run build:plugin",

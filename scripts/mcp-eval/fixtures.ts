@@ -75,10 +75,10 @@ export function loadEnv(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Canonical lists — updated to 38 tools (current as of S134)
+// Canonical lists — updated to 41 tools (current as of S144)
 // ---------------------------------------------------------------------------
 
-/** All 38 MCP tool names in registration order. */
+/** All 41 MCP tool names in registration order. */
 export const CANONICAL_TOOL_NAMES = [
   'search_knowledge_base', // 1
   'search_qa_library', // 2
@@ -96,31 +96,34 @@ export const CANONICAL_TOOL_NAMES = [
   'create_content_item', // 14
   'update_content_item', // 15
   'get_content_items', // 16
-  'assign_content_owner', // 17
-  'get_document_versions', // 18
-  'get_document_diff', // 19
-  'get_quality_summary', // 20
-  'get_coverage_gaps', // 21
-  'audit_content', // 22
-  'find_all_duplicates', // 23
-  'suggest_content_creation', // 24
-  'get_quality_briefing', // 25
-  'get_quality_actions', // 26
-  'classify_content', // 27
-  'generate_summary', // 28
-  'get_entity_relationships', // 29
-  'get_certification_status', // 30
-  'list_templates', // 31
-  'get_template_coverage', // 32
-  'get_template_gaps', // 33
-  'show_coverage_matrix', // 34
-  'show_bid_dashboard', // 35
-  'show_reorient_me', // 36
-  'delete_content_item', // 37
-  'update_governance_status', // 38
+  'get_workspace_items', // 17
+  'assign_content_owner', // 18
+  'get_document_versions', // 19
+  'get_document_diff', // 20
+  'get_quality_summary', // 21
+  'get_coverage_gaps', // 22
+  'audit_content', // 23
+  'find_all_duplicates', // 24
+  'suggest_content_creation', // 25
+  'get_quality_briefing', // 26
+  'get_quality_actions', // 27
+  'classify_content', // 28
+  'generate_summary', // 29
+  'get_entity_relationships', // 30
+  'get_certification_status', // 31
+  'list_templates', // 32
+  'get_template_coverage', // 33
+  'get_template_gaps', // 34
+  'show_coverage_matrix', // 35
+  'show_bid_dashboard', // 36
+  'show_reorient_me', // 37
+  'show_intelligence_feed', // 38
+  'delete_content_item', // 39
+  'update_governance_status', // 40
+  'get_intelligence_summary', // 41
 ] as const;
 
-export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 38
+export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 41
 
 /** Read-only tools (no side effects). */
 export const READ_ONLY_TOOLS = new Set([
@@ -137,6 +140,7 @@ export const READ_ONLY_TOOLS = new Set([
   'get_content_effectiveness',
   'get_content_item',
   'get_content_items',
+  'get_workspace_items',
   'get_quality_summary',
   'get_coverage_gaps',
   'audit_content',
@@ -152,8 +156,10 @@ export const READ_ONLY_TOOLS = new Set([
   'show_coverage_matrix',
   'show_bid_dashboard',
   'show_reorient_me',
+  'show_intelligence_feed',
   'get_document_versions',
   'get_document_diff',
+  'get_intelligence_summary',
 ]);
 
 /** Write tools that modify data. */
@@ -448,12 +454,27 @@ export function getMinimalArgs(
       return { id: knownUUIDs.contentItemId };
     case 'get_content_items':
       return { ids: [knownUUIDs.contentItemId] };
+    case 'get_workspace_items':
+      return {
+        workspace_id:
+          knownUUIDs.bidId ?? '00000000-0000-0000-0000-000000000000',
+      };
     case 'show_coverage_matrix':
       return {};
     case 'show_bid_dashboard':
       return {};
     case 'show_reorient_me':
       return {};
+    case 'show_intelligence_feed':
+      return {
+        workspace_id:
+          knownUUIDs.bidId ?? '00000000-0000-0000-0000-000000000000',
+      };
+    case 'get_intelligence_summary':
+      return {
+        workspace_id:
+          knownUUIDs.bidId ?? '00000000-0000-0000-0000-000000000000',
+      };
     case 'find_all_duplicates':
       return {};
     case 'list_templates':

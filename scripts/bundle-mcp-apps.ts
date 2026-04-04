@@ -48,6 +48,17 @@ const APPS: AppConfig[] = [
     constName: 'REORIENT_ME_HTML',
     htmlPath: join(PROJECT_ROOT, 'mcp-apps', 'reorient-me', 'dist', 'app.html'),
   },
+  {
+    name: 'intelligence-feed',
+    constName: 'INTELLIGENCE_FEED_HTML',
+    htmlPath: join(
+      PROJECT_ROOT,
+      'mcp-apps',
+      'intelligence-feed',
+      'dist',
+      'app.html',
+    ),
+  },
 ];
 
 /** Escape a string for safe embedding in a JS template literal */

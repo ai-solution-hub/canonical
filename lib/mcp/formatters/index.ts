@@ -105,6 +105,11 @@ export {
 } from './apps';
 export { type DocumentDiffData, formatDocumentDiff } from './documents';
 export {
+  type IntelligenceArticle,
+  type IntelligenceSummaryData,
+  formatIntelligenceSummary,
+} from './intelligence';
+export {
   type BelowThresholdItem,
   type ScoreDropItem,
   type FreshnessTransitionItem,
