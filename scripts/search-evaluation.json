@@ -1,9 +1,9 @@
 {
   "metadata": {
-    "version": "4.0",
+    "version": "5.0",
     "created": "08/03/2026",
-    "updated": "15/03/2026",
-    "description": "Search evaluation test suite for Knowledge Hub hybrid search (pgvector + keyword + recency via hybrid_search RPC). Updated for bid-domain taxonomy (7 domains, 34 subtopics). 4 subtopics added in S80: health-and-safety, environmental, modern-slavery, supply-chain.",
+    "updated": "03/04/2026",
+    "description": "Search evaluation test suite for Knowledge Hub hybrid search (pgvector + keyword + recency via hybrid_search RPC). Updated for expanded taxonomy (15 domains, 56 subtopics). Relevance judgements added from live DB content. 4 subtopics added in S80: health-and-safety, environmental, modern-slavery, supply-chain. 8 new domains added via sector intelligence: market-intelligence, legislation-policy, products-services, sector-news, education, multi-academy-trusts, safeguarding-adults, safeguarding-child-protection.",
     "search_endpoint": "POST /api/search",
     "search_defaults": {
       "threshold": 0.35,
@@ -11,7 +11,23 @@
     },
     "app_url": "http://localhost:6100/search",
     "taxonomy": {
-      "domains": ["security", "compliance", "implementation", "support", "corporate", "product-feature", "methodology"],
+      "domains": [
+        "compliance",
+        "corporate",
+        "education",
+        "implementation",
+        "legislation-policy",
+        "market-intelligence",
+        "methodology",
+        "multi-academy-trusts",
+        "product-feature",
+        "products-services",
+        "safeguarding-adults",
+        "safeguarding-child-protection",
+        "sector-news",
+        "security",
+        "support"
+      ],
       "content_types": [
         "article",
         "blog",
@@ -29,7 +45,13 @@
         "product_description"
       ]
     },
-    "notes": "All test cases use realistic UK bid management search queries. Default threshold is 0.35. The hybrid_search RPC combines embedding similarity (70%) + title match (15%) + keyword match (10%) + summary/author (5%) + recency (5%). Content is primarily Q&A pairs from bid libraries."
+    "relevance_scale": {
+      "0": "not relevant",
+      "1": "marginally relevant",
+      "2": "relevant",
+      "3": "highly relevant"
+    },
+    "notes": "All test cases use realistic UK bid management search queries. Default threshold is 0.35. The hybrid_search RPC combines embedding similarity (70%) + title match (15%) + keyword match (10%) + summary/author (5%) + recency (5%). Content is primarily Q&A pairs from bid libraries. Relevance judgements use real content_item IDs from the live database."
   },
   "test_cases": [
     {
@@ -43,7 +65,19 @@
         "expected_content_types": ["q_a_pair", "policy"],
         "must_include_titles": [],
         "notes": "Core security topic. Should strongly favour security/data-protection items covering GDPR compliance, data handling, and privacy policies. Q&A pairs about data protection approach should dominate results."
-      }
+      },
+      "relevance_judgements": [
+        { "content_item_id": "b0ab4925-3a49-4973-bf76-747a63219a67", "relevant": true, "score": 3 },
+        { "content_item_id": "d86f76e9-f247-4565-9a4e-8cfe918e15fc", "relevant": true, "score": 3 },
+        { "content_item_id": "6183c47c-fa39-45fe-bd30-7031d382cca1", "relevant": true, "score": 3 },
+        { "content_item_id": "0efd19a0-259e-429e-888c-9f545782aff0", "relevant": true, "score": 3 },
+        { "content_item_id": "3ce0a25f-cda1-44bd-8883-d4bb0dec9839", "relevant": true, "score": 2 },
+        { "content_item_id": "2b5d1210-073e-4a63-8896-b8e969d83f6a", "relevant": true, "score": 2 },
+        { "content_item_id": "75cf4087-81b4-498f-84d3-82f9960296ff", "relevant": true, "score": 2 },
+        { "content_item_id": "9b53f658-acd6-42f3-8745-5e2c3b04133a", "relevant": true, "score": 2 },
+        { "content_item_id": "b2fb4b72-c2f1-4171-905c-af65208fa4cc", "relevant": true, "score": 1 },
+        { "content_item_id": "14c23abb-8cca-49b7-900b-a23ab6dfaeae", "relevant": true, "score": 1 }
+      ]
     },
     {
       "id": "SE-02",
@@ -56,7 +90,19 @@
         "expected_content_types": ["q_a_pair", "certification"],
         "must_include_titles": [],
         "notes": "Tests the security/compliance boundary. Queries about ISO 27001 substance (ISMS, controls) should return security/iso-27001. Queries about certification status should return compliance/certification. May also surface compliance/regulatory items about regulatory compliance obligations. This query blends both and should surface items from both domains."
-      }
+      },
+      "relevance_judgements": [
+        { "content_item_id": "3b80e08d-08f2-485b-98b4-5140644476f5", "relevant": true, "score": 3 },
+        { "content_item_id": "7df88c80-8e08-40ab-9689-a07768f42b94", "relevant": true, "score": 3 },
+        { "content_item_id": "94a0519c-396c-43b2-a40e-adf44074f557", "relevant": true, "score": 3 },
+        { "content_item_id": "16b8f44e-7d19-4270-8498-7da73caf2217", "relevant": true, "score": 2 },
+        { "content_item_id": "8bea7d5d-7257-4684-94b5-06dff35f962c", "relevant": true, "score": 2 },
+        { "content_item_id": "39482f91-6b04-4fe2-b581-cfdb3a407dd9", "relevant": true, "score": 1 },
+        { "content_item_id": "a5e2614b-2fea-4f81-8834-37b33343685e", "relevant": true, "score": 1 },
+        { "content_item_id": "1644c117-c29a-4a72-904f-9aff3ba5f37a", "relevant": true, "score": 1 },
+        { "content_item_id": "00839338-d346-48b6-9cc6-b6233a029a4f", "relevant": true, "score": 1 },
+        { "content_item_id": "264c477f-f028-401d-9ba0-4a038b31f9e8", "relevant": false, "score": 0 }
+      ]
     },
     {
       "id": "SE-03",
@@ -69,7 +115,19 @@
         "expected_content_types": ["q_a_pair"],
         "must_include_titles": [],
         "notes": "Clear support/sla topic. Should return Q&A pairs about service level agreements, response time commitments, and uptime targets. Highly specific to the support domain with strong keyword signal."
-      }
+      },
+      "relevance_judgements": [
+        { "content_item_id": "9cba7408-1d76-41d0-b4b3-6c5ea1d150b1", "relevant": true, "score": 3 },
+        { "content_item_id": "ad5aede8-e358-4235-b5aa-03a6151c5060", "relevant": true, "score": 3 },
+        { "content_item_id": "8520e87c-e52e-4e23-b734-2b4ba7daf653", "relevant": true, "score": 3 },
+        { "content_item_id": "4cc188d4-4253-472a-bbb4-58f5f58cd1c2", "relevant": true, "score": 2 },
+        { "content_item_id": "baa69530-6608-49a7-9e05-067a2f38bb76", "relevant": true, "score": 2 },
+        { "content_item_id": "f31ba6df-44fc-4340-949b-d02bd775fa47", "relevant": true, "score": 2 },
+        { "content_item_id": "13af3bd9-e5c6-4a07-a1d2-41277812b216", "relevant": true, "score": 1 },
+        { "content_item_id": "c5ab3c59-69e2-4cfa-b641-851a4489f955", "relevant": true, "score": 1 },
+        { "content_item_id": "cbaa7ad1-4475-4087-95bb-c1000972d34a", "relevant": false, "score": 0 },
+        { "content_item_id": "a9a8a019-8b4d-4267-a211-0ac8322092f7", "relevant": false, "score": 0 }
+      ]
     },
     {
       "id": "SE-04",
@@ -82,7 +140,17 @@
         "expected_content_types": ["q_a_pair"],
         "must_include_titles": [],
         "notes": "Cross-domain conceptual test. The query spans implementation/migration and security/data-protection. Tests whether semantic search connects migration activities with security concerns. Should surface items about secure data migration practices."
-      }
+      },
+      "relevance_judgements": [
+        { "content_item_id": "180c1120-be31-4ff0-ac7f-c1ab3b97e538", "relevant": true, "score": 3 },
+        { "content_item_id": "b0ab4925-3a49-4973-bf76-747a63219a67", "relevant": true, "score": 2 },
+        { "content_item_id": "d86f76e9-f247-4565-9a4e-8cfe918e15fc", "relevant": true, "score": 2 },
+        { "content_item_id": "7c222429-9b92-4a9a-a232-7d351d5060e8", "relevant": true, "score": 2 },
+        { "content_item_id": "dc27eadf-8de1-45e6-9580-8ed91afebddf", "relevant": true, "score": 1 },
+        { "content_item_id": "c9ed2c7f-b473-40f7-80d6-099558b82073", "relevant": true, "score": 1 },
+        { "content_item_id": "8195aa14-fb46-4312-a35b-95f151ea94d8", "relevant": true, "score": 1 },
+        { "content_item_id": "cfea98a1-8d12-4e9a-bfbc-bbcaa9f15952", "relevant": true, "score": 1 }
+      ]
     },
     {
       "id": "SE-05",
@@ -95,7 +163,19 @@
         "expected_content_types": ["q_a_pair", "policy"],
         "must_include_titles": [],
         "notes": "Conceptual test for support/incident domain. 'Business continuity' and 'disaster recovery' are semantic concepts that should map to incident response and DR planning content. May also surface maintenance items about system health monitoring. Tests whether embeddings connect BCP/DR terminology."
-      }
+      },
+      "relevance_judgements": [
+        { "content_item_id": "88c5bdf6-ddac-458e-989f-d31e0555a604", "relevant": true, "score": 3 },
+        { "content_item_id": "0d6bf3d9-105b-49bd-8948-1b1933106c1d", "relevant": true, "score": 3 },
+        { "content_item_id": "55e91d1e-02d5-44aa-ac68-f845c3ba9ec0", "relevant": true, "score": 3 },
+        { "content_item_id": "9d0d05a7-f710-49aa-9540-e6dfbee47291", "relevant": true, "score": 3 },
+        { "content_item_id": "1f114320-86b4-4749-8bb7-bef9a396ac19", "relevant": true, "score": 2 },
+        { "content_item_id": "e171d04d-a08b-4257-805f-09e33ec728b4", "relevant": true, "score": 2 },
+        { "content_item_id": "49a1edd5-f212-4401-944c-9d7fb7e84ae3", "relevant": true, "score": 2 },
+        { "content_item_id": "af66caea-bf18-4906-8c3a-c2c708ee31e3", "relevant": true, "score": 1 },
+        { "content_item_id": "ffeb4890-dfe8-4e89-8ebc-4239306b5d07", "relevant": true, "score": 1 },
+        { "content_item_id": "dc9ff1fd-df6f-487e-9298-b70a8d9dd891", "relevant": true, "score": 1 }
+      ]
     },
     {
       "id": "SE-06",
@@ -108,7 +188,13 @@
         "expected_content_types": ["q_a_pair", "methodology"],
         "must_include_titles": [],
         "notes": "Tests methodology domain with agile-specific terminology. Should surface items about delivery approach, sprint-based working, and project governance. May also pull methodology/quality items about agile QA practices."
-      }
+      },
+      "relevance_judgements": [
+        { "content_item_id": "11653860-0e23-46e9-a2e6-834a1d6e8cb4", "relevant": true, "score": 3 },
+        { "content_item_id": "e0a87af5-4134-4297-b0a3-ab40f0659e32", "relevant": true, "score": 2 },
+        { "content_item_id": "e729e486-bbf1-425b-8388-efc704390604", "relevant": true, "score": 2 },
+        { "content_item_id": "f82e2dc8-c57f-46df-a021-09d8778ad6e3", "relevant": true, "score": 1 }
+      ]
     },
     {
       "id": "SE-07",
@@ -121,7 +207,16 @@
         "expected_content_types": ["q_a_pair"],
         "must_include_titles": [],
         "notes": "Implementation/deployment test. Should strongly favour concrete deployment activities — environment setup, UAT, go-live steps. May also pull methodology/delivery items about timelines. Tests the implementation vs methodology boundary."
-      }
+      },
+      "relevance_judgements": [
+        { "content_item_id": "dc27eadf-8de1-45e6-9580-8ed91afebddf", "relevant": true, "score": 3 },
+        { "content_item_id": "de18b0c6-51a3-4a20-afe9-139ca8198669", "relevant": true, "score": 3 },
+        { "content_item_id": "a6808615-67c9-4cb2-97fb-3cfbc90bb062", "relevant": true, "score": 3 },
+        { "content_item_id": "c9ed2c7f-b473-40f7-80d6-099558b82073", "relevant": true, "score": 3 },
+        { "content_item_id": "e729e486-bbf1-425b-8388-efc704390604", "relevant": true, "score": 2 },
+        { "content_item_id": "09fac297-d6fa-44a9-a28f-fda6327694b1", "relevant": true, "score": 1 },
+        { "content_item_id": "613702eb-d293-4e90-b991-558c5a72524b", "relevant": true, "score": 1 }
+      ]
     },
     {
       "id": "SE-08",
@@ -134,7 +229,19 @@
         "expected_content_types": ["q_a_pair", "policy"],
         "must_include_titles": [],
         "notes": "Clear security/cyber-security topic. Should surface items about threat detection, vulnerability scanning, and penetration testing practices. May also return compliance/audit items about third-party security audits."
-      }
+      },
+      "relevance_judgements": [
+        { "content_item_id": "99728b25-dd34-4441-a486-58e0b14cdad6", "relevant": true, "score": 3 },
+        { "content_item_id": "138c8bd9-3b49-4ac2-8e38-e2497b4dc8e7", "relevant": true, "score": 3 },
+        { "content_item_id": "01c42380-470e-4f40-a038-a9040a789385", "relevant": true, "score": 3 },
+        { "content_item_id": "5bcb9053-d857-4d8e-acd0-25fb6a907e84", "relevant": true, "score": 2 },
+        { "content_item_id": "aea09ee6-938f-4eb9-a129-5ad748b830ea", "relevant": true, "score": 2 },
+        { "content_item_id": "c2ea398b-ed1a-41d9-8a73-9987c1fa22e0", "relevant": true, "score": 2 },
+        { "content_item_id": "a825abaa-1300-493b-b8b1-0c3434a43117", "relevant": true, "score": 1 },
+        { "content_item_id": "ba14e54a-38b4-4a81-822d-d965930fa34c", "relevant": true, "score": 1 },
+        { "content_item_id": "f8ee8a08-5063-4803-92c1-f2513b68e6c0", "relevant": true, "score": 1 },
+        { "content_item_id": "16b8f44e-7d19-4270-8498-7da73caf2217", "relevant": true, "score": 1 }
+      ]
     },
     {
       "id": "SE-09",
@@ -147,7 +254,19 @@
         "expected_content_types": ["q_a_pair", "capability"],
         "must_include_titles": [],
         "notes": "Cross-signal test within corporate domain. 'Key personnel' and 'CVs' are staffing topics; 'team structure' could be company-info. Should primarily return corporate/staffing items about team qualifications, recruitment, and organisational structure."
-      }
+      },
+      "relevance_judgements": [
+        { "content_item_id": "4425d08f-4b18-4041-aaf1-482fae18427f", "relevant": true, "score": 3 },
+        { "content_item_id": "79d83291-f7b7-4292-b09c-8f8751114316", "relevant": true, "score": 3 },
+        { "content_item_id": "05919897-add7-4da5-9aab-e65adb5d61dd", "relevant": true, "score": 3 },
+        { "content_item_id": "1835df14-2770-4cab-a6ff-7b27007e1b3f", "relevant": true, "score": 2 },
+        { "content_item_id": "e48b762c-6c1d-4517-98db-0aa95285f5bf", "relevant": true, "score": 2 },
+        { "content_item_id": "b18299d7-b995-49a3-9aab-da3b78150c90", "relevant": true, "score": 1 },
+        { "content_item_id": "08726af7-27ec-4540-bf24-9f8332f22b17", "relevant": true, "score": 1 },
+        { "content_item_id": "171ecac2-531e-469d-83a6-ead3c2b4a995", "relevant": true, "score": 1 },
+        { "content_item_id": "0190b303-7f7b-4e9b-b168-ce42803e8ae6", "relevant": false, "score": 0 },
+        { "content_item_id": "0d6d527d-371c-42c8-a536-fc8a9812ae0c", "relevant": false, "score": 0 }
+      ]
     },
     {
       "id": "SE-10",
@@ -160,7 +279,17 @@
         "expected_content_types": ["q_a_pair", "product_description"],
         "must_include_titles": [],
         "notes": "Tests the product-feature/technical vs implementation/integration boundary. 'Does your system support REST APIs' = product-feature/technical or product-feature/functionality. 'How do you integrate with our systems' = implementation/integration. This query blends both and should surface items from both domains."
-      }
+      },
+      "relevance_judgements": [
+        { "content_item_id": "25f1ef6c-58a6-49e5-a76d-072bbbb6e67e", "relevant": true, "score": 3 },
+        { "content_item_id": "1aed079b-c99e-43a4-a036-c418b7609585", "relevant": true, "score": 2 },
+        { "content_item_id": "893b55c2-0aa4-43c3-bba4-8c6f065345d6", "relevant": true, "score": 2 },
+        { "content_item_id": "75cc56ce-fe3b-4649-b0fb-b8ec281854a5", "relevant": true, "score": 2 },
+        { "content_item_id": "ae1ae103-7750-45be-b66a-d8bb2198a458", "relevant": true, "score": 2 },
+        { "content_item_id": "c6bee5bb-a2c7-44a6-a999-457a6ca6c5a7", "relevant": true, "score": 1 },
+        { "content_item_id": "d65235bf-58cd-4cb2-a7bb-0e48bd5780e0", "relevant": true, "score": 1 },
+        { "content_item_id": "973727f0-cf14-4e0c-9490-900f14beadcf", "relevant": true, "score": 1 }
+      ]
     },
     {
       "id": "SE-11",
@@ -173,7 +302,19 @@
         "expected_content_types": ["q_a_pair", "policy"],
         "must_include_titles": [],
         "notes": "Precise technical security topic. Should strongly favour security/encryption items. TLS certificates are related to access-control (authentication). Tests whether the search correctly routes encryption-specific queries to the encryption subtopic rather than the broader data-protection or cyber-security subtopics."
-      }
+      },
+      "relevance_judgements": [
+        { "content_item_id": "d2f72f9f-03ea-45f3-b0ae-affdae0fd847", "relevant": true, "score": 3 },
+        { "content_item_id": "8195aa14-fb46-4312-a35b-95f151ea94d8", "relevant": true, "score": 3 },
+        { "content_item_id": "7e3baab1-f836-40ca-a74e-64b73bed6a2c", "relevant": true, "score": 3 },
+        { "content_item_id": "4e0e89b2-48a0-4cc6-af6e-d4249560fc38", "relevant": true, "score": 2 },
+        { "content_item_id": "9976dbc1-7212-4b27-b82c-192498589486", "relevant": true, "score": 2 },
+        { "content_item_id": "75cc56ce-fe3b-4649-b0fb-b8ec281854a5", "relevant": true, "score": 2 },
+        { "content_item_id": "ae1ae103-7750-45be-b66a-d8bb2198a458", "relevant": true, "score": 2 },
+        { "content_item_id": "cd1816ab-ddb1-4662-9f91-ceb864b51e1b", "relevant": true, "score": 2 },
+        { "content_item_id": "a075a90f-74ef-4f8a-b277-a95ba33c1810", "relevant": true, "score": 2 },
+        { "content_item_id": "c671abef-63c6-4fca-ba98-4812045b5b35", "relevant": true, "score": 1 }
+      ]
     },
     {
       "id": "SE-12",
@@ -186,7 +327,19 @@
         "expected_content_types": ["q_a_pair", "capability"],
         "must_include_titles": [],
         "notes": "Broad corporate/company-info query. Should surface items about organisational overview, company history, and mission statements. Tests whether the search correctly routes general company queries to the corporate domain rather than scattering across other domains."
-      }
+      },
+      "relevance_judgements": [
+        { "content_item_id": "0d6d527d-371c-42c8-a536-fc8a9812ae0c", "relevant": true, "score": 3 },
+        { "content_item_id": "2fb906ab-395d-407a-89e2-2b21a862bbf4", "relevant": true, "score": 3 },
+        { "content_item_id": "0190b303-7f7b-4e9b-b168-ce42803e8ae6", "relevant": true, "score": 3 },
+        { "content_item_id": "4ec0c099-6e3d-4cb5-8ede-5d94f4ed4816", "relevant": true, "score": 2 },
+        { "content_item_id": "171ecac2-531e-469d-83a6-ead3c2b4a995", "relevant": true, "score": 2 },
+        { "content_item_id": "15300e47-6867-49bc-ad1a-083a9d54eda6", "relevant": true, "score": 2 },
+        { "content_item_id": "26fd3acf-5aea-4a34-a007-d608cd3f6f33", "relevant": true, "score": 1 },
+        { "content_item_id": "8301f25c-25e8-4ceb-be98-4ac656e64ba0", "relevant": true, "score": 1 },
+        { "content_item_id": "3cc67880-858c-4931-a1ff-afa3625cbba1", "relevant": false, "score": 0 },
+        { "content_item_id": "6d5679e8-cda7-4a8e-ac24-7b68d87ad19b", "relevant": false, "score": 0 }
+      ]
     },
     {
       "id": "SE-13",
@@ -199,7 +352,17 @@
         "expected_content_types": ["q_a_pair", "methodology"],
         "must_include_titles": [],
         "notes": "Tests implementation/onboarding. Should surface items about client onboarding processes, user training during rollout, and change management. May also return support/helpdesk items about ongoing training — tests the implementation vs support boundary."
-      }
+      },
+      "relevance_judgements": [
+        { "content_item_id": "09fac297-d6fa-44a9-a28f-fda6327694b1", "relevant": true, "score": 3 },
+        { "content_item_id": "613702eb-d293-4e90-b991-558c5a72524b", "relevant": true, "score": 3 },
+        { "content_item_id": "f314d09e-b80d-463c-81c7-32824b734f73", "relevant": true, "score": 3 },
+        { "content_item_id": "d42ccbca-942c-4b7a-b302-55d1ae6ad870", "relevant": true, "score": 3 },
+        { "content_item_id": "70e5d543-d859-47ea-86e3-0c927b003a27", "relevant": true, "score": 2 },
+        { "content_item_id": "a9a8a019-8b4d-4267-a211-0ac8322092f7", "relevant": true, "score": 1 },
+        { "content_item_id": "3ea67136-5670-4475-82d4-c166d049cc21", "relevant": true, "score": 1 },
+        { "content_item_id": "11653860-0e23-46e9-a2e6-834a1d6e8cb4", "relevant": true, "score": 1 }
+      ]
     },
     {
       "id": "SE-14",
@@ -212,7 +375,8 @@
         "expected_content_types": [],
         "must_include_titles": [],
         "notes": "Negative test — these topics are absent from a bid management knowledge base. Should return very few or no results. Any results should have low similarity scores (< 0.3)."
-      }
+      },
+      "relevance_judgements": []
     },
     {
       "id": "SE-15",
@@ -225,7 +389,8 @@
         "expected_content_types": [],
         "must_include_titles": [],
         "notes": "Second negative test — marketing/social media content is absent from a bid management knowledge base. Should return very few or no results. Tests that the threshold correctly filters irrelevant content."
-      }
+      },
+      "relevance_judgements": []
     },
     {
       "id": "SE-16",
@@ -238,7 +403,17 @@
         "expected_content_types": ["q_a_pair", "certification"],
         "must_include_titles": [],
         "notes": "Keyword-semantic overlap test. 'Cyber Essentials' is both a keyword and a semantic concept spanning compliance (certification status, standards adherence) and security (the controls required). Should surface items from both domains."
-      }
+      },
+      "relevance_judgements": [
+        { "content_item_id": "b464405b-ce10-492d-b976-f93a4cd9bb0a", "relevant": true, "score": 3 },
+        { "content_item_id": "3b80e08d-08f2-485b-98b4-5140644476f5", "relevant": true, "score": 3 },
+        { "content_item_id": "8bea7d5d-7257-4684-94b5-06dff35f962c", "relevant": true, "score": 2 },
+        { "content_item_id": "39482f91-6b04-4fe2-b581-cfdb3a407dd9", "relevant": true, "score": 1 },
+        { "content_item_id": "2b5ad34e-8d14-4e79-b903-5f0185da9592", "relevant": true, "score": 1 },
+        { "content_item_id": "c7fc5f57-3a0b-4ec9-b4ed-b7ab404471d6", "relevant": true, "score": 1 },
+        { "content_item_id": "8afcbb60-096c-465a-a62d-6352cf61df8c", "relevant": true, "score": 1 },
+        { "content_item_id": "16b8f44e-7d19-4270-8498-7da73caf2217", "relevant": false, "score": 0 }
+      ]
     },
     {
       "id": "SE-17",
@@ -251,7 +426,15 @@
         "expected_content_types": ["q_a_pair"],
         "must_include_titles": [],
         "notes": "Keyword-overlap test for corporate/insurance. These are highly specific insurance terms that should map directly to corporate/insurance items. May also surface corporate/financial items about financial standing and risk management. Tests whether the search precisely matches financial/insurance terminology."
-      }
+      },
+      "relevance_judgements": [
+        { "content_item_id": "78d2f21b-e08e-4042-bff6-0bde5e878f0b", "relevant": true, "score": 3 },
+        { "content_item_id": "49804dc1-1862-49cb-a23f-d350139e88b4", "relevant": true, "score": 3 },
+        { "content_item_id": "8f494977-67ef-4434-ba71-de88d3ebf5d7", "relevant": true, "score": 2 },
+        { "content_item_id": "f046c16c-a379-4ca2-98dc-34ce20cb7a35", "relevant": true, "score": 2 },
+        { "content_item_id": "d1c78cdc-dbb3-4f13-b4fe-2ff86e043db9", "relevant": true, "score": 1 },
+        { "content_item_id": "88d6b7f9-a519-425e-85ca-2d0aba0f307e", "relevant": false, "score": 0 }
+      ]
     },
     {
       "id": "SE-18",
@@ -264,7 +447,15 @@
         "expected_content_types": ["q_a_pair", "case_study"],
         "must_include_titles": [],
         "notes": "Should surface case_study and q_a_pair content types from corporate/references. Tests whether the search correctly identifies 'similar project' and 'reference' queries as corporate track record content rather than domain-specific implementation details."
-      }
+      },
+      "relevance_judgements": [
+        { "content_item_id": "da331dda-fe1f-4d80-8072-2e787539003c", "relevant": true, "score": 3 },
+        { "content_item_id": "fb007646-5e5d-4f2a-ac64-c482d1900444", "relevant": true, "score": 3 },
+        { "content_item_id": "0190b303-7f7b-4e9b-b168-ce42803e8ae6", "relevant": true, "score": 2 },
+        { "content_item_id": "15300e47-6867-49bc-ad1a-083a9d54eda6", "relevant": true, "score": 1 },
+        { "content_item_id": "4ec0c099-6e3d-4cb5-8ede-5d94f4ed4816", "relevant": true, "score": 1 },
+        { "content_item_id": "0d6d527d-371c-42c8-a536-fc8a9812ae0c", "relevant": false, "score": 0 }
+      ]
     },
     {
       "id": "SE-19",
@@ -277,7 +468,15 @@
         "expected_content_types": ["q_a_pair", "product_description"],
         "must_include_titles": [],
         "notes": "Should surface product_description and q_a_pair items from product-feature/reporting. May also return product-feature/usability items about dashboard UX. Tests whether the search correctly routes reporting capability queries to the product-feature domain."
-      }
+      },
+      "relevance_judgements": [
+        { "content_item_id": "0b7ed589-6cac-4337-86d9-1a032e65652c", "relevant": true, "score": 3 },
+        { "content_item_id": "c6bee5bb-a2c7-44a6-a999-457a6ca6c5a7", "relevant": true, "score": 2 },
+        { "content_item_id": "935d3ec8-1f1e-48f9-98a0-7d29a8d954a8", "relevant": true, "score": 1 },
+        { "content_item_id": "cc27df5b-3a42-4256-b103-c245a109bba2", "relevant": true, "score": 1 },
+        { "content_item_id": "5e5809e6-194d-4558-8c92-85ae7417c52b", "relevant": true, "score": 1 },
+        { "content_item_id": "4cc188d4-4253-472a-bbb4-58f5f58cd1c2", "relevant": true, "score": 1 }
+      ]
     },
     {
       "id": "SE-20",
@@ -290,7 +489,16 @@
         "expected_content_types": ["q_a_pair"],
         "must_include_titles": [],
         "notes": "Cross-domain test spanning implementation/migration and methodology/delivery. 'Data migration' and 'legacy system transition' are implementation activities; 'cutover planning' bridges into methodology/delivery. Should surface items from both domains with implementation dominating."
-      }
+      },
+      "relevance_judgements": [
+        { "content_item_id": "dc27eadf-8de1-45e6-9580-8ed91afebddf", "relevant": true, "score": 3 },
+        { "content_item_id": "de18b0c6-51a3-4a20-afe9-139ca8198669", "relevant": true, "score": 2 },
+        { "content_item_id": "c9ed2c7f-b473-40f7-80d6-099558b82073", "relevant": true, "score": 2 },
+        { "content_item_id": "a6808615-67c9-4cb2-97fb-3cfbc90bb062", "relevant": true, "score": 2 },
+        { "content_item_id": "11653860-0e23-46e9-a2e6-834a1d6e8cb4", "relevant": true, "score": 1 },
+        { "content_item_id": "e729e486-bbf1-425b-8388-efc704390604", "relevant": true, "score": 1 },
+        { "content_item_id": "09fac297-d6fa-44a9-a28f-fda6327694b1", "relevant": true, "score": 1 }
+      ]
     },
     {
       "id": "SE-21",
@@ -302,8 +510,13 @@
         "expected_subtopics": ["health-and-safety"],
         "expected_content_types": ["q_a_pair", "policy"],
         "must_include_titles": [],
-        "notes": "Tests the new compliance/health-and-safety subtopic (added S80). Should surface items about H&S policies, workplace risk assessments, RIDDOR reporting, and CDM regulations. Clear compliance domain — the focus is on regulatory obligations for physical safety, not information security."
-      }
+        "notes": "Tests the new compliance/health-and-safety subtopic (added S80). Should surface items about H&S policies, workplace risk assessments, RIDDOR reporting, and CDM regulations. Clear compliance domain — the focus is on regulatory obligations for physical safety, not information security. NOTE: No content items currently classified under health-and-safety subtopic in the DB. Judgements include nearest relevant items from compliance domain."
+      },
+      "relevance_judgements": [
+        { "content_item_id": "c7fc5f57-3a0b-4ec9-b4ed-b7ab404471d6", "relevant": true, "score": 1 },
+        { "content_item_id": "2b5ad34e-8d14-4e79-b903-5f0185da9592", "relevant": true, "score": 1 },
+        { "content_item_id": "e0a87af5-4134-4297-b0a3-ab40f0659e32", "relevant": false, "score": 0 }
+      ]
     },
     {
       "id": "SE-22",
@@ -316,7 +529,14 @@
         "expected_content_types": ["q_a_pair", "policy"],
         "must_include_titles": [],
         "notes": "Tests the new compliance/environmental subtopic (added S80). Should surface items about carbon reduction plans, net zero targets, ISO 14001 certification, and PPN 06/20 social value requirements. Distinct from security domain — this is about environmental impact, not data protection."
-      }
+      },
+      "relevance_judgements": [
+        { "content_item_id": "65f9895f-1cf9-4aa3-8715-1bbea04cce45", "relevant": true, "score": 3 },
+        { "content_item_id": "7232aecc-8569-4b1a-9f53-69954a38de50", "relevant": true, "score": 2 },
+        { "content_item_id": "c7fc5f57-3a0b-4ec9-b4ed-b7ab404471d6", "relevant": true, "score": 1 },
+        { "content_item_id": "6e546137-d596-4516-b8f7-004afc6febd2", "relevant": true, "score": 1 },
+        { "content_item_id": "3ebf26a8-fa09-4e5f-b3c9-1fd1fc9a565b", "relevant": false, "score": 0 }
+      ]
     },
     {
       "id": "SE-23",
@@ -328,8 +548,16 @@
         "expected_subtopics": ["modern-slavery", "supply-chain"],
         "expected_content_types": ["q_a_pair", "policy"],
         "must_include_titles": [],
-        "notes": "Cross-domain test spanning two new subtopics (added S80). 'Modern slavery statement' and 'forced labour prevention' map to compliance/modern-slavery (PPN 02/23 obligations). 'Supply chain due diligence' bridges into corporate/supply-chain (subcontractor oversight, prompt payment). Tests whether search correctly distinguishes the ethical compliance obligation from the operational supply chain management."
-      }
+        "notes": "Cross-domain test spanning two new subtopics (added S80). 'Modern slavery statement' and 'forced labour prevention' map to compliance/modern-slavery (PPN 02/23 obligations). 'Supply chain due diligence' bridges into corporate/supply-chain (subcontractor oversight, prompt payment). Tests whether search correctly distinguishes the ethical compliance obligation from the operational supply chain management. NOTE: No content items currently classified under modern-slavery subtopic."
+      },
+      "relevance_judgements": [
+        { "content_item_id": "0a56f922-4aa9-464f-9f08-d3cdca38ddff", "relevant": true, "score": 2 },
+        { "content_item_id": "1109c632-9ff4-4651-9517-eb2560475555", "relevant": true, "score": 2 },
+        { "content_item_id": "9a5b4557-7baa-4191-b62f-45ebfa815f1b", "relevant": true, "score": 2 },
+        { "content_item_id": "6f1ea649-daa6-441d-9ae9-6c407545fe25", "relevant": true, "score": 1 },
+        { "content_item_id": "5c19b0d0-93f9-4034-9615-00eaaa1c9286", "relevant": true, "score": 1 },
+        { "content_item_id": "c7fc5f57-3a0b-4ec9-b4ed-b7ab404471d6", "relevant": true, "score": 1 }
+      ]
     },
     {
       "id": "SE-24",
@@ -342,7 +570,15 @@
         "expected_content_types": ["q_a_pair"],
         "must_include_titles": [],
         "notes": "Tests the new corporate/supply-chain subtopic (added S80). Should surface items about supply chain management, prompt payment practices, and subcontractor oversight. Keyword-overlap test: 'supply chain' is both a specific subtopic term and a broad concept. Tests whether the search precisely routes supply chain operational queries to the corporate domain rather than compliance/modern-slavery."
-      }
+      },
+      "relevance_judgements": [
+        { "content_item_id": "9a5b4557-7baa-4191-b62f-45ebfa815f1b", "relevant": true, "score": 3 },
+        { "content_item_id": "1109c632-9ff4-4651-9517-eb2560475555", "relevant": true, "score": 3 },
+        { "content_item_id": "5c19b0d0-93f9-4034-9615-00eaaa1c9286", "relevant": true, "score": 3 },
+        { "content_item_id": "0a56f922-4aa9-464f-9f08-d3cdca38ddff", "relevant": true, "score": 2 },
+        { "content_item_id": "6f1ea649-daa6-441d-9ae9-6c407545fe25", "relevant": true, "score": 2 },
+        { "content_item_id": "d1c78cdc-dbb3-4f13-b4fe-2ff86e043db9", "relevant": false, "score": 0 }
+      ]
     }
   ]
 }
