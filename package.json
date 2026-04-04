@@ -28,6 +28,10 @@
     "test:mcp-eval:fc:skip-ai": "bun run scripts/mcp-eval/functional-correctness.ts --skip-ai",
     "stats": "bun run scripts/generate-codebase-stats.ts",
     "generate:mcp-inventory": "bun run scripts/generate-mcp-inventory.ts",
+    "eval:classification": "bun run scripts/eval-classification.ts",
+    "eval:summarisation": "bun run scripts/eval-summarisation.ts",
+    "eval:search": "bun run scripts/eval-search.ts",
+    "eval:bid-drafting": "bun run scripts/eval-bid-drafting.ts",
     "vercel-build": "bun run build:mcp-apps && next build"
   },
   "dependencies": {
