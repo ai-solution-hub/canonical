@@ -548,10 +548,11 @@ describe('Integration: full codebase extraction', () => {
 
       // Verify app tools
       const appTools = allTools.filter((t) => t.is_app_tool);
-      expect(appTools.length).toBe(3);
+      expect(appTools.length).toBe(4);
       expect(appTools.map((t) => t.name).sort()).toEqual([
         'show_bid_dashboard',
         'show_coverage_matrix',
+        'show_intelligence_feed',
         'show_reorient_me',
       ]);
     },
@@ -563,7 +564,7 @@ describe('Integration: full codebase extraction', () => {
       const source = readFileSync(RESOURCES_FILE, 'utf-8');
       const resources = parseResourceFile(source);
 
-      expect(resources.length).toBe(11);
+      expect(resources.length).toBe(12);
 
       // Check template resources
       const templates = resources.filter((r) => r.is_template);
@@ -576,7 +577,7 @@ describe('Integration: full codebase extraction', () => {
 
       // Check app resources
       const appResources = resources.filter((r) => r.is_app_resource);
-      expect(appResources.length).toBe(3);
+      expect(appResources.length).toBe(4);
 
       // All resources should have URIs
       for (const r of resources) {
