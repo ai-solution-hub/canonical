@@ -1,8 +1,9 @@
 /**
- * MCP App trigger tool registrations (3 tools):
+ * MCP App trigger tool registrations (4 tools):
  *  22. show_coverage_matrix
  *  23. show_bid_dashboard
  *  24. show_reorient_me
+ *  25. show_intelligence_feed
  */
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -14,6 +15,8 @@ import {
   formatReorientation,
   truncateResponse,
 } from '@/lib/mcp/formatters';
+// Lazy imports — intelligence modules loaded on-demand to prevent cold start crashes
+// and to avoid breaking when lib/intelligence/summary.ts doesn't exist yet.
 import type {
   CoverageMatrixData,
   BidDashboardData,
@@ -583,6 +586,75 @@ export async function registerAppTools(server: McpServer): Promise<void> {
         return {
           content: [
             { type: 'text' as const, text: `Reorient Me failed: ${message}.` },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 25. show_intelligence_feed (App trigger tool — renders Intelligence Feed MCP App)
+  // -------------------------------------------------------------------------
+  const intelligenceFeedUri = 'ui://intelligence-feed/app.html';
+  registerAppTool(
+    server,
+    'show_intelligence_feed',
+    {
+      title: 'Show Intelligence Feed',
+      description:
+        'Display an interactive intelligence feed showing sector intelligence articles, filter statistics, category breakdowns, and top articles by relevance score. This tool renders a visual feed inside the conversation. Use it when the user asks to see intelligence, sector news, or wants a visual overview of their intelligence workspace.',
+      inputSchema: {
+        workspace_id: z
+          .string()
+          .uuid()
+          .describe('The intelligence workspace UUID'),
+        period: z
+          .enum(['7d', '14d', '30d', '90d'])
+          .optional()
+          .describe('Time period for the feed (default: "7d")'),
+      },
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+        destructiveHint: false,
+        openWorldHint: false,
+      },
+      _meta: { ui: { resourceUri: intelligenceFeedUri } },
+    },
+    async (
+      args: { workspace_id: string; period?: '7d' | '14d' | '30d' | '90d' },
+      extra: ToolExtra,
+    ) => {
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+
+        const { fetchIntelligenceSummary } = await import(
+          '@/lib/intelligence/summary'
+        );
+        const { formatIntelligenceSummary } = await import(
+          '@/lib/mcp/formatters/intelligence'
+        );
+
+        const data = await fetchIntelligenceSummary(
+          supabase,
+          args.workspace_id,
+          args.period ?? '7d',
+        );
+
+        const markdown = truncateResponse(formatIntelligenceSummary(data));
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(data),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Intelligence feed failed: ${message}`,
+            },
           ],
           isError: true,
         };

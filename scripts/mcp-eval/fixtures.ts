@@ -75,10 +75,10 @@ export function loadEnv(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Canonical lists — updated to 38 tools (current as of S134)
+// Canonical lists — updated to 41 tools (current as of S144)
 // ---------------------------------------------------------------------------
 
-/** All 40 MCP tool names in registration order. */
+/** All 41 MCP tool names in registration order. */
 export const CANONICAL_TOOL_NAMES = [
   'search_knowledge_base', // 1
   'search_qa_library', // 2
@@ -117,12 +117,13 @@ export const CANONICAL_TOOL_NAMES = [
   'show_coverage_matrix', // 35
   'show_bid_dashboard', // 36
   'show_reorient_me', // 37
-  'delete_content_item', // 38
-  'update_governance_status', // 39
-  'get_intelligence_summary', // 40
+  'show_intelligence_feed', // 38
+  'delete_content_item', // 39
+  'update_governance_status', // 40
+  'get_intelligence_summary', // 41
 ] as const;
 
-export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 40
+export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 41
 
 /** Read-only tools (no side effects). */
 export const READ_ONLY_TOOLS = new Set([
@@ -155,6 +156,7 @@ export const READ_ONLY_TOOLS = new Set([
   'show_coverage_matrix',
   'show_bid_dashboard',
   'show_reorient_me',
+  'show_intelligence_feed',
   'get_document_versions',
   'get_document_diff',
   'get_intelligence_summary',
@@ -200,7 +202,7 @@ export const RESOURCE_TEMPLATE_URIS = [
   'kb://qa/{id}',
 ] as const;
 
-/** Static resource URIs (8 static + 3 app). */
+/** Static resource URIs (8 static + 4 app). */
 export const STATIC_RESOURCE_URIS = [
   'kb://coverage',
   'kb://dashboard',
@@ -210,6 +212,7 @@ export const STATIC_RESOURCE_URIS = [
   'ui://coverage-matrix/app.html',
   'ui://bid-dashboard/app.html',
   'ui://reorient-me/app.html',
+  'ui://intelligence-feed/app.html',
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -452,12 +455,27 @@ export function getMinimalArgs(
       return { id: knownUUIDs.contentItemId };
     case 'get_content_items':
       return { ids: [knownUUIDs.contentItemId] };
+    case 'get_workspace_items':
+      return {
+        workspace_id:
+          knownUUIDs.bidId ?? '00000000-0000-0000-0000-000000000000',
+      };
     case 'show_coverage_matrix':
       return {};
     case 'show_bid_dashboard':
       return {};
     case 'show_reorient_me':
       return {};
+    case 'show_intelligence_feed':
+      return {
+        workspace_id:
+          knownUUIDs.bidId ?? '00000000-0000-0000-0000-000000000000',
+      };
+    case 'get_intelligence_summary':
+      return {
+        workspace_id:
+          knownUUIDs.bidId ?? '00000000-0000-0000-0000-000000000000',
+      };
     case 'find_all_duplicates':
       return {};
     case 'list_templates':

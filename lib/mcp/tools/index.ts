@@ -1,7 +1,7 @@
 /**
  * MCP tool registrations for the Knowledge Hub server.
  *
- * Registers 40 tools across 11 category files:
+ * Registers 41 tools across 11 category files:
  *   - search.ts     (3): search_knowledge_base, search_qa_library, find_similar_items
  *   - content.ts    (8): get_content_item, create_content_item, update_content_item, get_content_items, get_workspace_items, assign_content_owner, get_document_versions, get_document_diff
  *   - bids.ts       (5): list_active_bids, get_bid_detail, get_bid_question, cite_content, get_content_effectiveness
@@ -11,7 +11,7 @@
  *   - ai.ts         (2): classify_content, generate_summary
  *   - entities.ts   (2): get_entity_relationships, get_certification_status
  *   - templates.ts  (3): list_templates, get_template_coverage, get_template_gaps
- *   - apps.ts       (3): show_coverage_matrix, show_bid_dashboard, show_reorient_me
+ *   - apps.ts       (4): show_coverage_matrix, show_bid_dashboard, show_reorient_me, show_intelligence_feed
  *   - intelligence.ts (1): get_intelligence_summary
  *
  * All tools use per-user Supabase clients via extra.authInfo so that

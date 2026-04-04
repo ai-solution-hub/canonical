@@ -1,7 +1,7 @@
 /**
  * MCP resource and prompt registrations for the Knowledge Hub server.
  *
- * Resources (11):
+ * Resources (12):
  *   - kb://items/{id}    — Full content item with metadata
  *   - kb://bids/{id}     — Bid with questions and responses
  *   - kb://qa/{id}       — Q&A pair with standard/advanced answers
@@ -12,6 +12,7 @@
  *   - ui://coverage-matrix/app.html   — Coverage Matrix MCP App (interactive UI)
  *   - ui://bid-dashboard/app.html     — Bid Dashboard MCP App (interactive UI)
  *   - ui://reorient-me/app.html       — Reorient Me MCP App (interactive UI)
+ *   - ui://intelligence-feed/app.html — Intelligence Feed MCP App (interactive UI)
  *   - kb://quality-briefing           — Aggregated quality intelligence briefing
  *
  * Prompts (5):
@@ -692,7 +693,38 @@ export async function registerResources(server: McpServer): Promise<void> {
     },
   );
 
-  // 11. kb://quality-briefing — Aggregated quality intelligence briefing
+  // 12. ui://intelligence-feed/app.html — Intelligence Feed MCP App
+  registerAppResource(
+    server,
+    'Intelligence Feed App',
+    'ui://intelligence-feed/app.html',
+    { mimeType: RESOURCE_MIME_TYPE },
+    async () => {
+      const { INTELLIGENCE_FEED_HTML } = await getAppBundles();
+      if (!INTELLIGENCE_FEED_HTML) {
+        return {
+          contents: [
+            {
+              uri: 'ui://intelligence-feed/app.html',
+              mimeType: 'text/plain',
+              text: 'Intelligence Feed app not built. Run: bun run build:mcp-apps',
+            },
+          ],
+        };
+      }
+      return {
+        contents: [
+          {
+            uri: 'ui://intelligence-feed/app.html',
+            mimeType: RESOURCE_MIME_TYPE,
+            text: INTELLIGENCE_FEED_HTML,
+          },
+        ],
+      };
+    },
+  );
+
+  // 13. kb://quality-briefing — Aggregated quality intelligence briefing
   server.registerResource(
     'quality_briefing',
     'kb://quality-briefing',

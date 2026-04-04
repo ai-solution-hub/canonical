@@ -10,7 +10,7 @@
  *   6. Resource extraction (both patterns)
  *   7. Prompt extraction (with and without argsSchema)
  *   8. Full file extraction against actual search.ts (should find exactly 3 tools)
- *   9. Integration test: run against real source files, verify 40 tools, 11 resources, 5 prompts
+ *   9. Integration test: run against real source files, verify 41 tools, 12 resources, 5 prompts
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync, readdirSync } from 'fs';
@@ -516,7 +516,7 @@ describe('Integration: full codebase extraction', () => {
         }
       }
 
-      expect(allTools.length).toBe(40);
+      expect(allTools.length).toBe(41);
 
       // Every tool should have a non-empty name
       for (const tool of allTools) {

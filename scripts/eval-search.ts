@@ -22,7 +22,7 @@ import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { createClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
-import { mrr as computeMrr, precisionAtK } from '../lib/eval/metrics';
+import { precisionAtK } from '../lib/eval/metrics';
 import { loadBaseline, saveBaseline, checkRegression } from '../lib/eval/baseline';
 import { printReport, printJsonReport } from '../lib/eval/reporter';
 import type { EvalResult, RegressionResult } from '../lib/eval/types';
