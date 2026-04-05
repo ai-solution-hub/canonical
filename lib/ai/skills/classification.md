@@ -806,6 +806,126 @@ scores within each band — avoid anchoring on a single value.
 
 ---
 
+## Classification Examples
+
+These examples illustrate correct classification decisions across different
+content types, domains, and difficulty levels.
+
+### Example 1: q_a_pair — security/cyber-security
+
+**Input:** "Do you carry out regular vulnerability and penetration testing
+against your major systems? — Yes, example-client Design conducts regular CREST-accredited
+penetration testing..."
+**Classification:**
+- Domain: security, Subtopic: cyber-security
+- Confidence: 0.92
+- Entities: [certification: CREST, capability: penetration testing]
+**Why:** Clear cyber-security content about pen testing frequency and methodology
+with an identifiable certification entity and named service offering.
+
+### Example 2: article — compliance/safeguarding
+
+**Input:** "Working Together to Safeguard Children 2026 — Multi-Agency Statutory
+Guidance. This statutory framework sets out how organisations and individuals
+should work together to safeguard..."
+**Classification:**
+- Domain: compliance, Subtopic: safeguarding
+- Secondary: legislation-policy
+- Confidence: 0.92
+- Entities: [regulation: Working Together to Safeguard Children]
+**Why:** Statutory guidance with legal force about multi-agency safeguarding
+duties. Secondary legislation-policy reflects the regulatory nature. The
+guidance is a regulation (not a framework) because local authorities are legally
+required to follow it.
+
+### Example 3: q_a_pair — implementation/deployment
+
+**Input:** "What does your timeline look like for implementation? — Our typical
+implementation runs eight to twelve weeks from purchase order to go-live..."
+**Classification:**
+- Domain: implementation, Subtopic: deployment
+- Secondary: methodology
+- Confidence: 0.87
+- Entities: []
+**Why:** Describes phased project delivery timeline. Secondary methodology is
+justified because the answer discusses the implementation approach and process
+stages.
+
+### Example 4: article — legislation-policy/gdpr-data-protection
+
+**Input:** "UK GDPR Data Protection Principles — The Seven Foundational
+Requirements. The UK General Data Protection Regulation establishes seven key
+principles that govern how personal data..."
+**Classification:**
+- Domain: legislation-policy, Subtopic: gdpr-data-protection
+- Secondary: security
+- Confidence: 0.91
+- Entities: [regulation: UK GDPR, regulation: Data Protection Act 2018]
+**Why:** Focuses on the legal framework itself (the seven GDPR principles), not
+operational security measures. The boundary with security/data-protection is
+resolved by noting the content discusses the law, not how data is protected in
+practice.
+
+### Example 5: q_a_pair — product-feature/functionality (boundary case)
+
+**Input:** "Can the Audit system be used to comply with KCSIE guidance? — Yes,
+the example-client Audit system includes pre-built templates aligned to Section 175 and
+Section 11 requirements..."
+**Classification:**
+- Domain: product-feature, Subtopic: functionality
+- Secondary: legislation-policy
+- Confidence: 0.82
+- Entities: [product: example-client Audit System, regulation: Keeping Children Safe in Education]
+**Why:** Primary is product-feature because the question asks about system
+capability, not the legislation itself. The KCSIE reference justifies the
+secondary legislation-policy domain. This is a boundary case where the product
+intersects with statutory guidance.
+
+### Example 6: q_a_pair — methodology/project-management (boundary case)
+
+**Input:** "Please detail your implementation Plan including key milestones,
+quality thresholds — Our implementation methodology follows a structured
+six-phase approach covering discovery, design, build..."
+**Classification:**
+- Domain: methodology, Subtopic: project-management
+- Secondary: implementation
+- Confidence: 0.82
+- Entities: [methodology: Agile]
+**Why:** Although this discusses implementation, the primary focus is on the
+management process and phased approach — the "how we work" methodology. Could be
+implementation/deployment but methodology captures the process-oriented nature
+of the content.
+
+### Example 7: q_a_pair — corporate/insurance
+
+**Input:** "Does your organisation have current business insurance covering
+Professional Indemnity? — Yes, Example Client Ltd holds professional indemnity
+insurance with a limit of £5,000,000..."
+**Classification:**
+- Domain: corporate, Subtopic: insurance
+- Confidence: 0.92
+- Entities: [organisation: Example Client Ltd]
+**Why:** Straightforward corporate insurance question with no domain ambiguity.
+Note that "professional indemnity insurance" is an insurance category, not a
+named product entity — it should not be extracted.
+
+### Example 8: article — market-intelligence/competitor-market-activity
+
+**Input:** "example-client Design -- Industry Positioning and Target Markets. This analysis
+examines example-client Design's competitive position in the UK public sector technology
+market, including G-Cloud 14 presence..."
+**Classification:**
+- Domain: market-intelligence, Subtopic: competitor-market-activity
+- Secondary: corporate
+- Confidence: 0.82
+- Entities: [organisation: Example Client Ltd, framework: G-Cloud 14, sector: public sector]
+**Why:** Industry positioning analysis with market intelligence focus. Secondary
+corporate reflects company-specific content. Multiple entity types demonstrate
+correct type assignment: G-Cloud 14 is a procurement framework (not a product),
+and public sector is a sector (not an organisation).
+
+---
+
 ## Handling Special Cases
 
 ### Empty or Minimal Content
