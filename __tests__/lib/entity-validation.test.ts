@@ -434,13 +434,13 @@ describe('shouldExcludeEntity', () => {
     );
   });
 
-  it('excludes role titles only when type is person', () => {
+  it('excludes role titles regardless of entity type', () => {
     expect(shouldExcludeEntity(entity('Managing Director', 'person'))).toBe(
       true,
     );
-    // Not excluded as a non-person type (though still might be wrong type)
+    // Role titles excluded regardless of type (fixed in S148)
     expect(shouldExcludeEntity(entity('Managing Director', 'capability'))).toBe(
-      false,
+      true,
     );
   });
 

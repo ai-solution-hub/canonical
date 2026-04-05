@@ -680,14 +680,14 @@ regulations take precedence over frameworks.
 2. **certification** — Is it assessed-and-awarded by an issuing body?
 3. **standard** — Is it a numbered document from a standards body?
 4. **framework** — Is it published external guidance for voluntary adoption?
-5. **organisation** — Does it have legal registration or institutional standing?
-6. **person** — Is it a specific individual's name?
-7. **technology** — Is it a named software product, cloud service, or tool?
-8. **product** — Is it a named thing the organisation sells to clients?
-9. **methodology** — Is it a named approach with its own literature?
-10. **capability** — Is it a named service the organisation offers to clients?
-11. **sector** — Is it a recognised industry classification?
-12. **project** — Is it a named piece of work with a timeline?
+5. **technology** — Is it a named software product, cloud service, or tool?
+6. **product** — Is it a named thing the organisation sells to clients?
+7. **methodology** — Is it a named approach with its own literature?
+8. **capability** — Is it a named service the organisation offers to clients?
+9. **organisation** — Does it have legal registration or institutional standing?
+10. **sector** — Is it a recognised industry classification?
+11. **project** — Is it a named piece of work with a timeline?
+12. **person** — Is it a specific individual's name?
 
 ---
 
