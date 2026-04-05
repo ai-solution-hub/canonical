@@ -317,6 +317,59 @@ describe('Classification skill few-shot examples', () => {
   });
 });
 
+describe('Classification skill token size guard', () => {
+  it('combined classification skill + entity types reference stays below token budget', async () => {
+    const skillPath = join(__dirname, '../../lib/ai/skills/classification.md');
+    const entityTypesPath = join(
+      __dirname,
+      '../../lib/ai/skills/classification-entity-types.md',
+    );
+
+    const [skillContent, entityTypesContent] = await Promise.all([
+      readFile(skillPath, 'utf-8'),
+      readFile(entityTypesPath, 'utf-8'),
+    ]);
+
+    // Rough token estimate: ~4 characters per token for English text
+    const CHARS_PER_TOKEN = 4;
+    const combinedChars = skillContent.length + entityTypesContent.length;
+    const estimatedTokens = Math.ceil(combinedChars / CHARS_PER_TOKEN);
+
+    // Budget: 20,000 tokens. The combined files are currently ~15,000 tokens.
+    // This threshold catches unexpected growth (e.g. duplicated sections,
+    // unbounded example additions) while leaving room for intentional expansion.
+    const TOKEN_BUDGET = 20_000;
+
+    expect(estimatedTokens).toBeLessThan(TOKEN_BUDGET);
+  });
+
+  it('classification skill file alone stays below 15,000 tokens', async () => {
+    const skillPath = join(__dirname, '../../lib/ai/skills/classification.md');
+    const content = await readFile(skillPath, 'utf-8');
+
+    const CHARS_PER_TOKEN = 4;
+    const estimatedTokens = Math.ceil(content.length / CHARS_PER_TOKEN);
+
+    // The skill file is the primary prompt payload. Keep it under 15,000 tokens
+    // to leave room for taxonomy injection, user content, and tool schema.
+    expect(estimatedTokens).toBeLessThan(15_000);
+  });
+
+  it('entity types reference file alone stays below 6,000 tokens', async () => {
+    const entityTypesPath = join(
+      __dirname,
+      '../../lib/ai/skills/classification-entity-types.md',
+    );
+    const content = await readFile(entityTypesPath, 'utf-8');
+
+    const CHARS_PER_TOKEN = 4;
+    const estimatedTokens = Math.ceil(content.length / CHARS_PER_TOKEN);
+
+    // The entity types reference is a supplementary file. Keep it focused.
+    expect(estimatedTokens).toBeLessThan(6_000);
+  });
+});
+
 describe('Classification skill placeholder interpolation', () => {
   let skillContent: string;
 
