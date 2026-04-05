@@ -133,6 +133,23 @@ const GENERIC_CONCEPTS = new Set([
   // Demographic descriptions (not sectors)
   'vulnerable adults',
   'children and young people',
+  // Safeguarding and social issues (not sectors)
+  'county lines',
+  'county lines criminal exploitation',
+  'female genital mutilation',
+  'child sexual exploitation',
+  'child criminal exploitation',
+  'domestic abuse',
+  'modern slavery',
+  'radicalisation',
+  'forced marriage',
+  'honour-based violence',
+  // Generic methodology approaches
+  'risk-based approach',
+  'iterative development',
+  'best practice',
+  'best practices',
+  'agile approach',
 ]);
 
 /** Patterns matching job titles and role descriptions (not person names) */
@@ -282,6 +299,30 @@ export function isGdprArtefact(name: string): boolean {
   return GDPR_ARTEFACTS.has(name.toLowerCase().trim());
 }
 
+/** Pattern matching G-Cloud/framework lot numbers that are not real projects */
+const FRAMEWORK_LOT_PATTERN =
+  /^(g-cloud|dos|digital outcomes|digital specialists)\s*(lot\s*\d+|\d+)/i;
+
+/** Check whether an entity name is a framework lot number (not a real project) */
+export function isFrameworkLot(name: string): boolean {
+  return FRAMEWORK_LOT_PATTERN.test(name.trim());
+}
+
+/** Check whether an entity name is a slash-separated compound (e.g. "ISO 27001/ISO 9001") */
+export function isCompoundEntity(name: string): boolean {
+  const trimmed = name.trim();
+  return (
+    /\//.test(trimmed) &&
+    trimmed.split('/').length >= 2 &&
+    trimmed.split('/').every((part) => part.trim().length > 2)
+  );
+}
+
+/** Strip parenthetical role/company descriptions from person entity names */
+export function stripPersonDescriptors(name: string): string {
+  return name.replace(/\s*\([^)]*\)\s*$/, '').trim();
+}
+
 /**
  * Apply all post-extraction entity quality filters.
  * Returns true if the entity should be EXCLUDED (i.e. it is not a real entity).
@@ -299,8 +340,8 @@ export function shouldExcludeEntity(entity: ExtractedEntity): boolean {
   // Generic concepts (abstract terms that are not named entities)
   if (isGenericConcept(canonical)) return true;
 
-  // Role titles extracted as person entities
-  if (entity.type === 'person' && isRoleTitle(name)) return true;
+  // Role titles (regardless of entity type — they can be mistyped as organisation, etc.)
+  if (isRoleTitle(name)) return true;
 
   // Protocols, file formats, and cryptographic algorithms
   if (isProtocolOrFormat(canonical)) return true;
@@ -313,6 +354,12 @@ export function shouldExcludeEntity(entity: ExtractedEntity): boolean {
 
   // GDPR artefacts (legal concepts within GDPR, not standalone entities)
   if (isGdprArtefact(canonical)) return true;
+
+  // Framework lot numbers (e.g. "G-Cloud Lot 1") mistyped as projects
+  if (entity.type === 'project' && isFrameworkLot(name)) return true;
+
+  // Slash-separated compound entities (e.g. "ISO 27001/ISO 9001")
+  if (isCompoundEntity(name)) return true;
 
   return false;
 }
@@ -758,16 +805,25 @@ ${contentForClassification}`,
     try {
       const entityRows = result.entities
         .filter((e) => !shouldExcludeEntity(e))
-        .map((e) => ({
-          content_item_id: itemId,
-          entity_type: e.type,
-          entity_name: e.name,
-          canonical_name: resolveAlias(
-            canonicalise(e.canonical_name, e.type),
-          ).toLowerCase(),
-          confidence: 1.0,
-          context_snippet: extractEntityContext(plainText, e.name),
-        }));
+        .map((e) => {
+          // Strip parenthetical role/company descriptions from person names
+          const name =
+            e.type === 'person' ? stripPersonDescriptors(e.name) : e.name;
+          const canonicalRaw =
+            e.type === 'person'
+              ? stripPersonDescriptors(e.canonical_name)
+              : e.canonical_name;
+          return {
+            content_item_id: itemId,
+            entity_type: e.type,
+            entity_name: name,
+            canonical_name: resolveAlias(
+              canonicalise(canonicalRaw, e.type),
+            ).toLowerCase(),
+            confidence: 1.0,
+            context_snippet: extractEntityContext(plainText, e.name),
+          };
+        });
 
       if (entityRows.length > 0) {
         const { error: entityError } = await supabase

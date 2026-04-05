@@ -64,7 +64,7 @@ def _filter_entities(entities: List[dict]) -> List[dict]:
         if _is_generic_concept(canonical):
             logger.debug("Excluding generic concept entity: %s", canonical)
             continue
-        if entity_type == "person" and _is_role_title(name):
+        if _is_role_title(name):
             logger.debug("Excluding role title entity: %s", name)
             continue
         if _is_protocol_or_format(canonical):
@@ -79,6 +79,16 @@ def _filter_entities(entities: List[dict]) -> List[dict]:
         if _is_gdpr_artefact(canonical):
             logger.debug("Excluding GDPR artefact entity: %s", canonical)
             continue
+        if entity_type == "project" and _is_framework_lot(name):
+            logger.debug("Excluding framework lot entity: %s", name)
+            continue
+        if _is_compound_entity(name):
+            logger.debug("Excluding compound entity: %s", name)
+            continue
+        # Strip parenthetical role/company descriptions from person names
+        if entity_type == "person":
+            ent["entity_name"] = _strip_person_descriptors(name)
+            ent["canonical_name"] = _strip_person_descriptors(canonical)
         filtered.append(ent)
     return filtered
 
@@ -135,6 +145,15 @@ _GENERIC_CONCEPTS = frozenset([
     "european economic area", "eea",
     # Demographic descriptions (not sectors)
     "vulnerable adults", "children and young people",
+    # Safeguarding and social issues (not sectors)
+    "county lines", "county lines criminal exploitation",
+    "female genital mutilation", "child sexual exploitation",
+    "child criminal exploitation", "domestic abuse",
+    "modern slavery", "radicalisation", "forced marriage",
+    "honour-based violence",
+    # Generic methodology approaches
+    "risk-based approach", "iterative development",
+    "best practice", "best practices", "agile approach",
 ])
 
 # Patterns matching job titles and role descriptions (not person names)
@@ -229,6 +248,30 @@ def _is_management_system_acronym(name: str) -> bool:
 def _is_gdpr_artefact(name: str) -> bool:
     """Check whether an entity name is a GDPR artefact."""
     return name.lower().strip() in _GDPR_ARTEFACTS
+
+
+# Pattern matching G-Cloud/framework lot numbers that are not real projects
+_FRAMEWORK_LOT_PATTERN = re.compile(
+    r"^(g-cloud|dos|digital outcomes|digital specialists)\s*(lot\s*\d+|\d+)",
+    re.IGNORECASE,
+)
+
+
+def _is_framework_lot(name: str) -> bool:
+    """Check whether an entity name is a framework lot number (not a real project)."""
+    return bool(_FRAMEWORK_LOT_PATTERN.search(name.strip()))
+
+
+def _is_compound_entity(name: str) -> bool:
+    """Check whether an entity name is a slash-separated compound (e.g. 'ISO 27001/ISO 9001')."""
+    trimmed = name.strip()
+    parts = trimmed.split("/")
+    return len(parts) >= 2 and all(len(p.strip()) > 2 for p in parts)
+
+
+def _strip_person_descriptors(name: str) -> str:
+    """Strip parenthetical role/company descriptions from person entity names."""
+    return re.sub(r"\s*\([^)]*\)\s*$", "", name).strip()
 
 
 # ──────────────────────────────────────────

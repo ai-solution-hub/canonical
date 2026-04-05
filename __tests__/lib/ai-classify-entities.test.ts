@@ -42,7 +42,16 @@ vi.mock('@/lib/entities/entity-aliases', async (importOriginal) => {
 });
 
 // Import after mocks
-import { classifyContent } from '@/lib/ai/classify';
+import {
+  classifyContent,
+  shouldExcludeEntity,
+  isGenericConcept,
+  isRoleTitle,
+  isProtocolOrFormat,
+  isFrameworkLot,
+  isCompoundEntity,
+  stripPersonDescriptors,
+} from '@/lib/ai/classify';
 import { CLIENT_CONFIG } from '@/lib/client-config';
 
 // ──────────────────────────────────────────
@@ -678,6 +687,193 @@ describe('classifyContent — entity extraction', () => {
       expect(result.relationships).toBeUndefined();
       // Claude should not have been called
       expect(mockCreate).not.toHaveBeenCalled();
+    });
+  });
+});
+
+// ──────────────────────────────────────────
+// Post-extraction entity quality filters
+// ──────────────────────────────────────────
+
+describe('entity quality filters', () => {
+  describe('role title filter scope', () => {
+    it('excludes role titles typed as person', () => {
+      expect(
+        shouldExcludeEntity({
+          name: 'Managing Director',
+          type: 'person',
+          canonical_name: 'Managing Director',
+        }),
+      ).toBe(true);
+    });
+
+    it('excludes role titles typed as organisation', () => {
+      expect(
+        shouldExcludeEntity({
+          name: 'Chief Technology Officer',
+          type: 'organisation',
+          canonical_name: 'Chief Technology Officer',
+        }),
+      ).toBe(true);
+    });
+
+    it('excludes role title acronyms regardless of entity type', () => {
+      expect(
+        shouldExcludeEntity({
+          name: 'CEO',
+          type: 'person',
+          canonical_name: 'CEO',
+        }),
+      ).toBe(true);
+      expect(
+        shouldExcludeEntity({
+          name: 'DPO',
+          type: 'organisation',
+          canonical_name: 'DPO',
+        }),
+      ).toBe(true);
+    });
+
+    it('does not exclude actual person names', () => {
+      expect(
+        shouldExcludeEntity({
+          name: 'John Smith',
+          type: 'person',
+          canonical_name: 'John Smith',
+        }),
+      ).toBe(false);
+    });
+  });
+
+  describe('social issues excluded as generic concepts', () => {
+    const socialIssues = [
+      'county lines',
+      'county lines criminal exploitation',
+      'female genital mutilation',
+      'child sexual exploitation',
+      'child criminal exploitation',
+      'domestic abuse',
+      'modern slavery',
+      'radicalisation',
+      'forced marriage',
+      'honour-based violence',
+    ];
+
+    for (const issue of socialIssues) {
+      it(`excludes "${issue}" as generic concept`, () => {
+        expect(isGenericConcept(issue)).toBe(true);
+      });
+    }
+  });
+
+  describe('generic methodology approaches excluded', () => {
+    const approaches = [
+      'risk-based approach',
+      'iterative development',
+      'best practice',
+      'best practices',
+      'agile approach',
+    ];
+
+    for (const approach of approaches) {
+      it(`excludes "${approach}" as generic concept`, () => {
+        expect(isGenericConcept(approach)).toBe(true);
+      });
+    }
+  });
+
+  describe('SAML not excluded from protocol formats', () => {
+    it('does not treat SAML as a protocol/format', () => {
+      expect(isProtocolOrFormat('saml')).toBe(false);
+      expect(isProtocolOrFormat('SAML')).toBe(false);
+    });
+
+    it('still excludes actual protocols', () => {
+      expect(isProtocolOrFormat('https')).toBe(true);
+      expect(isProtocolOrFormat('oauth')).toBe(true);
+    });
+  });
+
+  describe('person descriptive string stripping', () => {
+    it('strips parenthetical role/company from person names', () => {
+      expect(stripPersonDescriptors('Matthew (MD, Example Client Ltd)')).toBe(
+        'Matthew',
+      );
+    });
+
+    it('strips parenthetical role only', () => {
+      expect(stripPersonDescriptors('Sarah (Director)')).toBe('Sarah');
+    });
+
+    it('leaves names without parentheticals unchanged', () => {
+      expect(stripPersonDescriptors('John Smith')).toBe('John Smith');
+    });
+
+    it('only strips trailing parentheticals', () => {
+      expect(stripPersonDescriptors('Smith (John) Williams')).toBe(
+        'Smith (John) Williams',
+      );
+    });
+  });
+
+  describe('framework lot numbers excluded as projects', () => {
+    it('excludes G-Cloud lot numbers', () => {
+      expect(isFrameworkLot('G-Cloud Lot 1')).toBe(true);
+      expect(isFrameworkLot('G-Cloud Lot 2')).toBe(true);
+      expect(isFrameworkLot('g-cloud lot 3')).toBe(true);
+    });
+
+    it('excludes DOS lot numbers', () => {
+      expect(isFrameworkLot('DOS Lot 1')).toBe(true);
+      expect(isFrameworkLot('Digital Outcomes Lot 2')).toBe(true);
+      expect(isFrameworkLot('Digital Specialists 1')).toBe(true);
+    });
+
+    it('only filters when entity type is project', () => {
+      // Framework lot filter is type-gated to project in shouldExcludeEntity
+      expect(
+        shouldExcludeEntity({
+          name: 'G-Cloud Lot 1',
+          type: 'project',
+          canonical_name: 'G-Cloud Lot 1',
+        }),
+      ).toBe(true);
+      expect(
+        shouldExcludeEntity({
+          name: 'G-Cloud Lot 1',
+          type: 'framework',
+          canonical_name: 'G-Cloud Lot 1',
+        }),
+      ).toBe(false);
+    });
+
+    it('does not exclude real project names', () => {
+      expect(isFrameworkLot('Cloud Migration Project')).toBe(false);
+    });
+  });
+
+  describe('compound entities excluded', () => {
+    it('excludes slash-separated compound entities', () => {
+      expect(isCompoundEntity('ISO 27001/ISO 9001')).toBe(true);
+      expect(isCompoundEntity('ISO 27001/ISO 9001/ISO 14001')).toBe(true);
+    });
+
+    it('does not exclude names with very short parts', () => {
+      expect(isCompoundEntity('A/B')).toBe(false);
+    });
+
+    it('does not exclude names without slashes', () => {
+      expect(isCompoundEntity('ISO 27001')).toBe(false);
+    });
+
+    it('excludes via shouldExcludeEntity', () => {
+      expect(
+        shouldExcludeEntity({
+          name: 'ISO 27001/ISO 9001',
+          type: 'certification',
+          canonical_name: 'ISO 27001/ISO 9001',
+        }),
+      ).toBe(true);
     });
   });
 });
