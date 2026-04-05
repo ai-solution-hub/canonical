@@ -4,6 +4,7 @@ import type { Database } from '@/supabase/types/database.types';
 import { pollFeed } from './feed-poller';
 import { extractContent, normaliseUrl } from './content-extractor';
 import { embeddingPreFilter, scoreRelevance } from './relevance-scorer';
+import { generateArticleSummary } from './article-summariser';
 import { generateEmbedding } from '@/lib/ai/embed';
 import { classifyContent } from '@/lib/ai/classify';
 import type {
@@ -247,8 +248,20 @@ export async function processFeedSource(
         }
       }
 
-      // 2d. Store in feed_articles (all articles, passed and filtered)
-      // Use relevance reasoning as ai_summary (lightweight, no extra API call)
+      // 2d. Generate AI summary for passed articles only (cost efficiency)
+      let aiSummary: string | null = null;
+      if (passed) {
+        try {
+          aiSummary = await generateArticleSummary(
+            extraction.title ?? item.title,
+            extraction.content,
+          );
+        } catch {
+          // Summary generation failure is non-fatal — store without summary
+        }
+      }
+
+      // 2e. Store in feed_articles (all articles, passed and filtered)
       const { error: insertError } = await supabase
         .from('feed_articles')
         .insert({
@@ -262,7 +275,7 @@ export async function processFeedSource(
           relevance_category: relevanceCategory,
           relevance_reasoning: relevanceReasoning,
           matched_categories: matchedCategories,
-          ai_summary: relevanceReasoning || null,
+          ai_summary: aiSummary,
           prompt_version_id: promptVersionId,
           passed,
           published_at: item.publishedAt,
@@ -281,7 +294,7 @@ export async function processFeedSource(
       if (passed) {
         result.articlesPassed++;
 
-        // 2e. For passed articles: create content_item + classify
+        // 2f. For passed articles: create content_item + classify
         try {
           await storeAsContentItem(supabase, source, item, extraction);
         } catch (err) {
