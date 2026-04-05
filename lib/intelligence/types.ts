@@ -29,7 +29,7 @@ export interface ExtractionResult {
   title: string | null;
   description: string | null;
   thumbnailUrl: string | null;
-  method: 'rss_content' | 'fetch' | 'firecrawl' | 'summary_fallback';
+  method: 'rss_content' | 'fetch' | 'jina_reader' | 'firecrawl' | 'summary_fallback';
   wordCount: number;
 }
 

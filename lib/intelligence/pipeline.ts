@@ -6,6 +6,7 @@ import {
   extractContent,
   normaliseUrl,
   resolveGoogleNewsUrl,
+  checkFirecrawlApiKey,
 } from './content-extractor';
 import { embeddingPreFilter, scoreRelevance } from './relevance-scorer';
 import { generateArticleSummary } from './article-summariser';
@@ -342,6 +343,42 @@ export async function processFeedSource(
       // 2b. Extract content
       const extraction = await extractContent(item);
 
+      // 2b.5. Minimum content gate — skip scoring for very short content
+      if (extraction.wordCount < 50) {
+        console.warn(
+          `[Pipeline] ${normalisedUrl} — content too short (${extraction.wordCount} words), skipping scoring`,
+        );
+
+        const { error: insertError } = await supabase
+          .from('feed_articles')
+          .insert({
+            workspace_id: source.workspace_id,
+            feed_source_id: source.id,
+            external_url: normalisedUrl,
+            external_id: item.guid,
+            title: extraction.title ?? item.title,
+            raw_content: extraction.content,
+            relevance_score: 0,
+            relevance_category: 'irrelevant' as const,
+            relevance_reasoning:
+              'Content too short for reliable scoring',
+            matched_categories: [],
+            ai_summary: null,
+            prompt_version_id: promptVersionId,
+            extraction_method: extraction.method,
+            passed: false,
+            published_at: item.publishedAt,
+          });
+
+        if (insertError && insertError.code !== '23505') {
+          result.errors.push(
+            `Insert failed for ${normalisedUrl}: ${insertError.message}`,
+          );
+          result.articlesFailed++;
+        }
+        continue;
+      }
+
       // 2c. Relevance scoring — behaviour depends on company profile availability
       let passed = false;
       let relevanceScore = 0;
@@ -413,6 +450,7 @@ export async function processFeedSource(
           matched_categories: matchedCategories,
           ai_summary: aiSummary,
           prompt_version_id: promptVersionId,
+          extraction_method: extraction.method,
           passed,
           published_at: item.publishedAt,
         });
@@ -532,8 +570,12 @@ async function storeAsContentItem(
           .eq('id', contentItem.id);
       }
     }
-  } catch {
+  } catch (err) {
     // Classification failure is non-fatal — item is still stored
+    console.error(
+      `[Pipeline] Classification failed for content item ${contentItem.id}:`,
+      err instanceof Error ? err.message : String(err),
+    );
   }
 
   // Assign to workspace via content_item_workspaces (NOT workspace_content)
@@ -582,6 +624,9 @@ export async function runPipeline(
 ): Promise<PipelineRunResult> {
   const startedAt = new Date().toISOString();
 
+  // Check for Firecrawl API key once at pipeline startup
+  checkFirecrawlApiKey();
+
   // Concurrency guard: skip feeds that already have an in-progress queue entry
   const { data: inProgress } = await supabase
     .from('si_processing_queue')
@@ -629,8 +674,12 @@ export async function runPipeline(
           profileId,
           companyContext,
         );
-      } catch {
+      } catch (err) {
         // Pre-filter unavailable — skip it, still do LLM scoring
+        console.error(
+          `[Pipeline] Company embedding generation failed for workspace ${source.workspace_id}:`,
+          err instanceof Error ? err.message : String(err),
+        );
       }
     }
 

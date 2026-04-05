@@ -6,6 +6,9 @@ import { RateLimitError, getGlobalRateLimiter } from './rate-limiter';
 const USER_AGENT =
   'KnowledgeHub/1.0 (+https://knowledge-hub-seven-kappa.vercel.app)';
 
+/** Whether the Firecrawl API key warning has already been logged this process */
+let firecrawlWarningLogged = false;
+
 /** Count words in a string */
 function wordCount(text: string): number {
   return text.split(/\s+/).filter(Boolean).length;
@@ -112,8 +115,21 @@ export function normaliseUrl(url: string): string {
 }
 
 /**
+ * Log a one-time warning if FIRECRAWL_API_KEY is not set.
+ * Called once at pipeline startup, not per article.
+ */
+export function checkFirecrawlApiKey(): void {
+  if (!firecrawlWarningLogged && !process.env.FIRECRAWL_API_KEY) {
+    console.warn(
+      '[SI Pipeline] FIRECRAWL_API_KEY is not set — Firecrawl extraction tier will be unavailable',
+    );
+    firecrawlWarningLogged = true;
+  }
+}
+
+/**
  * Extract full content for a feed article.
- * Priority: RSS content:encoded > direct fetch > Firecrawl > summary fallback
+ * Priority: RSS content:encoded > direct fetch > Jina Reader > Firecrawl > summary fallback
  */
 export async function extractContent(
   item: ParsedFeedItem,
@@ -128,6 +144,9 @@ export async function extractContent(
   if (item.contentEncoded) {
     const text = stripHtml(item.contentEncoded);
     if (wordCount(text) >= MIN_CONTENT_WORDS) {
+      console.log(
+        `[Extraction] ${item.url} — Tier 1 (rss_content), ${wordCount(text)} words`,
+      );
       return {
         ...baseResult,
         content: text,
@@ -167,6 +186,9 @@ export async function extractContent(
         const html = await response.text();
         const text = extractMainContent(html);
         if (wordCount(text) >= MIN_CONTENT_WORDS) {
+          console.log(
+            `[Extraction] ${item.url} — Tier 2 (fetch), ${wordCount(text)} words`,
+          );
           return {
             ...baseResult,
             content: text,
@@ -176,8 +198,43 @@ export async function extractContent(
         }
       }
     }
-  } catch {
-    // Fall through to Firecrawl
+  } catch (err) {
+    console.error(
+      `[Extraction] ${item.url} — Tier 2 (fetch) failed:`,
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+
+  // 2.5. Jina Reader — free markdown extraction, no API key needed
+  try {
+    const jinaUrl = `https://r.jina.ai/${item.url}`;
+    const response = await fetch(jinaUrl, {
+      headers: {
+        Accept: 'text/markdown',
+        'User-Agent': USER_AGENT,
+      },
+      signal: AbortSignal.timeout(EXTRACTION_TIMEOUT_MS),
+    });
+
+    if (response.ok) {
+      const text = await response.text();
+      if (wordCount(text) >= MIN_CONTENT_WORDS) {
+        console.log(
+          `[Extraction] ${item.url} — Tier 2.5 (jina_reader), ${wordCount(text)} words`,
+        );
+        return {
+          ...baseResult,
+          content: text,
+          method: 'jina_reader',
+          wordCount: wordCount(text),
+        };
+      }
+    }
+  } catch (err) {
+    console.error(
+      `[Extraction] ${item.url} — Tier 2.5 (jina_reader) failed:`,
+      err instanceof Error ? err.message : String(err),
+    );
   }
 
   // 3. Firecrawl fallback — scrape() returns a Document directly
@@ -190,6 +247,9 @@ export async function extractContent(
 
     if (doc.markdown) {
       const text = doc.markdown;
+      console.log(
+        `[Extraction] ${item.url} — Tier 3 (firecrawl), ${wordCount(text)} words`,
+      );
       return {
         ...baseResult,
         content: text,
@@ -205,12 +265,18 @@ export async function extractContent(
         wordCount: wordCount(text),
       };
     }
-  } catch {
-    // Firecrawl failed — use whatever we have
+  } catch (err) {
+    console.error(
+      `[Extraction] ${item.url} — Tier 3 (firecrawl) failed:`,
+      err instanceof Error ? err.message : String(err),
+    );
   }
 
   // 4. Last resort: use summary (tagged as summary_fallback, not fetch)
   const fallbackContent = item.summary ?? item.title;
+  console.log(
+    `[Extraction] ${item.url} — Tier 4 (summary_fallback), ${wordCount(fallbackContent)} words`,
+  );
   return {
     ...baseResult,
     content: fallbackContent,
