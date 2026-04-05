@@ -13,6 +13,7 @@ import type {
   PollResult,
 } from './types';
 import { PIPELINE_SYSTEM_USER_ID, SOURCES_PER_INVOCATION } from './types';
+import { RateLimitError } from './rate-limiter';
 
 type Supabase = SupabaseClient<Database>;
 
@@ -48,7 +49,7 @@ export async function getDueFeedSources(
 async function loadCompanyContext(
   supabase: Supabase,
   workspaceId: string,
-): Promise<CompanyContext | null> {
+): Promise<{ context: CompanyContext; profileId: string } | null> {
   // Get workspace domain_metadata which may link to a company profile
   const { data: workspace } = await supabase
     .from('workspaces')
@@ -71,13 +72,56 @@ async function loadCompanyContext(
   if (!profile) return null;
 
   return {
-    name: profile.name,
-    sectors: profile.sectors ?? [],
-    services: profile.services ?? [],
-    keyTopics: profile.key_topics ?? [],
-    targetCustomers: profile.target_customers,
-    valueProposition: profile.value_proposition,
+    context: {
+      name: profile.name,
+      sectors: profile.sectors ?? [],
+      services: profile.services ?? [],
+      keyTopics: profile.key_topics ?? [],
+      targetCustomers: profile.target_customers,
+      valueProposition: profile.value_proposition,
+    },
+    profileId,
   };
+}
+
+/** Load cached company embedding, or generate and cache it */
+async function loadOrGenerateCompanyEmbedding(
+  supabase: Supabase,
+  profileId: string,
+  companyContext: CompanyContext,
+): Promise<number[] | null> {
+  // Check for cached embedding
+  const { data: profile } = await supabase
+    .from('company_profiles')
+    .select('company_embedding')
+    .eq('id', profileId)
+    .single();
+
+  if (profile?.company_embedding) {
+    try {
+      return JSON.parse(profile.company_embedding) as number[];
+    } catch {
+      // Invalid cached value — regenerate
+    }
+  }
+
+  // Generate new embedding
+  const profileText = [
+    companyContext.name,
+    ...companyContext.sectors,
+    ...companyContext.keyTopics,
+    companyContext.valueProposition ?? '',
+  ].join('. ');
+
+  const embedding = await generateEmbedding(profileText);
+
+  // Cache the embedding
+  await supabase
+    .from('company_profiles')
+    .update({ company_embedding: JSON.stringify(embedding) })
+    .eq('id', profileId);
+
+  return embedding;
 }
 
 /** Check if an article URL already exists in feed_articles for this workspace */
@@ -156,6 +200,14 @@ export async function processFeedSource(
   try {
     pollResult = await pollFeed(source);
   } catch (err) {
+    // Record rate-limit errors with a distinct status for monitoring
+    if (err instanceof RateLimitError) {
+      const msg = `Rate limited by ${err.hostname}`;
+      result.errors.push(`Poll failed: ${msg}`);
+      await updateSourceAfterPoll(supabase, source, 'error', null, null, msg);
+      result.durationMs = Date.now() - startTime;
+      return result;
+    }
     const msg = err instanceof Error ? err.message : String(err);
     result.errors.push(`Poll failed: ${msg}`);
     await updateSourceAfterPoll(supabase, source, 'error', null, null, msg);
@@ -439,25 +491,24 @@ export async function runPipeline(
       .single();
 
     // Load company context for this workspace
-    const companyContext = await loadCompanyContext(
+    const companyResult = await loadCompanyContext(
       supabase,
       source.workspace_id,
     );
+    const companyContext = companyResult?.context ?? null;
 
     // Load active prompt for this workspace (fetched once, passed to all articles)
     const activePrompt = await getActivePrompt(supabase, source.workspace_id);
 
-    // Generate company embedding for pre-filter (cached per workspace)
+    // Load or generate company embedding for pre-filter (cached in DB)
     let companyEmbedding: number[] | null = null;
-    if (companyContext) {
+    if (companyContext && companyResult) {
       try {
-        const profileText = [
-          companyContext.name,
-          ...companyContext.sectors,
-          ...companyContext.keyTopics,
-          companyContext.valueProposition ?? '',
-        ].join('. ');
-        companyEmbedding = await generateEmbedding(profileText);
+        companyEmbedding = await loadOrGenerateCompanyEmbedding(
+          supabase,
+          companyResult.profileId,
+          companyContext,
+        );
       } catch {
         // Pre-filter unavailable — skip it, still do LLM scoring
       }
