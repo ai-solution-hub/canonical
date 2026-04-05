@@ -9,6 +9,8 @@ import {
   CORE_BID_RESPONSES,
   BID_STATE_TRANSITIONS,
   EMBEDDING_ITEM_INDICES,
+  INTELLIGENCE_FEED_SOURCE,
+  buildIntelligenceFeedArticles,
 } from './test-data';
 import precomputedEmbeddings from './embeddings.json';
 
@@ -69,6 +71,12 @@ export interface WorkerData {
   responseIds: string[];
   /** IDs of the 2 seeded notifications. */
   notificationIds: string[];
+  /** ID of the seeded intelligence workspace. */
+  intelligenceWorkspaceId: string;
+  /** ID of the seeded intelligence feed source. */
+  intelligenceFeedSourceId: string;
+  /** IDs of the seeded feed articles (2 passed + 1 filtered). */
+  feedArticleIds: string[];
   /** Worker-unique prefix (e.g. "[E2E-W0]") for data isolation. */
   prefix: string;
   /** Indices of content items that have pre-computed embeddings. */
@@ -291,6 +299,100 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         await supabase.from('read_marks').insert(readMarks).throwOnError();
       }
 
+      // --- Intelligence workspace, feed source, and articles ---
+      const { data: intelWorkspace } = await supabase
+        .from('workspaces')
+        .insert({
+          name: `${prefix} Cyber Security Intel`,
+          description: 'E2E worker-scoped intelligence workspace.',
+          type: 'intelligence',
+          domain_metadata: {},
+        })
+        .select('id')
+        .single()
+        .throwOnError();
+
+      const intelligenceWorkspaceId = intelWorkspace?.id ?? '';
+
+      const { data: feedSource } = await supabase
+        .from('feed_sources')
+        .insert({
+          ...INTELLIGENCE_FEED_SOURCE,
+          name: `${prefix} ${INTELLIGENCE_FEED_SOURCE.name}`,
+          workspace_id: intelligenceWorkspaceId,
+        })
+        .select('id')
+        .single()
+        .throwOnError();
+
+      const intelligenceFeedSourceId = feedSource?.id ?? '';
+
+      // Seed 3 feed articles (2 passed, 1 filtered)
+      const articleShapes = buildIntelligenceFeedArticles(timestamps.now);
+      const feedArticleInserts = articleShapes.map((shape) => ({
+        ...shape,
+        title: `${prefix} ${shape.title}`,
+        workspace_id: intelligenceWorkspaceId,
+        feed_source_id: intelligenceFeedSourceId,
+      }));
+
+      const { data: feedArticles } = await supabase
+        .from('feed_articles')
+        .insert(feedArticleInserts)
+        .select('id')
+        .throwOnError();
+
+      const feedArticleIds = (feedArticles ?? []).map(
+        (a: { id: string }) => a.id,
+      );
+
+      // Create content items for the 2 passed articles and link to workspace
+      const passedArticleShapes = articleShapes.filter((a) => a.passed);
+      const intelContentItems = passedArticleShapes.map((shape, i) => ({
+        title: `${prefix} ${shape.title}`,
+        content_type: 'article' as const,
+        primary_domain: 'Market Intelligence',
+        ai_summary: shape.ai_summary ?? '',
+        platform: 'web',
+        content: shape.ai_summary ?? '',
+        source_url: shape.external_url,
+      }));
+
+      const { data: intelItems } = await supabase
+        .from('content_items')
+        .insert(intelContentItems)
+        .select('id')
+        .throwOnError();
+
+      const intelItemIds = (intelItems ?? []).map(
+        (i: { id: string }) => i.id,
+      );
+
+      // Link content items to intelligence workspace
+      if (intelItemIds.length > 0) {
+        await supabase
+          .from('content_item_workspaces')
+          .insert(
+            intelItemIds.map((contentItemId: string) => ({
+              content_item_id: contentItemId,
+              workspace_id: intelligenceWorkspaceId,
+            })),
+          )
+          .throwOnError();
+
+        // Update feed articles with content_item_id
+        const passedFeedArticleIds = feedArticleIds.filter(
+          (_: string, i: number) => articleShapes[i]?.passed,
+        );
+        for (let i = 0; i < passedFeedArticleIds.length && i < intelItemIds.length; i++) {
+          await supabase
+            .from('feed_articles')
+            .update({ content_item_id: intelItemIds[i] })
+            .eq('id', passedFeedArticleIds[i])
+            .throwOnError();
+        }
+      }
+
       const data: WorkerData = {
         contentItemIds: itemIds,
         articleId: itemIds[0],
@@ -312,6 +414,9 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         questionIds,
         responseIds,
         notificationIds,
+        intelligenceWorkspaceId,
+        intelligenceFeedSourceId,
+        feedArticleIds,
         prefix,
         embeddedItemIndices: EMBEDDING_ITEM_INDICES,
       };
@@ -319,8 +424,9 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       console.log(
         `[Worker ${workerInfo.workerIndex}] Seeded: ${data.contentItemIds.length} items ` +
           `(${precomputedEmbeddings.length} with embeddings), ` +
-          `3 workspaces, 1 bid (drafting) with ${data.questionIds.length} questions and ` +
-          `${data.responseIds.length} responses, ${data.notificationIds.length} notifications ` +
+          `4 workspaces (incl. intelligence), 1 bid (drafting) with ${data.questionIds.length} questions and ` +
+          `${data.responseIds.length} responses, ${data.notificationIds.length} notifications, ` +
+          `${data.feedArticleIds.length} feed articles ` +
           `(prefix: ${prefix})`,
       );
 
