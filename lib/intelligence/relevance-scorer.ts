@@ -101,8 +101,11 @@ export async function scoreRelevance(
     ],
   });
 
-  const text =
+  const rawText =
     response.content[0].type === 'text' ? response.content[0].text : '';
+
+  // Strip markdown code fences if the model wraps JSON in ```json ... ```
+  const text = rawText.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
 
   try {
     const parsed = JSON.parse(text);
