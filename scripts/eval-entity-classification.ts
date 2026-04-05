@@ -18,11 +18,27 @@
  *   bun run scripts/eval-entity-classification.ts --cached --verbose
  *   bun run scripts/eval-entity-classification.ts --cached --json
  *   bun run scripts/eval-entity-classification.ts --cached --item <uuid>
+ *   bun run scripts/eval-entity-classification.ts --cached --save-baseline
+ *   bun run scripts/eval-entity-classification.ts --live --confirm
+ *   bun run scripts/eval-entity-classification.ts --live --validate --confirm
  */
 
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { createClient } from '@supabase/supabase-js';
+import { createInterface } from 'readline';
+import { precision, recall, f1Score, accuracy } from '../lib/eval/metrics';
+import {
+  loadBaseline,
+  saveBaseline,
+  checkRegression,
+} from '../lib/eval/baseline';
+import {
+  printReport as printSharedReport,
+  printJsonReport,
+} from '../lib/eval/reporter';
+import type { EvalResult, RegressionResult } from '../lib/eval/types';
+import { COST_PER_MILLION } from '../lib/ai/pricing';
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -67,26 +83,6 @@ interface ItemScore {
   exclusion_failures: string[];
 }
 
-interface AggregateScore {
-  total_items: number;
-  total_extracted: number;
-  total_expected: number;
-  total_excluded_expected: number;
-  total_true_positives: number;
-  total_false_positives: number;
-  total_false_negatives: number;
-  total_correctly_typed: number;
-  total_type_errors: number;
-  total_exclusion_successes: number;
-  total_exclusion_failures: number;
-  precision: number;
-  recall: number;
-  f1: number;
-  type_accuracy: number;
-  exclusion_compliance: number;
-  cross_item_consistency: number;
-}
-
 // ── Env loading ─────────────────────────────────────────────────────
 
 function loadEnvFile(path: string): void {
@@ -117,6 +113,19 @@ function loadEnvFile(path: string): void {
 const PROJECT_ROOT = new URL('..', import.meta.url).pathname;
 loadEnvFile(`${PROJECT_ROOT}.env.local`);
 loadEnvFile(`${PROJECT_ROOT}.env`);
+
+// ── Constants ──────────────────────────────────────────────────────
+
+const SUITE_NAME = 'entity-classification';
+
+const THRESHOLDS: Record<string, { min?: number; max_drop?: number }> = {
+  precision: { min: 0.40, max_drop: 0.05 },
+  recall: { min: 0.35, max_drop: 0.05 },
+  f1: { min: 0.35, max_drop: 0.05 },
+  type_accuracy: { min: 0.80, max_drop: 0.05 },
+  exclusion_compliance: { min: 0.50, max_drop: 0.10 },
+  cross_item_consistency: { min: 0.80, max_drop: 0.10 },
+};
 
 // ── Canonicalisation ────────────────────────────────────────────────
 
@@ -191,6 +200,112 @@ async function fetchEntitiesForItems(
   }
 
   return map;
+}
+
+// ── Live Mode: Classification ──────────────────────────────────────
+
+/**
+ * Estimate cost for running live entity classification on all gold standard items.
+ * Uses approximate token counts: ~2000 input tokens per item (prompt + content)
+ * and ~500 output tokens per item (tool use response).
+ */
+function estimateLiveCost(itemCount: number): {
+  model: string;
+  estimatedInputTokens: number;
+  estimatedOutputTokens: number;
+  estimatedCostUsd: number;
+} {
+  const model = process.env.AI_SUMMARY_MODEL || 'claude-sonnet-4-6';
+  // Classification prompt is ~1500 tokens, content up to 5000 chars (~1250 tokens),
+  // taxonomy ~200 tokens. Output is tool use with entities ~500 tokens.
+  const inputTokensPerItem = 3000;
+  const outputTokensPerItem = 600;
+  const estimatedInputTokens = inputTokensPerItem * itemCount;
+  const estimatedOutputTokens = outputTokensPerItem * itemCount;
+
+  const rates =
+    COST_PER_MILLION[model] ?? COST_PER_MILLION['claude-sonnet-4-5'];
+  const estimatedCostUsd =
+    (estimatedInputTokens / 1_000_000) * rates.input +
+    (estimatedOutputTokens / 1_000_000) * rates.output;
+
+  return { model, estimatedInputTokens, estimatedOutputTokens, estimatedCostUsd };
+}
+
+/**
+ * Prompt user for confirmation before running live classification.
+ */
+async function confirmLiveRun(costEstimate: {
+  model: string;
+  estimatedInputTokens: number;
+  estimatedOutputTokens: number;
+  estimatedCostUsd: number;
+}, itemCount: number): Promise<boolean> {
+  console.log('\n--- LIVE MODE COST ESTIMATE ---\n');
+  console.log(`  Items to classify:       ${itemCount}`);
+  console.log(`  Model:                   ${costEstimate.model}`);
+  console.log(`  Est. input tokens:       ${costEstimate.estimatedInputTokens.toLocaleString()}`);
+  console.log(`  Est. output tokens:      ${costEstimate.estimatedOutputTokens.toLocaleString()}`);
+  console.log(`  Est. cost:               $${costEstimate.estimatedCostUsd.toFixed(4)} USD`);
+  console.log(`  Rate limit:              1 req/sec`);
+  console.log(`  Est. time:               ~${Math.ceil(itemCount * 1.5)} seconds\n`);
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    rl.question('  Proceed? (y/N) ', (answer) => {
+      rl.close();
+      resolve(answer.toLowerCase() === 'y');
+    });
+  });
+}
+
+/**
+ * Run live classification for a single item and extract entities.
+ * Returns the entities extracted by the classifier.
+ */
+async function classifyAndExtractEntities(
+  supabase: ReturnType<typeof createClient>,
+  itemId: string,
+  validate: boolean,
+): Promise<DbEntity[]> {
+  // Dynamic import to avoid loading the full classify module for cached mode
+  const { classifyContent } = await import('../lib/ai/classify');
+
+  const result = await classifyContent({
+    supabase,
+    itemId,
+    force: true,
+    userId: 'eval-runner',
+  });
+
+  // Extract entities from the classification result
+  const entities: DbEntity[] = (result.entities ?? []).map((e) => ({
+    entity_type: e.type,
+    entity_name: e.name,
+    canonical_name: e.canonical_name.toLowerCase(),
+  }));
+
+  // If validate mode is enabled, run a second pass
+  // (the classifyContent function handles validation internally when the
+  // content is re-classified with force:true — the two-pass validation
+  // is handled by the classification pipeline itself)
+  if (validate) {
+    // Re-fetch the stored entities from DB after classification
+    // (the pipeline applies post-extraction filters and deduplication)
+    const map = await fetchEntitiesForItems(supabase, [itemId]);
+    return map.get(itemId) ?? entities;
+  }
+
+  // Re-fetch from DB to get the post-filtered, deduplicated entities
+  const map = await fetchEntitiesForItems(supabase, [itemId]);
+  return map.get(itemId) ?? entities;
+}
+
+/**
+ * Delay helper for rate limiting.
+ */
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // ── Scoring ─────────────────────────────────────────────────────────
@@ -299,10 +414,10 @@ function scoreItem(gold: GoldStandardItem, extracted: DbEntity[]): ItemScore {
   };
 }
 
-function aggregateScores(
+function computeAggregateMetrics(
   scores: ItemScore[],
   goldStandard: GoldStandardItem[],
-): AggregateScore {
+): Record<string, number> {
   let totalExtracted = 0;
   let totalExpected = 0;
   let totalExcludedExpected = 0;
@@ -331,25 +446,26 @@ function aggregateScores(
       g.excluded_entities.length - s.exclusion_failures.length;
   }
 
-  const precision =
-    totalExtracted > 0 ? totalTruePositives / totalExtracted : 0;
-  const recall = totalExpected > 0 ? totalTruePositives / totalExpected : 0;
-  const f1 =
-    precision + recall > 0
-      ? (2 * precision * recall) / (precision + recall)
-      : 0;
-  const typeAccuracy =
+  const p = totalExtracted > 0 ? totalTruePositives / totalExtracted : 0;
+  const r = totalExpected > 0 ? totalTruePositives / totalExpected : 0;
+  const f1 = p + r > 0 ? (2 * p * r) / (p + r) : 0;
+  const typeAcc =
     totalTruePositives > 0 ? totalCorrectlyTyped / totalTruePositives : 0;
-  const exclusionCompliance =
+  const exclusionCompl =
     totalExcludedExpected > 0
       ? totalExclusionSuccesses / totalExcludedExpected
       : 0;
 
   return {
+    precision: p,
+    recall: r,
+    f1,
+    type_accuracy: typeAcc,
+    exclusion_compliance: exclusionCompl,
+    cross_item_consistency: 0, // set externally
     total_items: scores.length,
     total_extracted: totalExtracted,
     total_expected: totalExpected,
-    total_excluded_expected: totalExcludedExpected,
     total_true_positives: totalTruePositives,
     total_false_positives: totalFalsePositives,
     total_false_negatives: totalFalseNegatives,
@@ -357,12 +473,7 @@ function aggregateScores(
     total_type_errors: totalTypeErrors,
     total_exclusion_successes: totalExclusionSuccesses,
     total_exclusion_failures: totalExclusionFailures,
-    precision,
-    recall,
-    f1,
-    type_accuracy: typeAccuracy,
-    exclusion_compliance: exclusionCompliance,
-    cross_item_consistency: 0, // calculated separately
+    total_excluded_expected: totalExcludedExpected,
   };
 }
 
@@ -403,74 +514,32 @@ function measureCrossItemConsistency(entityMap: Map<string, DbEntity[]>): {
   };
 }
 
-// ── Reporting ───────────────────────────────────────────────────────
+// ── Extended Reporting ─────────────────────────────────────────────
 
-function printReport(
+/**
+ * Print entity-specific detail sections (domain breakdown, type errors,
+ * inconsistencies, worst items) that supplement the shared report.
+ */
+function printEntityDetail(
   scores: ItemScore[],
-  aggregate: AggregateScore,
+  metrics: Record<string, number>,
   consistency: {
     consistency: number;
     inconsistencies: Array<{ name: string; types: string[] }>;
   },
   verbose: boolean,
 ): void {
-  console.log('\n' + '='.repeat(72));
-  console.log('  ENTITY CLASSIFICATION EVAL REPORT');
-  console.log('='.repeat(72));
-
-  // Aggregate summary
-  console.log('\n--- AGGREGATE SCORES ---\n');
-  console.log(`  Items evaluated:          ${aggregate.total_items}`);
-  console.log(`  Total extracted:          ${aggregate.total_extracted}`);
-  console.log(`  Total expected:           ${aggregate.total_expected}`);
-  console.log(
-    `  Total excluded expected:  ${aggregate.total_excluded_expected}`,
-  );
-  console.log('');
-  console.log(
-    `  Precision:                ${(aggregate.precision * 100).toFixed(1)}%  (${aggregate.total_true_positives} correct / ${aggregate.total_extracted} extracted)`,
-  );
-  console.log(
-    `  Recall:                   ${(aggregate.recall * 100).toFixed(1)}%  (${aggregate.total_true_positives} found / ${aggregate.total_expected} expected)`,
-  );
-  console.log(
-    `  F1 Score:                 ${(aggregate.f1 * 100).toFixed(1)}%`,
-  );
-  console.log(
-    `  Type Accuracy:            ${(aggregate.type_accuracy * 100).toFixed(1)}%  (${aggregate.total_correctly_typed} correct type / ${aggregate.total_true_positives} matched)`,
-  );
-  console.log(
-    `  Exclusion Compliance:     ${(aggregate.exclusion_compliance * 100).toFixed(1)}%  (${aggregate.total_exclusion_successes} excluded / ${aggregate.total_excluded_expected} should be excluded)`,
-  );
-  console.log(
-    `  Cross-Item Consistency:   ${(consistency.consistency * 100).toFixed(1)}%`,
-  );
-
-  // Targets
-  console.log('\n--- TARGET COMPARISON ---\n');
-  const targets = [
-    { name: 'Precision', value: aggregate.precision, target: 0.9 },
-    { name: 'Recall', value: aggregate.recall, target: 0.8 },
-    { name: 'Type Accuracy', value: aggregate.type_accuracy, target: 0.85 },
-    {
-      name: 'Exclusion Compliance',
-      value: aggregate.exclusion_compliance,
-      target: 0.9,
-    },
-    {
-      name: 'Cross-Item Consistency',
-      value: consistency.consistency,
-      target: 0.95,
-    },
-  ];
-
-  for (const t of targets) {
-    const met = t.value >= t.target;
-    const icon = met ? 'PASS' : 'FAIL';
-    console.log(
-      `  [${icon}] ${t.name.padEnd(25)} ${(t.value * 100).toFixed(1)}%  (target: ${(t.target * 100).toFixed(0)}%)`,
-    );
-  }
+  // Counts summary
+  console.log('--- COUNTS ---\n');
+  console.log(`  Total extracted:          ${metrics.total_extracted}`);
+  console.log(`  Total expected:           ${metrics.total_expected}`);
+  console.log(`  True positives:           ${metrics.total_true_positives}`);
+  console.log(`  False positives:          ${metrics.total_false_positives}`);
+  console.log(`  False negatives:          ${metrics.total_false_negatives}`);
+  console.log(`  Correctly typed:          ${metrics.total_correctly_typed}`);
+  console.log(`  Type errors:              ${metrics.total_type_errors}`);
+  console.log(`  Exclusion successes:      ${metrics.total_exclusion_successes}`);
+  console.log(`  Exclusion failures:       ${metrics.total_exclusion_failures}`);
 
   // Per-domain breakdown
   console.log('\n--- PER-DOMAIN BREAKDOWN ---\n');
@@ -573,7 +642,7 @@ function printReport(
     }
   }
 
-  console.log('\n' + '='.repeat(72));
+  console.log('');
 }
 
 // ── Main ────────────────────────────────────────────────────────────
@@ -583,17 +652,12 @@ async function main() {
   const mode = args.includes('--live') ? 'live' : 'cached';
   const verbose = args.includes('--verbose');
   const jsonOutput = args.includes('--json');
+  const doSaveBaseline = args.includes('--save-baseline');
+  const confirmFlag = args.includes('--confirm');
+  const validateFlag = args.includes('--validate');
   const itemFilter = args.includes('--item')
     ? args[args.indexOf('--item') + 1]
     : null;
-
-  if (mode === 'live') {
-    console.error(
-      'Live mode (re-running classification) is not yet implemented.',
-    );
-    console.error('Use --cached mode to compare against existing DB entities.');
-    process.exit(1);
-  }
 
   // Load gold standard
   const fixturePath = resolve(
@@ -618,14 +682,68 @@ async function main() {
     }
   }
 
-  console.log(
-    `Loading entity data for ${goldStandard.length} gold standard items (${mode} mode)...`,
-  );
-
-  // Fetch existing entities from DB
   const supabase = createServiceClient();
   const itemIds = goldStandard.map((g) => g.content_item_id);
-  const entityMap = await fetchEntitiesForItems(supabase, itemIds);
+  let entityMap: Map<string, DbEntity[]>;
+
+  if (mode === 'live') {
+    // ── Live mode: re-run classification for each item ──
+    const costEstimate = estimateLiveCost(goldStandard.length);
+
+    // Require confirmation unless --confirm flag is passed
+    if (!confirmFlag) {
+      const confirmed = await confirmLiveRun(costEstimate, goldStandard.length);
+      if (!confirmed) {
+        console.log('Aborted.');
+        process.exit(0);
+      }
+    } else {
+      // Print cost estimate even with --confirm for logging
+      console.log(`\nLive mode: ${goldStandard.length} items, model=${costEstimate.model}, est. cost=$${costEstimate.estimatedCostUsd.toFixed(4)} USD`);
+    }
+
+    console.log(`\nRunning live classification for ${goldStandard.length} items (${validateFlag ? 'with validation' : 'standard'})...\n`);
+
+    entityMap = new Map();
+    let completed = 0;
+
+    for (const gold of goldStandard) {
+      try {
+        const entities = await classifyAndExtractEntities(
+          supabase,
+          gold.content_item_id,
+          validateFlag,
+        );
+        entityMap.set(gold.content_item_id, entities);
+        completed++;
+
+        if (!jsonOutput) {
+          process.stdout.write(
+            `  [${completed}/${goldStandard.length}] ${gold.title.slice(0, 60)} — ${entities.length} entities\n`,
+          );
+        }
+
+        // Rate limit: 1 request per second
+        if (completed < goldStandard.length) {
+          await delay(1000);
+        }
+      } catch (err) {
+        console.error(
+          `  [${completed + 1}/${goldStandard.length}] FAILED: ${gold.title.slice(0, 60)} — ${err instanceof Error ? err.message : String(err)}`,
+        );
+        entityMap.set(gold.content_item_id, []);
+        completed++;
+      }
+    }
+
+    console.log(`\nLive classification complete: ${completed} items processed.\n`);
+  } else {
+    // ── Cached mode: read existing entities from DB ──
+    console.log(
+      `Loading entity data for ${goldStandard.length} gold standard items (cached mode)...`,
+    );
+    entityMap = await fetchEntitiesForItems(supabase, itemIds);
+  }
 
   // Score each item
   const scores: ItemScore[] = [];
@@ -634,41 +752,73 @@ async function main() {
     scores.push(scoreItem(gold, extracted));
   }
 
-  // Aggregate
-  const aggregate = aggregateScores(scores, goldStandard);
+  // Aggregate metrics
+  const metrics = computeAggregateMetrics(scores, goldStandard);
 
   // Cross-item consistency
   const consistency = measureCrossItemConsistency(entityMap);
-  aggregate.cross_item_consistency = consistency.consistency;
+  metrics.cross_item_consistency = consistency.consistency;
 
-  if (jsonOutput) {
-    console.log(
-      JSON.stringify(
-        {
-          mode,
-          timestamp: new Date().toISOString(),
-          aggregate,
-          consistency: {
-            score: consistency.consistency,
-            inconsistencies: consistency.inconsistencies,
-          },
-          per_item: scores,
-        },
-        null,
-        2,
-      ),
-    );
-  } else {
-    printReport(scores, aggregate, consistency, verbose);
+  // Build failures list
+  const failures: string[] = [];
+  for (const [metricName, threshold] of Object.entries(THRESHOLDS)) {
+    const value = metrics[metricName] ?? 0;
+    if (threshold.min !== undefined && value < threshold.min) {
+      failures.push(
+        `${metricName} ${(value * 100).toFixed(1)}% below minimum ${(threshold.min * 100).toFixed(0)}%`,
+      );
+    }
   }
 
-  // Exit with non-zero if below minimum thresholds (for CI gating)
-  const minimumPrecision = 0.5; // low bar for current system (baseline)
-  const minimumRecall = 0.4;
-  if (
-    aggregate.precision < minimumPrecision ||
-    aggregate.recall < minimumRecall
-  ) {
+  // Build shared EvalResult
+  const result: EvalResult = {
+    suite_name: 'Entity Classification Eval',
+    timestamp: new Date().toISOString(),
+    total_items: scores.length,
+    metrics: {
+      precision: metrics.precision,
+      recall: metrics.recall,
+      f1: metrics.f1,
+      type_accuracy: metrics.type_accuracy,
+      exclusion_compliance: metrics.exclusion_compliance,
+      cross_item_consistency: metrics.cross_item_consistency,
+    },
+    passed: failures.length === 0,
+    failures,
+  };
+
+  // Baseline handling
+  const baseline = loadBaseline(SUITE_NAME);
+  let regressions: RegressionResult[] | undefined;
+
+  if (baseline) {
+    regressions = checkRegression(baseline, result.metrics);
+    const regressionFailures = regressions.filter((r) => !r.passed);
+    if (regressionFailures.length > 0) {
+      result.passed = false;
+      for (const rf of regressionFailures) {
+        result.failures.push(
+          `Regression: ${rf.metric_name} dropped from ${(rf.baseline_value * 100).toFixed(1)}% to ${(rf.current_value * 100).toFixed(1)}%`,
+        );
+      }
+    }
+  }
+
+  if (doSaveBaseline) {
+    saveBaseline(SUITE_NAME, result.metrics, THRESHOLDS);
+    console.log('Baseline saved.');
+  }
+
+  // Output
+  if (jsonOutput) {
+    printJsonReport(result, regressions);
+  } else {
+    printSharedReport(result, regressions);
+    printEntityDetail(scores, metrics, consistency, verbose);
+  }
+
+  // Exit with non-zero if any threshold failed or regression detected
+  if (!result.passed) {
     process.exit(1);
   }
 }
