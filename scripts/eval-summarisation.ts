@@ -1,16 +1,19 @@
 /**
- * Summarisation Eval Runner
+ * Summarisation Eval Runner — Two-Tier Scoring
  *
  * Compares DB summaries against reference summaries from gold standard.
  * No API cost — reads existing DB values only.
  *
+ * Tier 1 (Long-Form): article, policy, case_study, research, capability, compliance
+ *   Evaluated against structured summary_data (executive + detailed + takeaways)
+ *
+ * Tier 2 (Short-Form): q_a_pair, certification, product_description, and all others
+ *   Evaluated against ai_summary only (plain text)
+ *
  * Metrics:
- *   - ROUGE-L between AI executive and reference executive
- *   - ROUGE-L between AI detailed and reference detailed
- *   - ROUGE-1 for both sections
- *   - Structural compliance: summary_data has all three sections
- *   - Length compliance: executive <= 150 chars
- *   - Takeaway count: 3-7 inclusive
+ *   Tier 1: ROUGE-L/1 executive+detailed, structural compliance, length compliance, takeaway count
+ *   Tier 2: ROUGE-L/1 executive, length appropriateness, non-empty
+ *   Combined: weighted ROUGE-L executive average
  *
  * Usage:
  *   bun run eval:summarisation
@@ -25,7 +28,7 @@ import { createClient } from '@supabase/supabase-js';
 import { rougeL, rouge1 } from '../lib/eval/metrics';
 import { loadBaseline, saveBaseline, checkRegression } from '../lib/eval/baseline';
 import { printReport, printJsonReport } from '../lib/eval/reporter';
-import type { EvalResult, RegressionResult } from '../lib/eval/types';
+import type { EvalResult, RegressionResult, SummarisationGoldItem } from '../lib/eval/types';
 
 // ── Env loading ─────────────────────────────────────────────────────
 
@@ -60,17 +63,8 @@ loadEnvFile(`${PROJECT_ROOT}.env`);
 
 // ── Types ───────────────────────────────────────────────────────────
 
-interface GoldItem {
-  content_item_id: string;
-  title: string;
-  domain: string;
-  content_type: string;
-  reference_executive: string;
-  reference_detailed: string;
-  reference_takeaways: string[];
-  source_text_snippet: string;
-  notes: string;
-}
+// GoldItem is the shared SummarisationGoldItem from lib/eval/types.ts
+type GoldItem = SummarisationGoldItem;
 
 interface SummaryData {
   executive?: string;
@@ -88,6 +82,7 @@ interface ItemScore {
   content_item_id: string;
   title: string;
   content_type: string;
+  tier: 1 | 2;
   rouge_l_executive: number;
   rouge_l_detailed: number;
   rouge_1_executive: number;
@@ -96,7 +91,20 @@ interface ItemScore {
   length_compliant: boolean;
   takeaway_count_compliant: boolean;
   takeaway_count: number;
+  // Tier 2 specific
+  length_appropriate: boolean;
+  non_empty: boolean;
   details: string[];
+}
+
+// ── Tier Classification ─────────────────────────────────────────────
+
+const TIER_1_TYPES = new Set([
+  'article', 'policy', 'case_study', 'research', 'capability', 'compliance',
+]);
+
+function getTier(contentType: string): 1 | 2 {
+  return TIER_1_TYPES.has(contentType) ? 1 : 2;
 }
 
 // ── DB Access ───────────────────────────────────────────────────────
@@ -152,27 +160,40 @@ function parseSummaryData(raw: unknown): SummaryData | null {
   return raw as SummaryData;
 }
 
-function scoreItem(gold: GoldItem, db: DbRow | undefined): ItemScore {
+function scoreItem(gold: GoldItem, db: DbRow | undefined, tier: 1 | 2): ItemScore {
   const details: string[] = [];
+
+  const emptyScore: ItemScore = {
+    content_item_id: gold.content_item_id,
+    title: gold.title,
+    content_type: gold.content_type,
+    tier,
+    rouge_l_executive: 0,
+    rouge_l_detailed: 0,
+    rouge_1_executive: 0,
+    rouge_1_detailed: 0,
+    structural_compliant: false,
+    length_compliant: false,
+    takeaway_count_compliant: false,
+    takeaway_count: 0,
+    length_appropriate: false,
+    non_empty: false,
+    details,
+  };
 
   if (!db) {
     details.push('Item not found in database');
-    return {
-      content_item_id: gold.content_item_id,
-      title: gold.title,
-      content_type: gold.content_type,
-      rouge_l_executive: 0,
-      rouge_l_detailed: 0,
-      rouge_1_executive: 0,
-      rouge_1_detailed: 0,
-      structural_compliant: false,
-      length_compliant: false,
-      takeaway_count_compliant: false,
-      takeaway_count: 0,
-      details,
-    };
+    return emptyScore;
   }
 
+  if (tier === 1) {
+    return scoreTier1(gold, db, details);
+  } else {
+    return scoreTier2(gold, db, details);
+  }
+}
+
+function scoreTier1(gold: GoldItem, db: DbRow, details: string[]): ItemScore {
   const summary = parseSummaryData(db.summary_data);
 
   // Structural compliance: summary_data has all three sections
@@ -193,7 +214,7 @@ function scoreItem(gold: GoldItem, db: DbRow | undefined): ItemScore {
   const aiExecutive = summary?.executive ?? db.ai_summary ?? '';
   const aiDetailed = summary?.detailed ?? '';
 
-  // ROUGE-L scores
+  // ROUGE scores
   const rlExec = rougeL(aiExecutive, gold.reference_executive);
   const rlDet = rougeL(aiDetailed, gold.reference_detailed);
   const r1Exec = rouge1(aiExecutive, gold.reference_executive);
@@ -217,6 +238,7 @@ function scoreItem(gold: GoldItem, db: DbRow | undefined): ItemScore {
     content_item_id: gold.content_item_id,
     title: gold.title,
     content_type: gold.content_type,
+    tier: 1,
     rouge_l_executive: rlExec.f1,
     rouge_l_detailed: rlDet.f1,
     rouge_1_executive: r1Exec.f1,
@@ -225,6 +247,47 @@ function scoreItem(gold: GoldItem, db: DbRow | undefined): ItemScore {
     length_compliant: lengthCompliant,
     takeaway_count_compliant: takeawayCountCompliant,
     takeaway_count: takeawayCount,
+    length_appropriate: true, // Not applicable for Tier 1 but defaults to true
+    non_empty: true,
+    details,
+  };
+}
+
+function scoreTier2(gold: GoldItem, db: DbRow, details: string[]): ItemScore {
+  const aiSummary = db.ai_summary ?? '';
+
+  // Non-empty check
+  const nonEmpty = aiSummary.trim().length > 0;
+  if (!nonEmpty) {
+    details.push('ai_summary is empty or null');
+  }
+
+  // Length appropriateness: 8-350 chars
+  const len = aiSummary.length;
+  const lengthAppropriate = len >= 8 && len <= 350;
+  if (!lengthAppropriate && nonEmpty) {
+    details.push(`ai_summary length: ${len} chars (expected 8-350)`);
+  }
+
+  // ROUGE-L and ROUGE-1: ai_summary vs reference_executive
+  const rlExec = rougeL(aiSummary, gold.reference_executive);
+  const r1Exec = rouge1(aiSummary, gold.reference_executive);
+
+  return {
+    content_item_id: gold.content_item_id,
+    title: gold.title,
+    content_type: gold.content_type,
+    tier: 2,
+    rouge_l_executive: rlExec.f1,
+    rouge_l_detailed: 0, // Not evaluated for Tier 2
+    rouge_1_executive: r1Exec.f1,
+    rouge_1_detailed: 0, // Not evaluated for Tier 2
+    structural_compliant: false, // Not applicable for Tier 2
+    length_compliant: false, // Not applicable for Tier 2
+    takeaway_count_compliant: false, // Not applicable for Tier 2
+    takeaway_count: 0,
+    length_appropriate: lengthAppropriate,
+    non_empty: nonEmpty,
     details,
   };
 }
@@ -233,13 +296,18 @@ function scoreItem(gold: GoldItem, db: DbRow | undefined): ItemScore {
 
 const SUITE_NAME = 'summarisation';
 
-const THRESHOLDS: Record<string, { min?: number; max_drop?: number }> = {
-  rouge_l_executive: { min: 0.15, max_drop: 0.05 },
-  rouge_l_detailed: { min: 0.05, max_drop: 0.05 },
-  // Most items lack summary_data (only ~31/251 have it). Thresholds reflect
-  // current reality. Improve when batch summary generation populates all items.
-  structural_compliance: { min: 0.30, max_drop: 0.05 },
-  length_compliance: { min: 0.0 },
+const TIER_1_THRESHOLDS: Record<string, { min?: number; max_drop?: number }> = {
+  t1_rouge_l_executive: { min: 0.15, max_drop: 0.05 },
+  t1_rouge_l_detailed: { min: 0.10, max_drop: 0.05 },
+  t1_structural_compliance: { min: 0.95 },
+  t1_length_compliance: { min: 0.90 },
+  t1_takeaway_compliance: { min: 0.90 },
+};
+
+const TIER_2_THRESHOLDS: Record<string, { min?: number; max_drop?: number }> = {
+  t2_rouge_l_executive: { min: 0.15, max_drop: 0.05 },
+  t2_length_appropriateness: { min: 0.90 },
+  t2_non_empty: { min: 1.00 },
 };
 
 async function main() {
@@ -276,58 +344,99 @@ async function main() {
     console.log(`Warning: ${missing.length} gold standard items not found in database (skipped)`);
   }
 
-  // Score each item
+  // Score each item with tier-aware scoring
   const scores: ItemScore[] = [];
   for (const gold of goldStandard) {
-    scores.push(scoreItem(gold, dbMap.get(gold.content_item_id)));
+    const tier = getTier(gold.content_type);
+    scores.push(scoreItem(gold, dbMap.get(gold.content_item_id), tier));
   }
 
   // Filter out items not found in DB for aggregation
   const evaluated = scores.filter((s) => s.details[0] !== 'Item not found in database');
 
-  // Aggregate metrics
-  const avgRougeLExec =
-    evaluated.length > 0
-      ? evaluated.reduce((sum, s) => sum + s.rouge_l_executive, 0) / evaluated.length
+  // Separate by tier
+  const tier1 = evaluated.filter((s) => s.tier === 1);
+  const tier2 = evaluated.filter((s) => s.tier === 2);
+
+  // ── Tier 1 Aggregation ──────────────────────────────────────────
+  const t1RougeLExec =
+    tier1.length > 0
+      ? tier1.reduce((sum, s) => sum + s.rouge_l_executive, 0) / tier1.length
       : 0;
-  const avgRougeLDet =
-    evaluated.length > 0
-      ? evaluated.reduce((sum, s) => sum + s.rouge_l_detailed, 0) / evaluated.length
+  const t1RougeLDet =
+    tier1.length > 0
+      ? tier1.reduce((sum, s) => sum + s.rouge_l_detailed, 0) / tier1.length
       : 0;
-  const avgRouge1Exec =
-    evaluated.length > 0
-      ? evaluated.reduce((sum, s) => sum + s.rouge_1_executive, 0) / evaluated.length
+  const t1Rouge1Exec =
+    tier1.length > 0
+      ? tier1.reduce((sum, s) => sum + s.rouge_1_executive, 0) / tier1.length
       : 0;
-  const avgRouge1Det =
-    evaluated.length > 0
-      ? evaluated.reduce((sum, s) => sum + s.rouge_1_detailed, 0) / evaluated.length
+  const t1Rouge1Det =
+    tier1.length > 0
+      ? tier1.reduce((sum, s) => sum + s.rouge_1_detailed, 0) / tier1.length
       : 0;
-  const structuralCompliance =
-    evaluated.length > 0
-      ? evaluated.filter((s) => s.structural_compliant).length / evaluated.length
+  const t1StructuralCompliance =
+    tier1.length > 0
+      ? tier1.filter((s) => s.structural_compliant).length / tier1.length
       : 0;
-  const lengthCompliance =
-    evaluated.length > 0
-      ? evaluated.filter((s) => s.length_compliant).length / evaluated.length
+  const t1LengthCompliance =
+    tier1.length > 0
+      ? tier1.filter((s) => s.length_compliant).length / tier1.length
       : 0;
-  const takeawayCompliance =
-    evaluated.length > 0
-      ? evaluated.filter((s) => s.takeaway_count_compliant).length / evaluated.length
+  const t1TakeawayCompliance =
+    tier1.length > 0
+      ? tier1.filter((s) => s.takeaway_count_compliant).length / tier1.length
       : 0;
 
+  // ── Tier 2 Aggregation ──────────────────────────────────────────
+  const t2RougeLExec =
+    tier2.length > 0
+      ? tier2.reduce((sum, s) => sum + s.rouge_l_executive, 0) / tier2.length
+      : 0;
+  const t2Rouge1Exec =
+    tier2.length > 0
+      ? tier2.reduce((sum, s) => sum + s.rouge_1_executive, 0) / tier2.length
+      : 0;
+  const t2LengthAppropriateness =
+    tier2.length > 0
+      ? tier2.filter((s) => s.length_appropriate).length / tier2.length
+      : 0;
+  const t2NonEmpty =
+    tier2.length > 0
+      ? tier2.filter((s) => s.non_empty).length / tier2.length
+      : 0;
+
+  // ── Combined Metric ─────────────────────────────────────────────
+  // Weighted average of ROUGE-L executive across both tiers
+  const totalEvaluated = tier1.length + tier2.length;
+  const combinedRougeLExec =
+    totalEvaluated > 0
+      ? (t1RougeLExec * tier1.length + t2RougeLExec * tier2.length) / totalEvaluated
+      : 0;
+
+  // ── Merge all metrics with prefixes ─────────────────────────────
   const metrics: Record<string, number> = {
-    rouge_l_executive: avgRougeLExec,
-    rouge_l_detailed: avgRougeLDet,
-    rouge_1_executive: avgRouge1Exec,
-    rouge_1_detailed: avgRouge1Det,
-    structural_compliance: structuralCompliance,
-    length_compliance: lengthCompliance,
-    takeaway_compliance: takeawayCompliance,
+    // Tier 1 metrics
+    t1_rouge_l_executive: t1RougeLExec,
+    t1_rouge_l_detailed: t1RougeLDet,
+    t1_rouge_1_executive: t1Rouge1Exec,
+    t1_rouge_1_detailed: t1Rouge1Det,
+    t1_structural_compliance: t1StructuralCompliance,
+    t1_length_compliance: t1LengthCompliance,
+    t1_takeaway_compliance: t1TakeawayCompliance,
+    // Tier 2 metrics
+    t2_rouge_l_executive: t2RougeLExec,
+    t2_rouge_1_executive: t2Rouge1Exec,
+    t2_length_appropriateness: t2LengthAppropriateness,
+    t2_non_empty: t2NonEmpty,
+    // Combined
+    combined_rouge_l_executive: combinedRougeLExec,
   };
 
-  // Build failures
+  // ── Threshold checking ──────────────────────────────────────────
+  const allThresholds = { ...TIER_1_THRESHOLDS, ...TIER_2_THRESHOLDS };
   const failures: string[] = [];
-  for (const [metricName, threshold] of Object.entries(THRESHOLDS)) {
+  for (const [metricName, threshold] of Object.entries(allThresholds)) {
     const value = metrics[metricName];
     if (value !== undefined && threshold.min !== undefined && value < threshold.min) {
       failures.push(
@@ -363,18 +472,32 @@ async function main() {
   }
 
   if (doSaveBaseline) {
-    saveBaseline(SUITE_NAME, metrics, THRESHOLDS);
+    saveBaseline(SUITE_NAME, metrics, allThresholds);
     console.log('Baseline saved.');
   }
 
-  // Verbose per-item output
+  // Verbose per-item output grouped by tier
   if (verbose && !jsonOutput) {
-    console.log('\n--- PER-ITEM DETAIL ---\n');
-    for (const s of scores) {
+    console.log('\n--- TIER 1 (LONG-FORM) DETAIL ---\n');
+    const tier1Scores = scores.filter((s) => s.tier === 1);
+    for (const s of tier1Scores) {
       const status = s.structural_compliant && s.length_compliant ? 'PASS' : 'FAIL';
       console.log(`  [${status}] ${s.title.slice(0, 70)}`);
       console.log(
         `    ROUGE-L exec=${(s.rouge_l_executive * 100).toFixed(1)}%  det=${(s.rouge_l_detailed * 100).toFixed(1)}%  struct=${s.structural_compliant}  len=${s.length_compliant}  takeaways=${s.takeaway_count}`,
+      );
+      for (const d of s.details) {
+        console.log(`    ${d}`);
+      }
+    }
+
+    console.log('\n--- TIER 2 (SHORT-FORM) DETAIL ---\n');
+    const tier2Scores = scores.filter((s) => s.tier === 2);
+    for (const s of tier2Scores) {
+      const status = s.non_empty && s.length_appropriate ? 'PASS' : 'FAIL';
+      console.log(`  [${status}] ${s.title.slice(0, 70)}`);
+      console.log(
+        `    ROUGE-L exec=${(s.rouge_l_executive * 100).toFixed(1)}%  non_empty=${s.non_empty}  len_ok=${s.length_appropriate}`,
       );
       for (const d of s.details) {
         console.log(`    ${d}`);
@@ -388,24 +511,37 @@ async function main() {
   } else {
     printReport(result, regressions);
 
-    // Per-content-type breakdown
+    // Per-content-type breakdown with tier column
     console.log('--- PER-CONTENT-TYPE BREAKDOWN ---\n');
-    const byType = new Map<string, { total: number; rougeLExec: number; structural: number }>();
+    const byType = new Map<string, { total: number; tier: 1 | 2; rougeLExec: number; structural: number; lengthOk: number; nonEmpty: number }>();
     for (const s of evaluated) {
       const ct = s.content_type;
-      if (!byType.has(ct)) byType.set(ct, { total: 0, rougeLExec: 0, structural: 0 });
+      if (!byType.has(ct)) byType.set(ct, { total: 0, tier: s.tier, rougeLExec: 0, structural: 0, lengthOk: 0, nonEmpty: 0 });
       const entry = byType.get(ct)!;
       entry.total++;
       entry.rougeLExec += s.rouge_l_executive;
       if (s.structural_compliant) entry.structural++;
+      if (s.tier === 2 && s.length_appropriate) entry.lengthOk++;
+      if (s.tier === 2 && s.non_empty) entry.nonEmpty++;
     }
     for (const [ct, data] of byType) {
       const avgRL = data.total > 0 ? data.rougeLExec / data.total : 0;
-      const structRate = data.total > 0 ? data.structural / data.total : 0;
-      console.log(
-        `  ${ct.padEnd(20)} ${data.total} items  ROUGE-L(exec)=${(avgRL * 100).toFixed(1)}%  structural=${(structRate * 100).toFixed(0)}%`,
-      );
+      if (data.tier === 1) {
+        const structRate = data.total > 0 ? data.structural / data.total : 0;
+        console.log(
+          `  ${ct.padEnd(20)} T1  ${data.total} items  ROUGE-L(exec)=${(avgRL * 100).toFixed(1)}%  structural=${(structRate * 100).toFixed(0)}%`,
+        );
+      } else {
+        const lenRate = data.total > 0 ? data.lengthOk / data.total : 0;
+        const neRate = data.total > 0 ? data.nonEmpty / data.total : 0;
+        console.log(
+          `  ${ct.padEnd(20)} T2  ${data.total} items  ROUGE-L(exec)=${(avgRL * 100).toFixed(1)}%  len_ok=${(lenRate * 100).toFixed(0)}%  non_empty=${(neRate * 100).toFixed(0)}%`,
+        );
+      }
     }
+
+    // Summary counts
+    console.log(`\n  Tier 1: ${tier1.length} items | Tier 2: ${tier2.length} items | Total: ${evaluated.length} items`);
     console.log('');
   }
 

@@ -79,6 +79,7 @@ export interface SummarisationGoldItem extends GoldStandardBase {
   reference_detailed: string;
   reference_takeaways: string[];
   source_text_snippet: string;
+  notes: string;
 }
 
 /** Bid drafting gold standard item */
