@@ -124,6 +124,199 @@ describe('Classification skill file', () => {
   });
 });
 
+describe('Classification entity types reference', () => {
+  let entityTypesContent: string;
+
+  beforeEach(async () => {
+    const skillPath = join(
+      __dirname,
+      '../../lib/ai/skills/classification-entity-types.md',
+    );
+    entityTypesContent = await readFile(skillPath, 'utf-8');
+  });
+
+  it('loads successfully via loadSkill', async () => {
+    const { loadSkill } = await import('@/lib/ai/skills/loader');
+    const content = await loadSkill('classification-entity-types');
+    expect(content).toBeTruthy();
+    expect(content.length).toBeGreaterThan(100);
+  });
+
+  it('contains all 12 entity type sections', () => {
+    const requiredTypes = [
+      'organisation',
+      'certification',
+      'regulation',
+      'framework',
+      'capability',
+      'person',
+      'technology',
+      'project',
+      'sector',
+      'product',
+      'standard',
+      'methodology',
+    ];
+    for (const type of requiredTypes) {
+      expect(entityTypesContent).toContain(`### ${type}`);
+    }
+  });
+
+  it('contains "The Test" diagnostic question for each type', () => {
+    const requiredTypes = [
+      'organisation',
+      'certification',
+      'regulation',
+      'framework',
+      'capability',
+      'person',
+      'technology',
+      'project',
+      'sector',
+      'product',
+      'standard',
+      'methodology',
+    ];
+
+    // Each type section should have a "The Test" entry
+    for (const type of requiredTypes) {
+      const typeIndex = entityTypesContent.indexOf(`### ${type}`);
+      expect(typeIndex).toBeGreaterThan(-1);
+
+      // Find the next type section (or end of file)
+      const nextTypeIndex = requiredTypes
+        .filter((t) => t !== type)
+        .map((t) => entityTypesContent.indexOf(`### ${t}`, typeIndex + 1))
+        .filter((i) => i > typeIndex)
+        .sort((a, b) => a - b)[0] ?? entityTypesContent.length;
+
+      const section = entityTypesContent.slice(typeIndex, nextTypeIndex);
+      expect(section).toContain('**The Test:**');
+    }
+  });
+
+  it('contains Include and Exclude guidance for each type', () => {
+    const requiredTypes = [
+      'organisation',
+      'certification',
+      'regulation',
+      'framework',
+      'capability',
+      'person',
+      'technology',
+      'project',
+      'sector',
+      'product',
+      'standard',
+      'methodology',
+    ];
+
+    for (const type of requiredTypes) {
+      const typeIndex = entityTypesContent.indexOf(`### ${type}`);
+      const nextTypeIndex = requiredTypes
+        .filter((t) => t !== type)
+        .map((t) => entityTypesContent.indexOf(`### ${t}`, typeIndex + 1))
+        .filter((i) => i > typeIndex)
+        .sort((a, b) => a - b)[0] ?? entityTypesContent.length;
+
+      const section = entityTypesContent.slice(typeIndex, nextTypeIndex);
+      expect(section).toContain('**Include:**');
+      expect(section).toContain('**Exclude:**');
+    }
+  });
+
+  it('contains boundary cases for each type', () => {
+    const requiredTypes = [
+      'organisation',
+      'certification',
+      'regulation',
+      'framework',
+      'capability',
+      'person',
+      'technology',
+      'project',
+      'sector',
+      'product',
+      'standard',
+      'methodology',
+    ];
+
+    for (const type of requiredTypes) {
+      const typeIndex = entityTypesContent.indexOf(`### ${type}`);
+      const nextTypeIndex = requiredTypes
+        .filter((t) => t !== type)
+        .map((t) => entityTypesContent.indexOf(`### ${t}`, typeIndex + 1))
+        .filter((i) => i > typeIndex)
+        .sort((a, b) => a - b)[0] ?? entityTypesContent.length;
+
+      const section = entityTypesContent.slice(typeIndex, nextTypeIndex);
+      expect(section).toContain('**Boundary cases:**');
+    }
+  });
+});
+
+describe('Classification skill few-shot examples', () => {
+  let skillContent: string;
+
+  beforeEach(async () => {
+    const skillPath = join(__dirname, '../../lib/ai/skills/classification.md');
+    skillContent = await readFile(skillPath, 'utf-8');
+  });
+
+  it('contains the Classification Examples section', () => {
+    expect(skillContent).toContain('## Classification Examples');
+  });
+
+  it('covers at least 4 different domains', () => {
+    const examplesStart = skillContent.indexOf('## Classification Examples');
+    const examplesEnd = skillContent.indexOf('## Handling Special Cases');
+    const examplesSection = skillContent.slice(examplesStart, examplesEnd);
+
+    const domains = [
+      'security',
+      'compliance',
+      'implementation',
+      'legislation-policy',
+      'product-feature',
+      'methodology',
+      'corporate',
+      'market-intelligence',
+    ];
+    const foundDomains = domains.filter((d) => examplesSection.includes(d));
+    expect(foundDomains.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('includes at least one q_a_pair and one article example', () => {
+    const examplesStart = skillContent.indexOf('## Classification Examples');
+    const examplesEnd = skillContent.indexOf('## Handling Special Cases');
+    const examplesSection = skillContent.slice(examplesStart, examplesEnd);
+
+    expect(examplesSection).toContain('q_a_pair');
+    expect(examplesSection).toContain('article');
+  });
+
+  it('includes at least 2 boundary case examples', () => {
+    const examplesStart = skillContent.indexOf('## Classification Examples');
+    const examplesEnd = skillContent.indexOf('## Handling Special Cases');
+    const examplesSection = skillContent.slice(examplesStart, examplesEnd);
+
+    const boundaryMentions = (
+      examplesSection.match(/boundary case/gi) || []
+    ).length;
+    expect(boundaryMentions).toBeGreaterThanOrEqual(2);
+  });
+
+  it('includes at least 6 examples', () => {
+    const examplesStart = skillContent.indexOf('## Classification Examples');
+    const examplesEnd = skillContent.indexOf('## Handling Special Cases');
+    const examplesSection = skillContent.slice(examplesStart, examplesEnd);
+
+    const exampleHeaders = (examplesSection.match(/### Example \d+/g) || [])
+      .length;
+    expect(exampleHeaders).toBeGreaterThanOrEqual(6);
+  });
+});
+
 describe('Classification skill placeholder interpolation', () => {
   let skillContent: string;
 
