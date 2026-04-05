@@ -647,6 +647,50 @@ approach" may be generic.
 
 ---
 
+## Entity Type Disambiguation
+
+When a candidate entity could plausibly be more than one type, use these rules
+to resolve the ambiguity. Each row gives the distinguishing signal.
+
+| Confused Pair | Distinguishing Rule |
+| --- | --- |
+| regulation vs framework | **Legal penalties test.** Non-compliance with a regulation carries legal penalties or enforcement action; a framework is voluntarily adopted with no legal consequences. |
+| certification vs standard | **Assessed-and-awarded test.** A certification is obtained/awarded after assessment by an issuing body; a standard is a published document you choose to adopt. In bid documents, prefer `certification`. |
+| standard vs regulation | **Voluntary vs mandatory.** Standards are voluntary (published by standards bodies like ISO, BSI, W3C); regulations are mandatory (enacted by a legislature or government body). |
+| framework vs methodology | **Published guidance vs delivery approach.** A framework is externally published structured guidance for governance or assessment; a methodology is a named approach to delivering work with its own literature and community. |
+| capability vs methodology | **What vs how.** A capability is WHAT the organisation sells or delivers to clients; a methodology is HOW they do it. "Penetration testing" (as a service) = capability. "Agile" = methodology. |
+| technology vs product | **Uses vs sells.** Technology is infrastructure the organisation USES internally; product is something the organisation SELLS to clients. The same platform can be either depending on context. |
+| organisation vs framework | **Entity vs publication.** OWASP is an organisation; OWASP Top 10 is a framework. Crown Commercial Service is an organisation; G-Cloud is a framework. |
+| person vs role title | **Name vs position.** A person has a personal name (Jane Smith); a role title describes a position anyone could hold (Managing Director). Role titles are EXCLUDED, not typed as person. |
+| sector vs social issue | **Industry vs topic.** A sector is a recognised industry classification (healthcare, education); a social issue or safeguarding concern (county lines, FGM) is NOT a sector — exclude it. |
+| project vs generic activity | **Named vs generic.** A project has a specific name, client, and timeline (NHS Wales Digital Transformation Programme); a generic activity (cloud migration, security improvement) has none — exclude it. |
+| certification vs organisation | **Credential vs issuing body.** CREST certification is a certification; CREST (the body) is an organisation. BSI is an organisation; BS 5839 is a standard. Context determines which. |
+| product vs feature | **Sold offering vs component.** A product is a named, branded thing sold to clients; a feature (single sign-on, two-factor authentication) is a component of a product — exclude features. |
+
+---
+
+## Entity Type Decision Ordering
+
+When classifying an entity that has passed all five exclusion tests, apply the
+per-type tests below in order. **First match wins.** The ordering reflects
+bid-document context where certifications are more relevant than standards, and
+regulations take precedence over frameworks.
+
+1. **regulation** — Does non-compliance carry legal penalties or enforcement?
+2. **certification** — Is it assessed-and-awarded by an issuing body?
+3. **standard** — Is it a numbered document from a standards body?
+4. **framework** — Is it published external guidance for voluntary adoption?
+5. **organisation** — Does it have legal registration or institutional standing?
+6. **person** — Is it a specific individual's name?
+7. **technology** — Is it a named software product, cloud service, or tool?
+8. **product** — Is it a named thing the organisation sells to clients?
+9. **methodology** — Is it a named approach with its own literature?
+10. **capability** — Is it a named service the organisation offers to clients?
+11. **sector** — Is it a recognised industry classification?
+12. **project** — Is it a named piece of work with a timeline?
+
+---
+
 ## Entity Naming Guidance
 
 When extracting entities:
