@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+// @ts-nocheck — Standalone Bun script, not part of Next.js build
 /**
  * Intelligence Classification Verification Script
  *
