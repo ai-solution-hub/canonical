@@ -1,0 +1,47 @@
+{
+  "suite_name": "summarisation",
+  "created_at": "2026-04-05T15:03:27.762Z",
+  "metrics": {
+    "t1_rouge_l_executive": 0.36118884201512935,
+    "t1_rouge_l_detailed": 0.25418734017304023,
+    "t1_rouge_1_executive": 0.4637971838887821,
+    "t1_rouge_1_detailed": 0.4262271867800568,
+    "t1_structural_compliance": 1,
+    "t1_length_compliance": 1,
+    "t1_takeaway_compliance": 1,
+    "t2_rouge_l_executive": 0.4705461057205634,
+    "t2_rouge_1_executive": 0.5686261897610047,
+    "t2_length_appropriateness": 1,
+    "t2_non_empty": 1,
+    "combined_rouge_l_executive": 0.41890517563744173
+  },
+  "thresholds": {
+    "t1_rouge_l_executive": {
+      "min": 0.15,
+      "max_drop": 0.05
+    },
+    "t1_rouge_l_detailed": {
+      "min": 0.1,
+      "max_drop": 0.05
+    },
+    "t1_structural_compliance": {
+      "min": 0.95
+    },
+    "t1_length_compliance": {
+      "min": 0.9
+    },
+    "t1_takeaway_compliance": {
+      "min": 0.9
+    },
+    "t2_rouge_l_executive": {
+      "min": 0.15,
+      "max_drop": 0.05
+    },
+    "t2_length_appropriateness": {
+      "min": 0.9
+    },
+    "t2_non_empty": {
+      "min": 1
+    }
+  }
+}
