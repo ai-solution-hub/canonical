@@ -20,10 +20,12 @@
  *   bun run eval:summarisation --verbose
  *   bun run eval:summarisation --json
  *   bun run eval:summarisation --save-baseline
+ *   bun run eval:summarisation --bertscore    (adds BERTScore F1 via Python subprocess, ~20s)
  */
 
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
+import { execSync } from 'child_process';
 import { createClient } from '@supabase/supabase-js';
 import { rougeL, rouge1 } from '../lib/eval/metrics';
 import { loadBaseline, saveBaseline, checkRegression } from '../lib/eval/baseline';
@@ -94,6 +96,9 @@ interface ItemScore {
   // Tier 2 specific
   length_appropriate: boolean;
   non_empty: boolean;
+  // BERTScore (opt-in via --bertscore flag)
+  bertscore_f1_executive: number;
+  bertscore_f1_detailed: number;
   details: string[];
 }
 
@@ -178,6 +183,8 @@ function scoreItem(gold: GoldItem, db: DbRow | undefined, tier: 1 | 2): ItemScor
     takeaway_count: 0,
     length_appropriate: false,
     non_empty: false,
+    bertscore_f1_executive: 0,
+    bertscore_f1_detailed: 0,
     details,
   };
 
@@ -252,6 +259,8 @@ function scoreTier1(gold: GoldItem, db: DbRow, details: string[]): ItemScore {
     takeaway_count: takeawayCount,
     length_appropriate: true, // Not applicable for Tier 1 but defaults to true
     non_empty: true,
+    bertscore_f1_executive: 0, // Populated later if --bertscore flag is set
+    bertscore_f1_detailed: 0,
     details,
   };
 }
@@ -291,8 +300,58 @@ function scoreTier2(gold: GoldItem, db: DbRow, details: string[]): ItemScore {
     takeaway_count: 0,
     length_appropriate: lengthAppropriate,
     non_empty: nonEmpty,
+    bertscore_f1_executive: 0, // Populated later if --bertscore flag is set
+    bertscore_f1_detailed: 0,
     details,
   };
+}
+
+// ── BERTScore ──────────────────────────────────────────────────
+
+interface BERTScoreResult {
+  precision: number;
+  recall: number;
+  f1: number;
+}
+
+interface BERTScorePair {
+  candidate: string;
+  reference: string;
+}
+
+/**
+ * Compute BERTScore via Python subprocess.
+ * Returns null if the subprocess fails (logged, not fatal).
+ */
+function computeBERTScores(pairs: BERTScorePair[]): BERTScoreResult[] | null {
+  if (pairs.length === 0) return [];
+
+  const scriptPath = resolve(PROJECT_ROOT, 'scripts/compute-bertscore.py');
+  if (!existsSync(scriptPath)) {
+    console.error('BERTScore script not found at:', scriptPath);
+    return null;
+  }
+
+  try {
+    const input = JSON.stringify(pairs);
+    const result = execSync(`python3 "${scriptPath}"`, {
+      input,
+      encoding: 'utf-8',
+      maxBuffer: 50 * 1024 * 1024, // 50MB — model output can be verbose on stderr
+      timeout: 120_000, // 2 minutes max
+      env: { ...process.env, PYTHONUNBUFFERED: '1' },
+    });
+
+    const parsed = JSON.parse(result.trim());
+    if ('error' in parsed) {
+      console.error('BERTScore error:', parsed.error);
+      return null;
+    }
+    return parsed as BERTScoreResult[];
+  } catch (err) {
+    console.error('BERTScore subprocess failed:', (err as Error).message);
+    return null;
+  }
 }
 
 // ── Main ────────────────────────────────────────────────────────────
@@ -318,6 +377,7 @@ async function main() {
   const verbose = args.includes('--verbose');
   const jsonOutput = args.includes('--json');
   const doSaveBaseline = args.includes('--save-baseline');
+  const runBERTScore = args.includes('--bertscore');
 
   // Load gold standard
   const fixturePath = resolve(
@@ -352,6 +412,66 @@ async function main() {
   for (const gold of goldStandard) {
     const tier = getTier(gold.content_type);
     scores.push(scoreItem(gold, dbMap.get(gold.content_item_id), tier));
+  }
+
+  // ── BERTScore (opt-in) ──────────────────────────────────────────
+  if (runBERTScore) {
+    console.log('Computing BERTScore (this may take ~20 seconds on first run)...');
+
+    // Build candidate/reference pairs for executive summaries
+    const execPairs: BERTScorePair[] = [];
+    const execIndices: number[] = [];
+    // Build candidate/reference pairs for detailed summaries (Tier 1 only)
+    const detPairs: BERTScorePair[] = [];
+    const detIndices: number[] = [];
+
+    for (let i = 0; i < scores.length; i++) {
+      const s = scores[i];
+      if (s.details[0] === 'Item not found in database') continue;
+
+      const gold = goldStandard.find((g) => g.content_item_id === s.content_item_id);
+      const db = dbMap.get(s.content_item_id);
+      if (!gold || !db) continue;
+
+      // Executive summary pair
+      const summary = parseSummaryData(db.summary_data);
+      const candidateExec = summary?.executive ?? db.ai_summary ?? '';
+      if (candidateExec && gold.reference_executive) {
+        execPairs.push({ candidate: candidateExec, reference: gold.reference_executive });
+        execIndices.push(i);
+      }
+
+      // Detailed summary pair (Tier 1 only)
+      if (s.tier === 1) {
+        const candidateDet = summary?.detailed ?? '';
+        if (candidateDet && gold.reference_detailed) {
+          detPairs.push({ candidate: candidateDet, reference: gold.reference_detailed });
+          detIndices.push(i);
+        }
+      }
+    }
+
+    // Compute BERTScore for executive pairs
+    if (execPairs.length > 0) {
+      const execResults = computeBERTScores(execPairs);
+      if (execResults) {
+        for (let j = 0; j < execResults.length; j++) {
+          scores[execIndices[j]].bertscore_f1_executive = execResults[j].f1;
+        }
+      }
+    }
+
+    // Compute BERTScore for detailed pairs
+    if (detPairs.length > 0) {
+      const detResults = computeBERTScores(detPairs);
+      if (detResults) {
+        for (let j = 0; j < detResults.length; j++) {
+          scores[detIndices[j]].bertscore_f1_detailed = detResults[j].f1;
+        }
+      }
+    }
+
+    console.log('BERTScore computation complete.');
   }
 
   // Filter out items not found in DB for aggregation
@@ -417,6 +537,26 @@ async function main() {
       ? (t1RougeLExec * tier1.length + t2RougeLExec * tier2.length) / totalEvaluated
       : 0;
 
+  // ── BERTScore Aggregation (when enabled) ────────────────────────
+  let t1BertExec = 0;
+  let t1BertDet = 0;
+  let t2BertExec = 0;
+
+  if (runBERTScore) {
+    const t1WithBert = tier1.filter((s) => s.bertscore_f1_executive > 0);
+    t1BertExec = t1WithBert.length > 0
+      ? t1WithBert.reduce((sum, s) => sum + s.bertscore_f1_executive, 0) / t1WithBert.length
+      : 0;
+    const t1WithBertDet = tier1.filter((s) => s.bertscore_f1_detailed > 0);
+    t1BertDet = t1WithBertDet.length > 0
+      ? t1WithBertDet.reduce((sum, s) => sum + s.bertscore_f1_detailed, 0) / t1WithBertDet.length
+      : 0;
+    const t2WithBert = tier2.filter((s) => s.bertscore_f1_executive > 0);
+    t2BertExec = t2WithBert.length > 0
+      ? t2WithBert.reduce((sum, s) => sum + s.bertscore_f1_executive, 0) / t2WithBert.length
+      : 0;
+  }
+
   // ── Merge all metrics with prefixes ─────────────────────────────
   const metrics: Record<string, number> = {
     // Tier 1 metrics
@@ -436,8 +576,23 @@ async function main() {
     combined_rouge_l_executive: combinedRougeLExec,
   };
 
+  // Add BERTScore metrics when enabled
+  if (runBERTScore) {
+    metrics.t1_bertscore_f1_executive = t1BertExec;
+    metrics.t1_bertscore_f1_detailed = t1BertDet;
+    metrics.t2_bertscore_f1_executive = t2BertExec;
+  }
+
+  // ── BERTScore Thresholds (only applied when --bertscore is enabled) ──
+  const bertscoreThresholds: Record<string, { min?: number; max_drop?: number }> = runBERTScore
+    ? {
+        t1_bertscore_f1_executive: { min: 0.85, max_drop: 0.03 },
+        t1_bertscore_f1_detailed: { min: 0.83, max_drop: 0.03 },
+      }
+    : {};
+
   // ── Threshold checking ──────────────────────────────────────────
-  const allThresholds = { ...TIER_1_THRESHOLDS, ...TIER_2_THRESHOLDS };
+  const allThresholds = { ...TIER_1_THRESHOLDS, ...TIER_2_THRESHOLDS, ...bertscoreThresholds };
   const failures: string[] = [];
   for (const [metricName, threshold] of Object.entries(allThresholds)) {
     const value = metrics[metricName];
@@ -486,8 +641,11 @@ async function main() {
     for (const s of tier1Scores) {
       const status = s.structural_compliant && s.length_compliant ? 'PASS' : 'FAIL';
       console.log(`  [${status}] ${s.title.slice(0, 70)}`);
+      const bertPart = runBERTScore
+        ? `  BERT(exec)=${(s.bertscore_f1_executive * 100).toFixed(1)}%  BERT(det)=${(s.bertscore_f1_detailed * 100).toFixed(1)}%`
+        : '';
       console.log(
-        `    ROUGE-L exec=${(s.rouge_l_executive * 100).toFixed(1)}%  det=${(s.rouge_l_detailed * 100).toFixed(1)}%  struct=${s.structural_compliant}  len=${s.length_compliant}  takeaways=${s.takeaway_count}`,
+        `    ROUGE-L exec=${(s.rouge_l_executive * 100).toFixed(1)}%  det=${(s.rouge_l_detailed * 100).toFixed(1)}%  struct=${s.structural_compliant}  len=${s.length_compliant}  takeaways=${s.takeaway_count}${bertPart}`,
       );
       for (const d of s.details) {
         console.log(`    ${d}`);
@@ -499,8 +657,11 @@ async function main() {
     for (const s of tier2Scores) {
       const status = s.non_empty && s.length_appropriate ? 'PASS' : 'FAIL';
       console.log(`  [${status}] ${s.title.slice(0, 70)}`);
+      const bertPart2 = runBERTScore
+        ? `  BERT(exec)=${(s.bertscore_f1_executive * 100).toFixed(1)}%`
+        : '';
       console.log(
-        `    ROUGE-L exec=${(s.rouge_l_executive * 100).toFixed(1)}%  non_empty=${s.non_empty}  len_ok=${s.length_appropriate}`,
+        `    ROUGE-L exec=${(s.rouge_l_executive * 100).toFixed(1)}%  non_empty=${s.non_empty}  len_ok=${s.length_appropriate}${bertPart2}`,
       );
       for (const d of s.details) {
         console.log(`    ${d}`);

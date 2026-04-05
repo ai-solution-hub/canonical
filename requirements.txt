@@ -24,5 +24,8 @@ python-dotenv>=1.0.0
 # Supabase client (bid worker)
 supabase>=2.0.0
 
+# Evaluation metrics
+bert-score>=0.3.13
+
 # Testing
 pytest>=8.0.0
