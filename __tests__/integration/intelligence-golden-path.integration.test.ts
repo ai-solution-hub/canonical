@@ -46,14 +46,14 @@ const TEST_USER_ID = 'e21179e9-1946-43be-94a9-d566046da279';
 
 let workspaceId: string | null = null;
 let feedSourceId: string | null = null;
-let feedArticleIds: string[] = [];
-let contentItemIds: string[] = [];
-let contentItemWorkspaceIds: string[] = [];
+const feedArticleIds: string[] = [];
+const contentItemIds: string[] = [];
+const contentItemWorkspaceIds: string[] = [];
 
 // Edge case test data to clean up
-let edgeCaseWorkspaceIds: string[] = [];
-let edgeCaseContentItemIds: string[] = [];
-let cascadeTestContentItemIds: string[] = [];
+const edgeCaseWorkspaceIds: string[] = [];
+const edgeCaseContentItemIds: string[] = [];
+const cascadeTestContentItemIds: string[] = [];
 
 // ---------------------------------------------------------------------------
 // Cleanup
