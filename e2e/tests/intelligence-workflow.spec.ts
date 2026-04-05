@@ -4,10 +4,11 @@ import { test, expect } from '../fixtures';
  * Flow: Intelligence Workspace Workflow
  *
  * Tests the intelligence workspace pages: navigation, article review,
- * RSS output, metrics, feed sources, and role gating.
+ * RSS output, metrics, feed sources, flag creation, and role gating.
  *
  * Worker-scoped data provides an intelligence workspace with feed source
  * and articles (workerData.intelligenceWorkspaceId).
+ * Fixture seeds: 2 passed articles + 1 filtered article (relevance_score 0.15).
  */
 
 // ---------------------------------------------------------------------------
@@ -17,7 +18,6 @@ import { test, expect } from '../fixtures';
 test.describe('Intelligence workspace navigation', () => {
   test('intelligence card appears on /workspaces page', async ({
     authenticatedPage: page,
-    workerData,
   }) => {
     await page.goto('/workspaces');
 
@@ -30,10 +30,7 @@ test.describe('Intelligence workspace navigation', () => {
       .locator('a[aria-label*="Intelligence"], [data-testid="workspace-card-intelligence"]')
       .first();
 
-    // If the card is present, verify it links to /intelligence
-    if (await intelligenceCard.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await expect(intelligenceCard).toBeVisible();
-    }
+    await expect(intelligenceCard).toBeVisible({ timeout: 5000 });
   });
 
   test('intelligence workspace page loads with sub-navigation', async ({
@@ -78,15 +75,90 @@ test.describe('Intelligence article review', () => {
     );
 
     // Wait for articles to load — may be rendered as a list
-    const firstCard = articleCards.first();
-    if (await firstCard.isVisible({ timeout: 8000 }).catch(() => false)) {
-      await expect(firstCard).toBeVisible();
-    }
+    await expect(articleCards.first()).toBeVisible({ timeout: 8000 });
+  });
+
+  test('filtered tab shows filtered articles sorted by score', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
+    await page.goto(
+      `/intelligence/${workerData.intelligenceWorkspaceId}/articles`,
+    );
+
+    await page.waitForLoadState('networkidle', { timeout: 15000 });
+
+    // Switch to the Filtered tab
+    const filteredTab = page.getByRole('tab', { name: /Filtered/i });
+    await expect(filteredTab).toBeVisible({ timeout: 8000 });
+    await filteredTab.click();
+
+    // Wait for filtered articles to load
+    await page.waitForLoadState('networkidle', { timeout: 10000 });
+
+    // The fixture seeds 1 filtered article ("Irrelevant Sports Article", score 0.15)
+    // Verify at least one article appears in the filtered view
+    const articleCards = page.locator(
+      '[data-testid="article-card"], [data-testid="feed-article-card"], article, [role="article"]',
+    );
+    await expect(articleCards.first()).toBeVisible({ timeout: 8000 });
+
+    // Verify the filtered article title contains the worker prefix
+    const filteredArticleText = page.getByText(
+      `${workerData.prefix} Irrelevant Sports Article`,
+      { exact: false },
+    );
+    await expect(filteredArticleText).toBeVisible({ timeout: 5000 });
   });
 });
 
 // ---------------------------------------------------------------------------
-// 3. RSS output — Feeds return valid XML
+// 3. Flag creation — Admin/editor can flag an article
+// ---------------------------------------------------------------------------
+
+test.describe('Intelligence flag creation', () => {
+  test('admin can flag a passed article as false positive', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
+    await page.goto(
+      `/intelligence/${workerData.intelligenceWorkspaceId}/articles`,
+    );
+
+    await page.waitForLoadState('networkidle', { timeout: 15000 });
+
+    // Wait for articles to render
+    const articleCards = page.locator(
+      '[data-testid="article-card"], [data-testid="feed-article-card"], article, [role="article"]',
+    );
+    await expect(articleCards.first()).toBeVisible({ timeout: 8000 });
+
+    // Find a flag button (text "Flag as irrelevant" on passed tab)
+    const flagButton = page
+      .getByRole('button', { name: /Flag as irrelevant/i })
+      .first();
+    await expect(flagButton).toBeVisible({ timeout: 5000 });
+    await flagButton.click();
+
+    // Flag dialog should appear
+    const flagDialog = page.getByRole('dialog');
+    await expect(flagDialog).toBeVisible({ timeout: 5000 });
+
+    // Submit the flag (dialog has a submit button)
+    const submitButton = flagDialog.getByRole('button', { name: /Submit|Flag|Confirm/i });
+    await expect(submitButton).toBeVisible({ timeout: 3000 });
+    await submitButton.click();
+
+    // After flagging, the button should change to "Flagged" (disabled state)
+    const flaggedButton = page
+      .getByRole('button', { name: /Flagged/i })
+      .first();
+    await expect(flaggedButton).toBeVisible({ timeout: 5000 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. RSS output — Feeds return valid XML
 // ---------------------------------------------------------------------------
 
 test.describe('Intelligence RSS output', () => {
@@ -130,7 +202,7 @@ test.describe('Intelligence RSS output', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 4. Metrics — Dashboard loads with data
+// 5. Metrics — Dashboard loads with data
 // ---------------------------------------------------------------------------
 
 test.describe('Intelligence metrics', () => {
@@ -147,22 +219,11 @@ test.describe('Intelligence metrics', () => {
     // Metrics page should have content
     const pageContent = page.locator('main, [role="main"]').first();
     await expect(pageContent).toBeVisible({ timeout: 10000 });
-
-    // Look for stat cards or metric displays
-    const statCards = page.locator(
-      '[data-testid*="stat"], [data-testid*="metric"], .stat-card, [class*="stat"]',
-    );
-
-    // At least verify the page loaded without error
-    const firstStat = statCards.first();
-    if (await firstStat.isVisible({ timeout: 8000 }).catch(() => false)) {
-      await expect(firstStat).toBeVisible();
-    }
   });
 });
 
 // ---------------------------------------------------------------------------
-// 5. Feed source management — View sources
+// 6. Feed source management — View sources
 // ---------------------------------------------------------------------------
 
 test.describe('Intelligence feed sources', () => {
@@ -182,14 +243,12 @@ test.describe('Intelligence feed sources', () => {
 
     // Look for feed source name (prefixed)
     const sourceText = page.getByText(workerData.prefix, { exact: false });
-    if (await sourceText.first().isVisible({ timeout: 8000 }).catch(() => false)) {
-      await expect(sourceText.first()).toBeVisible();
-    }
+    await expect(sourceText.first()).toBeVisible({ timeout: 8000 });
   });
 });
 
 // ---------------------------------------------------------------------------
-// 6. Role gating — Viewer restrictions
+// 7. Role gating — Viewer restrictions
 // ---------------------------------------------------------------------------
 
 test.describe('Intelligence role gating', () => {
@@ -212,12 +271,7 @@ test.describe('Intelligence role gating', () => {
       'button:has-text("Flag"), [data-testid*="flag-button"], [aria-label*="Flag"]',
     );
 
-    // Verify flag buttons are not visible (wait briefly then check)
-    const flagVisible = await flagButtons
-      .first()
-      .isVisible({ timeout: 3000 })
-      .catch(() => false);
-
-    expect(flagVisible).toBe(false);
+    // Verify flag buttons are not present (use count assertion instead of .catch)
+    await expect(flagButtons).toHaveCount(0, { timeout: 3000 });
   });
 });
