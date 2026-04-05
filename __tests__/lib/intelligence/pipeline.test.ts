@@ -13,6 +13,7 @@ vi.mock('@/lib/intelligence/feed-poller', () => ({
 vi.mock('@/lib/intelligence/content-extractor', () => ({
   extractContent: vi.fn(),
   normaliseUrl: vi.fn((url: string) => url),
+  resolveGoogleNewsUrl: vi.fn((url: string) => Promise.resolve(url)),
 }));
 vi.mock('@/lib/intelligence/relevance-scorer', () => ({
   embeddingPreFilter: vi.fn(),

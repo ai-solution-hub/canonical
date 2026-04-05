@@ -34,6 +34,10 @@ vi.mock('next/headers', () => ({
   }),
 }));
 
+vi.mock('@/lib/intelligence/feed-poller', () => ({
+  validateFeedUrl: vi.fn().mockResolvedValue({ valid: true, title: 'Test Feed', articleCount: 10 }),
+}));
+
 // ---------------------------------------------------------------------------
 // Import route handlers AFTER mocks
 // ---------------------------------------------------------------------------

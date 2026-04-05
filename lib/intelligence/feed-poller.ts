@@ -70,6 +70,83 @@ export async function parseFeedItems(xml: string): Promise<ParsedFeedItem[]> {
   });
 }
 
+/** Validation result for a feed URL */
+export interface FeedValidationResult {
+  valid: boolean;
+  title?: string;
+  articleCount?: number;
+  error?: string;
+}
+
+/** Validate a URL is a working RSS/Atom feed before adding as a source */
+export async function validateFeedUrl(
+  url: string,
+): Promise<FeedValidationResult> {
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': USER_AGENT,
+        Accept:
+          'application/atom+xml, application/rss+xml, application/xml, text/xml',
+      },
+      signal: AbortSignal.timeout(FEED_FETCH_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      return {
+        valid: false,
+        error: `URL returned HTTP ${response.status}`,
+      };
+    }
+
+    const contentType = response.headers.get('content-type') ?? '';
+    const xml = await response.text();
+
+    // Quick check: does the content look like XML/RSS/Atom?
+    const trimmed = xml.trimStart();
+    const looksLikeXml =
+      trimmed.startsWith('<?xml') ||
+      trimmed.startsWith('<rss') ||
+      trimmed.startsWith('<feed') ||
+      contentType.includes('xml') ||
+      contentType.includes('rss') ||
+      contentType.includes('atom');
+
+    if (!looksLikeXml) {
+      return {
+        valid: false,
+        error: 'URL does not return RSS or Atom content',
+      };
+    }
+
+    // Try to parse as a feed
+    try {
+      const feed = await parser.parseString(xml);
+      return {
+        valid: true,
+        title: feed.title ?? undefined,
+        articleCount: feed.items?.length ?? 0,
+      };
+    } catch {
+      return {
+        valid: false,
+        error: 'URL returned XML but it could not be parsed as an RSS or Atom feed',
+      };
+    }
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      return {
+        valid: false,
+        error: 'Feed URL timed out',
+      };
+    }
+    return {
+      valid: false,
+      error: `Failed to fetch URL: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
 /** Poll a single feed source with conditional request support */
 export async function pollFeed(source: FeedSourceRef): Promise<PollResult> {
   const headers: Record<string, string> = {

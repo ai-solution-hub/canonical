@@ -4,6 +4,7 @@ import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { FeedSourceCreateSchema } from '@/lib/validation/schemas';
+import { validateFeedUrl } from '@/lib/intelligence/feed-poller';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -65,6 +66,51 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
+    // SI-M5: Validate feed URL before inserting
+    if (parsed.data.source_type === 'rss' || !parsed.data.source_type) {
+      const validation = await validateFeedUrl(parsed.data.url);
+      if (!validation.valid) {
+        return NextResponse.json(
+          {
+            error: `Invalid feed URL: ${validation.error}`,
+            details: {
+              url: parsed.data.url,
+              suggestion:
+                'Ensure the URL points to a valid RSS or Atom feed. You can test by opening the URL in a browser — it should show XML content.',
+            },
+          },
+          { status: 400 },
+        );
+      }
+
+      // Use the feed title as the source name if none was provided, and include feed info
+      const feedTitle = validation.title;
+      const articleCount = validation.articleCount ?? 0;
+
+      const { data, error } = await supabase
+        .from('feed_sources')
+        .insert({
+          ...parsed.data,
+          workspace_id: id,
+          created_by: user.id,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        return NextResponse.json(
+          { error: 'Failed to create feed source' },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json(
+        { ...data, feed_title: feedTitle, initial_article_count: articleCount },
+        { status: 201 },
+      );
+    }
+
+    // Non-RSS sources (web, api) — skip feed validation
     const { data, error } = await supabase
       .from('feed_sources')
       .insert({

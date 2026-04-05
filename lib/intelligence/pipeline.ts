@@ -2,7 +2,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 import { pollFeed } from './feed-poller';
-import { extractContent, normaliseUrl } from './content-extractor';
+import {
+  extractContent,
+  normaliseUrl,
+  resolveGoogleNewsUrl,
+} from './content-extractor';
 import { embeddingPreFilter, scoreRelevance } from './relevance-scorer';
 import { generateArticleSummary } from './article-summariser';
 import { generateEmbedding } from '@/lib/ai/embed';
@@ -13,7 +17,11 @@ import type {
   PipelineRunResult,
   PollResult,
 } from './types';
-import { PIPELINE_SYSTEM_USER_ID, SOURCES_PER_INVOCATION } from './types';
+import {
+  PIPELINE_SYSTEM_USER_ID,
+  SOURCES_PER_INVOCATION,
+  DEFAULT_RELEVANCE_THRESHOLD,
+} from './types';
 import { RateLimitError } from './rate-limiter';
 
 type Supabase = SupabaseClient<Database>;
@@ -46,11 +54,18 @@ export async function getDueFeedSources(
   return (data ?? []) as FeedSource[];
 }
 
-/** Load company context for relevance scoring */
-async function loadCompanyContext(
+/** Result of loading workspace context including company profile and workspace-level settings */
+interface WorkspaceContext {
+  companyContext: CompanyContext | null;
+  relevanceThreshold: number;
+  profileId: string | null;
+}
+
+/** Load company context for relevance scoring and workspace-level settings */
+async function loadWorkspaceContext(
   supabase: Supabase,
   workspaceId: string,
-): Promise<{ context: CompanyContext; profileId: string } | null> {
+): Promise<WorkspaceContext> {
   // Get workspace domain_metadata which may link to a company profile
   const { data: workspace } = await supabase
     .from('workspaces')
@@ -58,9 +73,21 @@ async function loadCompanyContext(
     .eq('id', workspaceId)
     .single();
 
-  const profileId = (workspace?.domain_metadata as Record<string, unknown>)
-    ?.company_profile_id as string | undefined;
-  if (!profileId) return null;
+  const domainMetadata = (workspace?.domain_metadata ?? {}) as Record<
+    string,
+    unknown
+  >;
+
+  // SI-L5: Read workspace-level relevance threshold from domain_metadata
+  const relevanceThreshold =
+    typeof domainMetadata.relevance_threshold === 'number' &&
+    domainMetadata.relevance_threshold > 0 &&
+    domainMetadata.relevance_threshold <= 1
+      ? domainMetadata.relevance_threshold
+      : DEFAULT_RELEVANCE_THRESHOLD;
+
+  const profileId = domainMetadata.company_profile_id as string | undefined;
+  if (!profileId) return { companyContext: null, relevanceThreshold, profileId: null };
 
   const { data: profile } = await supabase
     .from('company_profiles')
@@ -70,10 +97,10 @@ async function loadCompanyContext(
     .eq('id', profileId)
     .single();
 
-  if (!profile) return null;
+  if (!profile) return { companyContext: null, relevanceThreshold, profileId: null };
 
   return {
-    context: {
+    companyContext: {
       name: profile.name,
       sectors: profile.sectors ?? [],
       services: profile.services ?? [],
@@ -81,6 +108,7 @@ async function loadCompanyContext(
       targetCustomers: profile.target_customers,
       valueProposition: profile.value_proposition,
     },
+    relevanceThreshold,
     profileId,
   };
 }
@@ -123,6 +151,58 @@ async function loadOrGenerateCompanyEmbedding(
     .eq('id', profileId);
 
   return embedding;
+}
+
+/**
+ * SI-L3: Infer a more specific content_type from classification domain/subtopic.
+ * Returns null if no better type can be inferred (stays as 'article').
+ */
+export function inferContentType(
+  primaryDomain: string | null,
+  primarySubtopic: string | null,
+): string | null {
+  if (!primaryDomain && !primarySubtopic) return null;
+
+  const domain = (primaryDomain ?? '').toLowerCase();
+  const subtopic = (primarySubtopic ?? '').toLowerCase();
+
+  // Policy-related subtopics -> 'policy'
+  if (
+    subtopic.includes('policy') ||
+    subtopic.includes('regulation') ||
+    subtopic.includes('legislation')
+  ) {
+    return 'policy';
+  }
+
+  // Case studies (check before research to avoid 'study' false positive)
+  if (subtopic.includes('case-study') || subtopic.includes('case_study')) {
+    return 'case_study';
+  }
+
+  // Research-related subtopics -> 'research'
+  if (
+    subtopic.includes('research') ||
+    subtopic.includes('study') ||
+    subtopic.includes('analysis')
+  ) {
+    return 'research';
+  }
+
+  // Compliance/certification subtopics
+  if (subtopic.includes('compliance') || subtopic.includes('audit')) {
+    return 'compliance';
+  }
+  if (subtopic.includes('certification') || subtopic.includes('accreditation')) {
+    return 'certification';
+  }
+
+  // Methodology domain hints
+  if (domain.includes('methodology') || subtopic.includes('methodology')) {
+    return 'methodology';
+  }
+
+  return null;
 }
 
 /** Check if an article URL already exists in feed_articles for this workspace */
@@ -183,6 +263,7 @@ export async function processFeedSource(
   companyContext: CompanyContext | null,
   companyEmbedding: number[] | null,
   activePrompt?: { id: string; promptText: string } | null,
+  relevanceThreshold: number = DEFAULT_RELEVANCE_THRESHOLD,
 ): Promise<FeedProcessingResult> {
   const startTime = Date.now();
   const result: FeedProcessingResult = {
@@ -240,8 +321,11 @@ export async function processFeedSource(
   for (const item of pollResult.items) {
     if (!item.url) continue;
 
+    // SI-M1: Resolve Google News redirect URLs before dedup
+    const resolvedUrl = await resolveGoogleNewsUrl(item.url);
+
     // Normalise URL for dedup and storage
-    const normalisedUrl = normaliseUrl(item.url);
+    const normalisedUrl = normaliseUrl(resolvedUrl);
 
     // 2a. Dedup check
     const duplicate = await isDuplicate(
@@ -289,7 +373,7 @@ export async function processFeedSource(
             item.title,
             extraction.content,
             companyContext,
-            undefined, // use default threshold
+            relevanceThreshold,
             activePrompt?.promptText,
           );
           passed = scoring.passed;
@@ -348,7 +432,7 @@ export async function processFeedSource(
 
         // 2f. For passed articles: create content_item + classify
         try {
-          await storeAsContentItem(supabase, source, item, extraction);
+          await storeAsContentItem(supabase, source, { ...item, url: resolvedUrl }, extraction);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           result.errors.push(
@@ -408,12 +492,13 @@ async function storeAsContentItem(
 
   if (error || !contentItem) return;
 
-  // Update feed_article with content_item_id link
+  // Update feed_article with content_item_id link (use normalised URL for matching)
+  const normalisedItemUrl = normaliseUrl(item.url);
   await supabase
     .from('feed_articles')
     .update({ content_item_id: contentItem.id })
     .eq('workspace_id', source.workspace_id)
-    .eq('external_url', item.url);
+    .eq('external_url', normalisedItemUrl);
 
   // Classify the content item (adds taxonomy, entities, AND embeddings)
   // classifyContent already generates and stores embeddings — no separate embedding call needed
@@ -424,6 +509,29 @@ async function storeAsContentItem(
       force: true,
       userId: PIPELINE_SYSTEM_USER_ID,
     });
+
+    // SI-L3: After classification, re-read the content_item to check if content_type
+    // was updated (e.g. by classifyContent or a DB trigger). If classification results
+    // suggest a more specific type, update accordingly.
+    const { data: classified } = await supabase
+      .from('content_items')
+      .select('content_type, primary_domain, primary_subtopic')
+      .eq('id', contentItem.id)
+      .single();
+
+    if (classified && classified.content_type === 'article') {
+      // Infer a more specific content_type from classification results
+      const inferredType = inferContentType(
+        classified.primary_domain,
+        classified.primary_subtopic,
+      );
+      if (inferredType && inferredType !== 'article') {
+        await supabase
+          .from('content_items')
+          .update({ content_type: inferredType })
+          .eq('id', contentItem.id);
+      }
+    }
   } catch {
     // Classification failure is non-fatal — item is still stored
   }
@@ -503,23 +611,22 @@ export async function runPipeline(
       .select('id')
       .single();
 
-    // Load company context for this workspace
-    const companyResult = await loadCompanyContext(
+    // Load company context and workspace settings for this workspace
+    const { companyContext, relevanceThreshold, profileId } = await loadWorkspaceContext(
       supabase,
       source.workspace_id,
     );
-    const companyContext = companyResult?.context ?? null;
 
     // Load active prompt for this workspace (fetched once, passed to all articles)
     const activePrompt = await getActivePrompt(supabase, source.workspace_id);
 
     // Load or generate company embedding for pre-filter (cached in DB)
     let companyEmbedding: number[] | null = null;
-    if (companyContext && companyResult) {
+    if (companyContext && profileId) {
       try {
         companyEmbedding = await loadOrGenerateCompanyEmbedding(
           supabase,
-          companyResult.profileId,
+          profileId,
           companyContext,
         );
       } catch {
@@ -534,6 +641,7 @@ export async function runPipeline(
       companyContext,
       companyEmbedding,
       activePrompt,
+      relevanceThreshold,
     );
     feedResults.push(feedResult);
     errors.push(...feedResult.errors);

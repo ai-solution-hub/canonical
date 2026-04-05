@@ -33,6 +33,56 @@ function extractMainContent(html: string): string {
   return stripHtml(html);
 }
 
+/** Check if a URL is a Google News redirect */
+export function isGoogleNewsUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname === 'news.google.com';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Resolve a Google News redirect URL to the actual article URL.
+ * Google News URLs (news.google.com/rss/articles/...) redirect to the real article.
+ * Returns the resolved URL, or the original URL if not a Google News URL or resolution fails.
+ */
+export async function resolveGoogleNewsUrl(url: string): Promise<string> {
+  if (!isGoogleNewsUrl(url)) return url;
+
+  try {
+    // Follow the redirect but don't download the body — we only need the final URL
+    const response = await fetch(url, {
+      method: 'HEAD',
+      headers: { 'User-Agent': USER_AGENT },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    // response.url contains the final URL after redirects
+    if (response.url && response.url !== url) {
+      return response.url;
+    }
+
+    // Some servers don't support HEAD — fall back to GET
+    const getResponse = await fetch(url, {
+      headers: { 'User-Agent': USER_AGENT },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (getResponse.url && getResponse.url !== url) {
+      return getResponse.url;
+    }
+
+    return url;
+  } catch {
+    // Resolution failed — return original URL to avoid data loss
+    return url;
+  }
+}
+
 /** Normalise a URL for dedup: lowercase hostname, strip tracking params, remove trailing slash */
 export function normaliseUrl(url: string): string {
   try {

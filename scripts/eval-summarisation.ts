@@ -300,15 +300,15 @@ function scoreTier2(gold: GoldItem, db: DbRow, details: string[]): ItemScore {
 const SUITE_NAME = 'summarisation';
 
 const TIER_1_THRESHOLDS: Record<string, { min?: number; max_drop?: number }> = {
-  t1_rouge_l_executive: { min: 0.15, max_drop: 0.05 },
-  t1_rouge_l_detailed: { min: 0.10, max_drop: 0.05 },
+  t1_rouge_l_executive: { min: 0.25, max_drop: 0.05 },
+  t1_rouge_l_detailed: { min: 0.17, max_drop: 0.05 },
   t1_structural_compliance: { min: 0.95 },
   t1_length_compliance: { min: 0.90 },
   t1_takeaway_compliance: { min: 0.90 },
 };
 
 const TIER_2_THRESHOLDS: Record<string, { min?: number; max_drop?: number }> = {
-  t2_rouge_l_executive: { min: 0.15, max_drop: 0.05 },
+  t2_rouge_l_executive: { min: 0.33, max_drop: 0.05 },
   t2_length_appropriateness: { min: 0.90 },
   t2_non_empty: { min: 1.00 },
 };
