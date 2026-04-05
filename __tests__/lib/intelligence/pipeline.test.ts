@@ -24,6 +24,9 @@ vi.mock('@/lib/ai/embed', () => ({
 vi.mock('@/lib/ai/classify', () => ({
   classifyContent: vi.fn(),
 }));
+vi.mock('@/lib/intelligence/article-summariser', () => ({
+  generateArticleSummary: vi.fn().mockResolvedValue('A concise article summary.'),
+}));
 
 describe('getDueFeedSources', () => {
   it('queries active sources using RPC for interval-aware filtering', async () => {
