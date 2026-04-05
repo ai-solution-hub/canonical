@@ -651,12 +651,11 @@ approach" may be generic.
 
 When extracting entities:
 
-- Prefer the **full formal name** of organisations (e.g., use the organisation's
-  registered name, not an abbreviation)
-- Use the **standard short form** of certifications (e.g., "ISO 27001" not
-  "ISO/IEC 27001:2022")
-- Use **established product names** (e.g., use the marketed name, not informal
-  abbreviations)
+- Prefer the **full formal name** of organisations (e.g.,
+  "{CLIENT_ORGANISATION_NAME}" not "{CLIENT_ORGANISATION_SHORT}"), the standard
+  short form of certifications (e.g., "ISO 27001" not "ISO/IEC 27001:2022"), and
+  established product names (e.g., "{CLIENT_PRODUCT_NAME}" not
+  "{CLIENT_PRODUCT_SHORT}")
 - Provide a `canonical_name` normalised for deduplication (e.g., "ISO 27001" not
   "ISO27001")
 - Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other
