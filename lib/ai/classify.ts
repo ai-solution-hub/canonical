@@ -5,7 +5,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Json } from '@/supabase/types/database.types';
-import { getAnthropicClient, getAIModel } from '@/lib/anthropic';
+import { getAnthropicClient, getAIModel, estimateCost } from '@/lib/anthropic';
 import { extractToolResult } from '@/lib/ai-parse';
 import { generateEmbedding } from '@/lib/ai/embed';
 import { htmlToPlainText } from '@/lib/editor-utils';
@@ -459,6 +459,260 @@ export interface ClassifyParams {
   itemId: string;
   force: boolean;
   userId: string;
+  /** When true, run a second LLM pass to validate extracted entities. Default: false. */
+  validate?: boolean;
+}
+
+// ──────────────────────────────────────────
+// Pass 2: Entity validation types
+// ──────────────────────────────────────────
+
+export interface ValidatedEntity {
+  name: string;
+  type: ExtractedEntity['type'];
+  canonical_name: string;
+  verdict: 'confirmed' | 'removed' | 'retyped';
+  /** Populated when verdict is 'retyped' — the original type before correction */
+  original_type?: string;
+  /** Brief justification for the verdict */
+  reason: string;
+}
+
+export interface EntityValidationResult {
+  validated_entities: ValidatedEntity[];
+  removed_count: number;
+  retyped_count: number;
+  confirmed_count: number;
+}
+
+// ──────────────────────────────────────────
+// Pass 2: Entity validation
+// ──────────────────────────────────────────
+
+/** Entity type enum values for the validation tool schema */
+const ENTITY_TYPE_ENUM = [
+  'organisation',
+  'certification',
+  'regulation',
+  'framework',
+  'capability',
+  'person',
+  'technology',
+  'project',
+  'sector',
+  'product',
+  'standard',
+  'methodology',
+] as const;
+
+/** The Haiku model used for Pass 2 entity validation */
+const PASS_2_MODEL = 'claude-haiku-4-5';
+
+/**
+ * Build the validation prompt for Pass 2.
+ * Embeds compressed universal rules and per-type diagnostic questions.
+ */
+function buildValidationPrompt(
+  entities: ExtractedEntity[],
+  contentExcerpt: string,
+  contentTitle: string,
+  contentType: string,
+): string {
+  const entityList = entities
+    .map((e, i) => `${i + 1}. "${e.name}" (type: ${e.type}, canonical: "${e.canonical_name}")`)
+    .join('\n');
+
+  return `You are an entity validation assistant for a UK knowledge base. You will review
+a list of entities extracted from content by a classification pipeline and
+determine whether each entity is valid.
+
+For EACH entity, apply these tests in order:
+
+1. NAMED ENTITY TEST: Is this a specific, named thing that exists independently
+   of the document discussing it? Generic concepts (information security, data
+   protection, encryption, business continuity, risk management, etc.) FAIL.
+
+2. EXTERNAL REFERENCE TEST: Could someone outside this organisation look this
+   up and find an independent definition or registration? Internal documents
+   (policies, procedures, plans, registers, agreements, statements) FAIL.
+
+3. ROLE TITLE TEST: Is this a job title or role description rather than a
+   person's name? (Managing Director, DPO, Project Manager, IT Director) FAIL.
+
+4. PROTOCOL/FORMAT TEST: Is this a protocol (HTTPS, SSH, TLS), file format
+   (PDF, CSV), programming language (Python, JavaScript), or cryptographic
+   algorithm (AES-256, RSA)? These are NOT entities. FAIL.
+
+5. TYPE ACCURACY TEST: Does the assigned type match the entity? Apply these
+   diagnostic questions:
+   - organisation: Does it have a legal registration or government charter?
+   - certification: Is it obtained by assessment with an issuing body and
+     renewal cycle?
+   - regulation: Does non-compliance carry legal penalties?
+   - framework: Is it published guidance for voluntary adoption, without legal
+     force?
+   - capability: Would the organisation list this on its website as a service
+     it offers?
+   - person: Is this the actual name of a specific individual?
+   - technology: Is this a specific named platform with a vendor and version?
+   - project: Is this a named piece of work with a start, scope, and end?
+   - sector: Is this a recognised industry classification?
+   - product: Is this a named branded offering the organisation sells?
+   - standard: Is this a numbered document published by a standards body?
+   - methodology: Is this a named approach to work with its own body of
+     knowledge?
+
+Common false positives to catch:
+- ISMS/QMS/EMS are management systems, not certifications or frameworks
+- Insurance products (professional indemnity, public liability) are NOT entities
+- GDPR artefacts (DPIA, ROPA, lawful basis, consent) are NOT standalone entities
+- Contract types (NDA, SLA, DPA) are NOT entities
+- Security principles (defence in depth, zero trust, least privilege) are NOT
+  entities or methodologies
+- Geographic regions (England, Wales, Scotland) are NOT sectors
+- Internal departments (IT Department, HR Team) are NOT organisations
+
+For each entity, return a verdict:
+- "confirmed" if it passes all tests with the correct type
+- "retyped" if the entity is valid but has the wrong type (provide corrected
+  type)
+- "removed" if it fails any test (provide reason)
+
+Content title: ${contentTitle}
+Content type: ${contentType}
+
+Content excerpt:
+${contentExcerpt}
+
+Entities to validate:
+${entityList}`;
+}
+
+/**
+ * Pass 2: Validate extracted entities using Claude Haiku.
+ *
+ * Reviews each entity from Pass 1 against diagnostic questions and
+ * universal exclusion rules. Returns a verdict for each entity:
+ * confirmed, removed, or retyped.
+ *
+ * @param entities - Entities that survived deterministic filters
+ * @param contentExcerpt - First 2,000 characters of the plain text content
+ * @param contentTitle - Title of the content item
+ * @param contentType - Content type (e.g. q_a_pair, policy, article)
+ * @returns Validation results with verdicts and token usage summary
+ */
+export async function validateEntities(
+  entities: ExtractedEntity[],
+  contentExcerpt: string,
+  contentTitle: string,
+  contentType: string,
+): Promise<EntityValidationResult> {
+  // Skip if no entities to validate
+  if (!entities.length) {
+    return {
+      validated_entities: [],
+      removed_count: 0,
+      retyped_count: 0,
+      confirmed_count: 0,
+    };
+  }
+
+  const prompt = buildValidationPrompt(
+    entities,
+    contentExcerpt,
+    contentTitle,
+    contentType,
+  );
+
+  const client = getAnthropicClient();
+
+  const response = await client.messages.create({
+    model: PASS_2_MODEL,
+    max_tokens: 1500,
+    tools: [
+      {
+        name: 'return_entity_validation',
+        description: 'Return validated entity list with verdicts',
+        input_schema: {
+          type: 'object' as const,
+          properties: {
+            validated_entities: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string' },
+                  type: {
+                    type: 'string',
+                    enum: [...ENTITY_TYPE_ENUM],
+                  },
+                  canonical_name: { type: 'string' },
+                  verdict: {
+                    type: 'string',
+                    enum: ['confirmed', 'removed', 'retyped'],
+                  },
+                  original_type: { type: ['string', 'null'] },
+                  reason: { type: 'string' },
+                },
+                required: [
+                  'name',
+                  'type',
+                  'canonical_name',
+                  'verdict',
+                  'reason',
+                ],
+              },
+            },
+          },
+          required: ['validated_entities'],
+        },
+      },
+    ],
+    tool_choice: { type: 'tool' as const, name: 'return_entity_validation' },
+    messages: [
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ],
+  });
+
+  // Track and log token usage
+  const usage = response.usage;
+  const cost = estimateCost(PASS_2_MODEL, {
+    input_tokens: usage.input_tokens,
+    output_tokens: usage.output_tokens,
+    cache_creation_input_tokens: null,
+    cache_read_input_tokens: null,
+  });
+
+  const result = extractToolResult<{ validated_entities: ValidatedEntity[] }>(
+    response,
+    'return_entity_validation',
+  );
+
+  const removedCount = result.validated_entities.filter(
+    (v) => v.verdict === 'removed',
+  ).length;
+  const retypedCount = result.validated_entities.filter(
+    (v) => v.verdict === 'retyped',
+  ).length;
+  const confirmedCount = result.validated_entities.filter(
+    (v) => v.verdict === 'confirmed',
+  ).length;
+
+  console.log(
+    `[Pass 2 Validation] ${confirmedCount} confirmed, ${retypedCount} retyped, ${removedCount} removed | ` +
+      `Tokens: ${usage.input_tokens} in / ${usage.output_tokens} out | ` +
+      `Cost: $${cost.toFixed(4)}`,
+  );
+
+  return {
+    validated_entities: result.validated_entities,
+    removed_count: removedCount,
+    retyped_count: retypedCount,
+    confirmed_count: confirmedCount,
+  };
 }
 
 // ──────────────────────────────────────────
@@ -803,27 +1057,57 @@ ${contentForClassification}`,
 
   if (result.entities?.length) {
     try {
-      const entityRows = result.entities
-        .filter((e) => !shouldExcludeEntity(e))
-        .map((e) => {
-          // Strip parenthetical role/company descriptions from person names
-          const name =
-            e.type === 'person' ? stripPersonDescriptors(e.name) : e.name;
-          const canonicalRaw =
-            e.type === 'person'
-              ? stripPersonDescriptors(e.canonical_name)
-              : e.canonical_name;
-          return {
-            content_item_id: itemId,
-            entity_type: e.type,
-            entity_name: name,
-            canonical_name: resolveAlias(
-              canonicalise(canonicalRaw, e.type),
-            ).toLowerCase(),
-            confidence: 1.0,
-            context_snippet: extractEntityContext(plainText, e.name),
-          };
-        });
+      // Step 14a: Apply deterministic filters FIRST (free, instant, high precision)
+      const deterministicallyFiltered = result.entities.filter(
+        (e) => !shouldExcludeEntity(e),
+      );
+
+      // Step 14b: IF validate, run LLM validation on the survivors
+      let finalEntities: ExtractedEntity[] = deterministicallyFiltered;
+      if (params.validate && deterministicallyFiltered.length > 0) {
+        try {
+          const contentExcerpt = contentForClassification.slice(0, 2000);
+          const validation = await validateEntities(
+            deterministicallyFiltered,
+            contentExcerpt,
+            item.title,
+            item.content_type,
+          );
+          // Keep only confirmed and retyped entities; apply retyped types
+          finalEntities = validation.validated_entities
+            .filter((v) => v.verdict !== 'removed')
+            .map((v) => ({
+              name: v.name,
+              type: v.type, // Already corrected for retyped entities
+              canonical_name: v.canonical_name,
+            }));
+        } catch (validationErr) {
+          console.error('Entity validation (Pass 2) failed:', validationErr);
+          // Graceful degradation: fall back to deterministically-filtered entities
+          finalEntities = deterministicallyFiltered;
+        }
+      }
+
+      // Step 15: Store entity mentions using finalEntities
+      const entityRows = finalEntities.map((e) => {
+        // Strip parenthetical role/company descriptions from person names
+        const name =
+          e.type === 'person' ? stripPersonDescriptors(e.name) : e.name;
+        const canonicalRaw =
+          e.type === 'person'
+            ? stripPersonDescriptors(e.canonical_name)
+            : e.canonical_name;
+        return {
+          content_item_id: itemId,
+          entity_type: e.type,
+          entity_name: name,
+          canonical_name: resolveAlias(
+            canonicalise(canonicalRaw, e.type),
+          ).toLowerCase(),
+          confidence: 1.0,
+          context_snippet: extractEntityContext(plainText, e.name),
+        };
+      });
 
       if (entityRows.length > 0) {
         const { error: entityError } = await supabase
