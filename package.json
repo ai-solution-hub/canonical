@@ -32,6 +32,8 @@
     "eval:summarisation": "bun run scripts/eval-summarisation.ts",
     "eval:search": "bun run scripts/eval-search.ts",
     "eval:bid-drafting": "bun run scripts/eval-bid-drafting.ts",
+    "eval:entity": "EVAL_ENTITY=1 bun run test __tests__/eval/entity-classification-eval.test.ts",
+    "eval:all": "bun run eval:classification && bun run eval:summarisation && bun run eval:search && bun run eval:bid-drafting && bun run eval:entity",
     "vercel-build": "bun run build:mcp-apps && next build"
   },
   "dependencies": {
