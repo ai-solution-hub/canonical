@@ -1,6 +1,7 @@
 // lib/intelligence/content-extractor.ts
 import type { ParsedFeedItem, ExtractionResult } from './types';
 import { MIN_CONTENT_WORDS, EXTRACTION_TIMEOUT_MS } from './types';
+import { RateLimitError, getGlobalRateLimiter } from './rate-limiter';
 
 const USER_AGENT =
   'KnowledgeHub/1.0 (+https://knowledge-hub-seven-kappa.vercel.app)';
@@ -88,13 +89,26 @@ export async function extractContent(
 
   // 2. Try direct fetch (handles static HTML pages — most gov.uk content)
   try {
+    // Wait for per-domain rate limit before fetching content
+    const rateLimiter = getGlobalRateLimiter();
+    await rateLimiter.waitForDomain(item.url);
+
     const response = await fetch(item.url, {
       headers: { 'User-Agent': USER_AGENT },
       signal: AbortSignal.timeout(EXTRACTION_TIMEOUT_MS),
       redirect: 'follow',
     });
 
+    if (response.status === 429) {
+      rateLimiter.recordRateLimit(item.url);
+      throw new RateLimitError(
+        new URL(item.url).hostname,
+        0,
+      );
+    }
+
     if (response.ok) {
+      rateLimiter.recordSuccess(item.url);
       const contentType = response.headers.get('content-type') ?? '';
       if (
         contentType.includes('text/html') ||

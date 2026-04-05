@@ -47,9 +47,16 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const parsed = parseBody(CompanyProfileUpdateSchema, raw);
     if (!parsed.success) return parsed.response;
 
+    // Invalidate cached company embedding when profile data changes
+    // The pipeline will regenerate it on the next run
+    const updateData = {
+      ...parsed.data,
+      company_embedding: null,
+    };
+
     const { data, error } = await supabase
       .from('company_profiles')
-      .update(parsed.data)
+      .update(updateData)
       .eq('id', id)
       .eq('is_active', true)
       .select()

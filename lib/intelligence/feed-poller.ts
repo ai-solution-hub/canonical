@@ -2,6 +2,7 @@
 import Parser from 'rss-parser';
 import type { ParsedFeedItem, PollResult } from './types';
 import { FEED_FETCH_TIMEOUT_MS } from './types';
+import { RateLimitError, getGlobalRateLimiter } from './rate-limiter';
 
 const USER_AGENT =
   'KnowledgeHub/1.0 (+https://knowledge-hub-seven-kappa.vercel.app)';
@@ -85,12 +86,17 @@ export async function pollFeed(source: FeedSourceRef): Promise<PollResult> {
   }
 
   try {
+    // Wait for per-domain rate limit before fetching
+    const rateLimiter = getGlobalRateLimiter();
+    await rateLimiter.waitForDomain(source.url);
+
     const response = await fetch(source.url, {
       headers,
       signal: AbortSignal.timeout(FEED_FETCH_TIMEOUT_MS),
     });
 
     if (response.status === 304) {
+      rateLimiter.recordSuccess(source.url);
       return {
         feedSourceId: source.id,
         status: 'not_modified',
@@ -98,6 +104,17 @@ export async function pollFeed(source: FeedSourceRef): Promise<PollResult> {
         etag: source.etag,
         lastModified: source.last_modified,
       };
+    }
+
+    if (response.status === 429) {
+      // Parse Retry-After header if present (seconds)
+      const retryAfter = response.headers.get('Retry-After');
+      const retryAfterMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : 0;
+      rateLimiter.recordRateLimit(source.url);
+      throw new RateLimitError(
+        new URL(source.url).hostname,
+        retryAfterMs || rateLimiter.getRequiredDelay(new URL(source.url).hostname.toLowerCase()),
+      );
     }
 
     if (!response.ok) {
@@ -114,6 +131,8 @@ export async function pollFeed(source: FeedSourceRef): Promise<PollResult> {
     const xml = await response.text();
     const items = await parseFeedItems(xml);
 
+    rateLimiter.recordSuccess(source.url);
+
     return {
       feedSourceId: source.id,
       status: 'success',
@@ -122,6 +141,10 @@ export async function pollFeed(source: FeedSourceRef): Promise<PollResult> {
       lastModified: response.headers.get('Last-Modified') ?? null,
     };
   } catch (err) {
+    // Re-throw RateLimitError so the pipeline can record it distinctly
+    if (err instanceof RateLimitError) {
+      throw err;
+    }
     if (err instanceof DOMException && err.name === 'AbortError') {
       return {
         feedSourceId: source.id,

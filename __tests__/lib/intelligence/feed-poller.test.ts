@@ -1,5 +1,27 @@
 // __tests__/lib/intelligence/feed-poller.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// Mock rate limiter to avoid delays in tests
+vi.mock('@/lib/intelligence/rate-limiter', () => ({
+  getGlobalRateLimiter: () => ({
+    waitForDomain: vi.fn().mockResolvedValue(undefined),
+    recordSuccess: vi.fn(),
+    recordRateLimit: vi.fn(),
+    getRequiredDelay: vi.fn().mockReturnValue(0),
+  }),
+  RateLimitError: class RateLimitError extends Error {
+    statusCode = 429;
+    hostname: string;
+    retryAfterMs: number;
+    constructor(hostname: string, retryAfterMs: number) {
+      super(`Rate limited by ${hostname}`);
+      this.name = 'RateLimitError';
+      this.hostname = hostname;
+      this.retryAfterMs = retryAfterMs;
+    }
+  },
+}));
+
 import { pollFeed, parseFeedItems } from '@/lib/intelligence/feed-poller';
 
 // Mock global fetch
