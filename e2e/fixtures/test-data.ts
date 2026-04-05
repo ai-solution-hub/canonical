@@ -372,3 +372,73 @@ export const TEST_USERS = {
 // ---------------------------------------------------------------------------
 
 export const EMBEDDING_ITEM_INDICES = [0, 1, 2, 3, 7] as const;
+
+// ---------------------------------------------------------------------------
+// Intelligence workspace fixtures
+// ---------------------------------------------------------------------------
+
+export interface FeedSourceShape {
+  name: string;
+  feed_url: string;
+  active: boolean;
+  poll_interval_minutes: number;
+}
+
+export interface FeedArticleShape {
+  title: string;
+  external_url: string;
+  relevance_score: number;
+  relevance_category: string;
+  ai_summary: string | null;
+  matched_categories: string[];
+  passed: boolean;
+  published_at: string;
+  ingested_at: string;
+}
+
+export const INTELLIGENCE_FEED_SOURCE: FeedSourceShape = {
+  name: 'E2E Test Feed',
+  feed_url: 'https://example.com/e2e-test-feed.xml',
+  active: true,
+  poll_interval_minutes: 60,
+};
+
+export function buildIntelligenceFeedArticles(
+  now: string,
+): FeedArticleShape[] {
+  return [
+    {
+      title: 'Major Cyber Security Regulation Update',
+      external_url: 'https://example.com/articles/cyber-regulation',
+      relevance_score: 0.92,
+      relevance_category: 'high',
+      ai_summary: 'New regulations requiring enhanced security measures for UK public sector contractors.',
+      matched_categories: ['Cyber Security', 'Regulation'],
+      passed: true,
+      published_at: now,
+      ingested_at: now,
+    },
+    {
+      title: 'Cloud Infrastructure Market Trends Q2 2026',
+      external_url: 'https://example.com/articles/cloud-trends',
+      relevance_score: 0.78,
+      relevance_category: 'medium',
+      ai_summary: 'Analysis of cloud infrastructure spending trends among UK SMBs.',
+      matched_categories: ['Cloud Infrastructure', 'Market Analysis'],
+      passed: true,
+      published_at: now,
+      ingested_at: now,
+    },
+    {
+      title: 'Irrelevant Sports Article',
+      external_url: 'https://example.com/articles/sports-news',
+      relevance_score: 0.15,
+      relevance_category: 'irrelevant',
+      ai_summary: null,
+      matched_categories: [],
+      passed: false,
+      published_at: now,
+      ingested_at: now,
+    },
+  ];
+}
