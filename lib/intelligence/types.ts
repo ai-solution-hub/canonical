@@ -85,8 +85,9 @@ export interface CompanyContext {
 
 // ── Constants ──
 
-/** System user ID for pipeline operations (classifyContent requires a userId) */
-export const PIPELINE_SYSTEM_USER_ID = '00000000-0000-0000-0000-pipeline00001';
+/** System user ID for pipeline operations (classifyContent requires a userId).
+ *  This is a real service account in auth.users (email: pipeline@system.knowledge-hub.internal). */
+export const PIPELINE_SYSTEM_USER_ID = 'a0000000-0000-4000-8000-000000000001';
 
 /** Minimum word count to accept extracted content (below this, escalate to Firecrawl) */
 export const MIN_CONTENT_WORDS = 100;
@@ -101,7 +102,7 @@ export const DEFAULT_RELEVANCE_THRESHOLD = 0.5;
 export const MAX_CONSECUTIVE_FAILURES = 10;
 
 /** Maximum number of feed sources to process per cron invocation */
-export const SOURCES_PER_INVOCATION = 5;
+export const SOURCES_PER_INVOCATION = 10;
 
 /** HTTP timeout for RSS feed fetching (ms) */
 export const FEED_FETCH_TIMEOUT_MS = 30_000;

@@ -763,8 +763,9 @@ export async function classifyContent(
     throw new AIServiceError('Content item has no content to classify', 400);
   }
 
-  // Load classification skill file — the single source of prompt guidance
+  // Load classification skill files — main skill + entity types reference
   const classificationSkill = await loadSkill('classification');
+  const entityTypesRef = await loadSkill('classification-entity-types');
 
   // Build taxonomy string from DB
   const { data: domains } = await supabase
@@ -805,7 +806,8 @@ export async function classifyContent(
     .replaceAll('{CLIENT_ORGANISATION_NAME}', CLIENT_CONFIG.entity_examples.organisation_name)
     .replaceAll('{CLIENT_ORGANISATION_SHORT}', CLIENT_CONFIG.entity_examples.organisation_short)
     .replaceAll('{CLIENT_PRODUCT_NAME}', CLIENT_CONFIG.entity_examples.product_name)
-    .replaceAll('{CLIENT_PRODUCT_SHORT}', CLIENT_CONFIG.entity_examples.product_short);
+    .replaceAll('{CLIENT_PRODUCT_SHORT}', CLIENT_CONFIG.entity_examples.product_short)
+    + '\n\n---\n\n' + entityTypesRef;
 
   // Prepare content for classification (truncate at 5000 chars)
   const plainText = htmlToPlainText(item.content);
@@ -964,6 +966,15 @@ ${contentForClassification}`,
       },
     ],
   });
+
+  // Track Pass 1 token usage and cost
+  const pass1Usage = response.usage;
+  const pass1Cost = estimateCost(model, pass1Usage);
+  console.log(
+    `[Pass 1 Classification] ${item.title?.slice(0, 60)} — ` +
+    `${pass1Usage.input_tokens} in / ${pass1Usage.output_tokens} out — ` +
+    `$${pass1Cost.toFixed(4)}`,
+  );
 
   const result = extractToolResult<ClassificationResult>(
     response,

@@ -29,6 +29,12 @@ export const COST_PER_MILLION: Record<string, ModelPricing> = {
     cache_read: 0.3,
     cache_write: 3.75,
   },
+  'claude-sonnet-4-6': {
+    input: 3,
+    output: 15,
+    cache_read: 0.3,
+    cache_write: 3.75,
+  },
   'claude-haiku-4-5': {
     input: 0.8,
     output: 4,

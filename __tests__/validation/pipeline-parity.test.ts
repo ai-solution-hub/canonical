@@ -59,10 +59,11 @@ describe('Pipeline Parity', () => {
     const tsContent = readSource('lib/ai/classify.ts');
     const pyContent = readSource('scripts/kb_pipeline/classify.py');
 
-    // TS: extract from the tool schema enum array for entity_type
+    // TS: extract from the Pass 1 tool schema enum array for entity_type
     // The enum is inside the 'type' property of the entities items schema
+    // (Match the Pass 1 schema which has a description field, not the Pass 2 validation schema)
     const tsEnumMatch = tsContent.match(
-      /type:\s*\{\s*\n\s*type:\s*'string',\s*\n[\s\S]*?enum:\s*\[([\s\S]*?)\]/,
+      /type:\s*\{\s*\n\s*type:\s*'string',\s*\n\s*description:\s*\n[\s\S]*?enum:\s*\[([\s\S]*?)\]/,
     );
     expect(
       tsEnumMatch,

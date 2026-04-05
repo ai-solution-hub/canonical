@@ -13,6 +13,7 @@ vi.mock('@/lib/anthropic', () => ({
     messages: { create: mockCreate },
   }),
   getAIModel: () => 'claude-sonnet-4-6',
+  estimateCost: () => 0.031,
 }));
 
 vi.mock('@/lib/ai/embed', () => ({
