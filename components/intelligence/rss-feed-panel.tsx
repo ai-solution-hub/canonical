@@ -1,7 +1,13 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Copy, Check, Rss, ExternalLink } from 'lucide-react';
+import {
+  Copy,
+  Check,
+  Rss,
+  ExternalLink,
+  AlertTriangle,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
@@ -14,9 +20,10 @@ interface FeedRowProps {
   label: string;
   description: string;
   url: string;
+  sensitive?: boolean;
 }
 
-function FeedRow({ label, description, url }: FeedRowProps) {
+function FeedRow({ label, description, url, sensitive = false }: FeedRowProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(async () => {
@@ -29,15 +36,27 @@ function FeedRow({ label, description, url }: FeedRowProps) {
     }
   }, [url]);
 
+  const containerClass = sensitive
+    ? 'flex flex-col gap-2 rounded-md border border-status-warning/30 bg-status-warning/10 p-3'
+    : 'flex flex-col gap-2 rounded-md border bg-muted/30 p-3';
+
   return (
-    <div className="flex flex-col gap-2 rounded-md border bg-muted/30 p-3">
+    <div className={containerClass}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-foreground">{label}</p>
+          <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+            {sensitive && (
+              <AlertTriangle
+                className="size-3.5 shrink-0 text-status-warning"
+                aria-hidden="true"
+              />
+            )}
+            {label}
+          </p>
           <p className="text-xs text-muted-foreground">{description}</p>
         </div>
         <Badge variant="outline" className="shrink-0 text-[10px]">
-          Public
+          {sensitive ? 'Public — internal use only' : 'Public'}
         </Badge>
       </div>
       <div className="flex items-center gap-1.5">
@@ -75,6 +94,22 @@ function FeedRow({ label, description, url }: FeedRowProps) {
           </a>
         </Button>
       </div>
+      {sensitive && (
+        <p
+          role="note"
+          className="flex items-start gap-1.5 text-xs text-status-warning"
+        >
+          <AlertTriangle
+            className="mt-0.5 size-3.5 shrink-0"
+            aria-hidden="true"
+          />
+          <span>
+            Filtered feed exposes relevance reasoning — share only with internal
+            stakeholders. A competitor subscribing to this URL could learn what
+            you monitor and how you evaluate it.
+          </span>
+        </p>
+      )}
     </div>
   );
 }
@@ -108,13 +143,15 @@ export function RssFeedPanel({
           label="Filtered Articles (Near Misses)"
           description="Articles close to the threshold — review for false negatives"
           url={filteredUrl}
+          sensitive
         />
       </div>
 
       <p className="mt-3 text-xs text-muted-foreground">
         These RSS feeds can be embedded in your intranet or added to any feed
         reader. They update automatically when new articles are processed. No
-        authentication is required.
+        authentication is required, so treat the filtered feed URL as
+        confidential.
       </p>
     </div>
   );
