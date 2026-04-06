@@ -1,4 +1,5 @@
 import { createBrowserClient } from '@supabase/ssr';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 
 // Placeholder values used during static generation (e.g. /_not-found at build
@@ -8,9 +9,22 @@ import type { Database } from '@/supabase/types/database.types';
 const PLACEHOLDER_URL = 'http://localhost:54321';
 const PLACEHOLDER_KEY = 'placeholder-key-for-static-generation';
 
-export function createClient() {
-  return createBrowserClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || PLACEHOLDER_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || PLACEHOLDER_KEY,
-  );
+// Singleton browser client. The Supabase auth helpers / @supabase/ssr docs
+// recommend a single browser client per tab — multiple instances waste
+// auth-state subscriptions and (more importantly here) yield a fresh
+// reference on every render, which busts TanStack Query cache keys when
+// callers naively put the client in a queryKey dependency.
+//
+// `createClient()` is kept as the public API so the existing 30+ call sites
+// don't need to migrate; it now returns the same instance on every call.
+let browserClient: SupabaseClient<Database> | null = null;
+
+export function createClient(): SupabaseClient<Database> {
+  if (!browserClient) {
+    browserClient = createBrowserClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL || PLACEHOLDER_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || PLACEHOLDER_KEY,
+    );
+  }
+  return browserClient;
 }

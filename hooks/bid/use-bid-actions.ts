@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
@@ -44,14 +44,17 @@ function useBidData(id: string) {
   const router = useRouter();
   const queryClient = useQueryClient();
 
+  // The queryFn deliberately does NOT close over `router` — putting an
+  // unstable function reference in the query closure forces it into the
+  // queryKey deps under @tanstack/query/exhaustive-deps. Instead the
+  // queryFn returns a sentinel on 404 and the navigation is performed in
+  // a side-effect hook below.
   const bidQuery = useQuery({
     queryKey: queryKeys.bids.detail(id),
     queryFn: async () => {
       const response = await fetch(`/api/bids/${id}`);
       if (!response.ok) {
         if (response.status === 404) {
-          toast.error('Bid not found');
-          router.push('/bid');
           return null;
         }
         throw new Error('Failed to fetch bid');
@@ -59,6 +62,14 @@ function useBidData(id: string) {
       return response.json();
     },
   });
+
+  // Redirect on confirmed 404 (queryFn returned null without throwing).
+  useEffect(() => {
+    if (!bidQuery.isLoading && bidQuery.isSuccess && bidQuery.data === null) {
+      toast.error('Bid not found');
+      router.push('/bid');
+    }
+  }, [bidQuery.isLoading, bidQuery.isSuccess, bidQuery.data, router]);
 
   const questionsQuery = useQuery({
     queryKey: queryKeys.bids.questions(id),

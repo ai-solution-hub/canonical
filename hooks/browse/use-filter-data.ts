@@ -13,6 +13,16 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import type { Workspace } from '@/types/content';
 
+// Hoisted lazily so SSR / static-generation doesn't trigger client construction
+// at module-evaluation time. Once resolved, the same singleton is returned for
+// every render — see lib/supabase/client.ts. Keeping this as a function
+// reference (not a per-render `createClient()` call inside the hook body) means
+// the TanStack Query exhaustive-deps lint rule does not see an unstable
+// closure dep, and the four `supabase` warnings stay fixed.
+function getSupabase() {
+  return createClient();
+}
+
 export type FilterCounts = {
   domain: Record<string, number>;
   content_type: Record<string, number>;
@@ -40,8 +50,6 @@ const EMPTY_COUNTS: FilterCounts = {
  * previous "fetch once per mount" behaviour.
  */
 export function useFilterData({ isOpen }: UseFilterDataParams) {
-  const supabase = createClient();
-
   // UI-only search state — not server data
   const [authorSearch, setAuthorSearch] = useState('');
 
@@ -50,7 +58,7 @@ export function useFilterData({ isOpen }: UseFilterDataParams) {
   const countsQuery = useQuery({
     queryKey: queryKeys.filters.counts,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_filter_counts');
+      const { data, error } = await getSupabase().rpc('get_filter_counts');
       if (error || !data) {
         console.error('Failed to fetch filter counts:', error?.message);
         return EMPTY_COUNTS;
@@ -71,7 +79,7 @@ export function useFilterData({ isOpen }: UseFilterDataParams) {
   const authorsQuery = useQuery({
     queryKey: queryKeys.filters.authors,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_unique_authors');
+      const { data, error } = await getSupabase().rpc('get_unique_authors');
       if (error || !data) {
         console.error('Failed to fetch authors:', error?.message);
         return [];
@@ -113,7 +121,7 @@ export function useFilterData({ isOpen }: UseFilterDataParams) {
   const userTagsQuery = useQuery({
     queryKey: queryKeys.filters.userTags,
     queryFn: async () => {
-      const { data } = await supabase.rpc('get_user_tag_counts');
+      const { data } = await getSupabase().rpc('get_user_tag_counts');
       if (!data || typeof data !== 'object') return [];
       const tagCounts = data as Record<string, number>;
       return Object.entries(tagCounts)
@@ -129,7 +137,7 @@ export function useFilterData({ isOpen }: UseFilterDataParams) {
   const entitiesQuery = useQuery({
     queryKey: queryKeys.filters.entities,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_entity_summary', {
+      const { data, error } = await getSupabase().rpc('get_entity_summary', {
         p_limit: 50,
       });
       if (error || !data) return [];
