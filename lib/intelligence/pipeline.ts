@@ -564,10 +564,21 @@ async function storeAsContentItem(
         classified.primary_subtopic,
       );
       if (inferredType && inferredType !== 'article') {
-        await supabase
+        // SI-L3: Wrap content_type update with error handling. The DB CHECK
+        // constraint on content_items.content_type may reject values if it
+        // ever drifts from VALID_CONTENT_TYPES (lib/validation/schemas.ts).
+        // Failures here must surface in logs (soft failure — pipeline must
+        // not crash) so any future drift is visible immediately.
+        const { error: contentTypeError } = await supabase
           .from('content_items')
           .update({ content_type: inferredType })
           .eq('id', contentItem.id);
+
+        if (contentTypeError) {
+          console.error(
+            `[Pipeline] SI-L3: content_type update failed for item ${contentItem.id} (inferred: "${inferredType}", domain: "${classified.primary_domain ?? 'null'}", subtopic: "${classified.primary_subtopic ?? 'null'}"): ${contentTypeError.message}`,
+          );
+        }
       }
     }
   } catch (err) {

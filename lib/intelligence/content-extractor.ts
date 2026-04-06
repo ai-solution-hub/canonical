@@ -9,6 +9,23 @@ const USER_AGENT =
 /** Whether the Firecrawl API key warning has already been logged this process */
 let firecrawlWarningLogged = false;
 
+/**
+ * SI-H4: Tracks whether the Firecrawl API key is missing in the current
+ * process. Set by checkFirecrawlApiKey() in non-production environments so
+ * downstream code (e.g. health endpoints) can surface the degraded state.
+ */
+let firecrawlKeyMissing = false;
+
+/**
+ * SI-H4: Whether Firecrawl is configured (i.e. API key present).
+ * Other modules (health endpoint, status pages) can read this without having
+ * to re-check the env var, and to avoid relying on side-effects of
+ * checkFirecrawlApiKey().
+ */
+export function isFirecrawlConfigured(): boolean {
+  return !firecrawlKeyMissing && Boolean(process.env.FIRECRAWL_API_KEY);
+}
+
 /** Count words in a string */
 function wordCount(text: string): number {
   return text.split(/\s+/).filter(Boolean).length;
@@ -115,13 +132,43 @@ export function normaliseUrl(url: string): string {
 }
 
 /**
- * Log a one-time warning if FIRECRAWL_API_KEY is not set.
- * Called once at pipeline startup, not per article.
+ * SI-H4: Verify Firecrawl is configured at pipeline startup.
+ *
+ * Behaviour by environment (NODE_ENV):
+ * - production: throw an Error to fail-fast. The pipeline must refuse to run
+ *   rather than silently degrade to summary_fallback (very low content
+ *   quality). Pre-launch policy: zero tolerance for silent failures.
+ * - non-production (development, test, staging): log a prominent WARNING and
+ *   set firecrawlKeyMissing so health/status endpoints can surface the
+ *   degraded state. The warning is logged once per process to avoid log spam.
+ *
+ * Called once at pipeline startup (runPipeline), not per article.
  */
 export function checkFirecrawlApiKey(): void {
-  if (!firecrawlWarningLogged && !process.env.FIRECRAWL_API_KEY) {
+  if (process.env.FIRECRAWL_API_KEY) {
+    firecrawlKeyMissing = false;
+    return;
+  }
+
+  firecrawlKeyMissing = true;
+
+  if (process.env.NODE_ENV === 'production') {
+    // Fail-fast in production: refuse to run the pipeline so the operator
+    // notices immediately. Surfacing early is far cheaper than discovering
+    // weeks of summary_fallback-only ingests later.
+    throw new Error(
+      '[SI Pipeline] FIRECRAWL_API_KEY is not set — refusing to start pipeline in production. ' +
+        'Set FIRECRAWL_API_KEY in the environment, or explicitly run with NODE_ENV != production ' +
+        'to enable degraded extraction.',
+    );
+  }
+
+  // Non-production: log a prominent warning once.
+  if (!firecrawlWarningLogged) {
     console.warn(
-      '[SI Pipeline] FIRECRAWL_API_KEY is not set — Firecrawl extraction tier will be unavailable',
+      '[SI Pipeline] WARNING: FIRECRAWL_API_KEY is not set — Firecrawl extraction tier will be unavailable. ' +
+        'The pipeline will fall back to summary_fallback for any article that earlier tiers cannot extract, ' +
+        'which produces very low-quality content. This would FAIL FAST in production.',
     );
     firecrawlWarningLogged = true;
   }
@@ -272,10 +319,16 @@ export async function extractContent(
     );
   }
 
-  // 4. Last resort: use summary (tagged as summary_fallback, not fetch)
+  // 4. Last resort: use summary (tagged as summary_fallback, not fetch).
+  // SI-H4: Log a prominent WARN — summary_fallback is very low-quality content
+  // and should be visible. Include the reason so operators can diagnose
+  // (e.g. all 4 tiers failed, or Firecrawl is not configured).
   const fallbackContent = item.summary ?? item.title;
-  console.log(
-    `[Extraction] ${item.url} — Tier 4 (summary_fallback), ${wordCount(fallbackContent)} words`,
+  const fallbackReason = firecrawlKeyMissing
+    ? 'all extraction tiers failed and Firecrawl is not configured (FIRECRAWL_API_KEY missing)'
+    : 'all extraction tiers failed (rss_content, fetch, jina_reader, firecrawl)';
+  console.warn(
+    `[Extraction] WARN ${item.url} — degraded to Tier 4 (summary_fallback), ${wordCount(fallbackContent)} words. Reason: ${fallbackReason}`,
   );
   return {
     ...baseResult,

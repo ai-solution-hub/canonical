@@ -1,5 +1,6 @@
 // __tests__/lib/intelligence/content-extractor.test.ts
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+/* eslint-disable @typescript-eslint/no-explicit-any -- Firecrawl mock surface requires flexible typing */
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock rate limiter to avoid delays in tests
 vi.mock('@/lib/intelligence/rate-limiter', () => ({
@@ -25,7 +26,6 @@ vi.mock('@/lib/intelligence/rate-limiter', () => ({
 import {
   extractContent,
   normaliseUrl,
-  checkFirecrawlApiKey,
 } from '@/lib/intelligence/content-extractor';
 import type { ParsedFeedItem } from '@/lib/intelligence/types';
 
@@ -247,20 +247,214 @@ describe('normaliseUrl', () => {
   });
 });
 
-describe('checkFirecrawlApiKey', () => {
-  it('logs a warning when FIRECRAWL_API_KEY is not set', () => {
+describe('checkFirecrawlApiKey (SI-H4)', () => {
+  // Capture and restore env state before/after each test so tests are
+  // independent (the warning flag and missing flag are module-level state).
+  const originalKey = process.env.FIRECRAWL_API_KEY;
+  const originalNodeEnv = process.env.NODE_ENV;
+
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    if (originalKey === undefined) {
+      delete process.env.FIRECRAWL_API_KEY;
+    } else {
+      process.env.FIRECRAWL_API_KEY = originalKey;
+    }
+    if (originalNodeEnv === undefined) {
+      delete (process.env as Record<string, string | undefined>).NODE_ENV;
+    } else {
+      (process.env as Record<string, string | undefined>).NODE_ENV =
+        originalNodeEnv;
+    }
+  });
+
+  it('throws an Error in production when FIRECRAWL_API_KEY is missing', async () => {
+    // Re-import after vi.resetModules() so module state (firecrawlWarningLogged,
+    // firecrawlKeyMissing) starts fresh.
+    const mod = await import('@/lib/intelligence/content-extractor');
+    delete process.env.FIRECRAWL_API_KEY;
+    (process.env as Record<string, string | undefined>).NODE_ENV =
+      'production';
+
+    expect(() => mod.checkFirecrawlApiKey()).toThrow(
+      /FIRECRAWL_API_KEY is not set/,
+    );
+    expect(() => mod.checkFirecrawlApiKey()).toThrow(
+      /refusing to start pipeline in production/,
+    );
+  });
+
+  it('logs a prominent warning in non-production when FIRECRAWL_API_KEY is missing', async () => {
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const originalKey = process.env.FIRECRAWL_API_KEY;
+    const mod = await import('@/lib/intelligence/content-extractor');
     delete process.env.FIRECRAWL_API_KEY;
+    (process.env as Record<string, string | undefined>).NODE_ENV =
+      'development';
 
-    // Reset the module-level flag by re-importing (the flag prevents duplicate warnings)
-    // For test purposes we just verify the function calls console.warn
-    checkFirecrawlApiKey();
+    expect(() => mod.checkFirecrawlApiKey()).not.toThrow();
 
-    // The first call in this test process may or may not trigger depending on prior state,
-    // but we verify the function exists and can be called without error
-    delete process.env.FIRECRAWL_API_KEY;
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('WARNING: FIRECRAWL_API_KEY is not set'),
+    );
+    // Also confirm the prominent message about prod failing fast is included
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('would FAIL FAST in production'),
+    );
+
     consoleSpy.mockRestore();
-    if (originalKey) process.env.FIRECRAWL_API_KEY = originalKey;
+  });
+
+  it('does not throw or warn when FIRECRAWL_API_KEY is set', async () => {
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const mod = await import('@/lib/intelligence/content-extractor');
+    process.env.FIRECRAWL_API_KEY = 'fc-test-key';
+    (process.env as Record<string, string | undefined>).NODE_ENV =
+      'production';
+
+    expect(() => mod.checkFirecrawlApiKey()).not.toThrow();
+    expect(consoleSpy).not.toHaveBeenCalled();
+    expect(mod.isFirecrawlConfigured()).toBe(true);
+
+    consoleSpy.mockRestore();
+  });
+
+  it('isFirecrawlConfigured() reports false after a missing-key check in dev', async () => {
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const mod = await import('@/lib/intelligence/content-extractor');
+    delete process.env.FIRECRAWL_API_KEY;
+    (process.env as Record<string, string | undefined>).NODE_ENV = 'development';
+
+    mod.checkFirecrawlApiKey();
+    expect(mod.isFirecrawlConfigured()).toBe(false);
+
+    consoleSpy.mockRestore();
+  });
+
+  it('warning is logged only once per process', async () => {
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const mod = await import('@/lib/intelligence/content-extractor');
+    delete process.env.FIRECRAWL_API_KEY;
+    (process.env as Record<string, string | undefined>).NODE_ENV = 'development';
+
+    mod.checkFirecrawlApiKey();
+    mod.checkFirecrawlApiKey();
+    mod.checkFirecrawlApiKey();
+
+    const warnCalls = consoleSpy.mock.calls.filter((args) =>
+      String(args[0]).includes('WARNING: FIRECRAWL_API_KEY'),
+    );
+    expect(warnCalls).toHaveLength(1);
+
+    consoleSpy.mockRestore();
+  });
+});
+
+describe('summary_fallback logging (SI-H4)', () => {
+  const originalKey = process.env.FIRECRAWL_API_KEY;
+  const originalNodeEnv = process.env.NODE_ENV;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    if (originalKey === undefined) {
+      delete process.env.FIRECRAWL_API_KEY;
+    } else {
+      process.env.FIRECRAWL_API_KEY = originalKey;
+    }
+    if (originalNodeEnv === undefined) {
+      delete (process.env as Record<string, string | undefined>).NODE_ENV;
+    } else {
+      (process.env as Record<string, string | undefined>).NODE_ENV =
+        originalNodeEnv;
+    }
+  });
+
+  it('logs a WARN with reason when extraction degrades to summary_fallback (all tiers failed)', async () => {
+    const consoleWarnSpy = vi
+      .spyOn(console, 'warn')
+      .mockImplementation(() => {});
+    // Re-import to get a fresh module with FIRECRAWL_API_KEY set so the
+    // "all tiers failed" branch (not the "missing key" branch) is exercised.
+    vi.resetModules();
+    process.env.FIRECRAWL_API_KEY = 'fc-test-key';
+    const mod = await import('@/lib/intelligence/content-extractor');
+    // Mark the key as configured (note: firecrawlKeyMissing defaults to false)
+    mod.checkFirecrawlApiKey();
+
+    const item: ParsedFeedItem = {
+      ...baseItem,
+      contentEncoded: null,
+      summary: 'Brief fallback summary content',
+    };
+
+    // All real fetches fail
+    mockFetch.mockRejectedValueOnce(new Error('fetch tier 2 failed'));
+    mockFetch.mockRejectedValueOnce(new Error('jina tier 2.5 failed'));
+
+    // Force Firecrawl tier to fail too
+    const { default: Firecrawl } = await import('@mendable/firecrawl-js');
+    vi.mocked(Firecrawl).mockImplementation(function () {
+      return {
+        scrape: vi.fn().mockRejectedValue(new Error('firecrawl boom')),
+      } as any;
+    });
+
+    const result = await mod.extractContent(item);
+    expect(result.method).toBe('summary_fallback');
+
+    const warnMessages = consoleWarnSpy.mock.calls
+      .map((args) => args.join(' '))
+      .join('\n');
+    expect(warnMessages).toContain('WARN');
+    expect(warnMessages).toContain('summary_fallback');
+    expect(warnMessages).toContain(item.url);
+    expect(warnMessages).toContain('all extraction tiers failed');
+
+    consoleWarnSpy.mockRestore();
+  });
+
+  it('logs a WARN naming the missing Firecrawl key when it is the cause', async () => {
+    const consoleWarnSpy = vi
+      .spyOn(console, 'warn')
+      .mockImplementation(() => {});
+    vi.resetModules();
+    delete process.env.FIRECRAWL_API_KEY;
+    (process.env as Record<string, string | undefined>).NODE_ENV =
+      'development';
+    const mod = await import('@/lib/intelligence/content-extractor');
+    mod.checkFirecrawlApiKey(); // Sets firecrawlKeyMissing = true
+
+    const item: ParsedFeedItem = {
+      ...baseItem,
+      contentEncoded: null,
+      summary: 'Brief fallback summary content',
+    };
+
+    mockFetch.mockRejectedValueOnce(new Error('fetch failed'));
+    mockFetch.mockRejectedValueOnce(new Error('jina failed'));
+
+    // Firecrawl will throw because no key — but our mock module avoids that;
+    // override to simulate the empty markdown path or rejection.
+    const { default: Firecrawl } = await import('@mendable/firecrawl-js');
+    vi.mocked(Firecrawl).mockImplementation(function () {
+      return {
+        scrape: vi.fn().mockRejectedValue(new Error('no api key')),
+      } as any;
+    });
+
+    const result = await mod.extractContent(item);
+    expect(result.method).toBe('summary_fallback');
+
+    const warnMessages = consoleWarnSpy.mock.calls
+      .map((args) => args.join(' '))
+      .join('\n');
+    expect(warnMessages).toContain('FIRECRAWL_API_KEY missing');
+
+    consoleWarnSpy.mockRestore();
   });
 });
