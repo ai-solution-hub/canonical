@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,6 +18,17 @@ import type {
   FeedSourceInput,
 } from '@/hooks/intelligence/use-feed-sources';
 
+/**
+ * Confirmation metadata from the most recent successful feed add. Surfaces the
+ * feed title and initial article count returned by the validateFeedUrl call so
+ * users get visible confirmation that the feed they pasted is the feed the
+ * pipeline parsed (SI-M5).
+ */
+export interface LastAddedFeedConfirmation {
+  feed_title?: string;
+  initial_article_count?: number;
+}
+
 interface FeedSourceFormProps {
   initialData?: FeedSource;
   onSubmit: (data: FeedSourceInput) => void;
@@ -24,6 +36,12 @@ interface FeedSourceFormProps {
   onTest?: () => void;
   isPending: boolean;
   isTestPending?: boolean;
+  /**
+   * When set, displays an inline confirmation card above the form fields
+   * showing the validated feed title and initial article count returned from
+   * the API. Pass this from the page after a successful create mutation.
+   */
+  lastAdded?: LastAddedFeedConfirmation | null;
 }
 
 export function FeedSourceForm({
@@ -33,6 +51,7 @@ export function FeedSourceForm({
   onTest,
   isPending,
   isTestPending,
+  lastAdded,
 }: FeedSourceFormProps) {
   const [name, setName] = useState(initialData?.name ?? '');
   const [url, setUrl] = useState(initialData?.url ?? '');
@@ -58,6 +77,16 @@ export function FeedSourceForm({
     [name, url, sourceType, pollingInterval, isActive, onSubmit],
   );
 
+  // SI-M5: render the validated feed title + article count inline once the
+  // create mutation has resolved. This proves the URL the user pasted is the
+  // feed the pipeline parsed before the form is dismissed.
+  const confirmationTitle = lastAdded?.feed_title?.trim();
+  const confirmationCount = lastAdded?.initial_article_count;
+  const showConfirmation =
+    !initialData &&
+    !!lastAdded &&
+    (Boolean(confirmationTitle) || typeof confirmationCount === 'number');
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -66,6 +95,34 @@ export function FeedSourceForm({
       <h3 className="mb-4 text-base font-semibold text-foreground">
         {initialData ? 'Edit Feed Source' : 'Add Feed Source'}
       </h3>
+
+      {showConfirmation && (
+        <div
+          className="mb-4 flex items-start gap-2 rounded-md border border-success/40 bg-success/10 p-3"
+          role="status"
+          aria-live="polite"
+          data-testid="feed-add-confirmation"
+        >
+          <CheckCircle2
+            className="mt-0.5 size-4 shrink-0 text-success"
+            aria-hidden="true"
+          />
+          <div className="min-w-0 text-sm">
+            <p className="font-medium text-foreground">
+              {confirmationTitle
+                ? `Added "${confirmationTitle}"`
+                : 'Feed source added'}
+            </p>
+            {typeof confirmationCount === 'number' && (
+              <p className="text-xs text-muted-foreground">
+                {confirmationCount}{' '}
+                {confirmationCount === 1 ? 'article' : 'articles'} available
+                from this feed
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="space-y-4">
         {/* Name */}
@@ -154,14 +211,16 @@ export function FeedSourceForm({
 
       <div className="mt-4 flex items-center justify-end gap-3">
         <Button type="button" variant="outline" size="sm" onClick={onCancel}>
-          Cancel
+          {showConfirmation ? 'Close' : 'Cancel'}
         </Button>
         <Button type="submit" size="sm" disabled={isPending || !name || !url}>
           {isPending
             ? 'Saving...'
             : initialData
               ? 'Update Source'
-              : 'Add Source'}
+              : showConfirmation
+                ? 'Add Another'
+                : 'Add Source'}
         </Button>
       </div>
     </form>

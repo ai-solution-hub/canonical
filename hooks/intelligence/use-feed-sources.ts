@@ -31,6 +31,18 @@ export interface FeedSourceInput {
   is_active?: boolean;
 }
 
+/**
+ * Response from POST /api/intelligence/workspaces/:id/sources
+ *
+ * For RSS sources, the API runs `validateFeedUrl()` and includes the parsed
+ * feed title and article count alongside the inserted row. Non-RSS sources
+ * (web, api) skip validation and only return the row fields.
+ */
+export interface CreateFeedSourceResponse extends FeedSource {
+  feed_title?: string;
+  initial_article_count?: number;
+}
+
 export interface TestPollResult {
   success: boolean;
   itemCount: number;
@@ -53,15 +65,26 @@ export function useCreateFeedSource(workspaceId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: FeedSourceInput) =>
-      mutationFetchJson<FeedSource>(
+      mutationFetchJson<CreateFeedSourceResponse>(
         `/api/intelligence/workspaces/${workspaceId}/sources`,
         data,
       ),
-    onSuccess: () => {
+    onSuccess: (response) => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.intelligence.sources.all(workspaceId),
       });
-      toast.success('Feed source added');
+      // SI-M5: surface the validated feed metadata so users get confirmation
+      // they added the right feed (title from validateFeedUrl + article count).
+      const title = response.feed_title?.trim();
+      const articleCount = response.initial_article_count;
+      if (title && typeof articleCount === 'number') {
+        const articleLabel = articleCount === 1 ? 'article' : 'articles';
+        toast.success(`Added "${title}" (${articleCount} ${articleLabel} available)`);
+      } else if (title) {
+        toast.success(`Added "${title}"`);
+      } else {
+        toast.success('Feed source added');
+      }
     },
     onError: (err: Error) => toast.error(err.message),
   });

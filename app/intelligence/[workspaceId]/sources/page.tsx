@@ -18,6 +18,7 @@ import type {
   TestPollResult,
 } from '@/hooks/intelligence/use-feed-sources';
 import { FeedSourceForm } from '@/components/intelligence/feed-source-form';
+import type { LastAddedFeedConfirmation } from '@/components/intelligence/feed-source-form';
 import { FeedSourceCard } from '@/components/intelligence/feed-source-card';
 import { FeedSourceTestDialog } from '@/components/intelligence/feed-source-test-dialog';
 
@@ -36,11 +37,21 @@ export default function FeedSourcesPage() {
   const [editingSource, setEditingSource] = useState<FeedSource | null>(null);
   const [testDialogOpen, setTestDialogOpen] = useState(false);
   const [testResult, setTestResult] = useState<TestPollResult | null>(null);
+  // SI-M5: hold the validated feed metadata returned by the create endpoint so
+  // the form can show an inline confirmation card before being dismissed.
+  const [lastAdded, setLastAdded] = useState<LastAddedFeedConfirmation | null>(
+    null,
+  );
 
   const handleCreate = useCallback(
     (data: FeedSourceInput) => {
       createMutation.mutate(data, {
-        onSuccess: () => setShowForm(false),
+        onSuccess: (response) => {
+          setLastAdded({
+            feed_title: response.feed_title,
+            initial_article_count: response.initial_article_count,
+          });
+        },
       });
     },
     [createMutation],
@@ -48,6 +59,7 @@ export default function FeedSourcesPage() {
 
   const handleEdit = useCallback((source: FeedSource) => {
     setEditingSource(source);
+    setLastAdded(null);
     setShowForm(true);
   }, []);
 
@@ -70,6 +82,7 @@ export default function FeedSourcesPage() {
   const handleCancelForm = useCallback(() => {
     setShowForm(false);
     setEditingSource(null);
+    setLastAdded(null);
   }, []);
 
   const handleDelete = useCallback(
@@ -113,7 +126,13 @@ export default function FeedSourcesPage() {
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-lg font-semibold text-foreground">Feed Sources</h2>
         {!showForm && (
-          <Button onClick={() => setShowForm(true)} size="sm">
+          <Button
+            onClick={() => {
+              setLastAdded(null);
+              setShowForm(true);
+            }}
+            size="sm"
+          >
             <Plus className="mr-1.5 size-4" />
             Add Source
           </Button>
@@ -136,6 +155,7 @@ export default function FeedSourcesPage() {
                 : createMutation.isPending
             }
             isTestPending={testMutation.isPending}
+            lastAdded={editingSource ? null : lastAdded}
           />
         </div>
       )}
@@ -184,7 +204,10 @@ export default function FeedSourcesPage() {
                 Add an RSS feed URL to start monitoring.
               </p>
               <Button
-                onClick={() => setShowForm(true)}
+                onClick={() => {
+                  setLastAdded(null);
+                  setShowForm(true);
+                }}
                 size="sm"
                 className="mt-3"
               >
