@@ -40,6 +40,21 @@ import {
 import type { EvalResult, RegressionResult } from '../lib/eval/types';
 import { COST_PER_MILLION } from '../lib/ai/pricing';
 
+// ── Constants ───────────────────────────────────────────────────────
+
+/**
+ * Pipeline service account UUID for use as `userId` in classifyContent calls.
+ * `content_items.updated_by` is a uuid column, so a string like 'eval-runner'
+ * causes a postgres `invalid input syntax for type uuid` error.
+ *
+ * This user is provisioned by:
+ * `supabase/migrations/20260406180000_create_pipeline_service_account.sql`
+ *
+ * The user has admin role in `user_roles` so RLS allows write access.
+ */
+const PIPELINE_SERVICE_ACCOUNT_USER_ID =
+  'a0000000-0000-4000-8000-000000000001';
+
 // ── Types ───────────────────────────────────────────────────────────
 
 interface GoldEntity {
@@ -274,11 +289,14 @@ async function classifyAndExtractEntities(
   // When validate=true, classifyContent runs two-pass validation (Pass 1
   // extraction + Pass 2 entity verification with Haiku). When false, only
   // Pass 1 runs. The validate flag must be propagated explicitly.
+  // userId must be a valid UUID — content_items.updated_by is a uuid column.
+  // Use the pipeline service account (provisioned in
+  // 20260406180000_create_pipeline_service_account.sql).
   const result = await classifyContent({
     supabase,
     itemId,
     force: true,
-    userId: 'eval-runner',
+    userId: PIPELINE_SERVICE_ACCOUNT_USER_ID,
     validate,
   });
 
