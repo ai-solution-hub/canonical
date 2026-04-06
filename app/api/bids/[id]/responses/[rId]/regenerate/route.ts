@@ -78,10 +78,26 @@ export async function POST(
     let matchedContent: DraftableContent[] = [];
 
     if (matchedIds.length > 0) {
-      const { data: contentItems } = await supabase
+      const { data: contentItems, error: contentError } = await supabase
         .from('content_items')
         .select('id, suggested_title, content, content_type, ai_summary')
         .in('id', matchedIds);
+
+      if (contentError) {
+        console.error(
+          'Failed to fetch matched content for regenerate:',
+          contentError,
+        );
+        return NextResponse.json(
+          {
+            error: safeErrorMessage(
+              contentError,
+              'Failed to fetch matched content for regeneration',
+            ),
+          },
+          { status: 500 },
+        );
+      }
 
       matchedContent = (contentItems ?? []).map((item) => ({
         id: item.id,

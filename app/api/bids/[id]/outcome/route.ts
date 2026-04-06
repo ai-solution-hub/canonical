@@ -107,20 +107,52 @@ export async function POST(
 
     if (outcome === 'won' && integrate_to_kb) {
       // Fetch all approved/edited responses for this bid
-      const { data: questions } = await supabase
+      const { data: questions, error: questionsError } = await supabase
         .from('bid_questions')
         .select('id, question_text')
         .eq('project_id', id);
 
+      if (questionsError) {
+        console.error(
+          'Failed to fetch questions for KB integration:',
+          questionsError,
+        );
+        return NextResponse.json(
+          {
+            error: safeErrorMessage(
+              questionsError,
+              'Failed to fetch bid questions for KB integration',
+            ),
+          },
+          { status: 500 },
+        );
+      }
+
       if (questions && questions.length > 0) {
         const questionIds = questions.map((q) => q.id);
-        const { data: responses } = await supabase
+        const { data: responses, error: responsesError } = await supabase
           .from('bid_responses')
           .select(
             'question_id, response_text, source_content_ids, review_status',
           )
           .in('question_id', questionIds)
           .in('review_status', ['approved', 'edited']);
+
+        if (responsesError) {
+          console.error(
+            'Failed to fetch responses for KB integration:',
+            responsesError,
+          );
+          return NextResponse.json(
+            {
+              error: safeErrorMessage(
+                responsesError,
+                'Failed to fetch bid responses for KB integration',
+              ),
+            },
+            { status: 500 },
+          );
+        }
 
         if (responses) {
           const questionMap = new Map(

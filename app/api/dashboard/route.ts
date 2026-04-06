@@ -46,11 +46,30 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json(dashboard, {
-      headers: {
-        'Cache-Control': 'private, max-age=30',
+    // Surface partial failures to the client and to server logs so a single
+    // failing query (e.g. my_recent_work) does not silently render as an
+    // empty section. The UI is expected to render `warnings[]` as a banner.
+    if (dashboard.errors.length > 0) {
+      console.warn(
+        'Dashboard partial failure:',
+        dashboard.errors.join('; '),
+      );
+    }
+
+    return NextResponse.json(
+      {
+        ...dashboard,
+        // Mirror the items/[id] PATCH warnings[] envelope so the UI has a
+        // single, well-known field to render. `errors` is kept for backward
+        // compatibility with existing consumers.
+        warnings: dashboard.errors,
       },
-    });
+      {
+        headers: {
+          'Cache-Control': 'private, max-age=30',
+        },
+      },
+    );
   } catch (err) {
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to fetch dashboard data') },

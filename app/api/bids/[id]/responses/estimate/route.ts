@@ -106,10 +106,26 @@ export async function POST(
     // Optionally filter out already-drafted questions
     if (skip_existing && eligible.length > 0) {
       const eligibleIds = eligible.map((q) => q.id);
-      const { data: existingResponses } = await supabase
+      const { data: existingResponses, error: existingError } = await supabase
         .from('bid_responses')
         .select('question_id')
         .in('question_id', eligibleIds);
+
+      if (existingError) {
+        console.error(
+          'Failed to fetch existing responses for cost estimate:',
+          existingError,
+        );
+        return NextResponse.json(
+          {
+            error: safeErrorMessage(
+              existingError,
+              'Failed to fetch existing responses',
+            ),
+          },
+          { status: 500 },
+        );
+      }
 
       if (existingResponses && existingResponses.length > 0) {
         const existingIds = new Set(
@@ -143,10 +159,26 @@ export async function POST(
     // Fetch content lengths in a single query (only need id + content for token estimation)
     const contentLengths = new Map<string, number>();
     if (allContentIds.size > 0) {
-      const { data: contentItems } = await supabase
+      const { data: contentItems, error: contentError } = await supabase
         .from('content_items')
         .select('id, content')
         .in('id', Array.from(allContentIds));
+
+      if (contentError) {
+        console.error(
+          'Failed to fetch matched content for cost estimate:',
+          contentError,
+        );
+        return NextResponse.json(
+          {
+            error: safeErrorMessage(
+              contentError,
+              'Failed to fetch matched content',
+            ),
+          },
+          { status: 500 },
+        );
+      }
 
       if (contentItems) {
         for (const item of contentItems) {

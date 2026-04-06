@@ -131,10 +131,26 @@ export async function POST(
     let duplicatesSkipped = 0;
 
     if (extractedQuestions.length > 0) {
-      const { data: existingQuestions } = await supabase
+      const { data: existingQuestions, error: existingError } = await supabase
         .from('bid_questions')
         .select('question_text')
         .eq('project_id', id);
+
+      if (existingError) {
+        console.error(
+          'Failed to fetch existing bid questions for dedup:',
+          existingError,
+        );
+        return NextResponse.json(
+          {
+            error: safeErrorMessage(
+              existingError,
+              'Failed to fetch existing bid questions',
+            ),
+          },
+          { status: 500 },
+        );
+      }
 
       const existingTexts = new Set(
         (existingQuestions ?? []).map((q) =>

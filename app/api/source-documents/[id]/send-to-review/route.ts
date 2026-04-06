@@ -57,6 +57,8 @@ export async function POST(
     const alreadyPending: string[] = [];
     const skippedDraft: string[] = [];
     const ownerMap = new Map<string, string | null>();
+    let unnotifiedItems = 0;
+    const warnings: string[] = [];
 
     for (const item of items ?? []) {
       const status = item.governance_review_status;
@@ -130,37 +132,62 @@ export async function POST(
 
       // Fall back to admins for items without an owner
       if (itemsWithoutOwner.length > 0) {
-        const { data: adminRoles } = await supabase
+        const { data: adminRoles, error: adminRolesError } = await supabase
           .from('user_roles')
           .select('user_id')
           .eq('role', 'admin');
 
-        const adminIds = (adminRoles ?? []).map((r) => r.user_id);
+        if (adminRolesError) {
+          console.error(
+            'Failed to look up admin roles for review fallback:',
+            adminRolesError,
+          );
+          // Items were sent to review, but no notifications could be
+          // created for owner-less items. Surface as warning + count.
+          unnotifiedItems = itemsWithoutOwner.length;
+          warnings.push(
+            'Items were sent to review, but admin notifications failed: ' +
+              safeErrorMessage(adminRolesError, 'admin role lookup failed'),
+          );
+        } else {
+          const adminIds = (adminRoles ?? []).map((r) => r.user_id);
+          if (adminIds.length === 0) {
+            unnotifiedItems = itemsWithoutOwner.length;
+            warnings.push(
+              'Items were sent to review, but no admins exist to notify',
+            );
+          }
 
-        for (const itemId of itemsWithoutOwner) {
-          for (const adminId of adminIds) {
-            await createNotification({
-              supabase,
-              userId: adminId,
-              type: 'governance_review_needed',
-              entityType: 'content_item',
-              entityId: itemId,
-              title: 'Source document review',
-              message: `Source document review: ${filename} was updated. This item needs reviewing.`,
-            });
+          for (const itemId of itemsWithoutOwner) {
+            for (const adminId of adminIds) {
+              await createNotification({
+                supabase,
+                userId: adminId,
+                type: 'governance_review_needed',
+                entityType: 'content_item',
+                entityId: itemId,
+                title: 'Source document review',
+                message: `Source document review: ${filename} was updated. This item needs reviewing.`,
+              });
+            }
           }
         }
       }
     }
 
-    return NextResponse.json({
+    const responseBody: Record<string, unknown> = {
       sent: eligible.length,
       already_pending: alreadyPending.length,
       skipped_draft: skippedDraft.length,
       total_requested: itemIds.length,
       sent_ids: eligible,
+      unnotified: unnotifiedItems,
       review_url: `/review?status=all&source_document_id=${documentId}`,
-    });
+    };
+    if (warnings.length > 0) {
+      responseBody.warnings = warnings;
+    }
+    return NextResponse.json(responseBody);
   } catch (err) {
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to send items to review') },

@@ -52,17 +52,46 @@ export async function GET(
     }
 
     // Fetch question statistics
-    const { data: stats } = await supabase.rpc('get_bid_question_stats', {
-      p_project_id: id,
-    });
+    const { data: stats, error: statsError } = await supabase.rpc(
+      'get_bid_question_stats',
+      {
+        p_project_id: id,
+      },
+    );
+
+    if (statsError) {
+      console.error('Failed to fetch bid question stats:', statsError);
+      return NextResponse.json(
+        {
+          error: safeErrorMessage(
+            statsError,
+            'Failed to fetch bid question stats',
+          ),
+        },
+        { status: 500 },
+      );
+    }
 
     // List tender documents from storage
-    const { data: files } = await supabase.storage
+    const { data: files, error: filesError } = await supabase.storage
       .from('tender-documents')
       .list(id, {
         limit: 100,
         sortBy: { column: 'created_at', order: 'desc' },
       });
+
+    if (filesError) {
+      console.error('Failed to list tender documents:', filesError);
+      return NextResponse.json(
+        {
+          error: safeErrorMessage(
+            filesError,
+            'Failed to list tender documents',
+          ),
+        },
+        { status: 500 },
+      );
+    }
 
     const tenderDocuments = (files ?? []).map((file) => ({
       path: `${id}/${file.name}`,

@@ -82,15 +82,24 @@ export async function PATCH(
 
     // Reverse bridge: propagate expiry_date to linked content items
     // Only for entity types where expiry dates are entity-level (cert, reg, standard)
+    const warnings: string[] = [];
     const entityExpiry = mergedMetadata.expiry_date as string | undefined;
     if (entityExpiry !== undefined) {
       try {
-        const { data: entityInfo } = await supabase
+        const { data: entityInfo, error: entityInfoError } = await supabase
           .from('entity_mentions')
           .select('entity_type, content_item_id')
           .eq('canonical_name', decodedName);
 
-        if (entityInfo && entityInfo.length > 0) {
+        if (entityInfoError) {
+          console.error(
+            'Reverse bridge: failed to look up entity_mentions:',
+            entityInfoError,
+          );
+          warnings.push(
+            'Entity metadata saved, but linked content items could not be looked up — expiry not propagated',
+          );
+        } else if (entityInfo && entityInfo.length > 0) {
           const entityType = entityInfo[0].entity_type;
           const propagateTypes = ['certification', 'regulation', 'standard'];
 
@@ -110,18 +119,34 @@ export async function PATCH(
               if (entityExpiry) {
                 updatePayload.lifecycle_type = 'date_bound';
               }
-              await supabase
+              const { error: propagateError } = await supabase
                 .from('content_items')
                 .update(updatePayload)
                 .in('id', contentIds);
+
+              if (propagateError) {
+                console.error(
+                  'Reverse bridge: failed to propagate expiry to content items:',
+                  propagateError,
+                );
+                warnings.push(
+                  'Entity metadata saved, but expiry could not be propagated to linked content items',
+                );
+              }
             }
           }
         }
       } catch (bridgeErr) {
         console.error('Reverse bridge propagation failed:', bridgeErr);
+        warnings.push(
+          'Entity metadata saved, but reverse bridge propagation failed',
+        );
       }
     }
 
+    if (warnings.length > 0) {
+      return NextResponse.json({ ...updated, warnings });
+    }
     return NextResponse.json(updated);
   } catch (err) {
     return NextResponse.json(

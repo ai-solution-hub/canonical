@@ -61,7 +61,26 @@ export async function PATCH(
 
     // Update promoted column fields directly
     if (Object.keys(columnUpdates).length > 0) {
-      await supabase.from('content_items').update(columnUpdates).eq('id', id);
+      const { error: columnError } = await supabase
+        .from('content_items')
+        .update(columnUpdates)
+        .eq('id', id);
+
+      if (columnError) {
+        console.error(
+          'Failed to update promoted metadata columns:',
+          columnError,
+        );
+        return NextResponse.json(
+          {
+            error: safeErrorMessage(
+              columnError,
+              'Failed to update metadata columns',
+            ),
+          },
+          { status: 500 },
+        );
+      }
     }
 
     // Fetch updated metadata to return

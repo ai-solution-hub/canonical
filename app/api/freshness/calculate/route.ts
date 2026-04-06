@@ -68,6 +68,7 @@ export async function POST(request: NextRequest) {
 
     // Update each item's freshness in the database
     const results: Array<{ id: string; freshness: string }> = [];
+    const failed: Array<{ id: string; error: string }> = [];
 
     for (const [itemId, freshness] of freshnessMap) {
       const { error: updateError } = await supabase
@@ -80,6 +81,10 @@ export async function POST(request: NextRequest) {
 
       if (updateError) {
         console.error(`Failed to update freshness for ${itemId}:`, updateError);
+        failed.push({
+          id: itemId,
+          error: safeErrorMessage(updateError, 'Update failed'),
+        });
       } else {
         results.push({ id: itemId, freshness });
       }
@@ -87,8 +92,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       updated: results.length,
+      failed_count: failed.length,
       total: items.length,
       results,
+      failed,
     });
   } catch (err) {
     return NextResponse.json(

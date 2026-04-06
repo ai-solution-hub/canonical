@@ -71,19 +71,48 @@ export async function GET(
     let oldDoc: DocInfo = doc;
     let newDoc: DocInfo | null = null;
 
-    const { data: diffAsOld } = await supabase
+    const { data: diffAsOld, error: diffAsOldError } = await supabase
       .from('source_document_diffs')
       .select('new_document_id')
       .eq('old_document_id', documentId)
       .limit(1);
 
+    if (diffAsOldError) {
+      console.error(
+        'Failed to look up diff pair (as old):',
+        diffAsOldError,
+      );
+      return NextResponse.json(
+        {
+          error: safeErrorMessage(
+            diffAsOldError,
+            'Failed to look up diff pair',
+          ),
+        },
+        { status: 500 },
+      );
+    }
+
     if (diffAsOld && diffAsOld.length > 0) {
       // This document is the old side — fetch the new document
-      const { data: child } = await supabase
+      const { data: child, error: childError } = await supabase
         .from('source_documents')
         .select('id, filename, version, created_at')
         .eq('id', diffAsOld[0].new_document_id)
         .single();
+
+      if (childError) {
+        console.error('Failed to fetch child document:', childError);
+        return NextResponse.json(
+          {
+            error: safeErrorMessage(
+              childError,
+              'Failed to fetch child document',
+            ),
+          },
+          { status: 500 },
+        );
+      }
 
       if (child) {
         newDoc = child;
@@ -92,19 +121,48 @@ export async function GET(
 
     // If not found as old, try as new_document_id (this is the child, looking for diffs with parent)
     if (!newDoc) {
-      const { data: diffAsNew } = await supabase
+      const { data: diffAsNew, error: diffAsNewError } = await supabase
         .from('source_document_diffs')
         .select('old_document_id')
         .eq('new_document_id', documentId)
         .limit(1);
 
+      if (diffAsNewError) {
+        console.error(
+          'Failed to look up diff pair (as new):',
+          diffAsNewError,
+        );
+        return NextResponse.json(
+          {
+            error: safeErrorMessage(
+              diffAsNewError,
+              'Failed to look up diff pair',
+            ),
+          },
+          { status: 500 },
+        );
+      }
+
       if (diffAsNew && diffAsNew.length > 0) {
         // This document is the new side — fetch the old document
-        const { data: parent } = await supabase
+        const { data: parent, error: parentError } = await supabase
           .from('source_documents')
           .select('id, filename, version, created_at')
           .eq('id', diffAsNew[0].old_document_id)
           .single();
+
+        if (parentError) {
+          console.error('Failed to fetch parent document:', parentError);
+          return NextResponse.json(
+            {
+              error: safeErrorMessage(
+                parentError,
+                'Failed to fetch parent document',
+              ),
+            },
+            { status: 500 },
+          );
+        }
 
         if (parent) {
           newDoc = { ...doc };
@@ -162,10 +220,26 @@ export async function GET(
 
     let affectedTitles: Record<string, string> = {};
     if (affectedIds.length > 0) {
-      const { data: items } = await supabase
+      const { data: items, error: itemsError } = await supabase
         .from('content_items')
         .select('id, title')
         .in('id', affectedIds);
+
+      if (itemsError) {
+        console.error(
+          'Failed to fetch affected content item titles:',
+          itemsError,
+        );
+        return NextResponse.json(
+          {
+            error: safeErrorMessage(
+              itemsError,
+              'Failed to fetch affected content item titles',
+            ),
+          },
+          { status: 500 },
+        );
+      }
 
       if (items) {
         affectedTitles = Object.fromEntries(
@@ -411,11 +485,27 @@ export async function PATCH(
     const entryIds = entries.map((e) => e.id);
 
     // Verify all entry IDs belong to this document's diff pair
-    const { data: matchingEntries } = await supabase
+    const { data: matchingEntries, error: matchingEntriesError } = await supabase
       .from('source_document_diffs')
       .select('id')
       .or(`old_document_id.eq.${documentId},new_document_id.eq.${documentId}`)
       .in('id', entryIds);
+
+    if (matchingEntriesError) {
+      console.error(
+        'Failed to verify diff entry membership:',
+        matchingEntriesError,
+      );
+      return NextResponse.json(
+        {
+          error: safeErrorMessage(
+            matchingEntriesError,
+            'Failed to verify diff entry membership',
+          ),
+        },
+        { status: 500 },
+      );
+    }
 
     const matchingIds = new Set((matchingEntries ?? []).map((e) => e.id));
     const missingIds = entryIds.filter((id) => !matchingIds.has(id));
@@ -512,10 +602,26 @@ export async function PATCH(
     }
 
     // Fetch summary counts for the entire diff pair
-    const { data: allEntries } = await supabase
+    const { data: allEntries, error: allEntriesError } = await supabase
       .from('source_document_diffs')
       .select('status')
       .or(`old_document_id.eq.${documentId},new_document_id.eq.${documentId}`);
+
+    if (allEntriesError) {
+      console.error(
+        'Failed to fetch diff summary counts after update:',
+        allEntriesError,
+      );
+      return NextResponse.json(
+        {
+          error: safeErrorMessage(
+            allEntriesError,
+            'Failed to fetch diff summary counts',
+          ),
+        },
+        { status: 500 },
+      );
+    }
 
     const summary = { pending_review: 0, applied: 0, dismissed: 0 };
     for (const entry of allEntries ?? []) {

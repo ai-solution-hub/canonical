@@ -83,12 +83,25 @@ export async function GET(
       }
     >();
 
+    const warnings: string[] = [];
+
     if (questionIds.length > 0) {
       // Fetch bid questions
-      const { data: questions } = await supabase
+      const { data: questions, error: questionsError } = await supabase
         .from('bid_questions')
         .select('id, question_text, status')
         .in('id', questionIds);
+
+      if (questionsError) {
+        console.error(
+          'Failed to fetch matched bid questions for template:',
+          questionsError,
+        );
+        warnings.push(
+          'Matched questions could not be loaded: ' +
+            safeErrorMessage(questionsError, 'questions fetch failed'),
+        );
+      }
 
       if (questions) {
         for (const q of questions) {
@@ -101,11 +114,22 @@ export async function GET(
         }
 
         // Fetch latest response preview for each question
-        const { data: responses } = await supabase
+        const { data: responses, error: responsesError } = await supabase
           .from('bid_responses')
           .select('question_id, response_text, version')
           .in('question_id', questionIds)
           .order('version', { ascending: false });
+
+        if (responsesError) {
+          console.error(
+            'Failed to fetch response previews for template:',
+            responsesError,
+          );
+          warnings.push(
+            'Response previews could not be loaded: ' +
+              safeErrorMessage(responsesError, 'responses fetch failed'),
+          );
+        }
 
         if (responses) {
           // Group by question_id, take latest (already ordered DESC)
@@ -134,9 +158,20 @@ export async function GET(
     }));
 
     // Fetch summary via RPC
-    const { data: summaryRows } = await supabase.rpc('get_template_summary', {
-      p_template_id: templateId,
-    });
+    const { data: summaryRows, error: summaryError } = await supabase.rpc(
+      'get_template_summary',
+      {
+        p_template_id: templateId,
+      },
+    );
+
+    if (summaryError) {
+      console.error('Failed to fetch template summary RPC:', summaryError);
+      warnings.push(
+        'Field counts could not be loaded: ' +
+          safeErrorMessage(summaryError, 'summary RPC failed'),
+      );
+    }
 
     const summary = summaryRows?.[0] ?? {
       total_fields: 0,
@@ -151,7 +186,7 @@ export async function GET(
     };
 
     // Fetch completions
-    const { data: completions } = await supabase
+    const { data: completions, error: completionsError } = await supabase
       .from('template_completions')
       .select(
         'id, template_id, job_id, storage_path, fields_filled, fields_skipped, fields_failed, file_size, created_by, created_at',
@@ -159,12 +194,27 @@ export async function GET(
       .eq('template_id', templateId)
       .order('created_at', { ascending: false });
 
-    return NextResponse.json({
+    if (completionsError) {
+      console.error(
+        'Failed to fetch template completions:',
+        completionsError,
+      );
+      warnings.push(
+        'Completions history could not be loaded: ' +
+          safeErrorMessage(completionsError, 'completions fetch failed'),
+      );
+    }
+
+    const responseBody: Record<string, unknown> = {
       ...template,
       fields: enrichedFields,
       summary,
       completions: completions ?? [],
-    });
+    };
+    if (warnings.length > 0) {
+      responseBody.warnings = warnings;
+    }
+    return NextResponse.json(responseBody);
   } catch (err) {
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to fetch template detail') },

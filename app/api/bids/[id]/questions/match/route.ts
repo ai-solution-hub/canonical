@@ -113,7 +113,7 @@ export async function POST(
       for (const query of searchQueries.queries) {
         const embedding = await generateEmbedding(query);
 
-        const { data: searchResults } = await supabase.rpc(
+        const { data: searchResults, error: searchError } = await supabase.rpc(
           'search_for_bid_response',
           {
             query_embedding: JSON.stringify(embedding),
@@ -121,6 +121,15 @@ export async function POST(
             limit_count: 5,
           },
         );
+
+        if (searchError) {
+          // Throw so the per-question Promise.allSettled below records the
+          // failure as a "no_content" result rather than silently producing
+          // a degraded match set.
+          throw new Error(
+            `search_for_bid_response failed for query "${query}": ${searchError.message}`,
+          );
+        }
 
         if (searchResults) {
           for (const result of searchResults) {
