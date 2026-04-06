@@ -177,6 +177,7 @@ Consult these references when adding or modifying UI elements.
 | Document                      | Location                                                              |
 | ----------------------------- | --------------------------------------------------------------------- |
 | State of the Product          | `docs/reference/state-of-the-product.md`                              |
+| Product backlog               | `docs/reference/product-backlog.md`                                   |
 | Codebase mapping (7 docs)     | `.planning/codebase/`                                                 |
 | Quality checks (10 files)     | `.claude/checks/`                                                     |
 | Schema quick reference        | `docs/reference/SCHEMA-QUICK-REFERENCE.md`                            |
@@ -185,6 +186,8 @@ Consult these references when adding or modifying UI elements.
 | Session handoffs              | `docs/continuation-prompts/`                                          |
 | Classification prompt         | `docs/reference/classification-prompt.md`                             |
 | Classification architecture   | `docs/reference/classification-architecture.md`                       |
+| Two-pass validation arch      | `docs/reference/two-pass-validation-architecture.md`                  |
+| Entity type taxonomy spec     | `docs/reference/entity-type-taxonomy-spec.md`                         |
 | Field-consumer dependency map | `docs/reference/field-consumer-dependency-map.md`                     |
 | Data entry points             | `docs/reference/data-entry-points.md`                                 |
 | Taxonomy change runbook       | `docs/reference/taxonomy-change-runbook.md`                           |
