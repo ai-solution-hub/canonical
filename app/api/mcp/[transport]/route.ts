@@ -43,12 +43,30 @@ async function verifyToken(
 
     if (error || !user) return undefined;
 
-    // Cache user role in authInfo to avoid extra DB query per tool call
-    const { data: roleData } = await supabase
+    // Cache user role in authInfo to avoid extra DB query per tool call.
+    // A DB error here must NOT silently downgrade the caller to 'viewer' —
+    // that would either lock an admin out of admin-only tools or, worse,
+    // mask a misconfiguration that hides privilege escalation. Reject the
+    // auth attempt and let the client retry. The error is logged
+    // server-side only; we never leak it to the MCP client.
+    const { data: roleData, error: roleError } = await supabase
       .from('user_roles')
       .select('role')
       .eq('user_id', user.id)
       .single();
+
+    // PGRST116 is "no rows" — user has no explicit role row, default
+    // to viewer. Any other error is a real DB failure and must reject
+    // auth rather than silently downgrade (see comment above).
+    if (roleError && roleError.code !== 'PGRST116') {
+      console.error(
+        '[mcp] role lookup failed for user',
+        user.id,
+        roleError,
+      );
+      return undefined;
+    }
+
     const role = (roleData?.role as string) ?? 'viewer';
 
     return {

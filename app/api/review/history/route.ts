@@ -75,10 +75,18 @@ export async function GET(request: NextRequest) {
     // Look up display names from user_roles (single query)
     const displayNames: Record<string, string> = {};
     if (userIds.size > 0) {
-      const { data: nameRows } = await supabase
+      const { data: nameRows, error: nameRowsError } = await supabase
         .from('user_roles')
         .select('user_id, display_name')
         .in('user_id', Array.from(userIds));
+
+      if (nameRowsError) {
+        // Cosmetic enrichment — log and fall through to raw UUIDs.
+        console.error(
+          'Failed to fetch display names for review history:',
+          nameRowsError,
+        );
+      }
 
       if (nameRows) {
         for (const row of nameRows) {

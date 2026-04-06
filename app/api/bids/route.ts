@@ -74,12 +74,19 @@ export async function GET(request: NextRequest) {
         );
         const fallbackResults = await Promise.all(
           bidIds.map(async (bidId) => {
-            const { data: stats } = await supabase.rpc(
+            const { data: stats, error: statsError } = await supabase.rpc(
               'get_bid_question_stats',
               {
                 p_project_id: bidId,
               },
             );
+            if (statsError) {
+              console.error(
+                'Per-bid stats RPC failed (fallback path) for bid',
+                bidId,
+                statsError,
+              );
+            }
             return { bidId, stats: stats?.[0] ?? null };
           }),
         );

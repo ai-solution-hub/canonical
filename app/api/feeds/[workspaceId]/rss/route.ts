@@ -43,7 +43,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     // Fetch passed articles with source names
-    const { data: articles } = await supabase
+    const { data: articles, error: articlesError } = await supabase
       .from('feed_articles')
       .select(
         'id, title, external_url, ai_summary, relevance_reasoning, relevance_score, matched_categories, published_at, ingested_at, feed_sources(name)',
@@ -52,6 +52,17 @@ export async function GET(request: NextRequest, context: RouteContext) {
       .eq('passed', true)
       .order('ingested_at', { ascending: false })
       .limit(limit);
+
+    if (articlesError) {
+      // Do not return an empty 200 RSS document on DB error — feed readers
+      // will not retry and the user will silently lose updates.
+      console.error(
+        'RSS feed: failed to fetch articles for workspace',
+        workspaceId,
+        articlesError,
+      );
+      return new NextResponse('Failed to load feed articles', { status: 500 });
+    }
 
     // Build RSS
     const baseUrl =
@@ -89,7 +100,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
         'Cache-Control': 'public, max-age=900, s-maxage=900',
       },
     });
-  } catch {
+  } catch (err) {
+    console.error('RSS feed: unexpected error', err);
     return new NextResponse('Internal server error', { status: 500 });
   }
 }

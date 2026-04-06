@@ -20,17 +20,53 @@ export const maxDuration = 30;
 
 const SLUG_RE = /^[a-z0-9-]+$/;
 
-/** Resolve guide slug to guide ID */
+/**
+ * Resolve guide slug to guide ID.
+ *
+ * Distinguishes between "no row" (legitimate 404) and "DB error"
+ * (5xx) so callers do not return a misleading "Guide not found" message
+ * for transient database failures.
+ */
 async function resolveGuideId(
   supabase: SupabaseClient<Database>,
   slug: string,
-): Promise<{ id: string } | null> {
-  const { data } = await supabase
+): Promise<
+  | { ok: true; id: string }
+  | { ok: false; status: 404 }
+  | { ok: false; status: 500; error: string }
+> {
+  const { data, error } = await supabase
     .from('guides')
     .select('id')
     .eq('slug', slug)
     .single();
-  return data;
+
+  if (error) {
+    // PGRST116 is PostgREST's "no rows returned" — surface as 404.
+    // Any other error is a genuine DB failure and must surface as 500
+    // so callers can distinguish a missing guide from a transient glitch.
+    if (error.code === 'PGRST116') {
+      return { ok: false, status: 404 };
+    }
+    console.error('resolveGuideId failed:', error);
+    return { ok: false, status: 500, error: error.message };
+  }
+  if (!data) return { ok: false, status: 404 };
+  return { ok: true, id: data.id };
+}
+
+function guideResolutionResponse(
+  result:
+    | { ok: false; status: 404 }
+    | { ok: false; status: 500; error: string },
+): NextResponse {
+  if (result.status === 404) {
+    return NextResponse.json({ error: 'Guide not found' }, { status: 404 });
+  }
+  return NextResponse.json(
+    { error: 'Failed to resolve guide', details: result.error },
+    { status: 500 },
+  );
 }
 
 /** GET /api/guides/[slug]/sections — list sections for a guide */
@@ -51,10 +87,9 @@ export async function GET(
       );
     }
 
-    const guide = await resolveGuideId(supabase, slug);
-    if (!guide) {
-      return NextResponse.json({ error: 'Guide not found' }, { status: 404 });
-    }
+    const guideResult = await resolveGuideId(supabase, slug);
+    if (!guideResult.ok) return guideResolutionResponse(guideResult);
+    const guide = { id: guideResult.id };
 
     const { data, error } = await supabase
       .from('guide_sections')
@@ -100,10 +135,9 @@ export async function POST(
     const rl = checkRateLimit(`guide-sections-create:${user.id}`, 50, 60_000);
     if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
-    const guide = await resolveGuideId(supabase, slug);
-    if (!guide) {
-      return NextResponse.json({ error: 'Guide not found' }, { status: 404 });
-    }
+    const guideResult = await resolveGuideId(supabase, slug);
+    if (!guideResult.ok) return guideResolutionResponse(guideResult);
+    const guide = { id: guideResult.id };
 
     const raw = await request.json();
     const parsed = parseBody(guideSectionSchema, raw);
@@ -156,10 +190,9 @@ export async function PUT(
     const rl = checkRateLimit(`guide-sections-reorder:${user.id}`, 20, 60_000);
     if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
-    const guide = await resolveGuideId(supabase, slug);
-    if (!guide) {
-      return NextResponse.json({ error: 'Guide not found' }, { status: 404 });
-    }
+    const guideResult = await resolveGuideId(supabase, slug);
+    if (!guideResult.ok) return guideResolutionResponse(guideResult);
+    const guide = { id: guideResult.id };
 
     const raw = await request.json();
     const parsed = parseBody(guideSectionsReorderSchema, raw);

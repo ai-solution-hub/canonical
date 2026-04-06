@@ -136,11 +136,22 @@ export async function GET() {
     ];
 
     let contentItems: { id: string; title: string }[] = [];
+    const warnings: string[] = [];
     if (contentItemIds.length > 0) {
-      const { data: items } = await supabase
+      const { data: items, error: itemsError } = await supabase
         .from('content_items')
         .select('id, title')
         .in('id', contentItemIds);
+      if (itemsError) {
+        console.error(
+          'Failed to fetch content item titles for certifications:',
+          itemsError,
+        );
+        warnings.push(
+          'Some evidence links may be missing titles: ' +
+            safeErrorMessage(itemsError, 'content item title fetch failed'),
+        );
+      }
       contentItems = items ?? [];
     }
 
@@ -267,6 +278,9 @@ export async function GET() {
       summary,
     };
 
+    if (warnings.length > 0) {
+      return NextResponse.json({ ...report, warnings });
+    }
     return NextResponse.json(report);
   } catch (err) {
     return NextResponse.json(

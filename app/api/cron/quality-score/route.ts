@@ -70,11 +70,24 @@ export async function GET(request: NextRequest) {
     const supabase = createServiceClient();
 
     // 1. Fetch governance_config to build domain maps
-    const { data: govConfigs } = await supabase
+    const { data: govConfigs, error: govConfigsError } = await supabase
       .from('governance_config')
       .select(
         'id, domain, quality_score_threshold, auto_flag_on_quality_drop, auto_flag_cooldown_days, reviewer_id, timeout_days',
       );
+
+    if (govConfigsError) {
+      // Without governance_config the cron silently uses DEFAULT_THRESHOLD
+      // for every domain, which can mass-flag items. Fail loudly.
+      console.error('Failed to fetch governance_config:', govConfigsError);
+      return NextResponse.json(
+        {
+          error: 'Failed to fetch governance_config',
+          details: govConfigsError.message,
+        },
+        { status: 500 },
+      );
+    }
 
     const thresholdMap = new Map<string, number>();
     const govConfigMap = new Map<string, GovConfig>();
@@ -115,6 +128,8 @@ export async function GET(request: NextRequest) {
     }> = [];
 
     let timedOut = false;
+    const failedFetches: Array<{ offset: number; error: string }> = [];
+    const failedUpdates: Array<{ id: string; error: string }> = [];
 
     while (true) {
       // Check timeout before fetching next batch
@@ -134,6 +149,7 @@ export async function GET(request: NextRequest) {
 
       if (fetchError) {
         console.error('Failed to fetch content items batch:', fetchError);
+        failedFetches.push({ offset, error: fetchError.message });
         break;
       }
 
@@ -231,8 +247,9 @@ export async function GET(request: NextRequest) {
       }
 
       // 4. Write updates in batch (individual updates to preserve previous_quality_score)
+      let batchUpdated = 0;
       for (const update of updates) {
-        await supabase
+        const { error: updateError } = await supabase
           .from('content_items')
           .update({
             quality_score: update.quality_score,
@@ -240,9 +257,19 @@ export async function GET(request: NextRequest) {
             quality_score_updated_at: update.quality_score_updated_at,
           })
           .eq('id', update.id);
+        if (updateError) {
+          console.error(
+            'Quality score update failed for item',
+            update.id,
+            updateError,
+          );
+          failedUpdates.push({ id: update.id, error: updateError.message });
+        } else {
+          batchUpdated++;
+        }
       }
 
-      totalUpdated += updates.length;
+      totalUpdated += batchUpdated;
       offset += BATCH_SIZE;
 
       // If we got fewer items than BATCH_SIZE, we've reached the end
@@ -365,9 +392,11 @@ export async function GET(request: NextRequest) {
 
     // 7. Log to pipeline_runs
     const durationMs = Date.now() - startTime;
+    const hadFailures =
+      failedFetches.length > 0 || failedUpdates.length > 0;
     await supabase.from('pipeline_runs').insert({
       pipeline_name: 'quality_score',
-      status: 'completed',
+      status: hadFailures ? 'completed_with_errors' : 'completed',
       items_processed: totalProcessed,
       items_updated: totalUpdated,
       completed_at: new Date().toISOString(),
@@ -380,10 +409,16 @@ export async function GET(request: NextRequest) {
         notifications_created: notificationsCreated,
         timed_out: timedOut,
         duration_ms: durationMs,
+        failed_fetch_count: failedFetches.length,
+        failed_update_count: failedUpdates.length,
+        failed_fetches: failedFetches,
+        // Truncate failed_updates list to keep the row reasonable
+        failed_updates: failedUpdates.slice(0, 50),
       } as unknown as Json,
     });
 
     return NextResponse.json({
+      success: !hadFailures,
       total_processed: totalProcessed,
       total_updated: totalUpdated,
       dropped_below_threshold: totalDroppedBelowThreshold,
@@ -392,6 +427,8 @@ export async function GET(request: NextRequest) {
       notifications_created: notificationsCreated,
       timed_out: timedOut,
       duration_ms: durationMs,
+      failed_fetch_count: failedFetches.length,
+      failed_update_count: failedUpdates.length,
       executed_at: new Date().toISOString(),
     });
   } catch (err) {

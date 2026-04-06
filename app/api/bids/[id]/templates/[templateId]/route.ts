@@ -260,10 +260,18 @@ export async function DELETE(
     }
 
     // Fetch completion storage paths for cleanup
-    const { data: completions } = await supabase
+    const { data: completions, error: completionsListError } = await supabase
       .from('template_completions')
       .select('storage_path')
       .eq('template_id', templateId);
+
+    if (completionsListError) {
+      // Non-fatal — log and continue. Worst case is orphaned storage files.
+      console.error(
+        'Template DELETE: failed to list completion storage paths (orphaned files possible)',
+        { templateId, error: completionsListError },
+      );
+    }
 
     // Delete template record (cascades to fields and completions)
     const { error: deleteError } = await supabase
@@ -291,7 +299,15 @@ export async function DELETE(
       }
     }
 
-    await serviceClient.storage.from('templates').remove(pathsToRemove);
+    const { error: removeError } = await serviceClient.storage
+      .from('templates')
+      .remove(pathsToRemove);
+    if (removeError) {
+      console.error(
+        'Template DELETE: storage cleanup failed (orphaned files possible)',
+        { templateId, error: removeError },
+      );
+    }
 
     return NextResponse.json({ deleted: true });
   } catch (err) {

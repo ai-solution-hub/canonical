@@ -155,18 +155,23 @@ export async function GET(request: NextRequest) {
     // Batch-fetch latest verification_history action per item for "last reviewed" display
     const mappedItems = items.map(mapToReviewQueueItem);
     const itemIds = mappedItems.map((i) => i.id);
-    const reviewDates = await fetchLastReviewedDates(supabase, itemIds);
+    const { dates: reviewDates, warning: reviewDatesWarning } =
+      await fetchLastReviewedDates(supabase, itemIds);
     for (const item of mappedItems) {
       item.last_reviewed_at = reviewDates.get(item.id) ?? null;
     }
 
-    const response: ReviewQueueResponse = {
+    const warnings: string[] = [];
+    if (reviewDatesWarning) warnings.push(reviewDatesWarning);
+
+    const response: ReviewQueueResponse & { warnings?: string[] } = {
       items: mappedItems,
       total: count ?? 0,
       verified_count: verifiedResult.count ?? 0,
       flagged_count: flaggedResult.count ?? 0,
       has_more: items.length === limit && (count ?? 0) > offset + items.length,
     };
+    if (warnings.length > 0) response.warnings = warnings;
 
     return NextResponse.json(response);
   } catch (err) {
@@ -293,18 +298,23 @@ async function handleFlaggedQuery(
   // Batch-fetch latest verification_history action per item for "last reviewed" display
   const mappedItems = items.map(mapToReviewQueueItem);
   const flaggedItemIds = mappedItems.map((i) => i.id);
-  const reviewDates = await fetchLastReviewedDates(supabase, flaggedItemIds);
+  const { dates: reviewDates, warning: reviewDatesWarning } =
+    await fetchLastReviewedDates(supabase, flaggedItemIds);
   for (const item of mappedItems) {
     item.last_reviewed_at = reviewDates.get(item.id) ?? null;
   }
 
-  const response: ReviewQueueResponse = {
+  const warnings: string[] = [];
+  if (reviewDatesWarning) warnings.push(reviewDatesWarning);
+
+  const response: ReviewQueueResponse & { warnings?: string[] } = {
     items: mappedItems,
     total: count ?? 0,
     verified_count: verifiedResult.count ?? 0,
     flagged_count: flaggedResult.count ?? 0,
     has_more: items.length === limit && (count ?? 0) > offset + items.length,
   };
+  if (warnings.length > 0) response.warnings = warnings;
 
   return NextResponse.json(response);
 }
@@ -317,15 +327,24 @@ async function fetchLastReviewedDates(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
   itemIds: string[],
-): Promise<Map<string, string>> {
+): Promise<{ dates: Map<string, string>; warning?: string }> {
   const result = new Map<string, string>();
-  if (itemIds.length === 0) return result;
+  if (itemIds.length === 0) return { dates: result };
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('verification_history')
     .select('content_item_id, performed_at')
     .in('content_item_id', itemIds)
     .order('performed_at', { ascending: false });
+
+  if (error) {
+    console.error('Failed to fetch verification_history dates:', error);
+    return {
+      dates: result,
+      warning:
+        'Last-reviewed dates could not be loaded; items may show as never reviewed.',
+    };
+  }
 
   if (data) {
     // Take the first (most recent) entry per item
@@ -339,7 +358,7 @@ async function fetchLastReviewedDates(
     }
   }
 
-  return result;
+  return { dates: result };
 }
 
 /**

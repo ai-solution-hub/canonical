@@ -22,11 +22,23 @@ export async function GET() {
     const { user, supabase } = auth;
 
     // Check if user is admin for activity filtering
-    const { data: roleData } = await supabase
+    const { data: roleData, error: roleError } = await supabase
       .from('user_roles')
       .select('role')
       .eq('user_id', user.id)
       .single();
+
+    // PGRST116 (no rows) is not an error here — it just means the user has
+    // no explicit role and should default to viewer. Any other DB error must
+    // surface as a warning so an admin who hits a transient DB glitch is not
+    // silently downgraded to the viewer dashboard.
+    const roleWarnings: string[] = [];
+    if (roleError && roleError.code !== 'PGRST116') {
+      console.error('Failed to look up user role for dashboard:', roleError);
+      roleWarnings.push(
+        'Could not verify your role; some sections may be hidden until you reload.',
+      );
+    }
     const isAdmin = roleData?.role === 'admin';
 
     const role = roleData?.role ?? 'viewer';
@@ -62,7 +74,7 @@ export async function GET() {
         // Mirror the items/[id] PATCH warnings[] envelope so the UI has a
         // single, well-known field to render. `errors` is kept for backward
         // compatibility with existing consumers.
-        warnings: dashboard.errors,
+        warnings: [...roleWarnings, ...dashboard.errors],
       },
       {
         headers: {

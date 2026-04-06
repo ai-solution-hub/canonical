@@ -94,13 +94,30 @@ export async function GET(request: NextRequest) {
 
   try {
     const supabase = createServiceClient();
+    const cronWarnings: string[] = [];
 
-    // Fetch governance_config to build domain maps for auto-flagging
-    const { data: govConfigs } = await supabase
+    // Fetch governance_config to build domain maps for auto-flagging.
+    // Without this map the cron silently uses default behaviour for every
+    // domain — fail loudly instead.
+    const { data: govConfigs, error: govConfigsError } = await supabase
       .from('governance_config')
       .select(
         'id, domain, auto_flag_on_freshness_transition, auto_flag_cooldown_days, reviewer_id, timeout_days',
       );
+
+    if (govConfigsError) {
+      console.error(
+        'freshness-transitions: failed to fetch governance_config',
+        govConfigsError,
+      );
+      return NextResponse.json(
+        {
+          error: 'Failed to fetch governance_config',
+          details: govConfigsError.message,
+        },
+        { status: 500 },
+      );
+    }
 
     const govConfigMap = new Map<string, GovConfig>();
     if (govConfigs) {
@@ -151,16 +168,19 @@ export async function GET(request: NextRequest) {
 
     if (changed.length === 0) {
       // Still check date-based expiry reminders even when no freshness transitions
-      const expiryNotificationsCreated =
-        await checkDateExpiryReminders(supabase);
+      const expiryResult = await checkDateExpiryReminders(supabase);
+      if (expiryResult.warning) cronWarnings.push(expiryResult.warning);
 
       // Clean up old notifications even when no transitions
-      await cleanupExpiredNotifications(supabase);
+      const cleanupResult = await cleanupExpiredNotifications(supabase);
+      if (cleanupResult.warning) cronWarnings.push(cleanupResult.warning);
 
       return NextResponse.json({
+        success: cronWarnings.length === 0,
         transitions: counts,
-        notifications_created: expiryNotificationsCreated,
-        expiry_reminders_created: expiryNotificationsCreated,
+        notifications_created: expiryResult.notificationsCreated,
+        expiry_reminders_created: expiryResult.notificationsCreated,
+        warnings: cronWarnings,
         executed_at: new Date().toISOString(),
       });
     }
@@ -169,9 +189,14 @@ export async function GET(request: NextRequest) {
     const userIds = await getUsersByRole(supabase, ['admin', 'editor']);
     if (userIds.length === 0) {
       console.warn('No admin/editor users found for freshness notifications');
+      cronWarnings.push(
+        'No admin/editor users found — notifications skipped.',
+      );
       return NextResponse.json({
+        success: false,
         transitions: counts,
         notifications_created: 0,
+        warnings: cronWarnings,
         executed_at: new Date().toISOString(),
       });
     }
@@ -573,18 +598,22 @@ export async function GET(request: NextRequest) {
     // After freshness transitions, check for items and entities approaching
     // their expiry_date within the next 30 days. Sends date_expiry_approaching
     // notifications with idempotency (one per item/entity per day).
-    const expiryNotificationsCreated = await checkDateExpiryReminders(supabase);
-    notificationsCreated += expiryNotificationsCreated;
+    const expiryResult = await checkDateExpiryReminders(supabase);
+    if (expiryResult.warning) cronWarnings.push(expiryResult.warning);
+    notificationsCreated += expiryResult.notificationsCreated;
 
     // Clean up expired+dismissed notifications (§10b.7)
-    await cleanupExpiredNotifications(supabase);
+    const cleanupResult = await cleanupExpiredNotifications(supabase);
+    if (cleanupResult.warning) cronWarnings.push(cleanupResult.warning);
 
     return NextResponse.json({
+      success: cronWarnings.length === 0,
       transitions: counts,
       notifications_created: notificationsCreated,
       auto_governance_triggered: autoGovernanceTriggered,
       batch_summary_notification: batchSummaryNotification,
-      expiry_reminders_created: expiryNotificationsCreated,
+      expiry_reminders_created: expiryResult.notificationsCreated,
+      warnings: cronWarnings,
       executed_at: new Date().toISOString(),
     });
   } catch (err) {
@@ -604,7 +633,7 @@ export async function GET(request: NextRequest) {
  */
 async function checkDateExpiryReminders(
   supabase: ReturnType<typeof createServiceClient>,
-): Promise<number> {
+): Promise<{ notificationsCreated: number; warning?: string }> {
   let notificationsCreated = 0;
 
   try {
@@ -625,7 +654,10 @@ async function checkDateExpiryReminders(
 
     if (expiringError) {
       console.error('Failed to query expiring content items:', expiringError);
-      return 0;
+      return {
+        notificationsCreated: 0,
+        warning: `Failed to query expiring content items: ${expiringError.message}`,
+      };
     }
 
     // Filter to items whose expiry_date is in the future or today
@@ -719,7 +751,10 @@ async function checkDateExpiryReminders(
 
     if (entityError) {
       console.error('Failed to query entity mentions for expiry:', entityError);
-      return notificationsCreated;
+      return {
+        notificationsCreated,
+        warning: `Failed to query entity mentions for expiry: ${entityError.message}`,
+      };
     }
 
     // Filter to entities with expiry_date in metadata within 30 days
@@ -822,24 +857,41 @@ async function checkDateExpiryReminders(
     }
   } catch (err) {
     console.error('Date expiry reminder check failed:', err);
+    return {
+      notificationsCreated,
+      warning: `Date expiry reminders failed: ${safeErrorMessage(err, 'unknown error')}`,
+    };
   }
 
-  return notificationsCreated;
+  return { notificationsCreated };
 }
 
 async function cleanupExpiredNotifications(
   supabase: ReturnType<typeof createServiceClient>,
-) {
+): Promise<{ warning?: string }> {
   try {
     const thirtyDaysAgo = new Date(
       Date.now() - 30 * 24 * 60 * 60 * 1000,
     ).toISOString();
-    await supabase
+    const { error: deleteError } = await supabase
       .from('notifications')
       .delete()
       .lt('expires_at', thirtyDaysAgo)
       .not('dismissed_at', 'is', null);
+    if (deleteError) {
+      console.error(
+        'Failed to clean up expired notifications:',
+        deleteError,
+      );
+      return {
+        warning: `Notification cleanup failed: ${deleteError.message}`,
+      };
+    }
+    return {};
   } catch (err) {
     console.error('Failed to clean up expired notifications:', err);
+    return {
+      warning: `Notification cleanup threw: ${safeErrorMessage(err, 'unknown error')}`,
+    };
   }
 }

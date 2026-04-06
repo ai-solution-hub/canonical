@@ -83,12 +83,29 @@ export async function PATCH(
       }
     }
 
-    // Fetch updated metadata to return
-    const { data: updated } = await supabase
+    // Fetch updated metadata to return. If this re-fetch errors we cannot
+    // safely echo the saved state — returning `{ metadata: {}, layer: null }`
+    // would mislead the client into thinking the user just cleared all
+    // metadata. The mutation already succeeded, so return a minimal success
+    // response with a warning rather than failing the request.
+    const { data: updated, error: fetchError } = await supabase
       .from('content_items')
       .select('metadata, layer')
       .eq('id', id)
       .single();
+
+    if (fetchError) {
+      console.error(
+        'Failed to re-fetch item metadata after update:',
+        fetchError,
+      );
+      return NextResponse.json({
+        success: true,
+        warnings: [
+          'Metadata saved, but the fresh values could not be re-fetched. Reload to see the latest state.',
+        ],
+      });
+    }
 
     return NextResponse.json({
       metadata: updated?.metadata ?? {},

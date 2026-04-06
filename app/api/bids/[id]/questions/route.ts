@@ -95,12 +95,21 @@ export async function GET(
       string,
       { id: string; review_status: string; word_count: number }
     > = {};
+    const warnings: string[] = [];
 
     if (questionIds.length > 0) {
-      const { data: responses } = await supabase
+      const { data: responses, error: responsesError } = await supabase
         .from('bid_responses')
         .select('id, question_id, review_status, response_text')
         .in('question_id', questionIds);
+
+      if (responsesError) {
+        console.error('Failed to fetch response previews:', responsesError);
+        warnings.push(
+          'Response previews could not be loaded; questions may appear unanswered. ' +
+            safeErrorMessage(responsesError, 'response preview fetch failed'),
+        );
+      }
 
       if (responses) {
         responsePreviews = Object.fromEntries(
@@ -132,14 +141,27 @@ export async function GET(
     }));
 
     // Fetch question stats via RPC
-    const { data: stats } = await supabase.rpc('get_bid_question_stats', {
-      p_project_id: id,
-    });
+    const { data: stats, error: statsError } = await supabase.rpc(
+      'get_bid_question_stats',
+      {
+        p_project_id: id,
+      },
+    );
 
-    return NextResponse.json({
+    if (statsError) {
+      console.error('Failed to fetch bid question stats:', statsError);
+      warnings.push(
+        'Question stats could not be loaded. ' +
+          safeErrorMessage(statsError, 'stats RPC failed'),
+      );
+    }
+
+    const responseBody: Record<string, unknown> = {
       questions: enrichedQuestions,
       stats: stats?.[0] ?? null,
-    });
+    };
+    if (warnings.length > 0) responseBody.warnings = warnings;
+    return NextResponse.json(responseBody);
   } catch (err) {
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to fetch bid questions') },

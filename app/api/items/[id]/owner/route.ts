@@ -87,53 +87,98 @@ export async function PATCH(
     }
 
     // Record in content_history (best-effort)
+    // Best-effort post-update steps. Failures are recorded as warnings on
+    // the response so the UI can surface them ("owner saved, but…")
+    // instead of pretending everything worked.
+    const warnings: string[] = [];
+
     try {
       // Get max version for this item
-      const { data: maxVersionData } = await supabase
+      const { data: maxVersionData, error: maxVersionError } = await supabase
         .from('content_history')
         .select('version')
         .eq('content_item_id', id)
         .order('version', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      const nextVersion = ((maxVersionData?.version as number) ?? 0) + 1;
+      if (maxVersionError) {
+        console.error(
+          'Failed to fetch max content_history version:',
+          maxVersionError,
+        );
+        warnings.push('Owner change saved, but version history was not recorded');
+      } else {
+        const nextVersion = ((maxVersionData?.version as number) ?? 0) + 1;
 
-      await supabase.from('content_history').insert({
-        content_item_id: id,
-        version: nextVersion,
-        title: (currentData.title as string) ?? '',
-        content: (currentData.content as string) ?? '',
-        change_type: 'owner_change',
-        change_summary: `Content owner ${owner_id ? 'assigned' : 'unassigned'}`,
-        change_details: {
-          field: 'content_owner_id',
-          old: previousOwnerId,
-          new: owner_id,
-        },
-        changed_by: user.id,
-      });
+        const { error: historyInsertError } = await supabase
+          .from('content_history')
+          .insert({
+            content_item_id: id,
+            version: nextVersion,
+            title: (currentData.title as string) ?? '',
+            content: (currentData.content as string) ?? '',
+            change_type: 'owner_change',
+            change_summary: `Content owner ${owner_id ? 'assigned' : 'unassigned'}`,
+            change_details: {
+              field: 'content_owner_id',
+              old: previousOwnerId,
+              new: owner_id,
+            },
+            changed_by: user.id,
+          });
+        if (historyInsertError) {
+          console.error(
+            'Failed to insert content_history row for owner change:',
+            historyInsertError,
+          );
+          warnings.push(
+            'Owner change saved, but version history was not recorded',
+          );
+        }
+      }
     } catch (err) {
       console.warn('Failed to record content history for owner change:', err);
+      warnings.push('Owner change saved, but version history was not recorded');
     }
 
-    // Create notification for the new owner if different from current user
+    // Create notification for the new owner if different from current user.
+    // Documented as best-effort but absence is user-visible — surface as a
+    // warning so the assigning user can re-notify out of band.
     if (owner_id && owner_id !== user.id) {
       try {
-        await supabase.from('notifications').insert({
-          user_id: owner_id,
-          type: 'owner_assignment',
-          entity_type: 'content_item',
-          entity_id: id,
-          title: 'You have been assigned as content owner',
-          message: null,
-        });
+        const { error: notifInsertError } = await supabase
+          .from('notifications')
+          .insert({
+            user_id: owner_id,
+            type: 'owner_assignment',
+            entity_type: 'content_item',
+            entity_id: id,
+            title: 'You have been assigned as content owner',
+            message: null,
+          });
+        if (notifInsertError) {
+          console.error(
+            'Failed to create owner assignment notification:',
+            notifInsertError,
+          );
+          warnings.push(
+            'Owner saved, but the new owner was not notified — please tell them directly',
+          );
+        }
       } catch (err) {
         console.warn('Failed to create owner assignment notification:', err);
+        warnings.push(
+          'Owner saved, but the new owner was not notified — please tell them directly',
+        );
       }
     }
 
-    return NextResponse.json({ success: true, owner_id });
+    return NextResponse.json({
+      success: true,
+      owner_id,
+      ...(warnings.length > 0 ? { warnings } : {}),
+    });
   } catch (err) {
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to update content owner') },

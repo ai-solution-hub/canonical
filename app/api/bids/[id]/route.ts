@@ -254,26 +254,47 @@ export async function DELETE(
       return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
     }
 
-    // Clean up storage files before DB delete (best-effort)
+    // Clean up storage files before DB delete (best-effort).
+    // Errors here orphan storage objects but must NOT block the DB delete —
+    // we still log every failure so the data-hygiene leak is observable.
     try {
       const { createServiceClient } = await import('@/lib/supabase/server');
       const serviceClient = createServiceClient();
 
       // Delete tender documents
-      const { data: tenderFiles } = await serviceClient.storage
-        .from('tender-documents')
-        .list(id, { limit: 200 });
-      if (tenderFiles?.length) {
+      const { data: tenderFiles, error: tenderListError } =
         await serviceClient.storage
           .from('tender-documents')
+          .list(id, { limit: 200 });
+      if (tenderListError) {
+        console.error(
+          'Bid DELETE: failed to list tender documents for cleanup',
+          { bidId: id, error: tenderListError },
+        );
+      }
+      if (tenderFiles?.length) {
+        const { error: tenderRemoveError } = await serviceClient.storage
+          .from('tender-documents')
           .remove(tenderFiles.map((f) => `${id}/${f.name}`));
+        if (tenderRemoveError) {
+          console.error(
+            'Bid DELETE: failed to remove tender documents (orphaned)',
+            { bidId: id, error: tenderRemoveError },
+          );
+        }
       }
 
       // Delete template files and completions
-      const { data: templates } = await supabase
+      const { data: templates, error: templatesError } = await supabase
         .from('templates')
         .select('id, storage_path, structure_path')
         .eq('project_id', id);
+      if (templatesError) {
+        console.error(
+          'Bid DELETE: failed to list templates for cleanup (orphaned files possible)',
+          { bidId: id, error: templatesError },
+        );
+      }
 
       if (templates?.length) {
         const templatePaths = templates
@@ -282,10 +303,16 @@ export async function DELETE(
 
         // Get completed template files
         const templateIds = templates.map((t) => t.id);
-        const { data: completions } = await supabase
+        const { data: completions, error: completionsError } = await supabase
           .from('template_completions')
           .select('storage_path')
           .in('template_id', templateIds);
+        if (completionsError) {
+          console.error(
+            'Bid DELETE: failed to list template completions for cleanup (orphaned files possible)',
+            { bidId: id, error: completionsError },
+          );
+        }
 
         const completionPaths = (completions ?? [])
           .map((c) => c.storage_path)
@@ -293,7 +320,15 @@ export async function DELETE(
 
         const allPaths = [...templatePaths, ...completionPaths];
         if (allPaths.length) {
-          await serviceClient.storage.from('templates').remove(allPaths);
+          const { error: templateRemoveError } = await serviceClient.storage
+            .from('templates')
+            .remove(allPaths);
+          if (templateRemoveError) {
+            console.error(
+              'Bid DELETE: failed to remove template files (orphaned)',
+              { bidId: id, error: templateRemoveError },
+            );
+          }
         }
       }
     } catch (storageErr) {

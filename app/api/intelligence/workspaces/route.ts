@@ -40,13 +40,24 @@ export async function GET() {
       .filter(Boolean) as string[];
 
     // Fetch profile names in bulk
+    const warnings: string[] = [];
     let profileMap: Record<string, string> = {};
     if (profileIds.length > 0) {
-      const { data: profiles } = await supabase
+      const { data: profiles, error: profilesError } = await supabase
         .from('company_profiles')
         .select('id, name')
         .in('id', profileIds);
 
+      if (profilesError) {
+        console.error(
+          'Failed to fetch company profiles for workspace list:',
+          profilesError,
+        );
+        warnings.push(
+          'Company profile names could not be loaded: ' +
+            safeErrorMessage(profilesError, 'profiles fetch failed'),
+        );
+      }
       if (profiles) {
         profileMap = Object.fromEntries(profiles.map((p) => [p.id, p.name]));
       }
@@ -54,11 +65,22 @@ export async function GET() {
 
     // Fetch source counts per workspace
     const workspaceIds = workspaces.map((ws) => ws.id);
-    const { data: sourceCounts } = await supabase
+    const { data: sourceCounts, error: sourceCountsError } = await supabase
       .from('feed_sources')
       .select('workspace_id')
       .in('workspace_id', workspaceIds)
       .eq('is_active', true);
+
+    if (sourceCountsError) {
+      console.error(
+        'Failed to fetch feed source counts for workspace list:',
+        sourceCountsError,
+      );
+      warnings.push(
+        'Source counts could not be loaded: ' +
+          safeErrorMessage(sourceCountsError, 'source count fetch failed'),
+      );
+    }
 
     const sourceCountMap: Record<string, number> = {};
     for (const row of sourceCounts ?? []) {
@@ -67,10 +89,21 @@ export async function GET() {
     }
 
     // Fetch article counts per workspace
-    const { data: articleCounts } = await supabase
+    const { data: articleCounts, error: articleCountsError } = await supabase
       .from('feed_articles')
       .select('workspace_id, passed')
       .in('workspace_id', workspaceIds);
+
+    if (articleCountsError) {
+      console.error(
+        'Failed to fetch article counts for workspace list:',
+        articleCountsError,
+      );
+      warnings.push(
+        'Article counts could not be loaded: ' +
+          safeErrorMessage(articleCountsError, 'article count fetch failed'),
+      );
+    }
 
     const articleCountMap: Record<string, { total: number; passed: number }> =
       {};
@@ -99,6 +132,14 @@ export async function GET() {
       };
     });
 
+    // Surface warnings via response header to preserve the existing
+    // array contract consumed by hooks/intelligence/use-intelligence-workspaces.
+    // The header is also logged above for server-side observability.
+    if (warnings.length > 0) {
+      return NextResponse.json(enriched, {
+        headers: { 'X-Partial-Failure': warnings.join(' | ') },
+      });
+    }
     return NextResponse.json(enriched);
   } catch (err) {
     return NextResponse.json(

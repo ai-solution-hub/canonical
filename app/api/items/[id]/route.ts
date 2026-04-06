@@ -222,11 +222,24 @@ export async function PATCH(
             : currentItem.primary_domain;
 
         if (itemDomain) {
-          const { data: govConfig } = await supabase
+          const { data: govConfig, error: govConfigError } = await supabase
             .from('governance_config')
             .select('posture, reviewer_id, timeout_days')
             .eq('domain', itemDomain)
             .single();
+
+          // PGRST116 is "no rows" — governance not configured for this
+          // domain is expected and means "no review required". Any other
+          // error is a real DB failure worth surfacing as a warning.
+          if (govConfigError && govConfigError.code !== 'PGRST116') {
+            console.error(
+              'Failed to look up governance_config:',
+              govConfigError,
+            );
+            warnings.push(
+              'Governance config could not be loaded — review trigger skipped',
+            );
+          }
 
           if (govConfig?.posture === 'review_on_change') {
             const timeoutDays = govConfig.timeout_days ?? 7;
@@ -302,11 +315,21 @@ export async function PATCH(
     if (regenerate_embedding && typeof value === 'string') {
       try {
         // Fetch the updated item to build embedding text
-        const { data: updatedItem } = await supabase
+        const { data: updatedItem, error: updatedItemError } = await supabase
           .from('content_items')
           .select('title, content, ai_summary')
           .eq('id', id)
           .single();
+
+        if (updatedItemError) {
+          console.error(
+            'Failed to re-fetch item for embedding regeneration:',
+            updatedItemError,
+          );
+          warnings.push(
+            'Embedding regeneration skipped: could not re-fetch item',
+          );
+        }
 
         if (updatedItem?.content) {
           const plainText = htmlToPlainText(updatedItem.content);
@@ -347,13 +370,24 @@ export async function PATCH(
           await import('@/lib/quality/quality-score');
 
         // Fetch the updated item's current state
-        const { data: updatedForQuality } = await supabase
-          .from('content_items')
-          .select(
-            'freshness, classification_confidence, brief, detail, reference, ai_summary, citation_count, quality_score',
-          )
-          .eq('id', id)
-          .single();
+        const { data: updatedForQuality, error: updatedForQualityError } =
+          await supabase
+            .from('content_items')
+            .select(
+              'freshness, classification_confidence, brief, detail, reference, ai_summary, citation_count, quality_score',
+            )
+            .eq('id', id)
+            .single();
+
+        if (updatedForQualityError) {
+          console.error(
+            'Failed to re-fetch item for quality recalculation:',
+            updatedForQualityError,
+          );
+          warnings.push(
+            'Quality score recalculation skipped: could not re-fetch item',
+          );
+        }
 
         if (updatedForQuality) {
           const newScore = calculateAndRoundQualityScore({

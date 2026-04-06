@@ -80,13 +80,19 @@ export async function GET(request: NextRequest, context: RouteContext) {
     ).length;
 
     // Last poll time (most recent ingested_at)
-    const { data: lastArticle } = await supabase
+    const { data: lastArticle, error: lastArticleError } = await supabase
       .from('feed_articles')
       .select('ingested_at')
       .eq('workspace_id', id)
       .order('ingested_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
+    if (lastArticleError) {
+      console.error(
+        'Failed to fetch last poll time for workspace metrics:',
+        lastArticleError,
+      );
+    }
 
     // Source health
     const { count: activeSources } = await supabase
@@ -102,7 +108,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       .gt('consecutive_failures', 0);
 
     // Recent unresolved flags (last 5) with article title
-    const { data: recentFlags } = await supabase
+    const { data: recentFlags, error: recentFlagsError } = await supabase
       .from('feed_flags')
       .select(
         'id, flag_type, notes, created_at, feed_articles!inner(title, workspace_id)',
@@ -111,6 +117,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
       .eq('resolved', false)
       .order('created_at', { ascending: false })
       .limit(5);
+    if (recentFlagsError) {
+      console.error(
+        'Failed to fetch recent flags for workspace metrics:',
+        recentFlagsError,
+      );
+    }
 
     return NextResponse.json({
       total_articles: total,

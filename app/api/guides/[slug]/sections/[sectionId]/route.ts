@@ -44,12 +44,25 @@ export async function PATCH(
     if (!parsed.success) return parsed.response;
 
     // Verify section belongs to the correct guide
-    const { data: guide } = await supabase
+    const { data: guide, error: guideError } = await supabase
       .from('guides')
       .select('id')
       .eq('slug', slug)
       .single();
 
+    if (guideError) {
+      if (guideError.code === 'PGRST116') {
+        return NextResponse.json(
+          { error: 'Guide not found' },
+          { status: 404 },
+        );
+      }
+      console.error('Guide lookup failed:', guideError);
+      return NextResponse.json(
+        { error: 'Failed to resolve guide', details: guideError.message },
+        { status: 500 },
+      );
+    }
     if (!guide) {
       return NextResponse.json({ error: 'Guide not found' }, { status: 404 });
     }
@@ -116,12 +129,25 @@ export async function DELETE(
     }
 
     // Verify section belongs to the correct guide
-    const { data: guide } = await supabase
+    const { data: guide, error: guideError } = await supabase
       .from('guides')
       .select('id')
       .eq('slug', slug)
       .single();
 
+    if (guideError) {
+      if (guideError.code === 'PGRST116') {
+        return NextResponse.json(
+          { error: 'Guide not found' },
+          { status: 404 },
+        );
+      }
+      console.error('Guide lookup failed:', guideError);
+      return NextResponse.json(
+        { error: 'Failed to resolve guide', details: guideError.message },
+        { status: 500 },
+      );
+    }
     if (!guide) {
       return NextResponse.json({ error: 'Guide not found' }, { status: 404 });
     }

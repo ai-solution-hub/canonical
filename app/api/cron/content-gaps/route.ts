@@ -127,6 +127,7 @@ export async function GET(request: NextRequest) {
     const newSnapshots: GapSnapshot[] = [];
     const newConsecutiveCounts: Record<string, number> = {};
     const allNewGapReqIds: string[] = [];
+    const failedTemplates: Array<{ template: string; error: string }> = [];
     const allPersistentGapReqIds: string[] = [];
     let totalRequirements = 0;
 
@@ -209,6 +210,10 @@ export async function GET(request: NextRequest) {
         });
       } catch (err) {
         console.error(`Content gap analysis failed for ${templateName}:`, err);
+        failedTemplates.push({
+          template: templateName,
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }
 
@@ -296,21 +301,26 @@ export async function GET(request: NextRequest) {
     // Store snapshot in pipeline_runs
     await supabase.from('pipeline_runs').insert({
       pipeline_name: 'content_gaps',
-      status: 'completed',
+      status: failedTemplates.length > 0 ? 'completed_with_errors' : 'completed',
       items_processed: totalRequirements,
       completed_at: new Date().toISOString(),
       result: {
         snapshots: newSnapshots,
         consecutive_gap_counts: newConsecutiveCounts,
         notifications_created: notificationsCreated,
+        failed_template_count: failedTemplates.length,
+        failed_templates: failedTemplates,
       } as unknown as Json,
     });
 
     return NextResponse.json({
+      success: failedTemplates.length === 0,
       templates_analysed: uniqueTemplates.size,
       total_requirements: totalRequirements,
       gaps: gapsResult,
       notifications_created: notificationsCreated,
+      failed_template_count: failedTemplates.length,
+      failed_templates: failedTemplates,
       executed_at: new Date().toISOString(),
     });
   } catch (err) {
