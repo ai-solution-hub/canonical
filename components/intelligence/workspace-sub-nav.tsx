@@ -8,6 +8,7 @@ import {
   FileText,
   BarChart3,
   Settings2,
+  Sliders,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -21,6 +22,7 @@ const SUB_NAV_ITEMS = [
   { segment: '/articles', label: 'Articles', icon: FileText },
   { segment: '/metrics', label: 'Metrics', icon: BarChart3 },
   { segment: '/prompts', label: 'Prompts', icon: Settings2 },
+  { segment: '/settings', label: 'Settings', icon: Sliders },
 ] as const;
 
 export function WorkspaceSubNav({ workspaceId }: WorkspaceSubNavProps) {

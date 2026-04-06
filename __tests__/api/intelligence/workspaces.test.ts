@@ -422,5 +422,220 @@ describe('Intelligence Workspaces API', () => {
 
       expect(response.status).toBe(404);
     });
+
+    // ─── SI-L5: relevance_threshold write-path ───
+
+    describe('SI-L5 relevance_threshold', () => {
+      it('admin can update relevance_threshold (merges into domain_metadata)', async () => {
+        configureRole(mockSupabase, 'admin');
+
+        // 1. Initial fetch of existing workspace (for domain_metadata merge)
+        mockSupabase._chain.single.mockResolvedValueOnce({
+          data: {
+            domain_metadata: {
+              company_profile_id: PROFILE_UUID,
+              guide_id: 'guide-123',
+            },
+          },
+          error: null,
+        });
+
+        // 2. Final updated workspace returned
+        const updatedWorkspace = {
+          ...MOCK_WORKSPACE,
+          domain_metadata: {
+            company_profile_id: PROFILE_UUID,
+            guide_id: 'guide-123',
+            relevance_threshold: 0.7,
+          },
+        };
+        mockSupabase._chain.single.mockResolvedValueOnce({
+          data: updatedWorkspace,
+          error: null,
+        });
+
+        const request = createTestRequest(
+          `/api/intelligence/workspaces/${VALID_UUID}`,
+          {
+            method: 'PATCH',
+            body: { relevance_threshold: 0.7 },
+          },
+        );
+        const params = createTestParams({ id: VALID_UUID });
+        const response = await detailPATCH(request, { params });
+        const body = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(body.domain_metadata.relevance_threshold).toBe(0.7);
+        // Confirms existing JSONB keys preserved (company_profile_id, guide_id)
+        expect(body.domain_metadata.company_profile_id).toBe(PROFILE_UUID);
+        expect(body.domain_metadata.guide_id).toBe('guide-123');
+
+        // Verify update was called with the merged metadata payload
+        expect(mockSupabase._chain.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            domain_metadata: {
+              company_profile_id: PROFILE_UUID,
+              guide_id: 'guide-123',
+              relevance_threshold: 0.7,
+            },
+          }),
+        );
+      });
+
+      it('editor cannot change relevance_threshold (returns 403)', async () => {
+        configureRole(mockSupabase, 'editor');
+
+        const request = createTestRequest(
+          `/api/intelligence/workspaces/${VALID_UUID}`,
+          {
+            method: 'PATCH',
+            body: { relevance_threshold: 0.6 },
+          },
+        );
+        const params = createTestParams({ id: VALID_UUID });
+        const response = await detailPATCH(request, { params });
+        const body = await response.json();
+
+        expect(response.status).toBe(403);
+        expect(body.error).toMatch(/admin/i);
+        // Update should never be issued
+        expect(mockSupabase._chain.update).not.toHaveBeenCalled();
+      });
+
+      it('rejects relevance_threshold below 0.1', async () => {
+        configureRole(mockSupabase, 'admin');
+
+        const request = createTestRequest(
+          `/api/intelligence/workspaces/${VALID_UUID}`,
+          {
+            method: 'PATCH',
+            body: { relevance_threshold: 0.05 },
+          },
+        );
+        const params = createTestParams({ id: VALID_UUID });
+        const response = await detailPATCH(request, { params });
+
+        expect(response.status).toBe(400);
+      });
+
+      it('rejects relevance_threshold above 1.0', async () => {
+        configureRole(mockSupabase, 'admin');
+
+        const request = createTestRequest(
+          `/api/intelligence/workspaces/${VALID_UUID}`,
+          {
+            method: 'PATCH',
+            body: { relevance_threshold: 1.5 },
+          },
+        );
+        const params = createTestParams({ id: VALID_UUID });
+        const response = await detailPATCH(request, { params });
+
+        expect(response.status).toBe(400);
+      });
+
+      it('returns 404 if workspace not found during merge fetch', async () => {
+        configureRole(mockSupabase, 'admin');
+
+        // Initial fetch returns nothing
+        mockSupabase._chain.single.mockResolvedValueOnce({
+          data: null,
+          error: { message: 'not found' },
+        });
+
+        const request = createTestRequest(
+          `/api/intelligence/workspaces/${VALID_UUID}`,
+          {
+            method: 'PATCH',
+            body: { relevance_threshold: 0.6 },
+          },
+        );
+        const params = createTestParams({ id: VALID_UUID });
+        const response = await detailPATCH(request, { params });
+
+        expect(response.status).toBe(404);
+      });
+
+      it('admin can update name and threshold together', async () => {
+        configureRole(mockSupabase, 'admin');
+
+        mockSupabase._chain.single.mockResolvedValueOnce({
+          data: {
+            domain_metadata: { company_profile_id: PROFILE_UUID },
+          },
+          error: null,
+        });
+        mockSupabase._chain.single.mockResolvedValueOnce({
+          data: {
+            ...MOCK_WORKSPACE,
+            name: 'Combined',
+            domain_metadata: {
+              company_profile_id: PROFILE_UUID,
+              relevance_threshold: 0.65,
+            },
+          },
+          error: null,
+        });
+
+        const request = createTestRequest(
+          `/api/intelligence/workspaces/${VALID_UUID}`,
+          {
+            method: 'PATCH',
+            body: { name: 'Combined', relevance_threshold: 0.65 },
+          },
+        );
+        const params = createTestParams({ id: VALID_UUID });
+        const response = await detailPATCH(request, { params });
+        const body = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(body.name).toBe('Combined');
+        expect(body.domain_metadata.relevance_threshold).toBe(0.65);
+        expect(mockSupabase._chain.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            name: 'Combined',
+            domain_metadata: {
+              company_profile_id: PROFILE_UUID,
+              relevance_threshold: 0.65,
+            },
+          }),
+        );
+      });
+
+      it('handles missing existing domain_metadata gracefully', async () => {
+        configureRole(mockSupabase, 'admin');
+
+        // Initial fetch returns workspace with null metadata
+        mockSupabase._chain.single.mockResolvedValueOnce({
+          data: { domain_metadata: null },
+          error: null,
+        });
+        mockSupabase._chain.single.mockResolvedValueOnce({
+          data: {
+            ...MOCK_WORKSPACE,
+            domain_metadata: { relevance_threshold: 0.4 },
+          },
+          error: null,
+        });
+
+        const request = createTestRequest(
+          `/api/intelligence/workspaces/${VALID_UUID}`,
+          {
+            method: 'PATCH',
+            body: { relevance_threshold: 0.4 },
+          },
+        );
+        const params = createTestParams({ id: VALID_UUID });
+        const response = await detailPATCH(request, { params });
+
+        expect(response.status).toBe(200);
+        expect(mockSupabase._chain.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            domain_metadata: { relevance_threshold: 0.4 },
+          }),
+        );
+      });
+    });
   });
 });

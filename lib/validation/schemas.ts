@@ -803,6 +803,13 @@ export const IntelligenceWorkspaceCreateSchema = z.object({
 export const IntelligenceWorkspaceUpdateSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200).optional(),
   description: z.string().max(2000).optional(),
+  /**
+   * SI-L5: Workspace-level relevance threshold for article scoring.
+   * Stored in `domain_metadata.relevance_threshold` JSONB column.
+   * Pipeline read-path: `lib/intelligence/pipeline.ts` (DEFAULT_RELEVANCE_THRESHOLD = 0.5).
+   * Admin-only — checked in the route handler.
+   */
+  relevance_threshold: z.number().min(0.1).max(1.0).optional(),
 });
 
 // ──────────────────────────────────────────

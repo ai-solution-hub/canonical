@@ -13,6 +13,8 @@ export interface IntelligenceWorkspace {
   domain_metadata: {
     company_profile_id: string;
     guide_id?: string;
+    /** SI-L5: workspace-level relevance threshold (0.1–1.0); falls back to DEFAULT_RELEVANCE_THRESHOLD */
+    relevance_threshold?: number;
   };
   is_archived: boolean;
   created_at: string;
@@ -29,6 +31,18 @@ export interface IntelligenceWorkspaceInput {
   name: string;
   description?: string;
   company_profile_id: string;
+}
+
+/**
+ * Update payload for PATCH /api/intelligence/workspaces/:id.
+ * `relevance_threshold` is admin-only and is merged server-side into
+ * the workspace's `domain_metadata` JSONB column.
+ */
+export interface IntelligenceWorkspaceUpdateInput {
+  name?: string;
+  description?: string;
+  /** SI-L5: relevance threshold between 0.1 and 1.0 (admin only) */
+  relevance_threshold?: number;
 }
 
 export function useIntelligenceWorkspaces() {
@@ -70,7 +84,7 @@ export function useCreateIntelligenceWorkspace() {
 export function useUpdateIntelligenceWorkspace(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: Partial<IntelligenceWorkspaceInput>) =>
+    mutationFn: (data: IntelligenceWorkspaceUpdateInput) =>
       mutationFetchJson<IntelligenceWorkspace>(
         `/api/intelligence/workspaces/${id}`,
         data,

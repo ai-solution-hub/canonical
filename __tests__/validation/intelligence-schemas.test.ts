@@ -9,6 +9,7 @@
  *   FeedFlagCreateSchema
  *   FeedPromptCreateSchema
  *   IntelligenceWorkspaceCreateSchema
+ *   IntelligenceWorkspaceUpdateSchema
  */
 import { describe, it, expect } from 'vitest';
 import {
@@ -19,6 +20,7 @@ import {
   FeedFlagCreateSchema,
   FeedPromptCreateSchema,
   IntelligenceWorkspaceCreateSchema,
+  IntelligenceWorkspaceUpdateSchema,
 } from '@/lib/validation/schemas';
 
 // ---------------------------------------------------------------------------
@@ -366,6 +368,102 @@ describe('IntelligenceWorkspaceCreateSchema', () => {
     const result = IntelligenceWorkspaceCreateSchema.safeParse({
       name: 'Education Monitor',
       company_profile_id: 'not-a-uuid',
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// IntelligenceWorkspaceUpdateSchema (SI-L5)
+// ---------------------------------------------------------------------------
+
+describe('IntelligenceWorkspaceUpdateSchema', () => {
+  it('accepts an empty object (no fields)', () => {
+    const result = IntelligenceWorkspaceUpdateSchema.safeParse({});
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts name only', () => {
+    const result = IntelligenceWorkspaceUpdateSchema.safeParse({
+      name: 'Renamed Workspace',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts description only', () => {
+    const result = IntelligenceWorkspaceUpdateSchema.safeParse({
+      description: 'Updated description',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts a valid relevance_threshold (mid range)', () => {
+    const result = IntelligenceWorkspaceUpdateSchema.safeParse({
+      relevance_threshold: 0.5,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.relevance_threshold).toBe(0.5);
+    }
+  });
+
+  it('accepts the minimum relevance_threshold (0.1)', () => {
+    const result = IntelligenceWorkspaceUpdateSchema.safeParse({
+      relevance_threshold: 0.1,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts the maximum relevance_threshold (1.0)', () => {
+    const result = IntelligenceWorkspaceUpdateSchema.safeParse({
+      relevance_threshold: 1.0,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects relevance_threshold below 0.1', () => {
+    const result = IntelligenceWorkspaceUpdateSchema.safeParse({
+      relevance_threshold: 0.05,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects relevance_threshold of 0', () => {
+    const result = IntelligenceWorkspaceUpdateSchema.safeParse({
+      relevance_threshold: 0,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects relevance_threshold above 1.0', () => {
+    const result = IntelligenceWorkspaceUpdateSchema.safeParse({
+      relevance_threshold: 1.5,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects relevance_threshold as a non-number', () => {
+    const result = IntelligenceWorkspaceUpdateSchema.safeParse({
+      relevance_threshold: '0.5',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts a combined update of name and threshold', () => {
+    const result = IntelligenceWorkspaceUpdateSchema.safeParse({
+      name: 'Combined Update',
+      relevance_threshold: 0.7,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.name).toBe('Combined Update');
+      expect(result.data.relevance_threshold).toBe(0.7);
+    }
+  });
+
+  it('rejects name exceeding max length', () => {
+    const result = IntelligenceWorkspaceUpdateSchema.safeParse({
+      name: 'x'.repeat(201),
     });
     expect(result.success).toBe(false);
   });
