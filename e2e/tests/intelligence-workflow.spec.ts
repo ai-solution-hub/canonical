@@ -190,7 +190,7 @@ test.describe('Intelligence RSS output', () => {
     workerData,
   }) => {
     const response = await page.request.get(
-      `/api/feeds/${workerData.intelligenceWorkspaceId}/rss?filter=filtered`,
+      `/api/feeds/${workerData.intelligenceWorkspaceId}/rss/filtered`,
     );
 
     // Should return 200
@@ -198,6 +198,7 @@ test.describe('Intelligence RSS output', () => {
 
     const body = await response.text();
     expect(body).toContain('<rss');
+    expect(body).toContain('<channel>');
   });
 });
 

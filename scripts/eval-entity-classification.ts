@@ -271,32 +271,27 @@ async function classifyAndExtractEntities(
   // Dynamic import to avoid loading the full classify module for cached mode
   const { classifyContent } = await import('../lib/ai/classify');
 
+  // When validate=true, classifyContent runs two-pass validation (Pass 1
+  // extraction + Pass 2 entity verification with Haiku). When false, only
+  // Pass 1 runs. The validate flag must be propagated explicitly.
   const result = await classifyContent({
     supabase,
     itemId,
     force: true,
     userId: 'eval-runner',
+    validate,
   });
 
-  // Extract entities from the classification result
+  // Extract entities from the classification result for fallback use
   const entities: DbEntity[] = (result.entities ?? []).map((e) => ({
     entity_type: e.type,
     entity_name: e.name,
     canonical_name: e.canonical_name.toLowerCase(),
   }));
 
-  // If validate mode is enabled, run a second pass
-  // (the classifyContent function handles validation internally when the
-  // content is re-classified with force:true — the two-pass validation
-  // is handled by the classification pipeline itself)
-  if (validate) {
-    // Re-fetch the stored entities from DB after classification
-    // (the pipeline applies post-extraction filters and deduplication)
-    const map = await fetchEntitiesForItems(supabase, [itemId]);
-    return map.get(itemId) ?? entities;
-  }
-
   // Re-fetch from DB to get the post-filtered, deduplicated entities
+  // (these reflect the final stored state after deterministic filters and,
+  // if validate=true, after Pass 2 validation has removed false positives).
   const map = await fetchEntitiesForItems(supabase, [itemId]);
   return map.get(itemId) ?? entities;
 }

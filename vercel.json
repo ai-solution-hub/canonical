@@ -50,7 +50,8 @@
     "app/api/cron/classification-quality/*": { "maxDuration": 120 },
     "app/api/cron/content-gaps/*": { "maxDuration": 30 },
     "app/api/cron/quality-score/*": { "maxDuration": 50 },
-    "app/api/cron/intelligence-poll/*": { "maxDuration": 120 }
+    "app/api/cron/intelligence-poll/*": { "maxDuration": 120 },
+    "app/api/cron/intelligence-cleanup/*": { "maxDuration": 60 }
   },
   "crons": [
     {
@@ -76,6 +77,10 @@
     {
       "path": "/api/cron/intelligence-poll",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/intelligence-cleanup",
+      "schedule": "0 3 * * 0"
     }
   ]
 }
