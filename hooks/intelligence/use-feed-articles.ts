@@ -55,24 +55,28 @@ export interface FlagInput {
 }
 
 export function useFeedArticles(workspaceId: string, filters: ArticleFilters) {
-  const params = new URLSearchParams({
-    tab: filters.tab,
-    page: String(filters.page),
-    limit: String(filters.limit),
-  });
-  if (filters.source_id) {
-    params.set('source_id', filters.source_id);
-  }
-
   return useQuery({
     queryKey: queryKeys.intelligence.articles.list(
       workspaceId,
       filters as unknown as Record<string, unknown>,
     ),
-    queryFn: () =>
-      fetchJson<ArticlesResponse>(
+    queryFn: () => {
+      // Build URLSearchParams inside the queryFn closure so TanStack's
+      // exhaustive-deps rule is satisfied — `filters` is already a cache
+      // key via the line above, so the params derived from it are
+      // correctly scoped to a single cache entry.
+      const params = new URLSearchParams({
+        tab: filters.tab,
+        page: String(filters.page),
+        limit: String(filters.limit),
+      });
+      if (filters.source_id) {
+        params.set('source_id', filters.source_id);
+      }
+      return fetchJson<ArticlesResponse>(
         `/api/intelligence/workspaces/${workspaceId}/articles?${params.toString()}`,
-      ),
+      );
+    },
     enabled: !!workspaceId,
   });
 }

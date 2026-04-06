@@ -30,7 +30,11 @@ export function useCitationOrphans(sourceIds: string[]): Set<string> {
   }, [sourceIds]);
 
   const { data } = useQuery({
-    queryKey: queryKeys.citations.orphans(key),
+    // uniqueIds is captured in the queryKey via `key` (deterministic hash of
+    // sorted IDs), but TanStack's exhaustive-deps lint rule can't prove that
+    // derivation. Include uniqueIds explicitly so the rule is satisfied and
+    // the relationship is self-documenting.
+    queryKey: [...queryKeys.citations.orphans(key), uniqueIds] as const,
     queryFn: async () => {
       const supabase = createClient();
       return checkOrphanedSourceIds(uniqueIds, supabase);

@@ -153,7 +153,9 @@ export function useDisplayNames(
   const idsKey = useMemo(() => [...validIds].sort().join(','), [validIds]);
 
   const { data } = useQuery({
-    queryKey: queryKeys.displayNames.batch(idsKey),
+    // validIds is captured in idsKey (sorted+joined), but the lint rule
+    // can't prove that derivation. Include validIds explicitly.
+    queryKey: [...queryKeys.displayNames.batch(idsKey), validIds] as const,
     queryFn: () => fetchDisplayNames(validIds),
     enabled: validIds.length > 0,
     staleTime: NAME_CACHE_TTL_MS,

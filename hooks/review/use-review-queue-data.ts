@@ -129,6 +129,12 @@ export function useReviewQueueData(
   // Queue (infinite query with offset-based pagination)
   // -----------------------------------------------------------------------
 
+  // queueFiltersKey is `{...filters, sort: serverSort}` — any change to
+  // filters or serverSort produces a new queueFiltersKey, which changes
+  // the queryKey, which triggers refetch. The exhaustive-deps lint rule
+  // cannot prove this derivation so we disable it with this explicit
+  // justification rather than widen the QueryKey generic type parameter.
+  // eslint-disable-next-line @tanstack/query/exhaustive-deps
   const queueQuery = useInfiniteQuery<
     ReviewQueuePage,
     Error,
