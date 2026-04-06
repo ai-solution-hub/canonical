@@ -54,6 +54,62 @@ describe('Classification skill file', () => {
     expect(content.length).toBeGreaterThan(100);
   });
 
+  // AI-C1 — verify that the entity types reference doc is actually loadable
+  // and contains the expected per-entity-type content. The S150 verification
+  // flagged this as PARTIAL because no test exercised the real loader for the
+  // entity types reference doc — only the main classification skill was tested.
+  // Without this guard, a future change that removes loadSkill('classification-
+  // entity-types') from classify.ts would not be caught.
+  it('classification-entity-types skill loads and contains all 12 entity types', async () => {
+    const { loadSkill } = await import('@/lib/ai/skills/loader');
+    const content = await loadSkill('classification-entity-types');
+
+    expect(content).toBeTruthy();
+    expect(content.length).toBeGreaterThan(1000);
+
+    // Verify the loaded content contains the per-type "The Test:" diagnostic
+    // questions (the key content the entity types reference adds beyond the
+    // main skill file).
+    expect(content).toContain('The Test:');
+
+    // Verify all 12 entity types are present
+    const requiredTypes = [
+      'organisation',
+      'certification',
+      'regulation',
+      'framework',
+      'capability',
+      'person',
+      'technology',
+      'project',
+      'sector',
+      'product',
+      'standard',
+      'methodology',
+    ];
+    for (const type of requiredTypes) {
+      expect(content.toLowerCase()).toContain(type);
+    }
+
+    // Verify Include/Exclude/Boundary structure is present
+    expect(content).toContain('Include');
+    expect(content).toContain('Exclude');
+    expect(content).toContain('Boundary');
+  });
+
+  it('classify.ts source actually calls loadSkill for classification-entity-types', async () => {
+    // Guard against the "load and forget" pattern: verify the production
+    // classify.ts file actually invokes loadSkill('classification-entity-types').
+    // This is a static check — if someone removes the call, this test fails
+    // immediately even before the integration tests run.
+    const classifyPath = join(__dirname, '../../lib/ai/classify.ts');
+    const classifySource = await readFile(classifyPath, 'utf-8');
+
+    expect(classifySource).toContain("loadSkill('classification-entity-types')");
+    // Also verify it calls loadSkill('classification') (the main skill)
+    expect(classifySource).toContain("loadSkill('classification')");
+  });
+
   it('contains required entity extraction rules section', () => {
     expect(skillContent).toContain('## Entity Extraction Rules');
     expect(skillContent).toContain('Named Entity Test');

@@ -76,6 +76,15 @@ test.describe('Intelligence article review', () => {
 
     // Wait for articles to load — may be rendered as a list
     await expect(articleCards.first()).toBeVisible({ timeout: 8000 });
+
+    // SI-L6: stronger assertion — verify the seed-data article title appears in
+    // the DOM, not just that some card rendered. The fixture seeds articles
+    // with the worker prefix to avoid cross-test interference.
+    const seedTitle = page.getByText(
+      `${workerData.prefix} High-Relevance Government Article`,
+      { exact: false },
+    );
+    await expect(seedTitle).toBeVisible({ timeout: 5000 });
   });
 
   test('filtered tab shows filtered articles sorted by score', async ({
@@ -183,6 +192,11 @@ test.describe('Intelligence RSS output', () => {
     // Should be valid RSS 2.0 structure
     expect(body).toContain('<rss');
     expect(body).toContain('<channel>');
+    // SI-L6: stronger assertion — verify the seed-data article title appears
+    // in the RSS body, not just that XML structure rendered.
+    expect(body).toContain(
+      `${workerData.prefix} High-Relevance Government Article`,
+    );
   });
 
   test('filtered articles RSS feed returns valid XML', async ({
