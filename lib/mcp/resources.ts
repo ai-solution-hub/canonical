@@ -32,6 +32,7 @@ import type {
 } from '@modelcontextprotocol/sdk/types.js';
 import type { Variables } from '@modelcontextprotocol/sdk/shared/uriTemplate.js';
 import { createMcpClient, getMcpUserId, getMcpUserRole } from '@/lib/mcp/auth';
+import { loadSkill } from '@/lib/ai/skills/loader';
 
 // Lazy import — dashboard module pulls in bid-queries and other heavy modules
 // that can cause Vercel serverless cold start crashes at module evaluation time.
@@ -882,6 +883,13 @@ export function registerPrompts(server: McpServer): void {
   );
 
   // 5. review_item
+  //
+  // Loads the governance skill (`lib/ai/skills/governance.md`) and inlines it
+  // into the prompt text so external LLM clients (Claude Desktop / Claude.ai)
+  // have the freshness lifecycle, quality scoring factors, and review trigger
+  // definitions in context when assessing an item. `loadSkill` caches the file
+  // contents in memory after first load, so re-invocations only pay the file
+  // read on the first cold start.
   server.registerPrompt(
     'review_item',
     {
@@ -892,18 +900,25 @@ export function registerPrompts(server: McpServer): void {
         item_id: z.string().describe('The UUID of the content item to review'),
       },
     },
-    async (args) => ({
-      messages: [
-        {
-          role: 'user',
-          content: {
-            type: 'text',
-            text:
-              KB_SYSTEM_CONTEXT +
-              `Review the content item with ID "${args.item_id}" for quality, accuracy, and completeness. Check: Is the classification correct? Is the summary accurate? Is the content up to date? Are there any quality issues? Use the get_content_item tool to fetch the item, then provide a detailed assessment with recommendations.`,
+    async (args) => {
+      const governanceSkill = await loadSkill('governance');
+      return {
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text:
+                KB_SYSTEM_CONTEXT +
+                'Use the following governance reference when assessing this item. It defines the freshness lifecycle, quality scoring factors, review triggers, and governance principles that determine whether content is fresh, healthy, and trusted in the Knowledge Hub.\n\n' +
+                '---\n\n' +
+                governanceSkill +
+                '\n\n---\n\n' +
+                `Review the content item with ID "${args.item_id}" for quality, accuracy, and completeness. Apply the governance reference above when judging freshness state, quality score factors, and review-trigger conditions. Check: Is the classification correct? Is the summary accurate? Is the content up to date for its lifecycle type? Are there any quality issues or review triggers active? Use the get_content_item tool to fetch the item, then provide a detailed assessment with recommendations grounded in the governance model above.`,
+            },
           },
-        },
-      ],
-    }),
+        ],
+      };
+    },
   );
 }
