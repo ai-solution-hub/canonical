@@ -1,9 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/supabase/types/database.types';
 import type { ExtractedEntity } from '@/lib/ai/classify';
 import {
   createMockSupabaseClient,
   type MockSupabaseClient,
 } from '../helpers/mock-supabase';
+
+/**
+ * Cast the mock supabase client to the SupabaseClient<Database> type that
+ * classifyContent() expects. The mock intentionally implements only the
+ * subset of the interface exercised by these tests; the double-cast via
+ * `unknown` is the standard workaround used across the test suite for this.
+ */
+const asClient = (m: MockSupabaseClient): SupabaseClient<Database> =>
+  m as unknown as SupabaseClient<Database>;
 
 // ──────────────────────────────────────────
 // Mock dependencies
@@ -346,7 +357,7 @@ describe('classifyContent with two-pass validation', () => {
     mockCreate.mockResolvedValueOnce(createPass1Response(entities));
 
     await classifyContent({
-      supabase: supabase as any,
+      supabase: asClient(supabase),
       itemId: ITEM_ID,
       force: true,
       userId: USER_ID,
@@ -363,7 +374,7 @@ describe('classifyContent with two-pass validation', () => {
     mockCreate.mockResolvedValueOnce(createPass1Response(entities));
 
     await classifyContent({
-      supabase: supabase as any,
+      supabase: asClient(supabase),
       itemId: ITEM_ID,
       force: true,
       userId: USER_ID,
@@ -402,7 +413,7 @@ describe('classifyContent with two-pass validation', () => {
     );
 
     await classifyContent({
-      supabase: supabase as any,
+      supabase: asClient(supabase),
       itemId: ITEM_ID,
       force: true,
       userId: USER_ID,
@@ -442,7 +453,7 @@ describe('classifyContent with two-pass validation', () => {
     );
 
     await classifyContent({
-      supabase: supabase as any,
+      supabase: asClient(supabase),
       itemId: ITEM_ID,
       force: true,
       userId: USER_ID,
@@ -477,7 +488,7 @@ describe('classifyContent with two-pass validation', () => {
     );
 
     await classifyContent({
-      supabase: supabase as any,
+      supabase: asClient(supabase),
       itemId: ITEM_ID,
       force: true,
       userId: USER_ID,
@@ -503,7 +514,7 @@ describe('classifyContent with two-pass validation', () => {
     mockCreate.mockRejectedValueOnce(new Error('API timeout'));
 
     await classifyContent({
-      supabase: supabase as any,
+      supabase: asClient(supabase),
       itemId: ITEM_ID,
       force: true,
       userId: USER_ID,
@@ -549,7 +560,7 @@ describe('classifyContent with two-pass validation', () => {
     );
 
     await classifyContent({
-      supabase: supabase as any,
+      supabase: asClient(supabase),
       itemId: ITEM_ID,
       force: true,
       userId: USER_ID,
@@ -578,7 +589,7 @@ describe('classifyContent with two-pass validation', () => {
     mockCreate.mockResolvedValueOnce(createPass1Response(entities));
 
     await classifyContent({
-      supabase: supabase as any,
+      supabase: asClient(supabase),
       itemId: ITEM_ID,
       force: true,
       userId: USER_ID,
@@ -593,7 +604,7 @@ describe('classifyContent with two-pass validation', () => {
     mockCreate.mockResolvedValueOnce(createPass1Response([]));
 
     await classifyContent({
-      supabase: supabase as any,
+      supabase: asClient(supabase),
       itemId: ITEM_ID,
       force: true,
       userId: USER_ID,
