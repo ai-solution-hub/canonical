@@ -201,6 +201,7 @@ export type Database = {
       company_profiles: {
         Row: {
           certifications: string[]
+          company_embedding: string | null
           competitors: Json
           created_at: string
           created_by: string | null
@@ -220,6 +221,7 @@ export type Database = {
         }
         Insert: {
           certifications?: string[]
+          company_embedding?: string | null
           competitors?: Json
           created_at?: string
           created_by?: string | null
@@ -239,6 +241,7 @@ export type Database = {
         }
         Update: {
           certifications?: string[]
+          company_embedding?: string | null
           competitors?: Json
           created_at?: string
           created_by?: string | null
@@ -880,6 +883,7 @@ export type Database = {
           created_at: string
           external_id: string | null
           external_url: string
+          extraction_method: string | null
           feed_source_id: string
           id: string
           ingested_at: string
@@ -901,6 +905,7 @@ export type Database = {
           created_at?: string
           external_id?: string | null
           external_url: string
+          extraction_method?: string | null
           feed_source_id: string
           id?: string
           ingested_at?: string
@@ -922,6 +927,7 @@ export type Database = {
           created_at?: string
           external_id?: string | null
           external_url?: string
+          extraction_method?: string | null
           feed_source_id?: string
           id?: string
           ingested_at?: string
@@ -2402,6 +2408,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      cleanup_filtered_articles: { Args: never; Returns: number }
       delete_duplicate_entity_mentions: {
         Args: { p_canonical_name: string }
         Returns: number
