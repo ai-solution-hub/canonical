@@ -236,6 +236,16 @@ management only for merge-conflict-prone work requiring interactive resolution.
   as "applied" even though no SQL ran. Always verify migration file content
   after cherry-pick. If an empty migration was already recorded, the SQL must be
   applied directly via `execute_sql` and the local file backfilled.
+- **Bun fetch hangs on HTTP 204 through sandbox proxy:** Bun 1.3.4 fetch hangs
+  for the full 300s default timeout on HTTP/2 204 No Content responses tunneled
+  through the Claude Code sandbox HTTP CONNECT proxy. supabase-js sends
+  `Prefer: return=minimal` for `.update()`/`.insert()`/`.upsert()`/`.delete()`
+  without chained `.select()`, PostgREST returns 204, and Bun never reads the
+  body. AbortController is ignored. Production (Vercel) is unaffected — verified
+  via pg_stat_statements (6,215+ UPDATEs at 150ms mean). **Fix:** run any script
+  doing supabase writes (`scripts/eval-*.ts`, ad-hoc bun -e snippets) with
+  `dangerouslyDisableSandbox: true`. Do NOT add `.select()` workarounds in
+  production code — the production code is fine.
 
 ### Testing
 
