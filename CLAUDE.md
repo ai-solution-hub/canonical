@@ -197,7 +197,7 @@ Consult these references when adding or modifying UI elements.
 | Sector intelligence pathway   | `docs/reference/sector-intelligence-pathway.md`                       |
 | Client personas               | `docs/reference/client-personas.md`                                   |
 | Product differentiation audit | `docs/reference/product-differentiation-audit.md`                     |
-| Pipeline parity spec          | `docs/specs/pipeline-parity-spec.md`                                  |
+| Pipeline parity spec          | `.planning/.archive/.specs/pipeline-parity-spec.md` (archived S151)   |
 
 Historical planning documents are in `.planning/.archive/.specs/`.
 
