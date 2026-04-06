@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { HealthPanel } from '@/components/intelligence/health-panel';
 import { MetricsPanel } from '@/components/intelligence/metrics-panel';
 import { RssFeedPanel } from '@/components/intelligence/rss-feed-panel';
 import { useIntelligenceMetrics } from '@/hooks/intelligence/use-intelligence-metrics';
@@ -62,6 +63,10 @@ export default function WorkspaceOverviewPage() {
 
   return (
     <div className="space-y-6">
+      {/* Pipeline health — surfaced first so failing pipelines are visible
+          before performance metrics. */}
+      <HealthPanel workspaceId={workspaceId} />
+
       {/* Metrics panel */}
       {metrics && (
         <div className="rounded-lg border bg-card p-4 shadow-sm">

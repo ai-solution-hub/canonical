@@ -168,6 +168,10 @@ export const queryKeys = {
       promptPerformance: (workspaceId: string) =>
         ['intelligence', 'metrics', workspaceId, 'prompt-performance'] as const,
     },
+    health: {
+      workspace: (workspaceId: string) =>
+        ['intelligence', 'health', workspaceId] as const,
+    },
   },
 
   // Notifications
