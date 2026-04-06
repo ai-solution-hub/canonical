@@ -171,10 +171,19 @@ export async function POST(
         let matchedContent: DraftableContent[] = [];
 
         if (matchedIds.length > 0) {
-          const { data: contentItems } = await supabase
+          const { data: contentItems, error: contentError } = await supabase
             .from('content_items')
             .select('id, suggested_title, content, content_type, ai_summary')
             .in('id', matchedIds);
+
+          if (contentError) {
+            // S151 WP4 (C2): never draft with empty source content on a DB
+            // error — that produces a hallucinated batch response. Fail
+            // the per-question draft loudly instead.
+            throw new Error(
+              `Failed to fetch matched content for question ${question.id}: ${contentError.message}`,
+            );
+          }
 
           matchedContent = (contentItems ?? []).map((item) => ({
             id: item.id,

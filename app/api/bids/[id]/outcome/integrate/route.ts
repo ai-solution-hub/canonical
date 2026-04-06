@@ -72,20 +72,45 @@ export async function POST(
 
     // Fetch the questions and responses for integration
     const questionIds = integrations.map((i) => i.question_id);
-    const { data: questions } = await supabase
+    const { data: questions, error: questionsError } = await supabase
       .from('bid_questions')
       .select('id, question_text')
       .eq('project_id', id)
       .in('id', questionIds);
 
+    if (questionsError) {
+      // S151 WP4 (C4): without the questions map, the integration loop
+      // would write KB items with empty `question_text` — silent KB
+      // pollution on the won-bid happy path. Fail loudly.
+      return NextResponse.json(
+        {
+          error: 'Failed to fetch bid questions for integration',
+          details: questionsError.message,
+        },
+        { status: 500 },
+      );
+    }
+
     const questionMap = new Map(
       (questions ?? []).map((q) => [q.id, q.question_text]),
     );
 
-    const { data: responses } = await supabase
+    const { data: responses, error: responsesError } = await supabase
       .from('bid_responses')
       .select('question_id, response_text')
       .in('question_id', questionIds);
+
+    if (responsesError) {
+      // S151 WP4 (C4): same risk as the questions branch — without the
+      // responses map, KB writes would have empty bodies.
+      return NextResponse.json(
+        {
+          error: 'Failed to fetch bid responses for integration',
+          details: responsesError.message,
+        },
+        { status: 500 },
+      );
+    }
 
     const responseMap = new Map(
       (responses ?? []).map((r) => [r.question_id, r.response_text]),

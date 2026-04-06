@@ -113,10 +113,23 @@ export async function POST(
     const matchedIds = question.matched_content_ids ?? [];
     let matchedContent: DraftableContent[] = [];
     if (matchedIds.length > 0) {
-      const { data: contentItems } = await supabase
+      const { data: contentItems, error: contentError } = await supabase
         .from('content_items')
         .select('id, suggested_title, content, content_type, ai_summary')
         .in('id', matchedIds);
+
+      if (contentError) {
+        // S151 WP4 (C3): never stream a draft built on empty source content
+        // when a DB error masked the matched content. Surface as a 500
+        // before the SSE stream opens so the client can retry.
+        return new Response(
+          JSON.stringify({
+            error: 'Failed to fetch matched content',
+            details: contentError.message,
+          }),
+          { status: 500, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
 
       matchedContent = (contentItems ?? []).map((item) => ({
         id: item.id,
