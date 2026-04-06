@@ -50,6 +50,7 @@ development partner. All code is written through human-AI collaboration.
 | `/opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts` | Regenerate TypeScript types from live schema                                                         |
 | `bun run stats`                                                                                                                        | Generate codebase statistics to `docs/generated/` (run end-of-session when file counts change)       |
 | `bun run generate:mcp-inventory`                                                                                                       | Generate MCP tool/resource/prompt inventory to `docs/generated/` (run when MCP registrations change) |
+| `bun run knip`                                                                                                                         | Detect unused files, exports, types, and dependencies (run before merging large changes)             |
 
 ## Architecture
 
@@ -328,6 +329,24 @@ management only for merge-conflict-prone work requiring interactive resolution.
 - **Worktree merges leak files:** After merging worktree branches (including
   `isolation: worktree` agent branches), run `git status` on main and clean with
   `git checkout -- .` and `git clean -fd`.
+- **Worktree branches stale on parallel launch:** Agents launched in parallel
+  branch from main at launch time. If earlier agents merge first, later
+  branches no longer match main. **Cherry-pick (not merge)** the unique commit
+  to avoid reverting newer work — `git diff main worktree-branch --stat` will
+  show the full reverse diff if you naively merge.
+- **`hooks/` directory needs sandbox bypass for cherry-picks:** Sandbox blocks
+  writes to project `hooks/` for some operations. When cherry-picking commits
+  that create files there, use `dangerouslyDisableSandbox: true`.
+- **"Build the thing, forget to turn it on":** S150 found multiple cases of
+  backend code shipped without UI/cron/migration/test wiring (SI-C1 cron not
+  scheduled, SI-H5 health endpoint orphaned, SI-L5 read-only, SI-M5 metadata
+  unread, AI-H2 dead flag, AI-L2 dead skill). Verification rule: every fix must
+  trace from the production entry point to the change. Run `bun run knip` for
+  deterministic detection of unused files/exports.
+- **`classifyContent` userId must be a UUID:** `content_items.updated_by` is a
+  uuid column. Eval scripts and other callers must use the pipeline service
+  account UUID (`a0000000-0000-4000-8000-000000000001`), never a literal string
+  like `'eval-runner'`.
 - **Proxy blocks non-API public routes:** New public endpoints must be added to
   `publicRoutes` in `proxy.ts` (project root) or they silently redirect to
   `/login`.

@@ -1,0 +1,73 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "app/**/{page,layout,loading,error,not-found,route,proxy}.{ts,tsx}",
+    "app/**/{default,template}.{ts,tsx}",
+    "app/api/**/route.ts",
+    "instrumentation.ts",
+    "instrumentation-client.ts",
+    "next.config.ts",
+    "next.config.{js,mjs}",
+    "scripts/*.{ts,js}",
+    "scripts/**/*.{ts,js}",
+    "lib/mcp/route-handler.ts",
+    "lib/mcp/server.ts",
+    "lib/mcp/transport.ts",
+    "lib/mcp/index.ts",
+    "lib/mcp/server-factory.ts",
+    "lib/mcp/registrations.ts",
+    "lib/mcp/setup-server.ts",
+    "lib/mcp/handler.ts",
+    "lib/mcp/resources.ts",
+    "vitest.config.ts",
+    "vitest.config.{ts,mts}",
+    "playwright.config.ts",
+    "tailwind.config.{ts,js}",
+    "postcss.config.{ts,js,mjs}",
+    "drizzle.config.ts"
+  ],
+  "project": [
+    "app/**/*.{ts,tsx}",
+    "components/**/*.{ts,tsx}",
+    "contexts/**/*.{ts,tsx}",
+    "hooks/**/*.{ts,tsx}",
+    "lib/**/*.{ts,tsx}",
+    "types/**/*.{ts,tsx}",
+    "scripts/**/*.{ts,tsx}",
+    "instrumentation*.{ts,tsx}",
+    "proxy.ts"
+  ],
+  "ignore": [
+    ".next/**",
+    "node_modules/**",
+    "mcp-apps/*/dist/**",
+    "mcp-apps/*/node_modules/**",
+    "supabase/types/**",
+    "supabase/.temp/**",
+    "playwright-report/**",
+    "test-results/**",
+    ".claude/**",
+    "docs/**",
+    ".planning/**",
+    "**/*.d.ts"
+  ],
+  "ignoreDependencies": [
+    "@types/node",
+    "@types/react",
+    "@types/react-dom",
+    "@vitest/coverage-v8",
+    "tsx",
+    "tailwindcss",
+    "@tailwindcss/postcss",
+    "autoprefixer",
+    "postcss"
+  ],
+  "vitest": {
+    "config": "vitest.config.ts",
+    "entry": ["__tests__/**/*.{test,spec}.{ts,tsx}"]
+  },
+  "playwright": {
+    "config": "playwright.config.ts",
+    "entry": ["e2e/tests/**/*.spec.ts"]
+  }
+}
