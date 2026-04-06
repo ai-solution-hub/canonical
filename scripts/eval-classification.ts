@@ -1,8 +1,15 @@
 /**
  * Classification Eval Runner
  *
- * Compares DB classifications against a hand-labelled gold standard.
- * No API cost — reads existing DB values only.
+ * Compares classifications against a hand-labelled gold standard.
+ * Supports two modes:
+ *   --cached : Compare against existing DB classifications (free, fast, default)
+ *   --live   : Re-classify items via the live AI pipeline (expensive, slow)
+ *
+ * In live mode, items WITHOUT `live_only: true` are re-classified via
+ * `classifyContent` (real DB items, full pipeline). Items WITH `live_only: true`
+ * are classified via a focused in-script Claude call that mirrors the
+ * production prompt structure but operates on fixture text only (no DB write).
  *
  * Metrics:
  *   - Domain accuracy: correct primary_domain / total items
@@ -16,15 +23,20 @@
  *   bun run eval:classification --json
  *   bun run eval:classification --save-baseline
  *   bun run eval:classification --item <uuid>
+ *   bun run scripts/eval-classification.ts --live --confirm
+ *   bun run scripts/eval-classification.ts --live --confirm --save-baseline
  */
 
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createInterface } from 'readline';
 import { accuracy } from '../lib/eval/metrics';
 import { loadBaseline, saveBaseline, checkRegression } from '../lib/eval/baseline';
 import { printReport, printJsonReport } from '../lib/eval/reporter';
 import type { EvalResult, RegressionResult } from '../lib/eval/types';
+import { COST_PER_MILLION } from '../lib/ai/pricing';
+import { estimateCost } from '../lib/anthropic';
 
 // ── Env loading ─────────────────────────────────────────────────────
 
@@ -59,7 +71,16 @@ loadEnvFile(`${PROJECT_ROOT}.env`);
 
 // ── Types ───────────────────────────────────────────────────────────
 
-interface GoldItem {
+/**
+ * Loose Supabase client type. The eval script uses an untyped client
+ * (createClient without database generics) so the helpers must accept
+ * the widest possible shape rather than the project's strictly-generic
+ * SupabaseClient<Database> alias.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SupabaseAny = SupabaseClient<any, any, any, any, any>;
+
+export interface GoldItem {
   content_item_id: string;
   title: string;
   content_type: string;
@@ -69,6 +90,12 @@ interface GoldItem {
   expected_confidence_min: number;
   expected_keywords: string[];
   notes: string;
+  /** When true, the item does not exist in the DB and must be classified live. */
+  live_only?: boolean;
+  /** Optional fixture text — used by live mode for live_only items. */
+  text?: string;
+  /** Alternate field name for fixture content. */
+  content?: string;
 }
 
 interface DbRow {
@@ -88,6 +115,36 @@ interface ItemScore {
   secondary_domain_match: boolean | null; // null when not expected
   keyword_overlap: number;
   details: string[];
+  /** When true, this item could not be evaluated (not found / live failure). */
+  unevaluated: boolean;
+  /** Reason the item was unevaluated, if any. */
+  unevaluated_reason?: string;
+}
+
+// ── CLI Parsing ─────────────────────────────────────────────────────
+
+export interface ParsedArgs {
+  verbose: boolean;
+  jsonOutput: boolean;
+  doSaveBaseline: boolean;
+  itemFilter: string | null;
+  live: boolean;
+  confirm: boolean;
+}
+
+/**
+ * Parse CLI arguments. Exported so unit tests can verify flag handling
+ * without spawning the full eval pipeline.
+ */
+export function parseArgs(args: string[]): ParsedArgs {
+  return {
+    verbose: args.includes('--verbose'),
+    jsonOutput: args.includes('--json'),
+    doSaveBaseline: args.includes('--save-baseline'),
+    itemFilter: args.includes('--item') ? args[args.indexOf('--item') + 1] ?? null : null,
+    live: args.includes('--live'),
+    confirm: args.includes('--confirm'),
+  };
 }
 
 // ── DB Access ───────────────────────────────────────────────────────
@@ -109,7 +166,7 @@ function createServiceClient() {
 }
 
 async function fetchClassifications(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseAny,
   itemIds: string[],
 ): Promise<Map<string, DbRow>> {
   const { data, error } = await supabase
@@ -123,10 +180,310 @@ async function fetchClassifications(
   }
 
   const map = new Map<string, DbRow>();
-  for (const row of data ?? []) {
-    map.set(row.id as string, row as DbRow);
+  for (const row of (data ?? []) as DbRow[]) {
+    map.set(row.id, row);
   }
   return map;
+}
+
+// ── Cost Estimation (Live Mode) ─────────────────────────────────────
+
+/**
+ * Per-item cost estimate. Uses fixture text length where available so the
+ * estimate is grounded in actual prompt size; falls back to title length
+ * for items with no body text.
+ *
+ * Token math (approx, mirroring lib/anthropic.ts conventions):
+ *   - Skill prompts (classification + entity types): ~1500 tokens
+ *   - Taxonomy + disambiguation block: ~500 tokens
+ *   - Per-item content: 1 token per ~4 chars (capped at 5000 chars input)
+ *   - Output (tool_use response): ~500 tokens
+ */
+export function estimateItemCost(item: GoldItem, model: string): {
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+} {
+  const PROMPT_OVERHEAD_TOKENS = 2000;
+  const OUTPUT_TOKENS = 500;
+  const CHARS_PER_TOKEN = 4;
+  const MAX_INPUT_CHARS = 5000;
+
+  const text = item.text ?? item.content ?? '';
+  const titleChars = item.title?.length ?? 0;
+  const bodyChars = Math.min(text.length, MAX_INPUT_CHARS);
+  const contentTokens = Math.ceil((titleChars + bodyChars) / CHARS_PER_TOKEN);
+
+  const inputTokens = PROMPT_OVERHEAD_TOKENS + contentTokens;
+
+  const costUsd = estimateCost(model, {
+    input_tokens: inputTokens,
+    output_tokens: OUTPUT_TOKENS,
+  });
+
+  return { inputTokens, outputTokens: OUTPUT_TOKENS, costUsd };
+}
+
+/**
+ * Sum per-item cost estimates across the gold standard. Used for the
+ * confirmation gate before any live API calls run.
+ */
+export function estimateLiveCost(
+  items: GoldItem[],
+  model: string,
+): {
+  itemCount: number;
+  model: string;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCostUsd: number;
+} {
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let totalCostUsd = 0;
+
+  for (const item of items) {
+    const est = estimateItemCost(item, model);
+    totalInputTokens += est.inputTokens;
+    totalOutputTokens += est.outputTokens;
+    totalCostUsd += est.costUsd;
+  }
+
+  return {
+    itemCount: items.length,
+    model,
+    totalInputTokens,
+    totalOutputTokens,
+    totalCostUsd,
+  };
+}
+
+/** Prompt user for confirmation before running live classification. */
+async function confirmLiveRun(estimate: {
+  itemCount: number;
+  model: string;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCostUsd: number;
+}): Promise<boolean> {
+  console.log('\n--- LIVE MODE COST ESTIMATE ---\n');
+  console.log(`  Items to classify:       ${estimate.itemCount}`);
+  console.log(`  Model:                   ${estimate.model}`);
+  console.log(`  Est. input tokens:       ${estimate.totalInputTokens.toLocaleString()}`);
+  console.log(`  Est. output tokens:      ${estimate.totalOutputTokens.toLocaleString()}`);
+  console.log(`  Est. cost:               $${estimate.totalCostUsd.toFixed(4)} USD`);
+  console.log(`  Rate limit:              1 req/sec`);
+  console.log(`  Est. time:               ~${Math.ceil(estimate.itemCount * 1.5)} seconds\n`);
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolveAnswer) => {
+    rl.question('  Proceed? (y/N) ', (answer) => {
+      rl.close();
+      resolveAnswer(answer.toLowerCase() === 'y');
+    });
+  });
+}
+
+// ── Live Classification ─────────────────────────────────────────────
+
+/**
+ * Result shape returned by live classification. Mirrors the relevant
+ * subset of `ClassificationResult` from lib/ai/classify.ts so it can flow
+ * through the same scoring path as cached DbRow results.
+ */
+export interface LiveClassification {
+  primary_domain: string | null;
+  primary_subtopic: string | null;
+  secondary_domain: string | null;
+  classification_confidence: number | null;
+  ai_keywords: string[] | null;
+}
+
+/** Delay helper for rate limiting between live API calls. */
+function delay(ms: number): Promise<void> {
+  return new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
+}
+
+/**
+ * Classify a real DB item via the production `classifyContent` function.
+ * Used for non-live_only items in live mode. The item must already exist
+ * in `content_items` — `force: true` ensures the AI pipeline re-runs.
+ */
+async function classifyExistingItem(
+  supabase: SupabaseAny,
+  itemId: string,
+): Promise<LiveClassification> {
+  const { classifyContent } = await import('../lib/ai/classify');
+  const result = await classifyContent({
+    supabase,
+    itemId,
+    force: true,
+    userId: 'eval-runner',
+  });
+  return {
+    primary_domain: result.primary_domain ?? null,
+    primary_subtopic: result.primary_subtopic ?? null,
+    secondary_domain: result.secondary_domain ?? null,
+    classification_confidence: result.classification_confidence ?? null,
+    ai_keywords: result.ai_keywords ?? null,
+  };
+}
+
+/**
+ * Classify a fixture-only item via a focused Claude call. Mirrors the
+ * production prompt construction (skill files + taxonomy + tool schema)
+ * but operates on fixture text only — no DB read or write. Used for
+ * `live_only` items that have no DB record.
+ *
+ * The prompt and tool schema MUST stay aligned with classifyContent in
+ * lib/ai/classify.ts; if classify.ts changes its prompt structure, this
+ * helper should be updated to match.
+ */
+async function classifyFixtureItem(
+  supabase: SupabaseAny,
+  item: GoldItem,
+): Promise<LiveClassification> {
+  // Dynamic imports — avoids loading these modules in cached mode.
+  const { getAnthropicClient, getAIModel } = await import('../lib/anthropic');
+  const { loadSkill } = await import('../lib/ai/skills/loader');
+  const { CLIENT_CONFIG } = await import('../lib/client-config');
+  const { extractToolResult } = await import('../lib/ai-parse');
+
+  // Load the same skill prompts as classifyContent.
+  const classificationSkill = await loadSkill('classification');
+  const entityTypesRef = await loadSkill('classification-entity-types');
+
+  // Build taxonomy from the live DB (single source of truth). The
+  // dynamically-typed Supabase client returns generic rows, so we cast
+  // explicitly to the shape we read.
+  const { data: domainsRaw } = await supabase
+    .from('taxonomy_domains')
+    .select('id, name')
+    .eq('is_active', true)
+    .order('display_order');
+
+  const { data: subtopicsRaw } = await supabase
+    .from('taxonomy_subtopics')
+    .select('name, domain_id')
+    .eq('is_active', true)
+    .order('display_order');
+
+  const domains = (domainsRaw ?? []) as Array<{ id: string; name: string }>;
+  const subtopics = (subtopicsRaw ?? []) as Array<{ name: string; domain_id: string }>;
+
+  const taxonomyStr = domains
+    .map((d) => {
+      const subs = subtopics
+        .filter((s) => s.domain_id === d.id)
+        .map((s) => s.name);
+      return `- ${d.name}: ${subs.join(', ')}`;
+    })
+    .join('\n');
+
+  // Mirror the disambiguation block from classifyContent.
+  const disambiguationRules = [
+    `"${CLIENT_CONFIG.entity_examples.product_name}" is a SOFTWARE PRODUCT, not an auditing process. Questions about its features (action plans, invites, reports, exports, user interface) belong in product-feature/*, NOT compliance/audit.`,
+    'Business continuity and disaster recovery (BC/DR) belong in security/cyber-security, not support/* or product-feature/*.',
+    'Security awareness training, confidentiality clauses, and security governance belong in security/data-protection or corporate/staffing, NOT support/sla.',
+    'Data security controls (encryption, access control, secure data transfer, infrastructure security) belong in security/*, NOT product-feature/*.',
+    'Financial questions (pricing, costs, audited accounts, hidden costs) belong in corporate/financial.',
+  ]
+    .map((r) => `- ${r}`)
+    .join('\n');
+
+  const prompt = classificationSkill
+    .replace('{TAXONOMY}', taxonomyStr)
+    .replace('{CLIENT_DISAMBIGUATION}', disambiguationRules)
+    .replaceAll('{CLIENT_ORGANISATION_NAME}', CLIENT_CONFIG.entity_examples.organisation_name)
+    .replaceAll('{CLIENT_ORGANISATION_SHORT}', CLIENT_CONFIG.entity_examples.organisation_short)
+    .replaceAll('{CLIENT_PRODUCT_NAME}', CLIENT_CONFIG.entity_examples.product_name)
+    .replaceAll('{CLIENT_PRODUCT_SHORT}', CLIENT_CONFIG.entity_examples.product_short)
+    + '\n\n---\n\n' + entityTypesRef;
+
+  // Use the fixture's text/content if present, otherwise fall back to title.
+  // Title-only is intentional for fixtures that exercise classification on
+  // headline information; the AI prompt is robust enough to classify many
+  // items from a descriptive title alone.
+  const fixtureText = (item.text ?? item.content ?? '').slice(0, 5000);
+  const contentForClassification = fixtureText.length > 0 ? fixtureText : item.title;
+
+  const client = getAnthropicClient();
+  const model = getAIModel();
+
+  const response = await client.messages.create({
+    model,
+    max_tokens: 2500,
+    tools: [
+      {
+        name: 'return_classification',
+        description: 'Return the classification result',
+        input_schema: {
+          type: 'object' as const,
+          properties: {
+            primary_domain: { type: 'string' },
+            primary_subtopic: { type: 'string' },
+            secondary_domain: { type: ['string', 'null'] },
+            secondary_subtopic: { type: ['string', 'null'] },
+            ai_keywords: { type: 'array', items: { type: 'string' } },
+            ai_summary: { type: 'string' },
+            suggested_title: { type: 'string' },
+            classification_confidence: { type: 'number' },
+            classification_reasoning: { type: 'string' },
+          },
+          required: [
+            'primary_domain',
+            'primary_subtopic',
+            'ai_keywords',
+            'ai_summary',
+            'suggested_title',
+            'classification_confidence',
+            'classification_reasoning',
+          ],
+        },
+      },
+    ],
+    tool_choice: { type: 'tool' as const, name: 'return_classification' },
+    messages: [
+      {
+        role: 'user',
+        content: `${prompt}
+
+Content type: ${item.content_type}
+Title: ${item.title}
+
+Content:
+${contentForClassification}`,
+      },
+    ],
+  });
+
+  const result = extractToolResult<{
+    primary_domain: string;
+    primary_subtopic: string;
+    secondary_domain?: string | null;
+    classification_confidence: number;
+    ai_keywords: string[];
+  }>(response, 'return_classification');
+
+  return {
+    primary_domain: result.primary_domain ?? null,
+    primary_subtopic: result.primary_subtopic ?? null,
+    secondary_domain: result.secondary_domain ?? null,
+    classification_confidence: result.classification_confidence ?? null,
+    ai_keywords: result.ai_keywords ?? [],
+  };
+}
+
+/** Convert a LiveClassification into a DbRow shape for unified scoring. */
+function liveToDbRow(itemId: string, live: LiveClassification): DbRow {
+  return {
+    id: itemId,
+    primary_domain: live.primary_domain,
+    primary_subtopic: live.primary_subtopic,
+    secondary_domain: live.secondary_domain,
+    classification_confidence: live.classification_confidence,
+    ai_keywords: live.ai_keywords,
+  };
 }
 
 // ── Scoring ─────────────────────────────────────────────────────────
@@ -151,11 +508,16 @@ function computeKeywordOverlap(dbKeywords: string[] | null, expectedKeywords: st
   return matches / expectedKeywords.length;
 }
 
-function scoreItem(gold: GoldItem, db: DbRow | undefined): ItemScore {
+function scoreItem(
+  gold: GoldItem,
+  db: DbRow | undefined,
+  unevaluatedReason?: string,
+): ItemScore {
   const details: string[] = [];
 
   if (!db) {
-    details.push('Item not found in database');
+    const reason = unevaluatedReason ?? 'Item not found in database';
+    details.push(reason);
     return {
       content_item_id: gold.content_item_id,
       title: gold.title,
@@ -164,6 +526,8 @@ function scoreItem(gold: GoldItem, db: DbRow | undefined): ItemScore {
       secondary_domain_match: gold.expected_secondary_domain ? false : null,
       keyword_overlap: 0,
       details,
+      unevaluated: true,
+      unevaluated_reason: reason,
     };
   }
 
@@ -200,6 +564,7 @@ function scoreItem(gold: GoldItem, db: DbRow | undefined): ItemScore {
     secondary_domain_match: secondaryDomainMatch,
     keyword_overlap: keywordOverlap,
     details,
+    unevaluated: false,
   };
 }
 
@@ -214,13 +579,8 @@ const THRESHOLDS: Record<string, { min?: number; max_drop?: number }> = {
 };
 
 async function main() {
-  const args = process.argv.slice(2);
-  const verbose = args.includes('--verbose');
-  const jsonOutput = args.includes('--json');
-  const doSaveBaseline = args.includes('--save-baseline');
-  const itemFilter = args.includes('--item')
-    ? args[args.indexOf('--item') + 1]
-    : null;
+  const args = parseArgs(process.argv.slice(2));
+  const { verbose, jsonOutput, doSaveBaseline, itemFilter, live, confirm } = args;
 
   // Load gold standard
   const fixturePath = resolve(
@@ -243,26 +603,98 @@ async function main() {
     }
   }
 
-  console.log(`Loading classification data for ${goldStandard.length} gold standard items...`);
-
-  // Fetch from DB
   const supabase = createServiceClient();
   const itemIds = goldStandard.map((g) => g.content_item_id);
-  const dbMap = await fetchClassifications(supabase, itemIds);
+  const dbMap = new Map<string, DbRow>();
+  const liveFailures = new Map<string, string>();
 
-  const missing = itemIds.filter((id) => !dbMap.has(id));
-  if (missing.length > 0) {
-    console.log(`Warning: ${missing.length} gold standard items not found in database (skipped)`);
+  if (live) {
+    // ── Live mode: re-run classification ─────────────────────────────
+    const model = process.env.AI_SUMMARY_MODEL || 'claude-sonnet-4-6';
+    const knownModel = COST_PER_MILLION[model] ? model : 'claude-sonnet-4-5';
+    const estimate = estimateLiveCost(goldStandard, knownModel);
+
+    if (!confirm) {
+      const proceed = await confirmLiveRun(estimate);
+      if (!proceed) {
+        console.log('Aborted.');
+        process.exit(0);
+      }
+    } else {
+      console.log(
+        `\nLive mode: ${estimate.itemCount} items, model=${estimate.model}, est. cost=$${estimate.totalCostUsd.toFixed(4)} USD`,
+      );
+    }
+
+    console.log(
+      `\nRunning live classification for ${goldStandard.length} items...\n`,
+    );
+
+    let completed = 0;
+    for (const gold of goldStandard) {
+      try {
+        let liveResult: LiveClassification;
+
+        if (gold.live_only) {
+          liveResult = await classifyFixtureItem(supabase, gold);
+        } else {
+          liveResult = await classifyExistingItem(supabase, gold.content_item_id);
+        }
+
+        dbMap.set(gold.content_item_id, liveToDbRow(gold.content_item_id, liveResult));
+        completed++;
+
+        if (!jsonOutput) {
+          process.stdout.write(
+            `  [${completed}/${goldStandard.length}] ${gold.title.slice(0, 60)} — ${liveResult.primary_domain ?? '?'}/${liveResult.primary_subtopic ?? '?'}\n`,
+          );
+        }
+
+        // Rate limit: 1 request per second between live calls
+        if (completed < goldStandard.length) {
+          await delay(1000);
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        liveFailures.set(gold.content_item_id, message);
+        completed++;
+        console.error(
+          `  [${completed}/${goldStandard.length}] FAILED: ${gold.title.slice(0, 60)} — ${message}`,
+        );
+      }
+    }
+
+    console.log(
+      `\nLive classification complete: ${completed - liveFailures.size}/${completed} succeeded, ${liveFailures.size} failed.\n`,
+    );
+  } else {
+    // ── Cached mode: read existing classifications from DB ───────────
+    console.log(
+      `Loading classification data for ${goldStandard.length} gold standard items...`,
+    );
+    const fetched = await fetchClassifications(supabase, itemIds);
+    for (const [id, row] of fetched) {
+      dbMap.set(id, row);
+    }
+
+    const missing = itemIds.filter((id) => !dbMap.has(id));
+    if (missing.length > 0) {
+      console.log(
+        `Warning: ${missing.length} gold standard items not found in database (skipped — use --live for live_only fixtures)`,
+      );
+    }
   }
 
   // Score each item
   const scores: ItemScore[] = [];
   for (const gold of goldStandard) {
-    scores.push(scoreItem(gold, dbMap.get(gold.content_item_id)));
+    const failureReason = liveFailures.get(gold.content_item_id);
+    const dbRow = dbMap.get(gold.content_item_id);
+    scores.push(scoreItem(gold, dbRow, failureReason));
   }
 
-  // Aggregate metrics
-  const evaluated = scores.filter((s) => s.details[0] !== 'Item not found in database');
+  // Aggregate metrics across evaluated items only
+  const evaluated = scores.filter((s) => !s.unevaluated);
   const domainCorrect = evaluated.filter((s) => s.domain_match).length;
   const subtopicCorrect = evaluated.filter((s) => s.subtopic_match).length;
   const secondaryItems = evaluated.filter((s) => s.secondary_domain_match !== null);
@@ -293,6 +725,11 @@ async function main() {
   }
   if (avgKeywordOverlap < (THRESHOLDS.keyword_overlap.min ?? 0)) {
     failures.push(`keyword_overlap ${(avgKeywordOverlap * 100).toFixed(1)}% below minimum ${((THRESHOLDS.keyword_overlap.min ?? 0) * 100).toFixed(0)}%`);
+  }
+
+  // Surface live failures so they are not silently dropped from the report.
+  if (live && liveFailures.size > 0) {
+    failures.push(`${liveFailures.size} live classification(s) failed (see per-item detail)`);
   }
 
   const result: EvalResult = {
@@ -328,7 +765,11 @@ async function main() {
   if (verbose && !jsonOutput) {
     console.log('\n--- PER-ITEM DETAIL ---\n');
     for (const s of scores) {
-      const status = s.domain_match && s.subtopic_match ? 'PASS' : 'FAIL';
+      const status = s.unevaluated
+        ? 'SKIP'
+        : s.domain_match && s.subtopic_match
+          ? 'PASS'
+          : 'FAIL';
       console.log(`  [${status}] ${s.title.slice(0, 70)}`);
       for (const d of s.details) {
         console.log(`    ${d}`);
@@ -348,7 +789,7 @@ async function main() {
     for (let i = 0; i < goldStandard.length; i++) {
       const ct = goldStandard[i].content_type;
       const s = scores[i];
-      if (s.details[0] === 'Item not found in database') continue;
+      if (s.unevaluated) continue;
       if (!byType.has(ct)) byType.set(ct, { total: 0, domainOk: 0, subtopicOk: 0 });
       const entry = byType.get(ct)!;
       entry.total++;
@@ -361,6 +802,17 @@ async function main() {
       );
     }
     console.log('');
+
+    // Live failure summary
+    if (live && liveFailures.size > 0) {
+      console.log('--- LIVE FAILURES ---\n');
+      for (const [id, msg] of liveFailures) {
+        const item = goldStandard.find((g) => g.content_item_id === id);
+        console.log(`  [${id}] ${item?.title?.slice(0, 60) ?? '?'}`);
+        console.log(`    ${msg}`);
+      }
+      console.log('');
+    }
   }
 
   // Exit code
@@ -369,7 +821,17 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error('Eval failed:', err);
-  process.exit(1);
-});
+// Only run main when invoked as a script. Allows tests to import the
+// module without triggering the eval pipeline.
+const isDirectInvocation =
+  typeof process !== 'undefined' &&
+  Array.isArray(process.argv) &&
+  process.argv[1] != null &&
+  /eval-classification\.ts$/.test(process.argv[1]);
+
+if (isDirectInvocation) {
+  main().catch((err) => {
+    console.error('Eval failed:', err);
+    process.exit(1);
+  });
+}
