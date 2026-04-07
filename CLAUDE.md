@@ -332,8 +332,8 @@ management only for merge-conflict-prone work requiring interactive resolution.
 - **No barrel re-exports:** Always use direct file imports
   (`@/lib/bid/helpers`), never import from index files.
 - **taxonomy.ts dual-source:** App uses DB-driven taxonomy
-  (`contexts/taxonomy-context.tsx`), but `lib/taxonomy.ts` remains for the
-  Python pipeline. Constants in `lib/validation/schemas.ts`.
+  (`contexts/taxonomy-context.tsx`), but `lib/taxonomy/taxonomy.ts` remains for
+  the Python pipeline. Constants in `lib/validation/schemas.ts`.
 - **Taxonomy changes require `bun run sync:taxonomy`:** After adding/editing
   domains or subtopics via admin UI, run `sync:taxonomy` to regenerate the
   classification prompt and plugin files. DB is the single source of truth.
@@ -427,7 +427,7 @@ management only for merge-conflict-prone work requiring interactive resolution.
   This is because Claude Code's file tools use absolute paths directly; the
   agent's `pwd` is the worktree but the absolute path points elsewhere.
   **Sub-agent instructions must always use relative paths** (e.g.
-  `docs/audits/report.md`, not `/Users/liamj/.../docs/audits/report.md`) OR
+  `docs/audits/s151-decision-responses.md`, not `/Users/liamj/.../docs/audits/s151-decision-responses.md`) OR
   must explicitly derive the worktree root first: `cd "$(git rev-parse --show-toplevel)"`.
   S151 saw this across multiple Phase 4 agents; in each case the agent caught
   it mid-task and recovered by copying files into the worktree + reverting
