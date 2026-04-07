@@ -430,11 +430,12 @@ export default function DigestPage() {
   // Mode: preset (7/14/30 day), daily, or custom
   const [mode, setMode] = useState<DigestMode>('preset');
 
-  // Custom filter state
-  const [customDateFrom, setCustomDateFrom] = useState(
+  // Custom filter state — lazy initialisers keep Date.now()/new Date()
+  // out of the render path (react-hooks/purity).
+  const [customDateFrom, setCustomDateFrom] = useState(() =>
     toDateInputValue(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)),
   );
-  const [customDateTo, setCustomDateTo] = useState(
+  const [customDateTo, setCustomDateTo] = useState(() =>
     toDateInputValue(new Date()),
   );
   const [customDomain, setCustomDomain] = useState<string>('');

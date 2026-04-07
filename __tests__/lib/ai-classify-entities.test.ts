@@ -47,7 +47,6 @@ import {
   classifyContent,
   shouldExcludeEntity,
   isGenericConcept,
-  isRoleTitle,
   isProtocolOrFormat,
   isFrameworkLot,
   isCompoundEntity,

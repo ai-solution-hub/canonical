@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import {
   Loader2,
@@ -495,7 +495,6 @@ function RegistrationMetadataForm({
 
 function MetadataDetailsSection({
   entityType,
-  canonicalName,
   initialMetadata,
   onSave,
   saving,
@@ -504,6 +503,10 @@ function MetadataDetailsSection({
   onResetSaveState,
 }: {
   entityType: string;
+  /**
+   * Used as the React `key` on this component at the call site so it remounts
+   * when a different entity is selected. Not read inside the component body.
+   */
   canonicalName: string;
   initialMetadata?: Record<string, unknown>;
   onSave: (metadata: Record<string, unknown>) => Promise<unknown>;
@@ -512,15 +515,12 @@ function MetadataDetailsSection({
   saveError: string | null;
   onResetSaveState: () => void;
 }) {
+  // No reset-on-prop-change effect: the parent passes a stable `key` prop
+  // based on canonicalName so this component remounts when a different
+  // entity is selected, giving clean initial state every time.
   const [metadata, setMetadata] = useState<Record<string, unknown>>(
     initialMetadata ?? {},
   );
-
-  // Reset when entity changes
-  useEffect(() => {
-    setMetadata(initialMetadata ?? {});
-    onResetSaveState();
-  }, [initialMetadata, canonicalName, onResetSaveState]);
 
   const handleChange = useCallback(
     (updates: Record<string, unknown>) => {
@@ -703,6 +703,10 @@ export function EntityDetailPanel({
               <>
                 <Separator />
                 <MetadataDetailsSection
+                  // key forces a remount when the selected entity changes,
+                  // resetting the locally-edited metadata without needing
+                  // a setState-in-effect (react-hooks/set-state-in-effect).
+                  key={detail.canonical_name}
                   entityType={detail.effective_type}
                   canonicalName={detail.canonical_name}
                   initialMetadata={detail.metadata}

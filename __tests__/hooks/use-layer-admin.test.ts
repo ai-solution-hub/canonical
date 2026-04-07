@@ -359,7 +359,7 @@ describe('useLayerAdmin', () => {
 
   it('handles move up with optimistic update', async () => {
     const mockRefresh = vi.fn();
-    const { result, queryClient } = renderLayerAdmin({ refresh: mockRefresh });
+    const { result } = renderLayerAdmin({ refresh: mockRefresh });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 

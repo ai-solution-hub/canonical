@@ -872,8 +872,6 @@ describe('useStreamCoordination', () => {
         expect(result.current.response).not.toBeNull();
       });
 
-      const fetchCountAfterFirstLoad = mockFetch.mock.calls.length;
-
       // Navigate away and back
       await act(async () => {
         result.current.handleNavigate(1);

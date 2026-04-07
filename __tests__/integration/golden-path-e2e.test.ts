@@ -29,10 +29,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import {
-  createMockSupabaseClient,
-  type MockSupabaseClient,
-} from '../helpers/mock-supabase';
+import { createMockSupabaseClient } from '../helpers/mock-supabase';
 import {
   createTestContentItem,
   createTestGuide,
@@ -43,8 +40,6 @@ import {
 import { resetMockClient } from './helpers/cleanup';
 import type {
   ClassificationResult,
-  ExtractedEntity,
-  ExtractedRelationship,
   ClassificationTemporalReference,
 } from '@/lib/ai/classify';
 
@@ -291,73 +286,6 @@ function createInMemoryStore(): InMemoryStore {
     entityMentions: [],
     entityRelationships: [],
   };
-}
-
-/**
- * Configure the mock Supabase client to track operations in an in-memory store.
- * This simulates the real DB interactions that classifyContent() performs.
- */
-function configureStoreTrackingMocks(
-  client: MockSupabaseClient,
-  store: InMemoryStore,
-  itemId: string,
-  initialItem: Record<string, unknown>,
-) {
-  store.contentItems.set(itemId, { ...initialItem });
-
-  // Track from() calls to route to correct table handlers
-  client.from.mockImplementation((table: string) => {
-    const chain = client._chain;
-
-    if (table === 'content_items') {
-      // Single fetch returns the content item
-      chain.single.mockImplementation(async () => {
-        const item = store.contentItems.get(itemId);
-        return { data: item ?? null, error: null };
-      });
-      // Update tracks changes
-      chain.update.mockImplementation((data: Record<string, unknown>) => {
-        const existing = store.contentItems.get(itemId) ?? {};
-        store.contentItems.set(itemId, { ...existing, ...data });
-        return chain;
-      });
-    }
-
-    if (table === 'entity_mentions') {
-      chain.upsert.mockImplementation((rows: Record<string, unknown>[]) => {
-        store.entityMentions.push(...rows);
-        return chain;
-      });
-    }
-
-    if (table === 'entity_relationships') {
-      chain.insert.mockImplementation((rows: Record<string, unknown>[]) => {
-        store.entityRelationships.push(...rows);
-        return chain;
-      });
-    }
-
-    if (table === 'taxonomy_domains') {
-      chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-        resolve({
-          data: [
-            { id: testUUID(), name: 'security' },
-            { id: testUUID(), name: 'corporate' },
-            { id: testUUID(), name: 'compliance' },
-          ],
-          error: null,
-        }),
-      );
-    }
-
-    if (table === 'taxonomy_subtopics') {
-      chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
-      );
-    }
-
-    return chain;
-  });
 }
 
 /**

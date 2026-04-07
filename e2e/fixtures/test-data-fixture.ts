@@ -348,7 +348,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
 
       // Create content items for the 2 passed articles and link to workspace
       const passedArticleShapes = articleShapes.filter((a) => a.passed);
-      const intelContentItems = passedArticleShapes.map((shape, i) => ({
+      const intelContentItems = passedArticleShapes.map((shape) => ({
         title: `${prefix} ${shape.title}`,
         content_type: 'article' as const,
         primary_domain: 'Market Intelligence',

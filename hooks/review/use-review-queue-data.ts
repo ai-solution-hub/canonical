@@ -129,12 +129,11 @@ export function useReviewQueueData(
   // Queue (infinite query with offset-based pagination)
   // -----------------------------------------------------------------------
 
-  // queueFiltersKey is `{...filters, sort: serverSort}` — any change to
-  // filters or serverSort produces a new queueFiltersKey, which changes
-  // the queryKey, which triggers refetch. The exhaustive-deps lint rule
-  // cannot prove this derivation so we disable it with this explicit
-  // justification rather than widen the QueryKey generic type parameter.
-  // eslint-disable-next-line @tanstack/query/exhaustive-deps
+  // `queueFiltersKey = {...filters, sort: serverSort}` already encodes every
+  // input the queryFn closes over. The exhaustive-deps rule cannot see
+  // through the spread so we suppress with this documented justification —
+  // not because deps are missing, but because they are indirect.
+  /* eslint-disable @tanstack/query/exhaustive-deps -- filters and serverSort are both spread into queueFiltersKey and therefore already encoded in the queryKey */
   const queueQuery = useInfiniteQuery<
     ReviewQueuePage,
     Error,
@@ -160,6 +159,7 @@ export function useReviewQueueData(
     gcTime: 5 * 60_000,
     refetchOnWindowFocus: false,
   });
+  /* eslint-enable @tanstack/query/exhaustive-deps */
 
   // Flatten pages into a single array
   const queue = useMemo(

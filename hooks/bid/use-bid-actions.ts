@@ -13,8 +13,6 @@ import {
 import type {
   Bid,
   BidMetadata,
-  BidQuestion,
-  BidQuestionStats,
   BidState,
   ExtractionResult,
   KBCandidate,

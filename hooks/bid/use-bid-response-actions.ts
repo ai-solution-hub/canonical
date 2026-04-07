@@ -110,12 +110,7 @@ export function useBidResponseActions({
 
       // Accept and regenerate also affect bid-level data (status changes)
       if (action === 'accept' || action === 'regenerate') {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.bids.detail(bidId),
-        });
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.bids.questions(bidId),
-        });
+        void invalidateBidData();
       }
     },
     onError: (err) => {

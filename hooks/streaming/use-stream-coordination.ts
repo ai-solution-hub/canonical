@@ -165,8 +165,11 @@ export function useStreamCoordination({
 
     if (response?.response_text) {
       const serverHtml = responseToHtml(response.response_text);
-      // Only overwrite if user has not changed the content since last sync
+      // Only overwrite if user has not changed the content since last sync.
+      // This effect synchronises server-fetched content into editor state —
+      // a legitimate external-system subscription.
       if (editorContent === lastServerContentRef.current) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing server response into editor (external-system subscription)
         setEditorContent(serverHtml);
         lastServerContentRef.current = serverHtml;
       }
@@ -216,8 +219,11 @@ export function useStreamCoordination({
     const now = Date.now();
     const elapsed = now - lastEditorUpdateRef.current;
 
-    // If enough time has passed, update immediately
+    // If enough time has passed, update immediately.
+    // This effect subscribes to the streaming response external system and
+    // writes its current text into editor state — a legitimate subscription.
     if (elapsed >= 60) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- throttled sync of streamed text into editor state (external-system subscription)
       setEditorContent(responseToHtml(stream.text));
       lastEditorUpdateRef.current = now;
       return;
@@ -244,9 +250,12 @@ export function useStreamCoordination({
   // ── Stream completion — final sync + cache invalidation ──
   useEffect(() => {
     if (stream.phase === 'done') {
-      // Final content sync — convert Markdown from AI to HTML for TipTap
+      // Final content sync — convert Markdown from AI to HTML for TipTap.
+      // This is the terminal flush of a streamed external-system response
+      // into editor state, so setState here is the documented exception.
       if (stream.text) {
         const streamedHtml = responseToHtml(stream.text);
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- final flush of streamed text into editor state (external-system subscription)
         setEditorContent(streamedHtml);
         // Update lastServerContent so the sync effect can overwrite when
         // the invalidated response query returns

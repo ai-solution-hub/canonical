@@ -337,7 +337,7 @@ describe('processFeedSource', () => {
       article_count: 0,
     };
 
-    const result = await processFeedSource(mockSupabase, source, null, null);
+    await processFeedSource(mockSupabase, source, null, null);
 
     // Should still insert the article but marked as filtered
     const feedArticleInsert = insertCalls.find(

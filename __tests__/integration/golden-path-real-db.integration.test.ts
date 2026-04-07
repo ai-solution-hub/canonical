@@ -52,7 +52,6 @@ let itemId: string | null = null;
 let classifiedDomain: string | null = null;
 let testGuideId: string | null = null;
 let testGuideSectionId: string | null = null;
-let testGuideSlug: string | null = null;
 
 // ---------------------------------------------------------------------------
 // Cleanup
@@ -316,7 +315,6 @@ describe('Golden Path Real DB Integration (Phase 3b)', () => {
       expect(guide).toBeTruthy();
 
       testGuideId = guide!.id;
-      testGuideSlug = guide!.slug;
       guideSlug = guide!.slug;
 
       // Create a section for the guide

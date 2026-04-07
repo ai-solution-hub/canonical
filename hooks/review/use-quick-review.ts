@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
 import { toast } from 'sonner';
@@ -51,36 +51,38 @@ export function useQuickReview(options?: UseQuickReviewOptions) {
   const { onOptimisticUpdate } = options ?? {};
   const queryClient = useQueryClient();
 
-  // Pending state: use ref for the map, state counter to force re-renders.
-  // This is preserved from the original implementation because it tracks
+  // Per-item pending state (Map itemId → action). State (not ref) so that
+  // updates trigger re-renders and React Compiler can track them. Tracks
   // which specific action is pending per item — more granular than
   // useMutation.isPending which is a single boolean.
-  const pendingMapRef = useRef<Map<string, QuickReviewAction>>(new Map());
-  const [pendingCounter, setPendingCounter] = useState(0);
-
-  // Derive a snapshot of pending items from the ref (avoids accessing ref during render)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const pendingItems = useMemo(
-    () => new Map(pendingMapRef.current),
-    [pendingCounter],
-  );
+  const [pendingItems, setPendingItems] = useState<
+    Map<string, QuickReviewAction>
+  >(() => new Map());
 
   const setPending = useCallback(
     (itemId: string, action: QuickReviewAction) => {
-      pendingMapRef.current.set(itemId, action);
-      setPendingCounter((c) => c + 1);
+      setPendingItems((prev) => {
+        const next = new Map(prev);
+        next.set(itemId, action);
+        return next;
+      });
     },
     [],
   );
 
   const clearPending = useCallback((itemId: string) => {
-    pendingMapRef.current.delete(itemId);
-    setPendingCounter((c) => c + 1);
+    setPendingItems((prev) => {
+      if (!prev.has(itemId)) return prev;
+      const next = new Map(prev);
+      next.delete(itemId);
+      return next;
+    });
   }, []);
 
-  const isPending = useCallback((itemId: string): boolean => {
-    return pendingMapRef.current.has(itemId);
-  }, []);
+  const isPending = useCallback(
+    (itemId: string): boolean => pendingItems.has(itemId),
+    [pendingItems],
+  );
 
   // -------------------------------------------------------------------------
   // Unified review action mutation

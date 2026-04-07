@@ -1,5 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { join } from 'path';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { EvalBaseline, EvalResult } from '@/lib/eval/types';
 
 // Mock fs module before imports

@@ -16,7 +16,6 @@ vi.mock('@/lib/entities/temporal-reconciliation', () => ({
 
 import { bridgeTemporalReferencesToEntities } from '@/lib/entities/entity-metadata-bridge';
 import { reconcileTemporalReferences } from '@/lib/entities/temporal-reconciliation';
-import type { MergedTemporalReference } from '@/lib/entities/temporal-reconciliation';
 
 const mockReconcile = vi.mocked(reconcileTemporalReferences);
 

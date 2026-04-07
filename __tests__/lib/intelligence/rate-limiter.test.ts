@@ -1,5 +1,5 @@
 // __tests__/lib/intelligence/rate-limiter.test.ts
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
   DomainRateLimiter,
   RateLimitError,

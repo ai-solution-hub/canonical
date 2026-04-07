@@ -11,8 +11,6 @@ const MetricsParamsSchema = z.object({
   period: z.enum(['7d', '30d', 'all']).default('30d'),
 });
 
-type Period = '7d' | '30d' | 'all';
-
 /** GET /api/intelligence/workspaces/:id/metrics — aggregate workspace metrics */
 export async function GET(request: NextRequest, context: RouteContext) {
   try {

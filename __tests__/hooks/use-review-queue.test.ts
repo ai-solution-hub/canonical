@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type {
@@ -130,9 +130,7 @@ vi.mock('@/hooks/review/use-review-actions', () => ({
   useReviewActions: vi.fn(() => ({ ...mockActionsReturn })),
 }));
 
-import { toast } from 'sonner';
 import { useReviewQueue } from '@/hooks/review/use-review-queue';
-import { useReviewSession } from '@/hooks/review/use-review-session';
 import { useReviewQueueData } from '@/hooks/review/use-review-queue-data';
 import { useReviewNavigation } from '@/hooks/review/use-review-navigation';
 import { useReviewActions } from '@/hooks/review/use-review-actions';

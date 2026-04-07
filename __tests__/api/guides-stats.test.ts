@@ -5,10 +5,7 @@
  * (the same source as the coverage page) rather than a manual calculation.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import {
-  createMockSupabaseClient,
-  configureUnauthenticated,
-} from '../helpers/mock-supabase';
+import { createMockSupabaseClient } from '../helpers/mock-supabase';
 import { createTestRequest } from '../helpers/mock-next';
 
 // ---------------------------------------------------------------------------

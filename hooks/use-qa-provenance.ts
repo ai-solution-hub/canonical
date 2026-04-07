@@ -180,7 +180,7 @@ export function useQAProvenance({
         toast.error('Failed to update layer');
       }
     },
-    [itemId, metadata, onMetadataUpdate, layerMutateAsync],
+    [metadata, onMetadataUpdate, layerMutateAsync],
   );
 
   return {

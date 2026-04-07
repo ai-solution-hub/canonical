@@ -491,6 +491,12 @@ export function useBrowseData(): UseBrowseDataReturn {
   // Browse mode: useInfiniteQuery for filter-mode with cursor/offset pagination
   // -------------------------------------------------------------------------
 
+  // `filtersKey` already encodes every filter value (keywords, workspace,
+  // quality_issues, entity, entity_type, owner) that `resolverCacheKey`
+  // hashes; the resolver cache ref is an intra-query optimisation that
+  // avoids duplicate resolver calls across paged fetches, not a cache-key
+  // dimension. The lint rule cannot see through this indirection.
+  /* eslint-disable @tanstack/query/exhaustive-deps -- filtersKey already encodes all resolver-cache inputs; resolver cache is an intra-query optimisation, not a cache-key dimension */
   const browseQuery = useInfiniteQuery<
     BrowsePage,
     Error,
@@ -598,6 +604,7 @@ export function useBrowseData(): UseBrowseDataReturn {
     enabled: !isSearchMode,
     staleTime: BROWSE_STALE_TIME,
   });
+  /* eslint-enable @tanstack/query/exhaustive-deps */
 
   // Flatten pages into items array
   const browseItems = useMemo(

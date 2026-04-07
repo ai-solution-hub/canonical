@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
 import { fetchJson, mutationFetchJson } from '@/lib/query/fetchers';
@@ -34,6 +34,10 @@ const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
  */
 export const NOTIFICATIONS_UPDATED_EVENT = 'notifications:updated';
 
+// Module-level stable empty array — keeps `notifications` identity stable
+// across renders while `data` is undefined (avoids breaking downstream memos).
+const EMPTY_NOTIFICATIONS: Notification[] = [];
+
 /**
  * Hook for managing notifications with 5-minute polling.
  *
@@ -61,7 +65,14 @@ export function useNotifications() {
     refetchInterval: POLL_INTERVAL_MS,
   });
 
-  const notifications = data?.notifications ?? [];
+  // Wrap in useMemo so `notifications` has a stable identity across renders
+  // when `data` is undefined. Without this, `[]` on the right-hand side of
+  // `??` creates a fresh array every render and invalidates the downstream
+  // `markAllAsRead` callback's dependency list.
+  const notifications = useMemo(
+    () => data?.notifications ?? EMPTY_NOTIFICATIONS,
+    [data?.notifications],
+  );
   const unreadCount = data?.unreadCount ?? 0;
 
   const markAsReadMutation = useMutation({

@@ -13,6 +13,10 @@ import type {
   NavigatorQuestion,
 } from '@/hooks/streaming/use-stream-coordination';
 
+// Module-level stable empty array — keeps `questions` identity stable across
+// renders while `questionsQuery.data` is undefined.
+const EMPTY_QUESTIONS: BidQuestion[] = [];
+
 // ── Fetcher functions ──
 
 async function fetchBidSummary(bidId: string): Promise<BidSummary | null> {
@@ -103,7 +107,15 @@ export function useBidSession(bidId: string): UseBidSessionReturn {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const bid = bidQuery.data ?? null;
-  const questions = questionsQuery.data ?? [];
+  // Wrap in useMemo so `questions` has a stable identity across renders when
+  // `questionsQuery.data` is undefined. Without this, `[]` on the right-hand
+  // side of `??` creates a fresh array every render and invalidates the
+  // downstream `navigatorQuestions` memo. Note: with React Compiler enabled
+  // this pattern would be automatic, but the lint rule still requires it.
+  const questions = useMemo(
+    () => questionsQuery.data ?? EMPTY_QUESTIONS,
+    [questionsQuery.data],
+  );
   const loading = bidQuery.isLoading || questionsQuery.isLoading;
   const error = bidQuery.error?.message ?? null;
 
