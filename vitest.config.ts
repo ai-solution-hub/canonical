@@ -9,7 +9,7 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    include: ['__tests__/**/*.test.{ts,tsx}'],
+    include: ['__tests__/**/*.test.{ts,tsx}', 'eslint-rules/tests/**/*.test.ts'],
     exclude: ['__tests__/**/*.integration.test.{ts,tsx}', 'node_modules'],
     globals: true,
     setupFiles: ['__tests__/setup.ts'],
