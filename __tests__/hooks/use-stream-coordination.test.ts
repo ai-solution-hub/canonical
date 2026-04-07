@@ -59,6 +59,7 @@ vi.mock('@/lib/drawer-insert', () => ({
 import { toast } from 'sonner';
 import {
   useStreamCoordination,
+  normaliseHtmlForComparison,
   type BidResponse,
 } from '@/hooks/streaming/use-stream-coordination';
 import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
@@ -1151,6 +1152,219 @@ describe('useStreamCoordination', () => {
 
       // Editor should still have the empty paragraph, not the server content
       expect(result.current.editorContent).toBe('<p></p>');
+    });
+
+    // =======================================================================
+    // S152B WP14 #17 / #18 — Tiptap normalisation drift regression tests
+    // =======================================================================
+    // These tests cover the bugs surfaced during S152A Phase 4 verification
+    // of §8.0.8 (bid regenerate + restore). Diagnosis is in
+    // docs/audits/s152a-bid-drafting-production-bugs.md. Both bugs share a
+    // root cause: the previous sync guard used strict HTML equality between
+    // `editorContent` and `lastServerContentRef.current`, but Tiptap's
+    // `onUpdate` fires after `setContent` with a *normalised* HTML string
+    // (whitespace, self-closing tags, etc.) that never matches the raw HTML
+    // we stored, permanently blocking every subsequent sync.
+
+    it('#17: sync still fires when editorContent has been normalised by Tiptap', async () => {
+      // Stateful mock: first response fetch returns the original text, the
+      // second returns a regenerated version. Simulates a regen/restore flow
+      // where the server content changes after the initial sync.
+      let responseCallCount = 0;
+      mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+        const method = init?.method ?? 'GET';
+        if (method === 'PATCH' || method === 'POST') {
+          return { ok: true, json: async () => ({}) };
+        }
+        if (url.match(/\/api\/bids\/[^/]+$/))
+          return mockBidResponse();
+        if (url.includes('/questions')) return mockQuestionsResponse();
+        if (url.includes('/responses/')) {
+          responseCallCount += 1;
+          if (responseCallCount === 1) {
+            return mockResponseData({ response_text: '<p>Original draft</p>' });
+          }
+          return mockResponseData({ response_text: '<p>Regenerated draft</p>' });
+        }
+        if (url.includes('/bids/')) return mockBidResponse();
+        return { ok: false, json: async () => ({}) };
+      });
+
+      const { Wrapper } = createQueryWrapper();
+      const { result } = renderHook(
+        () => useStreamCoordination(defaultParams()),
+        { wrapper: Wrapper },
+      );
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+      await waitFor(() => {
+        expect(result.current.editorContent).toBe('<p>Original draft</p>');
+      });
+
+      // Simulate Tiptap's `onUpdate` callback firing after the first
+      // `setContent`: Tiptap normalises the HTML (adds whitespace, re-orders
+      // attributes, etc.) and writes the normalised form back via onChange.
+      // The pre-fix guard blocked every subsequent sync because
+      // `editorContent` (normalised) !== `lastServerContentRef.current` (raw).
+      act(() => {
+        result.current.setEditorContent('<p>Original draft</p>\n');
+      });
+
+      // Trigger a response refetch — the stateful mock now returns the
+      // regenerated content. The new sync effect must detect the server
+      // text change and sync into the editor despite the normalisation
+      // drift in editorContent.
+      await act(async () => {
+        await result.current.fetchResponse();
+      });
+
+      await waitFor(() => {
+        expect(result.current.editorContent).toBe('<p>Regenerated draft</p>');
+      });
+    });
+
+    it('#18: editor hydrates from server even when initial empty content has been normalised', async () => {
+      // Simulates the page-reload hydration path: the editor mounts with
+      // empty content, Tiptap normalises '' to '<p></p>' and fires onUpdate,
+      // and only THEN does the response query resolve. The pre-fix guard
+      // blocked the sync because `editorContent = '<p></p>'` never matched
+      // `lastServerContentRef.current = ''`.
+      const { Wrapper } = createQueryWrapper();
+      setupDefaultFetch();
+      const { result } = renderHook(
+        () => useStreamCoordination(defaultParams()),
+        { wrapper: Wrapper },
+      );
+
+      // Simulate Tiptap's initial onUpdate firing before the response loads:
+      // editorContent transitions from '' (initial) to '<p></p>' (Tiptap's
+      // normalised empty-doc representation).
+      act(() => {
+        result.current.setEditorContent('<p></p>');
+      });
+
+      // Now wait for the response to load and sync through to the editor.
+      // The fix treats '<p></p>' as equivalent to '' via
+      // `normaliseHtmlForComparison`, so the sync passes.
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+      await waitFor(() => {
+        expect(result.current.editorContent).toBe(
+          '<p>Our approach involves...</p>',
+        );
+      });
+    });
+
+    it('#17: sync still preserves user edits after normalisation drift', async () => {
+      // Regression guard: the normalised comparison must still distinguish
+      // *real* user edits from Tiptap's cosmetic normalisation.
+      let responseCallCount = 0;
+      mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+        const method = init?.method ?? 'GET';
+        if (method === 'PATCH' || method === 'POST') {
+          return { ok: true, json: async () => ({}) };
+        }
+        if (url.match(/\/api\/bids\/[^/]+$/))
+          return mockBidResponse();
+        if (url.includes('/questions')) return mockQuestionsResponse();
+        if (url.includes('/responses/')) {
+          responseCallCount += 1;
+          if (responseCallCount === 1) {
+            return mockResponseData({ response_text: '<p>Original draft</p>' });
+          }
+          return mockResponseData({ response_text: '<p>Server-side update</p>' });
+        }
+        if (url.includes('/bids/')) return mockBidResponse();
+        return { ok: false, json: async () => ({}) };
+      });
+
+      const { Wrapper } = createQueryWrapper();
+      const { result } = renderHook(
+        () => useStreamCoordination(defaultParams()),
+        { wrapper: Wrapper },
+      );
+
+      await waitFor(() => {
+        expect(result.current.editorContent).toBe('<p>Original draft</p>');
+      });
+
+      // User actually edits the content (genuine edit, not cosmetic normalisation).
+      act(() => {
+        result.current.setEditorContent(
+          '<p>User-authored response with substantive changes</p>',
+        );
+      });
+
+      // Server-side update arrives — user edits must be preserved.
+      await act(async () => {
+        await result.current.fetchResponse();
+      });
+
+      await waitFor(() => {
+        expect(result.current.response).not.toBeNull();
+      });
+
+      // Editor still has user's content — sync correctly skipped.
+      expect(result.current.editorContent).toBe(
+        '<p>User-authored response with substantive changes</p>',
+      );
+    });
+  });
+
+  // =========================================================================
+  // normaliseHtmlForComparison — S152B WP14 unit tests
+  // =========================================================================
+
+  describe('normaliseHtmlForComparison', () => {
+    it('returns identical strings unchanged', () => {
+      expect(normaliseHtmlForComparison('<p>Hello</p>')).toBe('<p>Hello</p>');
+    });
+
+    it('treats empty string and Tiptap empty doc as equivalent', () => {
+      expect(normaliseHtmlForComparison('')).toBe('');
+      expect(normaliseHtmlForComparison('<p></p>')).toBe('');
+      expect(normaliseHtmlForComparison('<p><br></p>')).toBe('');
+      expect(normaliseHtmlForComparison('<p><br/></p>')).toBe('');
+      expect(normaliseHtmlForComparison('<p><br /></p>')).toBe('');
+    });
+
+    it('collapses whitespace between tags', () => {
+      expect(normaliseHtmlForComparison('<p>Hello</p>\n<p>World</p>')).toBe(
+        normaliseHtmlForComparison('<p>Hello</p><p>World</p>'),
+      );
+    });
+
+    it('collapses internal whitespace runs', () => {
+      expect(normaliseHtmlForComparison('<p>Hello   World</p>')).toBe(
+        '<p>Hello World</p>',
+      );
+    });
+
+    it('normalises self-closing br variations', () => {
+      expect(normaliseHtmlForComparison('<p>Line 1<br/>Line 2</p>')).toBe(
+        normaliseHtmlForComparison('<p>Line 1<br>Line 2</p>'),
+      );
+      expect(normaliseHtmlForComparison('<p>Line 1<br />Line 2</p>')).toBe(
+        normaliseHtmlForComparison('<p>Line 1<br>Line 2</p>'),
+      );
+    });
+
+    it('treats trailing whitespace as equivalent', () => {
+      expect(normaliseHtmlForComparison('<p>Hello</p>')).toBe(
+        normaliseHtmlForComparison('<p>Hello</p>\n'),
+      );
+      expect(normaliseHtmlForComparison('<p>Hello</p>')).toBe(
+        normaliseHtmlForComparison('  <p>Hello</p>  '),
+      );
+    });
+
+    it('distinguishes genuinely different content', () => {
+      expect(normaliseHtmlForComparison('<p>Hello</p>')).not.toBe(
+        normaliseHtmlForComparison('<p>Goodbye</p>'),
+      );
     });
   });
 

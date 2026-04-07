@@ -13,6 +13,37 @@ import type { ResponseAction } from '@/components/bid/response-actions';
 import type { BidQuestion, BidMetadata, ConfidencePosture } from '@/types/bid';
 import type { CitationEntry, QualityData } from '@/types/bid-metadata';
 
+// ── HTML comparison helper (exported for tests) ──
+
+/**
+ * Normalises HTML for equality comparison. Tiptap's getHTML() serialiser
+ * differs from raw HTML we pass into setContent in whitespace, self-closing
+ * tag syntax, and similar formatting details. Comparing via normalised form
+ * lets us detect whether the user has actually edited the content.
+ *
+ * This is the S152B fix for the sync guard bug (S152A WP2 audit bugs #17/#18):
+ * the previous strict-equality guard broke after Tiptap's first `onUpdate`
+ * because the normalised `getHTML()` output never matched the raw HTML we
+ * stored in `lastServerContentRef`, leaving every subsequent server update
+ * permanently blocked — and the initial hydration on reload likewise failed.
+ */
+export function normaliseHtmlForComparison(html: string): string {
+  const collapsed = html
+    .replace(/<br\s*\/?>/gi, '<br>')
+    .replace(/>\s+</g, '><')
+    .replace(/\s+/g, ' ')
+    .trim();
+  // Tiptap's empty-document representations — treat as equivalent to ''
+  if (
+    collapsed === '' ||
+    collapsed === '<p></p>' ||
+    collapsed === '<p><br></p>'
+  ) {
+    return '';
+  }
+  return collapsed;
+}
+
 // ── Interfaces (exported for consumers and sub-hooks) ──
 
 export interface NavigatorQuestion {
@@ -146,12 +177,16 @@ export function useStreamCoordination({
   const [editorContent, setEditorContent] = useState('');
 
   // lastServerContentRef tracks the last value written to the editor from
-  // server data. The sync effect only overwrites when editorContent matches
-  // this ref (meaning the user has not edited since the last sync).
-  // This replaces a dirty-flag approach which had a flaw: streaming updates,
-  // author_manually, and internal resets would permanently set the dirty flag.
-  // (S129 adversarial fix)
+  // server data. The sync effect uses it (via normalised comparison) to
+  // detect whether the user has edited since the last sync.
+  // (S129 adversarial fix; S152B normalised comparison, see WP14 #17/#18.)
   const lastServerContentRef = useRef('');
+
+  // lastSyncedServerTextRef tracks the raw `response.response_text` we last
+  // synced from. The sync effect early-returns when the server text has not
+  // changed, preventing a render loop caused by Tiptap's `onUpdate` writing
+  // back a normalised version of the HTML we just set. (S152B WP14 #17.)
+  const lastSyncedServerTextRef = useRef<string | null>(null);
 
   // Streaming throttle refs
   const streamTextRef = useRef<string>('');
@@ -159,33 +194,67 @@ export function useStreamCoordination({
   const lastEditorUpdateRef = useRef<number>(0);
 
   // ── Editor content sync from response query data ──
-  // Guarded against overwriting user edits and streaming content.
+  // Server-text-keyed sync with normalised-HTML user-edit detection. Fixes
+  // S152A WP2 audit bugs #17 (sync guard equality check) and #18 (editor
+  // reload hydration). Both had the same root cause: strict equality between
+  // `editorContent` and `lastServerContentRef.current` fails after Tiptap's
+  // first `onUpdate` because Tiptap serialises HTML with whitespace and
+  // self-closing differences that our stored raw HTML lacks, permanently
+  // blocking every subsequent sync.
+  const expectedResponseId = currentQuestion?.response?.id ?? null;
   useEffect(() => {
     if (isStreaming) return; // Streaming updates handled by throttle effect
 
-    if (response?.response_text) {
-      const serverHtml = responseToHtml(response.response_text);
-      // Only overwrite if user has not changed the content since last sync.
-      // This effect synchronises server-fetched content into editor state —
-      // a legitimate external-system subscription.
-      if (editorContent === lastServerContentRef.current) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing server response into editor (external-system subscription)
-        setEditorContent(serverHtml);
-        lastServerContentRef.current = serverHtml;
-      }
-    } else if (!response) {
-      if (editorContent === lastServerContentRef.current) {
+    // No response loaded
+    if (!response) {
+      // If the current question is expected to have a response, we're in a
+      // navigation/refetch gap — keep the editor stable until it arrives.
+      // If the question has no expected response (no `response.id` in the
+      // question record), clear the editor immediately.
+      if (expectedResponseId && responseLoading) return;
+      if (editorContent !== '' || lastSyncedServerTextRef.current !== null) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- clearing editor state for a question with no server response (external-system subscription)
         setEditorContent('');
         lastServerContentRef.current = '';
+        lastSyncedServerTextRef.current = null;
       }
+      return;
     }
-  }, [response, isStreaming, editorContent]);
 
-  // Reset lastServerContent when navigating to a different question
-  // so the sync effect can write fresh data for the new question
-  useEffect(() => {
-    lastServerContentRef.current = '';
-  }, [currentQuestion?.id]);
+    const serverText = response.response_text ?? null;
+
+    // Early-return if the server text has not changed since the last sync.
+    // This breaks the render loop caused by Tiptap's `onUpdate` firing after
+    // `setContent` and writing a normalised HTML string back into
+    // `editorContent` — without this guard the effect would re-run on every
+    // normalised re-render.
+    if (serverText === lastSyncedServerTextRef.current) return;
+
+    // Server has new content — detect whether the user has edited since the
+    // last sync. We compare via `normaliseHtmlForComparison` because the raw
+    // HTML we previously stored in `lastServerContentRef` differs from the
+    // normalised HTML Tiptap produces via its `onUpdate` callback.
+    if (
+      normaliseHtmlForComparison(editorContent) !==
+      normaliseHtmlForComparison(lastServerContentRef.current)
+    ) {
+      // User has edits — skip the sync to preserve them. Leave
+      // `lastSyncedServerTextRef` stale so the next response change retries.
+      return;
+    }
+
+    // Safe to sync.
+    const serverHtml = serverText !== null ? responseToHtml(serverText) : '';
+    setEditorContent(serverHtml);
+    lastServerContentRef.current = serverHtml;
+    lastSyncedServerTextRef.current = serverText;
+  }, [
+    response,
+    responseLoading,
+    isStreaming,
+    editorContent,
+    expectedResponseId,
+  ]);
 
   // ── Mutation layer ──
   const {
@@ -258,7 +327,10 @@ export function useStreamCoordination({
         // eslint-disable-next-line react-hooks/set-state-in-effect -- final flush of streamed text into editor state (external-system subscription)
         setEditorContent(streamedHtml);
         // Update lastServerContent so the sync effect can overwrite when
-        // the invalidated response query returns
+        // the invalidated response query returns with the server's stored
+        // version of the streamed content. lastSyncedServerTextRef is left
+        // as-is so the next response change (post-invalidation) triggers
+        // a fresh sync via `serverText !== lastSyncedServerTextRef`.
         lastServerContentRef.current = streamedHtml;
       }
       // Invalidate cached data — TanStack refetches in the background
