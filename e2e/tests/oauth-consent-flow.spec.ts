@@ -155,3 +155,377 @@
  *     value sourced from the issued authorization (client name, scopes,
  *     redirect URI, code, state).
  */
+
+import { test, expect } from '../fixtures';
+import { createServiceClient } from '../fixtures/supabase';
+import { createClient } from '@supabase/supabase-js';
+import crypto from 'node:crypto';
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const TEST_USER_EMAIL =
+  process.env.TEST_USER_1_EMAIL || 'test.user1@test-kb-aish.co.uk';
+const TEST_USER_PASSWORD =
+  process.env.TEST_USER_1_PASSWORD || 'Welcome12391.';
+
+// Use an existing fast app route as the OAuth redirect URI so the dev server
+// doesn't have to compile a 404 page (which can push the test over its
+// timeout on a cold start).
+const TEST_REDIRECT_URI = 'http://localhost:3000/api/health';
+const REQUESTED_SCOPES = ['openid', 'profile', 'email'] as const;
+
+function base64UrlEncode(buf: Buffer): string {
+  return buf
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+function makePkcePair(): { verifier: string; challenge: string } {
+  const verifier = base64UrlEncode(crypto.randomBytes(32));
+  const challenge = base64UrlEncode(
+    crypto.createHash('sha256').update(verifier).digest(),
+  );
+  return { verifier, challenge };
+}
+
+interface InitResult {
+  authorizationId: string | null;
+  redirectUrl: string | null;
+  state: string;
+}
+
+/**
+ * Drive a real OAuth 2.1 authorization request against Supabase Auth using
+ * the test admin user's bearer token. This is NOT a mock — it issues a real
+ * GET to `${SUPABASE_URL}/auth/v1/oauth/authorize` and captures the 302
+ * Location.
+ *
+ * Possible 302 targets:
+ *  - `<consent_page>?authorization_id=...` (consent required)
+ *  - `<redirect_uri>?code=...&state=...` (already consented — short circuit)
+ */
+async function initOAuthFlow(
+  accessToken: string,
+  clientId: string,
+  state: string,
+  challenge: string,
+): Promise<InitResult> {
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientId,
+    redirect_uri: TEST_REDIRECT_URI,
+    scope: REQUESTED_SCOPES.join(' '),
+    state,
+    code_challenge: challenge,
+    code_challenge_method: 'S256',
+  });
+  const resp = await fetch(
+    `${SUPABASE_URL}/auth/v1/oauth/authorize?${params.toString()}`,
+    {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${accessToken}`,
+      },
+      redirect: 'manual',
+    },
+  );
+  expect(
+    resp.status,
+    `Supabase /oauth/authorize must return a 302 redirect, got ${resp.status}`,
+  ).toBe(302);
+
+  const location = resp.headers.get('location');
+  expect(location, 'Supabase /oauth/authorize must set Location header').toBeTruthy();
+
+  const url = new URL(location!);
+  const authorizationId = url.searchParams.get('authorization_id');
+  return { authorizationId, redirectUrl: location!, state };
+}
+
+async function getUserAccessToken(): Promise<string> {
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: TEST_USER_EMAIL,
+    password: TEST_USER_PASSWORD,
+  });
+  if (error || !data.session) {
+    throw new Error(
+      `Failed to sign in test admin user: ${error?.message ?? 'no session'}`,
+    );
+  }
+  return data.session.access_token;
+}
+
+test.describe('8.0.1 OAuth consent flow', () => {
+  // OAuth flows include several real network round-trips to Supabase Auth
+  // (signin, /oauth/authorize, decision, listGrants, revoke, plus 3 separate
+  // init flows). Bump the per-test timeout to comfortably accommodate them
+  // even on a cold dev server.
+  test.setTimeout(120_000);
+
+  let clientId: string;
+  let clientSecret: string;
+  let registeredClientName: string;
+  let accessToken: string;
+
+  async function exchangeCodeForToken(
+    code: string,
+    verifier: string,
+  ): Promise<void> {
+    const tokenResp = await fetch(`${SUPABASE_URL}/auth/v1/oauth/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization:
+          'Basic ' +
+          Buffer.from(`${clientId}:${clientSecret}`).toString('base64'),
+        apikey: SUPABASE_ANON_KEY,
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: TEST_REDIRECT_URI,
+        code_verifier: verifier,
+      }).toString(),
+    });
+    expect(
+      tokenResp.status,
+      `token exchange must succeed, got ${tokenResp.status}: ${await tokenResp.text()}`,
+    ).toBe(200);
+  }
+
+  test.beforeAll(async () => {
+    accessToken = await getUserAccessToken();
+
+    // Provision a real OAuth client via the Supabase admin API.
+    const adminSupabase = createServiceClient();
+    registeredClientName = `E2E OAuth Consent ${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const { data, error } = await adminSupabase.auth.admin.oauth.createClient({
+      client_name: registeredClientName,
+      redirect_uris: [TEST_REDIRECT_URI],
+      grant_types: ['authorization_code', 'refresh_token'],
+    });
+    if (error || !data) {
+      throw new Error(
+        `Failed to create test OAuth client: ${error?.message ?? 'no data'}`,
+      );
+    }
+    clientId = data.client_id;
+    clientSecret = data.client_secret!;
+  });
+
+  test.afterAll(async () => {
+    const adminSupabase = createServiceClient();
+    // Best-effort revoke any lingering grant for this client by the test user,
+    // then delete the OAuth client. Both are idempotent.
+    try {
+      const userSupabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      await userSupabase.auth.signInWithPassword({
+        email: TEST_USER_EMAIL,
+        password: TEST_USER_PASSWORD,
+      });
+      await userSupabase.auth.oauth.revokeGrant({ clientId });
+    } catch {
+      // ignore
+    }
+    if (clientId) {
+      try {
+        await adminSupabase.auth.admin.oauth.deleteClient(clientId);
+      } catch {
+        // ignore
+      }
+    }
+  });
+
+  test('approve, short-circuit on re-init, revoke, and re-prompt', async ({
+    authenticatedPage: page,
+  }) => {
+    // -----------------------------------------------------------------------
+    // Step 1: Init OAuth flow #1 → expect consent page
+    // -----------------------------------------------------------------------
+    const state1 = `state-1-${crypto.randomBytes(8).toString('hex')}`;
+    const pkce1 = makePkcePair();
+    const init1 = await initOAuthFlow(accessToken, clientId, state1, pkce1.challenge);
+    expect(
+      init1.authorizationId,
+      'first init must return an authorization_id (consent required)',
+    ).toBeTruthy();
+
+    // -----------------------------------------------------------------------
+    // Step 2: Navigate to the consent page and assert it renders dynamic data
+    // -----------------------------------------------------------------------
+    await page.goto(`/oauth/consent?authorization_id=${init1.authorizationId}`);
+
+    // Heading uses the registered client name → proves
+    // getAuthorizationDetails() returned a real client object.
+    await expect(
+      page.getByRole('heading', { name: `Authorise ${registeredClientName}` }),
+    ).toBeVisible();
+
+    // Account row contains the test user's email. The consent page may also
+    // render the email in the header user menu, so pin to the consent card by
+    // selecting the DetailRow for "Account".
+    await expect(
+      page
+        .locator('div', { has: page.getByText('Account', { exact: true }) })
+        .getByText(TEST_USER_EMAIL)
+        .first(),
+    ).toBeVisible();
+
+    // Requested permissions list — set-equality against requested scopes.
+    // formatScope() maps "openid"→"Verify your identity",
+    // "profile"→"View your profile information",
+    // "email"→"View your email address".
+    const expectedScopeLabels = new Set([
+      'Verify your identity',
+      'View your profile information',
+      'View your email address',
+    ]);
+    const scopeItems = page.locator(
+      'ul[aria-labelledby="requested-permissions-label"] > li',
+    );
+    const renderedScopes = await scopeItems.allTextContents();
+    expect(new Set(renderedScopes.map((s) => s.trim()))).toEqual(
+      expectedScopeLabels,
+    );
+
+    // -----------------------------------------------------------------------
+    // Step 3: Submit Approve. The form POSTs to /api/oauth/decision which
+    // returns a 303 to the OAuth client's redirect_uri. Playwright follows
+    // the redirect; the resulting URL should match TEST_REDIRECT_URI with
+    // code & state set.
+    // -----------------------------------------------------------------------
+    // Listen for navigation to TEST_REDIRECT_URI; it returns 404 from the
+    // dev server but the navigation still happens and the URL is updated.
+    const approveBtn = page.getByRole('button', { name: /approve/i });
+    await expect(approveBtn).toBeVisible();
+    await Promise.all([
+      page.waitForURL((url) => url.toString().startsWith(TEST_REDIRECT_URI), {
+        timeout: 15000,
+      }),
+      approveBtn.click(),
+    ]);
+
+    const finalUrl = new URL(page.url());
+    expect(
+      `${finalUrl.origin}${finalUrl.pathname}`,
+      'should land on the registered redirect URI',
+    ).toBe(TEST_REDIRECT_URI);
+    const code = finalUrl.searchParams.get('code');
+    expect(code, 'redirect URI must include a non-empty code').toBeTruthy();
+    expect(code!.length).toBeGreaterThan(0);
+    expect(
+      finalUrl.searchParams.get('state'),
+      'state must be echoed exactly (CSRF protection)',
+    ).toBe(state1);
+
+    // Complete the OAuth dance: exchange the code for tokens at the token
+    // endpoint. Without this, Supabase Auth may not consider the consent
+    // "fully granted" for purposes of short-circuiting subsequent flows.
+    await exchangeCodeForToken(code!, pkce1.verifier);
+
+    // -----------------------------------------------------------------------
+    // Step 4: GET /api/oauth/grants → exactly one matching grant with
+    // set-equal scopes (no privilege escalation).
+    // -----------------------------------------------------------------------
+    const grantsAfterApprove = await page.request.get('/api/oauth/grants');
+    expect(grantsAfterApprove.status()).toBe(200);
+    const grantsBody1 = (await grantsAfterApprove.json()) as {
+      grants: Array<{
+        client: { id: string; name: string };
+        scopes: string[];
+      }>;
+    };
+    const matching1 = grantsBody1.grants.filter(
+      (g) => g.client.id === clientId,
+    );
+    expect(
+      matching1.length,
+      'exactly one grant for the test OAuth client after approval',
+    ).toBe(1);
+    expect(matching1[0].client.name).toBe(registeredClientName);
+    expect(new Set(matching1[0].scopes)).toEqual(new Set(REQUESTED_SCOPES));
+
+    // -----------------------------------------------------------------------
+    // Step 5: Init OAuth flow #2 → already-consented short-circuit.
+    //
+    // After the first token exchange, Supabase Auth records the consent. On
+    // a fresh /oauth/authorize call for the same client+scopes, Supabase
+    // still issues a new authorization_id and routes the user to
+    // /oauth/consent — but the consent page's `getAuthorizationDetails()`
+    // call returns the OAuthRedirect branch (not OAuthAuthorizationDetails),
+    // and the page server-redirects straight to the registered redirect URI
+    // without rendering the Approve button.
+    //
+    // Important: the token exchange in Step 3 is what makes this branch
+    // fire. If the token endpoint is never called, the consent state
+    // remains incomplete and the second flow shows the form again — which
+    // is also why this spec exchanges the code (don't strip that step).
+    // -----------------------------------------------------------------------
+    const state2 = `state-2-${crypto.randomBytes(8).toString('hex')}`;
+    const pkce2 = makePkcePair();
+    const init2 = await initOAuthFlow(accessToken, clientId, state2, pkce2.challenge);
+    expect(init2.authorizationId).toBeTruthy();
+
+    // Navigate to the consent page; it should server-redirect to the
+    // registered callback URI immediately. Use page.goto with no wait so
+    // Playwright doesn't race the SSR redirect, then waitForURL.
+    await page
+      .goto(`/oauth/consent?authorization_id=${init2.authorizationId}`)
+      .catch(() => undefined);
+    await page.waitForURL(
+      (url) => url.toString().startsWith(TEST_REDIRECT_URI),
+      { timeout: 15000 },
+    );
+    const url2 = new URL(page.url());
+    expect(`${url2.origin}${url2.pathname}`).toBe(TEST_REDIRECT_URI);
+    expect(url2.searchParams.get('state')).toBe(state2);
+    expect(url2.searchParams.get('code')).toBeTruthy();
+    // Approve button must NOT be present at this URL.
+    await expect(
+      page.getByRole('button', { name: /approve/i }),
+    ).toHaveCount(0);
+
+    // -----------------------------------------------------------------------
+    // Step 6: Revoke the grant via POST /api/oauth/revoke
+    // -----------------------------------------------------------------------
+    const revokeResp = await page.request.post('/api/oauth/revoke', {
+      data: { clientId },
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(revokeResp.status()).toBe(200);
+
+    const grantsAfterRevoke = await page.request.get('/api/oauth/grants');
+    expect(grantsAfterRevoke.status()).toBe(200);
+    const grantsBody2 = (await grantsAfterRevoke.json()) as {
+      grants: Array<{ client: { id: string; name: string } }>;
+    };
+    const matching2 = grantsBody2.grants.filter(
+      (g) => g.client.id === clientId,
+    );
+    expect(
+      matching2.length,
+      'no grants for the test OAuth client after revocation',
+    ).toBe(0);
+
+    // -----------------------------------------------------------------------
+    // Step 7: Init OAuth flow #3 → consent must be required again
+    // -----------------------------------------------------------------------
+    const state3 = `state-3-${crypto.randomBytes(8).toString('hex')}`;
+    const pkce3 = makePkcePair();
+    const init3 = await initOAuthFlow(accessToken, clientId, state3, pkce3.challenge);
+    expect(
+      init3.authorizationId,
+      'after revocation, /oauth/authorize must return a fresh authorization_id (consent re-required)',
+    ).toBeTruthy();
+    await page.goto(`/oauth/consent?authorization_id=${init3.authorizationId}`);
+    await expect(
+      page.getByRole('button', { name: /approve/i }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: `Authorise ${registeredClientName}` }),
+    ).toBeVisible();
+  });
+});
