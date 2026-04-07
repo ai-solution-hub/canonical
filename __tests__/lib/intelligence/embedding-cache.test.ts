@@ -68,15 +68,17 @@ describe('Company embedding caching', () => {
           };
         }
         if (table === 'workspaces') {
+          const workspaceResult = {
+            data: hasProfile
+              ? { domain_metadata: { company_profile_id: 'profile-1' } }
+              : { domain_metadata: {} },
+            error: null,
+          };
           return {
             select: vi.fn().mockReturnValue({
               eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({
-                  data: hasProfile
-                    ? { domain_metadata: { company_profile_id: 'profile-1' } }
-                    : { domain_metadata: {} },
-                  error: null,
-                }),
+                single: vi.fn().mockResolvedValue(workspaceResult),
+                maybeSingle: vi.fn().mockResolvedValue(workspaceResult),
               }),
             }),
           };
@@ -85,33 +87,37 @@ describe('Company embedding caching', () => {
           return {
             select: vi.fn().mockImplementation((cols: string) => {
               if (cols.includes('company_embedding')) {
+                const embeddingResult = {
+                  data: cachedEmbedding !== undefined
+                    ? { company_embedding: cachedEmbedding }
+                    : null,
+                  error: null,
+                };
                 return {
                   eq: vi.fn().mockReturnValue({
-                    single: vi.fn().mockResolvedValue({
-                      data: cachedEmbedding !== undefined
-                        ? { company_embedding: cachedEmbedding }
-                        : null,
-                      error: null,
-                    }),
+                    single: vi.fn().mockResolvedValue(embeddingResult),
+                    maybeSingle: vi.fn().mockResolvedValue(embeddingResult),
                   }),
                 };
               }
               // Profile fields query
+              const profileResult = {
+                data: hasProfile
+                  ? {
+                      name: 'Test Co',
+                      sectors: ['education'],
+                      services: ['training'],
+                      key_topics: ['safeguarding'],
+                      target_customers: 'Schools',
+                      value_proposition: 'Expert training',
+                    }
+                  : null,
+                error: null,
+              };
               return {
                 eq: vi.fn().mockReturnValue({
-                  single: vi.fn().mockResolvedValue({
-                    data: hasProfile
-                      ? {
-                          name: 'Test Co',
-                          sectors: ['education'],
-                          services: ['training'],
-                          key_topics: ['safeguarding'],
-                          target_customers: 'Schools',
-                          value_proposition: 'Expert training',
-                        }
-                      : null,
-                    error: null,
-                  }),
+                  single: vi.fn().mockResolvedValue(profileResult),
+                  maybeSingle: vi.fn().mockResolvedValue(profileResult),
                 }),
               };
             }),

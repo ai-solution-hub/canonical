@@ -1,6 +1,7 @@
 // lib/intelligence/pipeline.ts
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
+import { sb } from '@/lib/supabase/safe';
 import { pollFeed } from './feed-poller';
 import {
   extractContent,
@@ -68,11 +69,14 @@ async function loadWorkspaceContext(
   workspaceId: string,
 ): Promise<WorkspaceContext> {
   // Get workspace domain_metadata which may link to a company profile
-  const { data: workspace } = await supabase
-    .from('workspaces')
-    .select('domain_metadata')
-    .eq('id', workspaceId)
-    .single();
+  const workspace = await sb(
+    supabase
+      .from('workspaces')
+      .select('domain_metadata')
+      .eq('id', workspaceId)
+      .maybeSingle(),
+    'intelligence.pipeline.workspace.load',
+  );
 
   const domainMetadata = (workspace?.domain_metadata ?? {}) as Record<
     string,
@@ -90,13 +94,16 @@ async function loadWorkspaceContext(
   const profileId = domainMetadata.company_profile_id as string | undefined;
   if (!profileId) return { companyContext: null, relevanceThreshold, profileId: null };
 
-  const { data: profile } = await supabase
-    .from('company_profiles')
-    .select(
-      'name, sectors, services, key_topics, target_customers, value_proposition',
-    )
-    .eq('id', profileId)
-    .single();
+  const profile = await sb(
+    supabase
+      .from('company_profiles')
+      .select(
+        'name, sectors, services, key_topics, target_customers, value_proposition',
+      )
+      .eq('id', profileId)
+      .maybeSingle(),
+    'intelligence.pipeline.company-profile.load',
+  );
 
   if (!profile) return { companyContext: null, relevanceThreshold, profileId: null };
 
@@ -121,11 +128,14 @@ async function loadOrGenerateCompanyEmbedding(
   companyContext: CompanyContext,
 ): Promise<number[] | null> {
   // Check for cached embedding
-  const { data: profile } = await supabase
-    .from('company_profiles')
-    .select('company_embedding')
-    .eq('id', profileId)
-    .single();
+  const profile = await sb(
+    supabase
+      .from('company_profiles')
+      .select('company_embedding')
+      .eq('id', profileId)
+      .maybeSingle(),
+    'intelligence.pipeline.company-embedding.load',
+  );
 
   if (profile?.company_embedding) {
     try {
@@ -217,25 +227,31 @@ async function isDuplicate(
   const normalisedUrl = normaliseUrl(url);
 
   // Check by URL (unique index enforces this)
-  const { data } = await supabase
-    .from('feed_articles')
-    .select('id')
-    .eq('workspace_id', workspaceId)
-    .eq('external_url', normalisedUrl)
-    .limit(1);
-
-  if (data && data.length > 0) return true;
-
-  // Also check by GUID if present
-  if (guid) {
-    const { data: guidMatch } = await supabase
+  const urlMatches = await sb(
+    supabase
       .from('feed_articles')
       .select('id')
       .eq('workspace_id', workspaceId)
-      .eq('external_id', guid)
-      .limit(1);
+      .eq('external_url', normalisedUrl)
+      .limit(1),
+    'intelligence.pipeline.dedup.by-url',
+  );
 
-    if (guidMatch && guidMatch.length > 0) return true;
+  if (urlMatches.length > 0) return true;
+
+  // Also check by GUID if present
+  if (guid) {
+    const guidMatches = await sb(
+      supabase
+        .from('feed_articles')
+        .select('id')
+        .eq('workspace_id', workspaceId)
+        .eq('external_id', guid)
+        .limit(1),
+      'intelligence.pipeline.dedup.by-guid',
+    );
+
+    if (guidMatches.length > 0) return true;
   }
 
   return false;
@@ -246,15 +262,18 @@ async function getActivePrompt(
   supabase: Supabase,
   workspaceId: string,
 ): Promise<{ id: string; promptText: string } | null> {
-  const { data } = await supabase
-    .from('feed_prompts')
-    .select('id, prompt_text')
-    .eq('workspace_id', workspaceId)
-    .eq('is_active', true)
-    .limit(1);
+  const prompts = await sb(
+    supabase
+      .from('feed_prompts')
+      .select('id, prompt_text')
+      .eq('workspace_id', workspaceId)
+      .eq('is_active', true)
+      .limit(1),
+    'intelligence.pipeline.active-prompt.load',
+  );
 
-  if (!data?.[0]) return null;
-  return { id: data[0].id, promptText: data[0].prompt_text };
+  if (!prompts[0]) return null;
+  return { id: prompts[0].id, promptText: prompts[0].prompt_text };
 }
 
 /** Process a single feed source: poll → extract → dedup → score → store */
@@ -551,13 +570,16 @@ async function storeAsContentItem(
     // SI-L3: After classification, re-read the content_item to check if content_type
     // was updated (e.g. by classifyContent or a DB trigger). If classification results
     // suggest a more specific type, update accordingly.
-    const { data: classified } = await supabase
-      .from('content_items')
-      .select('content_type, primary_domain, primary_subtopic')
-      .eq('id', contentItem.id)
-      .single();
+    const classified = await sb(
+      supabase
+        .from('content_items')
+        .select('content_type, primary_domain, primary_subtopic')
+        .eq('id', contentItem.id)
+        .single(),
+      'intelligence.pipeline.content-item.reread',
+    );
 
-    if (classified && classified.content_type === 'article') {
+    if (classified.content_type === 'article') {
       // Infer a more specific content_type from classification results
       const inferredType = inferContentType(
         classified.primary_domain,
@@ -639,13 +661,16 @@ export async function runPipeline(
   checkFirecrawlApiKey();
 
   // Concurrency guard: skip feeds that already have an in-progress queue entry
-  const { data: inProgress } = await supabase
-    .from('si_processing_queue')
-    .select('feed_source_id')
-    .eq('status', 'processing');
+  const inProgress = await sb(
+    supabase
+      .from('si_processing_queue')
+      .select('feed_source_id')
+      .eq('status', 'processing'),
+    'intelligence.pipeline.queue.in-progress',
+  );
 
   const inProgressSourceIds = new Set(
-    (inProgress ?? []).map((r) => r.feed_source_id),
+    inProgress.map((r) => r.feed_source_id),
   );
 
   const allSources = await getDueFeedSources(supabase);
@@ -656,16 +681,19 @@ export async function runPipeline(
 
   for (const source of sources) {
     // Create queue entry
-    const { data: queueEntry } = await supabase
-      .from('si_processing_queue')
-      .insert({
-        workspace_id: source.workspace_id,
-        feed_source_id: source.id,
-        status: 'processing',
-        started_at: new Date().toISOString(),
-      })
-      .select('id')
-      .single();
+    const queueEntry = await sb(
+      supabase
+        .from('si_processing_queue')
+        .insert({
+          workspace_id: source.workspace_id,
+          feed_source_id: source.id,
+          status: 'processing',
+          started_at: new Date().toISOString(),
+        })
+        .select('id')
+        .single(),
+      'intelligence.pipeline.queue.insert',
+    );
 
     // Load company context and workspace settings for this workspace
     const { companyContext, relevanceThreshold, profileId } = await loadWorkspaceContext(
@@ -707,20 +735,18 @@ export async function runPipeline(
     errors.push(...feedResult.errors);
 
     // Update queue entry
-    if (queueEntry) {
-      await supabase
-        .from('si_processing_queue')
-        .update({
-          status: feedResult.errors.length > 0 ? 'failed' : 'complete',
-          completed_at: new Date().toISOString(),
-          error_message:
-            feedResult.errors.length > 0 ? feedResult.errors.join('; ') : null,
-          articles_found: feedResult.articlesFound,
-          articles_new: feedResult.articlesNew,
-          articles_passed: feedResult.articlesPassed,
-        })
-        .eq('id', queueEntry.id);
-    }
+    await supabase
+      .from('si_processing_queue')
+      .update({
+        status: feedResult.errors.length > 0 ? 'failed' : 'complete',
+        completed_at: new Date().toISOString(),
+        error_message:
+          feedResult.errors.length > 0 ? feedResult.errors.join('; ') : null,
+        articles_found: feedResult.articlesFound,
+        articles_new: feedResult.articlesNew,
+        articles_passed: feedResult.articlesPassed,
+      })
+      .eq('id', queueEntry.id);
   }
 
   return {
