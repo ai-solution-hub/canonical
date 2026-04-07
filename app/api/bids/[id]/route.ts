@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   getAuthenticatedClient,
   getAuthorisedClient,
-  unauthorisedResponse,
   authFailureResponse,
 } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
@@ -26,7 +25,7 @@ export async function GET(
 ) {
   try {
     const auth = await getAuthenticatedClient();
-    if (!auth) return unauthorisedResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;
 
     const { id } = await params;

@@ -177,10 +177,33 @@ export function configureRole(
 
 /**
  * Configure the mock to simulate an unauthenticated user.
+ *
+ * Mirrors real Supabase JS behaviour: `getUser()` returns
+ * `{ data: { user: null }, error: AuthSessionMissingError }` when there is
+ * no session. The `name` field is the discriminator that
+ * `getAuthenticatedClient` uses to distinguish "not logged in" (401) from
+ * a real auth-service error (500).
  */
 export function configureUnauthenticated(client: MockSupabaseClient) {
   client.auth.getUser.mockResolvedValueOnce({
     data: { user: null },
-    error: { message: 'No session' },
+    error: { name: 'AuthSessionMissingError', message: 'Auth session missing!' },
+  });
+}
+
+/**
+ * Configure the mock to simulate a transient Supabase Auth service failure
+ * (e.g. refresh-token failure, network timeout to the auth endpoint).
+ * `getAuthenticatedClient` should surface this as `auth_service_failed`
+ * (500), NOT silently downgrade it to 401 unauthenticated.
+ */
+export function configureAuthServiceError(client: MockSupabaseClient) {
+  client.auth.getUser.mockResolvedValueOnce({
+    data: { user: null },
+    error: {
+      name: 'AuthApiError',
+      message: 'Auth service unavailable',
+      status: 503,
+    },
   });
 }

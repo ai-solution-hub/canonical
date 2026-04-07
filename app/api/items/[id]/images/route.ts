@@ -3,7 +3,6 @@ import {
   getAuthenticatedClient,
   getAuthorisedClient,
   authFailureResponse,
-  unauthorisedResponse,
   rateLimitResponse,
 } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
@@ -314,7 +313,7 @@ export async function GET(
 ) {
   try {
     const auth = await getAuthenticatedClient();
-    if (!auth) return unauthorisedResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;
 
     const { id } = await params;

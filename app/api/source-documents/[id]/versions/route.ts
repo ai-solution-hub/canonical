@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedClient } from '@/lib/auth';
+import { getAuthenticatedClient, authFailureResponse} from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { createServiceClient } from '@/lib/supabase/server';
 
@@ -20,9 +20,7 @@ export async function GET(
 ) {
   try {
     const authResult = await getAuthenticatedClient();
-    if (!authResult) {
-      return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
-    }
+    if (!authResult.success) return authFailureResponse(authResult);
     const { id } = await params;
 
     // Validate UUID format

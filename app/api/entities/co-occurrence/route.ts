@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
+import {
+  getAuthenticatedClient,
+  authFailureResponse,
+} from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseSearchParams } from '@/lib/validation';
 import { EntityCoOccurrenceParamsSchema } from '@/lib/validation/schemas';
@@ -23,7 +26,7 @@ export const maxDuration = 30;
 export async function GET(request: NextRequest) {
   try {
     const auth = await getAuthenticatedClient();
-    if (!auth) return unauthorisedResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;
 
     const parsed = parseSearchParams(

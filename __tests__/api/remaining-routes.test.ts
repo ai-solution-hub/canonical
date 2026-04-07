@@ -1187,7 +1187,7 @@ describe('GET /api/oauth/grants', () => {
   it('returns 401 when unauthenticated', async () => {
     mockSupabase.auth.getUser.mockResolvedValueOnce({
       data: { user: null },
-      error: { message: 'No session' },
+      error: { name: 'AuthSessionMissingError', message: 'Auth session missing!' },
     });
 
     const req = createTestRequest('/api/oauth/grants');
@@ -1195,7 +1195,7 @@ describe('GET /api/oauth/grants', () => {
     expect(res.status).toBe(401);
 
     const body = await res.json();
-    expect(body.error).toBe('Not authenticated');
+    expect(body.error).toBe('Unauthorised');
   });
 
   it('returns 200 with empty grants list', async () => {
@@ -1256,7 +1256,7 @@ describe('POST /api/oauth/revoke', () => {
   it('returns 401 when unauthenticated', async () => {
     mockSupabase.auth.getUser.mockResolvedValueOnce({
       data: { user: null },
-      error: { message: 'No session' },
+      error: { name: 'AuthSessionMissingError', message: 'Auth session missing!' },
     });
 
     const req = createTestRequest('/api/oauth/revoke', {
@@ -1267,7 +1267,7 @@ describe('POST /api/oauth/revoke', () => {
     expect(res.status).toBe(401);
 
     const body = await res.json();
-    expect(body.error).toBe('Not authenticated');
+    expect(body.error).toBe('Unauthorised');
   });
 
   it('returns 400 for missing clientId', async () => {

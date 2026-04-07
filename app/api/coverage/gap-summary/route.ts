@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
-import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
+import {
+  getAuthenticatedClient,
+  authFailureResponse,
+} from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import {
   fetchTemplateRequirements,
@@ -20,7 +23,7 @@ export const maxDuration = 30;
 export async function GET() {
   try {
     const auth = await getAuthenticatedClient();
-    if (!auth) return unauthorisedResponse();
+    if (!auth.success) return authFailureResponse(auth);
 
     // Fetch all current templates
     const templates = await listAvailableTemplates(auth.supabase);

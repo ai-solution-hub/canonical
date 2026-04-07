@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   getAuthenticatedClient,
   getAuthorisedClient,
-  unauthorisedResponse,
   authFailureResponse,
   rateLimitResponse,
 } from '@/lib/auth';
@@ -21,7 +20,7 @@ export const maxDuration = 30;
 export async function GET(request: NextRequest) {
   try {
     const auth = await getAuthenticatedClient();
-    if (!auth) return unauthorisedResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;
 
     const parsed = parseSearchParams(
