@@ -13,6 +13,7 @@ import type {
 } from '@modelcontextprotocol/sdk/types.js';
 import type { BidQuestionSummary, BidSection } from '@/lib/mcp/formatters';
 import { createMcpClient } from '@/lib/mcp/auth';
+import { sb } from '@/lib/supabase/safe';
 
 // ---------------------------------------------------------------------------
 // Type alias for the extra parameter in tool callbacks
@@ -81,17 +82,20 @@ export async function fetchBidSections(
   confidence_breakdown: Record<string, number>;
 }> {
   // Fetch individual questions with ordering
-  const { data: questions } = await supabase
-    .from('bid_questions')
-    .select(
-      'id, question_text, section_name, section_sequence, question_sequence, status, confidence_posture, word_limit',
-    )
-    .eq('project_id', bidId)
-    .order('section_sequence')
-    .order('question_sequence');
+  const questions = await sb(
+    supabase
+      .from('bid_questions')
+      .select(
+        'id, question_text, section_name, section_sequence, question_sequence, status, confidence_posture, word_limit',
+      )
+      .eq('project_id', bidId)
+      .order('section_sequence')
+      .order('question_sequence'),
+    'mcp.tools.shared.bid.questions',
+  );
 
   // Fetch responses for all questions in this bid (avoids N+1)
-  const questionIds = (questions ?? []).map((q: { id: string }) => q.id);
+  const questionIds = (questions).map((q: { id: string }) => q.id);
   const { data: responses } =
     questionIds.length > 0
       ? await supabase
@@ -117,7 +121,7 @@ export async function fetchBidSections(
 
   // Group questions into sections
   const sectionMap = new Map<string, BidQuestionSummary[]>();
-  for (const q of questions ?? []) {
+  for (const q of questions) {
     const sectionName = q.section_name ?? 'Ungrouped';
     if (!sectionMap.has(sectionName)) {
       sectionMap.set(sectionName, []);
@@ -142,7 +146,7 @@ export async function fetchBidSections(
   // Compute breakdowns
   const status_breakdown: Record<string, number> = {};
   const confidence_breakdown: Record<string, number> = {};
-  for (const q of questions ?? []) {
+  for (const q of questions) {
     const s = q.status ?? 'not_started';
     status_breakdown[s] = (status_breakdown[s] ?? 0) + 1;
     const c = q.confidence_posture ?? 'unmatched';

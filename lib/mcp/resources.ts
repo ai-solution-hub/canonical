@@ -33,6 +33,7 @@ import type {
 import type { Variables } from '@modelcontextprotocol/sdk/shared/uriTemplate.js';
 import { createMcpClient, getMcpUserId, getMcpUserRole } from '@/lib/mcp/auth';
 import { loadSkill } from '@/lib/ai/skills/loader';
+import { sb } from '@/lib/supabase/safe';
 
 // Lazy import — dashboard module pulls in bid-queries and other heavy modules
 // that can cause Vercel serverless cold start crashes at module evaluation time.
@@ -54,14 +55,17 @@ export async function registerResources(server: McpServer): Promise<void> {
       list: async (extra: Extra) => {
         try {
           const supabase = createMcpClient(extra.authInfo);
-          const { data: items } = await supabase
-            .from('content_items')
-            .select('id, title, suggested_title, content_type')
-            .order('updated_at', { ascending: false })
-            .limit(10);
+          const items = await sb(
+            supabase
+              .from('content_items')
+              .select('id, title, suggested_title, content_type')
+              .order('updated_at', { ascending: false })
+              .limit(10),
+            'mcp.resources.content_item.list',
+          );
 
           return {
-            resources: (items ?? []).map(
+            resources: items.map(
               (item: {
                 id: string;
                 title: string | null;
@@ -143,16 +147,19 @@ export async function registerResources(server: McpServer): Promise<void> {
       list: async (extra: Extra) => {
         try {
           const supabase = createMcpClient(extra.authInfo);
-          const { data: workspaces } = await supabase
-            .from('workspaces')
-            .select('id, name, domain_metadata')
-            .eq('type', 'bid')
-            .eq('is_archived', false)
-            .order('updated_at', { ascending: false })
-            .limit(10);
+          const workspaces = await sb(
+            supabase
+              .from('workspaces')
+              .select('id, name, domain_metadata')
+              .eq('type', 'bid')
+              .eq('is_archived', false)
+              .order('updated_at', { ascending: false })
+              .limit(10),
+            'mcp.resources.bid_workspace.list',
+          );
 
           return {
-            resources: (workspaces ?? []).map(
+            resources: workspaces.map(
               (ws: {
                 id: string;
                 name: string | null;
@@ -207,12 +214,15 @@ export async function registerResources(server: McpServer): Promise<void> {
           };
         }
 
-        const { data: questions } = await supabase
-          .from('bid_questions')
-          .select('id, question_text, section_name, status, confidence_posture')
-          .eq('project_id', bidId)
-          .order('section_sequence')
-          .order('question_sequence');
+        const questions = await sb(
+          supabase
+            .from('bid_questions')
+            .select('id, question_text, section_name, status, confidence_posture')
+            .eq('project_id', bidId)
+            .order('section_sequence')
+            .order('question_sequence'),
+          'mcp.resources.bid_workspace.questions',
+        );
 
         return {
           contents: [
@@ -220,7 +230,7 @@ export async function registerResources(server: McpServer): Promise<void> {
               uri: uri.href,
               mimeType: 'application/json',
               text: JSON.stringify(
-                { ...workspace, questions: questions ?? [] },
+                { ...workspace, questions },
                 null,
                 2,
               ),
@@ -248,15 +258,18 @@ export async function registerResources(server: McpServer): Promise<void> {
       list: async (extra: Extra) => {
         try {
           const supabase = createMcpClient(extra.authInfo);
-          const { data: items } = await supabase
-            .from('content_items')
-            .select('id, title, suggested_title, primary_domain')
-            .eq('content_type', 'q_a_pair')
-            .order('updated_at', { ascending: false })
-            .limit(10);
+          const items = await sb(
+            supabase
+              .from('content_items')
+              .select('id, title, suggested_title, primary_domain')
+              .eq('content_type', 'q_a_pair')
+              .order('updated_at', { ascending: false })
+              .limit(10),
+            'mcp.resources.qa_pair.list',
+          );
 
           return {
-            resources: (items ?? []).map(
+            resources: items.map(
               (item: {
                 id: string;
                 title: string | null;
@@ -346,13 +359,16 @@ export async function registerResources(server: McpServer): Promise<void> {
         const supabase = createMcpClient(extra.authInfo);
 
         // Count items per domain
-        const { data: domainCounts } = await supabase
-          .from('content_items')
-          .select('primary_domain')
-          .not('primary_domain', 'is', null);
+        const domainCounts = await sb(
+          supabase
+            .from('content_items')
+            .select('primary_domain')
+            .not('primary_domain', 'is', null),
+          'mcp.resources.coverage.read',
+        );
 
         const coverage: Record<string, number> = {};
-        for (const row of (domainCounts ?? []) as Array<{
+        for (const row of domainCounts as Array<{
           primary_domain: string | null;
         }>) {
           if (row.primary_domain) {
@@ -444,15 +460,21 @@ export async function registerResources(server: McpServer): Promise<void> {
     async (uri: URL, extra: Extra) => {
       try {
         const supabase = createMcpClient(extra.authInfo);
-        const { data: domains } = await supabase
-          .from('taxonomy_domains')
-          .select('id, name, display_order')
-          .order('display_order');
+        const domains = await sb(
+          supabase
+            .from('taxonomy_domains')
+            .select('id, name, display_order')
+            .order('display_order'),
+          'mcp.resources.taxonomy.domains',
+        );
 
-        const { data: subtopics } = await supabase
-          .from('taxonomy_subtopics')
-          .select('id, name, domain_id, display_order')
-          .order('display_order');
+        const subtopics = await sb(
+          supabase
+            .from('taxonomy_subtopics')
+            .select('id, name, domain_id, display_order')
+            .order('display_order'),
+          'mcp.resources.taxonomy.subtopics',
+        );
 
         return {
           contents: [
@@ -460,7 +482,7 @@ export async function registerResources(server: McpServer): Promise<void> {
               uri: uri.href,
               mimeType: 'application/json',
               text: JSON.stringify(
-                { domains: domains ?? [], subtopics: subtopics ?? [] },
+                { domains, subtopics },
                 null,
                 2,
               ),

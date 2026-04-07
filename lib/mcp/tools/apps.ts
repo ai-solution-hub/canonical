@@ -9,6 +9,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createMcpClient, getMcpUserId, getMcpUserRole } from '@/lib/mcp/auth';
 import { parseBidMetadata } from '@/lib/validation/schemas';
+import { sb } from '@/lib/supabase/safe';
 import {
   formatCoverageMatrix,
   formatBidDashboard,
@@ -85,24 +86,33 @@ export async function registerAppTools(server: McpServer): Promise<void> {
           freshness.expired;
 
         // Domain-level freshness breakdown — query content_items
-        const { data: items } = await supabase
-          .from('content_items')
-          .select('primary_domain, primary_subtopic, freshness');
+        const items = await sb(
+          supabase
+            .from('content_items')
+            .select('primary_domain, primary_subtopic, freshness'),
+          'mcp.tools.apps.coverage.items',
+        );
 
         // Build domain map from taxonomy
-        const { data: taxonomyDomains } = await supabase
-          .from('taxonomy_domains')
-          .select('id, name, display_order')
-          .order('display_order');
+        const taxonomyDomains = await sb(
+          supabase
+            .from('taxonomy_domains')
+            .select('id, name, display_order')
+            .order('display_order'),
+          'mcp.tools.apps.coverage.domains',
+        );
 
-        const { data: taxonomySubtopics } = await supabase
-          .from('taxonomy_subtopics')
-          .select('id, name, domain_id, display_order')
-          .order('display_order');
+        const taxonomySubtopics = await sb(
+          supabase
+            .from('taxonomy_subtopics')
+            .select('id, name, domain_id, display_order')
+            .order('display_order'),
+          'mcp.tools.apps.coverage.subtopics',
+        );
 
         // Build domain name -> subtopics map
         const domainMap = new Map<string, string>();
-        for (const d of (taxonomyDomains ?? []) as unknown as Array<{
+        for (const d of taxonomyDomains as unknown as Array<{
           id: string;
           name: string;
         }>) {
@@ -111,7 +121,7 @@ export async function registerAppTools(server: McpServer): Promise<void> {
 
         // Group subtopics by domain
         const subtopicsByDomain = new Map<string, Array<{ name: string }>>();
-        for (const st of (taxonomySubtopics ?? []) as unknown as Array<{
+        for (const st of taxonomySubtopics as unknown as Array<{
           id: string;
           name: string;
           domain_id: string;
@@ -139,7 +149,7 @@ export async function registerAppTools(server: McpServer): Promise<void> {
         const domainCounts = new Map<string, FreshnessCounts>();
         const subtopicCounts = new Map<string, FreshnessCounts>();
 
-        for (const item of (items ?? []) as ItemRow[]) {
+        for (const item of items as unknown as ItemRow[]) {
           if (!item.primary_domain) continue;
 
           // Domain level
@@ -180,16 +190,16 @@ export async function registerAppTools(server: McpServer): Promise<void> {
         const domains: CoverageMatrixData['domains'] = [];
         const allDomainNames = [
           ...new Set([
-            ...(
-              (taxonomyDomains ?? []) as unknown as Array<{ name: string }>
-            ).map((d) => d.name),
+            ...(taxonomyDomains as unknown as Array<{ name: string }>).map(
+              (d) => d.name,
+            ),
             ...domainCounts.keys(),
           ]),
         ];
 
         // Sort by taxonomy display_order
         const domainOrder = new Map<string, number>();
-        for (const d of (taxonomyDomains ?? []) as unknown as Array<{
+        for (const d of taxonomyDomains as unknown as Array<{
           name: string;
           display_order: number;
         }>) {
@@ -240,26 +250,32 @@ export async function registerAppTools(server: McpServer): Promise<void> {
         }
 
         // Quality summary
-        const { data: qualityData } = await supabase
-          .from('ingestion_quality_log')
-          .select('flag_type, severity')
-          .eq('status', 'open');
+        const qualityData = await sb(
+          supabase
+            .from('ingestion_quality_log')
+            .select('flag_type, severity')
+            .eq('status', 'open'),
+          'mcp.tools.apps.coverage.quality',
+        );
 
         const qualityByType: Record<string, number> = {};
         let totalFlagged = 0;
-        for (const row of (qualityData ?? []) as Array<{ flag_type: string }>) {
+        for (const row of qualityData as Array<{ flag_type: string }>) {
           qualityByType[row.flag_type] =
             (qualityByType[row.flag_type] ?? 0) + 1;
           totalFlagged++;
         }
 
         // Coverage targets
-        const { data: targetRows } = await supabase
-          .from('coverage_targets')
-          .select(
-            'domain_id, metric_name, target_value, taxonomy_domains(name)',
-          )
-          .order('domain_id');
+        const targetRows = await sb(
+          supabase
+            .from('coverage_targets')
+            .select(
+              'domain_id, metric_name, target_value, taxonomy_domains(name)',
+            )
+            .order('domain_id'),
+          'mcp.tools.apps.coverage.targets',
+        );
 
         type TargetRow = {
           domain_id: string;
@@ -272,7 +288,7 @@ export async function registerAppTools(server: McpServer): Promise<void> {
           metric_name: string;
           target_value: number;
         }> = [];
-        for (const row of (targetRows ?? []) as unknown as TargetRow[]) {
+        for (const row of targetRows as unknown as TargetRow[]) {
           const domName = row.taxonomy_domains?.name;
           if (domName) {
             coverageTargets.push({
@@ -480,19 +496,22 @@ export async function registerAppTools(server: McpServer): Promise<void> {
 
         // If a specific bid_id is requested, fetch detail
         if (args.bid_id) {
-          const { data: workspace } = await supabase
-            .from('workspaces')
-            .select('id, name, description, domain_metadata')
-            .eq('id', args.bid_id)
-            .eq('type', 'bid')
-            .single();
+          const workspace = await sb(
+            supabase
+              .from('workspaces')
+              .select('id, name, description, domain_metadata')
+              .eq('id', args.bid_id)
+              .eq('type', 'bid')
+              .maybeSingle(),
+            'mcp.tools.apps.workspace.load',
+          );
 
           if (workspace) {
-            const { data: stats } = await supabase.rpc(
-              'get_bid_question_stats',
-              {
+            const stats = await sb(
+              supabase.rpc('get_bid_question_stats', {
                 p_project_id: args.bid_id,
-              },
+              }),
+              'mcp.tools.apps.workspace.stats',
             );
             const { sections, status_breakdown, confidence_breakdown } =
               await fetchBidSections(supabase, args.bid_id);

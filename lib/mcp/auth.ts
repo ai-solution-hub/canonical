@@ -8,6 +8,7 @@
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import type { Database } from '@/supabase/types/database.types';
+import { sb } from '@/lib/supabase/safe';
 
 /**
  * Creates a per-user Supabase client from an OAuth bearer token.
@@ -72,11 +73,14 @@ export async function getMcpUserRole(authInfo: AuthInfo): Promise<string> {
   // Fallback: query the database
   const userId = getMcpUserId(authInfo);
   const supabase = createMcpClient(authInfo);
-  const { data } = await supabase
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', userId)
-    .single();
+  const data = await sb(
+    supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .maybeSingle(),
+    'mcp.auth.role.read',
+  );
 
   return (data?.role as string) ?? 'viewer';
 }

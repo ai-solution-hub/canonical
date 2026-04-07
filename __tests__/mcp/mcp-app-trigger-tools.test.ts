@@ -824,7 +824,7 @@ describe('MCP App trigger tools #22-23', () => {
         eq: vi.fn().mockReturnThis(),
         in: vi.fn().mockReturnThis(),
         order: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({
+        maybeSingle: vi.fn().mockResolvedValue({
           data: {
             id: 'bid-001',
             name: 'NHS Digital Transformation',
@@ -919,7 +919,7 @@ describe('MCP App trigger tools #22-23', () => {
       const mockChain = {
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({
+        maybeSingle: vi.fn().mockResolvedValue({
           data: null,
           error: null,
         }),
@@ -1012,7 +1012,7 @@ describe('MCP App trigger tools #22-23', () => {
         eq: vi.fn().mockReturnThis(),
         in: vi.fn().mockReturnThis(),
         order: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({
+        maybeSingle: vi.fn().mockResolvedValue({
           data: {
             id: 'bid-001',
             name: 'NHS Digital Transformation',
@@ -1083,7 +1083,7 @@ describe('MCP App trigger tools #22-23', () => {
         eq: vi.fn().mockReturnThis(),
         in: vi.fn().mockReturnThis(),
         order: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({
+        maybeSingle: vi.fn().mockResolvedValue({
           data: {
             id: 'bid-001',
             name: 'Test Bid',
@@ -1185,7 +1185,7 @@ describe('MCP App trigger tools #22-23', () => {
         eq: vi.fn().mockReturnThis(),
         in: vi.fn().mockReturnThis(),
         order: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({
+        maybeSingle: vi.fn().mockResolvedValue({
           data: {
             id: 'bid-001',
             name: 'Test Bid',
@@ -1286,7 +1286,7 @@ describe('MCP App trigger tools #22-23', () => {
         eq: vi.fn().mockReturnThis(),
         in: vi.fn().mockReturnThis(),
         order: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({
+        maybeSingle: vi.fn().mockResolvedValue({
           data: {
             id: 'bid-001',
             name: 'Empty Bid',
