@@ -190,7 +190,7 @@ Consult these references when adding or modifying UI elements.
 | Entity type taxonomy spec     | `docs/reference/entity-type-taxonomy-spec.md`                         |
 | Field-consumer dependency map | `docs/reference/field-consumer-dependency-map.md`                     |
 | Data entry points             | `docs/reference/data-entry-points.md`                                 |
-| Taxonomy change runbook       | `docs/reference/taxonomy-change-runbook.md`                           |
+| Taxonomy change runbook       | `docs/operations/taxonomy-change-runbook.md`                          |
 | Roadmap                       | `docs/reference/post-mvp-roadmap.md`                                  |
 | AI integration strategy       | `docs/reference/ai-integration-strategy.md`                           |
 | AI integration layer map      | `docs/reference/ai-integration-layers.md`                             |
