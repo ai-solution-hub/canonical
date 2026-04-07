@@ -228,3 +228,410 @@
  *     version-increment proves the COUNTER moved; the v2-content-in-
  *     history assertion proves the SNAPSHOT actually persisted.
  */
+
+import { test, expect } from '../fixtures';
+import { createServiceClient } from '../fixtures/supabase';
+
+/**
+ * Normalise text for cross-source equality comparisons.
+ * Strips HTML tags, collapses whitespace, trims.
+ * Used to compare DB-stored markdown to editor-rendered HTML innerText.
+ */
+function normaliseText(input: string): string {
+  return input
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+const SSE_URL_PATH_RE = /\/api\/bids\/[0-9a-f-]{36}\/responses\/draft-stream$/;
+const RESTORE_URL_PATH_RE =
+  /\/api\/bids\/[0-9a-f-]{36}\/responses\/[0-9a-f-]{36}\/restore$/;
+const REGENERATE_URL_PATH_RE =
+  /\/api\/bids\/[0-9a-f-]{36}\/responses\/[0-9a-f-]{36}\/regenerate$/;
+
+// ---------------------------------------------------------------------------
+// Defensive cleanup helpers (shared between 8.0.7 and 8.0.8)
+// ---------------------------------------------------------------------------
+
+async function clearResponsesForQuestion(questionId: string): Promise<void> {
+  const supabase = createServiceClient();
+  // Resolve any response ids first (so we can clear history rows that
+  // would otherwise be orphaned by ON DELETE CASCADE — belt and braces).
+  const { data: existing } = await supabase
+    .from('bid_responses')
+    .select('id')
+    .eq('question_id', questionId);
+  const ids = (existing ?? []).map((r: { id: string }) => r.id);
+  if (ids.length > 0) {
+    await supabase.from('bid_response_history').delete().in('response_id', ids);
+    await supabase.from('bid_responses').delete().in('id', ids);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 8.0.7 — bid draft-stream happy path
+// ---------------------------------------------------------------------------
+
+test.describe('Bid draft-stream happy path (8.0.7)', () => {
+  test.beforeEach(async ({ workerData }) => {
+    // Defensive: ensure questionIds[0] starts with NO bid_responses and NO
+    // history rows. The worker fixture seeds responses for questions[0..1];
+    // we delete them here so the test exercises the create-from-empty path
+    // through draft-stream.
+    await clearResponsesForQuestion(workerData.questionIds[0]);
+  });
+
+  test.afterEach(async ({ workerData }) => {
+    try {
+      await clearResponsesForQuestion(workerData.questionIds[0]);
+    } catch (err) {
+      console.error('8.0.7 cleanup failed:', err);
+    }
+  });
+
+  test('Regenerate streams a new draft, persists to DB, renders in editor', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
+    const supabase = createServiceClient();
+    const questionId = workerData.questionIds[0];
+
+    // 1. Open the bid session page (defaults to currentIndex = 0 → questionIds[0])
+    await page.goto(`/bid/${workerData.bidId}/session`);
+
+    // Wait for the response editor area to mount.
+    await expect(
+      page.getByRole('region', { name: 'Response editor' }).or(
+        page.locator('main[aria-label="Response editor"]'),
+      ),
+    ).toBeVisible({ timeout: 15000 });
+
+    // The "Regenerate" button is the entry point for both creating from
+    // empty AND for re-drafting. With NO existing response, clicking it
+    // calls stream.startDraft (which POSTs to draft-stream).
+    const regenerateButton = page.getByRole('button', { name: /^Regenerate$/ });
+    await expect(regenerateButton).toBeVisible({ timeout: 15000 });
+
+    // 2. Attach response listener BEFORE click. We'll capture the SSE
+    //    response so we can read its body (full stream) and inspect chunks.
+    const ssePromise = page.waitForResponse(
+      (resp) => SSE_URL_PATH_RE.test(new URL(resp.url()).pathname),
+      { timeout: 120000 },
+    );
+
+    // 3. Click Regenerate to start the draft stream.
+    await regenerateButton.click();
+
+    // 4. Wait for the SSE response object — note: this resolves on headers,
+    //    so we then await body() to wait for stream completion.
+    const sseResponse = await ssePromise;
+
+    // ASSERTION: SSE handler returned HTTP 200 (NOT 500 mid-stream)
+    expect(
+      sseResponse.status(),
+      'SSE endpoint must return HTTP 200',
+    ).toBe(200);
+
+    // body() blocks until the SSE stream finishes.
+    const bodyBuf = await sseResponse.body();
+    const bodyText = bodyBuf.toString('utf-8');
+
+    // ASSERTION: at least one non-empty data chunk was emitted (real
+    // streaming, not a zero-chunk silent failure).
+    const tokenEventCount = (bodyText.match(/^event: token$/gm) ?? []).length;
+    expect(
+      tokenEventCount,
+      'SSE stream must emit at least one token event',
+    ).toBeGreaterThanOrEqual(1);
+    expect(
+      bodyBuf.length,
+      'SSE stream body must contain bytes',
+    ).toBeGreaterThan(0);
+
+    // 5. Wait for the editor to render non-empty content.
+    const editor = page.locator('.ProseMirror').first();
+    await expect(editor).toBeVisible({ timeout: 15000 });
+    await expect
+      .poll(
+        async () => ((await editor.textContent()) ?? '').trim().length,
+        { timeout: 30000, message: 'editor must contain drafted content' },
+      )
+      .toBeGreaterThan(20);
+
+    const editorText = (await editor.textContent()) ?? '';
+
+    // 6. Service-key query bid_responses for question id.
+    const { data: responseRows, error: respErr } = await supabase
+      .from('bid_responses')
+      .select('id, response_text, version')
+      .eq('question_id', questionId);
+    if (respErr) throw respErr;
+    expect(
+      responseRows && responseRows.length,
+      'bid_responses row must exist for the question',
+    ).toBe(1);
+    const responseRow = responseRows![0];
+
+    // ASSERTION: response_text is non-empty
+    expect(
+      (responseRow.response_text ?? '').length,
+      'response_text must be non-empty',
+    ).toBeGreaterThan(20);
+
+    // ASSERTION: version === 1 exactly (not >= 1) — catches version-tracking
+    // regressions where the trigger sets a wrong initial value.
+    expect(responseRow.version).toBe(1);
+
+    // ASSERTION: editor-rendered text equals DB-stored text after
+    // normalisation (UI and DB are the same payload, not divergent paths).
+    expect(normaliseText(editorText)).toBe(
+      normaliseText(responseRow.response_text ?? ''),
+    );
+
+    // ASSERTION: bid_response_history has EXACTLY 0 rows for this response.
+    // The trigger only snapshots on UPDATE (verified at
+    // supabase/migrations/...security_performance_fixes.sql:2197 — the
+    // snapshot function is wired BEFORE UPDATE only, not BEFORE INSERT).
+    const { count: historyCount, error: histErr } = await supabase
+      .from('bid_response_history')
+      .select('*', { count: 'exact', head: true })
+      .eq('response_id', responseRow.id);
+    if (histErr) throw histErr;
+    expect(
+      historyCount,
+      'history table must have 0 rows for a freshly-inserted response',
+    ).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8.0.8 — bid regenerate + restore
+// ---------------------------------------------------------------------------
+
+test.describe('Bid regenerate + restore (8.0.8)', () => {
+  // Deterministic original text seeded directly into bid_responses.
+  // Phrased so a re-draft against matched content WILL produce a different
+  // string (catches the no-op regenerate failure mode).
+  const ORIGINAL_TEXT =
+    '[E2E-WP2-8.0.8] Original seeded response text. This sentence is intentionally distinctive so the regenerate path produces a clearly different output.';
+
+  test.beforeEach(async ({ workerData }) => {
+    const supabase = createServiceClient();
+    await clearResponsesForQuestion(workerData.questionIds[0]);
+    // Seed a v1 row directly. Note: source_content_ids is left as the
+    // worker bid's matched_content_ids (or empty) — regenerate route
+    // re-fetches the question's matched content.
+    await supabase
+      .from('bid_responses')
+      .insert({
+        question_id: workerData.questionIds[0],
+        response_text: ORIGINAL_TEXT,
+        review_status: 'draft',
+        // version is set by the BEFORE INSERT trigger to 1 regardless.
+      })
+      .throwOnError();
+  });
+
+  test.afterEach(async ({ workerData }) => {
+    try {
+      await clearResponsesForQuestion(workerData.questionIds[0]);
+    } catch (err) {
+      console.error('8.0.8 cleanup failed:', err);
+    }
+  });
+
+  test('Regenerate creates a v2 snapshot, then restore brings v1 forward as v3', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
+    const supabase = createServiceClient();
+    const questionId = workerData.questionIds[0];
+
+    // Capture original state from DB.
+    const { data: seedRows, error: seedErr } = await supabase
+      .from('bid_responses')
+      .select('id, response_text, version')
+      .eq('question_id', questionId);
+    if (seedErr) throw seedErr;
+    expect(seedRows && seedRows.length, 'seed row exists').toBe(1);
+    const responseId = seedRows![0].id;
+    expect(seedRows![0].version).toBe(1);
+    expect(seedRows![0].response_text).toBe(ORIGINAL_TEXT);
+    const originalText = seedRows![0].response_text!;
+
+    // 1. Open the session page.
+    await page.goto(`/bid/${workerData.bidId}/session`);
+    await expect(
+      page.getByRole('region', { name: 'Response editor' }).or(
+        page.locator('main[aria-label="Response editor"]'),
+      ),
+    ).toBeVisible({ timeout: 15000 });
+
+    // The seeded original should appear in the editor.
+    const editor = page.locator('.ProseMirror').first();
+    await expect(editor).toBeVisible({ timeout: 15000 });
+    await expect
+      .poll(async () => normaliseText((await editor.textContent()) ?? ''), {
+        timeout: 30000,
+        message: 'editor must reflect seeded original',
+      })
+      .toContain('intentionally distinctive');
+
+    // 2. Click Regenerate. With an existing row, this routes through the
+    //    /regenerate endpoint (NOT /draft-stream) because the action handler
+    //    branches on response?.id existence.
+    const regenerateButton = page.getByRole('button', { name: /^Regenerate$/ });
+    await expect(regenerateButton).toBeVisible();
+
+    // Click once to reveal the instructions input, then again to send.
+    await regenerateButton.click();
+    // The button label switches to "Send" once the input is shown.
+    const sendButton = page.getByRole('button', { name: /^Send$/ });
+    await expect(sendButton).toBeVisible({ timeout: 5000 });
+
+    const regenPromise = page.waitForResponse(
+      (resp) =>
+        REGENERATE_URL_PATH_RE.test(new URL(resp.url()).pathname) &&
+        resp.request().method() === 'POST',
+      { timeout: 180000 },
+    );
+    await sendButton.click();
+    const regenResponse = await regenPromise;
+    expect(
+      regenResponse.status(),
+      'Regenerate endpoint must return HTTP 200',
+    ).toBe(200);
+
+    // Wait for editor text to actually change away from originalText.
+    await expect
+      .poll(
+        async () => normaliseText((await editor.textContent()) ?? ''),
+        {
+          timeout: 60000,
+          message: 'editor must update to regenerated text',
+        },
+      )
+      .not.toBe(normaliseText(originalText));
+
+    const regeneratedText = (await editor.textContent()) ?? '';
+
+    // ASSERTION: regenerated text is different from original (catches no-op)
+    expect(normaliseText(regeneratedText)).not.toBe(normaliseText(originalText));
+
+    // Refetch DB state.
+    const { data: postRegenRows, error: prErr } = await supabase
+      .from('bid_responses')
+      .select('id, response_text, version')
+      .eq('id', responseId)
+      .single();
+    if (prErr) throw prErr;
+
+    // ASSERTION: version === 2 exactly
+    expect(postRegenRows.version).toBe(2);
+    // ASSERTION: DB response_text matches editor (UI and DB agree)
+    expect(normaliseText(postRegenRows.response_text ?? '')).toBe(
+      normaliseText(regeneratedText),
+    );
+
+    // ASSERTION: history has exactly one row, version=1, content=originalText
+    const { data: hist1, error: h1Err } = await supabase
+      .from('bid_response_history')
+      .select('version, response_text')
+      .eq('response_id', responseId)
+      .order('version', { ascending: true });
+    if (h1Err) throw h1Err;
+    expect(hist1).toHaveLength(1);
+    expect(hist1![0].version).toBe(1);
+    expect(hist1![0].response_text).toBe(originalText);
+
+    // 3. Open version history and click Restore on v1.
+    // The History button shows current version badge: locate by accessible
+    // name "View version history".
+    const historyButton = page.getByRole('button', {
+      name: /View version history/,
+    });
+    await expect(historyButton).toBeVisible();
+    await historyButton.click();
+
+    // Wait for the version history sheet/list.
+    const historyList = page.getByRole('list', { name: 'Version history' });
+    await expect(historyList).toBeVisible({ timeout: 10000 });
+
+    // Click "Restore version 1" button.
+    const restoreV1Button = page.getByRole('button', {
+      name: 'Restore version 1',
+    });
+    await expect(restoreV1Button).toBeVisible({ timeout: 10000 });
+    await restoreV1Button.click();
+
+    // Confirm in the AlertDialog.
+    const confirmDialog = page.getByRole('alertdialog');
+    await expect(confirmDialog).toBeVisible({ timeout: 5000 });
+
+    const restorePromise = page.waitForResponse(
+      (resp) =>
+        RESTORE_URL_PATH_RE.test(new URL(resp.url()).pathname) &&
+        resp.request().method() === 'POST',
+      { timeout: 30000 },
+    );
+    await confirmDialog.getByRole('button', { name: /^Restore$/ }).click();
+    const restoreResponse = await restorePromise;
+    expect(
+      restoreResponse.status(),
+      'Restore endpoint must return HTTP 200',
+    ).toBe(200);
+
+    // Wait for editor text to revert to original.
+    await expect
+      .poll(
+        async () => normaliseText((await editor.textContent()) ?? ''),
+        {
+          timeout: 30000,
+          message: 'editor must reflect restored original text',
+        },
+      )
+      .toBe(normaliseText(originalText));
+
+    const restoredText = (await editor.textContent()) ?? '';
+
+    // ASSERTION: editor text equals original
+    expect(normaliseText(restoredText)).toBe(normaliseText(originalText));
+
+    // Refetch DB.
+    const { data: postRestoreRow, error: prrErr } = await supabase
+      .from('bid_responses')
+      .select('id, response_text, version')
+      .eq('id', responseId)
+      .single();
+    if (prrErr) throw prrErr;
+
+    // ASSERTION: DB response_text equals original
+    expect(postRestoreRow.response_text).toBe(originalText);
+
+    // ASSERTION: version === 3 exactly (forward-only, NOT a destructive
+    // rollback to 1). The restore UPDATE incremented v2 → v3 and snapshotted
+    // v2 into history.
+    expect(postRestoreRow.version).toBe(3);
+
+    // ASSERTION: history now contains BOTH v1 AND v2, with the v2 row
+    // carrying the regenerated text (proves the snapshot of the
+    // pre-restore state actually persisted — work was preserved).
+    const { data: hist2, error: h2Err } = await supabase
+      .from('bid_response_history')
+      .select('version, response_text')
+      .eq('response_id', responseId)
+      .order('version', { ascending: true });
+    if (h2Err) throw h2Err;
+    expect(hist2 && hist2.length).toBeGreaterThanOrEqual(2);
+    const v1Row = hist2!.find((r: { version: number }) => r.version === 1);
+    const v2Row = hist2!.find((r: { version: number }) => r.version === 2);
+    expect(v1Row, 'v1 row in history').toBeTruthy();
+    expect(v2Row, 'v2 row in history').toBeTruthy();
+    expect(v1Row!.response_text).toBe(originalText);
+    expect(normaliseText(v2Row!.response_text ?? '')).toBe(
+      normaliseText(regeneratedText),
+    );
+  });
+});

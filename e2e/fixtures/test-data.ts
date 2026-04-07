@@ -401,9 +401,9 @@ export const EMBEDDING_ITEM_INDICES = [0, 1, 2, 3, 7] as const;
 
 export interface FeedSourceShape {
   name: string;
-  feed_url: string;
-  active: boolean;
-  poll_interval_minutes: number;
+  url: string;
+  is_active: boolean;
+  polling_interval_minutes: number;
 }
 
 export interface FeedArticleShape {
@@ -420,9 +420,9 @@ export interface FeedArticleShape {
 
 export const INTELLIGENCE_FEED_SOURCE: FeedSourceShape = {
   name: 'E2E Test Feed',
-  feed_url: 'https://example.com/e2e-test-feed.xml',
-  active: true,
-  poll_interval_minutes: 60,
+  url: 'https://example.com/e2e-test-feed.xml',
+  is_active: true,
+  polling_interval_minutes: 60,
 };
 
 // ---------------------------------------------------------------------------
