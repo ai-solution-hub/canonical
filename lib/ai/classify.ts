@@ -996,8 +996,10 @@ ${contentForClassification}`,
     }
   }
 
-  // Normalise AI keywords before storage to prevent duplicates
-  const normalisedKeywords = result.ai_keywords
+  // Normalise AI keywords before storage to prevent duplicates.
+  // Defensive: the schema marks ai_keywords required, but Claude occasionally
+  // omits the field; treat undefined/null as an empty list rather than crashing.
+  const normalisedKeywords = (result.ai_keywords ?? [])
     .map(normaliseTag)
     .filter((k) => k.length > 0);
   // Deduplicate after normalisation (different forms may collapse)
