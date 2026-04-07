@@ -786,12 +786,7 @@ describe('PATCH /api/items/[id]', () => {
       error: null,
     });
 
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: null,
-      error: null,
-    });
-
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { version: 1 },
       error: null,
     });
@@ -806,6 +801,9 @@ describe('PATCH /api/items/[id]', () => {
 
     const body = await res.json();
     expect(body.success).toBe(true);
+    // WP3.4c: warningsEnvelope omits `warnings` key when collector is empty.
+    // This shape is the canonical reference — see lib/supabase/warnings.ts.
+    expect('warnings' in body).toBe(false);
 
     const updateCall = mockSupabase._chain.update.mock.calls[0][0];
     expect(updateCall.suggested_title).toBe('Updated Title');
@@ -853,6 +851,55 @@ describe('PATCH /api/items/[id]', () => {
 
     const body = await res.json();
     expect(body.error).toBe('Failed to update item');
+  });
+
+  it('returns success with warnings sibling when version history fails (WP3.4c envelope shape)', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // currentItem fetch
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        title: 'Old Title',
+        content: '<p>Content</p>',
+        brief: null,
+        detail: null,
+        reference: null,
+        suggested_title: 'Old Title',
+        ai_keywords: null,
+        primary_domain: null,
+        primary_subtopic: null,
+        secondary_domain: null,
+        secondary_subtopic: null,
+        priority: null,
+        ai_summary: null,
+        content_type: 'article',
+        platform: 'manual',
+        author_name: null,
+        user_tags: null,
+      },
+      error: null,
+    });
+
+    // maxVersionData lookup throws, triggering the catch block warning
+    mockSupabase._chain.maybeSingle.mockRejectedValueOnce(
+      new Error('history table unavailable'),
+    );
+
+    const req = createTestRequest(`/api/items/${VALID_UUID}`, {
+      method: 'PATCH',
+      body: { field: 'suggested_title', value: 'Updated Title' },
+    });
+
+    const res = await PATCH(req, { params });
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    // Sibling shape preserved exactly: success + warnings as top-level keys.
+    // This contract is consumed by components/settings/team-section.tsx.
+    expect(body.success).toBe(true);
+    expect('warnings' in body).toBe(true);
+    expect(Array.isArray(body.warnings)).toBe(true);
+    expect(body.warnings).toContain('Version history entry could not be created');
   });
 });
 

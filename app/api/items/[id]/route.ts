@@ -10,6 +10,11 @@ import {
 import { generateSingleFieldChangeSummary } from '@/lib/change-summary';
 import { generateEmbedding } from '@/lib/ai/embed';
 import { htmlToPlainText } from '@/lib/editor-utils';
+import {
+  createWarningsCollector,
+  warningsEnvelope,
+} from '@/lib/supabase/warnings';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 
 export const maxDuration = 60;
 
@@ -198,7 +203,7 @@ export async function PATCH(
     }
 
     // Collect non-fatal warnings to surface in the response
-    const warnings: string[] = [];
+    const warnings = createWarningsCollector();
 
     // Check if domain has review-on-change governance posture
     // If the edited field is a significant content field, trigger governance review
@@ -232,11 +237,16 @@ export async function PATCH(
           // domain is expected and means "no review required". Any other
           // error is a real DB failure worth surfacing as a warning.
           if (govConfigError && govConfigError.code !== 'PGRST116') {
-            console.error(
-              'Failed to look up governance_config:',
-              govConfigError,
+            logBestEffortWarn(
+              'items.patch.governance_config',
+              'Failed to look up governance_config',
+              {
+                itemId: id,
+                code: govConfigError.code,
+                message: govConfigError.message,
+              },
             );
-            warnings.push(
+            warnings.add(
               'Governance config could not be loaded — review trigger skipped',
             );
           }
@@ -272,8 +282,12 @@ export async function PATCH(
       }
     } catch (govErr) {
       // Governance check is best-effort — surface as warning
-      console.error('Governance check failed:', govErr);
-      warnings.push(
+      logBestEffortWarn(
+        'items.patch.governance_check',
+        'Governance check failed',
+        { itemId: id, err: String(govErr) },
+      );
+      warnings.add(
         'Governance check failed — item updated but governance review was not triggered',
       );
     }
@@ -282,14 +296,27 @@ export async function PATCH(
     try {
       // The DB trigger content_history_auto_version() handles version numbering,
       // but we need to provide a version number for the insert.
-      // Get the current max version for this item.
-      const { data: maxVersionData } = await supabase
+      // Get the current max version for this item. PGRST116 ("no rows") is
+      // expected when this is the first edit — treat as version 0.
+      const { data: maxVersionData, error: maxVersionError } = await supabase
         .from('content_history')
         .select('version')
         .eq('content_item_id', id)
         .order('version', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
+
+      if (maxVersionError) {
+        logBestEffortWarn(
+          'items.patch.history_version_lookup',
+          'Failed to look up max content_history version',
+          {
+            itemId: id,
+            code: maxVersionError.code,
+            message: maxVersionError.message,
+          },
+        );
+      }
 
       const nextVersion = (maxVersionData?.version ?? 0) + 1;
 
@@ -307,8 +334,12 @@ export async function PATCH(
       });
     } catch (historyErr) {
       // Log but don't fail the update — surface as warning
-      console.error('Failed to create version history entry:', historyErr);
-      warnings.push('Version history entry could not be created');
+      logBestEffortWarn(
+        'items.patch.history_create',
+        'Failed to create version history entry',
+        { itemId: id, err: String(historyErr) },
+      );
+      warnings.add('Version history entry could not be created');
     }
 
     // Regenerate embedding if requested (for content body edits)
@@ -322,11 +353,16 @@ export async function PATCH(
           .single();
 
         if (updatedItemError) {
-          console.error(
-            'Failed to re-fetch item for embedding regeneration:',
-            updatedItemError,
+          logBestEffortWarn(
+            'items.patch.embed_refetch',
+            'Failed to re-fetch item for embedding regeneration',
+            {
+              itemId: id,
+              code: updatedItemError.code,
+              message: updatedItemError.message,
+            },
           );
-          warnings.push(
+          warnings.add(
             'Embedding regeneration skipped: could not re-fetch item',
           );
         }
@@ -341,8 +377,12 @@ export async function PATCH(
             .eq('id', id);
         }
       } catch (embedErr) {
-        console.error('Embedding regeneration failed:', embedErr);
-        warnings.push('Embedding regeneration failed');
+        logBestEffortWarn(
+          'items.patch.embed_regenerate',
+          'Embedding regeneration failed',
+          { itemId: id, err: String(embedErr) },
+        );
+        warnings.add('Embedding regeneration failed');
       }
     }
 
@@ -350,7 +390,7 @@ export async function PATCH(
     // (POST /api/items/:id/classify). Cannot use relative fetch() in
     // server-side API route context.
     if (reclassify) {
-      warnings.push('Content updated — use "Classify" to reclassify this item');
+      warnings.add('Content updated — use "Classify" to reclassify this item');
     }
 
     // Recalculate quality score if a quality-relevant field changed
@@ -380,11 +420,16 @@ export async function PATCH(
             .single();
 
         if (updatedForQualityError) {
-          console.error(
-            'Failed to re-fetch item for quality recalculation:',
-            updatedForQualityError,
+          logBestEffortWarn(
+            'items.patch.quality_refetch',
+            'Failed to re-fetch item for quality recalculation',
+            {
+              itemId: id,
+              code: updatedForQualityError.code,
+              message: updatedForQualityError.message,
+            },
           );
-          warnings.push(
+          warnings.add(
             'Quality score recalculation skipped: could not re-fetch item',
           );
         }
@@ -411,16 +456,16 @@ export async function PATCH(
             .eq('id', id);
         }
       } catch (qualityErr) {
-        console.error('Quality score recalculation failed:', qualityErr);
-        warnings.push('Quality score recalculation failed');
+        logBestEffortWarn(
+          'items.patch.quality_recalc',
+          'Quality score recalculation failed',
+          { itemId: id, err: String(qualityErr) },
+        );
+        warnings.add('Quality score recalculation failed');
       }
     }
 
-    const response: Record<string, unknown> = { success: true };
-    if (warnings.length > 0) {
-      response.warnings = warnings;
-    }
-    return NextResponse.json(response);
+    return warningsEnvelope({ success: true }, warnings);
   } catch (err) {
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to process item request') },
