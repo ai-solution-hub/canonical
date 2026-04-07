@@ -51,6 +51,14 @@ export async function GET(
       return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
     }
 
+    // Composite view: question stats and tender documents are independent
+    // enrichments of the bid detail page. A failure in either should not 500
+    // the whole page — multiple sibling tabs (overview, questions, drafting,
+    // outcome) render fine without them. Surface failures via the canonical
+    // sibling-field warnings[] envelope (matches H1 dashboard / H14 template
+    // detail / M8 questions list — see s151-fail-fast-partial-response-decisions.md).
+    const warnings: string[] = [];
+
     // Fetch question statistics
     const { data: stats, error: statsError } = await supabase.rpc(
       'get_bid_question_stats',
@@ -61,14 +69,9 @@ export async function GET(
 
     if (statsError) {
       console.error('Failed to fetch bid question stats:', statsError);
-      return NextResponse.json(
-        {
-          error: safeErrorMessage(
-            statsError,
-            'Failed to fetch bid question stats',
-          ),
-        },
-        { status: 500 },
+      warnings.push(
+        'Question stats could not be loaded: ' +
+          safeErrorMessage(statsError, 'stats RPC failed'),
       );
     }
 
@@ -82,14 +85,9 @@ export async function GET(
 
     if (filesError) {
       console.error('Failed to list tender documents:', filesError);
-      return NextResponse.json(
-        {
-          error: safeErrorMessage(
-            filesError,
-            'Failed to list tender documents',
-          ),
-        },
-        { status: 500 },
+      warnings.push(
+        'Tender documents could not be listed: ' +
+          safeErrorMessage(filesError, 'storage list failed'),
       );
     }
 
@@ -101,13 +99,17 @@ export async function GET(
       uploaded_at: file.created_at,
     }));
 
-    return NextResponse.json({
+    const responseBody: Record<string, unknown> = {
       ...bid,
       domain_metadata:
         parseBidMetadata(bid.domain_metadata) ?? bid.domain_metadata,
       question_stats: stats?.[0] ?? null,
       tender_documents: tenderDocuments,
-    });
+    };
+    if (warnings.length > 0) {
+      responseBody.warnings = warnings;
+    }
+    return NextResponse.json(responseBody);
   } catch (err) {
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to fetch bid') },
