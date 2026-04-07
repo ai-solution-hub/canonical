@@ -1,5 +1,12 @@
-import { describe, it, expect } from 'vitest';
-import { sb, tryQuery, isOk, SupabaseError } from '@/lib/supabase/safe';
+import { describe, it, expect, expectTypeOf } from 'vitest';
+import {
+  sb,
+  tryQuery,
+  isOk,
+  SupabaseError,
+  asChecked,
+} from '@/lib/supabase/safe';
+import type { Checked } from '@/lib/supabase/safe';
 
 describe('sb()', () => {
   it('returns data on success', async () => {
@@ -117,5 +124,21 @@ describe('tryQuery()', () => {
       expect(result.error.code).toBe('NETWORK_ERROR');
       expect(result.error.message).toContain('fetch failed');
     }
+  });
+});
+
+describe('Checked<T> brand', () => {
+  it('asChecked brands a value', () => {
+    const raw: number[] = [1, 2, 3];
+    const branded = asChecked(raw);
+    expectTypeOf(branded).toEqualTypeOf<Checked<number[]>>();
+  });
+
+  it('a function accepting Checked<T> rejects unbranded T', () => {
+    function acceptBranded(_: Checked<number[]>): void {}
+    const raw: number[] = [1];
+    // @ts-expect-error — raw array is not branded
+    acceptBranded(raw);
+    acceptBranded(asChecked(raw)); // OK
   });
 });

@@ -189,3 +189,61 @@ export function isOk<T, E>(
 ): result is { ok: true; data: T } {
   return result.ok === true;
 }
+
+/**
+ * Branded type: `T` plus a phantom property `__errorChecked` that marks
+ * the value as having come from a successful `sb()` or `tryQuery()` call.
+ *
+ * Library helpers that consume query results can accept `Checked<T>` to
+ * statically refuse callers who destructured `data` from a raw Supabase
+ * query without checking `error`.
+ *
+ * Opt-in: route handlers only need to use this when calling a helper that
+ * demands it.
+ *
+ * **Where the brand applies — and where it does NOT.** The brand is most
+ * useful at the route boundary, not deep in helper composition:
+ *
+ *   - **Whole-object access:** `Checked<ContentItem[]>` is preserved when
+ *     the value is passed by reference. `helperA(items)` keeps the brand.
+ *   - **Array element access strips the brand:** if `items: Checked<ContentItem[]>`,
+ *     then `items[0]` and `items.forEach((item) => ...)` give a plain
+ *     `ContentItem`, not `Checked<ContentItem>`. Destructuring does the
+ *     same: `const [first, ...rest] = items` ⇒ `first: ContentItem`.
+ *   - **Nested object access strips the brand:** if `result: Checked<{ items: ContentItem[] }>`,
+ *     then `result.items` is a plain `ContentItem[]`.
+ *   - **`as Checked<...>` casts bypass the brand entirely.** Avoid in
+ *     route code; allowed in tests and the wrapper itself.
+ *
+ * **Practical consequence:** use `Checked<T>` as the type of a function
+ * parameter at the route → helper boundary. Inside the helper, work with
+ * the unbranded `T` after the first access. Re-brand at the next outgoing
+ * boundary if a downstream helper needs it.
+ *
+ * @example
+ *   // In a helper:
+ *   function summariseItems(items: Checked<ContentItem[]>): Summary {
+ *     // Inside the helper, work with plain ContentItem (brand stripped on access).
+ *     return { count: items.length };
+ *   }
+ *
+ *   // In a route, this compiles:
+ *   const items = await sb(supabase.from('content_items').select());
+ *   summariseItems(asChecked(items));
+ *
+ *   // This does NOT compile — raw unchecked data:
+ *   const { data } = await supabase.from('content_items').select();
+ *   summariseItems(data); // Type error: missing brand
+ */
+export type Checked<T> = T & { readonly __errorChecked: unique symbol };
+
+/**
+ * Assert that a value has been error-checked. Compiles to a no-op cast
+ * at runtime; exists purely for the type system.
+ *
+ * The `sb()` and `tryQuery()` return values can be passed through this
+ * without modification. Do NOT call this on raw query destructures.
+ */
+export function asChecked<T>(value: T): Checked<T> {
+  return value as Checked<T>;
+}
