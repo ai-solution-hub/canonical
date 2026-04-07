@@ -403,6 +403,20 @@ management only for merge-conflict-prone work requiring interactive resolution.
   output correctly but runs out of budget during the final `git commit`. Always
   check the worktree's `git status` before removing it; uncommitted work can be
   rescued.
+- **Worktree sub-agents: absolute paths resolve to MAIN REPO, not the worktree.**
+  When a sub-agent uses `Write`/`Edit` with an absolute path like
+  `/Users/liamj/Documents/development/knowledge-hub/docs/foo.md`, the tool
+  writes to the main repo, NOT the worktree copy at
+  `/Users/liamj/Documents/development/knowledge-hub/.claude/worktrees/agent-XXXX/docs/foo.md`.
+  This is because Claude Code's file tools use absolute paths directly; the
+  agent's `pwd` is the worktree but the absolute path points elsewhere.
+  **Sub-agent instructions must always use relative paths** (e.g.
+  `docs/audits/report.md`, not `/Users/liamj/.../docs/audits/report.md`) OR
+  must explicitly derive the worktree root first: `cd "$(git rev-parse --show-toplevel)"`.
+  S151 saw this across multiple Phase 4 agents; in each case the agent caught
+  it mid-task and recovered by copying files into the worktree + reverting
+  main. When rescuing, run `git status` in main FIRST to detect leaked files,
+  then copy to the worktree path and `git checkout --` the main paths.
 - **`classifyContent` userId must be a UUID:** `content_items.updated_by` is a
   uuid column. Eval scripts and other callers must use the pipeline service
   account UUID (`a0000000-0000-4000-8000-000000000001`), never a literal string
