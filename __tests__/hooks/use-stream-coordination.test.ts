@@ -1319,8 +1319,11 @@ describe('useStreamCoordination', () => {
   // =========================================================================
 
   describe('normaliseHtmlForComparison', () => {
-    it('returns identical strings unchanged', () => {
-      expect(normaliseHtmlForComparison('<p>Hello</p>')).toBe('<p>Hello</p>');
+    it('strips tags and returns plain text', () => {
+      expect(normaliseHtmlForComparison('<p>Hello</p>')).toBe('Hello');
+      expect(normaliseHtmlForComparison('<p>Hello <strong>World</strong></p>')).toBe(
+        'Hello World',
+      );
     });
 
     it('treats empty string and Tiptap empty doc as equivalent', () => {
@@ -1331,19 +1334,24 @@ describe('useStreamCoordination', () => {
       expect(normaliseHtmlForComparison('<p><br /></p>')).toBe('');
     });
 
-    it('collapses whitespace between tags', () => {
+    it('preserves word boundaries across block-level closing tags', () => {
+      // Without word-boundary-preserving replacement, this would collapse
+      // to "HelloWorld" and false-match against "Hello World".
+      expect(normaliseHtmlForComparison('<p>Hello</p><p>World</p>')).toBe(
+        'Hello World',
+      );
+    });
+
+    it('collapses whitespace between and within tags', () => {
       expect(normaliseHtmlForComparison('<p>Hello</p>\n<p>World</p>')).toBe(
-        normaliseHtmlForComparison('<p>Hello</p><p>World</p>'),
+        normaliseHtmlForComparison('<p>Hello</p> <p>World</p>'),
       );
-    });
-
-    it('collapses internal whitespace runs', () => {
       expect(normaliseHtmlForComparison('<p>Hello   World</p>')).toBe(
-        '<p>Hello World</p>',
+        'Hello World',
       );
     });
 
-    it('normalises self-closing br variations', () => {
+    it('treats self-closing and non-self-closing br as equivalent', () => {
       expect(normaliseHtmlForComparison('<p>Line 1<br/>Line 2</p>')).toBe(
         normaliseHtmlForComparison('<p>Line 1<br>Line 2</p>'),
       );
@@ -1352,13 +1360,36 @@ describe('useStreamCoordination', () => {
       );
     });
 
-    it('treats trailing whitespace as equivalent', () => {
+    it('treats leading and trailing whitespace as equivalent', () => {
       expect(normaliseHtmlForComparison('<p>Hello</p>')).toBe(
         normaliseHtmlForComparison('<p>Hello</p>\n'),
       );
       expect(normaliseHtmlForComparison('<p>Hello</p>')).toBe(
         normaliseHtmlForComparison('  <p>Hello</p>  '),
       );
+    });
+
+    it('decodes common HTML entities so marked and Tiptap output match', () => {
+      expect(normaliseHtmlForComparison('<p>Hello&nbsp;World</p>')).toBe(
+        'Hello World',
+      );
+      expect(normaliseHtmlForComparison('<p>Tom &amp; Jerry</p>')).toBe(
+        'Tom & Jerry',
+      );
+      expect(normaliseHtmlForComparison('<p>&lt;angle&gt;</p>')).toBe(
+        '<angle>',
+      );
+    });
+
+    it('ignores attribute differences because tags are stripped', () => {
+      // Tiptap may add style/class attributes that marked.parse does not
+      // emit. The pure-text comparison sidesteps this serialisation gap.
+      expect(
+        normaliseHtmlForComparison('<p style="text-align:left">Hello</p>'),
+      ).toBe(normaliseHtmlForComparison('<p>Hello</p>'));
+      expect(
+        normaliseHtmlForComparison('<p class="tiptap-p">Hello</p>'),
+      ).toBe(normaliseHtmlForComparison('<p>Hello</p>'));
     });
 
     it('distinguishes genuinely different content', () => {

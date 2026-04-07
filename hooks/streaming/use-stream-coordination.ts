@@ -16,32 +16,47 @@ import type { CitationEntry, QualityData } from '@/types/bid-metadata';
 // ── HTML comparison helper (exported for tests) ──
 
 /**
- * Normalises HTML for equality comparison. Tiptap's getHTML() serialiser
- * differs from raw HTML we pass into setContent in whitespace, self-closing
- * tag syntax, and similar formatting details. Comparing via normalised form
- * lets us detect whether the user has actually edited the content.
+ * Normalises HTML for equality comparison by stripping markup and
+ * collapsing whitespace. Used to detect whether the user has genuinely
+ * edited the editor content versus whether the difference between
+ * `editorContent` and `lastServerContentRef.current` is just cosmetic
+ * (Tiptap serialisation differences, `marked.parse` vs Tiptap HTML
+ * structure, attribute ordering, HTML entity encoding, etc.).
  *
- * This is the S152B fix for the sync guard bug (S152A WP2 audit bugs #17/#18):
- * the previous strict-equality guard broke after Tiptap's first `onUpdate`
- * because the normalised `getHTML()` output never matched the raw HTML we
- * stored in `lastServerContentRef`, leaving every subsequent server update
- * permanently blocked — and the initial hydration on reload likewise failed.
+ * Trade-off: a pure text comparison cannot detect formatting-only
+ * edits (e.g. user bolds a word without changing the text). In the
+ * bid response editor, substantive text edits are the only kind we
+ * need to protect — a formatting-only edit being overwritten by a
+ * server sync is a minor, acceptable regression, whereas a missed
+ * text edit is catastrophic. S152B WP14 tried a structural regex
+ * approach first and found it too brittle against the serialisation
+ * gap between `marked.parse` output and Tiptap's `getHTML()` output.
+ *
+ * This is the S152B fix for the sync guard bug (S152A WP2 audit bugs
+ * #17/#18): the previous strict-equality guard broke after Tiptap's
+ * first `onUpdate` because the normalised `getHTML()` output never
+ * matched the raw HTML we stored in `lastServerContentRef`, leaving
+ * every subsequent server update permanently blocked — and the initial
+ * hydration on reload likewise failed.
  */
 export function normaliseHtmlForComparison(html: string): string {
-  const collapsed = html
-    .replace(/<br\s*\/?>/gi, '<br>')
-    .replace(/>\s+</g, '><')
+  const text = html
+    // Replace block-level closing tags with a space to preserve word boundaries
+    .replace(/<\/(p|div|h[1-6]|li|br)>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, ' ')
+    // Strip all remaining tags
+    .replace(/<[^>]+>/g, '')
+    // Decode common HTML entities so marked vs Tiptap output matches
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    // Collapse whitespace runs and trim
     .replace(/\s+/g, ' ')
     .trim();
-  // Tiptap's empty-document representations — treat as equivalent to ''
-  if (
-    collapsed === '' ||
-    collapsed === '<p></p>' ||
-    collapsed === '<p><br></p>'
-  ) {
-    return '';
-  }
-  return collapsed;
+  return text;
 }
 
 // ── Interfaces (exported for consumers and sub-hooks) ──

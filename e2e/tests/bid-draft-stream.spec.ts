@@ -641,11 +641,13 @@ test.describe('Bid regenerate + restore (8.0.8)', () => {
     expect(hist1![0].response_text).toBe(originalText);
 
     // 3. Open version history and click Restore on v1.
-    // The History button shows current version badge: locate by accessible
-    // name "View version history".
-    const historyButton = page.getByRole('button', {
-      name: /View version history/,
-    });
+    // The button shows "History v{version}" as text content, with a
+    // `title="View version history"` for tooltip — so the accessible
+    // name is the text content ("History v2"), NOT the title. Locate
+    // via `getByTitle` (reliable against the stable title attribute)
+    // rather than `getByRole` + name regex, which would need to match
+    // the dynamic version number in the text content.
+    const historyButton = page.getByTitle('View version history');
     await expect(historyButton).toBeVisible();
     await historyButton.click();
 
