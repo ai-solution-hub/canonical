@@ -6,10 +6,15 @@ import {
   TOOL_COUNT,
   READ_ONLY_TOOLS,
   WRITE_TOOLS,
+  CANONICAL_PROMPT_NAMES,
+  PROMPT_COUNT,
+  STATIC_RESOURCE_URIS,
+  RESOURCE_TEMPLATE_URIS,
 } from '../../scripts/mcp-eval/fixtures';
 
 const PROJECT_ROOT = join(__dirname, '../..');
 const TOOLS_DIR = join(PROJECT_ROOT, 'lib/mcp/tools');
+const RESOURCES_FILE = join(PROJECT_ROOT, 'lib/mcp/resources.ts');
 
 /**
  * Extracts tool names from MCP tool source files by scanning for
@@ -41,6 +46,72 @@ function extractToolNamesFromSource(): Set<string> {
   }
 
   return toolNames;
+}
+
+/**
+ * Extracts MCP prompt names from `lib/mcp/resources.ts` by scanning for
+ * `server.registerPrompt('name', ...)` calls. Mirrors the tool extraction
+ * pattern for bidirectional fixture sync.
+ */
+function extractPromptNamesFromSource(): Set<string> {
+  const promptNames = new Set<string>();
+  const content = readFileSync(RESOURCES_FILE, 'utf8');
+  const registerPromptPattern =
+    /server\.registerPrompt\(\s*\n?\s*'([^']+)'/g;
+
+  let match: RegExpExecArray | null;
+  while ((match = registerPromptPattern.exec(content)) !== null) {
+    promptNames.add(match[1]);
+  }
+
+  return promptNames;
+}
+
+/**
+ * Extracts static MCP resource URIs from `lib/mcp/resources.ts` by scanning
+ * for `server.registerResource('name', 'uri', ...)` calls AND
+ * `registerAppResource(server, 'Title', 'uri', ...)` calls. The URI must be
+ * a literal `kb://` or `ui://` string (not a `new ResourceTemplate(...)` —
+ * those are matched by the template extractor below).
+ */
+function extractStaticResourceUrisFromSource(): Set<string> {
+  const uris = new Set<string>();
+  const content = readFileSync(RESOURCES_FILE, 'utf8');
+
+  // server.registerResource('name', 'kb://...' | 'ui://...', ...)
+  const registerResourcePattern =
+    /server\.registerResource\(\s*\n?\s*'[^']+',\s*\n?\s*'((?:kb|ui):\/\/[^']+)'/g;
+  // registerAppResource(server, 'Title', 'kb://...' | 'ui://...', ...)
+  const registerAppResourcePattern =
+    /registerAppResource\(\s*\n?\s*server,\s*\n?\s*'[^']+',\s*\n?\s*'((?:kb|ui):\/\/[^']+)'/g;
+
+  let match: RegExpExecArray | null;
+  while ((match = registerResourcePattern.exec(content)) !== null) {
+    uris.add(match[1]);
+  }
+  while ((match = registerAppResourcePattern.exec(content)) !== null) {
+    uris.add(match[1]);
+  }
+
+  return uris;
+}
+
+/**
+ * Extracts MCP resource template URIs from `lib/mcp/resources.ts` by
+ * scanning for `new ResourceTemplate('uri', ...)` calls. Templates contain
+ * placeholders like `{id}` in the URI.
+ */
+function extractResourceTemplateUrisFromSource(): Set<string> {
+  const uris = new Set<string>();
+  const content = readFileSync(RESOURCES_FILE, 'utf8');
+  const templatePattern = /new ResourceTemplate\(\s*\n?\s*'([^']+)'/g;
+
+  let match: RegExpExecArray | null;
+  while ((match = templatePattern.exec(content)) !== null) {
+    uris.add(match[1]);
+  }
+
+  return uris;
 }
 
 describe('MCP Fixture Sync', () => {
@@ -101,5 +172,126 @@ describe('MCP Fixture Sync', () => {
       inBoth,
       `Tools in both READ_ONLY_TOOLS and WRITE_TOOLS: ${inBoth.join(', ')}`,
     ).toHaveLength(0);
+  });
+});
+
+describe('MCP Prompts Fixture Sync', () => {
+  const sourcePromptNames = extractPromptNamesFromSource();
+  const fixturePromptNames = new Set(CANONICAL_PROMPT_NAMES);
+
+  it('should find prompts in source files', () => {
+    expect(
+      sourcePromptNames.size,
+      'No prompts found in lib/mcp/resources.ts — regex parsing may be broken',
+    ).toBeGreaterThan(0);
+  });
+
+  it('every prompt in source code should be in CANONICAL_PROMPT_NAMES', () => {
+    const missingFromFixtures = [...sourcePromptNames].filter(
+      (name) => !fixturePromptNames.has(name),
+    );
+    expect(
+      missingFromFixtures,
+      `Prompts in source but missing from fixtures: ${missingFromFixtures.join(', ')}`,
+    ).toHaveLength(0);
+  });
+
+  it('every prompt in CANONICAL_PROMPT_NAMES should be in source code', () => {
+    const missingFromSource = [...fixturePromptNames].filter(
+      (name) => !sourcePromptNames.has(name),
+    );
+    expect(
+      missingFromSource,
+      `Prompts in fixtures but missing from source: ${missingFromSource.join(', ')}`,
+    ).toHaveLength(0);
+  });
+
+  it('PROMPT_COUNT should match the number of canonical prompt names', () => {
+    expect(PROMPT_COUNT).toBe(CANONICAL_PROMPT_NAMES.length);
+  });
+
+  it('PROMPT_COUNT should match the number of prompts in source', () => {
+    expect(
+      PROMPT_COUNT,
+      `PROMPT_COUNT is ${PROMPT_COUNT} but source has ${sourcePromptNames.size} prompts`,
+    ).toBe(sourcePromptNames.size);
+  });
+});
+
+describe('MCP Static Resources Fixture Sync', () => {
+  const sourceStaticUris = extractStaticResourceUrisFromSource();
+  const fixtureStaticUris = new Set(STATIC_RESOURCE_URIS);
+
+  it('should find static resources in source files', () => {
+    expect(
+      sourceStaticUris.size,
+      'No static resources found in lib/mcp/resources.ts — regex parsing may be broken',
+    ).toBeGreaterThan(0);
+  });
+
+  it('every static resource URI in source code should be in STATIC_RESOURCE_URIS', () => {
+    const missingFromFixtures = [...sourceStaticUris].filter(
+      (uri) => !fixtureStaticUris.has(uri),
+    );
+    expect(
+      missingFromFixtures,
+      `Static resource URIs in source but missing from fixtures: ${missingFromFixtures.join(', ')}`,
+    ).toHaveLength(0);
+  });
+
+  it('every URI in STATIC_RESOURCE_URIS should be in source code', () => {
+    const missingFromSource = [...fixtureStaticUris].filter(
+      (uri) => !sourceStaticUris.has(uri),
+    );
+    expect(
+      missingFromSource,
+      `Static resource URIs in fixtures but missing from source: ${missingFromSource.join(', ')}`,
+    ).toHaveLength(0);
+  });
+
+  it('STATIC_RESOURCE_URIS count should match the number of static resources in source', () => {
+    expect(
+      STATIC_RESOURCE_URIS.length,
+      `STATIC_RESOURCE_URIS has ${STATIC_RESOURCE_URIS.length} entries but source has ${sourceStaticUris.size} static resources`,
+    ).toBe(sourceStaticUris.size);
+  });
+});
+
+describe('MCP Resource Templates Fixture Sync', () => {
+  const sourceTemplateUris = extractResourceTemplateUrisFromSource();
+  const fixtureTemplateUris = new Set(RESOURCE_TEMPLATE_URIS);
+
+  it('should find resource templates in source files', () => {
+    expect(
+      sourceTemplateUris.size,
+      'No resource templates found in lib/mcp/resources.ts — regex parsing may be broken',
+    ).toBeGreaterThan(0);
+  });
+
+  it('every resource template URI in source code should be in RESOURCE_TEMPLATE_URIS', () => {
+    const missingFromFixtures = [...sourceTemplateUris].filter(
+      (uri) => !fixtureTemplateUris.has(uri),
+    );
+    expect(
+      missingFromFixtures,
+      `Resource template URIs in source but missing from fixtures: ${missingFromFixtures.join(', ')}`,
+    ).toHaveLength(0);
+  });
+
+  it('every URI in RESOURCE_TEMPLATE_URIS should be in source code', () => {
+    const missingFromSource = [...fixtureTemplateUris].filter(
+      (uri) => !sourceTemplateUris.has(uri),
+    );
+    expect(
+      missingFromSource,
+      `Resource template URIs in fixtures but missing from source: ${missingFromSource.join(', ')}`,
+    ).toHaveLength(0);
+  });
+
+  it('RESOURCE_TEMPLATE_URIS count should match the number of resource templates in source', () => {
+    expect(
+      RESOURCE_TEMPLATE_URIS.length,
+      `RESOURCE_TEMPLATE_URIS has ${RESOURCE_TEMPLATE_URIS.length} entries but source has ${sourceTemplateUris.size} resource templates`,
+    ).toBe(sourceTemplateUris.size);
   });
 });
