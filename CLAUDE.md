@@ -276,6 +276,12 @@ management only for merge-conflict-prone work requiring interactive resolution.
   behaviour (e.g. a component renders incorrectly, a function returns wrong
   data, dead code paths, or tests that can only pass by not actually testing the
   real logic), **they MUST escalate these findings to the main session**.
+- **`plugin-taxonomy-consistency.test.ts` fails on worktree branches:** The
+  test reads `.claude/plugins/knowledge-hub/1.0.0/skills/*/SKILL.md` and
+  `settings.template.json` which are tracked in `.claude/` — but `.claude/` is
+  gitignored, so worktrees created via `isolation: "worktree"` don't include
+  those files. Tests pass on main, fail in worktrees. Not a regression —
+  ignore the 2 failures when merging from a worktree, and verify on main after.
 
 ### E2E / Playwright
 
@@ -340,6 +346,16 @@ management only for merge-conflict-prone work requiring interactive resolution.
   behaviour. Never remove it.
 - **React compiler memoisation:** Destructure nested properties before using in
   `useCallback` deps (e.g. `const { fn } = data;` not `data.fn`).
+- **Stable empty array/object defaults in hook returns:** Inline `data?.foo ?? []`
+  in hook return values creates a new array reference every render, cascading
+  into broken `useMemo`/`useCallback` dependency arrays downstream. Hoist a
+  module-level `const EMPTY_X: T[] = [];` and wrap with `useMemo(() => data?.foo ?? EMPTY_X, [data?.foo])`.
+  Pattern confirmed by `vercel-react-best-practices` skill (S151 WP6).
+- **Reset local state via `key` prop, not `setState` in effect:** If a child
+  component needs to reset its local state when a parent prop changes, add
+  `key={propId}` at the call site to force a clean remount — don't write a
+  `useEffect` that calls `setState` in response to the prop change. This is
+  the `react-hooks/set-state-in-effect` rule fix; see S151 WP6.
 
 ### General
 
@@ -367,6 +383,20 @@ management only for merge-conflict-prone work requiring interactive resolution.
   unread, AI-H2 dead flag, AI-L2 dead skill). Verification rule: every fix must
   trace from the production entry point to the change. Run `bun run knip` for
   deterministic detection of unused files/exports.
+- **Sub-agents are hard-limited to 200K tokens — NOT the parent session's 1M.**
+  Even when the main session has a 1M context window, sub-agents launched via
+  the Agent tool (including `isolation: "worktree"` agents) get their own
+  isolated 200K context. Performance degrades around 147K (~73%); "Prompt is
+  too long" fires near the ceiling. Scope rule: budget ~80 tool calls, hard
+  stop at 120. For tasks that need to read >15 large files or walk large
+  codebases, split into multiple sub-agents or do the work in the main session.
+  Confirmed via claude-code issues #12312, #23377. S151 saw 3 sub-agent failures
+  from this: Task 17 (ai-integration audit — retried as 17a/17b split), Task 4
+  Phase 2 (continuation prompt audit — rescued from worktree), Task 6 (lint
+  cleanup — rescued from worktree). Common failure mode: the agent writes its
+  output correctly but runs out of budget during the final `git commit`. Always
+  check the worktree's `git status` before removing it; uncommitted work can be
+  rescued.
 - **`classifyContent` userId must be a UUID:** `content_items.updated_by` is a
   uuid column. Eval scripts and other callers must use the pipeline service
   account UUID (`a0000000-0000-4000-8000-000000000001`), never a literal string
