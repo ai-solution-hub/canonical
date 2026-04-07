@@ -1,3 +1,61 @@
+/**
+ * WP2 Phase 1 spec — 8.0.3 bid create happy path submit
+ *
+ * USER FLOW:
+ *   1. As admin (authenticatedPage), navigate to `/bid`.
+ *   2. Click the "New Bid" / "Create Bid" trigger to open the create
+ *      dialog (the dialog is already covered by existing tests; we add
+ *      the SUBMIT path here).
+ *   3. Fill the Name field with `[E2E-WP2-8.0.3] Submit Path Bid <ts>`
+ *      and the Buyer field with `E2E Submit Buyer`.
+ *   4. Click the "Create Bid" submit button inside the dialog.
+ *   5. Wait for navigation to `/bid/<uuid>` (use `page.waitForURL` with a
+ *      regex on the UUID segment, NOT a fixed timeout).
+ *   6. Reload the page and assert the bid name still renders (proves the
+ *      DB write persisted, not just an optimistic UI update).
+ *
+ * ASSERTIONS (each must be verifiable from browser state OR DB state — no
+ * trivial "element exists" checks; every assertion must map to a failure mode):
+ *   - URL after submit matches `/bid/[0-9a-f-]{36}` exactly.
+ *   - A `workspaces` row with `type='bid'`, the typed Name, and the typed
+ *     Buyer (from `domain_metadata->>buyer`) exists in DB. Verified via
+ *     service-key query against the captured workspace id from the URL.
+ *   - On reload, the bid name is visible in the page heading (proves the
+ *     row is fetched back, not a transient client cache).
+ *   - The `workspaces.created_by` matches the admin user id (proves the
+ *     POST handler is reading auth, not inserting NULL).
+ *
+ * FIXTURE DATA (pre-seeded before test runs):
+ *   - None — this test creates its own bid row via the UI submit. Worker
+ *     prefix is used in the typed Name for cleanup matching.
+ *   - Admin user from `authenticatedPage` fixture (TEST_USER_1).
+ *
+ * EXPECTED FAILURE MODES (production-code breakages this test must catch —
+ * each must map to >= 1 assertion above):
+ *   - `POST /api/bids` returns 200 without inserting into `workspaces` →
+ *     caught by DB row existence assertion.
+ *   - Submit handler navigates to `/bid` (list) instead of `/bid/<id>` →
+ *     caught by URL regex assertion.
+ *   - `created_by` left NULL because auth context not threaded through →
+ *     caught by created_by match assertion.
+ *   - Buyer field stored under wrong JSON key (e.g. typo in
+ *     domain_metadata key) → caught by buyer DB assertion.
+ *   - Bid persists only in client memory, not DB → caught by post-reload
+ *     name visibility assertion.
+ *
+ * ROLE SCOPING:
+ *   Uses `authenticatedPage` (admin) fixture. Reason: admin can create
+ *   bids; editor can also create — but admin is the canonical happy path
+ *   and editor create is covered indirectly by existing role-gating
+ *   tests. Viewer create is forbidden and tested in 8.0.6.
+ *
+ * CLEANUP:
+ *   afterEach: service-key delete of any `workspaces` row whose name
+ *   starts with `[E2E-WP2-8.0.3]` (idempotent — also handles partial
+ *   failures). The Phase 3 implementer must use the worker prefix
+ *   pattern from `data-factory.createTestBid` for safe parallel runs.
+ */
+
 import { test, expect } from '../fixtures';
 import { isMobileViewport } from '../helpers/responsive';
 import { createTestBid } from '../helpers/data-factory';
