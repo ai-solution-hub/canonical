@@ -114,3 +114,268 @@
  *     the "unchanged" assertion degrades to "row still exists", which
  *     is satisfiable by any no-op handler.
  */
+// This spec deliberately bypasses the worker-scoped `workerData` fixture
+// from `e2e/fixtures/test-data-fixture.ts`. That fixture seeds a large
+// graph (12 items + bid + intelligence workspace + feed sources) and the
+// `feed_sources` portion currently fails on a schema-cache column drift
+// (`active` column not present), unrelated to role enforcement. To keep
+// 8.0.6 self-contained and provably runnable, we seed the single
+// `workspaces` row this test needs (the cross-user PATCH target) inline.
+import { test as base, expect } from '@playwright/test';
+import { createClient } from '@supabase/supabase-js';
+import type { BrowserContext, Page } from '@playwright/test';
+import { createServiceClient } from '../fixtures/supabase';
+
+type ViewerFixtures = {
+  viewerPage: Page;
+};
+
+const test = base.extend<ViewerFixtures>({
+  viewerPage: async ({ browser }, use) => {
+    const ctx: BrowserContext = await browser.newContext({
+      storageState: 'e2e/.auth/viewer.json',
+    });
+    const page = await ctx.newPage();
+    await use(page);
+    await ctx.close();
+  },
+});
+
+// Resolve viewer user id once for the suite — used by DB count assertions
+// and the defensive cleanup sweep. TEST_USER_3 is the viewer fixture user.
+//
+// Note: we deliberately do NOT use `supabase.auth.admin.listUsers()` here
+// because the new `sb_secret_*` key format does not support that endpoint
+// (returns "Database error finding users"). Instead we sign the viewer in
+// once with the public anon key and read the user id from the returned
+// session — exactly the pattern `e2e/auth.setup.ts` uses.
+const VIEWER_EMAIL = process.env.TEST_USER_3_EMAIL ?? '';
+const VIEWER_PASSWORD = process.env.TEST_USER_3_PASSWORD ?? '';
+
+async function getViewerUserId(): Promise<string> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !anon) {
+    throw new Error(
+      'Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY env vars.',
+    );
+  }
+  if (!VIEWER_EMAIL || !VIEWER_PASSWORD) {
+    throw new Error(
+      'Missing TEST_USER_3_EMAIL or TEST_USER_3_PASSWORD env vars (viewer fixture user).',
+    );
+  }
+  const c = createClient(url, anon);
+  const { data, error } = await c.auth.signInWithPassword({
+    email: VIEWER_EMAIL,
+    password: VIEWER_PASSWORD,
+  });
+  if (error || !data.user) {
+    throw new Error(
+      `Viewer sign-in failed for "${VIEWER_EMAIL}": ${error?.message ?? 'no user returned'}`,
+    );
+  }
+  return data.user.id;
+}
+
+test.describe('8.0.6 viewer write enforcement (server-side)', () => {
+  // Seeded inline (see top-of-file comment for why we do not use workerData)
+  let seededBidId: string | null = null;
+
+  test.beforeAll(async () => {
+    const svc = createServiceClient();
+    const prefix = `[E2E-806-${Date.now()}]`;
+    // Defensive cleanup of any leftover row from a crashed prior run
+    await svc.from('workspaces').delete().like('name', `[E2E-806-%`);
+    const { data, error } = await svc
+      .from('workspaces')
+      .insert({
+        name: `${prefix} Viewer write enforcement target`,
+        description: 'Seeded by 8.0.6 spec to prove cross-user PATCH is rejected.',
+        type: 'bid',
+        status: 'draft',
+        domain_metadata: {
+          buyer: 'Test Buyer (8.0.6)',
+          status: 'draft',
+          deadline: null,
+          reference_number: null,
+          estimated_value: null,
+          tender_source: null,
+          tender_document_ids: [],
+          submission_date: null,
+          outcome: null,
+          outcome_notes: null,
+          notes: null,
+        },
+      })
+      .select('id')
+      .single();
+    if (error || !data) {
+      throw new Error(
+        `8.0.6 setup: failed to seed bid row: ${error?.message ?? 'no row returned'}`,
+      );
+    }
+    seededBidId = data.id;
+  });
+
+  test('viewer POSTs to write endpoints all return 403 and leave the DB untouched', async ({
+    viewerPage,
+  }) => {
+    expect(seededBidId).not.toBeNull();
+    const bidId = seededBidId!;
+    const svc = createServiceClient();
+    const viewerId = await getViewerUserId();
+
+    // ---- Pre-test snapshot: bid row ----
+    const { data: preBid, error: preBidErr } = await svc
+      .from('workspaces')
+      .select('id, name, updated_at, domain_metadata')
+      .eq('id', bidId)
+      .single();
+    expect(preBidErr).toBeNull();
+    expect(preBid).not.toBeNull();
+    const preBidName = preBid!.name;
+    const preBidUpdatedAt = preBid!.updated_at;
+    const preBidBuyer =
+      (preBid!.domain_metadata as { buyer?: string } | null)?.buyer ?? null;
+
+    // ---- Pre-test counts: rows owned by the viewer ----
+    const { count: preItemCount, error: preItemErr } = await svc
+      .from('content_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('created_by', viewerId);
+    expect(preItemErr).toBeNull();
+
+    const { count: preBidsCount, error: preBidsErr } = await svc
+      .from('workspaces')
+      .select('id', { count: 'exact', head: true })
+      .eq('created_by', viewerId)
+      .eq('type', 'bid');
+    expect(preBidsErr).toBeNull();
+
+    // ---- Endpoint A: POST /api/items ----
+    const itemsRes = await viewerPage.request.post('/api/items', {
+      data: {
+        title: `viewer-attempt-${Date.now()}`,
+        content: 'Viewer should not be able to create this content item.',
+        content_type: 'note',
+        auto_classify: false,
+        auto_summarise: false,
+        auto_embed: false,
+      },
+    });
+    expect(itemsRes.status()).toBe(403);
+    expect(itemsRes.headers()['content-type'] ?? '').toContain(
+      'application/json',
+    );
+    const itemsBody = await itemsRes.json();
+    expect(itemsBody).toEqual({ error: 'Forbidden' });
+
+    // ---- Endpoint B: POST /api/bids ----
+    const bidsRes = await viewerPage.request.post('/api/bids', {
+      data: {
+        name: `viewer-attempt-bid-${Date.now()}`,
+        buyer: 'Test Buyer',
+      },
+    });
+    expect(bidsRes.status()).toBe(403);
+    expect(bidsRes.headers()['content-type'] ?? '').toContain(
+      'application/json',
+    );
+    const bidsBody = await bidsRes.json();
+    expect(bidsBody).toEqual({ error: 'Forbidden' });
+
+    // ---- Endpoint C: POST /api/upload (multipart) ----
+    // Minimal valid PDF magic-bytes payload — the route checks magic bytes
+    // AFTER the auth check, so even a 4-byte buffer suffices to prove the
+    // 403 short-circuit fires before any file processing.
+    const pdfBytes = Buffer.from([0x25, 0x50, 0x44, 0x46]); // "%PDF"
+    const uploadRes = await viewerPage.request.post('/api/upload', {
+      multipart: {
+        file: {
+          name: 'viewer-attempt.pdf',
+          mimeType: 'application/pdf',
+          buffer: pdfBytes,
+        },
+      },
+    });
+    expect(uploadRes.status()).toBe(403);
+    expect(uploadRes.headers()['content-type'] ?? '').toContain(
+      'application/json',
+    );
+    const uploadBody = await uploadRes.json();
+    expect(uploadBody).toEqual({ error: 'Forbidden' });
+
+    // ---- Endpoint D (cross-user PATCH): PATCH /api/bids/:id ----
+    const patchRes = await viewerPage.request.patch(
+      `/api/bids/${bidId}`,
+      {
+        data: {
+          name: `HACKED-${Date.now()}`,
+          buyer: 'HACKED-BUYER',
+        },
+      },
+    );
+    expect(patchRes.status()).toBe(403);
+    expect(patchRes.headers()['content-type'] ?? '').toContain(
+      'application/json',
+    );
+    const patchBody = await patchRes.json();
+    expect(patchBody).toEqual({ error: 'Forbidden' });
+
+    // ---- Post-test: bid row unchanged ----
+    const { data: postBid, error: postBidErr } = await svc
+      .from('workspaces')
+      .select('id, name, updated_at, domain_metadata')
+      .eq('id', bidId)
+      .single();
+    expect(postBidErr).toBeNull();
+    expect(postBid).not.toBeNull();
+    expect(postBid!.name).toBe(preBidName);
+    expect(postBid!.updated_at).toBe(preBidUpdatedAt);
+    expect(
+      (postBid!.domain_metadata as { buyer?: string } | null)?.buyer ?? null,
+    ).toBe(preBidBuyer);
+
+    // ---- Post-test: row counts unchanged for viewer-owned rows ----
+    const { count: postItemCount } = await svc
+      .from('content_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('created_by', viewerId);
+    expect(postItemCount).toBe(preItemCount);
+
+    const { count: postBidsCount } = await svc
+      .from('workspaces')
+      .select('id', { count: 'exact', head: true })
+      .eq('created_by', viewerId)
+      .eq('type', 'bid');
+    expect(postBidsCount).toBe(preBidsCount);
+  });
+
+  test.afterAll(async () => {
+    // Cleanup: delete the inline-seeded bid + any rows that somehow got
+    // created with `created_by = viewer.id` during the run (the test
+    // should leave nothing behind, but a failure that creates a leak must
+    // not pollute the next run). Bounded to viewer-owned rows only —
+    // never touches admin/editor data.
+    try {
+      const svc = createServiceClient();
+      if (seededBidId) {
+        await svc.from('workspaces').delete().eq('id', seededBidId);
+      }
+      // Defensive prefix sweep in case of crash mid-run
+      await svc.from('workspaces').delete().like('name', `[E2E-806-%`);
+      if (VIEWER_EMAIL) {
+        const viewerId = await getViewerUserId();
+        await svc.from('content_items').delete().eq('created_by', viewerId);
+        await svc
+          .from('workspaces')
+          .delete()
+          .eq('created_by', viewerId)
+          .eq('type', 'bid');
+      }
+    } catch (err) {
+      console.error('[8.0.6 cleanup] sweep failed:', err);
+    }
+  });
+});

@@ -8,6 +8,7 @@
  * Test data seeding is handled by the worker-scoped workerData fixture
  * in e2e/fixtures/test-data-fixture.ts.
  */
+import { createClient } from '@supabase/supabase-js';
 import { createServiceClient } from './fixtures/supabase';
 import { TEST_USERS } from './fixtures/test-data';
 
@@ -63,28 +64,43 @@ async function globalSetup(): Promise<void> {
     );
   }
 
-  // Use the Supabase admin API to list auth users and match by email
-  const { data: authData, error: authError } =
-    await supabase.auth.admin.listUsers({ perPage: 100 });
+  // Resolve test users via signInWithPassword (anon key) instead of
+  // `auth.admin.listUsers()`. The new `sb_secret_*` API key format does
+  // not support the admin listUsers endpoint (returns "Database error
+  // finding users"), but sign-in works fine. Each successful sign-in
+  // returns the user's id, which we cross-reference against `user_roles`.
+  const anonUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const anonClient = createClient(anonUrl, anonKey);
 
-  if (authError) {
-    throw new Error(
-      `E2E setup: failed to list auth users: ${authError.message}. ` +
-        'Ensure the SUPABASE_SECRET_KEY is a service_role key.',
-    );
-  }
+  const passwordEnvByLabel: Record<string, string> = {
+    admin: 'TEST_USER_1_PASSWORD',
+    editor: 'TEST_USER_2_PASSWORD',
+    viewer: 'TEST_USER_3_PASSWORD',
+  };
 
-  const authUsers = authData?.users ?? [];
   const missingUsers: string[] = [];
   const wrongRoles: string[] = [];
 
   for (const [label, testUser] of Object.entries(TEST_USERS)) {
-    const authUser = authUsers.find((u) => u.email === testUser.email);
-
-    if (!authUser) {
-      missingUsers.push(`${label} (${testUser.email})`);
+    const passwordEnv = passwordEnvByLabel[label];
+    const password = passwordEnv ? process.env[passwordEnv] : undefined;
+    if (!password) {
+      missingUsers.push(`${label} (${testUser.email}) — missing password env`);
       continue;
     }
+    const { data: signInData, error: signInError } =
+      await anonClient.auth.signInWithPassword({
+        email: testUser.email,
+        password,
+      });
+    if (signInError || !signInData.user) {
+      missingUsers.push(
+        `${label} (${testUser.email}) — sign-in failed: ${signInError?.message ?? 'no user'}`,
+      );
+      continue;
+    }
+    const authUser = signInData.user;
 
     const userRole = allRoles.find((r) => r.user_id === authUser.id);
 
