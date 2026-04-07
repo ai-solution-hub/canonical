@@ -308,6 +308,16 @@ management only for merge-conflict-prone work requiring interactive resolution.
 
 ### Data & Architecture
 
+- **Silent failures in Supabase calls:** For every `await supabase.` call in
+  `app/api/**/*.ts` or `lib/**/*.ts`, use `sb()` (fail-fast) or `tryQuery()`
+  (Result-returning) from `@/lib/supabase/safe`, or destructure `{ data, error }`
+  and branch on `error`. Composite responses use `warningsEnvelope()` from
+  `@/lib/supabase/warnings` (sibling shape `T & { warnings: readonly string[] }`,
+  field omitted when empty — canonical reference at `app/api/items/[id]/route.ts:419-423`).
+  "Best-effort" swallows use `logBestEffortWarn('domain.entity.action', msg, { err })`
+  from `@/lib/supabase/telemetry`. The ESLint rules `local/no-unchecked-supabase-error`
+  and `local/no-silent-promise-catch` enforce this at `error` level. Full spec:
+  `docs/specs/silent-failure-prevention-spec.md`.
 - **Data fetching:** TanStack Query exclusively. Keys in
   `lib/query/query-keys.ts`, fetchers in `lib/query/fetchers.ts`. No SWR or raw
   fetch in hooks.
