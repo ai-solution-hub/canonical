@@ -193,6 +193,8 @@ Consult these references when adding or modifying UI elements.
 | Taxonomy change runbook       | `docs/reference/taxonomy-change-runbook.md`                           |
 | Roadmap                       | `docs/reference/post-mvp-roadmap.md`                                  |
 | AI integration strategy       | `docs/reference/ai-integration-strategy.md`                           |
+| AI integration layer map      | `docs/reference/ai-integration-layers.md`                             |
+| UX principles                 | `docs/reference/ux-principles.md`                                     |
 | AI visibility policy          | `docs/reference/ai-visibility-policy.md`                              |
 | Sector intelligence pathway   | `docs/reference/sector-intelligence-pathway.md`                       |
 | Client personas               | `docs/reference/client-personas.md`                                   |
