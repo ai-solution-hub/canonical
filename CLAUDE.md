@@ -201,7 +201,16 @@ Consult these references when adding or modifying UI elements.
 | Product differentiation audit | `docs/reference/product-differentiation-audit.md`                     |
 | Pipeline parity spec          | `.planning/.archive/.specs/pipeline-parity-spec.md` (archived S151)   |
 
-Historical planning documents are in `.planning/.archive/.specs/`.
+Historical planning documents live in `.planning/.archive/` with subfolders:
+
+- `.specs/` — archived spec documents
+- `.audits/` — archived audit reports
+- `.reference/` — archived reference docs (e.g. ads-v1)
+- `.research/` — archived research documents
+- `.continuation-prompts/` — archived session handoff prompts (s41–s131+)
+- `.session-exports/`, `.session-extracts/`, `.feasibility/`, `.design-audit/`, `.extracted-patterns/`
+
+These directories contain valuable historical context — why decisions were made, what was tried, what failed — but the `.` prefix keeps them out of normal search results. Grep them explicitly when researching historical context for current work, and treat their content as a point-in-time snapshot (decisions may have been superseded).
 
 ## Implementation Workflow
 
