@@ -12,6 +12,7 @@ import { runDraftingPipeline } from '@/lib/ai/draft';
 import type { DraftableQuestion, DraftableContent } from '@/lib/ai/draft';
 import type { BidState } from '@/lib/bid/bid-state-machine';
 import type { Json } from '@/supabase/types/database.types';
+import { sb } from '@/lib/supabase/safe';
 
 export const maxDuration = 120;
 
@@ -130,11 +131,14 @@ export async function POST(
 
       // Check for existing response unless forced
       if (!force) {
-        const { data: existing } = await supabase
-          .from('bid_responses')
-          .select('id')
-          .eq('question_id', question.id)
-          .maybeSingle();
+        const existing = await sb(
+          supabase
+            .from('bid_responses')
+            .select('id')
+            .eq('question_id', question.id)
+            .maybeSingle(),
+          'bids.response.draft.existingCheck',
+        );
 
         if (existing) {
           results.push({

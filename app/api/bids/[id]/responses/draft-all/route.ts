@@ -13,6 +13,7 @@ import type { DraftableQuestion, DraftableContent } from '@/lib/ai/draft';
 import { canTransition } from '@/lib/bid/bid-state-machine';
 import type { BidState } from '@/lib/bid/bid-state-machine';
 import type { Json } from '@/supabase/types/database.types';
+import { sb } from '@/lib/supabase/safe';
 
 export const maxDuration = 120;
 
@@ -111,15 +112,16 @@ export async function POST(
     const existingResponseIds = new Set<string>();
     if (skip_existing) {
       const questionIds = questions.map((q) => q.id);
-      const { data: existingResponses } = await supabase
-        .from('bid_responses')
-        .select('question_id')
-        .in('question_id', questionIds);
+      const existingResponses = await sb(
+        supabase
+          .from('bid_responses')
+          .select('question_id')
+          .in('question_id', questionIds),
+        'bids.response.draftAll.existingResponses',
+      );
 
-      if (existingResponses) {
-        for (const r of existingResponses) {
-          existingResponseIds.add(r.question_id);
-        }
+      for (const r of existingResponses) {
+        existingResponseIds.add(r.question_id);
       }
     }
 

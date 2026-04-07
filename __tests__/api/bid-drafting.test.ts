@@ -1245,10 +1245,10 @@ describe('POST /api/bids/:id/responses/:rId/restore', () => {
       error: null,
     });
 
-    // Question lookup fails
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // Question lookup returns no row (maybeSingle)
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: null,
-      error: { code: 'PGRST116', message: 'No rows found' },
+      error: null,
     });
 
     const req = createTestRequest(
@@ -1272,8 +1272,8 @@ describe('POST /api/bids/:id/responses/:rId/restore', () => {
       error: null,
     });
 
-    // Question belongs to bid
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // Question belongs to bid (maybeSingle)
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { id: 'q-id' },
       error: null,
     });
@@ -1305,8 +1305,8 @@ describe('POST /api/bids/:id/responses/:rId/restore', () => {
       error: null,
     });
 
-    // Question belongs to bid
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // Question belongs to bid (maybeSingle)
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { id: 'q-id' },
       error: null,
     });
@@ -1839,10 +1839,10 @@ describe('GET /api/bids/:id/responses/:rId/history', () => {
       error: null,
     });
 
-    // Question lookup fails
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // Question lookup returns no row (maybeSingle)
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: null,
-      error: { code: 'PGRST116', message: 'No rows found' },
+      error: null,
     });
 
     const req = createTestRequest(
@@ -1863,8 +1863,8 @@ describe('GET /api/bids/:id/responses/:rId/history', () => {
       error: null,
     });
 
-    // Question belongs to bid
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // Question belongs to bid (maybeSingle)
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { id: 'q-id' },
       error: null,
     });
@@ -1911,8 +1911,8 @@ describe('GET /api/bids/:id/responses/:rId/history', () => {
       error: null,
     });
 
-    // Question belongs to bid
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // Question belongs to bid (maybeSingle)
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { id: 'q-id' },
       error: null,
     });

@@ -36,7 +36,7 @@ export async function POST(
     const rl = checkRateLimit(`template-automap:${user.id}`, 10, 60_000);
     if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
-    const body = await request.json().catch(() => ({}));
+    const body = await request.json().catch((_err) => ({}));
     const parsed = parseBody(AutoMapBodySchema, body);
     // All fields have defaults, so parse({}) always succeeds.
     // If someone sends genuinely invalid data (e.g. threshold: "abc"),

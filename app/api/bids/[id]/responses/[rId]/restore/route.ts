@@ -3,6 +3,7 @@ import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { ResponseRestoreBodySchema } from '@/lib/validation/schemas';
+import { sb } from '@/lib/supabase/safe';
 
 export const maxDuration = 30;
 
@@ -47,12 +48,15 @@ export async function POST(
       );
     }
 
-    const { data: question } = await supabase
-      .from('bid_questions')
-      .select('id')
-      .eq('id', existing.question_id)
-      .eq('project_id', id)
-      .single();
+    const question = await sb(
+      supabase
+        .from('bid_questions')
+        .select('id')
+        .eq('id', existing.question_id)
+        .eq('project_id', id)
+        .maybeSingle(),
+      'bids.response.restore.questionOwnership',
+    );
 
     if (!question) {
       return NextResponse.json(

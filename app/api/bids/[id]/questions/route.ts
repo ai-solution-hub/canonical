@@ -13,6 +13,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { QuestionCreateBodySchema } from '@/lib/validation/schemas';
 import { z } from 'zod';
+import { sb } from '@/lib/supabase/safe';
 
 export const maxDuration = 30;
 
@@ -221,15 +222,18 @@ export async function POST(
     if (!parsed.success) return parsed.response;
 
     // Get the max question_sequence for this bid to assign next sequence number
-    const { data: maxSeqResult } = await supabase
-      .from('bid_questions')
-      .select('question_sequence')
-      .eq('project_id', id)
-      .order('question_sequence', { ascending: false })
-      .limit(1);
+    const maxSeqResult = await sb(
+      supabase
+        .from('bid_questions')
+        .select('question_sequence')
+        .eq('project_id', id)
+        .order('question_sequence', { ascending: false })
+        .limit(1),
+      'bids.questions.list.maxSequence',
+    );
 
     const nextSequence =
-      maxSeqResult && maxSeqResult.length > 0
+      maxSeqResult.length > 0
         ? (maxSeqResult[0].question_sequence ?? 0) + 1
         : 1;
 

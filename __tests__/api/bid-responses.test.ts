@@ -326,13 +326,13 @@ describe('Bid Responses API', () => {
         error: null,
       });
 
-      // Second .single(): verify question belongs to bid
-      mockSupabase._chain.single.mockResolvedValueOnce({
+      // .maybeSingle(): verify question belongs to bid
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
         data: { id: QUESTION_UUID, word_limit: 500 },
         error: null,
       });
 
-      // Third .single(): the update result
+      // Second .single(): the update result
       mockSupabase._chain.single.mockResolvedValueOnce({
         data: {
           id: RESPONSE_UUID,
@@ -382,13 +382,13 @@ describe('Bid Responses API', () => {
         error: null,
       });
 
-      // Second .single(): verify question belongs to bid
-      mockSupabase._chain.single.mockResolvedValueOnce({
+      // .maybeSingle(): verify question belongs to bid
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
         data: { id: QUESTION_UUID, word_limit: null },
         error: null,
       });
 
-      // Third .single(): the update result
+      // Second .single(): the update result
       mockSupabase._chain.single.mockResolvedValueOnce({
         data: {
           id: RESPONSE_UUID,
@@ -437,13 +437,13 @@ describe('Bid Responses API', () => {
         error: null,
       });
 
-      // Second .single(): verify question belongs to bid
-      mockSupabase._chain.single.mockResolvedValueOnce({
+      // .maybeSingle(): verify question belongs to bid
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
         data: { id: QUESTION_UUID, word_limit: null },
         error: null,
       });
 
-      // Third .single(): update result
+      // Second .single(): update result
       mockSupabase._chain.single.mockResolvedValueOnce({
         data: {
           id: RESPONSE_UUID,
@@ -501,13 +501,13 @@ describe('Bid Responses API', () => {
         error: null,
       });
 
-      // Second .single(): verify question belongs to bid
-      mockSupabase._chain.single.mockResolvedValueOnce({
+      // .maybeSingle(): verify question belongs to bid
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
         data: { id: QUESTION_UUID, word_limit: null },
         error: null,
       });
 
-      // Third .single(): update fails
+      // Second .single(): update fails
       mockSupabase._chain.single.mockResolvedValueOnce({
         data: null,
         error: { message: 'Database error' },

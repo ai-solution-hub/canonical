@@ -10,6 +10,7 @@ import { parseBody } from '@/lib/validation';
 import { ResponseUpdateBodySchema } from '@/lib/validation/schemas';
 import { countWordsFromHtml } from '@/lib/editor-utils';
 import type { BidResponseMetadata, QualityData } from '@/types/bid-metadata';
+import { sb } from '@/lib/supabase/safe';
 
 export const maxDuration = 30;
 
@@ -80,12 +81,17 @@ export async function GET(
     }> = [];
 
     if (response.source_content_ids && response.source_content_ids.length > 0) {
-      const { data: contentItems } = await supabase
-        .from('content_items')
-        .select('id, suggested_title, content_type, primary_domain, ai_summary')
-        .in('id', response.source_content_ids);
+      const contentItems = await sb(
+        supabase
+          .from('content_items')
+          .select(
+            'id, suggested_title, content_type, primary_domain, ai_summary',
+          )
+          .in('id', response.source_content_ids),
+        'bids.response.detail.sourceContent',
+      );
 
-      sourceContent = (contentItems ?? []).map((item) => ({
+      sourceContent = contentItems.map((item) => ({
         id: item.id,
         title: item.suggested_title,
         content_type: item.content_type,
@@ -176,12 +182,15 @@ export async function PATCH(
     }
 
     // Verify the question belongs to this bid
-    const { data: question } = await supabase
-      .from('bid_questions')
-      .select('id, word_limit')
-      .eq('id', existing.question_id)
-      .eq('project_id', id)
-      .single();
+    const question = await sb(
+      supabase
+        .from('bid_questions')
+        .select('id, word_limit')
+        .eq('id', existing.question_id)
+        .eq('project_id', id)
+        .maybeSingle(),
+      'bids.response.update.questionOwnership',
+    );
 
     if (!question) {
       return NextResponse.json(

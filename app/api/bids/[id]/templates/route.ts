@@ -10,6 +10,7 @@ import { isEncryptedDocx } from '@/lib/docx-utils';
 import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { createServiceClient } from '@/lib/supabase/server';
+import { sb } from '@/lib/supabase/safe';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -272,16 +273,17 @@ export async function GET(
     const completionCounts = new Map<string, number>();
 
     if (templateIds.length > 0) {
-      const { data: completions } = await supabase
-        .from('template_completions')
-        .select('template_id')
-        .in('template_id', templateIds);
+      const completions = await sb(
+        supabase
+          .from('template_completions')
+          .select('template_id')
+          .in('template_id', templateIds),
+        'bids.templates.list.completions',
+      );
 
-      if (completions) {
-        for (const c of completions) {
-          const current = completionCounts.get(c.template_id) ?? 0;
-          completionCounts.set(c.template_id, current + 1);
-        }
+      for (const c of completions) {
+        const current = completionCounts.get(c.template_id) ?? 0;
+        completionCounts.set(c.template_id, current + 1);
       }
     }
 

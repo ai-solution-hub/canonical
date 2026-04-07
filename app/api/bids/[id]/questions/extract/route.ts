@@ -16,6 +16,7 @@ import {
 import mammoth from 'mammoth';
 import type { TenderExtractedMetadata } from '@/types/bid-metadata';
 import { canTransition, type BidState } from '@/lib/bid/bid-state-machine';
+import { sb } from '@/lib/supabase/safe';
 
 export const maxDuration = 120;
 
@@ -208,11 +209,14 @@ export async function POST(
       questionsInserted = newQuestions.length;
 
       // Update bid status to questions_extracted (only if transition is valid)
-      const { data: currentBid } = await supabase
-        .from('workspaces')
-        .select('status')
-        .eq('id', id)
-        .single();
+      const currentBid = await sb(
+        supabase
+          .from('workspaces')
+          .select('status')
+          .eq('id', id)
+          .maybeSingle(),
+        'bids.questions.extract.workspace.read',
+      );
 
       const currentStatus = (currentBid?.status ?? 'draft') as BidState;
       if (canTransition(currentStatus, 'questions_extracted')) {
@@ -249,15 +253,18 @@ export async function POST(
     }
 
     // Fetch the saved questions to return with IDs
-    const { data: savedQuestions } = await supabase
-      .from('bid_questions')
-      .select(
-        'id, project_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, matched_content_ids, assigned_to, created_by, created_at, updated_at',
-      )
-      .eq('project_id', id)
-      .eq('created_by', user.id)
-      .order('section_sequence', { ascending: true })
-      .order('question_sequence', { ascending: true });
+    const savedQuestions = await sb(
+      supabase
+        .from('bid_questions')
+        .select(
+          'id, project_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, matched_content_ids, assigned_to, created_by, created_at, updated_at',
+        )
+        .eq('project_id', id)
+        .eq('created_by', user.id)
+        .order('section_sequence', { ascending: true })
+        .order('question_sequence', { ascending: true }),
+      'bids.questions.extract.savedQuestions.read',
+    );
 
     return NextResponse.json({
       status: 'complete',

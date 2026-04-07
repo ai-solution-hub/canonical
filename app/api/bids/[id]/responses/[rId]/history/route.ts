@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { sb } from '@/lib/supabase/safe';
 
 export const maxDuration = 30;
 
@@ -40,12 +41,15 @@ export async function GET(
     }
 
     // Verify the question belongs to this bid
-    const { data: question } = await supabase
-      .from('bid_questions')
-      .select('id')
-      .eq('id', response.question_id)
-      .eq('project_id', id)
-      .single();
+    const question = await sb(
+      supabase
+        .from('bid_questions')
+        .select('id')
+        .eq('id', response.question_id)
+        .eq('project_id', id)
+        .maybeSingle(),
+      'bids.response.history.questionOwnership',
+    );
 
     if (!question) {
       return NextResponse.json(

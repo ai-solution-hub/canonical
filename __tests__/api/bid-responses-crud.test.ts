@@ -498,7 +498,7 @@ describe('PATCH /api/bids/:id/responses/:rId', () => {
       error: null,
     });
     // Question not found in this bid
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: null,
       error: null,
     });
@@ -527,7 +527,7 @@ describe('PATCH /api/bids/:id/responses/:rId', () => {
       error: null,
     });
     // Question found
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { id: QUESTION_ID, word_limit: 500 },
       error: null,
     });
@@ -573,7 +573,7 @@ describe('PATCH /api/bids/:id/responses/:rId', () => {
       error: null,
     });
     // Question found
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { id: QUESTION_ID, word_limit: null },
       error: null,
     });
@@ -623,7 +623,7 @@ describe('PATCH /api/bids/:id/responses/:rId', () => {
       error: null,
     });
     // Question found
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { id: QUESTION_ID, word_limit: null },
       error: null,
     });
@@ -657,7 +657,7 @@ describe('PATCH /api/bids/:id/responses/:rId', () => {
       error: null,
     });
     // Question found
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { id: QUESTION_ID, word_limit: null },
       error: null,
     });
@@ -708,7 +708,7 @@ describe('PATCH /api/bids/:id/responses/:rId', () => {
       error: null,
     });
     // Question found
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { id: QUESTION_ID, word_limit: null },
       error: null,
     });

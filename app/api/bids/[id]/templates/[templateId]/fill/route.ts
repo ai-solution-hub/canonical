@@ -35,7 +35,7 @@ export async function POST(
     const rl = checkRateLimit(`template-fill:${user.id}`, 5, 60_000);
     if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
-    const body = await request.json().catch(() => ({}));
+    const body = await request.json().catch((_err) => ({}));
     const parsed = parseBody(TemplateFillBodySchema, body);
     // All fields have defaults, so parse({}) always succeeds.
     // If someone sends genuinely invalid data (e.g. skip_unmapped: "abc"),

@@ -75,16 +75,6 @@ const eslintConfig = defineConfig([
       // in S152C. Tracked for cleanup in roadmap §9.14 (S152B WP5) and via
       // opportunistic migration. DO NOT add new files to this list — the
       // rule is live at `error` for everything not listed here.
-      'app/api/bids/*/questions/extract/route.ts',
-      'app/api/bids/*/questions/route.ts',
-      'app/api/bids/*/responses/*/history/route.ts',
-      'app/api/bids/*/responses/*/restore/route.ts',
-      'app/api/bids/*/responses/*/route.ts',
-      'app/api/bids/*/responses/draft-all/route.ts',
-      'app/api/bids/*/responses/draft/route.ts',
-      'app/api/bids/*/templates/*/auto-map/route.ts',
-      'app/api/bids/*/templates/*/fill/route.ts',
-      'app/api/bids/*/templates/route.ts',
       'app/api/ingest/url/route.ts',
       'app/api/intelligence/workspaces/*/metrics/prompt-performance/route.ts',
       'app/api/intelligence/workspaces/*/prompts/route.ts',
