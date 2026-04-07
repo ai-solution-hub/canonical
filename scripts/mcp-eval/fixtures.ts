@@ -78,7 +78,7 @@ export function loadEnv(): void {
 // Canonical lists — updated to 41 tools (current as of S144)
 // ---------------------------------------------------------------------------
 
-/** All 41 MCP tool names in registration order. */
+/** Canonical set of all 41 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
 export const CANONICAL_TOOL_NAMES = [
   'search_knowledge_base', // 1
   'search_qa_library', // 2

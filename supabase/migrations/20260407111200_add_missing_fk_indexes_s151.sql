@@ -24,7 +24,7 @@
 --
 -- References:
 --   docs/audits/s151-wp14-fk-indexes-and-perf.md
---   https://supabase.com/docs/guides/database/database-linter?lint=0001_unindexed_foreign_keys
+--   Supabase database linter lint 0001 (unindexed_foreign_keys)
 
 BEGIN;
 

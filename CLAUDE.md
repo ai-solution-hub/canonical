@@ -312,7 +312,13 @@ management only for merge-conflict-prone work requiring interactive resolution.
   `lib/query/query-keys.ts`, fetchers in `lib/query/fetchers.ts`. No SWR or raw
   fetch in hooks.
 - **`getAuthorisedClient()` discriminated union:** Returns
-  `{ success: boolean }` — check `auth.success` not `auth.authorised`.
+  `{ success: boolean }` — check `auth.success` not `auth.authorised`. Three
+  failure reasons are distinguished: `unauthenticated` (→401), `forbidden`
+  (→403), `role_lookup_failed` (→500, new in S151 — covers transient DB
+  failures on the `user_roles` read so admins are never silently downgraded
+  to viewer). **Always** handle failures via the `authFailureResponse(auth)`
+  helper rather than hand-rolling `NextResponse.json({ error: '...' }, ...)`
+  — the helper routes each reason to the correct HTTP status.
 - **No barrel re-exports:** Always use direct file imports
   (`@/lib/bid/helpers`), never import from index files.
 - **taxonomy.ts dual-source:** App uses DB-driven taxonomy

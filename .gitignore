@@ -84,3 +84,4 @@ test-data/
 
 # Session output dumps (Claude Code session exports)
 output.jsonl
+*-session-output.jsonl
