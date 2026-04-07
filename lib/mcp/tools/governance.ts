@@ -11,6 +11,7 @@ import {
   getMcpUserRole,
   checkMcpRole,
 } from '@/lib/mcp/auth';
+import { sb } from '@/lib/supabase/safe';
 import type { Database } from '@/supabase/types/database.types';
 import {
   formatDeleteContent,
@@ -126,12 +127,15 @@ export async function registerGovernanceTools(
 
         if (args.mode === 'archive') {
           // Get latest version
-          const { data: history } = await supabase
-            .from('content_history')
-            .select('version')
-            .eq('content_item_id', args.id)
-            .order('version', { ascending: false })
-            .limit(1);
+          const history = await sb(
+            supabase
+              .from('content_history')
+              .select('version')
+              .eq('content_item_id', args.id)
+              .order('version', { ascending: false })
+              .limit(1),
+            'mcp.governance.history_latest_version_archive',
+          );
 
           const nextVersion = (history?.[0]?.version ?? 0) + 1;
 
@@ -187,12 +191,15 @@ export async function registerGovernanceTools(
           };
         } else {
           // Hard Delete: Record history before deletion (preserved via ON DELETE SET NULL)
-          const { data: history } = await supabase
-            .from('content_history')
-            .select('version')
-            .eq('content_item_id', args.id)
-            .order('version', { ascending: false })
-            .limit(1);
+          const history = await sb(
+            supabase
+              .from('content_history')
+              .select('version')
+              .eq('content_item_id', args.id)
+              .order('version', { ascending: false })
+              .limit(1),
+            'mcp.governance.history_latest_version_delete',
+          );
 
           const nextVersion = (history?.[0]?.version ?? 0) + 1;
 
@@ -415,12 +422,15 @@ export async function registerGovernanceTools(
             }
 
             // Record content_history entry
-            const { data: history } = await supabase
-              .from('content_history')
-              .select('version')
-              .eq('content_item_id', itemId)
-              .order('version', { ascending: false })
-              .limit(1);
+            const history = await sb(
+              supabase
+                .from('content_history')
+                .select('version')
+                .eq('content_item_id', itemId)
+                .order('version', { ascending: false })
+                .limit(1),
+              'mcp.governance.history_latest_version_status',
+            );
 
             const nextVersion = (history?.[0]?.version ?? 0) + 1;
             const changeType = args.status === 'publish' ? 'publish' : 'draft';

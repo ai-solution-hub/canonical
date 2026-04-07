@@ -11,6 +11,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createMcpClient } from '@/lib/mcp/auth';
+import { sb } from '@/lib/supabase/safe';
 import {
   formatQualitySummary,
   formatCoverageGaps,
@@ -148,20 +149,29 @@ export async function registerQualityTools(server: McpServer): Promise<void> {
         const useTargets = args.use_targets ?? true;
 
         // Fetch full taxonomy
-        const { data: domains } = await supabase
-          .from('taxonomy_domains')
-          .select('id, name, display_order')
-          .order('display_order');
+        const domains = await sb(
+          supabase
+            .from('taxonomy_domains')
+            .select('id, name, display_order')
+            .order('display_order'),
+          'mcp.quality.taxonomy_domains',
+        );
 
-        const { data: subtopics } = await supabase
-          .from('taxonomy_subtopics')
-          .select('id, name, domain_id, display_order')
-          .order('display_order');
+        const subtopics = await sb(
+          supabase
+            .from('taxonomy_subtopics')
+            .select('id, name, domain_id, display_order')
+            .order('display_order'),
+          'mcp.quality.taxonomy_subtopics',
+        );
 
         // Fetch content items grouped by domain + subtopic
-        const { data: items } = await supabase
-          .from('content_items')
-          .select('primary_domain, primary_subtopic, freshness');
+        const items = await sb(
+          supabase
+            .from('content_items')
+            .select('primary_domain, primary_subtopic, freshness'),
+          'mcp.quality.content_items_for_coverage',
+        );
 
         // Build domain ID-to-name map
         const domainMap = new Map<string, string>();
@@ -175,10 +185,13 @@ export async function registerQualityTools(server: McpServer): Promise<void> {
         // Fetch coverage targets for item_count to recalibrate thin thresholds
         const domainTargetMinItems = new Map<string, number>();
         if (useTargets) {
-          const { data: targetRows } = await supabase
-            .from('coverage_targets')
-            .select('domain_id, metric_name, target_value')
-            .eq('metric_name', 'item_count');
+          const targetRows = await sb(
+            supabase
+              .from('coverage_targets')
+              .select('domain_id, metric_name, target_value')
+              .eq('metric_name', 'item_count'),
+            'mcp.quality.coverage_targets_item_count',
+          );
 
           for (const row of (targetRows ?? []) as Array<{
             domain_id: string;

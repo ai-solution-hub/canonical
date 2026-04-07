@@ -8,6 +8,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createMcpClient, getMcpUserId, getMcpUserRole } from '@/lib/mcp/auth';
+import { sb } from '@/lib/supabase/safe';
 import {
   formatDashboardSummary,
   formatReorientation,
@@ -124,11 +125,14 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
         // Query content ownership summary for the requesting user
         let ownershipSummary: OwnershipSummary | null = null;
         try {
-          const { data: ownedItems } = await supabase
-            .from('content_items')
-            .select('id, freshness')
-            .eq('content_owner_id', userId)
-            .is('archived_at', null);
+          const ownedItems = await sb(
+            supabase
+              .from('content_items')
+              .select('id, freshness')
+              .eq('content_owner_id', userId)
+              .is('archived_at', null),
+            'mcp.dashboard.owned_items',
+          );
 
           if (ownedItems && ownedItems.length > 0) {
             const staleCount = ownedItems.filter(

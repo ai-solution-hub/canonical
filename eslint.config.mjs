@@ -75,12 +75,6 @@ const eslintConfig = defineConfig([
       // in S152C. Tracked for cleanup in roadmap §9.14 (S152B WP5) and via
       // opportunistic migration. DO NOT add new files to this list — the
       // rule is live at `error` for everything not listed here.
-      'lib/mcp/tools/bids.ts',
-      'lib/mcp/tools/content.ts',
-      'lib/mcp/tools/dashboard.ts',
-      'lib/mcp/tools/governance.ts',
-      'lib/mcp/tools/quality.ts',
-      'lib/mcp/tools/search.ts',
     ],
     plugins: {
       local: localRules,

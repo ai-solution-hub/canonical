@@ -9,6 +9,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createMcpClient, getMcpUserId, checkMcpRole } from '@/lib/mcp/auth';
+import { sb } from '@/lib/supabase/safe';
 import { parseBidMetadata } from '@/lib/validation/schemas';
 import type { Database } from '@/supabase/types/database.types';
 import {
@@ -178,9 +179,12 @@ export async function registerBidTools(server: McpServer): Promise<void> {
         }
 
         // Fetch question stats
-        const { data: stats } = await supabase.rpc('get_bid_question_stats', {
-          p_project_id: args.id,
-        });
+        const stats = await sb(
+          supabase.rpc('get_bid_question_stats', {
+            p_project_id: args.id,
+          }),
+          'mcp.bid.question_stats',
+        );
 
         // Fetch individual questions grouped by section
         const { sections, status_breakdown, confidence_breakdown } =
@@ -202,12 +206,15 @@ export async function registerBidTools(server: McpServer): Promise<void> {
         } | null = null;
 
         if (allQuestionIds.length > 0) {
-          const { data: responses } = await supabase
-            .from('bid_responses')
-            .select(
-              'question_id, response_text, review_status, metadata, overall_score',
-            )
-            .in('question_id', allQuestionIds);
+          const responses = await sb(
+            supabase
+              .from('bid_responses')
+              .select(
+                'question_id, response_text, review_status, metadata, overall_score',
+              )
+              .in('question_id', allQuestionIds),
+            'mcp.bid.responses_by_questions',
+          );
 
           const responseMap = new Map<
             string,
@@ -355,11 +362,14 @@ export async function registerBidTools(server: McpServer): Promise<void> {
         }
 
         // Fetch response if exists
-        const { data: response } = await supabase
-          .from('bid_responses')
-          .select('response_text, review_status')
-          .eq('question_id', args.question_id)
-          .single();
+        const response = await sb(
+          supabase
+            .from('bid_responses')
+            .select('response_text, review_status')
+            .eq('question_id', args.question_id)
+            .maybeSingle(),
+          'mcp.bid.response_by_question',
+        );
 
         const detail: BidQuestionDetail = {
           id: question.id,

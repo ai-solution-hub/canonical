@@ -7,6 +7,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createMcpClient } from '@/lib/mcp/auth';
+import { tryQuery } from '@/lib/supabase/safe';
 import {
   formatSearchResults,
   formatQASearchResults,
@@ -34,10 +35,11 @@ async function loadDomainNames(): Promise<string[]> {
   try {
     const { createServiceClient } = await import('@/lib/supabase/server');
     const supabase = createServiceClient();
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('taxonomy_domains')
       .select('name')
       .order('display_order');
+    if (error) throw error;
     return (data ?? []).map((d: { name: string }) => d.name);
   } catch {
     // Fallback — ensures tool registration never fails even if DB is unreachable
@@ -135,18 +137,28 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
 
         // Post-filter by workspace if specified (AND logic with domain filter)
         if (args.workspace_id) {
-          const { data: junctionRows } = await supabase
-            .from('content_item_workspaces')
-            .select('content_item_id')
-            .eq('workspace_id', args.workspace_id);
-          const workspaceItemIds = new Set(
-            (junctionRows ?? []).map(
-              (row: { content_item_id: string }) => row.content_item_id,
-            ),
+          const junctionResult = await tryQuery(
+            supabase
+              .from('content_item_workspaces')
+              .select('content_item_id')
+              .eq('workspace_id', args.workspace_id),
+            'mcp.search.workspace_junction',
           );
-          filtered = filtered.filter((r: Record<string, unknown>) =>
-            workspaceItemIds.has(r.id as string),
-          );
+          if (!junctionResult.ok) {
+            console.warn(
+              '[mcp.search.workspace_junction] degraded — no workspace filter applied:',
+              junctionResult.error.message,
+            );
+          } else {
+            const workspaceItemIds = new Set(
+              (junctionResult.data ?? []).map(
+                (row: { content_item_id: string }) => row.content_item_id,
+              ),
+            );
+            filtered = filtered.filter((r: Record<string, unknown>) =>
+              workspaceItemIds.has(r.id as string),
+            );
+          }
         }
 
         // Apply pagination via slice

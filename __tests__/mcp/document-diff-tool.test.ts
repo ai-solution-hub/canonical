@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => {
     chain.limit = vi.fn().mockReturnValue(chain);
     chain.filter = vi.fn().mockReturnValue(chain);
     chain.single = vi.fn().mockResolvedValue(resolvedValue);
+    chain.maybeSingle = vi.fn().mockResolvedValue(resolvedValue);
     chain.then = vi.fn((resolve: (v: unknown) => void) =>
       resolve(resolvedValue),
     );

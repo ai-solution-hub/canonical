@@ -12,6 +12,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createMcpClient, getMcpUserId, checkMcpRole } from '@/lib/mcp/auth';
+import { sb } from '@/lib/supabase/safe';
 import type { Database, Json } from '@/supabase/types/database.types';
 import {
   formatContentItem,
@@ -437,13 +438,16 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         }[] = [];
         if (!isDraft) {
           try {
-            const { data: classifiedItem } = await supabase
-              .from('content_items')
-              .select(
-                'primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, metadata',
-              )
-              .eq('id', item.id)
-              .single();
+            const classifiedItem = await sb(
+              supabase
+                .from('content_items')
+                .select(
+                  'primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, metadata',
+                )
+                .eq('id', item.id)
+                .single(),
+              'mcp.content.classified_item',
+            );
 
             if (classifiedItem?.primary_domain) {
               const { suggestGuideSections } =
@@ -1157,17 +1161,23 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           }
 
           // Fetch filenames for both documents
-          const { data: oldDocRow } = await supabase
-            .from('source_documents')
-            .select('id, filename')
-            .eq('id', diffEntry.old_document_id)
-            .single();
+          const oldDocRow = await sb(
+            supabase
+              .from('source_documents')
+              .select('id, filename')
+              .eq('id', diffEntry.old_document_id)
+              .maybeSingle(),
+            'mcp.content.diff_old_document',
+          );
 
-          const { data: newDocRow } = await supabase
-            .from('source_documents')
-            .select('id, filename')
-            .eq('id', diffEntry.new_document_id)
-            .single();
+          const newDocRow = await sb(
+            supabase
+              .from('source_documents')
+              .select('id, filename')
+              .eq('id', diffEntry.new_document_id)
+              .maybeSingle(),
+            'mcp.content.diff_new_document',
+          );
 
           if (!oldDocRow || !newDocRow) {
             return {
@@ -1205,11 +1215,14 @@ export async function registerContentTools(server: McpServer): Promise<void> {
 
           if (doc.parent_id) {
             // This is a newer version - diff with parent
-            const { data: parent } = await supabase
-              .from('source_documents')
-              .select('id, filename')
-              .eq('id', doc.parent_id)
-              .single();
+            const parent = await sb(
+              supabase
+                .from('source_documents')
+                .select('id, filename')
+                .eq('id', doc.parent_id)
+                .maybeSingle(),
+              'mcp.content.diff_parent_document',
+            );
 
             if (!parent) {
               return {
@@ -1224,13 +1237,16 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             newDoc = { id: doc.id, filename: doc.filename };
           } else {
             // This might be the original - find child
-            const { data: child } = await supabase
-              .from('source_documents')
-              .select('id, filename')
-              .eq('parent_id', doc.id)
-              .order('version', { ascending: false })
-              .limit(1)
-              .single();
+            const child = await sb(
+              supabase
+                .from('source_documents')
+                .select('id, filename')
+                .eq('parent_id', doc.id)
+                .order('version', { ascending: false })
+                .limit(1)
+                .maybeSingle(),
+              'mcp.content.diff_child_document',
+            );
 
             if (!child) {
               return {
@@ -1287,10 +1303,13 @@ export async function registerContentTools(server: McpServer): Promise<void> {
 
         const itemTitles = new Map<string, string>();
         if (affectedIds.length > 0) {
-          const { data: items } = await supabase
-            .from('content_items')
-            .select('id, title')
-            .in('id', affectedIds);
+          const items = await sb(
+            supabase
+              .from('content_items')
+              .select('id, title')
+              .in('id', affectedIds),
+            'mcp.content.diff_affected_items',
+          );
 
           for (const item of items ?? []) {
             itemTitles.set(item.id, item.title ?? 'Untitled');
