@@ -13,6 +13,7 @@ import { ReorientSection } from '@/components/dashboard/reorient-section';
 import { OwnedContentHealth } from '@/components/dashboard/owned-content-health';
 import { ContentPerformanceSection } from '@/components/dashboard/content-performance-section';
 import { WarningsBanner } from '@/components/dashboard/warnings-banner';
+import { PipelineRunsPanel } from '@/components/intelligence/pipeline-runs-panel';
 import type { ReorientData } from '@/types/reorient';
 
 // ---------------------------------------------------------------------------
@@ -210,6 +211,14 @@ async function DashboardContent() {
       <div className="mt-6">
         <ComplianceStatusSection />
       </div>
+
+      {/* Pipeline runs (admin-only, S152B WP4) — passive 24h health glance
+          paired with Sentry alerting in `lib/pipeline/record-run.ts`. */}
+      {unified.user_role === 'admin' && (
+        <div className="mt-6">
+          <PipelineRunsPanel />
+        </div>
+      )}
 
       {/* Recent Activity */}
       <section

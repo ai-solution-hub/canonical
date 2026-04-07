@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyCronAuth, getUsersByRole } from '@/lib/cron-auth';
 import { createServiceClient } from '@/lib/supabase/server';
 import { tryQuery, isOk } from '@/lib/supabase/safe';
+import { recordPipelineRun } from '@/lib/pipeline/record-run';
 
 export const maxDuration = 30;
 
@@ -311,12 +312,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Store snapshot in pipeline_runs for next week's comparison
-    await supabase.from('pipeline_runs').insert({
-      pipeline_name: 'coverage_alert',
+    // Store snapshot in pipeline_runs via the S152B WP4 helper
+    // (Sentry + Q-36 fix). This pipeline's previous week's snapshot is
+    // also read back out at the top of this handler as the baseline
+    // for gap-delta calculation, so the row is doubling as both an
+    // audit log and a persistent state store.
+    await recordPipelineRun({
+      supabase,
+      pipelineName: 'coverage_alert',
       status: 'completed',
-      items_processed: currentCoverage.length,
-      completed_at: new Date().toISOString(),
+      itemsProcessed: currentCoverage.length,
       result: {
         ...(currentSnapshot as Record<string, unknown>),
         notifications_created: notificationsCreated,

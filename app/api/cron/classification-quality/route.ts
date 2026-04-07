@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyCronAuth, getUsersByRole } from '@/lib/cron-auth';
 import { createServiceClient } from '@/lib/supabase/server';
 import { sb } from '@/lib/supabase/safe';
+import { recordPipelineRun } from '@/lib/pipeline/record-run';
 import { classifyContent } from '@/lib/ai/classify';
 import { createBulkNotifications } from '@/lib/notifications';
 import { safeErrorMessage } from '@/lib/error';
@@ -277,19 +278,27 @@ export async function GET(request: NextRequest) {
       if (!bulkError) notificationsCreated = notifications.length;
     }
 
-    // Log to pipeline_runs
+    // Log to pipeline_runs via the S152B WP4 helper (Sentry + Q-36 fix).
     const autoUpdated = results.filter(
       (r) => r.action === 'auto_updated',
     ).length;
     const unchanged = results.filter((r) => r.action === 'unchanged').length;
     const errors = results.filter((r) => r.action === 'error').length;
+    const allErrored = errors === results.length && results.length > 0;
+    const someErrored = errors > 0 && !allErrored;
+    const runStatus = allErrored
+      ? 'failed'
+      : someErrored
+        ? 'completed_with_errors'
+        : 'completed';
 
-    await supabase.from('pipeline_runs').insert({
-      pipeline_name: 'classification_quality',
-      status: errors === results.length ? 'failed' : 'completed',
-      items_processed: results.length,
-      items_updated: autoUpdated,
-      completed_at: new Date().toISOString(),
+    await recordPipelineRun({
+      supabase,
+      pipelineName: 'classification_quality',
+      status: runStatus,
+      itemsProcessed: results.length,
+      errorMessage:
+        errors > 0 ? `${errors} of ${results.length} items errored` : null,
       result: {
         candidates_found: items.length,
         auto_updated: autoUpdated,

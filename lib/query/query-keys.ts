@@ -267,4 +267,10 @@ export const queryKeys = {
     all: ['display-names'] as const,
     batch: (idsKey: string) => ['display-names', 'batch', idsKey] as const,
   },
+
+  // Admin monitoring (pipeline_runs dashboard tile, S152B WP4)
+  admin: {
+    all: ['admin'] as const,
+    pipelineRunsRecent: ['admin', 'pipeline-runs', 'recent'] as const,
+  },
 } as const;

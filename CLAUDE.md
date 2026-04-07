@@ -318,6 +318,11 @@ management only for merge-conflict-prone work requiring interactive resolution.
   from `@/lib/supabase/telemetry`. The ESLint rules `local/no-unchecked-supabase-error`
   and `local/no-silent-promise-catch` enforce this at `error` level. Full spec:
   `docs/specs/silent-failure-prevention-spec.md`.
+- **Cron `pipeline_runs` inserts:** Use `recordPipelineRun()` from
+  `@/lib/pipeline/record-run`, not raw `supabase.from('pipeline_runs').insert(...)`.
+  The helper uses `sb()` internally, fires Sentry at error/warning level on
+  failed / completed_with_errors runs, and never throws. Closes Q-10 (pipeline
+  monitoring) and Q-36 (cron silent insert failures). S152B WP4.
 - **Data fetching:** TanStack Query exclusively. Keys in
   `lib/query/query-keys.ts`, fetchers in `lib/query/fetchers.ts`. No SWR or raw
   fetch in hooks.

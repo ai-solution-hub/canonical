@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyCronAuth, getUsersByRole } from '@/lib/cron-auth';
 import { createServiceClient } from '@/lib/supabase/server';
 import { tryQuery, isOk } from '@/lib/supabase/safe';
+import { recordPipelineRun } from '@/lib/pipeline/record-run';
 import {
   fetchTemplateRequirements,
   fetchContentForMatching,
@@ -311,12 +312,18 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Store snapshot in pipeline_runs
-    await supabase.from('pipeline_runs').insert({
-      pipeline_name: 'content_gaps',
-      status: failedTemplates.length > 0 ? 'completed_with_errors' : 'completed',
-      items_processed: totalRequirements,
-      completed_at: new Date().toISOString(),
+    // Store snapshot in pipeline_runs via the S152B WP4 helper — surfaces
+    // failure to Sentry + logBestEffortWarn and closes Q-36.
+    await recordPipelineRun({
+      supabase,
+      pipelineName: 'content_gaps',
+      status:
+        failedTemplates.length > 0 ? 'completed_with_errors' : 'completed',
+      itemsProcessed: totalRequirements,
+      errorMessage:
+        failedTemplates.length > 0
+          ? `${failedTemplates.length} template(s) failed to compute coverage`
+          : null,
       result: {
         snapshots: newSnapshots,
         consecutive_gap_counts: newConsecutiveCounts,

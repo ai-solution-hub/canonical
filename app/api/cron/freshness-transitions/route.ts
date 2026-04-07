@@ -16,6 +16,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyCronAuth, getUsersByRole } from '@/lib/cron-auth';
 import { createServiceClient } from '@/lib/supabase/server';
+import { recordPipelineRun } from '@/lib/pipeline/record-run';
 import {
   createBulkNotifications,
   getExistingNotificationIds,
@@ -579,12 +580,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Log to pipeline_runs
-    await supabase.from('pipeline_runs').insert({
-      pipeline_name: 'freshness_transitions',
+    // Log to pipeline_runs via the S152B WP4 helper (Sentry + Q-36 fix).
+    await recordPipelineRun({
+      supabase,
+      pipelineName: 'freshness_transitions',
       status: 'completed',
-      items_processed: changed.length,
-      completed_at: new Date().toISOString(),
+      itemsProcessed: changed.length,
       result: {
         transitions: counts,
         new_transitions: newTransitions.length,

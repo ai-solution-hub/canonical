@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyCronAuth, getUsersByRole } from '@/lib/cron-auth';
 import { createServiceClient } from '@/lib/supabase/server';
+import { recordPipelineRun } from '@/lib/pipeline/record-run';
 import { calculateAndRoundQualityScore } from '@/lib/quality/quality-score';
 import { createBulkNotifications } from '@/lib/notifications';
 import { safeErrorMessage } from '@/lib/error';
@@ -390,16 +391,23 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 7. Log to pipeline_runs
+    // 7. Log to pipeline_runs via the S152B WP4 helper (Sentry + Q-36 fix).
+    // Note: `items_updated` is stored inside `result` because the
+    // pipeline_runs table does not have an `items_updated` column —
+    // the previous code was passing a non-existent field that Supabase
+    // silently dropped.
     const durationMs = Date.now() - startTime;
     const hadFailures =
       failedFetches.length > 0 || failedUpdates.length > 0;
-    await supabase.from('pipeline_runs').insert({
-      pipeline_name: 'quality_score',
+    const errorSummary = hadFailures
+      ? `quality-score: ${failedFetches.length} fetch failure(s), ${failedUpdates.length} update failure(s)`
+      : null;
+    await recordPipelineRun({
+      supabase,
+      pipelineName: 'quality_score',
       status: hadFailures ? 'completed_with_errors' : 'completed',
-      items_processed: totalProcessed,
-      items_updated: totalUpdated,
-      completed_at: new Date().toISOString(),
+      itemsProcessed: totalProcessed,
+      errorMessage: errorSummary,
       result: {
         total_processed: totalProcessed,
         total_updated: totalUpdated,
