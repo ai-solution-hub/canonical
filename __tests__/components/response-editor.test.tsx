@@ -366,4 +366,43 @@ describe('ResponseEditor', () => {
       placeholder: 'Custom placeholder text',
     });
   });
+
+  // ---- S152B WP14 #16: CharacterCount front-truncation regression ----
+  // The pre-fix configure call set `limit: wordLimit * 6` which caused
+  // Tiptap to silently truncate streamed AI draft content from the FRONT
+  // whenever the content exceeded the cap — users lost the opening
+  // paragraphs of every AI-generated draft. The fix removes `limit`
+  // entirely; the word limit is a warning-only soft indicator in the
+  // footer, not a Tiptap-enforced hard cap.
+  // See docs/audits/s152a-bid-drafting-production-bugs.md §1.
+
+  it('#16: CharacterCount is configured WITHOUT a limit option', async () => {
+    const CharacterCountMock = await import(
+      '@tiptap/extension-character-count'
+    );
+    vi.clearAllMocks();
+    render(<ResponseEditor {...defaultProps({ wordLimit: 500 })} />);
+    expect(CharacterCountMock.default.configure).toHaveBeenCalled();
+    const lastCall = (
+      CharacterCountMock.default.configure as ReturnType<typeof vi.fn>
+    ).mock.calls.at(-1);
+    expect(lastCall).toBeTruthy();
+    const config = lastCall?.[0] as Record<string, unknown>;
+    expect(config).toHaveProperty('wordCounter');
+    // The crux of the regression fix — `limit` must not be set.
+    expect(config).not.toHaveProperty('limit');
+  });
+
+  it('#16: CharacterCount has no limit even when wordLimit is null', async () => {
+    const CharacterCountMock = await import(
+      '@tiptap/extension-character-count'
+    );
+    vi.clearAllMocks();
+    render(<ResponseEditor {...defaultProps({ wordLimit: null })} />);
+    const lastCall = (
+      CharacterCountMock.default.configure as ReturnType<typeof vi.fn>
+    ).mock.calls.at(-1);
+    const config = lastCall?.[0] as Record<string, unknown>;
+    expect(config).not.toHaveProperty('limit');
+  });
 });

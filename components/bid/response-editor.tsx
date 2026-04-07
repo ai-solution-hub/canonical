@@ -41,9 +41,13 @@ export function ResponseEditor({
         link: false,
         underline: false,
       }),
+      // S152B WP14 #16: `limit` removed. The previous `limit: wordLimit * 6`
+      // caused Tiptap to silently truncate overflowing content from the FRONT
+      // on every `setContent` — so a streamed AI draft that exceeded the cap
+      // would lose its opening paragraphs. The word limit is now a soft,
+      // warning-only indicator shown in the footer (`isOverLimit` branch).
       CharacterCount.configure({
         wordCounter: (text) => text.split(/\s+/).filter(Boolean).length,
-        limit: wordLimit ? wordLimit * 6 : undefined,
       }),
       Placeholder.configure({ placeholder }),
       UnderlineExt,
