@@ -346,7 +346,10 @@ export async function advanceBidState(
 
   const supabase = createServiceClient();
 
-  // Get current state — read from the status column (not domain_metadata)
+  // Get current state AND domain_metadata up front. We chain `.select()` on
+  // the same call so PostgREST returns the row from the SELECT statement
+  // itself — guaranteeing we don't race against an in-flight commit on a
+  // different pgbouncer connection (Symptom 2 of WP15 item #15).
   const { data: current } = await supabase
     .from('workspaces')
     .select('status, domain_metadata')
@@ -363,25 +366,32 @@ export async function advanceBidState(
     return; // Already at or past target state
   }
 
+  // Carry domain_metadata through the loop locally so we never have to
+  // re-SELECT inside the loop. The previous implementation issued a fresh
+  // SELECT per state to read `domain_metadata` so it could merge new state
+  // into the existing JSONB without clobbering other keys — but those
+  // SELECTs raced with the preceding UPDATE on a different pgbouncer
+  // connection (workers=3 caused intermittent SELECT-after-UPDATE 0-row
+  // misses). We now seed `liveMetadata` from the initial fetch and update
+  // it locally each iteration; the only network calls in the loop are the
+  // UPDATEs themselves, which means there's no read-after-write hazard.
+  let liveMetadata =
+    (current?.domain_metadata as Record<string, unknown> | null) ?? {};
+
   // Step through each intermediate state
   for (let i = currentIndex + 1; i <= targetIndex; i++) {
-    const { data: latest } = await supabase
-      .from('workspaces')
-      .select('domain_metadata')
-      .eq('id', bidId)
-      .single()
-      .throwOnError();
-
-    const latestMetadata =
-      (latest?.domain_metadata as Record<string, unknown>) ?? {};
+    const nextStatus = stateOrder[i];
+    const nextMetadata = { ...liveMetadata, status: nextStatus };
 
     await supabase
       .from('workspaces')
       .update({
-        status: stateOrder[i],
-        domain_metadata: { ...latestMetadata, status: stateOrder[i] },
+        status: nextStatus,
+        domain_metadata: nextMetadata,
       })
       .eq('id', bidId)
       .throwOnError();
+
+    liveMetadata = nextMetadata;
   }
 }

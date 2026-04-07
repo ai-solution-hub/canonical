@@ -22,10 +22,18 @@ function createFetchMock(responseData: Record<string, string> = {}) {
   }));
 }
 
-function createWrapper() {
+function createWrapper(opts: { staleTime?: number; gcTime?: number } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: {
-      queries: { retry: false, gcTime: 0 },
+      queries: {
+        retry: false,
+        // Default to a fully fresh cache for deterministic data-fetch tests.
+        // Cache-hit tests must pass production-like overrides explicitly so
+        // they actually exercise cache retention rather than relying on the
+        // observer-still-mounted side effect of `gcTime: 0`.
+        gcTime: opts.gcTime ?? 0,
+        staleTime: opts.staleTime ?? 0,
+      },
     },
   });
   return function Wrapper({ children }: { children: React.ReactNode }) {
@@ -126,7 +134,13 @@ describe('useDisplayNames', () => {
   it('serves from cache on subsequent renders with same IDs', async () => {
     const useDisplayNames = await importHook();
 
-    const wrapper = createWrapper();
+    // Cache-hit assertion — must use production-like cache options so the
+    // assertion `mockFetch.mock.calls.length === fetchCountAfterFirst` is
+    // meaningful. With the default `gcTime: 0` / `staleTime: 0` the test
+    // would pass only as long as the rerender keeps the observer mounted;
+    // any future change to remount semantics would silently break the cache
+    // contract this test is supposed to pin.
+    const wrapper = createWrapper({ staleTime: 30_000, gcTime: 5 * 60_000 });
     const { result, rerender } = renderHook(() => useDisplayNames(['user-1']), {
       wrapper,
     });
@@ -194,7 +208,10 @@ describe('useDisplayNames', () => {
 
   it('only makes one fetch call for duplicate IDs across re-renders', async () => {
     const useDisplayNames = await importHook();
-    const wrapper = createWrapper();
+    // Same rationale as the previous cache-hit test — production-like cache
+    // options ensure the deduplication contract is exercised by the cache,
+    // not by an incidentally-still-mounted observer.
+    const wrapper = createWrapper({ staleTime: 30_000, gcTime: 5 * 60_000 });
     const { result, rerender } = renderHook(
       () => useDisplayNames(['user-1', 'user-1', 'user-1']),
       { wrapper },

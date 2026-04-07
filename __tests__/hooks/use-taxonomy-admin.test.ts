@@ -109,15 +109,24 @@ function defaultParams(): UseTaxonomyAdminParams {
  * Sets up mockFetch to return sampleDomains for the initial fetchDomains call
  * and renders the hook inside a QueryClientProvider. Returns the renderHook
  * result + the refresh mock + the queryClient.
+ *
+ * `wrapperOpts` are forwarded to `createQueryWrapper` — pass production-like
+ * `{ staleTime, gcTime }` (e.g. `{ staleTime: 30_000, gcTime: 5 * 60_000 }`)
+ * when testing cache-hit behaviour. The default is the deterministic
+ * fresh-cache setup (`staleTime: 0`, `gcTime: 0`) which is fine for tests
+ * that simply read freshly-fetched data.
  */
-async function renderWithDomains(domains: AdminDomain[] = sampleDomains) {
+async function renderWithDomains(
+  domains: AdminDomain[] = sampleDomains,
+  wrapperOpts: Parameters<typeof createQueryWrapper>[0] = {},
+) {
   mockFetch.mockResolvedValueOnce({
     ok: true,
     json: vi.fn().mockResolvedValue(domains),
   });
 
   const refreshFn = vi.fn();
-  const { queryClient, Wrapper } = createQueryWrapper();
+  const { queryClient, Wrapper } = createQueryWrapper(wrapperOpts);
   const rendered = renderHook(() => useTaxonomyAdmin({ refresh: refreshFn }), {
     wrapper: Wrapper,
   });
@@ -767,7 +776,17 @@ describe('useTaxonomyAdmin', () => {
   // -------------------------------------------------------------------------
 
   it('domain query uses cache on re-render without refetching', async () => {
-    const { result, rerender } = await renderWithDomains();
+    // Cache-hit assertion — must use production-like cache options. The
+    // default `gcTime: 0` / `staleTime: 0` setup would let this assertion
+    // pass only because the rerender keeps the same observer subscribed; a
+    // future refactor that remounts the hook (or any drift in the
+    // production cache config) would silently break the contract this test
+    // is supposed to pin. Production wraps useTaxonomyAdmin with the
+    // app-wide query provider whose `staleTime` is non-zero — mirror that.
+    const { result, rerender } = await renderWithDomains(sampleDomains, {
+      staleTime: 30_000,
+      gcTime: 5 * 60_000,
+    });
 
     expect(result.current.domains).toHaveLength(2);
     const fetchCount = mockFetch.mock.calls.length;

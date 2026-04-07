@@ -32,10 +32,18 @@ import { useFilterData } from '@/hooks/browse/use-filter-data';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function createWrapper() {
+function createWrapper(opts: { staleTime?: number; gcTime?: number } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: {
-      queries: { retry: false, gcTime: 0 },
+      queries: {
+        retry: false,
+        // Default to a fully fresh cache for deterministic data-fetch tests.
+        // Cache-hit tests must pass production-like overrides explicitly so
+        // they actually exercise cache retention rather than relying on the
+        // observer-still-mounted side effect of `gcTime: 0`.
+        gcTime: opts.gcTime ?? 0,
+        staleTime: opts.staleTime ?? 0,
+      },
     },
   });
   return {
@@ -266,7 +274,16 @@ describe('useFilterData', () => {
   // -----------------------------------------------------------------------
 
   it('serves counts from cache when re-opened within staleTime', async () => {
-    const { Wrapper } = createWrapper();
+    // Cache-hit assertion — must use production-like cache options so the
+    // test actually exercises `staleTime` rather than relying on the observer
+    // staying mounted across a `rerender` (which would mask any real
+    // regression in queryKey stability or `enabled` toggling). The production
+    // hook ships `staleTime: 30_000` for filter counts; mirror that here so
+    // the assertion `secondCallCount === firstCallCount` is meaningful.
+    const { Wrapper } = createWrapper({
+      staleTime: 30_000,
+      gcTime: 5 * 60_000,
+    });
     const { result, rerender } = renderHook(
       ({ isOpen }: { isOpen: boolean }) => useFilterData({ isOpen }),
       { initialProps: { isOpen: true }, wrapper: Wrapper },

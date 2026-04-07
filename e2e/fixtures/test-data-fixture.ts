@@ -142,6 +142,20 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       const itemIds = (items ?? []).map((i) => i.id);
 
       // --- Seed entity_mentions for the entity filter UI and certifications card ---
+      //
+      // We chain `.select('id')` here for two reasons:
+      //   1. It forces PostgREST to return 200 + the inserted row from the
+      //      same statement, instead of 204 No Content. This guarantees the
+      //      INSERT's COMMIT is fully visible on the client's connection
+      //      before control returns — protecting against the FK-race
+      //      symptom S152A WP3 saw under `--workers=3` where two workers'
+      //      seed operations could interleave on the pgbouncer pool and
+      //      one worker's entity_mentions INSERT could fire before the
+      //      content_items COMMIT was visible. (S152B WP15 item #15,
+      //      Symptom 1.)
+      //   2. It also sidesteps the Bun-fetch-204-hang gotcha (CLAUDE.md
+      //      §Supabase) when a developer runs the seeder through the
+      //      Claude Code sandbox proxy.
       const entityMentionShapes = buildEntityMentions();
       const entityMentionInserts = entityMentionShapes
         .filter((m) => itemIds[m.itemIndex])
@@ -158,10 +172,12 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         await supabase
           .from('entity_mentions')
           .insert(entityMentionInserts)
+          .select('id')
           .throwOnError();
       }
 
       // --- Seed entity_relationships ('holds') so /api/certifications populates ---
+      // See the entity_mentions block above for why we chain `.select('id')`.
       const entityRelationshipShapes = buildEntityRelationships();
       const entityRelationshipInserts = entityRelationshipShapes
         .filter((r) => itemIds[r.itemIndex])
@@ -176,6 +192,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         await supabase
           .from('entity_relationships')
           .insert(entityRelationshipInserts)
+          .select('id')
           .throwOnError();
       }
 
@@ -259,25 +276,38 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       const responseIds = (resps ?? []).map((r) => r.id);
 
       // --- Advance bid to drafting state ---
+      //
+      // We carry `liveMetadata` through the loop locally instead of issuing
+      // a fresh SELECT per iteration to merge with existing JSONB. The
+      // previous SELECT-then-UPDATE-per-state pattern raced against the
+      // pgbouncer transaction-pooler under `--workers=3`: a SELECT
+      // immediately after an UPDATE on a different pgbouncer connection
+      // could land before the UPDATE was visible, returning 0 rows and
+      // causing the next iteration to merge against an empty object —
+      // dropping every JSONB key the previous iteration had set
+      // (including `buyer` and `deadline` from the original
+      // `buildCoreWorkspaces` shape). We now seed `liveMetadata` directly
+      // from the workspace shape we know we just inserted (the second
+      // `buildCoreWorkspaces` entry is the bid) and update it locally
+      // each iteration. The only network calls inside the loop are the
+      // UPDATEs themselves, so there's no read-after-write hazard.
+      // (S152B WP15 item #15, Symptom 2.)
+      const initialBidMetadata =
+        (workspaceShapes[1]?.domain_metadata as
+          | Record<string, unknown>
+          | undefined) ?? {};
+      let liveMetadata: Record<string, unknown> = { ...initialBidMetadata };
       for (const state of BID_STATE_TRANSITIONS) {
-        const { data: current } = await supabase
-          .from('workspaces')
-          .select('domain_metadata')
-          .eq('id', bidId)
-          .single()
-          .throwOnError();
-
-        const currentMetadata =
-          (current?.domain_metadata as Record<string, unknown>) ?? {};
-
+        const nextMetadata = { ...liveMetadata, status: state };
         await supabase
           .from('workspaces')
           .update({
             status: state,
-            domain_metadata: { ...currentMetadata, status: state },
+            domain_metadata: nextMetadata,
           })
           .eq('id', bidId)
           .throwOnError();
+        liveMetadata = nextMetadata;
       }
 
       // --- Notifications and read marks require admin user_id ---
