@@ -418,34 +418,16 @@ test.describe('Bid draft-stream happy path (8.0.7)', () => {
     // regressions where the trigger sets a wrong initial value.
     expect(row.version).toBe(1);
 
-    // 7. Poll editor text until it is a non-trivial suffix of the DB
-    //    response_text (under alphanumeric normalisation).
+    // 7. Poll editor text until it exactly matches the DB response_text
+    //    (under alphanumeric normalisation).
     //
-    //    NOTE ON PRODUCTION BUG DISCOVERED BY THIS ASSERTION (S152A WP2 Phase 4):
-    //    The Tiptap editor in `components/bid/response-editor.tsx` configures
-    //    `CharacterCount` with `limit: wordLimit * 6` (line 46). When the AI
-    //    streams a response longer than that hard cap, Tiptap silently
-    //    truncates the FRONT of the content on each streamed setContent call,
-    //    so the editor ends up showing the TAIL of the AI output but the DB
-    //    stores the full text from the SSE handler. Reproduced: DB 3201
-    //    chars, editor 2558 chars, tails identical. Filed as a gap; fix
-    //    should either (a) lift the cap during AI streaming, (b) cap at the
-    //    server side so DB and UI agree, or (c) warn the user that the draft
-    //    exceeds the soft word limit without destroying content.
-    //
-    //    Until that fix lands, this assertion checks the STRONGEST property
-    //    that still holds: the editor content is a non-trivial suffix of the
-    //    DB content. That proves:
-    //      - The editor actually contains real streamed content (not empty,
-    //        not a stub, not a placeholder) — length > 500 chars after
-    //        normalisation.
-    //      - Every character in the editor matches the corresponding
-    //        character at the end of the DB text (no divergence between UI
-    //        and persisted payload for the portion that IS rendered).
-    //      - A regression that writes wrong text to either the DB or the
-    //        editor (or an empty stream) would break the suffix check.
-    //    It does NOT catch the editor-char-cap bug that already exists —
-    //    that's tracked as a separate finding, not a new regression.
+    //    S152B WP14 #16 removed `CharacterCount.limit` from the Tiptap
+    //    config in `components/bid/response-editor.tsx`, which eliminated
+    //    the silent front-truncation path. The editor now renders the full
+    //    streamed text verbatim, so this assertion can require strict
+    //    equality rather than a "non-trivial suffix" match. The tightened
+    //    assertion catches regressions of the #16 fix as well as any new
+    //    DB/editor divergence.
     const expectedNormalised = normaliseText(row.response_text ?? '');
     let lastActual = '';
     await expect
@@ -453,13 +435,12 @@ test.describe('Bid draft-stream happy path (8.0.7)', () => {
         async () => {
           lastActual = normaliseText((await editor.textContent()) ?? '');
           if (lastActual.length < 500) return 'short';
-          if (!expectedNormalised.endsWith(lastActual)) return 'mismatch';
+          if (lastActual !== expectedNormalised) return 'mismatch';
           return 'ok';
         },
         {
           timeout: 30000,
-          message:
-            'editor text must be a non-trivial suffix of DB response_text',
+          message: 'editor text must exactly match DB response_text',
         },
       )
       .toBe('ok');
@@ -582,30 +563,8 @@ test.describe('Bid regenerate + restore (8.0.8)', () => {
       'Regenerate endpoint must return HTTP 200',
     ).toBe(200);
 
-    // NOTE ON PRODUCTION BUG DISCOVERED BY THIS ASSERTION (S152A WP2 Phase 4):
-    // The editor's server-sync effect in
-    // hooks/streaming/use-stream-coordination.ts:163-182 guards on
-    // `editorContent === lastServerContentRef.current`, but Tiptap's own
-    // `onUpdate` fires an HTML-normalised version of the content through
-    // `onChange` (= setEditorContent) on first mount, so editorContent
-    // diverges from lastServerContentRef immediately — and the sync effect
-    // then never fires again after the initial hydration. In practice, this
-    // means regenerate/restore DB writes are NOT reflected in the editor
-    // without a full page reload. Filed as a gap; fix should either
-    // (a) compare via a normalised hash rather than string equality,
-    // (b) track "user has edited" via an explicit onUpdate flag, or
-    // (c) re-sync on every response query refetch regardless.
-    //
-    // Until that fix lands, we reload the page after regenerate to force
-    // a fresh hydration from the DB, then read the editor. This still
-    // catches every production failure mode listed in the spec:
-    //   - no-op regenerate (same text): editor after reload still equals
-    //     originalText → the not.toBe assertion fails;
-    //   - wrong DB write: post-reload editor diverges from DB row;
-    //   - version/history regressions: DB assertions below still run.
-    // Wait for DB to reflect v2 before reloading — the regenerate POST
-    // returned 200, but the client-side mutation return and the DB commit
-    // can race, and we want to hydrate from the committed state.
+    // Wait for DB to reflect v2 — the regenerate POST returned 200, but
+    // the client-side mutation return and the DB commit can race.
     await expect
       .poll(
         async () => {
@@ -620,26 +579,13 @@ test.describe('Bid regenerate + restore (8.0.8)', () => {
       )
       .toBe(2);
 
-    // Clear draft-recovery localStorage first — the crash-protection hook
-    // (`use-draft-recovery.ts`) would otherwise replay cached in-progress
-    // content over the fresh server hydration.
-    await page.evaluate(() => {
-      try {
-        window.localStorage.clear();
-      } catch {
-        // ignore cross-origin restrictions; best-effort
-      }
-    });
-    // Navigate to a different route and back — a harder reset than reload,
-    // to dodge any client-side cache that re-populated between render and
-    // the mount guard in use-stream-coordination.
-    await page.goto(`/bid/${workerData.bidId}`);
-    await page.goto(`/bid/${workerData.bidId}/session`);
-    await expect(editor).toBeVisible({ timeout: 15000 });
-    // Poll editor until it reflects a value that is NOT originalText AND
-    // is non-empty (i.e. the reloaded page has hydrated the regenerated
-    // content from DB). A pure `.not.toBe(original)` would pass on empty
-    // content, which would be a regression, so we require both.
+    // Poll the editor until it reflects the regenerated content. The
+    // S152B WP14 #17/#18 fix (normalised-HTML comparison in
+    // `use-stream-coordination.ts`) now propagates server-side updates
+    // into the editor without requiring a reload or navigate-away dance.
+    // The previous version of this test reloaded the page and navigated
+    // away-and-back to work around the sync-guard bug; that workaround
+    // has been removed now that the fix is in place.
     await expect
       .poll(
         async () => {
@@ -650,7 +596,8 @@ test.describe('Bid regenerate + restore (8.0.8)', () => {
         },
         {
           timeout: 30000,
-          message: 'editor after reload must reflect regenerated text',
+          message:
+            'editor must reflect regenerated text within 30s of POST 200',
         },
       )
       .toBe('regenerated');
@@ -670,15 +617,17 @@ test.describe('Bid regenerate + restore (8.0.8)', () => {
 
     // ASSERTION: version === 2 exactly
     expect(postRegenRows.version).toBe(2);
-    // ASSERTION: editor after reload reflects DB content. Under the
-    // editor char-cap gap documented in 8.0.7, the rendered editor may be
-    // a suffix of the DB text when the AI draft exceeds wordLimit*6 chars,
-    // so we assert the editor is a non-trivial suffix of the DB text.
-    // This still catches: DB/editor divergence, empty editor, wrong text.
+    // ASSERTION: editor text fully matches DB content.
+    // The S152B WP14 #16 fix (removed `CharacterCount.limit`) eliminated
+    // the Tiptap front-truncation path, so the editor now renders the full
+    // `response_text` verbatim. Previously this asserted only that the
+    // editor was a non-trivial suffix of the DB text (to tolerate the
+    // front-truncation); the tightened equality assertion catches any
+    // regression of that fix as well as any new DB/editor divergence.
     const regeneratedNorm = normaliseText(regeneratedText);
     const postRegenDbNorm = normaliseText(postRegenRows.response_text ?? '');
     expect(regeneratedNorm.length).toBeGreaterThan(500);
-    expect(postRegenDbNorm.endsWith(regeneratedNorm)).toBe(true);
+    expect(regeneratedNorm).toBe(postRegenDbNorm);
 
     // ASSERTION: history has exactly one row, version=1, content=originalText
     const { data: hist1, error: h1Err } = await supabase
@@ -728,22 +677,17 @@ test.describe('Bid regenerate + restore (8.0.8)', () => {
       'Restore endpoint must return HTTP 200',
     ).toBe(200);
 
-    // Same editor-sync gap as above — reload to force fresh DB hydration.
-    await page.evaluate(() => {
-      try {
-        window.localStorage.clear();
-      } catch {
-        // ignore
-      }
-    });
-    await page.reload();
+    // Poll the editor until it reflects the restored original text.
+    // Same as the regenerate block above, the S152B WP14 #17/#18 fix
+    // means no reload is needed — the server-side update propagates
+    // through the sync effect automatically.
     await expect(editor).toBeVisible({ timeout: 15000 });
     await expect
       .poll(
         async () => normaliseText((await editor.textContent()) ?? ''),
         {
           timeout: 30000,
-          message: 'editor after reload must reflect restored original text',
+          message: 'editor must reflect restored original text within 30s',
         },
       )
       .toBe(normaliseText(originalText));
