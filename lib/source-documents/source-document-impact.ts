@@ -11,6 +11,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
+import { sb } from '@/lib/supabase/safe';
 
 export interface ImpactItem {
   content_item_id: string;
@@ -41,11 +42,14 @@ export async function analyseDocumentImpact(
   newDocumentId: string,
 ): Promise<ImpactAnalysis> {
   // 1. Get the new document and its parent (previous version)
-  const { data: newDoc } = await supabase
-    .from('source_documents')
-    .select('id, filename, parent_id')
-    .eq('id', newDocumentId)
-    .single();
+  const newDoc = await sb(
+    supabase
+      .from('source_documents')
+      .select('id, filename, parent_id')
+      .eq('id', newDocumentId)
+      .maybeSingle(),
+    'source_documents.byId',
+  );
 
   if (!newDoc || !newDoc.parent_id) {
     return {
@@ -60,14 +64,17 @@ export async function analyseDocumentImpact(
   const previousVersionId = newDoc.parent_id;
 
   // 2. Get diff entries for this document pair (modified and removed only)
-  const { data: diffs } = await supabase
-    .from('source_document_diffs')
-    .select(
-      'id, diff_type, old_question, old_content, new_question, new_content',
-    )
-    .eq('old_document_id', previousVersionId)
-    .eq('new_document_id', newDocumentId)
-    .in('diff_type', ['modified', 'removed']);
+  const diffs = await sb(
+    supabase
+      .from('source_document_diffs')
+      .select(
+        'id, diff_type, old_question, old_content, new_question, new_content',
+      )
+      .eq('old_document_id', previousVersionId)
+      .eq('new_document_id', newDocumentId)
+      .in('diff_type', ['modified', 'removed']),
+    'source_document_diffs.forPair',
+  );
 
   if (!diffs || diffs.length === 0) {
     return {
@@ -80,10 +87,13 @@ export async function analyseDocumentImpact(
   }
 
   // 3. Get content items linked to the OLD document
-  const { data: linkedItems } = await supabase
-    .from('content_items')
-    .select('id, title, content')
-    .eq('source_document_id', previousVersionId);
+  const linkedItems = await sb(
+    supabase
+      .from('content_items')
+      .select('id, title, content')
+      .eq('source_document_id', previousVersionId),
+    'content_items.bySourceDocument',
+  );
 
   if (!linkedItems || linkedItems.length === 0) {
     return {

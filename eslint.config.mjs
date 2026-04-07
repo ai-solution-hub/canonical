@@ -75,11 +75,6 @@ const eslintConfig = defineConfig([
       // in S152C. Tracked for cleanup in roadmap §9.14 (S152B WP5) and via
       // opportunistic migration. DO NOT add new files to this list — the
       // rule is live at `error` for everything not listed here.
-      'lib/ai/digest.ts',
-      'lib/bid/bid-queries.ts',
-      'lib/content/content-suggestions.ts',
-      'lib/error.ts',
-      'lib/intelligence/health.ts',
       'lib/mcp/auth.ts',
       'lib/mcp/resources.ts',
       'lib/mcp/tools/apps.ts',
@@ -90,9 +85,6 @@ const eslintConfig = defineConfig([
       'lib/mcp/tools/quality.ts',
       'lib/mcp/tools/search.ts',
       'lib/mcp/tools/shared.ts',
-      'lib/query/fetchers.ts',
-      'lib/source-documents/source-document-impact.ts',
-      'lib/source-documents/source-document-notifications.ts',
     ],
     plugins: {
       local: localRules,

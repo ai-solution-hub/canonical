@@ -11,6 +11,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 import type { ImpactAnalysis } from './source-document-impact';
+import { tryQuery } from '@/lib/supabase/safe';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 
 /**
  * Send notifications to content owners when their items are affected
@@ -31,10 +33,22 @@ export async function sendSourceDocumentUpdateNotifications(
   const itemIds = impact.items.map((i) => i.content_item_id);
   if (itemIds.length === 0) return;
 
-  const { data: items } = await supabase
-    .from('content_items')
-    .select('id, content_owner_id')
-    .in('id', itemIds);
+  const itemsResult = await tryQuery(
+    supabase
+      .from('content_items')
+      .select('id, content_owner_id')
+      .in('id', itemIds),
+    'source-docs.notifications.fetchItems',
+  );
+  if (!itemsResult.ok) {
+    logBestEffortWarn(
+      'source-docs.notifications.fanout',
+      'skipped on error',
+      { err: itemsResult.error.message, code: itemsResult.error.code },
+    );
+    return;
+  }
+  const items = itemsResult.data;
 
   // Group by owner
   const ownerItems = new Map<string, string[]>();
@@ -61,10 +75,19 @@ export async function sendSourceDocumentUpdateNotifications(
 
   // Also notify admins if no specific owners were found
   if (ownerItems.size === 0 && impact.total_affected_items > 0) {
-    const { data: admins } = await supabase
-      .from('user_roles')
-      .select('user_id')
-      .eq('role', 'admin');
+    const adminsResult = await tryQuery(
+      supabase.from('user_roles').select('user_id').eq('role', 'admin'),
+      'source-docs.notifications.fetchAdmins',
+    );
+    if (!adminsResult.ok) {
+      logBestEffortWarn(
+        'source-docs.notifications.fanout',
+        'skipped on error',
+        { err: adminsResult.error.message, code: adminsResult.error.code },
+      );
+      return;
+    }
+    const admins = adminsResult.data;
 
     for (const admin of admins ?? []) {
       await createNotification({

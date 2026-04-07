@@ -25,7 +25,7 @@ export async function fetchJson<T>(
 ): Promise<T> {
   const res = await fetch(url, init);
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
+    const body = await res.json().catch((_err) => ({}));
     const data = body as Record<string, unknown>;
     const message = (data.error as string) ?? `Request failed: ${res.status}`;
     const code = data.code as string | undefined;
@@ -52,7 +52,7 @@ export async function mutationFetchJson<T>(
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
+    const data = await res.json().catch((_err) => ({}));
     throw new Error(
       (data as Record<string, string>).error ?? `Request failed: ${res.status}`,
     );

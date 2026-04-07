@@ -8,7 +8,7 @@ export function safeErrorMessage(err: unknown, fallback: string): string {
   if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
     import('@sentry/nextjs')
       .then(({ captureException }) => captureException(err))
-      .catch(() => {});
+      .catch((_err) => undefined);
   }
   if (process.env.NODE_ENV === 'development' && err instanceof Error) {
     return `${fallback}: ${err.message}`;

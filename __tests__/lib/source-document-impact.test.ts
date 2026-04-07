@@ -18,7 +18,7 @@ describe('analyseDocumentImpact', () => {
 
   it('returns empty result when document has no parent', async () => {
     // First call: get new document (no parent_id)
-    mockClient._chain.single.mockResolvedValueOnce({
+    mockClient._chain.maybeSingle.mockResolvedValueOnce({
       data: { id: 'new-doc-1', filename: 'test.docx', parent_id: null },
       error: null,
     });
@@ -32,7 +32,7 @@ describe('analyseDocumentImpact', () => {
 
   it('returns empty result when no diffs exist', async () => {
     // First call: get new document (has parent)
-    mockClient._chain.single.mockResolvedValueOnce({
+    mockClient._chain.maybeSingle.mockResolvedValueOnce({
       data: { id: 'new-doc-1', filename: 'test.docx', parent_id: 'old-doc-1' },
       error: null,
     });
@@ -52,7 +52,7 @@ describe('analyseDocumentImpact', () => {
 
   it('maps modified diffs to content items as needs_update', async () => {
     // First call: get new document
-    mockClient._chain.single.mockResolvedValueOnce({
+    mockClient._chain.maybeSingle.mockResolvedValueOnce({
       data: { id: 'new-doc-1', filename: 'test.docx', parent_id: 'old-doc-1' },
       error: null,
     });
@@ -103,7 +103,7 @@ describe('analyseDocumentImpact', () => {
 
   it('maps removed diffs to content items as source_removed', async () => {
     // First call: get new document
-    mockClient._chain.single.mockResolvedValueOnce({
+    mockClient._chain.maybeSingle.mockResolvedValueOnce({
       data: { id: 'new-doc-1', filename: 'test.docx', parent_id: 'old-doc-1' },
       error: null,
     });
@@ -150,7 +150,7 @@ describe('analyseDocumentImpact', () => {
 
   it('returns empty items when no content matches the diff questions', async () => {
     // First call: get new document
-    mockClient._chain.single.mockResolvedValueOnce({
+    mockClient._chain.maybeSingle.mockResolvedValueOnce({
       data: { id: 'new-doc-1', filename: 'test.docx', parent_id: 'old-doc-1' },
       error: null,
     });
@@ -196,7 +196,7 @@ describe('analyseDocumentImpact', () => {
 
   it('matches content items by content body when title does not match', async () => {
     // First call: get new document
-    mockClient._chain.single.mockResolvedValueOnce({
+    mockClient._chain.maybeSingle.mockResolvedValueOnce({
       data: { id: 'new-doc-1', filename: 'test.docx', parent_id: 'old-doc-1' },
       error: null,
     });
@@ -243,7 +243,7 @@ describe('analyseDocumentImpact', () => {
 
   it('handles empty diff list gracefully', async () => {
     // First call: get new document
-    mockClient._chain.single.mockResolvedValueOnce({
+    mockClient._chain.maybeSingle.mockResolvedValueOnce({
       data: { id: 'new-doc-1', filename: 'test.docx', parent_id: 'old-doc-1' },
       error: null,
     });
@@ -262,7 +262,7 @@ describe('analyseDocumentImpact', () => {
 
   it('avoids duplicate impact entries for the same content item', async () => {
     // First call: get new document
-    mockClient._chain.single.mockResolvedValueOnce({
+    mockClient._chain.maybeSingle.mockResolvedValueOnce({
       data: { id: 'new-doc-1', filename: 'test.docx', parent_id: 'old-doc-1' },
       error: null,
     });

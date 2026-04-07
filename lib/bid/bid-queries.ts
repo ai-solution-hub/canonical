@@ -11,6 +11,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
+import { sb } from '@/lib/supabase/safe';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -67,9 +68,9 @@ export async function fetchActiveBidsWithStats(
   }
 
   const bidIds = workspaces.map((w) => w.id);
-  const { data: batchStats } = await supabase.rpc(
-    'get_bid_question_stats_batch',
-    { p_project_ids: bidIds },
+  const batchStats = await sb(
+    supabase.rpc('get_bid_question_stats_batch', { p_project_ids: bidIds }),
+    'rpc.bid_question_stats_batch',
   );
 
   const statsMap = new Map<string, BidQuestionStats>();

@@ -1,6 +1,8 @@
 // lib/intelligence/health.ts
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
+import { tryQuery } from '@/lib/supabase/safe';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 
 type Supabase = SupabaseClient<Database>;
 
@@ -59,13 +61,30 @@ const MAX_HEALTHY_INTERVAL_MS = 24 * 60 * 60 * 1000;
 export async function getPipelineHealth(
   supabase: Supabase,
 ): Promise<PipelineHealthSummary> {
+  const degradeWarnings: string[] = [];
+
   // Get last successful pipeline run from processing queue
-  const { data: lastRun } = await supabase
-    .from('si_processing_queue')
-    .select('completed_at')
-    .eq('status', 'complete')
-    .order('completed_at', { ascending: false })
-    .limit(1);
+  const lastRunResult = await tryQuery(
+    supabase
+      .from('si_processing_queue')
+      .select('completed_at')
+      .eq('status', 'complete')
+      .order('completed_at', { ascending: false })
+      .limit(1),
+    'si_processing_queue.lastSuccessful',
+  );
+  const lastRun = lastRunResult.ok ? lastRunResult.data : null;
+  if (!lastRunResult.ok) {
+    logBestEffortWarn(
+      'intelligence.health.lastRun',
+      'failed to read last pipeline run',
+      {
+        err: lastRunResult.error.message,
+        code: lastRunResult.error.code,
+      },
+    );
+    degradeWarnings.push('last successful run unknown (DB error)');
+  }
 
   const lastSuccessfulRun = lastRun?.[0]?.completed_at ?? null;
   const timeSinceLastRunMs = lastSuccessfulRun
@@ -73,12 +92,25 @@ export async function getPipelineHealth(
     : null;
 
   // Count feed sources with failures
-  const { data: allSources } = await supabase
-    .from('feed_sources')
-    .select('id, consecutive_failures, is_active')
-    .eq('is_active', true);
-
-  const sources = allSources ?? [];
+  const allSourcesResult = await tryQuery(
+    supabase
+      .from('feed_sources')
+      .select('id, consecutive_failures, is_active')
+      .eq('is_active', true),
+    'feed_sources.activeForHealth',
+  );
+  if (!allSourcesResult.ok) {
+    logBestEffortWarn(
+      'intelligence.health.sources',
+      'failed to read feed_sources',
+      {
+        err: allSourcesResult.error.message,
+        code: allSourcesResult.error.code,
+      },
+    );
+    degradeWarnings.push('feed sources unavailable (DB error)');
+  }
+  const sources = allSourcesResult.ok ? (allSourcesResult.data ?? []) : [];
   const totalActiveSources = sources.length;
   const sourcesWithFailures = sources.filter(
     (s) => s.consecutive_failures > 0,
@@ -92,11 +124,14 @@ export async function getPipelineHealth(
   const stale =
     timeSinceLastRunMs !== null && timeSinceLastRunMs > MAX_HEALTHY_INTERVAL_MS;
   const tooManyFailures = sourcesAtFailureLimit > 0;
+  const degraded = degradeWarnings.length > 0;
 
-  const healthy = !neverRun && !stale && !tooManyFailures;
+  const healthy = !neverRun && !stale && !tooManyFailures && !degraded;
 
   let statusMessage = 'Pipeline is healthy';
-  if (neverRun) {
+  if (degraded) {
+    statusMessage = `Health check degraded: ${degradeWarnings.join('; ')}`;
+  } else if (neverRun) {
     statusMessage = 'Pipeline has never completed a successful run';
   } else if (stale) {
     const hours = Math.round((timeSinceLastRunMs ?? 0) / (60 * 60 * 1000));
@@ -123,14 +158,27 @@ export async function getSourceHealthSummary(
   supabase: Supabase,
   workspaceId: string,
 ): Promise<SourceHealthSummary> {
-  const { data } = await supabase
-    .from('feed_sources')
-    .select(
-      'id, name, url, last_polled_at, last_polled_status, last_polled_error, consecutive_failures, polling_interval_minutes, article_count, is_active',
-    )
-    .eq('workspace_id', workspaceId)
-    .eq('is_active', true)
-    .order('consecutive_failures', { ascending: false });
+  const result = await tryQuery(
+    supabase
+      .from('feed_sources')
+      .select(
+        'id, name, url, last_polled_at, last_polled_status, last_polled_error, consecutive_failures, polling_interval_minutes, article_count, is_active',
+      )
+      .eq('workspace_id', workspaceId)
+      .eq('is_active', true)
+      .order('consecutive_failures', { ascending: false }),
+    'feed_sources.byWorkspace',
+  );
+
+  if (!result.ok) {
+    logBestEffortWarn(
+      'intelligence.health.workspaceSources',
+      'failed to read workspace feed_sources',
+      { err: result.error.message, code: result.error.code, workspaceId },
+    );
+  }
+
+  const data = result.ok ? result.data : null;
 
   const sources: SourceHealthEntry[] = (data ?? []).map((s) => ({
     id: s.id,

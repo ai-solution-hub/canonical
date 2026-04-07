@@ -22,6 +22,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 import type { TaxonomyDomain, TaxonomySubtopic } from '@/types/taxonomy';
 import { createHash } from 'crypto';
+import { sb } from '@/lib/supabase/safe';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -147,19 +148,25 @@ export async function generateContentSuggestions(
   // 1. Fetch taxonomy (domains + subtopics)
   // -------------------------------------------------------------------------
 
-  const [domainsResult, subtopicsResult] = await Promise.all([
-    supabase
-      .from('taxonomy_domains')
-      .select('id, name, display_order')
-      .order('display_order'),
-    supabase
-      .from('taxonomy_subtopics')
-      .select('id, name, domain_id, display_order')
-      .order('display_order'),
+  const [domainsRaw, subtopicsRaw] = await Promise.all([
+    sb(
+      supabase
+        .from('taxonomy_domains')
+        .select('id, name, display_order')
+        .order('display_order'),
+      'taxonomy_domains.list',
+    ),
+    sb(
+      supabase
+        .from('taxonomy_subtopics')
+        .select('id, name, domain_id, display_order')
+        .order('display_order'),
+      'taxonomy_subtopics.list',
+    ),
   ]);
 
-  const domains = (domainsResult.data ?? []) as TaxonomyDomain[];
-  const subtopics = (subtopicsResult.data ?? []) as TaxonomySubtopic[];
+  const domains = (domainsRaw ?? []) as TaxonomyDomain[];
+  const subtopics = (subtopicsRaw ?? []) as TaxonomySubtopic[];
 
   // Build domain ID to name map
   const domainMap = new Map<string, string>();
@@ -171,10 +178,13 @@ export async function generateContentSuggestions(
   // 2. Fetch content items (domain, subtopic, freshness, content_type)
   // -------------------------------------------------------------------------
 
-  const { data: contentItems } = await supabase
-    .from('content_items')
-    .select('primary_domain, primary_subtopic, freshness, content_type')
-    .is('archived_at', null);
+  const contentItems = await sb(
+    supabase
+      .from('content_items')
+      .select('primary_domain, primary_subtopic, freshness, content_type')
+      .is('archived_at', null),
+    'content_items.forSuggestions',
+  );
 
   // Build counts per domain+subtopic
   const statsMap = new Map<string, SubtopicStats>();
@@ -202,11 +212,14 @@ export async function generateContentSuggestions(
   // 3. Fetch active bids (domains with active bids get priority boost)
   // -------------------------------------------------------------------------
 
-  const { data: activeBids } = await supabase
-    .from('workspaces')
-    .select('id, name, domain_metadata')
-    .eq('type', 'bid')
-    .is('archived_at', null);
+  const activeBids = await sb(
+    supabase
+      .from('workspaces')
+      .select('id, name, domain_metadata')
+      .eq('type', 'bid')
+      .is('archived_at', null),
+    'workspaces.activeBids',
+  );
 
   // Extract domains mentioned in active bid metadata
   const activeBidDomains = new Set<string>();
@@ -308,13 +321,16 @@ export async function generateContentSuggestions(
   // -------------------------------------------------------------------------
 
   if (includeTemplateGaps) {
-    const { data: templates } = await supabase
-      .from('template_requirements')
-      .select(
-        'template_name, section_name, requirement_text, primary_domain, primary_subtopic',
-      )
-      .eq('is_current', true)
-      .eq('coverage_status', 'gap');
+    const templates = await sb(
+      supabase
+        .from('template_requirements')
+        .select(
+          'template_name, section_name, requirement_text, primary_domain, primary_subtopic',
+        )
+        .eq('is_current', true)
+        .eq('coverage_status', 'gap'),
+      'template_requirements.gaps',
+    );
 
     for (const req of templates ?? []) {
       const domain = (req.primary_domain as string) ?? 'Unknown';

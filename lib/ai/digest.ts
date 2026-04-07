@@ -20,6 +20,8 @@ import type {
 import { AIServiceError } from '@/lib/ai/errors';
 import { generateContentSuggestions } from '@/lib/content/content-suggestions';
 import type { ContentSuggestion } from '@/lib/content/content-suggestions';
+import { tryQuery } from '@/lib/supabase/safe';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 
 // ──────────────────────────────────────────
 // Types
@@ -519,13 +521,24 @@ export async function generateDigest(
       .lte('created_at', periodEndISO)
       .eq('resolved', false);
 
-    // Freshness breakdown via server-side aggregation RPC
+    // Freshness breakdown via server-side aggregation RPC.
+    // Treat failure as zero counts (degrade-not-fail).
     const freshnessCounts = { fresh: 0, aging: 0, stale: 0, expired: 0 };
-    const { data: freshnessRows } = await supabase.rpc(
-      'get_freshness_breakdown',
+    const freshnessResult = await tryQuery(
+      supabase.rpc('get_freshness_breakdown'),
+      'rpc.freshness_breakdown',
     );
-    if (freshnessRows) {
-      for (const row of freshnessRows as Array<{
+    if (!freshnessResult.ok) {
+      logBestEffortWarn(
+        'digest.governance.freshness',
+        'freshness breakdown unavailable — defaulting to zero counts',
+        {
+          err: freshnessResult.error.message,
+          code: freshnessResult.error.code,
+        },
+      );
+    } else if (freshnessResult.data) {
+      for (const row of freshnessResult.data as Array<{
         freshness: string;
         count: number;
       }>) {
