@@ -17,6 +17,7 @@ import { extractEntityContext } from '@/lib/entities/entity-context';
 import { bridgeTemporalReferencesToEntities } from '@/lib/entities/entity-metadata-bridge';
 import { normaliseTag } from '@/lib/validation/schemas';
 import { CLIENT_CONFIG } from '@/lib/client-config';
+import { sb } from '@/lib/supabase/safe';
 
 // ──────────────────────────────────────────
 // Identifier exclusion patterns
@@ -768,21 +769,27 @@ export async function classifyContent(
   const entityTypesRef = await loadSkill('classification-entity-types');
 
   // Build taxonomy string from DB
-  const { data: domains } = await supabase
-    .from('taxonomy_domains')
-    .select('id, name')
-    .eq('is_active', true)
-    .order('display_order');
+  const domains = await sb(
+    supabase
+      .from('taxonomy_domains')
+      .select('id, name')
+      .eq('is_active', true)
+      .order('display_order'),
+    'taxonomy.domains.list',
+  );
 
-  const { data: subtopics } = await supabase
-    .from('taxonomy_subtopics')
-    .select('name, domain_id')
-    .eq('is_active', true)
-    .order('display_order');
+  const subtopics = await sb(
+    supabase
+      .from('taxonomy_subtopics')
+      .select('name, domain_id')
+      .eq('is_active', true)
+      .order('display_order'),
+    'taxonomy.subtopics.list',
+  );
 
-  const taxonomyStr = (domains ?? [])
+  const taxonomyStr = domains
     .map((d) => {
-      const subs = (subtopics ?? [])
+      const subs = subtopics
         .filter((s) => s.domain_id === d.id)
         .map((s) => s.name);
       return `- ${d.name}: ${subs.join(', ')}`;
