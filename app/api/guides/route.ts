@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   getAuthenticatedClient,
-  unauthorisedResponse,
   getAuthorisedClient,
   authFailureResponse,
 } from '@/lib/auth';
@@ -35,7 +34,7 @@ interface GuideSectionRow {
 export async function GET(request: NextRequest) {
   try {
     const auth = await getAuthenticatedClient();
-    if (!auth) return unauthorisedResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;
 
     const parsed = parseSearchParams(

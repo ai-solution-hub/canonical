@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   getAuthenticatedClient,
-  unauthorisedResponse,
   rateLimitResponse,
+  authFailureResponse,
 } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   try {
     // Auth check
     const auth = await getAuthenticatedClient();
-    if (!auth) return unauthorisedResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { user, supabase } = auth;
 
     // Rate limit: 30 requests per minute

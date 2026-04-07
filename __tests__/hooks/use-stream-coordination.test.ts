@@ -268,13 +268,18 @@ function setupDefaultFetch(
 
 /**
  * Render the hook with TanStack Query wrapper and wait for initial loading.
+ *
+ * `wrapperOpts` are forwarded to `createQueryWrapper` — pass production-like
+ * `{ staleTime, gcTime }` when testing cache-hit behaviour. Default is the
+ * deterministic fresh-cache setup (`staleTime: 0`, `gcTime: 0`).
  */
 async function renderAndWaitForLoad(
   params = defaultParams(),
   fetchOpts: Parameters<typeof setupDefaultFetch>[0] = {},
+  wrapperOpts: Parameters<typeof createQueryWrapper>[0] = {},
 ) {
   setupDefaultFetch(fetchOpts);
-  const { Wrapper } = createQueryWrapper();
+  const { Wrapper } = createQueryWrapper(wrapperOpts);
   const hookResult = renderHook(() => useStreamCoordination(params), {
     wrapper: Wrapper,
   });
@@ -865,27 +870,132 @@ describe('useStreamCoordination', () => {
       });
     });
 
-    it('response is cached per question (switching back does not refetch)', async () => {
-      const { result } = await renderAndWaitForLoad();
+    // Cache-hit regression — see WP7 (S152A).
+    //
+    // Decision: Option 1 — fix the test environment so it actually exercises
+    // production cache behaviour. The original test asserted "switching back
+    // does not refetch" but used the default `createQueryWrapper()` which has
+    // `gcTime: 0` and `staleTime: 0`. With those defaults, q-1's cache entry
+    // is destroyed the moment navigation removes its observer, so a fresh
+    // refetch is unavoidable on navigate-back — meaning the test was running
+    // against a configuration that fundamentally cannot demonstrate the
+    // production cache hit (`lib/query/query-provider.tsx` ships
+    // `staleTime: 30s`, `gcTime: 5min`). The production hook code is correct;
+    // the test wrapper was lying about the environment.
+    //
+    // We now pass production-like cache options to the wrapper. The two
+    // tests below pin both halves of the contract:
+    //   1. Navigating away from q-1 and back within `staleTime` MUST NOT
+    //      issue a second fetch for q-1.
+    //   2. Navigating to a previously-unvisited q-2 (whose response also
+    //      lives at a real endpoint) MUST issue exactly one fetch — caching
+    //      must not over-suppress unrelated questions.
+    it('response is cached per question (switching back does not refetch within staleTime)', async () => {
+      const { result } = await renderAndWaitForLoad(
+        defaultParams(),
+        {},
+        { staleTime: 30_000, gcTime: 5 * 60_000 },
+      );
 
       await waitFor(() => {
         expect(result.current.response).not.toBeNull();
       });
 
-      // Navigate away and back
+      const fetchCountAfterFirstLoad = mockFetch.mock.calls.length;
+
+      // Navigate away to q-2 (which has no response → no fetch issued for it)
       await act(async () => {
         result.current.handleNavigate(1);
       });
 
+      // …and back to q-1.
       await act(async () => {
         result.current.handleNavigate(0);
       });
 
-      // TanStack Query serves from cache — no additional fetch for the same question
-      // (staleTime prevents refetch within the window)
       await waitFor(() => {
         expect(result.current.response).not.toBeNull();
       });
+
+      // No additional fetch — q-1's data is still fresh, served from cache.
+      // If this assertion regresses (e.g. queryKey instability, an effect
+      // calling `invalidateQueries` on every navigation, or a wrapper config
+      // drift) the test will fail loudly.
+      expect(mockFetch.mock.calls.length).toBe(fetchCountAfterFirstLoad);
+    });
+
+    it('navigating to a different question still fetches its response (no over-caching)', async () => {
+      // Both questions have a response — proves the cache is keyed per
+      // question and we are not accidentally suppressing legitimate fetches.
+      const questions = [
+        {
+          id: 'q-1',
+          question_text: 'What is your approach?',
+          section_name: 'Section 1',
+          section_sequence: 1,
+          question_sequence: 1,
+          confidence_posture: 'strong_match',
+          status: 'not_started',
+          word_limit: 500,
+          has_variants: false,
+          assigned_to: null,
+          created_by: null,
+          created_at: '2026-01-01',
+          updated_at: '2026-01-01',
+          project_id: 'bid-1',
+          evaluation_weight: null,
+          matched_content_ids: null,
+          response: { id: 'r-1', review_status: 'draft', word_count: 50 },
+        },
+        {
+          id: 'q-2',
+          question_text: 'Describe your team',
+          section_name: 'Section 2',
+          section_sequence: 1,
+          question_sequence: 2,
+          confidence_posture: null,
+          status: 'not_started',
+          word_limit: null,
+          has_variants: false,
+          assigned_to: null,
+          created_by: null,
+          created_at: '2026-01-01',
+          updated_at: '2026-01-01',
+          project_id: 'bid-1',
+          evaluation_weight: null,
+          matched_content_ids: null,
+          response: { id: 'r-2', review_status: 'draft', word_count: 80 },
+        },
+      ];
+      const { result } = await renderAndWaitForLoad(
+        defaultParams(),
+        { questionsOverride: questions },
+        { staleTime: 30_000, gcTime: 5 * 60_000 },
+      );
+
+      await waitFor(() => {
+        expect(result.current.response).not.toBeNull();
+      });
+
+      const fetchCountAfterFirstLoad = mockFetch.mock.calls.length;
+      const r2UrlsBefore = mockFetch.mock.calls.filter((c: unknown[]) =>
+        String(c[0]).includes('/responses/r-2'),
+      ).length;
+      expect(r2UrlsBefore).toBe(0);
+
+      await act(async () => {
+        result.current.handleNavigate(1);
+      });
+
+      // Wait for q-2's response to arrive — proves the new fetch happened.
+      await waitFor(() => {
+        const r2UrlsAfter = mockFetch.mock.calls.filter((c: unknown[]) =>
+          String(c[0]).includes('/responses/r-2'),
+        ).length;
+        expect(r2UrlsAfter).toBe(1);
+      });
+
+      expect(mockFetch.mock.calls.length).toBe(fetchCountAfterFirstLoad + 1);
     });
 
     it('mutation error does not corrupt query cache', async () => {

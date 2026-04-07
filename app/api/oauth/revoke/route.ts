@@ -4,8 +4,8 @@
  * Revokes an OAuth grant for the authenticated user.
  * Invalidates the client's sessions and refresh tokens immediately.
  */
-import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth';
 import { parseBody } from '@/lib/validation';
 import { RevokeSchema } from '@/lib/validation/schemas';
 import { safeErrorMessage } from '@/lib/error';
@@ -14,15 +14,9 @@ export const maxDuration = 30;
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
+    const auth = await getAuthenticatedClient();
+    if (!auth.success) return authFailureResponse(auth);
+    const { supabase } = auth;
 
     const body = await request.json().catch((_err) => null);
     const parsed = parseBody(RevokeSchema, body);

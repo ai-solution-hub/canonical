@@ -3,7 +3,6 @@ import {
   getAuthenticatedClient,
   getAuthorisedClient,
   authFailureResponse,
-  unauthorisedResponse,
 } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
@@ -31,7 +30,7 @@ export async function GET(
 ) {
   try {
     const auth = await getAuthenticatedClient();
-    if (!auth) return unauthorisedResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;
 
     const { id: documentId } = await params;

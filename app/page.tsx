@@ -12,6 +12,7 @@ import { buildAttentionItems } from '@/lib/attention';
 import { ReorientSection } from '@/components/dashboard/reorient-section';
 import { OwnedContentHealth } from '@/components/dashboard/owned-content-health';
 import { ContentPerformanceSection } from '@/components/dashboard/content-performance-section';
+import { WarningsBanner } from '@/components/dashboard/warnings-banner';
 import type { ReorientData } from '@/types/reorient';
 
 // ---------------------------------------------------------------------------
@@ -25,12 +26,23 @@ async function getDashboardData() {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  // Check role
-  const { data: roleData } = await supabase
+  // Check role. PGRST116 (no rows) is benign — the user has no explicit role
+  // and defaults to viewer. Any other DB error must surface as a warning so an
+  // admin who hits a transient DB glitch is not silently downgraded to the
+  // viewer dashboard. Mirrors `app/api/dashboard/route.ts` lines 31-41.
+  const { data: roleData, error: roleError } = await supabase
     .from('user_roles')
     .select('role')
     .eq('user_id', user.id)
     .single();
+
+  const roleWarnings: string[] = [];
+  if (roleError && roleError.code !== 'PGRST116') {
+    console.error('Failed to look up user role for dashboard:', roleError);
+    roleWarnings.push(
+      'Could not verify your role; some sections may be hidden until you reload.',
+    );
+  }
   const isAdmin = roleData?.role === 'admin';
   const role = roleData?.role ?? 'viewer';
 
@@ -40,7 +52,7 @@ async function getDashboardData() {
     isAdmin,
     role,
   );
-  return { unified };
+  return { unified, roleWarnings };
 }
 
 // ---------------------------------------------------------------------------
@@ -109,7 +121,16 @@ async function DashboardContent() {
     );
   }
 
-  const { unified } = result;
+  const { unified, roleWarnings } = result;
+
+  // Compose the warnings array consumed by `<WarningsBanner />`. Mirrors the
+  // `warnings: [...roleWarnings, ...dashboard.errors]` envelope built by
+  // `app/api/dashboard/route.ts:71-84` so the page render and the client
+  // refresh path surface the same partial-failure messages.
+  const warnings: readonly string[] = [
+    ...roleWarnings,
+    ...unified.errors,
+  ];
 
   // Build attention items from unified source data.
   const allItems = buildAttentionItems({
@@ -141,6 +162,15 @@ async function DashboardContent() {
 
   return (
     <>
+      {/* Partial-failure banner — surfaces non-fatal sub-query errors from
+          the unified dashboard fetch (and the page-level role lookup). Hidden
+          when there are no warnings to show. */}
+      {warnings.length > 0 && (
+        <div className="mt-6">
+          <WarningsBanner warnings={warnings} />
+        </div>
+      )}
+
       {/* Reorient Me — personalised briefing */}
       <div className="mt-6">
         <ReorientSection data={reorientData} />

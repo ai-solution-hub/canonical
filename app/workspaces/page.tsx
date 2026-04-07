@@ -4,7 +4,7 @@ import { WorkspacesContent } from './workspaces-content';
 
 async function getWorkspaceTypeCounts(): Promise<Record<string, number>> {
   const auth = await getAuthenticatedClient();
-  if (!auth) redirect('/login');
+  if (!auth.success) redirect('/login');
 
   const { data, error } = await auth.supabase
     .from('workspaces')

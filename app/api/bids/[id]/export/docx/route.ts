@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
+import {
+  getAuthenticatedClient,
+  authFailureResponse,
+} from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { generateBidDocx } from '@/lib/bid/bid-export-docx';
 import { DocxExportBodySchema } from '@/lib/validation/schemas';
@@ -19,7 +22,7 @@ export async function POST(
   try {
     // Auth — all authenticated users can export (read-only operation)
     const auth = await getAuthenticatedClient();
-    if (!auth) return unauthorisedResponse();
+    if (!auth.success) return authFailureResponse(auth);
 
     const { id: bidId } = await params;
 

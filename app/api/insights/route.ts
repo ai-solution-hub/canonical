@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   getAuthenticatedClient,
-  unauthorisedResponse,
   rateLimitResponse,
+  authFailureResponse,
 } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
@@ -14,7 +14,7 @@ export const maxDuration = 60;
 export async function GET(request: NextRequest) {
   try {
     const auth = await getAuthenticatedClient();
-    if (!auth) return unauthorisedResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { user, supabase } = auth;
 
     const { allowed } = checkRateLimit(`insights:${user.id}`, 20, 60 * 1000);

@@ -9,9 +9,11 @@ import { describe, it, expect, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 
-// Mock auth — getAuthenticatedClient returns { supabase }
+// Mock auth — getAuthenticatedClient returns discriminated union { success, supabase, user }
 vi.mock('@/lib/auth', () => ({
   getAuthenticatedClient: vi.fn().mockResolvedValue({
+    success: true,
+    user: { id: 'user-1' },
     supabase: {
       from: () => ({
         select: () => ({

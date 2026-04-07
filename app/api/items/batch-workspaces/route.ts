@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
+import {
+  getAuthenticatedClient,
+  authFailureResponse,
+} from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 
@@ -17,7 +20,7 @@ const BatchWorkspacesBodySchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const auth = await getAuthenticatedClient();
-    if (!auth) return unauthorisedResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;
 
     const raw = await request.json();

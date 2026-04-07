@@ -168,6 +168,63 @@ describe('GET /api/bids', () => {
     expect(body.total).toBe(1);
     expect(body.limit).toBe(50);
     expect(body.offset).toBe(0);
+    // Happy path: failed_bid_ids is absent (matches H13 sibling-when-non-empty
+    // convention).
+    expect(body).not.toHaveProperty('failed_bid_ids');
+  });
+
+  it('surfaces failed_bid_ids[] when fallback per-bid stats fail (WP5)', async () => {
+    // Two bids in the list. The batch RPC errors (forcing the per-bid
+    // fallback path), then one of the per-bid RPCs errors and the other
+    // succeeds. The response must surface only the failing bid id under
+    // `failed_bid_ids` while the successful bid still gets question_stats.
+    const SECOND_UUID = 'b2c3d4e5-f6a7-8901-bcde-f23456789012';
+    const SECOND_BID = { ...MOCK_BID, id: SECOND_UUID, name: 'Second Bid' };
+
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [MOCK_BID, SECOND_BID], error: null, count: 2 }),
+    );
+
+    // Batch RPC fails -> triggers fallback path.
+    mockSupabase.rpc
+      .mockResolvedValueOnce({
+        data: null,
+        error: { code: '42883', message: 'function does not exist' },
+      })
+      // First per-bid call fails (this is the bid id we expect in failed_bid_ids).
+      .mockResolvedValueOnce({
+        data: null,
+        error: { code: 'PGRST500', message: 'stats lookup failed' },
+      })
+      // Second per-bid call succeeds.
+      .mockResolvedValueOnce({
+        data: [{ project_id: SECOND_UUID, total: 4, answered: 2 }],
+        error: null,
+      });
+
+    const req = createTestRequest('/api/bids');
+    const res = await GET(req);
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+
+    expect(body.bids).toHaveLength(2);
+    expect(body.failed_bid_ids).toEqual([VALID_UUID]);
+
+    const successful = body.bids.find(
+      (b: { id: string }) => b.id === SECOND_UUID,
+    );
+    expect(successful?.question_stats).toEqual({
+      project_id: SECOND_UUID,
+      total: 4,
+      answered: 2,
+    });
+
+    const failed = body.bids.find(
+      (b: { id: string }) => b.id === VALID_UUID,
+    );
+    expect(failed?.question_stats).toBeNull();
   });
 });
 
@@ -368,6 +425,86 @@ describe('GET /api/bids/[id]', () => {
     expect(body.tender_documents).toHaveLength(1);
     expect(body.tender_documents[0].filename).toBe('tender.pdf');
     expect(body.tender_documents[0].path).toBe(`${VALID_UUID}/tender.pdf`);
+    // No warnings on the happy path — sibling field is omitted when empty.
+    expect(body.warnings).toBeUndefined();
+  });
+
+  it('returns 200 with warnings[] when stats RPC fails (partial response)', async () => {
+    // S152A WP4: H2 was flipped from fail-fast to partial-response. Bid
+    // detail is a composite view (overview, questions, drafting, outcome,
+    // documents tabs) and a transient stats glitch must not 500 the page.
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: MOCK_BID,
+      error: null,
+    });
+
+    mockSupabase.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'stats rpc unavailable', code: 'XX000' },
+    });
+
+    const storageBucket = {
+      list: vi.fn().mockResolvedValue({ data: [], error: null }),
+      upload: vi.fn(),
+      download: vi.fn(),
+      remove: vi.fn(),
+      getPublicUrl: vi.fn(),
+    };
+    mockSupabase.storage.from.mockReturnValue(storageBucket);
+
+    const req = createTestRequest(`/api/bids/${VALID_UUID}`);
+    const res = await getBid(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.id).toBe(VALID_UUID);
+    expect(body.question_stats).toBeNull();
+    expect(body.tender_documents).toEqual([]);
+    expect(Array.isArray(body.warnings)).toBe(true);
+    expect(body.warnings).toHaveLength(1);
+    expect(body.warnings[0]).toMatch(/Question stats could not be loaded/);
+  });
+
+  it('returns 200 with warnings[] when storage list fails (partial response)', async () => {
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: MOCK_BID,
+      error: null,
+    });
+
+    mockSupabase.rpc.mockResolvedValueOnce({
+      data: [{ total: 10, answered: 7, approved: 3 }],
+      error: null,
+    });
+
+    const storageBucket = {
+      list: vi.fn().mockResolvedValue({
+        data: null,
+        error: { message: 'storage unavailable' },
+      }),
+      upload: vi.fn(),
+      download: vi.fn(),
+      remove: vi.fn(),
+      getPublicUrl: vi.fn(),
+    };
+    mockSupabase.storage.from.mockReturnValue(storageBucket);
+
+    const req = createTestRequest(`/api/bids/${VALID_UUID}`);
+    const res = await getBid(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.question_stats).toEqual({
+      total: 10,
+      answered: 7,
+      approved: 3,
+    });
+    expect(body.tender_documents).toEqual([]);
+    expect(body.warnings).toHaveLength(1);
+    expect(body.warnings[0]).toMatch(/Tender documents could not be listed/);
   });
 });
 

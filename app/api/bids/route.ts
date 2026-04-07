@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   getAuthenticatedClient,
   getAuthorisedClient,
-  unauthorisedResponse,
   authFailureResponse,
   rateLimitResponse,
 } from '@/lib/auth';
@@ -21,7 +20,7 @@ export const maxDuration = 30;
 export async function GET(request: NextRequest) {
   try {
     const auth = await getAuthenticatedClient();
-    if (!auth) return unauthorisedResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;
 
     const parsed = parseSearchParams(
@@ -59,6 +58,10 @@ export async function GET(request: NextRequest) {
     // Enrich each bid with question statistics (batch to avoid N+1)
     const bidIds = (workspaces ?? []).map((p) => p.id);
     const statsMap = new Map<string, Record<string, unknown>>();
+    // Track per-bid stats failures so the response can surface them as a
+    // sibling `failed_bid_ids` field. Mirrors the H13 pattern in
+    // `app/api/freshness/calculate/route.ts` (S151 silent-failure remediation).
+    const failedBidIds: string[] = [];
 
     if (bidIds.length > 0) {
       const { data: batchStats, error: batchError } = await supabase.rpc(
@@ -86,12 +89,14 @@ export async function GET(request: NextRequest) {
                 bidId,
                 statsError,
               );
+              return { bidId, stats: null, failed: true };
             }
-            return { bidId, stats: stats?.[0] ?? null };
+            return { bidId, stats: stats?.[0] ?? null, failed: false };
           }),
         );
-        for (const { bidId, stats } of fallbackResults) {
+        for (const { bidId, stats, failed } of fallbackResults) {
           if (stats) statsMap.set(bidId, stats);
+          if (failed) failedBidIds.push(bidId);
         }
       } else if (batchStats) {
         for (const row of batchStats) {
@@ -108,12 +113,26 @@ export async function GET(request: NextRequest) {
       question_stats: statsMap.get(workspace.id) ?? null,
     }));
 
-    return NextResponse.json({
+    // `failed_bid_ids` is a sibling field, only present when the fallback
+    // loop produced at least one failure. Matches the H13 "absent when
+    // empty" convention so existing consumers see no shape change in the
+    // happy path.
+    const response: {
+      bids: typeof bids;
+      total: number;
+      limit: number;
+      offset: number;
+      failed_bid_ids?: string[];
+    } = {
       bids,
       total: count ?? bids.length,
       limit,
       offset,
-    });
+    };
+    if (failedBidIds.length > 0) {
+      response.failed_bid_ids = failedBidIds;
+    }
+    return NextResponse.json(response);
   } catch (err) {
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to fetch bids') },

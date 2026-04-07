@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server';
-import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
+import {
+  getAuthenticatedClient,
+  authFailureResponse,
+} from '@/lib/auth';
 
 export const maxDuration = 30;
 
 export async function GET() {
   try {
     const auth = await getAuthenticatedClient();
-    if (!auth) return unauthorisedResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;
 
     const { data, error } = await supabase.rpc('get_popular_keywords', {

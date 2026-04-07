@@ -117,7 +117,7 @@ export function buildCoreContentItems(timestamps: {
       freshness_checked_at: timestamps.thirtyDaysAgo,
       lifecycle_type: 'regulation',
     },
-    // [4] Note — Commercial (expired, date_bound)
+    // [4] Note — Commercial (expired, date_bound, with temporal_references for E2E)
     {
       title: 'Pricing Model Template',
       content_type: 'note',
@@ -125,11 +125,33 @@ export function buildCoreContentItems(timestamps: {
       ai_summary: 'Template for pricing model breakdowns in bid responses.',
       platform: 'manual',
       content:
-        'Standard pricing model template: Day rates, fixed-price deliverables, managed service charges, and optional extras.',
+        'Standard pricing model template: Day rates, fixed-price deliverables, managed service charges, and optional extras. Effective from 01/01/2025. Review by 31/12/2026.',
       freshness: 'expired',
       freshness_checked_at: timestamps.ninetyDaysAgo,
       lifecycle_type: 'date_bound',
       expiry_date: timestamps.expiredDate,
+      metadata: {
+        temporal_references: [
+          {
+            date: timestamps.expiredDate,
+            type: 'expiry',
+            confidence: 'high',
+            context: 'Template valid until expiry on the stated date.',
+          },
+          {
+            date: '2025-01-01',
+            type: 'effective',
+            confidence: 'medium',
+            context: 'Effective from 01/01/2025.',
+          },
+          {
+            date: '2026-12-31',
+            type: 'review',
+            confidence: 'medium',
+            context: 'Review by 31/12/2026.',
+          },
+        ],
+      },
     },
     // [5] Certification — Security & Compliance (fresh, verified_at set)
     {
@@ -379,9 +401,9 @@ export const EMBEDDING_ITEM_INDICES = [0, 1, 2, 3, 7] as const;
 
 export interface FeedSourceShape {
   name: string;
-  feed_url: string;
-  active: boolean;
-  poll_interval_minutes: number;
+  url: string;
+  is_active: boolean;
+  polling_interval_minutes: number;
 }
 
 export interface FeedArticleShape {
@@ -398,10 +420,202 @@ export interface FeedArticleShape {
 
 export const INTELLIGENCE_FEED_SOURCE: FeedSourceShape = {
   name: 'E2E Test Feed',
-  feed_url: 'https://example.com/e2e-test-feed.xml',
-  active: true,
-  poll_interval_minutes: 60,
+  url: 'https://example.com/e2e-test-feed.xml',
+  is_active: true,
+  polling_interval_minutes: 60,
 };
+
+// ---------------------------------------------------------------------------
+// Entity mention shapes (content_item_id is set at seed time)
+// ---------------------------------------------------------------------------
+
+export interface EntityMentionShape {
+  /** Index into the seeded contentItemIds array */
+  itemIndex: number;
+  canonical_name: string;
+  entity_name: string;
+  entity_type: string;
+  confidence?: number;
+  context_snippet?: string;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Build deterministic entity mentions for E2E tests.
+ *
+ * Provides:
+ * - 2 certifications (1 valid, 1 expiring soon, both holder='self') on
+ *   the certification item [5] and case study item [6] — drives the
+ *   /api/certifications report and the dashboard cert summary card.
+ * - 1 framework (expiring) for framework summary coverage.
+ * - 2 organisation entities and 2 standard entities spread across items
+ *   so the browse filter panel renders Entity Type, Entities, and
+ *   Entity Co-occurrence sections deterministically.
+ *
+ * Co-occurrence is computed from entities sharing a content_item_id, so
+ * we deliberately place "ISO 27001" + "BSI" on item 5 and "AWS" + "NHS
+ * Digital" on item 6 so each pair co-occurs at least once.
+ */
+export function buildEntityMentions(): EntityMentionShape[] {
+  const expiringSoonDate = new Date(Date.now() + 20 * 86400000)
+    .toISOString()
+    .split('T')[0];
+  const validDate = new Date(Date.now() + 365 * 86400000)
+    .toISOString()
+    .split('T')[0];
+
+  return [
+    // --- Certifications (drives /api/certifications) ---
+    {
+      itemIndex: 5, // ISO 27001 Certification item
+      canonical_name: 'ISO 27001',
+      entity_name: 'ISO 27001',
+      entity_type: 'certification',
+      confidence: 0.95,
+      context_snippet: 'We hold ISO 27001:2022 certification.',
+      metadata: {
+        holder: 'self',
+        expiry_date: validDate,
+      },
+    },
+    {
+      itemIndex: 5,
+      canonical_name: 'Cyber Essentials Plus',
+      entity_name: 'Cyber Essentials Plus',
+      entity_type: 'certification',
+      confidence: 0.9,
+      context_snippet: 'Cyber Essentials Plus certification expiring soon.',
+      metadata: {
+        holder: 'self',
+        expiry_date: expiringSoonDate, // expiring_soon
+      },
+    },
+    // Supplier certification — drives the supplier collapsible section.
+    {
+      itemIndex: 6,
+      canonical_name: 'ISO 9001 (Acme Supplier)',
+      entity_name: 'ISO 9001 (Acme Supplier)',
+      entity_type: 'certification',
+      confidence: 0.85,
+      context_snippet: 'Subcontractor Acme Ltd holds ISO 9001.',
+      metadata: {
+        holder: 'supplier',
+        supplier_name: 'Acme Ltd',
+        expiry_date: validDate,
+      },
+    },
+    // --- Framework (expiring soon) ---
+    {
+      itemIndex: 6, // Case study item
+      canonical_name: 'G-Cloud 14',
+      entity_name: 'G-Cloud 14',
+      entity_type: 'framework',
+      confidence: 0.9,
+      context_snippet: 'Listed on the G-Cloud 14 framework.',
+      metadata: {
+        expiry_date: expiringSoonDate,
+      },
+    },
+    // --- Organisations + standards (drives entity filter UI) ---
+    {
+      itemIndex: 5,
+      canonical_name: 'BSI',
+      entity_name: 'BSI',
+      entity_type: 'organisation',
+      confidence: 0.9,
+      context_snippet: 'Certified by BSI.',
+    },
+    {
+      itemIndex: 6,
+      canonical_name: 'NHS Digital',
+      entity_name: 'NHS Digital',
+      entity_type: 'organisation',
+      confidence: 0.95,
+      context_snippet: 'NHS Digital infrastructure modernisation project.',
+    },
+    {
+      itemIndex: 6,
+      canonical_name: 'AWS',
+      entity_name: 'AWS',
+      entity_type: 'organisation',
+      confidence: 0.9,
+      context_snippet: 'Cloud-first architecture on AWS.',
+    },
+    {
+      itemIndex: 7, // Cloud Migration Methodology
+      canonical_name: 'AWS',
+      entity_name: 'AWS',
+      entity_type: 'organisation',
+      confidence: 0.85,
+      context_snippet: 'AWS migration methodology.',
+    },
+    {
+      itemIndex: 7,
+      canonical_name: 'Azure',
+      entity_name: 'Azure',
+      entity_type: 'organisation',
+      confidence: 0.85,
+      context_snippet: 'Azure migration methodology.',
+    },
+    // NHS Digital + AWS co-occur on items 6 and 7 (>= 2 items satisfies
+    // get_entity_co_occurrence default p_min_count=2).
+    {
+      itemIndex: 7,
+      canonical_name: 'NHS Digital',
+      entity_name: 'NHS Digital',
+      entity_type: 'organisation',
+      confidence: 0.9,
+      context_snippet: 'NHS Digital cloud migration.',
+    },
+  ];
+}
+
+/**
+ * Build entity relationships for the certifications report.
+ * Each "holds" row links a holder entity ("Our Organisation") to a
+ * certification entity. The /api/certifications endpoint requires these
+ * rows to surface certifications on the dashboard.
+ */
+export interface EntityRelationshipShape {
+  itemIndex: number;
+  source_entity: string;
+  target_entity: string;
+  relationship_type: string;
+  confidence?: number;
+}
+
+export function buildEntityRelationships(): EntityRelationshipShape[] {
+  return [
+    {
+      itemIndex: 5,
+      source_entity: 'Our Organisation',
+      target_entity: 'ISO 27001',
+      relationship_type: 'holds',
+      confidence: 0.95,
+    },
+    {
+      itemIndex: 5,
+      source_entity: 'Our Organisation',
+      target_entity: 'Cyber Essentials Plus',
+      relationship_type: 'holds',
+      confidence: 0.9,
+    },
+    {
+      itemIndex: 6,
+      source_entity: 'Our Organisation',
+      target_entity: 'G-Cloud 14',
+      relationship_type: 'holds',
+      confidence: 0.9,
+    },
+    {
+      itemIndex: 6,
+      source_entity: 'Acme Ltd',
+      target_entity: 'ISO 9001 (Acme Supplier)',
+      relationship_type: 'holds',
+      confidence: 0.85,
+    },
+  ];
+}
 
 export function buildIntelligenceFeedArticles(
   now: string,

@@ -70,9 +70,19 @@ export async function getMcpUserRole(authInfo: AuthInfo): Promise<string> {
   if (authInfo.extra?.role && typeof authInfo.extra.role === 'string') {
     return authInfo.extra.role;
   }
-  // Fallback: query the database
+  // Fallback: query the database. In production this branch is currently
+  // dead code because verifyToken always caches authInfo.extra.role above —
+  // but we still must NOT silently downgrade to 'viewer' on a transient DB
+  // error. PGRST116 (no rows) is the legitimate "no role entry → viewer"
+  // case; any other error must throw so the caller can reject auth rather
+  // than handing back a stripped role.
   const userId = getMcpUserId(authInfo);
   const supabase = createMcpClient(authInfo);
+  // sb() throws SupabaseError on any PostgREST failure (transient DB error
+  // → 5xx upstream), satisfying the S151 rule that we never silently
+  // downgrade to 'viewer' on a lookup error. .maybeSingle() returns null
+  // for the legitimate "no row" case, which falls through to the
+  // 'viewer' default below.
   const data = await sb(
     supabase
       .from('user_roles')

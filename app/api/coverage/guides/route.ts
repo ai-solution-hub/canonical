@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import {
   getAuthenticatedClient,
-  unauthorisedResponse,
   rateLimitResponse,
+  authFailureResponse,
 } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
@@ -145,7 +145,7 @@ function groupByGuide(rows: GuideSectionRow[]): GuideCoverage[] {
 export async function GET() {
   try {
     const auth = await getAuthenticatedClient();
-    if (!auth) return unauthorisedResponse();
+    if (!auth.success) return authFailureResponse(auth);
 
     const { allowed } = checkRateLimit(
       `coverage-guides:${auth.user.id}`,
