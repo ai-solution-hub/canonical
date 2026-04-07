@@ -306,6 +306,7 @@ export type Database = {
       content_history: {
         Row: {
           brief: string | null
+          change_reason: string | null
           change_summary: string | null
           change_type: string
           content: string
@@ -321,6 +322,7 @@ export type Database = {
         }
         Insert: {
           brief?: string | null
+          change_reason?: string | null
           change_summary?: string | null
           change_type?: string
           content: string
@@ -336,6 +338,7 @@ export type Database = {
         }
         Update: {
           brief?: string | null
+          change_reason?: string | null
           change_summary?: string | null
           change_type?: string
           content?: string

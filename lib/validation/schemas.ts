@@ -247,6 +247,13 @@ export const ItemUpdateBodySchema = z
     // Optional flags for content updates
     regenerate_embedding: z.boolean().optional(),
     reclassify: z.boolean().optional(),
+    // S152B WP3 / Q-3: optional free-text "why did you make this change?"
+    // captured from the admin edit UI and persisted to
+    // `content_history.change_reason`. NULL when the user leaves the
+    // field empty — the DB column is nullable. Canonical pipeline
+    // values (`initial_ingest`, `reclassify`, etc.) are set by the
+    // pipeline, not by this route.
+    change_reason: z.string().max(500).optional().nullable(),
   })
   .superRefine((data, ctx) => {
     // Reject null for NOT NULL columns

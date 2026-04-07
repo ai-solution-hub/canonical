@@ -810,6 +810,117 @@ describe('PATCH /api/items/[id]', () => {
     expect(updateCall.updated_by).toBe('test-user-id');
   });
 
+  // S152B WP3 / Q-3 — content_history.change_reason wiring.
+  it('populates content_history.change_reason when supplied on PATCH', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        title: 'Existing',
+        content: '<p>Content</p>',
+        brief: null,
+        detail: null,
+        reference: null,
+        suggested_title: 'Existing',
+        ai_keywords: null,
+        primary_domain: null,
+        primary_subtopic: null,
+        secondary_domain: null,
+        secondary_subtopic: null,
+        priority: null,
+        ai_summary: null,
+        content_type: 'article',
+        platform: 'manual',
+        author_name: null,
+        user_tags: null,
+      },
+      error: null,
+    });
+
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: { version: 3 },
+      error: null,
+    });
+
+    const req = createTestRequest(`/api/items/${VALID_UUID}`, {
+      method: 'PATCH',
+      body: {
+        field: 'suggested_title',
+        value: 'Refreshed Title',
+        change_reason: 'Title did not reflect the 2026 rebrand',
+      },
+    });
+
+    const res = await PATCH(req, { params });
+    expect(res.status).toBe(200);
+
+    // The content_history insert is the second `.insert()` call on the
+    // mock (first is the update payload, second is the history row).
+    // mock.calls is ordered by call sequence; find the call whose payload
+    // has `content_item_id` — that's the history insert.
+    const historyInsertCall = mockSupabase._chain.insert.mock.calls.find(
+      (call: unknown[]) => {
+        const payload = call[0] as Record<string, unknown>;
+        return 'content_item_id' in payload && 'change_reason' in payload;
+      },
+    );
+    expect(historyInsertCall).toBeDefined();
+    const payload = historyInsertCall![0] as Record<string, unknown>;
+    expect(payload.change_reason).toBe(
+      'Title did not reflect the 2026 rebrand',
+    );
+    expect(payload.change_type).toBe('edit');
+  });
+
+  it('content_history.change_reason is NULL when PATCH omits change_reason', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        title: 'Existing',
+        content: '<p>Content</p>',
+        brief: null,
+        detail: null,
+        reference: null,
+        suggested_title: 'Existing',
+        ai_keywords: null,
+        primary_domain: null,
+        primary_subtopic: null,
+        secondary_domain: null,
+        secondary_subtopic: null,
+        priority: null,
+        ai_summary: null,
+        content_type: 'article',
+        platform: 'manual',
+        author_name: null,
+        user_tags: null,
+      },
+      error: null,
+    });
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: { version: 3 },
+      error: null,
+    });
+
+    const req = createTestRequest(`/api/items/${VALID_UUID}`, {
+      method: 'PATCH',
+      body: { field: 'priority', value: 'high' },
+    });
+
+    const res = await PATCH(req, { params });
+    expect(res.status).toBe(200);
+
+    const historyInsertCall = mockSupabase._chain.insert.mock.calls.find(
+      (call: unknown[]) => {
+        const payload = call[0] as Record<string, unknown>;
+        return 'content_item_id' in payload && 'change_reason' in payload;
+      },
+    );
+    expect(historyInsertCall).toBeDefined();
+    const payload = historyInsertCall![0] as Record<string, unknown>;
+    expect(payload.change_reason).toBeNull();
+  });
+
   it('returns 500 when Supabase update fails', async () => {
     configureRole(mockSupabase, 'editor');
 

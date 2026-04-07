@@ -45,7 +45,8 @@ export async function PATCH(
     const parsed = parseBody(ItemUpdateBodySchema, raw);
     if (!parsed.success) return parsed.response;
 
-    const { field, value, regenerate_embedding, reclassify } = parsed.data;
+    const { field, value, regenerate_embedding, reclassify, change_reason } =
+      parsed.data;
 
     // Additional field-specific validation
     if (field === 'content_type' && typeof value === 'string') {
@@ -329,6 +330,11 @@ export async function PATCH(
         detail: currentItem.detail ?? null,
         reference: currentItem.reference ?? null,
         change_summary: changeSummary,
+        // S152B WP3 / Q-3: captures WHY the change was made (free-text
+        // from the admin UI). NULL is acceptable when the user left
+        // the "Why change?" field empty. Distinct from change_summary
+        // (WHAT changed) and change_type (category).
+        change_reason: change_reason ?? null,
         change_type: 'edit',
         created_by: user.id,
       });
