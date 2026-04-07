@@ -365,8 +365,8 @@ describe('POST /api/ingest/url — Successful Import', () => {
       error: null,
     });
 
-    // single for domain/subtopic re-fetch (topic suggestion step)
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // maybeSingle for domain/subtopic re-fetch (topic suggestion step)
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: {
         primary_domain: 'General Business',
         primary_subtopic: 'Strategy',
@@ -374,8 +374,8 @@ describe('POST /api/ingest/url — Successful Import', () => {
       error: null,
     });
 
-    // single for final item fetch
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // maybeSingle for final item fetch
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: {
         primary_domain: 'General Business',
         primary_subtopic: 'Strategy',
@@ -541,13 +541,13 @@ describe('POST /api/ingest/url — Warnings & Edge Cases', () => {
       },
       error: null,
     });
-    // single for domain/subtopic re-fetch (topic suggestion)
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // maybeSingle for domain/subtopic re-fetch (topic suggestion)
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { primary_domain: null, primary_subtopic: null },
       error: null,
     });
-    // single for final fetch
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // maybeSingle for final fetch
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { primary_domain: null, primary_subtopic: null, ai_summary: null },
       error: null,
     });
@@ -628,13 +628,13 @@ describe('POST /api/ingest/url — Warnings & Edge Cases', () => {
       },
       error: null,
     });
-    // single for domain/subtopic re-fetch (topic suggestion)
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // maybeSingle for domain/subtopic re-fetch (topic suggestion)
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { primary_domain: null, primary_subtopic: null },
       error: null,
     });
-    // single for final fetch
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // maybeSingle for final fetch
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { primary_domain: null, primary_subtopic: null, ai_summary: null },
       error: null,
     });
@@ -701,13 +701,13 @@ describe('POST /api/ingest/url — Warnings & Edge Cases', () => {
       },
       error: null,
     });
-    // single for domain/subtopic re-fetch (topic suggestion)
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // maybeSingle for domain/subtopic re-fetch (topic suggestion)
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { primary_domain: null, primary_subtopic: null },
       error: null,
     });
-    // single for final fetch
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // maybeSingle for final fetch
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { primary_domain: null, primary_subtopic: null, ai_summary: null },
       error: null,
     });
@@ -770,8 +770,8 @@ describe('POST /api/ingest/url — Topic Suggestion', () => {
       error: null,
     });
 
-    // single for domain/subtopic re-fetch (for topic suggestion)
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // maybeSingle for domain/subtopic re-fetch (for topic suggestion)
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: {
         primary_domain: 'General Business',
         primary_subtopic: 'Strategy',
@@ -779,8 +779,8 @@ describe('POST /api/ingest/url — Topic Suggestion', () => {
       error: null,
     });
 
-    // single for final item fetch
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // maybeSingle for final item fetch
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: {
         primary_domain: 'General Business',
         primary_subtopic: 'Strategy',
@@ -868,13 +868,13 @@ describe('POST /api/ingest/url — Layer Column Write', () => {
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
-    // single for domain/subtopic re-fetch (topic suggestion)
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // maybeSingle for domain/subtopic re-fetch (topic suggestion)
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { primary_domain: null, primary_subtopic: null },
       error: null,
     });
-    // single for final fetch
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // maybeSingle for final fetch
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { primary_domain: null, primary_subtopic: null, ai_summary: null },
       error: null,
     });
@@ -938,13 +938,13 @@ describe('POST /api/ingest/url — Date Extraction', () => {
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
-    // single for domain/subtopic re-fetch (topic suggestion)
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // maybeSingle for domain/subtopic re-fetch (topic suggestion)
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { primary_domain: null, primary_subtopic: null },
       error: null,
     });
-    // single for final fetch
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // maybeSingle for final fetch
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { primary_domain: null, primary_subtopic: null, ai_summary: null },
       error: null,
     });
@@ -1036,13 +1036,13 @@ describe('POST /api/ingest/url — Quality Score', () => {
       },
       error: null,
     });
-    // single for domain/subtopic re-fetch (topic suggestion)
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // maybeSingle for domain/subtopic re-fetch (topic suggestion)
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { primary_domain: null, primary_subtopic: null },
       error: null,
     });
-    // single for final fetch
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // maybeSingle for final fetch
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { primary_domain: null, primary_subtopic: null, ai_summary: null },
       error: null,
     });

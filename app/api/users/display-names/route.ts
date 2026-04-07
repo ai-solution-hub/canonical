@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
 import { createServiceClient } from '@/lib/supabase/server';
+import { sb } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { DisplayNamesBodySchema } from '@/lib/validation/schemas';
@@ -31,16 +32,17 @@ export async function POST(request: NextRequest) {
     const result: Record<string, string> = {};
 
     // Primary: read display_name from user_roles (accessible via RLS to all authenticated users)
-    const { data: roleRows } = await auth.supabase
-      .from('user_roles')
-      .select('user_id, display_name')
-      .in('user_id', ids);
+    const roleRows = await sb(
+      auth.supabase
+        .from('user_roles')
+        .select('user_id, display_name')
+        .in('user_id', ids),
+      'user_roles.display_names',
+    );
 
-    if (roleRows) {
-      for (const row of roleRows) {
-        if (row.display_name) {
-          result[row.user_id] = row.display_name;
-        }
+    for (const row of roleRows) {
+      if (row.display_name) {
+        result[row.user_id] = row.display_name;
       }
     }
 

@@ -5,6 +5,7 @@ import {
   rateLimitResponse,
 } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { sb } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';
 import type { Json } from '@/supabase/types/database.types';
 import { parseBody } from '@/lib/validation';
@@ -38,13 +39,16 @@ export async function POST(request: NextRequest) {
     }
 
     // 5. Check if URL already exists in KB (soft warning)
-    const { data: existing } = await supabase
-      .from('content_items')
-      .select('id, title')
-      .eq('source_url', url)
-      .is('archived_at', null)
-      .limit(1)
-      .maybeSingle();
+    const existing = await sb(
+      supabase
+        .from('content_items')
+        .select('id, title')
+        .eq('source_url', url)
+        .is('archived_at', null)
+        .limit(1)
+        .maybeSingle(),
+      'content_items.byUrl',
+    );
 
     if (existing) {
       return NextResponse.json({
@@ -323,13 +327,16 @@ export async function POST(request: NextRequest) {
       const serviceClient = createServiceClient();
 
       // Re-fetch domain/subtopic (set by classification in step 14)
-      const { data: classified } = await supabase
-        .from('content_items')
-        .select(
-          'primary_domain, primary_subtopic, secondary_domain, secondary_subtopic',
-        )
-        .eq('id', newItem.id)
-        .single();
+      const classified = await sb(
+        supabase
+          .from('content_items')
+          .select(
+            'primary_domain, primary_subtopic, secondary_domain, secondary_subtopic',
+          )
+          .eq('id', newItem.id)
+          .maybeSingle(),
+        'content_items.classified',
+      );
 
       classifiedDomain = classified?.primary_domain || '';
       classifiedSubtopic = classified?.primary_subtopic || '';
@@ -389,11 +396,14 @@ export async function POST(request: NextRequest) {
     }
 
     // 18. Fetch final item state (post-classify)
-    const { data: finalItem } = await supabase
-      .from('content_items')
-      .select('primary_domain, primary_subtopic, ai_summary')
-      .eq('id', newItem.id)
-      .single();
+    const finalItem = await sb(
+      supabase
+        .from('content_items')
+        .select('primary_domain, primary_subtopic, ai_summary')
+        .eq('id', newItem.id)
+        .maybeSingle(),
+      'content_items.finalState',
+    );
 
     return NextResponse.json({
       id: newItem.id,

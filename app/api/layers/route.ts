@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { sb } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { LayerCreateSchema } from '@/lib/validation/schemas';
@@ -61,12 +62,15 @@ export async function POST(request: NextRequest) {
     // Auto-assign display_order if not provided
     let order = display_order;
     if (order === undefined) {
-      const { data: maxRow } = await supabase
-        .from('layer_vocabulary')
-        .select('display_order')
-        .order('display_order', { ascending: false })
-        .limit(1)
-        .single();
+      const maxRow = await sb(
+        supabase
+          .from('layer_vocabulary')
+          .select('display_order')
+          .order('display_order', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        'layer_vocabulary.maxDisplayOrder',
+      );
       order = (maxRow?.display_order ?? 0) + 10;
     }
 

@@ -157,8 +157,8 @@ describe('POST /api/source-documents/[id]/send-to-review', () => {
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
-    // Source document filename lookup
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // Source document filename lookup (now uses maybeSingle())
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { filename: 'policy-v2.docx' },
       error: null,
     });
@@ -239,8 +239,8 @@ describe('POST /api/source-documents/[id]/send-to-review', () => {
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
-    // Source document filename lookup
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // Source document filename lookup (now uses maybeSingle())
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { filename: 'policy-v2.docx' },
       error: null,
     });
@@ -375,8 +375,8 @@ describe('POST /api/source-documents/[id]/send-to-review', () => {
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
-    // Source document filename lookup
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // Source document filename lookup (now uses maybeSingle())
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { filename: 'doc.docx' },
       error: null,
     });
@@ -427,8 +427,8 @@ describe('POST /api/source-documents/[id]/send-to-review', () => {
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
-    // Source document filename lookup
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // Source document filename lookup (now uses maybeSingle())
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { filename: 'doc.docx' },
       error: null,
     });
@@ -478,8 +478,8 @@ describe('POST /api/source-documents/[id]/send-to-review', () => {
       (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
 
-    // Source document filename lookup
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // Source document filename lookup (now uses maybeSingle())
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { filename: 'policy-v2.docx' },
       error: null,
     });

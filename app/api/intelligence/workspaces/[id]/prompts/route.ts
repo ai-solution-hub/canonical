@@ -1,6 +1,7 @@
 // app/api/intelligence/workspaces/[id]/prompts/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { sb } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { FeedPromptCreateSchema } from '@/lib/validation/schemas';
@@ -92,13 +93,16 @@ async function handleCreate(
   userId: string,
 ) {
   // 1. Get the current max version number
-  const { data: maxRow } = await supabase
-    .from('feed_prompts')
-    .select('version')
-    .eq('workspace_id', workspaceId)
-    .order('version', { ascending: false })
-    .limit(1)
-    .single();
+  const maxRow = await sb(
+    supabase
+      .from('feed_prompts')
+      .select('version')
+      .eq('workspace_id', workspaceId)
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    'feed_prompts.maxVersion.create',
+  );
 
   const nextVersion = (maxRow?.version ?? 0) + 1;
 
@@ -159,13 +163,16 @@ async function handleRollback(
   }
 
   // 2. Get current max version
-  const { data: maxRow } = await supabase
-    .from('feed_prompts')
-    .select('version')
-    .eq('workspace_id', workspaceId)
-    .order('version', { ascending: false })
-    .limit(1)
-    .single();
+  const maxRow = await sb(
+    supabase
+      .from('feed_prompts')
+      .select('version')
+      .eq('workspace_id', workspaceId)
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    'feed_prompts.maxVersion.rollback',
+  );
 
   const nextVersion = (maxRow?.version ?? 0) + 1;
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { sb } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { RollbackBodySchema } from '@/lib/validation/schemas';
@@ -69,13 +70,16 @@ export async function POST(
     }
 
     // Step 5: Snapshot current state into content_history before overwriting
-    const { data: maxVersionData } = await supabase
-      .from('content_history')
-      .select('version')
-      .eq('content_item_id', id)
-      .order('version', { ascending: false })
-      .limit(1)
-      .single();
+    const maxVersionData = await sb(
+      supabase
+        .from('content_history')
+        .select('version')
+        .eq('content_item_id', id)
+        .order('version', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      'content_history.maxVersion',
+    );
 
     const nextVersion = (maxVersionData?.version ?? 0) + 1;
 

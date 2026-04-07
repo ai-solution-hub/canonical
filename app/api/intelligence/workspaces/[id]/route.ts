@@ -1,6 +1,7 @@
 // app/api/intelligence/workspaces/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { sb } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { IntelligenceWorkspaceUpdateSchema } from '@/lib/validation/schemas';
@@ -36,11 +37,14 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     let companyProfileName: string | null = null;
 
     if (profileId) {
-      const { data: profile } = await supabase
-        .from('company_profiles')
-        .select('name')
-        .eq('id', profileId)
-        .single();
+      const profile = await sb(
+        supabase
+          .from('company_profiles')
+          .select('name')
+          .eq('id', profileId)
+          .maybeSingle(),
+        'company_profiles.byId',
+      );
       companyProfileName = profile?.name ?? null;
     }
 

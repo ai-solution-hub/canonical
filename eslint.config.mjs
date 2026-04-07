@@ -75,16 +75,6 @@ const eslintConfig = defineConfig([
       // in S152C. Tracked for cleanup in roadmap §9.14 (S152B WP5) and via
       // opportunistic migration. DO NOT add new files to this list — the
       // rule is live at `error` for everything not listed here.
-      'app/api/ingest/url/route.ts',
-      'app/api/intelligence/workspaces/*/metrics/prompt-performance/route.ts',
-      'app/api/intelligence/workspaces/*/prompts/route.ts',
-      'app/api/intelligence/workspaces/*/route.ts',
-      'app/api/items/*/classify/route.ts',
-      'app/api/items/*/rollback/route.ts',
-      'app/api/layers/route.ts',
-      'app/api/oauth/revoke/route.ts',
-      'app/api/source-documents/*/send-to-review/route.ts',
-      'app/api/users/display-names/route.ts',
       'lib/ai/digest.ts',
       'lib/bid/bid-queries.ts',
       'lib/content/content-suggestions.ts',

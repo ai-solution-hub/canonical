@@ -327,8 +327,8 @@ describe('Intelligence Workspaces API', () => {
         data: MOCK_WORKSPACE,
         error: null,
       });
-      // Profile name query
-      mockSupabase._chain.single.mockResolvedValueOnce({
+      // Profile name query (now uses maybeSingle())
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
         data: { name: 'example-client Design' },
         error: null,
       });

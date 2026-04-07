@@ -195,8 +195,8 @@ describe('POST /api/layers', () => {
   it('creates a layer with valid data', async () => {
     configureRole(mockSupabase, 'admin');
 
-    // Mock the max display_order lookup
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // Mock the max display_order lookup (now uses maybeSingle())
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { display_order: 40 },
       error: null,
     });
@@ -243,12 +243,12 @@ describe('POST /api/layers', () => {
   it('returns 409 for duplicate key', async () => {
     configureRole(mockSupabase, 'admin');
 
-    // First single() call: auto-assign display_order lookup
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // Auto-assign display_order lookup (now uses maybeSingle())
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { display_order: 40 },
       error: null,
     });
-    // Second single() call: insert fails with unique violation
+    // Insert fails with unique violation
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: null,
       error: { code: '23505', message: 'unique violation' },

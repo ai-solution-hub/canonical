@@ -573,8 +573,8 @@ describe('POST /api/items/[id]/rollback', () => {
       error: null,
     });
 
-    // Max version lookup
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // Max version lookup (now uses maybeSingle())
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { version: 3 },
       error: null,
     });
@@ -636,8 +636,8 @@ describe('POST /api/items/[id]/rollback', () => {
       error: null,
     });
 
-    // Max version lookup
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // Max version lookup (now uses maybeSingle())
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { version: 3 },
       error: null,
     });

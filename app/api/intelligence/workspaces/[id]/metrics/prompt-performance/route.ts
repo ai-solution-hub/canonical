@@ -1,6 +1,7 @@
 // app/api/intelligence/workspaces/[id]/metrics/prompt-performance/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { sb } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -57,15 +58,16 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
         // Count flags on articles scored with this prompt version
         // JOIN feed_flags via feed_articles using !inner
-        const { data: flagData } = await supabase
-          .from('feed_flags')
-          .select(
-            'id, flag_type, feed_articles!inner(workspace_id, prompt_version_id)',
-          )
-          .eq('feed_articles.workspace_id', id)
-          .eq('feed_articles.prompt_version_id', prompt.id);
-
-        const flags = flagData ?? [];
+        const flags = await sb(
+          supabase
+            .from('feed_flags')
+            .select(
+              'id, flag_type, feed_articles!inner(workspace_id, prompt_version_id)',
+            )
+            .eq('feed_articles.workspace_id', id)
+            .eq('feed_articles.prompt_version_id', prompt.id),
+          'feed_flags.byPromptVersion',
+        );
         const fpFlags = flags.filter(
           (f: Record<string, unknown>) => f.flag_type === 'false_positive',
         ).length;

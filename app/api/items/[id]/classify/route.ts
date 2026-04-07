@@ -10,6 +10,7 @@ import { parseBody } from '@/lib/validation';
 import { ClassifyBodySchema } from '@/lib/validation/schemas';
 import { classifyContent } from '@/lib/ai/classify';
 import { AIServiceError } from '@/lib/ai/errors';
+import { tryQuery } from '@/lib/supabase/safe';
 
 export const maxDuration = 30;
 
@@ -53,11 +54,15 @@ export async function POST(
     if (result.primary_domain && result.primary_subtopic) {
       try {
         const { suggestTopic } = await import('@/lib/topic-inference');
-        const { data: item } = await supabase
-          .from('content_items')
-          .select('title, layer')
-          .eq('id', id)
-          .single();
+        const itemResult = await tryQuery(
+          supabase
+            .from('content_items')
+            .select('title, layer')
+            .eq('id', id)
+            .single(),
+          'content_items.titleLayer',
+        );
+        const item = itemResult.ok ? itemResult.data : null;
 
         if (item) {
           const suggestion = await suggestTopic(supabase, {

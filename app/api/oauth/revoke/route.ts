@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const body = await request.json().catch(() => null);
+    const body = await request.json().catch((_err) => null);
     const parsed = parseBody(RevokeSchema, body);
     if (!parsed.success) return parsed.response;
 

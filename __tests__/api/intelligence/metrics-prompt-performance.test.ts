@@ -199,11 +199,11 @@ describe('GET /api/intelligence/workspaces/:id/metrics/prompt-performance', () =
     // For prompt 1 (v3): total, passed, flags
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null, count: 5 }),
+        resolve({ data: [], error: null, count: 5 }),
     );
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null, count: 2 }),
+        resolve({ data: [], error: null, count: 2 }),
     );
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
@@ -213,11 +213,11 @@ describe('GET /api/intelligence/workspaces/:id/metrics/prompt-performance', () =
     // For prompt 2 (v1): total, passed, flags
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null, count: 3 }),
+        resolve({ data: [], error: null, count: 3 }),
     );
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null, count: 1 }),
+        resolve({ data: [], error: null, count: 1 }),
     );
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>

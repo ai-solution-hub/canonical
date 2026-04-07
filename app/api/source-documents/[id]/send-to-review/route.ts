@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { sb } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';
 import { createNotification } from '@/lib/notifications';
 import { parseBody } from '@/lib/validation';
@@ -101,11 +102,14 @@ export async function POST(
       }
 
       // Fetch the source document filename for notification context
-      const { data: sourceDoc } = await supabase
-        .from('source_documents')
-        .select('filename')
-        .eq('id', documentId)
-        .single();
+      const sourceDoc = await sb(
+        supabase
+          .from('source_documents')
+          .select('filename')
+          .eq('id', documentId)
+          .maybeSingle(),
+        'source_documents.filename',
+      );
 
       const filename = sourceDoc?.filename ?? 'Unknown document';
 
