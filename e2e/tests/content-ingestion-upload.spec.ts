@@ -190,7 +190,6 @@ test.describe('Content ingestion -- 8.0.4 file upload', () => {
         await deleteCreatedItem(item);
       } catch (err) {
         // Surface cleanup failures so they cannot mask leaked rows.
-        // eslint-disable-next-line no-console
         console.error('cleanup failed for', item.itemId, err);
       }
     }

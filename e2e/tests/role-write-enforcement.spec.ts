@@ -138,6 +138,9 @@ const test = dataTest.extend<ViewerFixtures>({
       storageState: 'e2e/.auth/viewer.json',
     });
     const page = await ctx.newPage();
+    // `use` here is Playwright's fixture-teardown callback, not a React
+    // hook — silence react-hooks/rules-of-hooks for this single call.
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     await use(page);
     await ctx.close();
   },
