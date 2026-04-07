@@ -31,27 +31,31 @@ async function fetchBidSummary(bidId: string): Promise<BidSummary | null> {
 }
 
 async function fetchBidQuestions(bidId: string): Promise<BidQuestion[]> {
-  try {
-    const data = await fetchJson<{ questions: BidQuestion[] }>(
-      `/api/bids/${bidId}/questions`,
-    );
-    return data.questions ?? [];
-  } catch {
-    return [];
-  }
+  // S152B WP5 / Q-37: do NOT swallow fetch errors here. Returning `[]`
+  // on failure made the caller render an empty-but-valid-looking state,
+  // masking real connectivity / auth / server problems from TanStack
+  // Query's `isError`/`error` state. Let the error propagate so the UI
+  // can render "Failed to load bid questions" instead.
+  const data = await fetchJson<{ questions: BidQuestion[] }>(
+    `/api/bids/${bidId}/questions`,
+  );
+  return data.questions ?? [];
 }
 
 async function fetchBidResponseData(
   bidId: string,
   responseId: string,
 ): Promise<BidResponse | null> {
-  try {
-    return await fetchJson<BidResponse>(
-      `/api/bids/${bidId}/responses/${responseId}`,
-    );
-  } catch {
-    return null;
-  }
+  // S152B WP5 / Q-37: do NOT swallow fetch errors here. Returning `null`
+  // on failure made the caller render an empty editor instead of an
+  // error state, masking real failures from TanStack Query. 404 is NOT
+  // handled specially — the queryFn caller guards on `!responseId`
+  // before this fetcher runs, so a 404 at the API layer now means the
+  // response id is genuinely missing from the DB (a real error worth
+  // surfacing, not a "no response yet" signal).
+  return await fetchJson<BidResponse>(
+    `/api/bids/${bidId}/responses/${responseId}`,
+  );
 }
 
 // ── Hook ──
@@ -117,7 +121,6 @@ export function useBidSession(bidId: string): UseBidSessionReturn {
     [questionsQuery.data],
   );
   const loading = bidQuery.isLoading || questionsQuery.isLoading;
-  const error = bidQuery.error?.message ?? null;
 
   const currentQuestion = questions[currentIndex] ?? null;
   const responseId = currentQuestion?.response?.id ?? null;
@@ -145,6 +148,17 @@ export function useBidSession(bidId: string): UseBidSessionReturn {
 
   const response = responseQuery.data ?? null;
   const responseLoading = responseQuery.isLoading;
+
+  // S152B WP5 / Q-37: surface errors from all three queries, not just
+  // `bidQuery`. Previously `fetchBidQuestions` and `fetchBidResponseData`
+  // swallowed their errors and returned empty values, so only `bidQuery`
+  // errors were ever observable. Now that the fetchers re-throw, the
+  // combined `error` field reflects whichever query failed first.
+  const error =
+    bidQuery.error?.message ??
+    questionsQuery.error?.message ??
+    responseQuery.error?.message ??
+    null;
 
   // ── Navigator questions (derived) ──
   const navigatorQuestions: NavigatorQuestion[] = useMemo(

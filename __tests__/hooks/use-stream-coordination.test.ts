@@ -793,6 +793,77 @@ describe('useStreamCoordination', () => {
       expect(result.current.bid).not.toBeNull();
       expect(result.current.questions).toHaveLength(0);
     });
+
+    // S152B WP5 / Q-37 regression — see docs/audits/s151-decision-responses.md
+    // and docs/audits/s151-silent-failure-recheck.md §7 item 2. Before the fix,
+    // `fetchBidQuestions` and `fetchBidResponseData` silently swallowed fetch
+    // errors and returned `[]` / `null`, masking real connectivity / auth
+    // failures from TanStack Query's `isError` / `error` state. The fix
+    // removes the catches so errors propagate, and combines all three query
+    // errors into the hook's `error` field.
+    it('Q-37: questions endpoint failure surfaces in result.current.error', async () => {
+      mockFetch.mockImplementation(async (url: string) => {
+        if (typeof url === 'string' && url.includes('/questions'))
+          return {
+            ok: false,
+            json: async () => ({ error: 'Questions failed' }),
+          };
+        if (typeof url === 'string' && url.match(/\/api\/bids\/[^/]+$/))
+          return mockBidResponse();
+        return { ok: false, json: async () => ({}) };
+      });
+
+      const { Wrapper } = createQueryWrapper();
+      const { result } = renderHook(
+        () => useStreamCoordination(defaultParams()),
+        { wrapper: Wrapper },
+      );
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      // The questions fetch failed — this should be observable via the
+      // hook's `error` field. Before the Q-37 fix this was `null` because
+      // `fetchBidQuestions` caught and swallowed the error.
+      await waitFor(() => {
+        expect(result.current.error).toBeTruthy();
+      });
+      expect(result.current.error).toContain('Questions failed');
+    });
+
+    it('Q-37: response endpoint failure surfaces in result.current.error', async () => {
+      mockFetch.mockImplementation(async (url: string) => {
+        if (typeof url === 'string' && url.includes('/responses/'))
+          return {
+            ok: false,
+            json: async () => ({ error: 'Response fetch failed' }),
+          };
+        if (typeof url === 'string' && url.includes('/questions'))
+          return mockQuestionsResponse();
+        if (typeof url === 'string' && url.match(/\/api\/bids\/[^/]+$/))
+          return mockBidResponse();
+        return { ok: false, json: async () => ({}) };
+      });
+
+      const { Wrapper } = createQueryWrapper();
+      const { result } = renderHook(
+        () => useStreamCoordination(defaultParams()),
+        { wrapper: Wrapper },
+      );
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      // The response fetch failed — this should be observable via the
+      // hook's `error` field. Before the Q-37 fix this was `null` because
+      // `fetchBidResponseData` caught and swallowed the error.
+      await waitFor(() => {
+        expect(result.current.error).toBeTruthy();
+      });
+      expect(result.current.error).toContain('Response fetch failed');
+    });
   });
 
   // =========================================================================
