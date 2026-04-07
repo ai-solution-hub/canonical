@@ -170,8 +170,12 @@ const TEST_USER_PASSWORD =
 
 // Use an existing fast app route as the OAuth redirect URI so the dev server
 // doesn't have to compile a 404 page (which can push the test over its
-// timeout on a cold start).
-const TEST_REDIRECT_URI = 'http://localhost:3000/api/health';
+// timeout on a cold start). Honour PLAYWRIGHT_BASE_URL when set so concurrent
+// worktrees can run their own dev server on a non-default port.
+const TEST_BASE_URL = (
+  process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000'
+).replace(/\/$/, '');
+const TEST_REDIRECT_URI = `${TEST_BASE_URL}/api/health`;
 const REQUESTED_SCOPES = ['openid', 'profile', 'email'] as const;
 
 function base64UrlEncode(buf: Buffer): string {
