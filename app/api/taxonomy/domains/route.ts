@@ -3,6 +3,7 @@ import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { TaxonomyDomainCreateSchema } from '@/lib/validation/schemas';
+import { sb } from '@/lib/supabase/safe';
 
 export const maxDuration = 30;
 
@@ -73,12 +74,15 @@ export async function POST(request: NextRequest) {
     // Auto-assign display_order if not provided
     let order = display_order;
     if (order === undefined) {
-      const { data: maxRow } = await supabase
-        .from('taxonomy_domains')
-        .select('display_order')
-        .order('display_order', { ascending: false })
-        .limit(1)
-        .single();
+      const maxRow = await sb(
+        supabase
+          .from('taxonomy_domains')
+          .select('display_order')
+          .order('display_order', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        'taxonomy.domains.list',
+      );
       order = (maxRow?.display_order ?? 0) + 10;
     }
 

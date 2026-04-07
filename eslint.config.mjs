@@ -99,8 +99,6 @@ const eslintConfig = defineConfig([
       'app/api/layers/route.ts',
       'app/api/oauth/revoke/route.ts',
       'app/api/source-documents/*/send-to-review/route.ts',
-      'app/api/taxonomy/domains/route.ts',
-      'app/api/taxonomy/subtopics/route.ts',
       'app/api/users/display-names/route.ts',
       'lib/ai/digest.ts',
       'lib/bid/bid-queries.ts',

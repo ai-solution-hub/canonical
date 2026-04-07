@@ -237,8 +237,8 @@ describe('Taxonomy API routes', () => {
         is_active: true,
       };
 
-      // First .single() call after role check: auto-assign display_order lookup
-      mockSupabase._chain.single.mockResolvedValueOnce({
+      // First call after role check: auto-assign display_order lookup (.maybeSingle)
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
         data: { display_order: 30 },
         error: null,
       });
@@ -294,8 +294,8 @@ describe('Taxonomy API routes', () => {
     it('returns 409 for duplicate domain name', async () => {
       configureRole(mockSupabase, 'admin');
 
-      // display_order lookup
-      mockSupabase._chain.single.mockResolvedValueOnce({
+      // display_order lookup (.maybeSingle)
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
         data: { display_order: 10 },
         error: null,
       });
@@ -536,8 +536,8 @@ describe('Taxonomy API routes', () => {
         data: { id: VALID_UUID },
         error: null,
       });
-      // display_order auto-assign lookup
-      mockSupabase._chain.single.mockResolvedValueOnce({
+      // display_order auto-assign lookup (.maybeSingle)
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
         data: { display_order: 20 },
         error: null,
       });
@@ -568,8 +568,8 @@ describe('Taxonomy API routes', () => {
         data: { id: VALID_UUID },
         error: null,
       });
-      // display_order lookup
-      mockSupabase._chain.single.mockResolvedValueOnce({
+      // display_order lookup (.maybeSingle)
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
         data: { display_order: 10 },
         error: null,
       });
