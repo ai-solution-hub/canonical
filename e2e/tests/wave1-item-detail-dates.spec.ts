@@ -143,24 +143,25 @@ test.describe(
         hasText: /Extracted Dates/,
       });
 
-      // This is a soft check — the section only renders if temporal_references exist in metadata
-      if (await toggleButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-        // Initially collapsed
-        await expect(toggleButton).toHaveAttribute('aria-expanded', 'false');
+      // Worker fixture seeds 3 temporal_references on the expired item, so
+      // the toggle button must be present.
+      await expect(toggleButton).toBeVisible({ timeout: 10000 });
 
-        // Click to expand
-        await toggleButton.click();
-        await expect(toggleButton).toHaveAttribute('aria-expanded', 'true');
+      // Initially collapsed
+      await expect(toggleButton).toHaveAttribute('aria-expanded', 'false');
 
-        // The expanded list should be visible
-        const dateList = page.locator('#temporal-references-list');
-        await expect(dateList).toBeVisible();
+      // Click to expand
+      await toggleButton.click();
+      await expect(toggleButton).toHaveAttribute('aria-expanded', 'true');
 
-        // Click again to collapse
-        await toggleButton.click();
-        await expect(toggleButton).toHaveAttribute('aria-expanded', 'false');
-        await expect(dateList).not.toBeVisible();
-      }
+      // The expanded list should be visible
+      const dateList = page.locator('#temporal-references-list');
+      await expect(dateList).toBeVisible();
+
+      // Click again to collapse
+      await toggleButton.click();
+      await expect(toggleButton).toHaveAttribute('aria-expanded', 'false');
+      await expect(dateList).not.toBeVisible();
     });
 
     test('expanded temporal references show date details', async ({
@@ -176,60 +177,50 @@ test.describe(
         hasText: /Extracted Dates/,
       });
 
-      if (await toggleButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-        // Expand the section
-        await toggleButton.click();
+      // Worker fixture seeds 3 temporal_references on the expired item.
+      await expect(toggleButton).toBeVisible({ timeout: 10000 });
 
-        const dateList = page.locator('#temporal-references-list');
-        await expect(dateList).toBeVisible();
+      // Expand the section
+      await toggleButton.click();
 
-        // Each temporal reference should have:
-        // 1. A date in DD/MM/YYYY format
-        // 2. A context type badge (Expiry, Effective, Review, Publication, Historical, Unknown)
-        // 3. A confidence level (high, medium, low)
-        const listItems = dateList.locator('li');
-        const itemCount = await listItems.count();
+      const dateList = page.locator('#temporal-references-list');
+      await expect(dateList).toBeVisible();
 
-        if (itemCount > 0) {
-          const firstItem = listItems.first();
+      const listItems = dateList.locator('li');
+      const itemCount = await listItems.count();
+      expect(itemCount).toBeGreaterThan(0);
 
-          // Date should be in UK format
-          const dateSpan = firstItem.locator('span.font-medium').first();
-          const dateText = await dateSpan.textContent();
-          expect(dateText).toMatch(/^\d{2}\/\d{2}\/\d{4}$/);
+      const firstItem = listItems.first();
 
-          // Context type badge should be one of the known types
-          const contextTypes = [
-            'Expiry',
-            'Effective',
-            'Review',
-            'Publication',
-            'Historical',
-            'Unknown',
-          ];
-          const typeBadge = firstItem.locator('span').filter({
-            hasText: new RegExp(`^(${contextTypes.join('|')})$`),
-          });
-          await expect(typeBadge.first()).toBeVisible();
+      // Date should be in UK format
+      const dateSpan = firstItem.locator('span.font-medium').first();
+      const dateText = await dateSpan.textContent();
+      expect(dateText).toMatch(/^\d{2}\/\d{2}\/\d{4}$/);
 
-          // Confidence level should be shown
-          const confidenceLevels = ['high', 'medium', 'low'];
-          const confidenceSpan = firstItem.locator(
-            'span[aria-label^="Confidence:"]',
-          );
-          if (
-            await confidenceSpan.isVisible({ timeout: 2000 }).catch(() => false)
-          ) {
-            const confidenceLabel =
-              await confidenceSpan.getAttribute('aria-label');
-            expect(
-              confidenceLevels.some((level) =>
-                confidenceLabel?.includes(level),
-              ),
-            ).toBe(true);
-          }
-        }
-      }
+      // Context type badge should be one of the known types
+      const contextTypes = [
+        'Expiry',
+        'Effective',
+        'Review',
+        'Publication',
+        'Historical',
+        'Unknown',
+      ];
+      const typeBadge = firstItem.locator('span').filter({
+        hasText: new RegExp(`^(${contextTypes.join('|')})$`),
+      });
+      await expect(typeBadge.first()).toBeVisible();
+
+      // Confidence level should be shown — the seed sets confidence on every reference.
+      const confidenceLevels = ['high', 'medium', 'low'];
+      const confidenceSpan = firstItem.locator(
+        'span[aria-label^="Confidence:"]',
+      );
+      await expect(confidenceSpan).toBeVisible({ timeout: 5000 });
+      const confidenceLabel = await confidenceSpan.getAttribute('aria-label');
+      expect(
+        confidenceLevels.some((level) => confidenceLabel?.includes(level)),
+      ).toBe(true);
     });
 
     test('temporal references section shows count in button text', async ({
@@ -245,11 +236,10 @@ test.describe(
         hasText: /Extracted Dates/,
       });
 
-      if (await toggleButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-        // The button text includes a count: "Extracted Dates (N)"
-        const buttonText = await toggleButton.textContent();
-        expect(buttonText).toMatch(/Extracted Dates \(\d+\)/);
-      }
+      await expect(toggleButton).toBeVisible({ timeout: 10000 });
+      // The button text includes a count: "Extracted Dates (N)"
+      const buttonText = await toggleButton.textContent();
+      expect(buttonText).toMatch(/Extracted Dates \(\d+\)/);
     });
 
     test('temporal references list has accessible label', async ({
@@ -265,18 +255,17 @@ test.describe(
         hasText: /Extracted Dates/,
       });
 
-      if (await toggleButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-        // Expand the section
-        await toggleButton.click();
+      await expect(toggleButton).toBeVisible({ timeout: 10000 });
+      // Expand the section
+      await toggleButton.click();
 
-        // The list should have an accessible label
-        const dateList = page.locator('#temporal-references-list');
-        await expect(dateList).toBeVisible();
-        await expect(dateList).toHaveAttribute(
-          'aria-label',
-          'Temporal references extracted from content',
-        );
-      }
+      // The list should have an accessible label
+      const dateList = page.locator('#temporal-references-list');
+      await expect(dateList).toBeVisible();
+      await expect(dateList).toHaveAttribute(
+        'aria-label',
+        'Temporal references extracted from content',
+      );
     });
   },
 );

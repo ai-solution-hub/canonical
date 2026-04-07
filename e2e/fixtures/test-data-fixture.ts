@@ -11,6 +11,8 @@ import {
   EMBEDDING_ITEM_INDICES,
   INTELLIGENCE_FEED_SOURCE,
   buildIntelligenceFeedArticles,
+  buildEntityMentions,
+  buildEntityRelationships,
 } from './test-data';
 import precomputedEmbeddings from './embeddings.json';
 
@@ -138,6 +140,44 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         .throwOnError();
 
       const itemIds = (items ?? []).map((i) => i.id);
+
+      // --- Seed entity_mentions for the entity filter UI and certifications card ---
+      const entityMentionShapes = buildEntityMentions();
+      const entityMentionInserts = entityMentionShapes
+        .filter((m) => itemIds[m.itemIndex])
+        .map((m) => ({
+          content_item_id: itemIds[m.itemIndex],
+          canonical_name: m.canonical_name,
+          entity_name: m.entity_name,
+          entity_type: m.entity_type,
+          confidence: m.confidence ?? 0.9,
+          context_snippet: m.context_snippet ?? null,
+          metadata: m.metadata ?? {},
+        }));
+      if (entityMentionInserts.length > 0) {
+        await supabase
+          .from('entity_mentions')
+          .insert(entityMentionInserts)
+          .throwOnError();
+      }
+
+      // --- Seed entity_relationships ('holds') so /api/certifications populates ---
+      const entityRelationshipShapes = buildEntityRelationships();
+      const entityRelationshipInserts = entityRelationshipShapes
+        .filter((r) => itemIds[r.itemIndex])
+        .map((r) => ({
+          source_item_id: itemIds[r.itemIndex],
+          source_entity: r.source_entity,
+          target_entity: r.target_entity,
+          relationship_type: r.relationship_type,
+          confidence: r.confidence ?? 0.9,
+        }));
+      if (entityRelationshipInserts.length > 0) {
+        await supabase
+          .from('entity_relationships')
+          .insert(entityRelationshipInserts)
+          .throwOnError();
+      }
 
       // --- Insert pre-computed embeddings for search tests (parallel) ---
       await Promise.all(
@@ -464,7 +504,19 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         .delete()
         .eq('workspace_id', kbSectionId);
 
-      // 5. Content items and workspaces (by prefix)
+      // 5. Entity mentions and relationships (FK -> content_items)
+      if (itemIds.length > 0) {
+        await supabase
+          .from('entity_mentions')
+          .delete()
+          .in('content_item_id', itemIds);
+        await supabase
+          .from('entity_relationships')
+          .delete()
+          .in('source_item_id', itemIds);
+      }
+
+      // 6. Content items and workspaces (by prefix)
       await supabase.from('content_items').delete().like('title', `${prefix}%`);
       await supabase.from('workspaces').delete().like('name', `${prefix}%`);
     },

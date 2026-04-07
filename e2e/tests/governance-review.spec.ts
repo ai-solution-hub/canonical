@@ -25,30 +25,23 @@ test.describe('Review page — queue display', () => {
     ).toBeVisible({ timeout: 10000 });
   });
 
-  test('shows either review content or empty state', async ({
+  test('shows the seeded review queue with actionable items', async ({
     authenticatedPage: page,
   }) => {
-    // The review page either shows a review card (items to review)
-    // or an empty/completed state message
+    // The worker fixture seeds 10+ unverified content items, so the review
+    // toolbar must be present. We deliberately do NOT accept the empty state
+    // here — that branch is covered by a separate test below.
     const reviewCard = page.getByRole('toolbar', { name: 'Review actions' });
-    const emptyHeading = page
-      .getByRole('heading', { name: 'All caught up!' })
-      .or(page.getByRole('heading', { name: /items have been verified/ }))
-      .or(page.getByRole('heading', { name: 'Batch complete' }));
-
-    await expect(reviewCard.or(emptyHeading)).toBeVisible({ timeout: 15000 });
+    await expect(reviewCard).toBeVisible({ timeout: 15000 });
   });
 
   test('progress bar is displayed when items exist', async ({
     authenticatedPage: page,
   }) => {
-    // The progress bar has an aria-label describing review progress
+    // Seeded data guarantees a non-empty queue, so the progress bar is
+    // always rendered.
     const progressBar = page.getByLabel(/Review progress/);
-
-    // If there are items in the review queue, progress bar should be visible
-    if (await progressBar.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await expect(progressBar).toBeVisible();
-    }
+    await expect(progressBar).toBeVisible({ timeout: 10000 });
   });
 });
 
@@ -62,27 +55,25 @@ test.describe('Review page — action bar', () => {
     ).toBeVisible({ timeout: 10000 });
 
     const actionBar = page.getByRole('toolbar', { name: 'Review actions' });
+    await expect(actionBar).toBeVisible({ timeout: 10000 });
 
-    // Only test action bar if we have items to review
-    if (await actionBar.isVisible({ timeout: 10000 }).catch(() => false)) {
-      // Primary actions
-      await expect(
-        actionBar.getByRole('button', { name: /Verify/ }),
-      ).toBeVisible();
-      await expect(
-        actionBar.getByRole('button', { name: /Flag/ }),
-      ).toBeVisible();
+    // Primary actions
+    await expect(
+      actionBar.getByRole('button', { name: /Verify/ }),
+    ).toBeVisible();
+    await expect(
+      actionBar.getByRole('button', { name: /Flag/ }),
+    ).toBeVisible();
 
-      // Navigation
-      await expect(
-        actionBar.getByRole('button', { name: /Skip/ }),
-      ).toBeVisible();
+    // Navigation
+    await expect(
+      actionBar.getByRole('button', { name: /Skip/ }),
+    ).toBeVisible();
 
-      // Meta
-      await expect(
-        actionBar.getByRole('button', { name: /Exit/ }),
-      ).toBeVisible();
-    }
+    // Meta
+    await expect(
+      actionBar.getByRole('button', { name: /Exit/ }),
+    ).toBeVisible();
   });
 
   test('verify button advances to the next item', async ({
@@ -94,27 +85,24 @@ test.describe('Review page — action bar', () => {
     ).toBeVisible({ timeout: 10000 });
 
     const actionBar = page.getByRole('toolbar', { name: 'Review actions' });
+    await expect(actionBar).toBeVisible({ timeout: 10000 });
 
-    if (await actionBar.isVisible({ timeout: 10000 }).catch(() => false)) {
-      const verifyButton = actionBar.getByRole('button', { name: /Verify/ });
-      await expect(verifyButton).toBeEnabled();
+    const verifyButton = actionBar.getByRole('button', { name: /Verify/ });
+    await expect(verifyButton).toBeEnabled();
 
-      // Click verify — the card should transition to the next item
-      // or show an empty state if this was the last item
-      await verifyButton.click();
+    // Click verify — the seeded queue has multiple items so the next card
+    // must load (or, if this was the last item, the completion message).
+    await verifyButton.click();
 
-      // After verification, either the next card loads, or we see
-      // a completion message
-      const nextCard = actionBar;
-      const completionMessage = page
-        .getByRole('heading', { name: 'All caught up!' })
-        .or(page.getByRole('heading', { name: /items have been verified/ }))
-        .or(page.getByRole('heading', { name: 'Batch complete' }));
+    const nextCard = actionBar;
+    const completionMessage = page
+      .getByRole('heading', { name: 'All caught up!' })
+      .or(page.getByRole('heading', { name: /items have been verified/ }))
+      .or(page.getByRole('heading', { name: 'Batch complete' }));
 
-      await expect(nextCard.or(completionMessage)).toBeVisible({
-        timeout: 10000,
-      });
-    }
+    await expect(nextCard.or(completionMessage)).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test('flag button shows flag input for reason', async ({
@@ -126,21 +114,20 @@ test.describe('Review page — action bar', () => {
     ).toBeVisible({ timeout: 10000 });
 
     const actionBar = page.getByRole('toolbar', { name: 'Review actions' });
+    await expect(actionBar).toBeVisible({ timeout: 10000 });
 
-    if (await actionBar.isVisible({ timeout: 10000 }).catch(() => false)) {
-      const flagButton = actionBar.getByRole('button', { name: /Flag/ });
-      await expect(flagButton).toBeEnabled();
+    const flagButton = actionBar.getByRole('button', { name: /Flag/ });
+    await expect(flagButton).toBeEnabled();
 
-      // Click flag — should show an inline input for the flag reason
-      await flagButton.click();
+    // Click flag — should show an inline input for the flag reason
+    await flagButton.click();
 
-      // The flag input area appears below the review card
-      await expect(page.getByLabel(/Reason/)).toBeVisible({ timeout: 5000 });
+    // The flag input area appears below the review card
+    await expect(page.getByLabel(/Reason/)).toBeVisible({ timeout: 5000 });
 
-      // Submit and Cancel buttons should be visible
-      await expect(page.getByRole('button', { name: 'Submit' })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible();
-    }
+    // Submit and Cancel buttons should be visible
+    await expect(page.getByRole('button', { name: 'Submit' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible();
   });
 
   test('flag cancel hides the flag input', async ({
@@ -152,22 +139,21 @@ test.describe('Review page — action bar', () => {
     ).toBeVisible({ timeout: 10000 });
 
     const actionBar = page.getByRole('toolbar', { name: 'Review actions' });
+    await expect(actionBar).toBeVisible({ timeout: 10000 });
 
-    if (await actionBar.isVisible({ timeout: 10000 }).catch(() => false)) {
-      // Open flag input
-      const flagButton = actionBar.getByRole('button', { name: /Flag/ });
-      await flagButton.click();
-      const reasonInput = page.getByLabel(/Reason/);
-      await expect(reasonInput).toBeVisible({ timeout: 5000 });
+    // Open flag input
+    const flagButton = actionBar.getByRole('button', { name: /Flag/ });
+    await flagButton.click();
+    const reasonInput = page.getByLabel(/Reason/);
+    await expect(reasonInput).toBeVisible({ timeout: 5000 });
 
-      const cancelButton = page.getByRole('button', { name: 'Cancel' });
-      await cancelButton.click();
+    const cancelButton = page.getByRole('button', { name: 'Cancel' });
+    await cancelButton.click();
 
-      // Flag input should be hidden — the Submit button disappearing confirms cancel worked
-      await expect(
-        page.getByRole('button', { name: 'Submit' }),
-      ).not.toBeVisible({ timeout: 5000 });
-    }
+    // Flag input should be hidden — the Submit button disappearing confirms cancel worked
+    await expect(
+      page.getByRole('button', { name: 'Submit' }),
+    ).not.toBeVisible({ timeout: 5000 });
   });
 
   test('skip button advances to the next item without changing status', async ({
@@ -179,17 +165,16 @@ test.describe('Review page — action bar', () => {
     ).toBeVisible({ timeout: 10000 });
 
     const actionBar = page.getByRole('toolbar', { name: 'Review actions' });
+    await expect(actionBar).toBeVisible({ timeout: 10000 });
 
-    if (await actionBar.isVisible({ timeout: 10000 }).catch(() => false)) {
-      const skipButton = actionBar.getByRole('button', { name: /Skip/ });
-      await expect(skipButton).toBeEnabled();
+    const skipButton = actionBar.getByRole('button', { name: /Skip/ });
+    await expect(skipButton).toBeEnabled();
 
-      // Click skip
-      await skipButton.click();
+    // Click skip
+    await skipButton.click();
 
-      // Should still be on the review page with the next item or completion
-      await expect(page).toHaveURL(/\/review/);
-    }
+    // Should still be on the review page with the next item or completion
+    await expect(page).toHaveURL(/\/review/);
   });
 
   test('back button is disabled on the first item', async ({
@@ -201,12 +186,11 @@ test.describe('Review page — action bar', () => {
     ).toBeVisible({ timeout: 10000 });
 
     const actionBar = page.getByRole('toolbar', { name: 'Review actions' });
+    await expect(actionBar).toBeVisible({ timeout: 10000 });
 
-    if (await actionBar.isVisible({ timeout: 10000 }).catch(() => false)) {
-      const backButton = actionBar.getByRole('button', { name: /Go back/ });
-      // On the first item, Back should be disabled
-      await expect(backButton).toBeDisabled();
-    }
+    const backButton = actionBar.getByRole('button', { name: /Go back/ });
+    // On the first item, Back should be disabled
+    await expect(backButton).toBeDisabled();
   });
 
   test('exit button navigates away from review page', async ({
@@ -218,14 +202,13 @@ test.describe('Review page — action bar', () => {
     ).toBeVisible({ timeout: 10000 });
 
     const actionBar = page.getByRole('toolbar', { name: 'Review actions' });
+    await expect(actionBar).toBeVisible({ timeout: 10000 });
 
-    if (await actionBar.isVisible({ timeout: 10000 }).catch(() => false)) {
-      const exitButton = actionBar.getByRole('button', { name: /Exit/ });
-      await exitButton.click();
+    const exitButton = actionBar.getByRole('button', { name: /Exit/ });
+    await exitButton.click();
 
-      // Exit navigates to /browse
-      await expect(page).toHaveURL(/\/browse/);
-    }
+    // Exit navigates to /browse
+    await expect(page).toHaveURL(/\/browse/);
   });
 
   test('keyboard shortcut help dialog opens', async ({
@@ -237,59 +220,39 @@ test.describe('Review page — action bar', () => {
     ).toBeVisible({ timeout: 10000 });
 
     const actionBar = page.getByRole('toolbar', { name: 'Review actions' });
+    await expect(actionBar).toBeVisible({ timeout: 10000 });
 
-    if (await actionBar.isVisible({ timeout: 10000 }).catch(() => false)) {
-      const helpButton = actionBar.getByRole('button', {
-        name: /Show keyboard shortcuts/,
-      });
+    const helpButton = actionBar.getByRole('button', {
+      name: /Show keyboard shortcuts/,
+    });
+    await expect(helpButton).toBeVisible({ timeout: 5000 });
+    await helpButton.click();
 
-      if (await helpButton.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await helpButton.click();
+    // Help dialog should appear
+    await expect(
+      page.getByRole('heading', { name: 'Keyboard shortcuts' }),
+    ).toBeVisible();
 
-        // Help dialog should appear
-        await expect(
-          page.getByRole('heading', { name: 'Keyboard shortcuts' }),
-        ).toBeVisible();
-
-        // Should list the key shortcuts
-        await expect(page.getByText('Verify current item')).toBeVisible();
-        await expect(page.getByText('Flag for review')).toBeVisible();
-        await expect(page.getByText('Skip to next item')).toBeVisible();
-      }
-    }
+    // Should list the key shortcuts
+    await expect(page.getByText('Verify current item')).toBeVisible();
+    await expect(page.getByText('Flag for review')).toBeVisible();
+    await expect(page.getByText('Skip to next item')).toBeVisible();
   });
 });
 
 test.describe('Review page — queue state', () => {
-  test('review page shows queue state (populated or empty)', async ({
+  test('review page renders the seeded queue toolbar', async ({
     authenticatedPage: page,
   }) => {
-    // Navigate to review page — it may show review items, a completion
-    // message, or an error state depending on the test data and API health
+    // Worker fixture seeds 10+ unverified items, so the action toolbar
+    // is the deterministic state — never the empty state.
     await page.goto('/review');
     await expect(
       page.getByRole('heading', { name: 'Review Queue' }),
     ).toBeVisible({ timeout: 10000 });
 
-    // Wait for the page to settle — it may show review items, a completion
-    // message, or an error state. The page heading "Review Queue" is always
-    // present, so wait for it first, then check the content state.
-    await expect(
-      page.getByRole('heading', { name: 'Review Queue' }),
-    ).toBeVisible({ timeout: 20000 });
-
-    // Now check whether the page shows review items or an empty/error state
     const actionBar = page.getByRole('toolbar', { name: 'Review actions' });
-    const emptyHeading = page.getByRole('heading', { name: 'All caught up!' });
-
-    // Either the review toolbar or the empty state heading should be visible
-    const hasItems = await actionBar
-      .isVisible({ timeout: 5000 })
-      .catch(() => false);
-    const isEmpty = await emptyHeading.isVisible().catch(() => false);
-
-    // At least one state should be reached (items, empty, or error toast)
-    expect(hasItems || isEmpty).toBeTruthy();
+    await expect(actionBar).toBeVisible({ timeout: 15000 });
   });
 
   test('review page is accessible via navigation', async ({
