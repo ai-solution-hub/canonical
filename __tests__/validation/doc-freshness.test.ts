@@ -40,8 +40,22 @@ describe('Doc Freshness: data-entry-points.md', () => {
     );
   });
 
-  // Only run the remaining tests if the doc exists
+  // S152B WP8 (Q-19): wrap content-dependent assertions in a describe block
+  // that is explicitly SKIPPED when the doc is missing. Previously this
+  // test file assigned `content = docExists ? readFileSync(...) : ''` so
+  // downstream tests ran against an empty string — some of them failed
+  // loudly (string .includes checks) but others that did not touch
+  // `content` (e.g., "referenced scripts should exist on disk") passed
+  // silently despite failing to validate anything about the doc. With
+  // `describe.skipIf`, missing docs produce explicit SKIPPED output in
+  // the test report instead of silent trivial passes. `readFileSync`
+  // cannot move inside the describe body because vitest evaluates
+  // describe bodies eagerly (before applying skipIf); keeping the
+  // ternary ensures the body evaluates on a missing-doc run, and
+  // `describe.skipIf(!docExists)` prevents the tests from running.
   const content = docExists ? readFileSync(docPath, 'utf8') : '';
+
+  describe.skipIf(!docExists)('content checks', () => {
 
   // Known entry point source files (the 10 entry points from the doc)
   const KNOWN_ENTRY_POINT_FILES = [
@@ -156,6 +170,7 @@ describe('Doc Freshness: data-entry-points.md', () => {
       `Files that INSERT into content_items but are not in data-entry-points.md: ${trueUnreferenced.join(', ')}`,
     ).toHaveLength(0);
   });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -176,7 +191,10 @@ describe('Doc Freshness: classification-architecture.md', () => {
     ).toBe(true);
   });
 
+  // S152B WP8 (Q-19): see data-entry-points.md block above for rationale.
   const content = docExists ? readFileSync(docPath, 'utf8') : '';
+
+  describe.skipIf(!docExists)('content checks', () => {
 
   it('lib/ai/classify.ts should exist and contain classifyContent', () => {
     const filePath = join(PROJECT_ROOT, 'lib/ai/classify.ts');
@@ -220,6 +238,7 @@ describe('Doc Freshness: classification-architecture.md', () => {
       `File paths in File Reference but missing from disk: ${missing.join(', ')}`,
     ).toHaveLength(0);
   });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -240,7 +259,10 @@ describe('Doc Freshness: taxonomy-change-runbook.md', () => {
     ).toBe(true);
   });
 
+  // S152B WP8 (Q-19): see data-entry-points.md block above for rationale.
   const content = docExists ? readFileSync(docPath, 'utf8') : '';
+
+  describe.skipIf(!docExists)('content checks', () => {
 
   it('should reference sync:taxonomy', () => {
     expect(
@@ -297,5 +319,6 @@ describe('Doc Freshness: taxonomy-change-runbook.md', () => {
       missing,
       `Artefact paths in runbook but missing from disk: ${missing.join(', ')}`,
     ).toHaveLength(0);
+  });
   });
 });
