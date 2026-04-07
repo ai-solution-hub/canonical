@@ -1530,7 +1530,7 @@ describe('GET /api/cron/coverage-alerts', () => {
     });
 
     // Previous run snapshot with same healthy percentages
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: {
         result: {
           Engineering: {
@@ -1570,10 +1570,10 @@ describe('GET /api/cron/coverage-alerts', () => {
       error: null,
     });
 
-    // No previous run (first run)
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // No previous run (first run) — maybeSingle returns null data without error
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: null,
-      error: { message: 'Not found', code: 'PGRST116' },
+      error: null,
     });
 
     mockGetUsersByRole.mockResolvedValue(['admin-1']);
@@ -1609,7 +1609,7 @@ describe('GET /api/cron/coverage-alerts', () => {
     });
 
     // Previous run had 60% fresh (drop of 30 points, >20 threshold)
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: {
         result: {
           Engineering: {
@@ -1654,10 +1654,10 @@ describe('GET /api/cron/coverage-alerts', () => {
       error: null,
     });
 
-    // No previous run
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // No previous run — maybeSingle returns null data without error
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: null,
-      error: { message: 'Not found', code: 'PGRST116' },
+      error: null,
     });
 
     mockGetUsersByRole.mockResolvedValue([]);
@@ -1733,7 +1733,7 @@ describe('GET /api/cron/content-gaps', () => {
     );
 
     // Previous run with one old gap (req-old) that is now resolved
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: {
         result: {
           snapshots: [
@@ -1813,7 +1813,7 @@ describe('GET /api/cron/content-gaps', () => {
     );
 
     // Previous run with req-persist at 2 consecutive weeks
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: {
         result: {
           snapshots: [
