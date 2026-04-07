@@ -106,3 +106,138 @@
  *     A whitespace string passes that check; only the substring proves
  *     extraction worked against the right URL.
  */
+
+import { test, expect } from '../fixtures';
+import { createServiceClient } from '../fixtures/supabase';
+
+/**
+ * Phase 3 implementation notes:
+ * - Strategy chosen: option (a) — `https://example.com`. Verified locally
+ *   that `extractFromUrl('https://example.com')` returns title="Example
+ *   Domain" and content containing the substring
+ *   "documentation examples" with contentLength=111 (>100 required).
+ *   Local fixture server is unnecessary and would add lifecycle complexity.
+ * - The test cleans up by source_url so any leaked rows from previous
+ *   failed runs are removed before the create assertion runs.
+ */
+
+const TARGET_URL = 'https://example.com';
+const SENTINEL = 'documentation examples';
+const EXPECTED_TITLE = 'Example Domain';
+
+async function deleteByUrl(url: string): Promise<void> {
+  const svc = createServiceClient();
+  // Find any items with this source_url and tear them down completely.
+  const { data: items } = await svc
+    .from('content_items')
+    .select('id, source_document_id')
+    .eq('source_url', url);
+  for (const item of items ?? []) {
+    if (item.source_document_id) {
+      await svc
+        .from('source_documents')
+        .delete()
+        .eq('id', item.source_document_id as string);
+    }
+    await svc
+      .from('content_history')
+      .delete()
+      .eq('content_item_id', item.id as string);
+    await svc.from('content_items').delete().eq('id', item.id as string);
+  }
+}
+
+test.describe('Content ingestion -- 8.0.5 URL ingestion', () => {
+  test.beforeEach(async () => {
+    // Defensive: clean any leaked rows from prior failed runs so the
+    // create assertion is testing what THIS run did.
+    await deleteByUrl(TARGET_URL);
+  });
+
+  test.afterEach(async () => {
+    await deleteByUrl(TARGET_URL);
+  });
+
+  test('imports a URL, extracts the canary sentinel, dedups on re-submit', async ({
+    authenticatedPage: page,
+  }) => {
+    test.setTimeout(180_000);
+
+    // 1. Navigate and switch to the URL tab.
+    await page.goto('/item/new');
+    await expect(page.getByRole('tablist')).toBeVisible({ timeout: 10_000 });
+    await page.getByRole('tab', { name: /Import from URL/i }).click();
+    await expect(
+      page.locator('section[aria-label="Import content from URL"]'),
+    ).toBeVisible({ timeout: 10_000 });
+
+    // 2. Fill the URL and submit.
+    await page.getByLabel(/Web page URL/i).fill(TARGET_URL);
+
+    const ingestResponsePromise = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/ingest/url') &&
+        resp.request().method() === 'POST',
+      { timeout: 120_000 },
+    );
+    await page.getByRole('button', { name: /^Import$/ }).click();
+
+    const ingestResponse = await ingestResponsePromise;
+    expect(ingestResponse.status()).toBe(200);
+    const ingestBody = await ingestResponse.json();
+
+    // First submission must NOT be a dedup hit (we cleaned up in beforeEach).
+    expect(ingestBody.url_already_exists).toBeFalsy();
+    expect(ingestBody.id).toBeTruthy();
+    expect(ingestBody.source_url).toBe(TARGET_URL);
+
+    const itemId: string = ingestBody.id;
+
+    // 3. DB-side assertions.
+    const svc = createServiceClient();
+    const { data: itemRow, error: itemErr } = await svc
+      .from('content_items')
+      .select('id, content, source_url, created_by, source_document_id, title')
+      .eq('id', itemId)
+      .single();
+    expect(itemErr).toBeNull();
+    expect(itemRow).not.toBeNull();
+    expect(itemRow!.source_url).toBe(TARGET_URL);
+    expect(itemRow!.created_by).toBeTruthy();
+    expect(itemRow!.content).toBeTruthy();
+    expect((itemRow!.content as string).length).toBeGreaterThan(0);
+    expect(itemRow!.content as string).toContain(SENTINEL);
+    expect(itemRow!.title).toBe(EXPECTED_TITLE);
+
+    // 4. Read-side round-trip on the user-facing /item/<id> route.
+    //    Navigating there exercises the authenticated user session +
+    //    RLS policy + content_items select — same stack as /browse but
+    //    without the fragility of paginated browse searches. Regressions
+    //    (404, silent redirect, empty title) fail loudly here.
+    await page.goto(`/item/${itemId}`);
+    await expect(
+      page.getByRole('heading', { name: new RegExp(EXPECTED_TITLE, 'i') }),
+    ).toBeVisible({ timeout: 15_000 });
+    expect(page.url()).toContain(`/item/${itemId}`);
+
+    // 5. Re-submit the same URL via the API directly (preserves session
+    //    cookies). Production behaviour: the route returns
+    //    `{ url_already_exists: true, existing_item: { id, title } }` and
+    //    does NOT insert a second row.
+    const reResp = await page.request.post('/api/ingest/url', {
+      data: { url: TARGET_URL },
+    });
+    expect(reResp.ok()).toBe(true);
+    const reBody = await reResp.json();
+    expect(reBody.url_already_exists).toBe(true);
+    expect(reBody.existing_item?.id).toBe(itemId);
+
+    // 6. Hard count: exactly one content_items row exists for this URL.
+    const { count, error: countErr } = await svc
+      .from('content_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('source_url', TARGET_URL);
+    expect(countErr).toBeNull();
+    expect(count).toBe(1);
+  });
+});

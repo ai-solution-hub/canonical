@@ -40,6 +40,19 @@ async function globalSetup(): Promise<void> {
 
   console.log('E2E setup: environment validated.');
 
+  // Allow skipping user verification for local runs where the new
+  // `sb_secret_*` publishable secret key format is incompatible with
+  // `auth.admin.listUsers()` (returns 500). The auth.setup.ts project
+  // still signs in with the anon key, so tests still run end-to-end.
+  // Set E2E_SKIP_USER_VERIFY=1 to bypass. Pre-existing infrastructure
+  // issue surfaced during S152A WP2 Phase 3.
+  if (process.env.E2E_SKIP_USER_VERIFY === '1') {
+    console.log(
+      'E2E setup: skipping user verification (E2E_SKIP_USER_VERIFY=1)',
+    );
+    return;
+  }
+
   // --- Step 2: Verify test users exist with correct roles ---
   const supabase = createServiceClient();
 
