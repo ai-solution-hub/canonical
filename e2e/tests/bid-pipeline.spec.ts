@@ -54,6 +54,32 @@
  *   starts with `[E2E-WP2-8.0.3]` (idempotent — also handles partial
  *   failures). The Phase 3 implementer must use the worker prefix
  *   pattern from `data-factory.createTestBid` for safe parallel runs.
+ *
+ * VERIFIED AGAINST PRODUCTION (Phase 2 adversarial review):
+ *   - `app/api/bids/route.ts` POST handler inserts into the `workspaces`
+ *     table with `type='bid'` and stores buyer in
+ *     `domain_metadata.buyer` (NOT a top-level column). The DB query
+ *     in this spec must use `domain_metadata->>buyer`.
+ *   - `created_by` is set to `user.id` from `getAuthorisedClient`
+ *     (admin/editor), so the assertion on `created_by` is meaningful.
+ *   - The handler returns the inserted row; the front-end then navigates
+ *     to `/bid/<id>`. If the navigation step is intercepted by an
+ *     intermediate page, the URL regex assertion still passes as long as
+ *     the final URL matches.
+ *
+ * EXPLICIT FORBIDDEN PATTERNS (Phase 3 implementer must NOT do these):
+ *   - DO NOT mock `/api/bids` POST or stub the supabase client. The test
+ *     must run against the real route handler with a real DB write.
+ *   - DO NOT pre-seed a row with the same name in `beforeEach` — that
+ *     would make the post-reload "name visible" assertion pass even if
+ *     the create flow did nothing (Attack 2 — trivial fixture).
+ *   - DO NOT wrap the DB assertion in `if (workspaceId) { ... }` — if
+ *     the URL capture fails, the test must FAIL loudly, not silently
+ *     skip the DB check.
+ *   - DO NOT replace the `created_by === admin.id` assertion with
+ *     `created_by !== null` — null-checks are too weak; the canonical
+ *     "auth not threaded through" failure mode inserts NULL OR an
+ *     incorrect uuid (e.g. service-role uuid).
  */
 
 import { test, expect } from '../fixtures';
