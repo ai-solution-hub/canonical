@@ -44,7 +44,12 @@ from kb_pipeline.embed import (
     generate_embedding,
     estimate_cost as embed_cost,
 )
-from kb_pipeline.store import insert_content_item, update_content_item, log_quality_issue
+from kb_pipeline.store import (
+    insert_content_item,
+    insert_content_history_entry,
+    update_content_item,
+    log_quality_issue,
+)
 from kb_pipeline.summarise import generate_summary
 
 # ── Configuration ────────────────────────────────────────────────────────────
@@ -446,6 +451,20 @@ def process_markdown_file(
         result["status"] = "ok"
         result["item_id"] = id_or_error
         log.info("             ID: %s", id_or_error)
+
+        # ── Content history v1 (S153 — Python/TS parity) ────────────
+        # Matches TS ingest path (app/api/upload/route.ts) which writes a
+        # version-1 content_history row on initial ingest. Best-effort.
+        try:
+            insert_content_history_entry(
+                content_item_id=id_or_error,
+                title=record.get("title") or title,
+                content=cleaned_content,
+                change_summary=f"Imported from markdown: {os.path.basename(file_path)}",
+                change_reason="initial_ingest",
+            )
+        except Exception as e:
+            log.error("  [History] ERROR (non-blocking): %s", e)
 
         # ── Summarise (optional) ─────────────────────────────────────
         if generate_summary_flag and cls and embedding:

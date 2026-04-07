@@ -173,6 +173,8 @@ export async function registerGovernanceTools(
             metadata: item.metadata,
             change_type: 'archive',
             change_summary: `Item archived: ${args.reason || 'No reason provided'}`,
+            // S152B WP3 / S153: canonical archive reason.
+            change_reason: 'archive',
             created_by: userId,
           });
 
@@ -214,6 +216,10 @@ export async function registerGovernanceTools(
             metadata: item.metadata,
             change_type: 'delete',
             change_summary: `Item hard-deleted: ${args.reason}`,
+            // S152B WP3 / S153: canonical hard_delete reason (note: the row
+            // will be preserved via ON DELETE SET NULL after content_items
+            // delete, so the reason survives the deletion).
+            change_reason: 'hard_delete',
             created_by: userId,
           });
 
@@ -445,6 +451,9 @@ export async function registerGovernanceTools(
                 args.status === 'publish'
                   ? 'Item published from draft to live'
                   : 'Item moved to draft status',
+              // S152B WP3 / S153: canonical status_change reason (draft/publish
+              // via the MCP governance set_status tool).
+              change_reason: `status_change_${args.status}`,
               created_by: userId,
             });
 

@@ -141,6 +141,13 @@ export interface TabEditConfig {
   onEditValueChange: (value: string) => void;
   onSaveEdit: (field: string) => Promise<void>;
   onCancelEdit: () => void;
+  /**
+   * S153 WP3(a): optional "Why change?" reason captured in the edit UI
+   * and persisted to `content_history.change_reason`. Cleared after each
+   * successful save so it does not leak across fields. NULL-acceptable.
+   */
+  changeReason: string;
+  onChangeReasonChange: (value: string) => void;
 }
 
 type TabField = 'brief' | 'detail' | 'reference' | 'content';
@@ -213,6 +220,9 @@ export function useItemDetailData({
     itemId: item.id,
     onItemUpdate: setItem,
   });
+
+  // --- S153 WP3(a): "Why change?" reason for content-tab edits ---
+  const [tabChangeReason, setTabChangeReason] = useState('');
 
   // --- Derived values ---
   const title = getDisplayTitle({
@@ -467,12 +477,19 @@ export function useItemDetailData({
         onSaveEdit: async (field: string) => {
           qaEditMode.setIsSavingTab(true);
           try {
-            await saveEdit(field, inlineEdit.editValue);
+            // S153 WP3(a): pass the captured reason and clear it after save.
+            await saveEdit(field, inlineEdit.editValue, tabChangeReason);
+            setTabChangeReason('');
           } finally {
             qaEditMode.setIsSavingTab(false);
           }
         },
-        onCancelEdit: cancelEdit,
+        onCancelEdit: () => {
+          cancelEdit();
+          setTabChangeReason('');
+        },
+        changeReason: tabChangeReason,
+        onChangeReasonChange: setTabChangeReason,
       }
     : undefined;
 

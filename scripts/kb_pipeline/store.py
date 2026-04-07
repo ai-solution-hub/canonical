@@ -12,6 +12,10 @@ from .config import get_supabase_url, get_supabase_secret_key
 
 logger = logging.getLogger(__name__)
 
+# Pipeline service account — must be a valid UUID because content_history.created_by
+# is a uuid column. Matches lib/intelligence/types.ts PIPELINE_SYSTEM_USER_ID.
+PIPELINE_SERVICE_ACCOUNT_USER_ID = "a0000000-0000-4000-8000-000000000001"
+
 
 def _headers(prefer: str = "return=representation"):
     """Build Supabase auth headers using service_role key (bypasses RLS)."""
@@ -63,6 +67,52 @@ def fetch_taxonomy():
         raise RuntimeError(f"Failed to fetch taxonomy subtopics: {status_s} {subtopics}")
 
     return domains, subtopics
+
+
+def insert_content_history_entry(
+    content_item_id: str,
+    title: str,
+    content: str,
+    change_summary: str,
+    change_reason: str = "initial_ingest",
+    change_type: str = "create",
+    version: int = 1,
+    brief: Optional[str] = None,
+    detail: Optional[str] = None,
+    reference: Optional[str] = None,
+) -> bool:
+    """Insert a content_history row. Best-effort — logs and returns False on failure.
+
+    S152B WP3 / S153: closes the parity gap where the Python ingest pipelines
+    (scripts/kb_pipeline/pipeline.py, scripts/ingest_markdown.py) previously
+    never wrote a version-1 content_history entry, while every TS ingest path
+    (app/api/ingest/url, app/api/upload, app/api/items/*) did. Matches the TS
+    canonical change_reason vocabulary documented in
+    supabase/migrations/20260407220000_add_content_history_change_reason.sql.
+    """
+    record = {
+        "content_item_id": content_item_id,
+        "version": version,
+        "title": title or "",
+        "content": content or "",
+        "brief": brief,
+        "detail": detail,
+        "reference": reference,
+        "change_type": change_type,
+        "change_summary": change_summary,
+        "change_reason": change_reason,
+        "created_by": PIPELINE_SERVICE_ACCOUNT_USER_ID,
+    }
+    status, response = _request("POST", "content_history", record, prefer="return=minimal")
+    if status in (200, 201, 204):
+        return True
+    logger.warning(
+        "insert_content_history_entry failed for %s: %s %s",
+        content_item_id,
+        status,
+        response,
+    )
+    return False
 
 
 def insert_content_item(record: dict) -> tuple[bool, str]:

@@ -572,6 +572,8 @@ export async function POST(request: NextRequest) {
       content: extractedText || '',
       change_type: 'create',
       change_summary: 'Initial upload',
+      // S152B WP3 / S153: file upload ingest = initial_ingest.
+      change_reason: 'initial_ingest',
       created_by: user.id,
     });
 

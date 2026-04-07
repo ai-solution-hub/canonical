@@ -61,6 +61,13 @@ export interface ContentTabsEditConfig {
   onSaveEdit: (field: string) => void;
   /** Cancel the current edit */
   onCancelEdit: () => void;
+  /**
+   * S153 WP3(a): optional "Why change?" reason for the current edit.
+   * Persisted to `content_history.change_reason` when non-empty. Cleared
+   * by the parent after save/cancel.
+   */
+  changeReason: string;
+  onChangeReasonChange: (value: string) => void;
   // Content-specific options
   regenerateEmbedding?: boolean;
   reclassifyAfterSave?: boolean;
@@ -286,6 +293,37 @@ export function ContentTabs({
   // Inline edit helpers
   const isEditing = (field: string) => editConfig?.editingField === field;
 
+  /**
+   * S153 WP3(a): "Why change?" optional text input shown on inline edits.
+   * NULL-acceptable — an empty value is persisted as NULL in
+   * `content_history.change_reason`.
+   */
+  function ChangeReasonInput({
+    editConfig: ec,
+  }: {
+    editConfig: ContentTabsEditConfig;
+  }) {
+    return (
+      <div className="space-y-1">
+        <label
+          htmlFor="content-tabs-change-reason"
+          className="text-xs font-medium text-muted-foreground"
+        >
+          Why change? <span className="font-normal">(optional)</span>
+        </label>
+        <input
+          id="content-tabs-change-reason"
+          type="text"
+          value={ec.changeReason}
+          onChange={(e) => ec.onChangeReasonChange(e.target.value)}
+          placeholder="e.g. Updated to reflect 2026 rebrand"
+          maxLength={500}
+          className="w-full rounded-md border border-input bg-card px-3 py-1.5 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
+      </div>
+    );
+  }
+
   function EditButton({
     field,
     label,
@@ -323,6 +361,7 @@ export function ContentTabs({
           autoFocus
           aria-label={`Edit ${field}`}
         />
+        <ChangeReasonInput editConfig={editConfig} />
         <div className="flex items-center gap-2">
           <Button
             size="sm"
@@ -377,6 +416,7 @@ export function ContentTabs({
             </label>
           )}
         </div>
+        <ChangeReasonInput editConfig={editConfig} />
         <div className="flex items-center gap-2">
           <Button
             size="sm"

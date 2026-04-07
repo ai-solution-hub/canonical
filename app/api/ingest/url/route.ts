@@ -171,6 +171,8 @@ export async function POST(request: NextRequest) {
         title: insertData.title,
         content: extracted.content,
         change_summary: `Imported from ${url}`,
+        // S152B WP3 / S153: URL ingest = initial_ingest.
+        change_reason: 'initial_ingest',
         change_type: 'create',
         created_by: user.id,
       });

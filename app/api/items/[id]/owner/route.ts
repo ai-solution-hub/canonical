@@ -120,6 +120,8 @@ export async function PATCH(
             content: (currentData.content as string) ?? '',
             change_type: 'owner_change',
             change_summary: `Content owner ${owner_id ? 'assigned' : 'unassigned'}`,
+            // S152B WP3 / S153: canonical change_reason for owner reassignment.
+            change_reason: 'owner_change',
             change_details: {
               field: 'content_owner_id',
               old: previousOwnerId,

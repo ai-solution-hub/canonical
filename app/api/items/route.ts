@@ -154,6 +154,10 @@ export async function POST(request: NextRequest) {
         detail: detail ?? null,
         reference: reference ?? null,
         change_summary: 'Initial creation',
+        // S152B WP3 / S153: canonical change_reason for manual item creation
+        // via the items API. See supabase/migrations/20260407220000_*.sql
+        // COMMENT for the full enum list.
+        change_reason: 'initial_ingest',
         change_type: 'create',
         created_by: user.id,
       });

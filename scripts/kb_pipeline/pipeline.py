@@ -10,7 +10,12 @@ from .config import SHORT_CONTENT_THRESHOLD, LOW_CONFIDENCE_THRESHOLD
 from .dedup import is_duplicate
 from .embed import build_embedding_text, generate_embedding, estimate_cost as embed_cost
 from .extract import ExtractedContent, extract_url, extract_pdf
-from .store import insert_content_item, update_content_item, log_quality_issue
+from .store import (
+    insert_content_item,
+    insert_content_history_entry,
+    update_content_item,
+    log_quality_issue,
+)
 from .summarise import generate_summary
 
 
@@ -236,6 +241,20 @@ def process_url(
         result.success = True
         result.item_id = id_or_error
         print(f"             ID: {id_or_error}")
+
+        # ── Step 6a: Content history v1 (S153 — Python/TS parity) ─────
+        # Matches TS ingest path (app/api/ingest/url/route.ts) which writes
+        # a version-1 content_history row on initial ingest. Best-effort.
+        try:
+            insert_content_history_entry(
+                content_item_id=id_or_error,
+                title=record.get("title") or extracted.title,
+                content=extracted.content,
+                change_summary=f"Imported from {extracted.source_url or record.get('source_url', '')}",
+                change_reason="initial_ingest",
+            )
+        except Exception as e:
+            print(f"  [History] ERROR (non-blocking): {e}")
 
         # ── Step 7: Load entity aliases (needed for both entities and relationships)
         if cls and (cls.entities or cls.relationships):

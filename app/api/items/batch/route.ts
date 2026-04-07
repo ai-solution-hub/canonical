@@ -210,6 +210,8 @@ export async function POST(request: NextRequest) {
             content: item.content,
             change_type: 'create',
             change_summary: 'Batch creation via Q&A auto-split',
+            // S152B WP3 / S153: batch Q&A import = initial_ingest.
+            change_reason: 'initial_ingest',
             created_by: user.id,
           });
         } catch {

@@ -25,13 +25,23 @@ export interface UseInlineFieldEditReturn {
   saveAnnouncement: string;
   startEdit: (field: string, currentValue: unknown) => void;
   cancelEdit: () => void;
-  saveEdit: (field: string, value: unknown) => Promise<void>;
+  /**
+   * S153 WP3(a): optional `changeReason` propagates to PATCH body as
+   * `change_reason`, captured on the server into `content_history.change_reason`.
+   * NULL-acceptable — admin UI may or may not supply a reason.
+   */
+  saveEdit: (
+    field: string,
+    value: unknown,
+    changeReason?: string | null,
+  ) => Promise<void>;
   setEditValue: (value: string) => void;
 }
 
 interface SaveEditVariables {
   field: string;
   value: unknown;
+  changeReason?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -54,15 +64,23 @@ export function useInlineFieldEdit<T extends object = Record<string, unknown>>({
     SaveEditVariables,
     { previousValue: unknown }
   >({
-    mutationFn: async ({ field, value }) => {
+    mutationFn: async ({ field, value, changeReason }) => {
       if (!validateEditableField(field)) {
         throw new Error(`Field "${field}" is not editable`);
       }
 
+      // S153 WP3(a): only include change_reason when non-empty. Empty string
+      // or null → omit the field so the server persists NULL (acceptable
+      // default per data-entry-points.md Appendix D).
+      const trimmedReason =
+        typeof changeReason === 'string' ? changeReason.trim() : '';
+      const body: Record<string, unknown> = { field, value };
+      if (trimmedReason.length > 0) body.change_reason = trimmedReason;
+
       const res = await fetch(`/api/items/${itemId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ field, value }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {
@@ -117,7 +135,11 @@ export function useInlineFieldEdit<T extends object = Record<string, unknown>>({
   const { mutateAsync: fieldMutateAsync } = mutation;
 
   const saveEdit = useCallback(
-    async (field: string, value: unknown) => {
+    async (
+      field: string,
+      value: unknown,
+      changeReason?: string | null,
+    ) => {
       if (!validateEditableField(field)) {
         console.error(`Field "${field}" is not editable`);
         toast.error('This field cannot be edited');
@@ -125,7 +147,7 @@ export function useInlineFieldEdit<T extends object = Record<string, unknown>>({
       }
 
       try {
-        await fieldMutateAsync({ field, value });
+        await fieldMutateAsync({ field, value, changeReason });
       } catch {
         // Error already handled via onError callback
       }

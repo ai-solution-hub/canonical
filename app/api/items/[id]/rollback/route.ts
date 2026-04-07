@@ -95,6 +95,8 @@ export async function POST(
         reference: currentItem.reference ?? null,
         metadata: currentItem.metadata ?? null,
         change_summary: `Rolled back to version ${targetVersion.version}`,
+        // S152B WP3 / S153: canonical rollback_to_v<N> reason.
+        change_reason: `rollback_to_v${targetVersion.version}`,
         change_type: 'rollback',
         created_by: user.id,
       });
