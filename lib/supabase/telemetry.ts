@@ -37,7 +37,10 @@ export function logBestEffortWarn(
   message: string,
   context?: Record<string, unknown>,
 ): void {
-  // eslint-disable-next-line no-console -- this IS the sanctioned warn helper
+  // This helper IS the sanctioned swallow path. `console.warn` is allowed
+  // here (no `no-console` rule is currently configured for this file); if
+  // a global ban is added later, re-add `// eslint-disable-next-line no-console`
+  // above the line below with a comment explaining the sanction.
   console.warn(`[${category}] ${message}`, context);
 
   Sentry.addBreadcrumb({
@@ -72,7 +75,7 @@ export function logSwallowedError(
 
   const payload = { ...context, error: errMessage, code };
 
-  // eslint-disable-next-line no-console -- this IS the sanctioned warn helper
+  // Sanctioned swallow path — see the note on `logBestEffortWarn` above.
   console.warn(`[${category}] ${message ?? 'Swallowed error'}`, payload);
 
   Sentry.addBreadcrumb({
