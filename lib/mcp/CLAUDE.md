@@ -83,7 +83,8 @@ re-exports everything. Dates use `formatDateUK` (DD/MM/YYYY).
 
 ## MCP Apps
 
-Three apps in `mcp-apps/`: `coverage-matrix`, `bid-dashboard`, `reorient-me`.
+Four apps in `mcp-apps/`: `coverage-matrix`, `bid-dashboard`, `reorient-me`,
+`intelligence-feed`.
 
 Each app is a Vite single-file build. Build pipeline: `bun run build:mcp-apps`
 builds all apps, then `scripts/bundle-mcp-apps.ts` inlines the HTML into
