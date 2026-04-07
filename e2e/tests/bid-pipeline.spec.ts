@@ -123,8 +123,9 @@ test.describe('Bid list page', () => {
   }) => {
     await page.goto('/bid');
 
-    // Wait for bid cards to load
-    const bidCard = page.locator(`a[href="/bid/${workerData.bidId}"]`);
+    // Wait for bid cards to load. Scope to the card root (data-testid)
+    // because the BidStateBadge is a sibling of the <Link>, not inside it.
+    const bidCard = page.getByTestId(`bid-card-${workerData.bidId}`);
     await expect(bidCard).toBeVisible({ timeout: 10000 });
 
     // Bid name (with prefix)
@@ -282,17 +283,26 @@ test.describe('Bid creation form', () => {
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
 
-    // Create Bid button should be disabled when name and buyer are empty
-    const createButton = dialog.getByRole('button', { name: 'Create Bid' });
-    await expect(createButton).toBeDisabled();
+    // The in-use dialog is BidCreationWizard (3-step), which exposes two
+    // submit affordances on step 1: "Create Without Document" (link button,
+    // create-only path) and "Next: Upload Tender" (form submit, advance path).
+    // Both must be disabled until both required fields are filled.
+    const createWithoutDocButton = dialog.getByRole('button', {
+      name: /Create Without Document/,
+    });
+    const nextButton = dialog.getByRole('button', { name: /Next: Upload Tender/ });
+    await expect(createWithoutDocButton).toBeDisabled();
+    await expect(nextButton).toBeDisabled();
 
     // Fill only name — still disabled
-    await dialog.getByLabel(/Bid Name/).fill('Test Bid');
-    await expect(createButton).toBeDisabled();
+    await dialog.locator('#wizard-bid-name').fill('Test Bid');
+    await expect(createWithoutDocButton).toBeDisabled();
+    await expect(nextButton).toBeDisabled();
 
-    // Fill buyer too — now enabled
-    await dialog.getByLabel(/Buyer/).fill('Test Buyer');
-    await expect(createButton).toBeEnabled();
+    // Fill buyer too — now both enabled
+    await dialog.locator('#wizard-bid-buyer').fill('Test Buyer');
+    await expect(createWithoutDocButton).toBeEnabled();
+    await expect(nextButton).toBeEnabled();
   });
 });
 
@@ -367,14 +377,16 @@ test.describe('Bid detail page', () => {
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
-    // Tab nav with aria-label "Bid sections"
-    const tabNav = page.getByRole('navigation', { name: 'Bid sections' });
+    // Tab nav uses role="tablist" with aria-label "Bid sections"
+    const tabNav = page.getByRole('tablist', { name: 'Bid sections' });
     await expect(tabNav).toBeVisible();
 
-    // Tab buttons
-    for (const tabName of ['Overview', 'Questions', 'Responses', 'Documents']) {
-      await expect(tabNav.getByRole('button', { name: tabName })).toBeVisible();
-    }
+    // Tab buttons (role="tab"). The Questions tab has a count badge so its
+    // accessible name is "Questions <count>" — match by regex.
+    await expect(tabNav.getByRole('tab', { name: 'Overview' })).toBeVisible();
+    await expect(tabNav.getByRole('tab', { name: /^Questions/ })).toBeVisible();
+    await expect(tabNav.getByRole('tab', { name: 'Responses' })).toBeVisible();
+    await expect(tabNav.getByRole('tab', { name: /^Documents/ })).toBeVisible();
   });
 
   test('overview tab shows progress section', async ({
@@ -405,8 +417,8 @@ test.describe('Bid detail page', () => {
     ).toBeVisible({ timeout: 10000 });
 
     // Click the Questions tab
-    const tabNav = page.getByRole('navigation', { name: 'Bid sections' });
-    await tabNav.getByRole('button', { name: 'Questions' }).click();
+    const tabNav = page.getByRole('tablist', { name: 'Bid sections' });
+    await tabNav.getByRole('tab', { name: /^Questions/ }).click();
 
     // Verify one of the seeded questions is visible
     await expect(
@@ -504,8 +516,12 @@ test.describe('Bid role gating', () => {
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
-    // "More actions" button (the icon button with sr-only text)
-    const moreButton = page.getByRole('button', { name: 'More actions' });
+    // Desktop renders an icon button with sr-only "More actions"; mobile
+    // renders a MobileActionMenu trigger labelled "Actions". Take whichever
+    // is visible for the current viewport.
+    const moreButton = page
+      .getByRole('button', { name: /More actions|^Actions$/ })
+      .first();
     await expect(moreButton).toBeVisible();
 
     await moreButton.click();
@@ -534,7 +550,7 @@ test.describe('Bid mobile layout', () => {
 
     await page.goto('/bid');
 
-    const bidCard = page.locator(`a[href="/bid/${workerData.bidId}"]`);
+    const bidCard = page.getByTestId(`bid-card-${workerData.bidId}`);
     await expect(bidCard).toBeVisible({ timeout: 10000 });
 
     // On mobile, the grid should be single column (no sm:grid-cols-2).
