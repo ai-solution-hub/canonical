@@ -16,7 +16,10 @@ interface AuthorisedClient extends AuthenticatedClient {
 /** Discriminated result from getAuthorisedClient — success or typed failure */
 export type AuthorisedResult =
   | ({ success: true } & AuthorisedClient)
-  | { success: false; reason: 'unauthenticated' | 'forbidden' };
+  | {
+      success: false;
+      reason: 'unauthenticated' | 'forbidden' | 'role_lookup_failed';
+    };
 
 /**
  * Returns an authenticated Supabase client and user in a single operation.
@@ -49,11 +52,21 @@ export async function getAuthorisedClient(
   const auth = await getAuthenticatedClient();
   if (!auth) return { success: false, reason: 'unauthenticated' };
 
-  const { data } = await auth.supabase
+  const { data, error } = await auth.supabase
     .from('user_roles')
     .select('role')
     .eq('user_id', auth.user.id)
     .single();
+
+  // PGRST116 = "no rows" — the user has no explicit role entry, default
+  // to 'viewer' (matches RLS behaviour). Any other error is a real DB
+  // failure and must NOT silently downgrade an admin to 'viewer' — that
+  // would strip privileges on a transient glitch. Return a typed failure
+  // so the caller can surface a 500 instead of 403.
+  if (error && error.code !== 'PGRST116') {
+    console.error('[auth] user_roles lookup failed:', error);
+    return { success: false, reason: 'role_lookup_failed' };
+  }
 
   const role = (data?.role as UserRole) ?? 'viewer';
   if (!requiredRoles.includes(role))
@@ -66,12 +79,20 @@ export async function getAuthorisedClient(
  * Returns the correct HTTP error response for an authorisation failure.
  * - `unauthenticated` → 401 Unauthorised (no valid session)
  * - `forbidden` → 403 Forbidden (authenticated but wrong role)
+ * - `role_lookup_failed` → 500 Internal Server Error (DB failure on the
+ *   `user_roles` read — do not silently downgrade to 'viewer')
  */
 export function authFailureResponse(result: {
-  reason: 'unauthenticated' | 'forbidden';
+  reason: 'unauthenticated' | 'forbidden' | 'role_lookup_failed';
 }) {
   if (result.reason === 'unauthenticated') {
     return unauthorisedResponse();
+  }
+  if (result.reason === 'role_lookup_failed') {
+    return NextResponse.json(
+      { error: 'Failed to verify user role. Please retry shortly.' },
+      { status: 500 },
+    );
   }
   return forbiddenResponse();
 }

@@ -63,18 +63,27 @@ export async function POST(request: NextRequest) {
       role,
     });
 
+    // If role assignment fails after a successful invite we cannot transparently
+    // roll back the Supabase Auth user, so surface the partial state to the
+    // admin: the user was invited but their role defaulted to 'viewer' and
+    // must be corrected manually. Returning a warnings envelope (rather than
+    // failing the whole request) mirrors the pattern used by
+    // `app/api/items/[id]/route.ts` for best-effort writes.
+    const warnings: string[] = [];
     if (roleError) {
       console.error('Failed to set user role:', roleError);
-      // The user was created but role assignment failed — log but don't fail
-      // The user will default to 'viewer' via the application fallback
+      warnings.push(
+        `User invited but role assignment failed — user will default to 'viewer' on first sign-in. Update the role manually. (${roleError.message})`,
+      );
     }
 
     return NextResponse.json(
       {
         id: inviteData.user.id,
         email: inviteData.user.email,
-        role,
+        role: roleError ? 'viewer' : role,
         display_name: display_name ?? null,
+        warnings: warnings.length > 0 ? warnings : undefined,
       },
       { status: 201 },
     );

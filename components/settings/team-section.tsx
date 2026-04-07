@@ -105,12 +105,19 @@ function InviteUserDialog({ onInvited }: { onInvited: () => void }) {
         }),
       });
 
+      const data = await res.json();
       if (!res.ok) {
-        const data = await res.json();
         throw new Error(data.error || 'Failed to invite user');
       }
 
-      toast.success(`Invitation sent to ${email.trim()}`);
+      const warnings = Array.isArray(data.warnings) ? data.warnings : [];
+      if (warnings.length > 0) {
+        // Partial success — user invited but role assignment failed. Surface
+        // the warning so the admin knows to fix the role manually.
+        toast.warning(`Invitation sent with warnings: ${warnings.join('; ')}`);
+      } else {
+        toast.success(`Invitation sent to ${email.trim()}`);
+      }
       setEmail('');
       setRole('viewer');
       setDisplayName('');
