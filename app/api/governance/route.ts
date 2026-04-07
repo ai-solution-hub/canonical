@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
+import { sb } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { GovernanceConfigBodySchema } from '@/lib/validation/schemas';
@@ -70,12 +71,17 @@ export async function POST(request: NextRequest) {
       auto_flag_cooldown_days,
     } = parsed.data;
 
-    // Upsert: if domain already exists, update it
-    const { data: existing } = await supabase
-      .from('governance_config')
-      .select('id')
-      .eq('domain', domain)
-      .single();
+    // Upsert: if domain already exists, update it. Use .maybeSingle() so
+    // a real DB failure throws (→500 via outer catch) but a no-row result
+    // (`existing === null`) falls through to the insert branch below.
+    const existing = await sb(
+      supabase
+        .from('governance_config')
+        .select('id')
+        .eq('domain', domain)
+        .maybeSingle(),
+      'governance.config.existing_domain',
+    );
 
     if (existing) {
       // Update existing

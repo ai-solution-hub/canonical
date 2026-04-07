@@ -101,7 +101,7 @@ function resetMocks() {
  * The route makes these calls:
  *   1. rpc('get_coverage_summary')  -> coverage rows
  *   2. from('coverage_targets').select(...).order(...) -> target rows
- *   3. from('pipeline_runs').select(...).eq(...).eq(...).order(...).limit(...).single() -> previous snapshot
+ *   3. from('pipeline_runs').select(...).eq(...).eq(...).order(...).limit(...).maybeSingle() -> previous snapshot
  *   4. from('notifications').select('title').eq(...).gte(...) -> existing titles for idempotency
  *   5. from('pipeline_runs').insert(...) -> store snapshot
  */
@@ -145,11 +145,11 @@ function configureMock(options: {
             eq: vi.fn().mockReturnValue({
               order: vi.fn().mockReturnValue({
                 limit: vi.fn().mockReturnValue({
-                  single: vi.fn().mockResolvedValue({
+                  maybeSingle: vi.fn().mockResolvedValue({
                     data: previousSnapshot
                       ? { result: previousSnapshot }
                       : null,
-                    error: previousSnapshot ? null : { code: 'PGRST116' },
+                    error: null,
                   }),
                 }),
               }),

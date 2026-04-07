@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyCronAuth, getUsersByRole } from '@/lib/cron-auth';
 import { createServiceClient } from '@/lib/supabase/server';
+import { sb } from '@/lib/supabase/safe';
 import { classifyContent } from '@/lib/ai/classify';
 import { createBulkNotifications } from '@/lib/notifications';
 import { safeErrorMessage } from '@/lib/error';
@@ -57,12 +58,18 @@ export async function GET(request: NextRequest) {
     ).toISOString();
 
     // Also consider taxonomy changes (spec §10b.5)
-    const { data: latestTaxonomy } = await supabase
-      .from('taxonomy_subtopics')
-      .select('created_at')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+    // Use .maybeSingle() so an empty taxonomy table → taxonomyDate = null
+    // (intentional: skip the taxonomy-staleness branch). A real DB failure
+    // throws SupabaseError and 500s via the outer try/catch.
+    const latestTaxonomy = await sb(
+      supabase
+        .from('taxonomy_subtopics')
+        .select('created_at')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      'cron.classification_quality.latest_taxonomy',
+    );
 
     const taxonomyDate = latestTaxonomy?.created_at ?? null;
 

@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyCronAuth, getUsersByRole } from '@/lib/cron-auth';
 import { createServiceClient } from '@/lib/supabase/server';
+import { tryQuery, isOk } from '@/lib/supabase/safe';
 
 export const maxDuration = 30;
 
@@ -112,15 +113,28 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    // Fetch last week's snapshot from pipeline_runs
-    const { data: previousRun } = await supabase
-      .from('pipeline_runs')
-      .select('result')
-      .eq('pipeline_name', 'coverage_alert')
-      .eq('status', 'completed')
-      .order('completed_at', { ascending: false })
-      .limit(1)
-      .single();
+    // Fetch last week's snapshot from pipeline_runs. .maybeSingle() because
+    // no previous run is the expected first-run case. tryQuery so a real DB
+    // failure degrades to an empty snapshot (the cron still runs and stores
+    // today's snapshot for next week) rather than 500ing.
+    const previousRunResult = await tryQuery(
+      supabase
+        .from('pipeline_runs')
+        .select('result')
+        .eq('pipeline_name', 'coverage_alert')
+        .eq('status', 'completed')
+        .order('completed_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      'cron.coverage_alerts.previous_run',
+    );
+    if (!isOk(previousRunResult)) {
+      console.warn(
+        'cron.coverage_alerts.previous_run failed — treating as first run',
+        previousRunResult.error,
+      );
+    }
+    const previousRun = isOk(previousRunResult) ? previousRunResult.data : null;
 
     const previousSnapshot: CoverageSnapshot =
       (previousRun?.result as CoverageSnapshot | null) ?? {};
@@ -242,12 +256,27 @@ export async function GET(request: NextRequest) {
       // notification titles within this week's window to avoid duplicates
       const existingTitles = new Set<string>();
       if (alerts.some((a) => a.entityType === 'domain')) {
-        const { data: existingDomainAlerts } = await supabase
-          .from('notifications')
-          .select('title')
-          .eq('type', 'coverage_alert')
-          .gte('created_at', weekStart.toISOString());
-        for (const row of existingDomainAlerts ?? []) {
+        // Idempotency check — degrade if it fails. Worst case is we send a
+        // duplicate notification this week; we never want to skip alerts
+        // because the dedupe lookup transiently failed.
+        const existingTitlesResult = await tryQuery(
+          supabase
+            .from('notifications')
+            .select('title')
+            .eq('type', 'coverage_alert')
+            .gte('created_at', weekStart.toISOString()),
+          'cron.coverage_alerts.existing_titles',
+        );
+        if (!isOk(existingTitlesResult)) {
+          console.warn(
+            'cron.coverage_alerts.existing_titles failed — proceeding without dedupe',
+            existingTitlesResult.error,
+          );
+        }
+        const existingDomainAlerts = isOk(existingTitlesResult)
+          ? existingTitlesResult.data
+          : [];
+        for (const row of existingDomainAlerts) {
           existingTitles.add(row.title);
         }
       }

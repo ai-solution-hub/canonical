@@ -253,11 +253,12 @@ describe('POST /api/governance', () => {
   it('creates new config when domain does not exist', async () => {
     configureRole(mockSupabase, 'admin');
 
-    // First .single() call is consumed by configureRole (role lookup).
-    // Second .single() call: domain lookup returns no existing entry.
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // configureRole consumes .single() (role lookup).
+    // Domain existence check now uses .maybeSingle() — no row → fall through
+    // to insert.
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: null,
-      error: { code: 'PGRST116', message: 'No rows found' },
+      error: null,
     });
 
     // insert chain resolves
@@ -290,8 +291,8 @@ describe('POST /api/governance', () => {
   it('updates existing config when domain exists', async () => {
     configureRole(mockSupabase, 'admin');
 
-    // Domain lookup returns existing entry
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // Domain existence check now uses .maybeSingle()
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { id: VALID_UUID },
       error: null,
     });
@@ -323,10 +324,10 @@ describe('POST /api/governance', () => {
   it('returns 500 when insert fails', async () => {
     configureRole(mockSupabase, 'admin');
 
-    // Domain lookup returns no existing entry
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // Domain existence check returns no row → fall through to insert
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: null,
-      error: { code: 'PGRST116', message: 'No rows found' },
+      error: null,
     });
 
     // insert fails
@@ -349,10 +350,10 @@ describe('POST /api/governance', () => {
   it('accepts auto_flag_on_quality_drop in request body', async () => {
     configureRole(mockSupabase, 'admin');
 
-    // Domain lookup returns no existing entry
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // Domain existence check returns no row → fall through to insert
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: null,
-      error: { code: 'PGRST116', message: 'No rows found' },
+      error: null,
     });
 
     mockSupabase._chain.then.mockImplementation(
@@ -389,9 +390,9 @@ describe('POST /api/governance', () => {
   it('accepts auto_flag_on_freshness_transition in request body', async () => {
     configureRole(mockSupabase, 'admin');
 
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: null,
-      error: { code: 'PGRST116', message: 'No rows found' },
+      error: null,
     });
 
     mockSupabase._chain.then.mockImplementation(
@@ -452,8 +453,8 @@ describe('POST /api/governance', () => {
   it('includes new fields when updating existing config', async () => {
     configureRole(mockSupabase, 'admin');
 
-    // Domain lookup returns existing entry
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // Domain existence check uses .maybeSingle()
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { id: VALID_UUID },
       error: null,
     });
@@ -700,6 +701,12 @@ describe('POST /api/governance/review', () => {
       error: null,
     });
 
+    // Update return: .update().eq().select('id').single() succeeds
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+
     // Update chain resolves OK
     mockSupabase._chain.then.mockImplementation(
       (resolve: (v: unknown) => void) => {
@@ -707,8 +714,8 @@ describe('POST /api/governance/review', () => {
       },
     );
 
-    // Notification lookup: different user updated the item
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // Notification itemDetail lookup now uses .maybeSingle()
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { updated_by: 'other-user-id' },
       error: null,
     });
@@ -742,12 +749,18 @@ describe('POST /api/governance/review', () => {
       error: null,
     });
 
+    // Update return single
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+
     mockSupabase._chain.then.mockImplementation(
       (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
-    // Notification lookup: same user — no notification
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // Notification itemDetail lookup (now .maybeSingle()): same user — no notification
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { updated_by: 'test-user-id' },
       error: null,
     });
@@ -783,11 +796,18 @@ describe('POST /api/governance/review', () => {
       error: null,
     });
 
+    // Update return single
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+
     mockSupabase._chain.then.mockImplementation(
       (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    // Notification itemDetail lookup now uses .maybeSingle()
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { updated_by: 'other-user-id' },
       error: null,
     });

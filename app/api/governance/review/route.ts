@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
+import { tryQuery, isOk } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody, parseSearchParams } from '@/lib/validation';
 import {
@@ -152,13 +153,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create notifications for the content owner and/or last editor
+    // Create notifications for the content owner and/or last editor.
+    // Notification dispatch is best-effort: a failure here must not roll
+    // back the governance review action that already succeeded above.
     try {
-      const { data: itemDetail } = await supabase
-        .from('content_items')
-        .select('updated_by, content_owner_id' as 'updated_by')
-        .eq('id', item_id)
-        .single();
+      const itemDetailResult = await tryQuery(
+        supabase
+          .from('content_items')
+          .select('updated_by, content_owner_id' as 'updated_by')
+          .eq('id', item_id)
+          .maybeSingle(),
+        'governance.review.item_detail',
+      );
+      if (!isOk(itemDetailResult)) {
+        console.warn(
+          'governance.review.item_detail failed — skipping notifications',
+          itemDetailResult.error,
+        );
+      }
+      const itemDetail = isOk(itemDetailResult) ? itemDetailResult.data : null;
 
       const detail = itemDetail as Record<string, unknown> | null;
       const notifyTargets = new Set<string>();

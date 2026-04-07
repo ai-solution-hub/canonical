@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyCronAuth, getUsersByRole } from '@/lib/cron-auth';
 import { createServiceClient } from '@/lib/supabase/server';
+import { tryQuery, isOk } from '@/lib/supabase/safe';
 import {
   fetchTemplateRequirements,
   fetchContentForMatching,
@@ -87,15 +88,27 @@ export async function GET(request: NextRequest) {
     // Fetch content items once (shared across all templates)
     const contentItems = await fetchContentForMatching(supabase);
 
-    // Fetch previous run for comparison
-    const { data: previousRun } = await supabase
-      .from('pipeline_runs')
-      .select('result')
-      .eq('pipeline_name', 'content_gaps')
-      .eq('status', 'completed')
-      .order('completed_at', { ascending: false })
-      .limit(1)
-      .single();
+    // Fetch previous run for comparison. Cron must keep running even if
+    // this lookup fails — degrade to "no previous data" so the comparison
+    // becomes a first-run snapshot.
+    const previousRunResult = await tryQuery(
+      supabase
+        .from('pipeline_runs')
+        .select('result')
+        .eq('pipeline_name', 'content_gaps')
+        .eq('status', 'completed')
+        .order('completed_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      'cron.content_gaps.previous_run',
+    );
+    if (!isOk(previousRunResult)) {
+      console.warn(
+        'cron.content_gaps.previous_run failed — treating as first run',
+        previousRunResult.error,
+      );
+    }
+    const previousRun = isOk(previousRunResult) ? previousRunResult.data : null;
 
     const previousResult: PreviousRunResult | null =
       (previousRun?.result as PreviousRunResult | null) ?? null;
