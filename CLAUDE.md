@@ -371,7 +371,13 @@ management only for merge-conflict-prone work requiring interactive resolution.
   path) handles Track Changes correctly.
 - **Concurrent Claude sessions:** Two sessions on same working tree destroy each
   other's files. Use `isolation: "worktree"` for parallel agents, or sequence
-  sessions.
+  sessions. For planned parallel sessions (e.g. split S152A/B/C), use top-level
+  `git worktree add ../project-sessionN -b sessionN` so each session has its
+  own filesystem + `.claude/worktrees/` namespace and shares only the git
+  object database. `/start-session`'s worktree cleanup is safe (`git branch -d`
+  refuses unmerged), but its "investigate unmerged worktrees" instruction can
+  be misinterpreted if the investigator agent doesn't know about the other
+  concurrent sessions.
 - **Worktree merges leak files:** After merging worktree branches (including
   `isolation: worktree` agent branches), run `git status` on main and clean with
   `git checkout -- .` and `git clean -fd`.
