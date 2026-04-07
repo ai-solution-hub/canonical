@@ -343,3 +343,53 @@ test.describe('Dashboard -- mobile layout', () => {
     await expect(bidsSection).toBeVisible({ timeout: 15000 });
   });
 });
+
+// ---------------------------------------------------------------------------
+// 9. Partial-failure WarningsBanner (WP1)
+// ---------------------------------------------------------------------------
+
+/**
+ * The dashboard `<WarningsBanner />` consumes the canonical
+ * `T & { warnings: readonly string[] }` sibling envelope produced by
+ * `app/api/dashboard/route.ts:71-84`. The home page (`/`) is server-rendered:
+ * it calls `fetchUnifiedDashboardData()` directly inside `getDashboardData()`
+ * (`app/page.tsx`), not via the `/api/dashboard` route. This means a
+ * Playwright `page.route('/api/dashboard', ...)` interception cannot inject
+ * a synthetic warnings array into the SSR render path.
+ *
+ * Coverage split:
+ *   - Unit test (`__tests__/components/dashboard/warnings-banner.test.tsx`)
+ *     covers render-when-non-empty, hide-when-empty, dismiss behaviour, and
+ *     a11y attribute correctness — the positive path.
+ *   - This E2E covers the negative path: under healthy worker-scoped fixture
+ *     data, the banner must NOT appear. This proves the banner is wired
+ *     conditionally (not always-on) and that the page does not regress to
+ *     rendering it on every load.
+ */
+test.describe('Dashboard -- partial-failure warnings banner', () => {
+  test('warnings banner is hidden under healthy fixture data', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/');
+
+    await expect(
+      page.getByRole('heading', { name: 'Knowledge Hub' }),
+    ).toBeVisible({ timeout: 10000 });
+
+    // Wait for at least one downstream Suspense boundary to resolve so the
+    // assertion runs against the fully-hydrated dashboard, not the skeleton
+    // tree (where the banner would also legitimately be absent).
+    await expect(
+      page.locator('section[aria-label="Active bids"]').first(),
+    ).toBeVisible({ timeout: 15000 });
+
+    // The banner uses role="status" + the aria-labelledby heading defined
+    // in `components/dashboard/warnings-banner.tsx`. Asserting on the
+    // accessible name is more resilient than a class selector.
+    await expect(
+      page.getByRole('status', {
+        name: /dashboard (data|sections) could not be loaded/i,
+      }),
+    ).toHaveCount(0);
+  });
+});
