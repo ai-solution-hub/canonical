@@ -114,23 +114,25 @@
  *     the "unchanged" assertion degrades to "row still exists", which
  *     is satisfiable by any no-op handler.
  */
-// This spec deliberately bypasses the worker-scoped `workerData` fixture
-// from `e2e/fixtures/test-data-fixture.ts`. That fixture seeds a large
-// graph (12 items + bid + intelligence workspace + feed sources) and the
-// `feed_sources` portion currently fails on a schema-cache column drift
-// (`active` column not present), unrelated to role enforcement. To keep
-// 8.0.6 self-contained and provably runnable, we seed the single
-// `workspaces` row this test needs (the cross-user PATCH target) inline.
-import { test as base, expect } from '@playwright/test';
+// S152A root-cause fix: the original version of this spec bypassed the
+// worker-scoped `workerData` fixture because it was failing on a supposed
+// `feed_sources` schema-cache drift (the fixture referenced `active`,
+// `feed_url`, `poll_interval_minutes`). The root cause was a fixture bug,
+// not schema drift: the `FeedSourceShape` in `e2e/fixtures/test-data.ts`
+// invented column names that never existed in the live schema. That was
+// fixed in commit `5fdb086`, so this spec now uses the standard
+// `workerData.bidId` and no longer inline-seeds a workspaces row.
+import { expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import type { BrowserContext, Page } from '@playwright/test';
 import { createServiceClient } from '../fixtures/supabase';
+import { test as dataTest } from '../fixtures/test-data-fixture';
 
 type ViewerFixtures = {
   viewerPage: Page;
 };
 
-const test = base.extend<ViewerFixtures>({
+const test = dataTest.extend<ViewerFixtures>({
   viewerPage: async ({ browser }, use) => {
     const ctx: BrowserContext = await browser.newContext({
       storageState: 'e2e/.auth/viewer.json',
@@ -179,50 +181,11 @@ async function getViewerUserId(): Promise<string> {
 }
 
 test.describe('8.0.6 viewer write enforcement (server-side)', () => {
-  // Seeded inline (see top-of-file comment for why we do not use workerData)
-  let seededBidId: string | null = null;
-
-  test.beforeAll(async () => {
-    const svc = createServiceClient();
-    const prefix = `[E2E-806-${Date.now()}]`;
-    // Defensive cleanup of any leftover row from a crashed prior run
-    await svc.from('workspaces').delete().like('name', `[E2E-806-%`);
-    const { data, error } = await svc
-      .from('workspaces')
-      .insert({
-        name: `${prefix} Viewer write enforcement target`,
-        description: 'Seeded by 8.0.6 spec to prove cross-user PATCH is rejected.',
-        type: 'bid',
-        status: 'draft',
-        domain_metadata: {
-          buyer: 'Test Buyer (8.0.6)',
-          status: 'draft',
-          deadline: null,
-          reference_number: null,
-          estimated_value: null,
-          tender_source: null,
-          tender_document_ids: [],
-          submission_date: null,
-          outcome: null,
-          outcome_notes: null,
-          notes: null,
-        },
-      })
-      .select('id')
-      .single();
-    if (error || !data) {
-      throw new Error(
-        `8.0.6 setup: failed to seed bid row: ${error?.message ?? 'no row returned'}`,
-      );
-    }
-    seededBidId = data.id;
-  });
-
   test('viewer POSTs to write endpoints all return 403 and leave the DB untouched', async ({
     viewerPage,
+    workerData,
   }) => {
-    expect(seededBidId).not.toBeNull();
-    const bidId = seededBidId!;
+    const bidId = workerData.bidId;
     const svc = createServiceClient();
     const viewerId = await getViewerUserId();
 
@@ -353,18 +316,15 @@ test.describe('8.0.6 viewer write enforcement (server-side)', () => {
   });
 
   test.afterAll(async () => {
-    // Cleanup: delete the inline-seeded bid + any rows that somehow got
-    // created with `created_by = viewer.id` during the run (the test
-    // should leave nothing behind, but a failure that creates a leak must
-    // not pollute the next run). Bounded to viewer-owned rows only —
-    // never touches admin/editor data.
+    // Defensive sweep: remove any rows that somehow got created with
+    // `created_by = viewer.id` during the run. The test should leave
+    // nothing behind (every assertion expects 403 + no write), but a
+    // failure that leaks rows must not pollute the next run. Bounded to
+    // viewer-owned rows only — never touches admin/editor/worker data.
+    // The worker-scoped `workerData` fixture handles teardown of its own
+    // seeded graph, so we no longer need to delete a bid row here.
     try {
       const svc = createServiceClient();
-      if (seededBidId) {
-        await svc.from('workspaces').delete().eq('id', seededBidId);
-      }
-      // Defensive prefix sweep in case of crash mid-run
-      await svc.from('workspaces').delete().like('name', `[E2E-806-%`);
       if (VIEWER_EMAIL) {
         const viewerId = await getViewerUserId();
         await svc.from('content_items').delete().eq('created_by', viewerId);
