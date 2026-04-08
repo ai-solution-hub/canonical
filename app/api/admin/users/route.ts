@@ -55,8 +55,13 @@ export async function GET() {
       ]),
     );
 
-    // Filter out infrastructure service accounts (pipeline, cron, etc.) —
-    // these are not human team members and must not appear in the Team UI.
+    // Filter out infrastructure service accounts. The Team Members UI is
+    // a roster of humans — the pipeline service account is not a person
+    // and would confuse the UI. Note this is NOT a mitigation for the
+    // S156 listUsers() scan-error bug (that's fixed at the DB layer by the
+    // 20260408134124 corrective migration); it is a UI presentation choice.
+    // See docs/audits/s156-auth-admin-sweep.md and WP-6 of the resolution
+    // spec for context.
     const users: UserWithRole[] = (authData.users ?? [])
       .filter((u) => u.id !== PIPELINE_SYSTEM_USER_ID)
       .map((u) => ({
