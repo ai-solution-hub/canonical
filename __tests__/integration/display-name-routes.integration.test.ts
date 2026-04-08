@@ -32,32 +32,33 @@
  * @vitest-environment node
  */
 
-import {
-  describe,
-  it,
-  expect,
-  vi,
-  beforeEach,
-  afterEach,
-  beforeAll,
-} from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 // service-client MUST be imported first — it loads dotenv for all env vars
 import './helpers/service-client';
 import {
-  signInAsTestUser,
-  signOutTestUser,
+  cacheAllTestUserSessions,
+  restoreSession,
   type AuthCookieStore,
   type AuthCookieEntry,
+  type CachedSessions,
 } from './helpers/auth-session';
 
 // ---------------------------------------------------------------------------
 // Mock `next/headers` at file scope so the hoisted cookieStore is shared
-// with the production `createClient()` code path. The store is mutated
-// by `signInAsTestUser` in each beforeEach.
+// with the production `createClient()` code path. Per-role sessions
+// are cached in `cachedSessions` at `beforeAll` time (3 sign-ins total
+// per file) and restored into `authCookies` at the start of each test
+// to stay under the Supabase sign-in rate limit. See
+// `helpers/auth-session.ts` for the full pattern explanation.
 // ---------------------------------------------------------------------------
 
-const { authCookies } = vi.hoisted(() => ({
+const { authCookies, cachedSessions } = vi.hoisted(() => ({
   authCookies: new Map<string, { name: string; value: string }>() as AuthCookieStore,
+  cachedSessions: {
+    admin: new Map(),
+    editor: new Map(),
+    viewer: new Map(),
+  } as unknown as CachedSessions,
 }));
 
 vi.mock('next/headers', () => ({
@@ -101,24 +102,17 @@ const UNKNOWN_UUID = '00000000-4000-4000-8000-000000000999';
 // Auth lifecycle
 // ---------------------------------------------------------------------------
 
-beforeAll(() => {
-  // Sanity: the mocked next/headers must be in place BEFORE we touch the
-  // route handlers. The `await import` above already forces this, but
-  // the assertion protects against someone moving the import.
-  if (typeof authCookies !== 'object') {
-    throw new Error(
-      'display-name-routes integration test: authCookies is not a Map',
-    );
-  }
+beforeAll(async () => {
+  // Sign in as all 3 roles ONCE per file. All individual tests
+  // restore from the cache rather than signing in afresh.
+  await cacheAllTestUserSessions(cachedSessions);
 });
 
-beforeEach(async () => {
-  authCookies.clear();
-  await signInAsTestUser(authCookies, 'admin');
-});
-
-afterEach(async () => {
-  await signOutTestUser(authCookies);
+beforeEach(() => {
+  // Default role for this file is admin — both routes accept any
+  // authenticated role, but admin keeps the tests deterministic and
+  // matches the WP-1 admin-users integration test pattern.
+  restoreSession(authCookies, cachedSessions, 'admin');
 });
 
 // ---------------------------------------------------------------------------

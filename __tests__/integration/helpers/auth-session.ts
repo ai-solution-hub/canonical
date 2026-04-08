@@ -172,3 +172,101 @@ export async function signOutTestUser(
 ): Promise<void> {
   authCookies.clear();
 }
+
+// ---------------------------------------------------------------------------
+// Cached-sessions pattern — sign in once per role per file, restore on
+// each test, to stay under the Supabase sign-in rate limit.
+// ---------------------------------------------------------------------------
+
+/**
+ * Cache of pre-signed-in sessions for all three test-user roles.
+ *
+ * Supabase rate-limits `signInWithPassword` to roughly 30 requests per
+ * 5 minutes per IP. A test file that calls `signInAsTestUser` in
+ * `beforeEach` will hit the limit once the integration suite grows
+ * past a handful of tests — the hard cap was reached during WP-1's
+ * initial run (13 tests × signInWithPassword = 429 "Request rate
+ * limit reached" halfway through the file, even though each test
+ * passed in isolation).
+ *
+ * The pattern that works: cache one session per role in `beforeAll`
+ * and restore the desired role's cookies into the active store
+ * before each test. Sign-in count per file drops to ≤3 regardless of
+ * the number of tests, so the combined integration suite stays well
+ * under the rate limit.
+ *
+ * Usage:
+ *
+ * ```typescript
+ * const { authCookies, cachedSessions } = vi.hoisted(() => ({
+ *   authCookies: new Map() as AuthCookieStore,
+ *   cachedSessions: createEmptySessionCache(),
+ * }));
+ *
+ * vi.mock('next/headers', () => ({ ... reads authCookies ... }));
+ *
+ * beforeAll(async () => {
+ *   await cacheAllTestUserSessions(cachedSessions);
+ * });
+ *
+ * beforeEach(() => {
+ *   restoreSession(authCookies, cachedSessions, 'admin');
+ * });
+ *
+ * // In a test that needs a different role:
+ * it('returns 403 for viewer', async () => {
+ *   restoreSession(authCookies, cachedSessions, 'viewer');
+ *   // ...
+ * });
+ * ```
+ */
+export type CachedSessions = Record<TestUserRole, AuthCookieStore>;
+
+/**
+ * Create an empty cached-sessions object with one cookie store per
+ * role. Call once per test file (typically via `vi.hoisted`) and
+ * pass to `cacheAllTestUserSessions` in `beforeAll`.
+ */
+export function createEmptySessionCache(): CachedSessions {
+  return {
+    admin: new Map<string, AuthCookieEntry>(),
+    editor: new Map<string, AuthCookieEntry>(),
+    viewer: new Map<string, AuthCookieEntry>(),
+  };
+}
+
+/**
+ * Sign in as all three test users and populate the cached-sessions
+ * object. Call exactly once per test file, in `beforeAll`.
+ *
+ * This issues EXACTLY 3 `signInWithPassword` calls regardless of how
+ * many tests follow. The entire integration suite should stay well
+ * under the rate limit as long as every test file uses this pattern.
+ */
+export async function cacheAllTestUserSessions(
+  cache: CachedSessions,
+): Promise<void> {
+  const roles: TestUserRole[] = ['admin', 'editor', 'viewer'];
+  for (const role of roles) {
+    cache[role].clear();
+    await signInAsTestUser(cache[role], role);
+  }
+}
+
+/**
+ * Restore the cached session for the given role into the active
+ * cookie store. Call at the start of any test that needs a specific
+ * role — `beforeEach` for the default, inside individual tests when
+ * switching. Clears `authCookies` first so there is no leakage
+ * between roles.
+ */
+export function restoreSession(
+  authCookies: AuthCookieStore,
+  cache: CachedSessions,
+  role: TestUserRole,
+): void {
+  authCookies.clear();
+  for (const [name, entry] of cache[role]) {
+    authCookies.set(name, entry);
+  }
+}
