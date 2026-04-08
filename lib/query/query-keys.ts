@@ -153,6 +153,18 @@ export const queryKeys = {
       list: (workspaceId: string) =>
         ['intelligence', 'prompts', workspaceId, 'list'] as const,
     },
+    flags: {
+      all: (workspaceId: string) =>
+        ['intelligence', 'flags', workspaceId] as const,
+      list: (workspaceId: string, filters?: Record<string, unknown>) =>
+        [
+          'intelligence',
+          'flags',
+          workspaceId,
+          'list',
+          filters ?? {},
+        ] as const,
+    },
     metrics: {
       summary: (workspaceId: string, period?: string) =>
         ['intelligence', 'metrics', workspaceId, period ?? '30d'] as const,
