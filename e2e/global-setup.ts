@@ -40,19 +40,6 @@ async function globalSetup(): Promise<void> {
 
   console.log('E2E setup: environment validated.');
 
-  // Allow skipping user verification for local runs where the new
-  // `sb_secret_*` publishable secret key format is incompatible with
-  // `auth.admin.listUsers()` (returns 500). The auth.setup.ts project
-  // still signs in with the anon key, so tests still run end-to-end.
-  // Set E2E_SKIP_USER_VERIFY=1 to bypass. Pre-existing infrastructure
-  // issue surfaced during S152A WP2 Phase 3.
-  if (process.env.E2E_SKIP_USER_VERIFY === '1') {
-    console.log(
-      'E2E setup: skipping user verification (E2E_SKIP_USER_VERIFY=1)',
-    );
-    return;
-  }
-
   // --- Step 2: Verify test users exist with correct roles ---
   const supabase = createServiceClient();
 
@@ -79,11 +66,14 @@ async function globalSetup(): Promise<void> {
     );
   }
 
-  // Resolve test users via signInWithPassword (anon key) instead of
-  // `auth.admin.listUsers()`. The new `sb_secret_*` API key format does
-  // not support the admin listUsers endpoint (returns "Database error
-  // finding users"), but sign-in works fine. Each successful sign-in
-  // returns the user's id, which we cross-reference against `user_roles`.
+  // Resolve test users via signInWithPassword (anon key): each
+  // successful sign-in returns the user's id, which we cross-reference
+  // against `user_roles`. Exercising the real sign-in flow catches more
+  // failure modes (password drift, banned_until set, missing identities
+  // row) than enumerating users via auth.admin.listUsers would. S156
+  // WP-7 removed the dead `E2E_SKIP_USER_VERIFY` bypass branch that
+  // preceded this block — see docs/audits/s156-auth-admin-sweep.md
+  // Finding 5.3.
   const anonUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   const anonClient = createClient(anonUrl, anonKey);
