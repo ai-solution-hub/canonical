@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-03-31T10:38:56.715Z",
+  "generated_at": "2026-04-08T16:04:44.382Z",
   "domains": [
     {
       "id": "17d9f23f-1c4f-4d6d-b9c3-f37c178a547e",
@@ -582,5 +582,12 @@
     "product_description",
     "document"
   ],
-  "platforms": ["web", "email", "manual", "upload", "extraction", "other"]
+  "platforms": [
+    "web",
+    "email",
+    "manual",
+    "upload",
+    "extraction",
+    "other"
+  ]
 }
