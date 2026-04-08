@@ -1,6 +1,9 @@
 import { test as baseTest, expect } from '@playwright/test';
 import { test as authTest } from '../fixtures';
-import { getVisibleNavLinks } from '../helpers/responsive';
+import {
+  getVisibleNavLinks,
+  isMobileViewport,
+} from '../helpers/responsive';
 import { hideDevOverlays } from '../helpers/dev-overlays';
 
 /**
@@ -209,6 +212,41 @@ authTest.describe('Authentication — authenticated session', () => {
       await expect(
         header.getByRole('button', { name: 'Settings', exact: true }),
       ).toBeVisible();
+    },
+  );
+
+  authTest(
+    'can sign out via the header button and cannot re-enter protected pages',
+    async ({ authenticatedPage: page }) => {
+      await page.goto('/');
+
+      // On mobile the Sign out button lives inside the hamburger drawer;
+      // on desktop it sits in the right-hand action cluster directly.
+      if (isMobileViewport(page)) {
+        await page
+          .getByRole('button', { name: 'Open navigation menu' })
+          .click();
+        const mobileNav = page.getByRole('navigation', {
+          name: 'Mobile navigation',
+        });
+        await expect(mobileNav).toBeVisible();
+        await mobileNav.getByRole('button', { name: 'Sign out' }).click();
+      } else {
+        const header = page.locator('header');
+        await header.getByRole('button', { name: 'Sign out' }).click();
+      }
+
+      // Full-page navigation to /login on successful sign-out
+      await page.waitForURL('**/login**', { timeout: 10000 });
+      await expect(page).toHaveURL(/\/login/);
+      await expect(
+        page.getByRole('heading', { name: 'Knowledge Hub' }),
+      ).toBeVisible();
+
+      // Prove the session is actually dead — hitting a protected page
+      // should redirect back to /login via proxy.ts, not let us through.
+      await page.goto('/browse');
+      await expect(page).toHaveURL(/\/login/);
     },
   );
 });

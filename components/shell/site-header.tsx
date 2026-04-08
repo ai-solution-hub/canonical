@@ -14,7 +14,6 @@ import {
   BarChart3,
   BookOpen,
   Newspaper,
-  ExternalLink,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SearchBar } from '@/components/browse/search-bar';
@@ -27,6 +26,7 @@ import {
 } from '@/components/ui/sheet';
 import { ThemeSettings } from '@/components/shell/theme-settings';
 import { NotificationBell } from '@/components/shell/notification-bell';
+import { SignOutButton } from '@/components/shell/sign-out-button';
 import { Separator } from '@/components/ui/separator';
 import { useUserRole } from '@/hooks/use-user-role';
 import { cn } from '@/lib/utils';
@@ -135,22 +135,6 @@ export function SiteHeader() {
           >
             <Search className="size-4" />
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            asChild
-            className="hidden gap-1.5 text-xs text-muted-foreground hover:text-foreground sm:inline-flex"
-          >
-            <a
-              href="https://claude.ai/new"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Open Claude in a new tab"
-            >
-              Claude
-              <ExternalLink className="size-3" aria-hidden="true" />
-            </a>
-          </Button>
           <NotificationBell />
           <Button
             variant="ghost"
@@ -166,6 +150,7 @@ export function SiteHeader() {
             <Settings className="size-4" />
           </Button>
           <ThemeSettings />
+          <SignOutButton />
         </div>
       </nav>
 
@@ -224,15 +209,6 @@ export function SiteHeader() {
               );
             })}
             <Separator className="my-1" />
-            <a
-              href="https://claude.ai/new"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent"
-            >
-              <ExternalLink className="size-4" />
-              Open Claude
-            </a>
             <NotificationBell mobile />
             <Link
               href={SETTINGS_LINK.href}
@@ -250,6 +226,10 @@ export function SiteHeader() {
               <SETTINGS_LINK.icon className="size-4" />
               {SETTINGS_LINK.label}
             </Link>
+            <SignOutButton
+              variant="mobile"
+              onBeforeNavigate={() => setMobileMenuOpen(false)}
+            />
           </nav>
         </SheetContent>
       </Sheet>

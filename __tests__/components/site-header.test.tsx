@@ -72,6 +72,14 @@ vi.mock('@/components/shell/theme-settings', () => ({
   ThemeSettings: () => <div data-testid="theme-settings">ThemeSettings</div>,
 }));
 
+vi.mock('@/components/shell/sign-out-button', () => ({
+  SignOutButton: ({ variant }: { variant?: string }) => (
+    <div data-testid={`sign-out-button-${variant ?? 'desktop'}`}>
+      SignOutButton
+    </div>
+  ),
+}));
+
 // Import AFTER mocks
 import { SiteHeader } from '@/components/shell/site-header';
 
@@ -208,5 +216,46 @@ describe('SiteHeader', () => {
   it('renders the SearchBar component in desktop view', () => {
     render(<SiteHeader />);
     expect(screen.getByTestId('search-bar')).toBeInTheDocument();
+  });
+
+  it('renders the desktop Sign out button in the header action cluster', () => {
+    render(<SiteHeader />);
+    expect(screen.getByTestId('sign-out-button-desktop')).toBeInTheDocument();
+  });
+
+  it('renders the mobile Sign out button inside the mobile drawer', async () => {
+    const user = userEvent.setup();
+    render(<SiteHeader />);
+
+    // The mobile variant should not be present before the drawer is opened
+    expect(
+      screen.queryByTestId('sign-out-button-mobile'),
+    ).not.toBeInTheDocument();
+
+    const menuButton = screen.getByLabelText('Open navigation menu');
+    await user.click(menuButton);
+
+    const mobileNav = screen.getByLabelText('Mobile navigation');
+    expect(
+      within(mobileNav).getByTestId('sign-out-button-mobile'),
+    ).toBeInTheDocument();
+  });
+
+  it('no longer exposes a direct "Claude" link in the header or drawer', async () => {
+    // The header previously had a ghost button with a link to claude.ai/new
+    // and the mobile drawer had an "Open Claude" row. Both were removed as
+    // part of the Sign out button roll-out; this test locks that behaviour in
+    // so it cannot be reintroduced without updating the AI visibility policy.
+    const user = userEvent.setup();
+    render(<SiteHeader />);
+
+    expect(screen.queryByText('Claude')).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Open Claude in a new tab'),
+    ).not.toBeInTheDocument();
+
+    const menuButton = screen.getByLabelText('Open navigation menu');
+    await user.click(menuButton);
+    expect(screen.queryByText('Open Claude')).not.toBeInTheDocument();
   });
 });
