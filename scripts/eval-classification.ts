@@ -364,7 +364,9 @@ async function classifyFixtureItem(
   // Dynamic imports — avoids loading these modules in cached mode.
   const { getAnthropicClient, getAIModel } = await import('../lib/anthropic');
   const { loadSkill } = await import('../lib/ai/skills/loader');
-  const { CLIENT_CONFIG } = await import('../lib/client-config');
+  const { CLIENT_CONFIG, buildDisambiguationBlock } = await import(
+    '../lib/client-config'
+  );
   const { extractToolResult } = await import('../lib/ai-parse');
 
   // Load the same skill prompts as classifyContent.
@@ -398,20 +400,13 @@ async function classifyFixtureItem(
     })
     .join('\n');
 
-  // Mirror the disambiguation block from classifyContent.
-  const disambiguationRules = [
-    `"${CLIENT_CONFIG.entity_examples.product_name}" is a SOFTWARE PRODUCT, not an auditing process. Questions about its features (action plans, invites, reports, exports, user interface) belong in product-feature/*, NOT compliance/audit.`,
-    'Business continuity and disaster recovery (BC/DR) belong in security/cyber-security, not support/* or product-feature/*.',
-    'Security awareness training, confidentiality clauses, and security governance belong in security/data-protection or corporate/staffing, NOT support/sla.',
-    'Data security controls (encryption, access control, secure data transfer, infrastructure security) belong in security/*, NOT product-feature/*.',
-    'Financial questions (pricing, costs, audited accounts, hidden costs) belong in corporate/financial.',
-  ]
-    .map((r) => `- ${r}`)
-    .join('\n');
-
+  // Mirror the disambiguation block from classifyContent. Both this
+  // eval harness and the production pipeline (lib/ai/classify.ts) now
+  // source the rules from lib/client-config.ts via
+  // buildDisambiguationBlock() so they cannot drift.
   const prompt = classificationSkill
     .replace('{TAXONOMY}', taxonomyStr)
-    .replace('{CLIENT_DISAMBIGUATION}', disambiguationRules)
+    .replace('{CLIENT_DISAMBIGUATION}', buildDisambiguationBlock())
     .replaceAll('{CLIENT_ORGANISATION_NAME}', CLIENT_CONFIG.entity_examples.organisation_name)
     .replaceAll('{CLIENT_ORGANISATION_SHORT}', CLIENT_CONFIG.entity_examples.organisation_short)
     .replaceAll('{CLIENT_PRODUCT_NAME}', CLIENT_CONFIG.entity_examples.product_name)

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   CLIENT_CONFIG,
   isFeatureEnabled,
+  buildDisambiguationBlock,
   type FeatureName,
 } from '@/lib/client-config';
 import {
@@ -77,6 +78,69 @@ describe('CLIENT_CONFIG', () => {
         0,
       );
     });
+  });
+
+  describe('classification_disambiguation_rules', () => {
+    it('is a non-empty array of strings', () => {
+      expect(
+        Array.isArray(CLIENT_CONFIG.classification_disambiguation_rules),
+      ).toBe(true);
+      expect(
+        CLIENT_CONFIG.classification_disambiguation_rules.length,
+      ).toBeGreaterThan(0);
+      for (const rule of CLIENT_CONFIG.classification_disambiguation_rules) {
+        expect(typeof rule).toBe('string');
+        expect(rule.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('rules use {CLIENT_*} placeholders rather than hardcoded client values', () => {
+      // At least one rule must contain the product-name placeholder; this
+      // guards against a regression where a rule is hardcoded with
+      // "example-client Audit System" (or similar) instead of the placeholder that
+      // the .replaceAll chain can resolve per-client.
+      const hasProductPlaceholder =
+        CLIENT_CONFIG.classification_disambiguation_rules.some((rule) =>
+          rule.includes('{CLIENT_PRODUCT_NAME}'),
+        );
+      expect(hasProductPlaceholder).toBe(true);
+
+      // No rule should hardcode the current default client's product name
+      // — that would defeat the multi-client readiness of the extraction.
+      const hardcodedProduct = CLIENT_CONFIG.entity_examples.product_name;
+      for (const rule of CLIENT_CONFIG.classification_disambiguation_rules) {
+        expect(rule).not.toContain(hardcodedProduct);
+      }
+    });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// buildDisambiguationBlock
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('buildDisambiguationBlock', () => {
+  it('returns a markdown bullet list matching the config rules', () => {
+    const block = buildDisambiguationBlock();
+    const lines = block.split('\n');
+
+    expect(lines.length).toBe(
+      CLIENT_CONFIG.classification_disambiguation_rules.length,
+    );
+    for (const [i, rule] of CLIENT_CONFIG.classification_disambiguation_rules.entries()) {
+      expect(lines[i]).toBe(`- ${rule}`);
+    }
+  });
+
+  it('preserves {CLIENT_*} placeholders for later interpolation', () => {
+    // The block is inserted into the classification skill file via
+    // .replace('{CLIENT_DISAMBIGUATION}', buildDisambiguationBlock()).
+    // The subsequent .replaceAll chain then resolves {CLIENT_PRODUCT_NAME}
+    // and friends. This test guards the handoff: placeholders must
+    // survive the build step intact.
+    const block = buildDisambiguationBlock();
+    expect(block).toContain('{CLIENT_PRODUCT_NAME}');
+    expect(block).not.toContain(CLIENT_CONFIG.entity_examples.product_name);
   });
 });
 

@@ -76,6 +76,24 @@ export interface ClientConfig {
     /** Informal product name to avoid, e.g. "audit system" */
     product_short: string;
   };
+  /**
+   * Client-specific classification disambiguation rules.
+   *
+   * Interpolated into the `{CLIENT_DISAMBIGUATION}` placeholder in
+   * `lib/ai/skills/classification.md` via `lib/ai/classify.ts` and
+   * `scripts/eval-classification.ts`. Each rule may contain
+   * `{CLIENT_PRODUCT_NAME}`, `{CLIENT_ORGANISATION_NAME}`, etc.
+   * placeholders — these are resolved by the subsequent `.replaceAll`
+   * chain at the prompt-assembly call site.
+   *
+   * Multi-client readiness note: these rules are the only client-
+   * specific classification knobs outside the skill file itself. When a
+   * new client is onboarded (e.g. demo DB or a client DB branch), their
+   * rules go here rather than being hardcoded in `classify.ts`. See
+   * `docs/specs/entity-classification-prompt-tightening-spec.md` §13 Q6
+   * resolution.
+   */
+  classification_disambiguation_rules: readonly string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -126,6 +144,14 @@ export const CLIENT_CONFIG = {
     product_name: 'example-client Audit System',
     product_short: 'audit system',
   },
+
+  classification_disambiguation_rules: [
+    '"{CLIENT_PRODUCT_NAME}" is a SOFTWARE PRODUCT, not an auditing process. Questions about its features (action plans, invites, reports, exports, user interface) belong in product-feature/*, NOT compliance/audit.',
+    'Business continuity and disaster recovery (BC/DR) belong in security/cyber-security, not support/* or product-feature/*.',
+    'Security awareness training, confidentiality clauses, and security governance belong in security/data-protection or corporate/staffing, NOT support/sla.',
+    'Data security controls (encryption, access control, secure data transfer, infrastructure security) belong in security/*, NOT product-feature/*.',
+    'Financial questions (pricing, costs, audited accounts, hidden costs) belong in corporate/financial.',
+  ],
 
   layer_vocabulary: [
     {
@@ -182,4 +208,24 @@ export const FALLBACK_LAYERS: readonly LayerDefinition[] =
  */
 export function isFeatureEnabled(feature: FeatureName): boolean {
   return CLIENT_CONFIG.features[feature].enabled;
+}
+
+/**
+ * Build the `{CLIENT_DISAMBIGUATION}` block inserted into the
+ * classification skill prompt. Returns a markdown bullet list of the
+ * client's disambiguation rules.
+ *
+ * Placeholders inside the rules (`{CLIENT_PRODUCT_NAME}` etc.) are NOT
+ * resolved here — they are resolved by the caller's subsequent
+ * `.replaceAll` chain after `{CLIENT_DISAMBIGUATION}` substitution.
+ *
+ * Called from:
+ *   - `lib/ai/classify.ts` (TypeScript classification pipeline)
+ *   - `scripts/eval-classification.ts` (eval harness, kept in sync
+ *     with the production pipeline by construction)
+ */
+export function buildDisambiguationBlock(): string {
+  return CLIENT_CONFIG.classification_disambiguation_rules
+    .map((rule) => `- ${rule}`)
+    .join('\n');
 }

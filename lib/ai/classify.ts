@@ -16,7 +16,7 @@ import { resolveAlias, loadAliases } from '@/lib/entities/entity-aliases';
 import { extractEntityContext } from '@/lib/entities/entity-context';
 import { bridgeTemporalReferencesToEntities } from '@/lib/entities/entity-metadata-bridge';
 import { normaliseTag } from '@/lib/validation/schemas';
-import { CLIENT_CONFIG } from '@/lib/client-config';
+import { CLIENT_CONFIG, buildDisambiguationBlock } from '@/lib/client-config';
 import { sb } from '@/lib/supabase/safe';
 
 // ──────────────────────────────────────────
@@ -796,20 +796,15 @@ export async function classifyContent(
     })
     .join('\n');
 
-  // Interpolate placeholders in the skill file content
-  const disambiguationRules = [
-    `"${CLIENT_CONFIG.entity_examples.product_name}" is a SOFTWARE PRODUCT, not an auditing process. Questions about its features (action plans, invites, reports, exports, user interface) belong in product-feature/*, NOT compliance/audit.`,
-    'Business continuity and disaster recovery (BC/DR) belong in security/cyber-security, not support/* or product-feature/*.',
-    'Security awareness training, confidentiality clauses, and security governance belong in security/data-protection or corporate/staffing, NOT support/sla.',
-    'Data security controls (encryption, access control, secure data transfer, infrastructure security) belong in security/*, NOT product-feature/*.',
-    'Financial questions (pricing, costs, audited accounts, hidden costs) belong in corporate/financial.',
-  ]
-    .map((r) => `- ${r}`)
-    .join('\n');
-
+  // Interpolate placeholders in the skill file content. The disambiguation
+  // block is sourced from CLIENT_CONFIG so new clients can add their own
+  // rules without touching this file — see lib/client-config.ts
+  // classification_disambiguation_rules. Placeholders inside the rules
+  // (e.g. {CLIENT_PRODUCT_NAME}) are resolved by the .replaceAll chain
+  // below after the {CLIENT_DISAMBIGUATION} substitution.
   const prompt = classificationSkill
     .replace('{TAXONOMY}', taxonomyStr)
-    .replace('{CLIENT_DISAMBIGUATION}', disambiguationRules)
+    .replace('{CLIENT_DISAMBIGUATION}', buildDisambiguationBlock())
     .replaceAll('{CLIENT_ORGANISATION_NAME}', CLIENT_CONFIG.entity_examples.organisation_name)
     .replaceAll('{CLIENT_ORGANISATION_SHORT}', CLIENT_CONFIG.entity_examples.organisation_short)
     .replaceAll('{CLIENT_PRODUCT_NAME}', CLIENT_CONFIG.entity_examples.product_name)
