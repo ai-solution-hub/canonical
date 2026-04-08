@@ -86,7 +86,7 @@ import {
   type TemplateRequirement,
   type ContentItemForMatching,
   type RequirementType,
-} from '../lib/template-coverage';
+} from '../lib/templates/template-coverage';
 
 // ── CLI args ──
 

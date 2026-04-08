@@ -23,10 +23,10 @@ import { Sliders } from 'lucide-react';
  * Saved via PATCH /api/intelligence/workspaces/:id which merges into
  * `domain_metadata.relevance_threshold` JSONB.
  */
-export const SLIDER_MIN = 0.1;
-export const SLIDER_MAX = 1.0;
-export const SLIDER_STEP = 0.05;
-export const SLIDER_DEFAULT = 0.5;
+const SLIDER_MIN = 0.1;
+const SLIDER_MAX = 1.0;
+const SLIDER_STEP = 0.05;
+const SLIDER_DEFAULT = 0.5;
 
 interface WorkspaceSettingsProps {
   workspaceId: string;
