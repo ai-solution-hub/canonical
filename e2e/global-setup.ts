@@ -73,7 +73,9 @@ async function globalSetup(): Promise<void> {
     throw new Error(
       'E2E setup: user_roles table is empty. ' +
         'Test users must be created before running E2E tests. ' +
-        'See docs/reference/e2e-test-setup.md for setup instructions.',
+        'Run `bun run seed:e2e-users` to provision the three E2E test users ' +
+        '(admin/editor/viewer) idempotently. See ' +
+        'docs/operations/e2e-test-setup.md §11 for the rebuild flow.',
     );
   }
 
@@ -132,8 +134,8 @@ async function globalSetup(): Promise<void> {
     throw new Error(
       `E2E setup: test users not found in auth.users:\n` +
         missingUsers.map((u) => `  - ${u}`).join('\n') +
-        '\n\nCreate these users before running E2E tests. ' +
-        'See docs/reference/e2e-test-setup.md for setup instructions.',
+        '\n\nRun `bun run seed:e2e-users` to provision them. ' +
+        'See docs/operations/e2e-test-setup.md §11 for the rebuild flow.',
     );
   }
 
