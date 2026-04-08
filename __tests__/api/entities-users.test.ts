@@ -911,49 +911,14 @@ describe('POST /api/users/display-names', () => {
     expect(body.error).toBe('Validation failed');
   });
 
-  it('resolves display names from user_metadata.display_name', async () => {
-    mockGetUserById.mockResolvedValueOnce({
-      data: {
-        user: {
-          id: VALID_UUID,
-          email: 'alice@example.com',
-          user_metadata: { display_name: 'Alice Smith' },
-        },
-      },
-    });
-
-    const req = createTestRequest('/api/users/display-names', {
-      method: 'POST',
-      body: { ids: [VALID_UUID] },
-    });
-    const res = await displayNamesPost(req);
-    expect(res.status).toBe(200);
-
-    const body = await res.json();
-    expect(body[VALID_UUID]).toBe('Alice Smith');
-  });
-
-  it('falls back to email prefix when no display_name or full_name', async () => {
-    mockGetUserById.mockResolvedValueOnce({
-      data: {
-        user: {
-          id: VALID_UUID,
-          email: 'bob@example.com',
-          user_metadata: {},
-        },
-      },
-    });
-
-    const req = createTestRequest('/api/users/display-names', {
-      method: 'POST',
-      body: { ids: [VALID_UUID] },
-    });
-    const res = await displayNamesPost(req);
-    expect(res.status).toBe(200);
-
-    const body = await res.json();
-    expect(body[VALID_UUID]).toBe('bob');
-  });
+  // NOTE: happy-path display-name resolution is covered by the real-DB
+  // integration test at
+  // `__tests__/integration/display-name-routes.integration.test.ts`.
+  // Mocking the RPC response here would produce a tautology (the route
+  // is now a thin pass-through to `resolveUserDisplayNames`), and the
+  // S156 incident was caused by exactly that class of mock-the-code-
+  // path-that-broke test. The tests in THIS describe block cover only
+  // auth + validation concerns that don't need a real DB.
 
   it('rejects mixed valid and invalid UUIDs with validation error', async () => {
     const req = createTestRequest('/api/users/display-names', {

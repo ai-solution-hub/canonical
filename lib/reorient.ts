@@ -527,9 +527,16 @@ export async function fetchReorientData(
 }
 
 /**
- * Resolve user UUIDs to display names. Uses Supabase auth.admin to
- * look up user metadata. Falls back to email-derived names.
- * Service-role client required for auth.admin access.
+ * Resolve user UUIDs to display names (first name only for reorient
+ * briefings). S156 WP-2: routes through `resolveUserDisplayNames` which
+ * wraps the `get_user_display_names` SQL function (single round trip,
+ * SECURITY DEFINER), replacing the previous `auth.admin.getUserById`
+ * Promise.allSettled loop that silently degraded for pipeline-owned
+ * content. Pipeline service account resolves to `'Pipeline (system)'`
+ * and unknown UUIDs resolve to `'A team member'` — both are passed
+ * through unchanged rather than split on space (the "first token of
+ * 'A team member'" would render as `'A'`, which is worse than the
+ * fallback).
  */
 export async function resolveDisplayNames(
   userIds: string[],
@@ -539,31 +546,30 @@ export async function resolveDisplayNames(
 
   const uniqueIds = [...new Set(userIds)];
 
-  // IMPORTANT: The MCP auth client (createMcpClient) is USER-scoped, not
-  // service-role. auth.admin.getUserById() requires a service-role client.
-  // Use createServiceClient() from lib/supabase/server.ts instead.
   const { createServiceClient } = await import('@/lib/supabase/server');
   const serviceClient = createServiceClient();
 
-  // Batch-fetch all users in parallel instead of sequential calls
-  const results = await Promise.allSettled(
-    uniqueIds.map((userId) => serviceClient.auth.admin.getUserById(userId)),
+  const { resolveUserDisplayNames } = await import(
+    '@/lib/users/display-names'
   );
+  const map = await resolveUserDisplayNames(serviceClient, uniqueIds);
 
-  for (let i = 0; i < uniqueIds.length; i++) {
-    const result = results[i];
-    if (result.status !== 'fulfilled') continue;
-    const user = result.value?.data?.user;
-    if (!user) continue;
-
-    const displayName =
-      (user.user_metadata?.display_name as string | undefined) ??
-      (user.user_metadata?.full_name as string | undefined);
-    if (displayName) {
-      names.set(uniqueIds[i], displayName.split(' ')[0] ?? displayName);
-    } else if (user.email) {
-      names.set(uniqueIds[i], user.email.split('@')[0] ?? 'A team member');
+  for (const [id, info] of map) {
+    // Reorient briefings prefer first names ("Alice" not "Alice Smith"),
+    // but the SQL function's sentinel fallbacks ('Pipeline (system)' and
+    // 'A team member') MUST pass through unchanged. Splitting them on
+    // space would produce 'Pipeline' and 'A' respectively — the second
+    // is the S156 verification report L-1 bug. Detect both sentinels
+    // by exact match.
+    if (
+      info.display_name === 'A team member' ||
+      info.display_name === 'Pipeline (system)'
+    ) {
+      names.set(id, info.display_name);
+      continue;
     }
+    const first = info.display_name.split(' ')[0] ?? info.display_name;
+    names.set(id, first);
   }
 
   return names;

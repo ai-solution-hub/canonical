@@ -2363,6 +2363,14 @@ export type Database = {
       }
     }
     Functions: {
+      _test_delete_broken_auth_user: {
+        Args: { probe_id: string }
+        Returns: undefined
+      }
+      _test_insert_broken_auth_user: {
+        Args: { probe_email: string; probe_id: string }
+        Returns: undefined
+      }
       bulk_assign_content_owner: {
         Args: {
           p_assigned_by: string
@@ -2951,6 +2959,14 @@ export type Database = {
         Returns: {
           author_name: string
           count: number
+        }[]
+      }
+      get_user_display_names: {
+        Args: { user_ids: string[] }
+        Returns: {
+          display_name: string
+          email: string
+          user_id: string
         }[]
       }
       get_user_role: { Args: never; Returns: string }

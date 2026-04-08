@@ -3,8 +3,8 @@ import {
   getAuthenticatedClient,
   authFailureResponse,
 } from '@/lib/auth';
-import { createServiceClient } from '@/lib/supabase/server';
 import { safeErrorMessage } from '@/lib/error';
+import { resolveUserDisplayNames } from '@/lib/users/display-names';
 import type { ContentOwnerStats } from '@/types/owner';
 
 export const maxDuration = 30;
@@ -14,6 +14,11 @@ export const maxDuration = 30;
  *
  * Returns content ownership statistics enriched with display names.
  * Available to all authenticated users.
+ *
+ * S156 WP-2: display-name resolution now uses the
+ * `get_user_display_names` SQL function (single round trip, batch
+ * resolved) instead of the old `auth.admin.getUserById` loop which
+ * silently degraded for pipeline-owned content.
  */
 export async function GET() {
   try {
@@ -44,41 +49,16 @@ export async function GET() {
       return NextResponse.json([]);
     }
 
-    // Enrich with display names using service client (auth.users not accessible via RLS)
+    // Batch-resolve display names for every owner_id in one SQL round
+    // trip. Pipeline service account returns 'Pipeline (system)', unknown
+    // owners return 'A team member'. See lib/users/display-names.ts for
+    // the full contract.
     const ownerIds = stats.map((s) => s.owner_id);
+    const displayNameMap = await resolveUserDisplayNames(supabase, ownerIds);
 
-    const displayNames: Record<string, string> = {};
-
-    try {
-      const serviceClient = createServiceClient();
-
-      const results = await Promise.allSettled(
-        ownerIds.map((id: string) => serviceClient.auth.admin.getUserById(id)),
-      );
-
-      for (let i = 0; i < ownerIds.length; i++) {
-        const settled = results[i];
-        if (settled.status !== 'fulfilled') continue;
-        const user = settled.value?.data?.user;
-        if (!user) continue;
-
-        const displayName =
-          (user.user_metadata?.display_name as string) ??
-          (user.user_metadata?.full_name as string) ??
-          (user.email ? user.email.split('@')[0] : null);
-
-        if (displayName) {
-          displayNames[user.id] = displayName;
-        }
-      }
-    } catch (err) {
-      console.warn('Failed to resolve display names for owner stats:', err);
-    }
-
-    // Merge display names into stats
     const enrichedStats = stats.map((s) => ({
       ...s,
-      display_name: displayNames[s.owner_id] ?? null,
+      display_name: displayNameMap.get(s.owner_id)?.display_name ?? null,
     }));
 
     return NextResponse.json(enrichedStats);

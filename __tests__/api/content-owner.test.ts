@@ -492,56 +492,23 @@ describe('GET /api/content-owners/stats', () => {
     expect(body).toEqual([]);
   });
 
-  it('returns enriched stats with display names', async () => {
-    const statsData = [
-      {
-        owner_id: OWNER_UUID,
-        total_items: 10,
-        fresh_count: 5,
-        aging_count: 3,
-        stale_count: 1,
-        expired_count: 1,
-        unverified_count: 2,
-      },
-    ];
+  // NOTE: happy-path enrichment with real display names is covered by
+  // the real-DB integration test at
+  // `__tests__/integration/display-name-routes.integration.test.ts`.
+  // Mocking the RPC response here would produce a tautology — the route
+  // now delegates to `resolveUserDisplayNames` and the mock would only
+  // verify "what I told the mock to return, the route returned". The
+  // tests in THIS describe block cover auth, empty-result handling, and
+  // the null-fallback path that don't need a real DB.
 
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: statsData,
-      error: null,
-    });
-
-    // Service client mock for display name resolution
-    const mockServiceClient = {
-      auth: {
-        admin: {
-          getUserById: vi.fn().mockResolvedValue({
-            data: {
-              user: {
-                id: OWNER_UUID,
-                email: 'owner@example.com',
-                user_metadata: { display_name: 'Test Owner' },
-              },
-            },
-            error: null,
-          }),
-        },
-      },
-    };
-    mockCreateServiceClient.mockReturnValue(mockServiceClient);
-
-    const req = createTestRequest('/api/content-owners/stats');
-
-    const res = await statsGet(req);
-    expect(res.status).toBe(200);
-
-    const body = await res.json();
-    expect(body).toHaveLength(1);
-    expect(body[0].owner_id).toBe(OWNER_UUID);
-    expect(body[0].total_items).toBe(10);
-    expect(body[0].display_name).toBe('Test Owner');
-  });
-
-  it('returns stats with null display_name when user lookup fails', async () => {
+  it('returns stats with null display_name when the display-name RPC returns nothing', async () => {
+    // S156 WP-2: the route now calls two RPCs in sequence —
+    // `get_content_owner_stats` and `get_user_display_names`. When the
+    // second RPC returns an empty result (e.g. the owner UUID points at
+    // a deleted row), the wrapper yields an empty Map and the route
+    // falls through to `display_name: null`. This matches the old
+    // behaviour of the pre-S156 route when `auth.admin.getUserById`
+    // returned `{ user: null }`.
     const statsData = [
       {
         owner_id: OWNER_UUID,
@@ -554,23 +521,11 @@ describe('GET /api/content-owners/stats', () => {
       },
     ];
 
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: statsData,
-      error: null,
-    });
-
-    // Service client returns no user
-    const mockServiceClient = {
-      auth: {
-        admin: {
-          getUserById: vi.fn().mockResolvedValue({
-            data: { user: null },
-            error: null,
-          }),
-        },
-      },
-    };
-    mockCreateServiceClient.mockReturnValue(mockServiceClient);
+    mockSupabase.rpc
+      .mockResolvedValueOnce({ data: statsData, error: null })
+      // get_user_display_names with empty result — wrapper yields an
+      // empty Map; route falls through to `display_name: null`.
+      .mockResolvedValueOnce({ data: [], error: null });
 
     const req = createTestRequest('/api/content-owners/stats');
 

@@ -74,7 +74,15 @@ vi.mock('@/lib/supabase/server', () => ({
   createServiceClient: vi.fn(),
 }));
 
+// S156 WP-2: resolveDisplayNames now routes through the SQL function
+// wrapper. Mock the wrapper directly so each test can stub the Map that
+// reorient consumes, rather than the underlying RPC call chain.
+vi.mock('@/lib/users/display-names', () => ({
+  resolveUserDisplayNames: vi.fn(),
+}));
+
 import { fetchReorientData, resolveDisplayNames } from '@/lib/reorient';
+import { resolveUserDisplayNames } from '@/lib/users/display-names';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1527,51 +1535,122 @@ describe('fetchReorientData', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Tests for resolveDisplayNames
+// Tests for resolveDisplayNames (S156 WP-2 refactor — SQL JOIN via
+// resolveUserDisplayNames wrapper, not auth.admin.getUserById)
 // ---------------------------------------------------------------------------
 
 describe('resolveDisplayNames', () => {
-  it('returns empty map for empty input', async () => {
+  // Use real UUIDs — the wrapper forwards to a uuid[] RPC, and the
+  // dynamic import of `@/lib/users/display-names` is mocked above so
+  // these never hit the DB. Keeping the shape realistic guards against
+  // accidentally passing non-UUID strings to the production path.
+  const U1 = 'e21179e9-1946-43be-94a9-d566046da279';
+  const U2 = '11111111-2222-4333-8444-555555555555';
+  const U_UNKNOWN = '00000000-4000-4000-8000-000000000999';
+  const U_PIPELINE = 'a0000000-0000-4000-8000-000000000001';
+
+  beforeEach(() => {
+    vi.mocked(resolveUserDisplayNames).mockReset();
+  });
+
+  it('returns an empty map for an empty input array', async () => {
     const map = await resolveDisplayNames([]);
     expect(map.size).toBe(0);
+    // Wrapper must not be called on the short-circuit path.
+    expect(resolveUserDisplayNames).not.toHaveBeenCalled();
   });
 
-  it('resolves names using auth.admin', async () => {
-    const { createServiceClient } = await import('@/lib/supabase/server');
-    vi.mocked(createServiceClient).mockReturnValue({
-      auth: {
-        admin: {
-          getUserById: vi.fn().mockImplementation(async (id: string) => {
-            if (id === 'u1')
-              return {
-                data: { user: { user_metadata: { full_name: 'Alice Smith' } } },
-              };
-            if (id === 'u2')
-              return { data: { user: { email: 'bob@test.com' } } };
-            return { data: { user: null } };
-          }),
-        },
-      },
-    } as unknown as ReturnType<typeof createServiceClient>);
+  it('takes the first name when the display_name has a space', async () => {
+    vi.mocked(resolveUserDisplayNames).mockResolvedValueOnce(
+      new Map([
+        [
+          U1,
+          { user_id: U1, display_name: 'Alice Smith', email: 'alice@x.io' },
+        ],
+        [
+          U2,
+          { user_id: U2, display_name: 'bob', email: 'bob@test.com' },
+        ],
+      ]),
+    );
 
-    const map = await resolveDisplayNames(['u1', 'u2', 'u3', 'u1']);
+    const map = await resolveDisplayNames([U1, U2, U1]);
     expect(map.size).toBe(2);
-    expect(map.get('u1')).toBe('Alice');
-    expect(map.get('u2')).toBe('bob');
-    expect(map.has('u3')).toBe(false);
+    expect(map.get(U1)).toBe('Alice');
+    expect(map.get(U2)).toBe('bob');
   });
 
-  it('handles auth errors gracefully', async () => {
-    const { createServiceClient } = await import('@/lib/supabase/server');
-    vi.mocked(createServiceClient).mockReturnValue({
-      auth: {
-        admin: {
-          getUserById: vi.fn().mockRejectedValue(new Error('Auth failed')),
-        },
-      },
-    } as unknown as ReturnType<typeof createServiceClient>);
+  it('deduplicates input UUIDs before calling the wrapper', async () => {
+    vi.mocked(resolveUserDisplayNames).mockResolvedValueOnce(
+      new Map([
+        [U1, { user_id: U1, display_name: 'Alice Smith', email: null }],
+      ]),
+    );
 
-    const map = await resolveDisplayNames(['u1']);
-    expect(map.size).toBe(0);
+    await resolveDisplayNames([U1, U1, U1]);
+
+    // Wrapper should see the deduped array, not 3 repeats.
+    expect(resolveUserDisplayNames).toHaveBeenCalledTimes(1);
+    const [, passedIds] = vi.mocked(resolveUserDisplayNames).mock.calls[0];
+    expect(passedIds).toHaveLength(1);
+    expect(passedIds[0]).toBe(U1);
+  });
+
+  it('passes the "A team member" fallback through unchanged (L-1 guard)', async () => {
+    // If we naively split "A team member" on space, we get "A", which
+    // renders as "Briefing prepared by A". The reorient function must
+    // detect this sentinel and pass it through. (S156 verification
+    // report L-1.)
+    vi.mocked(resolveUserDisplayNames).mockResolvedValueOnce(
+      new Map([
+        [
+          U_UNKNOWN,
+          {
+            user_id: U_UNKNOWN,
+            display_name: 'A team member',
+            email: null,
+          },
+        ],
+      ]),
+    );
+
+    const map = await resolveDisplayNames([U_UNKNOWN]);
+    expect(map.get(U_UNKNOWN)).toBe('A team member');
+  });
+
+  it('passes the "Pipeline (system)" sentinel through unchanged', async () => {
+    // Splitting "Pipeline (system)" on space would yield "Pipeline",
+    // which would render as "Briefing prepared by Pipeline" — awkward.
+    // Reorient keeps the full label so operators can see the content
+    // came from infrastructure, not a colleague.
+    vi.mocked(resolveUserDisplayNames).mockResolvedValueOnce(
+      new Map([
+        [
+          U_PIPELINE,
+          {
+            user_id: U_PIPELINE,
+            display_name: 'Pipeline (system)',
+            email: 'pipeline@system.knowledge-hub.internal',
+          },
+        ],
+      ]),
+    );
+
+    const map = await resolveDisplayNames([U_PIPELINE]);
+    expect(map.get(U_PIPELINE)).toBe('Pipeline (system)');
+  });
+
+  it('surfaces wrapper errors (does NOT swallow them like the old Promise.allSettled)', async () => {
+    // S156 thesis: silent degradation was the bug. The new wrapper
+    // throws on RPC failures and reorient lets that propagate — a
+    // surfaced error is strictly better than "A team member" for
+    // everything.
+    vi.mocked(resolveUserDisplayNames).mockRejectedValueOnce(
+      new Error('get_user_display_names failed: permission denied'),
+    );
+
+    await expect(resolveDisplayNames([U1])).rejects.toThrow(
+      'permission denied',
+    );
   });
 });
