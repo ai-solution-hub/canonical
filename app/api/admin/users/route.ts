@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { createServiceClient } from '@/lib/supabase/server';
 import { safeErrorMessage } from '@/lib/error';
+import { PIPELINE_SYSTEM_USER_ID } from '@/lib/intelligence/types';
 
 export const maxDuration = 30;
 
@@ -54,14 +55,18 @@ export async function GET() {
       ]),
     );
 
-    const users: UserWithRole[] = (authData.users ?? []).map((u) => ({
-      id: u.id,
-      email: u.email ?? '',
-      display_name: (u.user_metadata?.display_name as string) ?? null,
-      role: (roleMap.get(u.id) as string) ?? 'viewer',
-      created_at: u.created_at,
-      last_sign_in_at: u.last_sign_in_at ?? null,
-    }));
+    // Filter out infrastructure service accounts (pipeline, cron, etc.) —
+    // these are not human team members and must not appear in the Team UI.
+    const users: UserWithRole[] = (authData.users ?? [])
+      .filter((u) => u.id !== PIPELINE_SYSTEM_USER_ID)
+      .map((u) => ({
+        id: u.id,
+        email: u.email ?? '',
+        display_name: (u.user_metadata?.display_name as string) ?? null,
+        role: (roleMap.get(u.id) as string) ?? 'viewer',
+        created_at: u.created_at,
+        last_sign_in_at: u.last_sign_in_at ?? null,
+      }));
 
     return NextResponse.json(users);
   } catch (err) {
