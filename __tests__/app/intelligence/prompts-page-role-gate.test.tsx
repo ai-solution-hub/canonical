@@ -1,9 +1,12 @@
 /**
- * /intelligence/[workspaceId]/prompts — role-gate behaviour (S157 WP2, C6).
+ * /intelligence/[workspaceId]/prompts — role-gate behaviour.
  *
  * Asserts that a viewer role sees the forbidden state (not the empty state
- * and not the editor), while admins/editors pass through to the normal page
- * content.
+ * and not the refinement panel), while admins pass through to the normal
+ * page content. The S158 WP1 refactor made the refinement panel the
+ * primary interface and moved the raw PromptEditor behind an "Advanced"
+ * disclosure — the admin-path assertion checks for the refinement panel,
+ * not the editor (which is collapsed by default).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -16,12 +19,20 @@ const {
   mockUseFeedPrompts,
   mockUseCreatePromptVersion,
   mockUseRollbackPrompt,
+  mockUseWorkspaceFlags,
+  mockUseAnalyseFlags,
+  mockUseRescoringPreview,
+  mockUseResolveFlags,
 } = vi.hoisted(() => ({
   mockUseUserRole: vi.fn(),
   mockUseParams: vi.fn(),
   mockUseFeedPrompts: vi.fn(),
   mockUseCreatePromptVersion: vi.fn(),
   mockUseRollbackPrompt: vi.fn(),
+  mockUseWorkspaceFlags: vi.fn(),
+  mockUseAnalyseFlags: vi.fn(),
+  mockUseRescoringPreview: vi.fn(),
+  mockUseResolveFlags: vi.fn(),
 }));
 
 vi.mock('@/hooks/use-user-role', () => ({
@@ -38,13 +49,35 @@ vi.mock('@/hooks/intelligence/use-feed-prompts', () => ({
   useRollbackPrompt: (id: string) => mockUseRollbackPrompt(id),
 }));
 
-// Stub the heavier children so we can assert forbidden vs editor cleanly.
+vi.mock('@/hooks/intelligence/use-workspace-flags', () => ({
+  useWorkspaceFlags: (id: string) => mockUseWorkspaceFlags(id),
+}));
+
+vi.mock('@/hooks/intelligence/use-analyse-flags', () => ({
+  useAnalyseFlags: (id: string) => mockUseAnalyseFlags(id),
+}));
+
+vi.mock('@/hooks/intelligence/use-rescoring-preview', () => ({
+  useRescoringPreview: (id: string) => mockUseRescoringPreview(id),
+}));
+
+vi.mock('@/hooks/intelligence/use-resolve-flags', () => ({
+  useResolveFlags: (id: string) => mockUseResolveFlags(id),
+}));
+
+// Stub the heavier children so we can assert forbidden vs normal content
+// cleanly. The refinement panel is the primary interface post-S158 WP1;
+// the editor lives behind an "Advanced" toggle and is collapsed by default.
 vi.mock('@/components/intelligence/prompt-editor', () => ({
   PromptEditor: () => <div data-testid="prompt-editor" />,
 }));
 
 vi.mock('@/components/intelligence/prompt-version-sidebar', () => ({
   PromptVersionSidebar: () => <div data-testid="prompt-version-sidebar" />,
+}));
+
+vi.mock('@/components/intelligence/prompt-refinement/refinement-panel', () => ({
+  RefinementPanel: () => <div data-testid="refinement-panel" />,
 }));
 
 // Import AFTER mocks
@@ -71,31 +104,58 @@ function configureRole(role: 'admin' | 'editor' | 'viewer' | null) {
   });
 }
 
-describe('PromptsPage — role gate (S157 WP2)', () => {
+/**
+ * Returns a mutation stand-in shaped like TanStack Query's useMutation
+ * result. Minimal — tests only check that the refinement panel is or
+ * isn't rendered based on role, not any of the mutation behaviour.
+ */
+function makeMutationStub() {
+  return {
+    mutate: vi.fn(),
+    mutateAsync: vi.fn(),
+    reset: vi.fn(),
+    data: undefined,
+    isPending: false,
+    isError: false,
+    isSuccess: false,
+    isIdle: true,
+    status: 'idle',
+    error: null,
+    variables: undefined,
+    context: undefined,
+    failureCount: 0,
+    failureReason: null,
+    submittedAt: 0,
+  };
+}
+
+describe('PromptsPage — role gate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseParams.mockReturnValue({ workspaceId: WORKSPACE_ID });
-    mockUseCreatePromptVersion.mockReturnValue({
-      mutate: vi.fn(),
-      isPending: false,
-    });
-    mockUseRollbackPrompt.mockReturnValue({
-      mutate: vi.fn(),
-      isPending: false,
-    });
+    mockUseCreatePromptVersion.mockReturnValue(makeMutationStub());
+    mockUseRollbackPrompt.mockReturnValue(makeMutationStub());
+    mockUseAnalyseFlags.mockReturnValue(makeMutationStub());
+    mockUseRescoringPreview.mockReturnValue(makeMutationStub());
+    mockUseResolveFlags.mockReturnValue(makeMutationStub());
     mockUseFeedPrompts.mockReturnValue({
       data: SAMPLE_PROMPTS,
       isLoading: false,
     });
+    mockUseWorkspaceFlags.mockReturnValue({
+      data: [],
+      isLoading: false,
+    });
   });
 
-  it('shows the forbidden state to viewers and does NOT render the editor', () => {
+  it('shows the forbidden state to viewers and does NOT render the refinement panel', () => {
     configureRole('viewer');
     render(<PromptsPage />);
 
     expect(
       screen.getByText(/don't have access to this section/i),
     ).toBeInTheDocument();
+    expect(screen.queryByTestId('refinement-panel')).not.toBeInTheDocument();
     expect(screen.queryByTestId('prompt-editor')).not.toBeInTheDocument();
     expect(
       screen.queryByTestId('prompt-version-sidebar'),
@@ -107,15 +167,25 @@ describe('PromptsPage — role gate (S157 WP2)', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('renders the editor for admins', () => {
+  it('renders the refinement panel + sidebar for admins', () => {
     configureRole('admin');
     render(<PromptsPage />);
 
     expect(
       screen.queryByText(/don't have access to this section/i),
     ).not.toBeInTheDocument();
-    expect(screen.getByTestId('prompt-editor')).toBeInTheDocument();
+    // Post-S158 WP1: the refinement panel is the primary interface.
+    // The raw editor lives behind an Advanced disclosure and is
+    // collapsed by default — the role-gate assertion should not depend
+    // on it being visible.
+    expect(screen.getByTestId('refinement-panel')).toBeInTheDocument();
     expect(screen.getByTestId('prompt-version-sidebar')).toBeInTheDocument();
+    // Advanced disclosure button is present but the editor itself is
+    // collapsed (not in the DOM via the conditional render).
+    expect(
+      screen.getByRole('button', { name: /advanced: edit prompt directly/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('prompt-editor')).not.toBeInTheDocument();
   });
 
   it('shows the forbidden state to editors — the prompts surface is admin-only at the UI layer', () => {
@@ -130,6 +200,7 @@ describe('PromptsPage — role gate (S157 WP2)', () => {
     expect(
       screen.getByText(/don't have access to this section/i),
     ).toBeInTheDocument();
+    expect(screen.queryByTestId('refinement-panel')).not.toBeInTheDocument();
     expect(screen.queryByTestId('prompt-editor')).not.toBeInTheDocument();
   });
 
