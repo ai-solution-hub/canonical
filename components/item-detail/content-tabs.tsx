@@ -77,10 +77,10 @@ export interface ContentTabsEditConfig {
 
 interface ContentTabsProps {
   itemId: string;
-  // AI-generated content
+  // Fallback summary (populated by the platform when no human brief exists)
   summaryData: SummaryData | null;
   aiSummary?: string | null;
-  // Human-authored progressive depth
+  // Progressive depth (authored)
   brief?: string | null;
   detail?: string | null;
   reference?: string | null;

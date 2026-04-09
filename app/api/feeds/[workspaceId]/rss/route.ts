@@ -74,7 +74,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       link: `${baseUrl}/intelligence/${workspaceId}`,
       description:
         workspace.description ??
-        `AI-filtered intelligence feed for ${workspace.name}`,
+        `Sector intelligence feed for ${workspace.name}`,
       language: 'en-GB',
       lastBuildDate: toRfc2822(new Date().toISOString()),
       ttl: 15,
