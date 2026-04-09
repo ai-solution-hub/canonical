@@ -18,6 +18,7 @@ import { bridgeTemporalReferencesToEntities } from '@/lib/entities/entity-metada
 import { normaliseTag } from '@/lib/validation/schemas';
 import { CLIENT_CONFIG, buildDisambiguationBlock } from '@/lib/client-config';
 import { sb } from '@/lib/supabase/safe';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 
 // ──────────────────────────────────────────
 // Identifier exclusion patterns
@@ -1070,6 +1071,41 @@ ${contentForClassification}`,
   // Load entity aliases from DB before entity/relationship storage
   await loadAliases(supabase);
 
+  // Step 13a: Delete any existing entity_mentions for this item before
+  // re-inserting. Classification has already succeeded at this point
+  // (content_items has been updated above), so re-entity storage must
+  // reflect the CURRENT classifier state — not a merge of current output
+  // with rows left over from prior runs. The previous upsert was gated on
+  // `ignoreDuplicates: true` with `onConflict:
+  // 'canonical_name,entity_type,content_item_id'`, which meant rows
+  // extracted under an older filter rule set (e.g. before S143 filter
+  // expansions, before S157 WP2 post-canonicalise filter) were never
+  // evicted — they stayed in entity_mentions indefinitely. This caused
+  // eval runs to score against stale data (confirmed in S157 WP2
+  // investigation: 327 stale rows on the 67-item fixture when the fresh
+  // classifier would have produced only the post-filter set).
+  //
+  // Re-classification is the explicit intent of any caller reaching this
+  // block — they've already burnt the cost of Pass 1 + Pass 2. Wiping
+  // and re-inserting is the only correct semantic. No FKs point at
+  // entity_mentions (verified S157 WP2).
+  //
+  // Non-blocking: a delete failure should NOT break classification.
+  const { error: deleteExistingError } = await supabase
+    .from('entity_mentions')
+    .delete()
+    .eq('content_item_id', itemId);
+  if (deleteExistingError) {
+    logBestEffortWarn(
+      'classify.entity.delete_existing_failed',
+      'Failed to delete existing entity_mentions before re-insert',
+      {
+        itemId,
+        error: deleteExistingError.message,
+      },
+    );
+  }
+
   if (result.entities?.length) {
     try {
       // Step 14a: Apply deterministic filters FIRST (free, instant, high precision)
@@ -1124,12 +1160,59 @@ ${contentForClassification}`,
         };
       });
 
-      if (entityRows.length > 0) {
+      // Step 15a: Second filter pass on CANONICALISED entityRows before upsert.
+      //
+      // Closes the D-Q4 paradox (see
+      // `docs/audits/s154-entity-classification-diagnostic-report.md` §D-Q4):
+      // the Step 14a filter runs on Claude's raw `result.entities` BEFORE
+      // `canonicalise()` + `resolveAlias()` + `.toLowerCase()`, so classifier
+      // outputs with non-normalised canonical_names (e.g. "encryption
+      // processes", "Data Protection Impact Assessments") slip through and
+      // are only normalised at storage time — AFTER the filter has already
+      // run. Direct unit tests confirm `shouldExcludeEntity` catches
+      // "encryption" / "penetration testing" when given exact canonical
+      // names, but the live pipeline stored them anyway because the
+      // pre-canonicalise form didn't match.
+      //
+      // The fix is belt-and-braces: keep Step 14a (so Pass 2 doesn't waste
+      // tokens on pre-filtered items) AND re-filter here on the
+      // canonicalised form. Any entity the filter catches here is logged
+      // via logBestEffortWarn for Sentry observability so we can track the
+      // canonical-drift population over time.
+      const filteredEntityRows = entityRows.filter((row) => {
+        const excluded = shouldExcludeEntity({
+          name: row.entity_name,
+          type: row.entity_type,
+          canonical_name: row.canonical_name,
+        });
+        if (excluded) {
+          logBestEffortWarn(
+            'classify.entity.post_canonical_filter_drop',
+            `Post-canonicalise filter dropped entity missed by pre-canonicalise filter`,
+            {
+              itemId,
+              entityName: row.entity_name,
+              entityType: row.entity_type,
+              canonicalName: row.canonical_name,
+            },
+          );
+        }
+        return !excluded;
+      });
+
+      if (filteredEntityRows.length > 0) {
+        // INSERT (not upsert) is safe here because Step 13a already
+        // deleted any existing rows for this content_item_id.
+        // onConflict/ignoreDuplicates were load-bearing previously when
+        // stale rows could exist — with the delete-before-insert pattern
+        // they are no longer needed. Keeping onConflict as a last-line
+        // safety net in case two concurrent classify calls race on the
+        // same item; the classifier_item_id branch isolates them per row.
         const { error: entityError } = await supabase
           .from('entity_mentions')
-          .upsert(entityRows, {
+          .upsert(filteredEntityRows, {
             onConflict: 'canonical_name,entity_type,content_item_id',
-            ignoreDuplicates: true,
+            ignoreDuplicates: false,
           });
 
         if (entityError) {

@@ -435,6 +435,12 @@ describe('classifyContent — entity extraction', () => {
 
       // Verify entity_mentions upsert was called
       expect(mockSupabase.from).toHaveBeenCalledWith('entity_mentions');
+      // Post-S157 WP2: also verify delete-before-insert fires on
+      // re-classification. The classify.ts Step 13a clears any stale
+      // rows for this content_item_id before the filtered upsert so
+      // that entity_mentions always reflects the CURRENT classifier
+      // state, not an accumulation of prior filter-rule drafts.
+      expect(mockSupabase._chain.delete).toHaveBeenCalled();
       expect(mockSupabase._chain.upsert).toHaveBeenCalledWith(
         expect.arrayContaining([
           expect.objectContaining({
@@ -447,7 +453,7 @@ describe('classifyContent — entity extraction', () => {
         ]),
         {
           onConflict: 'canonical_name,entity_type,content_item_id',
-          ignoreDuplicates: true,
+          ignoreDuplicates: false,
         },
       );
     });
@@ -564,7 +570,14 @@ describe('classifyContent — entity extraction', () => {
       consoleSpy.mockRestore();
     });
 
-    it('skips entity storage when entities array is empty', async () => {
+    it('wipes stale entity_mentions even when new entities array is empty', async () => {
+      // Post-S157 WP2: when re-classification produces 0 entities, any
+      // stale rows from prior runs must still be deleted — the correct
+      // state for "classifier extracted nothing now" is "zero rows",
+      // not "whatever was there before". Entity_relationships follows
+      // the old skip-on-empty rule since there is no equivalent stale-
+      // data accumulation vector (relationships key off `source_item_id`
+      // and are inserted, not upserted).
       mockCreate.mockResolvedValueOnce(
         createToolUseResponse({
           ...baseClassificationInput,
@@ -580,11 +593,16 @@ describe('classifyContent — entity extraction', () => {
         userId: USER_ID,
       });
 
-      // entity_mentions should not be called (empty array is falsy for .length)
       const fromCalls = mockSupabase.from.mock.calls.map(
         (c: unknown[]) => c[0],
       );
-      expect(fromCalls).not.toContain('entity_mentions');
+      // entity_mentions IS called for the delete path.
+      expect(fromCalls).toContain('entity_mentions');
+      expect(mockSupabase._chain.delete).toHaveBeenCalled();
+      // But upsert is NOT called (no rows to insert).
+      expect(mockSupabase._chain.upsert).not.toHaveBeenCalled();
+      // entity_relationships is skipped entirely when the relationships
+      // array is empty.
       expect(fromCalls).not.toContain('entity_relationships');
     });
 
