@@ -23,7 +23,7 @@ export default function PromptsPage() {
 
   const [viewingText, setViewingText] = useState<string | null>(null);
 
-  if (role !== null && role !== 'admin' && role !== 'editor') {
+  if (role !== null && role !== 'admin') {
     return (
       <div className="flex flex-col items-center justify-center rounded-lg border bg-card p-12 text-center shadow-sm">
         <p className="text-sm text-muted-foreground">

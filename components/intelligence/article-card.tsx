@@ -5,6 +5,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ExternalLink, Flag, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  getRelevanceColourClass,
+  getRelevanceLabel,
+} from '@/lib/intelligence/relevance-display';
 import type {
   FeedArticle,
   ArticleTab,
@@ -25,25 +29,6 @@ function formatDate(dateString: string | null): string {
     month: '2-digit',
     year: 'numeric',
   });
-}
-
-function getRelevanceColourClass(score: number | null): string {
-  if (score === null) return '';
-  if (score >= 0.8)
-    return 'bg-[var(--color-relevance-high)] text-[var(--color-relevance-high-text)]';
-  if (score >= 0.5)
-    return 'bg-[var(--color-relevance-medium)] text-[var(--color-relevance-medium-text)]';
-  if (score >= 0.2)
-    return 'bg-[var(--color-relevance-low)] text-[var(--color-relevance-low-text)]';
-  return 'bg-[var(--color-relevance-irrelevant)] text-[var(--color-relevance-irrelevant-text)]';
-}
-
-function getRelevanceLabel(score: number | null): string {
-  if (score === null) return 'Not sorted';
-  if (score >= 0.8) return 'Strong match';
-  if (score >= 0.5) return 'Partial match';
-  if (score >= 0.2) return 'Weak match';
-  return 'Off-topic';
 }
 
 export function ArticleCard({

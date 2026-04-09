@@ -118,14 +118,19 @@ describe('PromptsPage — role gate (S157 WP2)', () => {
     expect(screen.getByTestId('prompt-version-sidebar')).toBeInTheDocument();
   });
 
-  it('renders the editor for editors (API layer allows editor writes)', () => {
+  it('shows the forbidden state to editors — the prompts surface is admin-only at the UI layer', () => {
+    // S157 adversarial verification (verifier 1) caught a gating bug in
+    // the initial WP2 guard: the sub-nav hides the `Filter rules` tab from
+    // editors (`adminOnly: true`) but the route guard only forbade viewers,
+    // so editors could direct-navigate and see the editor. Tightened to
+    // admin-only here and in the route guard to match the stated intent.
     configureRole('editor');
     render(<PromptsPage />);
 
     expect(
-      screen.queryByText(/don't have access to this section/i),
-    ).not.toBeInTheDocument();
-    expect(screen.getByTestId('prompt-editor')).toBeInTheDocument();
+      screen.getByText(/don't have access to this section/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('prompt-editor')).not.toBeInTheDocument();
   });
 
   it('does not flash the forbidden state while the role is loading', () => {

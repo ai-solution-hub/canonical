@@ -61,7 +61,7 @@ export function PromptEditor({
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-foreground">
-            Relevance rules
+            Filter rules
           </h2>
           {currentPrompt && (
             <p className="text-xs text-muted-foreground">

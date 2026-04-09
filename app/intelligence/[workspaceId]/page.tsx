@@ -19,6 +19,7 @@ import { useIntelligenceMetrics } from '@/hooks/intelligence/use-intelligence-me
 import { useIntelligenceWorkspace } from '@/hooks/intelligence/use-intelligence-workspaces';
 import { useFeedArticles } from '@/hooks/intelligence/use-feed-articles';
 import { useUserRole } from '@/hooks/use-user-role';
+import { getRelevanceLabel } from '@/lib/intelligence/relevance-display';
 
 export default function WorkspaceOverviewPage() {
   const params = useParams();
@@ -116,7 +117,7 @@ export default function WorkspaceOverviewPage() {
                     )}
                     {article.relevance_score !== null && (
                       <span className="text-xs text-muted-foreground">
-                        {(article.relevance_score * 100).toFixed(0)}% relevant
+                        {getRelevanceLabel(article.relevance_score)}
                       </span>
                     )}
                   </div>
