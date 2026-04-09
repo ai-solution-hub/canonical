@@ -1,5 +1,3 @@
-import { formatSimilarity } from '@/lib/format';
-
 interface SimilarityBadgeProps {
   score: number;
   className?: string;
@@ -29,10 +27,9 @@ export function SimilarityBadge({
 
   return (
     <span
-      className={`inline-flex items-baseline gap-1 text-xs font-medium ${colorClass} ${className}`}
+      className={`inline-flex items-baseline text-xs font-medium ${colorClass} ${className}`}
     >
-      <span>{formatSimilarity(score)}</span>
-      <span className="text-[10px] font-normal">{qualityLabel}</span>
+      {qualityLabel}
     </span>
   );
 }

@@ -95,14 +95,13 @@ describe('ContentTabs — Flag for review', () => {
   // Visibility conditions
   // -----------------------------------------------------------------------
 
-  it('shows "Flag for review" button when canEdit, showSourceToggle, and summaryData are all truthy', () => {
+  it('shows "Flag for review" button when canEdit and summaryData are both truthy', () => {
     render(
       <ContentTabs
         itemId="item-1"
         summaryData={makeSummaryData()}
         contentType="article"
         canEdit={true}
-        showSourceToggle={true}
       />,
     );
     expect(
@@ -117,22 +116,6 @@ describe('ContentTabs — Flag for review', () => {
         summaryData={makeSummaryData()}
         contentType="article"
         canEdit={false}
-        showSourceToggle={true}
-      />,
-    );
-    expect(
-      screen.queryByLabelText('Flag summary for review'),
-    ).not.toBeInTheDocument();
-  });
-
-  it('hides "Flag for review" button when showSourceToggle is false', () => {
-    render(
-      <ContentTabs
-        itemId="item-1"
-        summaryData={makeSummaryData()}
-        contentType="article"
-        canEdit={true}
-        showSourceToggle={false}
       />,
     );
     expect(
@@ -147,7 +130,6 @@ describe('ContentTabs — Flag for review', () => {
         summaryData={null}
         contentType="article"
         canEdit={true}
-        showSourceToggle={true}
       />,
     );
     expect(
@@ -168,7 +150,6 @@ describe('ContentTabs — Flag for review', () => {
         summaryData={makeSummaryData()}
         contentType="article"
         canEdit={true}
-        showSourceToggle={true}
       />,
     );
 
@@ -199,7 +180,6 @@ describe('ContentTabs — Flag for review', () => {
         summaryData={makeSummaryData()}
         contentType="article"
         canEdit={true}
-        showSourceToggle={true}
       />,
     );
 
@@ -241,7 +221,6 @@ describe('ContentTabs — Flag for review', () => {
         summaryData={makeSummaryData()}
         contentType="article"
         canEdit={true}
-        showSourceToggle={true}
       />,
     );
 
@@ -278,7 +257,6 @@ describe('ContentTabs — Flag for review', () => {
         summaryData={makeSummaryData()}
         contentType="article"
         canEdit={true}
-        showSourceToggle={true}
       />,
     );
 
@@ -321,7 +299,6 @@ describe('ContentTabs — Flag for review', () => {
         summaryData={makeSummaryData()}
         contentType="article"
         canEdit={true}
-        showSourceToggle={true}
       />,
     );
 
@@ -358,7 +335,6 @@ describe('ContentTabs — Flag for review', () => {
         summaryData={makeSummaryData()}
         contentType="article"
         canEdit={true}
-        showSourceToggle={true}
       />,
     );
 
@@ -386,7 +362,6 @@ describe('ContentTabs — Flag for review', () => {
         summaryData={makeSummaryData()}
         contentType="article"
         canEdit={true}
-        showSourceToggle={true}
       />,
     );
 
@@ -416,7 +391,6 @@ describe('ContentTabs — Flag for review', () => {
         summaryData={makeSummaryData()}
         contentType="article"
         canEdit={true}
-        showSourceToggle={true}
       />,
     );
 
@@ -453,7 +427,6 @@ describe('ContentTabs — Flag for review', () => {
         summaryData={makeSummaryData()}
         contentType="article"
         canEdit={true}
-        showSourceToggle={true}
       />,
     );
 

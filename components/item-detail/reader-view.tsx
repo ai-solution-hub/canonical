@@ -135,7 +135,6 @@ export function ReaderView({
       highlights={highlights}
       frameable={item.metadata?.frameable === true}
       canEdit={false}
-      showSourceToggle={false}
       className="mb-6"
     />
   );

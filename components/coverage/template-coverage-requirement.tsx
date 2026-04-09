@@ -81,7 +81,6 @@ export function TemplateCoverageRequirement({
   description,
   requirementType,
   coverageStatus,
-  bestSimilarityScore,
   contentLengthMet,
   matchingContentIds,
 }: TemplateCoverageRequirementProps) {
@@ -120,11 +119,8 @@ export function TemplateCoverageRequirement({
         <TooltipContent side="left">
           <p className="text-xs">
             {config.label}
-            {coverageStatus !== 'na' && (
-              <>
-                {' '}— similarity {(bestSimilarityScore * 100).toFixed(0)}%
-                {!contentLengthMet && coverageStatus !== 'gap' && ', content below length threshold'}
-              </>
+            {coverageStatus !== 'na' && !contentLengthMet && coverageStatus !== 'gap' && (
+              <> — content below length threshold</>
             )}
           </p>
         </TooltipContent>
