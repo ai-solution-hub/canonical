@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -27,10 +26,9 @@ export default function WorkspaceOverviewPage() {
   const { role } = useUserRole();
   const isAdmin = role === 'admin';
 
-  const [period, setPeriod] = useState('30d');
   const { data: metrics, isLoading: metricsLoading } = useIntelligenceMetrics(
     workspaceId,
-    period,
+    '30d',
   );
   const { data: workspace } = useIntelligenceWorkspace(workspaceId);
   const guideId = workspace?.domain_metadata?.guide_id;
@@ -70,11 +68,7 @@ export default function WorkspaceOverviewPage() {
       {/* Metrics panel */}
       {metrics && (
         <div className="rounded-lg border bg-card p-4 shadow-sm">
-          <MetricsPanel
-            metrics={metrics}
-            currentPeriod={period}
-            onPeriodChange={setPeriod}
-          />
+          <MetricsPanel metrics={metrics} />
         </div>
       )}
 
@@ -187,7 +181,7 @@ export default function WorkspaceOverviewPage() {
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">
-              No unresolved flags. The scoring prompt is performing well.
+              No unresolved flags. No false positives or false negatives flagged.
             </p>
           )}
         </div>

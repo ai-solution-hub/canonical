@@ -45,8 +45,8 @@ export default function IntelligencePage() {
             Intelligence
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Configure and monitor AI-filtered sector and competitor intelligence
-            feeds.
+            Monitor sector and competitor news feeds, filtered against your
+            company profile.
           </p>
         </div>
         {canEdit && (

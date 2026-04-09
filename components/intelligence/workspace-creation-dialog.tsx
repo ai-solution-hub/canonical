@@ -152,7 +152,8 @@ export function WorkspaceCreationDialog({
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                The company profile provides context for AI relevance scoring.
+                The company profile defines what counts as relevant — sectors,
+                services, and topics that matter to you.
               </p>
             </div>
 

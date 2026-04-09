@@ -124,7 +124,7 @@ registerType({
   label: 'Intelligence Stream',
   labelPlural: 'Intelligence Streams',
   description:
-    'AI-filtered sector and competitor news feeds with configurable prompts',
+    'Sector and competitor news feeds tailored to your company profile.',
   icon: Newspaper,
   route: '/intelligence',
   available: true,

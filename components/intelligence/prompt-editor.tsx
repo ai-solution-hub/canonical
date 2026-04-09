@@ -61,7 +61,7 @@ export function PromptEditor({
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-foreground">
-            Scoring Prompt
+            Relevance rules
           </h2>
           {currentPrompt && (
             <p className="text-xs text-muted-foreground">
@@ -112,7 +112,7 @@ export function PromptEditor({
         readOnly={!isEditing}
         rows={16}
         className="font-mono text-sm"
-        placeholder="Enter the scoring prompt text..."
+        placeholder="Enter the relevance rules..."
         aria-label="Prompt text"
       />
 
@@ -135,8 +135,9 @@ export function PromptEditor({
       {/* Explanation text */}
       {!isEditing && (
         <p className="text-xs text-muted-foreground">
-          This prompt guides the AI when scoring articles for relevance. Changes
-          create a new version and take effect on the next pipeline poll.
+          These rules determine which articles are kept in this workspace&apos;s
+          feed. Saving creates a new version that takes effect on the next
+          refresh.
         </p>
       )}
     </div>

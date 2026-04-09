@@ -104,9 +104,9 @@ function FeedRow({ label, description, url, sensitive = false }: FeedRowProps) {
             aria-hidden="true"
           />
           <span>
-            Filtered feed exposes relevance reasoning — share only with internal
-            stakeholders. A competitor subscribing to this URL could learn what
-            you monitor and how you evaluate it.
+            This feed shows borderline articles and the criteria they were
+            judged against — share only with internal stakeholders. A
+            competitor subscribing to this URL could learn what you monitor.
           </span>
         </p>
       )}
@@ -136,7 +136,7 @@ export function RssFeedPanel({
       <div className="space-y-2">
         <FeedRow
           label="Passed Articles"
-          description={`AI-filtered intelligence for ${workspaceName}`}
+          description={`Sector intelligence for ${workspaceName}`}
           url={passedUrl}
         />
         <FeedRow

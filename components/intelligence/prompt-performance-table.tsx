@@ -84,8 +84,8 @@ export function PromptPerformanceTable({
               <td className="px-3 py-2 text-right text-muted-foreground">
                 {row.total_flags > 0 ? (
                   <span>
-                    {row.false_positive_flags} FP / {row.false_negative_flags}{' '}
-                    FN
+                    {row.false_positive_flags} wrongly kept /{' '}
+                    {row.false_negative_flags} missed
                   </span>
                 ) : (
                   '\u2014'
@@ -107,7 +107,7 @@ export function PromptPerformanceTable({
                 {row.is_active ? (
                   <Badge
                     variant="outline"
-                    className="border-success/30 bg-success/10 text-[10px] text-success"
+                    className="border-status-success/30 bg-status-success/10 text-[10px] text-status-success"
                   >
                     Active
                   </Badge>

@@ -39,11 +39,11 @@ function getRelevanceColourClass(score: number | null): string {
 }
 
 function getRelevanceLabel(score: number | null): string {
-  if (score === null) return 'Unknown';
-  if (score >= 0.8) return 'High match';
-  if (score >= 0.5) return 'Medium match';
-  if (score >= 0.2) return 'Low match';
-  return 'Weak match';
+  if (score === null) return 'Not sorted';
+  if (score >= 0.8) return 'Strong match';
+  if (score >= 0.5) return 'Partial match';
+  if (score >= 0.2) return 'Weak match';
+  return 'Off-topic';
 }
 
 export function ArticleCard({
@@ -56,7 +56,7 @@ export function ArticleCard({
 
   const reasoning =
     tab === 'passed' ? article.ai_summary : article.relevance_reasoning;
-  const reasoningLabel = tab === 'passed' ? 'Summary' : 'Relevance reasoning';
+  const reasoningLabel = tab === 'passed' ? 'Summary' : 'Why filtered';
 
   return (
     <div className="rounded-lg border bg-card p-4 shadow-sm">

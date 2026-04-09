@@ -76,8 +76,8 @@ export function MetricsPanel({ metrics }: MetricsPanelProps) {
             {metrics.total_flags}
           </p>
           <div className="mt-0.5 flex gap-2 text-xs text-muted-foreground">
-            <span>FP: {metrics.false_positive_flags}</span>
-            <span>FN: {metrics.false_negative_flags}</span>
+            <span>Wrongly kept: {metrics.false_positive_flags}</span>
+            <span>Missed: {metrics.false_negative_flags}</span>
           </div>
         </div>
 
@@ -113,7 +113,7 @@ export function MetricsPanel({ metrics }: MetricsPanelProps) {
           {metrics.active_sources > 0 && (
             <Badge
               variant="outline"
-              className="h-4 border-success/30 bg-success/10 px-1 text-[10px] text-success"
+              className="h-4 border-status-success/30 bg-status-success/10 px-1 text-[10px] text-status-success"
             >
               OK
             </Badge>
