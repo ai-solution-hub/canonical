@@ -22,7 +22,11 @@ vi.mock('@/lib/intelligence/rate-limiter', () => ({
   },
 }));
 
-import { pollFeed, parseFeedItems } from '@/lib/intelligence/feed-poller';
+import {
+  pollFeed,
+  parseFeedItems,
+  normaliseFeedTitle,
+} from '@/lib/intelligence/feed-poller';
 
 // Mock global fetch
 const mockFetch = vi.fn();
@@ -47,6 +51,47 @@ const ATOM_FEED = `<?xml version="1.0" encoding="UTF-8"?>
     <summary type="html">&lt;p&gt;Pupil premium allocations.&lt;/p&gt;</summary>
   </entry>
 </feed>`;
+
+describe('normaliseFeedTitle', () => {
+  it('collapses literal newlines to single spaces', () => {
+    expect(normaliseFeedTitle('Diocese of\nPortsmouth')).toBe(
+      'Diocese of Portsmouth',
+    );
+  });
+
+  it('handles CRLF (\\r\\n) whitespace', () => {
+    expect(normaliseFeedTitle('Diocese of\r\nPortsmouth')).toBe(
+      'Diocese of Portsmouth',
+    );
+  });
+
+  it('collapses multiple spaces to one', () => {
+    expect(normaliseFeedTitle('Diocese    of   Portsmouth')).toBe(
+      'Diocese of Portsmouth',
+    );
+  });
+
+  it('trims leading and trailing whitespace', () => {
+    expect(normaliseFeedTitle('  Diocese of Portsmouth  ')).toBe(
+      'Diocese of Portsmouth',
+    );
+  });
+
+  it('collapses mixed tabs, newlines and spaces', () => {
+    expect(normaliseFeedTitle('\t Diocese \n of \r\n Portsmouth \t')).toBe(
+      'Diocese of Portsmouth',
+    );
+  });
+
+  it('returns empty string for null/undefined', () => {
+    expect(normaliseFeedTitle(null)).toBe('');
+    expect(normaliseFeedTitle(undefined)).toBe('');
+  });
+
+  it('returns empty string for whitespace-only input', () => {
+    expect(normaliseFeedTitle('   \n\t  ')).toBe('');
+  });
+});
 
 describe('parseFeedItems', () => {
   it('parses Atom feed items into ParsedFeedItem shape', async () => {

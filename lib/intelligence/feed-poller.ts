@@ -7,6 +7,17 @@ import { RateLimitError, getGlobalRateLimiter } from './rate-limiter';
 const USER_AGENT =
   'KnowledgeHub/1.0 (+https://knowledge-hub-seven-kappa.vercel.app)';
 
+/**
+ * Normalise a feed title by collapsing whitespace (newlines, tabs, multiple
+ * spaces) to single spaces and trimming. Some publishers (e.g. Diocese of
+ * Portsmouth) emit titles with literal `\n` characters that break downstream
+ * rendering. Exported for unit testing.
+ */
+export function normaliseFeedTitle(title: string | null | undefined): string {
+  if (!title) return '';
+  return title.replace(/\s+/g, ' ').trim();
+}
+
 const parser = new Parser({
   customFields: {
     item: [
@@ -59,7 +70,7 @@ export async function parseFeedItems(xml: string): Promise<ParsedFeedItem[]> {
     const atomCats = atomCategories.get(itemId) ?? [];
     const allCategories = [...new Set([...rssCategories, ...atomCats])];
     return {
-      title: item.title ?? 'Untitled',
+      title: normaliseFeedTitle(item.title) || 'Untitled',
       url: item.link ?? '',
       guid: item.guid ?? (rawItem.id as string) ?? null,
       publishedAt: item.isoDate ?? null,
@@ -124,7 +135,7 @@ export async function validateFeedUrl(
       const feed = await parser.parseString(xml);
       return {
         valid: true,
-        title: feed.title ?? undefined,
+        title: feed.title ? normaliseFeedTitle(feed.title) : undefined,
         articleCount: feed.items?.length ?? 0,
       };
     } catch {
