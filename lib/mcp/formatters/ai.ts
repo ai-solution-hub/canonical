@@ -14,12 +14,17 @@ export function formatClassification(result: ClassificationResult): string {
     '',
     `**Title:** ${result.suggested_title}`,
     `**Domain:** ${result.primary_domain}`,
-    `**Subtopic:** ${result.primary_subtopic}`,
+    // S159 WP4a made ClassificationResult.primary_subtopic `string | null`
+    // (classifier coerces empty strings to null). Render em dash for null.
+    `**Subtopic:** ${result.primary_subtopic ?? '—'}`,
     `**Confidence:** ${Math.round(result.classification_confidence * 100)}%`,
   ];
 
   if (result.secondary_domain) {
     lines.push(`**Secondary domain:** ${result.secondary_domain}`);
+  }
+  if (result.secondary_subtopic) {
+    lines.push(`**Secondary subtopic:** ${result.secondary_subtopic}`);
   }
 
   if (result.ai_keywords.length > 0) {
