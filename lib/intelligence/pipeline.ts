@@ -2,6 +2,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 import { sb } from '@/lib/supabase/safe';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { pollFeed } from './feed-poller';
 import {
   extractContent,
@@ -679,30 +680,25 @@ export async function runPipeline(
   const feedResults: FeedProcessingResult[] = [];
   const errors: string[] = [];
 
+  // SI-M2 (§2.1.8): group sources by workspace_id so per-workspace context,
+  // active prompt, and company embedding are loaded ONCE per workspace per
+  // pipeline run instead of once per source. Map preserves insertion order, so
+  // sources still process in source-list order — just grouped by workspace.
+  const sourcesByWorkspace = new Map<string, FeedSource[]>();
   for (const source of sources) {
-    // Create queue entry
-    const queueEntry = await sb(
-      supabase
-        .from('si_processing_queue')
-        .insert({
-          workspace_id: source.workspace_id,
-          feed_source_id: source.id,
-          status: 'processing',
-          started_at: new Date().toISOString(),
-        })
-        .select('id')
-        .single(),
-      'intelligence.pipeline.queue.insert',
-    );
+    const existing = sourcesByWorkspace.get(source.workspace_id) ?? [];
+    existing.push(source);
+    sourcesByWorkspace.set(source.workspace_id, existing);
+  }
 
+  // Outer loop: per workspace — load context/prompt/embedding once
+  for (const [workspaceId, workspaceSources] of sourcesByWorkspace) {
     // Load company context and workspace settings for this workspace
-    const { companyContext, relevanceThreshold, profileId } = await loadWorkspaceContext(
-      supabase,
-      source.workspace_id,
-    );
+    const { companyContext, relevanceThreshold, profileId } =
+      await loadWorkspaceContext(supabase, workspaceId);
 
     // Load active prompt for this workspace (fetched once, passed to all articles)
-    const activePrompt = await getActivePrompt(supabase, source.workspace_id);
+    const activePrompt = await getActivePrompt(supabase, workspaceId);
 
     // Load or generate company embedding for pre-filter (cached in DB)
     let companyEmbedding: number[] | null = null;
@@ -714,39 +710,66 @@ export async function runPipeline(
           companyContext,
         );
       } catch (err) {
-        // Pre-filter unavailable — skip it, still do LLM scoring
-        console.error(
-          `[Pipeline] Company embedding generation failed for workspace ${source.workspace_id}:`,
-          err instanceof Error ? err.message : String(err),
+        // Pre-filter unavailable — skip it, still do LLM scoring. Crucially,
+        // do NOT short-circuit the workspace iteration: this workspace's
+        // sources still process (with `companyEmbedding = null`) and other
+        // workspaces are unaffected.
+        companyEmbedding = null;
+        logBestEffortWarn(
+          'intelligence.pipeline.embedding.load',
+          'Company embedding generation failed',
+          {
+            workspaceId,
+            error: err instanceof Error ? err.message : String(err),
+          },
         );
       }
     }
 
-    // Process the feed
-    const feedResult = await processFeedSource(
-      supabase,
-      source,
-      companyContext,
-      companyEmbedding,
-      activePrompt,
-      relevanceThreshold,
-    );
-    feedResults.push(feedResult);
-    errors.push(...feedResult.errors);
+    // Inner loop: per source within the workspace — reuse the hoisted loads
+    for (const source of workspaceSources) {
+      // Create queue entry (preserved at per-source level — see Gotchas in
+      // docs/specs/si-hardening-company-embedding-hoist.md §Queue ordering)
+      const queueEntry = await sb(
+        supabase
+          .from('si_processing_queue')
+          .insert({
+            workspace_id: source.workspace_id,
+            feed_source_id: source.id,
+            status: 'processing',
+            started_at: new Date().toISOString(),
+          })
+          .select('id')
+          .single(),
+        'intelligence.pipeline.queue.insert',
+      );
 
-    // Update queue entry
-    await supabase
-      .from('si_processing_queue')
-      .update({
-        status: feedResult.errors.length > 0 ? 'failed' : 'complete',
-        completed_at: new Date().toISOString(),
-        error_message:
-          feedResult.errors.length > 0 ? feedResult.errors.join('; ') : null,
-        articles_found: feedResult.articlesFound,
-        articles_new: feedResult.articlesNew,
-        articles_passed: feedResult.articlesPassed,
-      })
-      .eq('id', queueEntry.id);
+      // Process the feed
+      const feedResult = await processFeedSource(
+        supabase,
+        source,
+        companyContext,
+        companyEmbedding,
+        activePrompt,
+        relevanceThreshold,
+      );
+      feedResults.push(feedResult);
+      errors.push(...feedResult.errors);
+
+      // Update queue entry
+      await supabase
+        .from('si_processing_queue')
+        .update({
+          status: feedResult.errors.length > 0 ? 'failed' : 'complete',
+          completed_at: new Date().toISOString(),
+          error_message:
+            feedResult.errors.length > 0 ? feedResult.errors.join('; ') : null,
+          articles_found: feedResult.articlesFound,
+          articles_new: feedResult.articlesNew,
+          articles_passed: feedResult.articlesPassed,
+        })
+        .eq('id', queueEntry.id);
+    }
   }
 
   return {
