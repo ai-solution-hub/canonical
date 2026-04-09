@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { Network, Loader2 } from 'lucide-react';
+import { Network, Loader2, RotateCcw } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { getDisplayTitle } from '@/lib/format';
 import { DomainBadge } from '@/components/shared/domain-badge';
+import { Button } from '@/components/ui/button';
+import { captureClientException } from '@/lib/client-telemetry';
 
 interface RelatedItem {
   id: string;
@@ -25,6 +27,35 @@ interface RelatedByEntitiesProps {
   className?: string;
 }
 
+function ErrorState({
+  onRetry,
+  className,
+}: {
+  onRetry: () => void;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <h3 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+        <Network className="size-4" aria-hidden="true" />
+        Related by Shared Entities
+      </h3>
+      <div className="mt-2 rounded-lg border bg-card p-4 text-sm text-muted-foreground">
+        <p className="mb-3">Couldn&apos;t load related items. Please try again.</p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onRetry}
+          className="gap-1.5"
+        >
+          <RotateCcw className="size-3.5" aria-hidden="true" />
+          Retry
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /**
  * Shows up to N content items that share the most entities with the current item.
  * Only renders if the current item has entities AND there are related items.
@@ -37,9 +68,12 @@ export function RelatedByEntities({
 }: RelatedByEntitiesProps) {
   const [items, setItems] = useState<RelatedItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
 
-  useEffect(() => {
-    const fetchRelated = async () => {
+  const fetchRelated = useCallback(async () => {
+    setError(null);
+    setLoading(true);
+    try {
       const supabase = createClient();
 
       // Step 1: Get entities for this item
@@ -49,13 +83,16 @@ export function RelatedByEntities({
         .eq('content_item_id', contentItemId);
 
       if (entError) {
-        console.error(
-          'RelatedByEntities: failed to fetch entities for item:',
-          entError,
+        captureClientException(entError, {
+          scope: 'item-detail.related-by-entities.fetchItemEntities',
+          extras: { contentItemId },
+        });
+        setError(
+          entError instanceof Error ? entError : new Error(String(entError)),
         );
+        return;
       }
-      if (entError || !myEntities || myEntities.length === 0) {
-        setLoading(false);
+      if (!myEntities || myEntities.length === 0) {
         return;
       }
 
@@ -72,13 +109,18 @@ export function RelatedByEntities({
         .neq('content_item_id', contentItemId);
 
       if (sharedError) {
-        console.error(
-          'RelatedByEntities: failed to fetch shared entity mentions:',
-          sharedError,
+        captureClientException(sharedError, {
+          scope: 'item-detail.related-by-entities.fetchSharedMentions',
+          extras: { contentItemId, entityCount: myEntityNames.length },
+        });
+        setError(
+          sharedError instanceof Error
+            ? sharedError
+            : new Error(String(sharedError)),
         );
+        return;
       }
-      if (sharedError || !sharedMentions || sharedMentions.length === 0) {
-        setLoading(false);
+      if (!sharedMentions || sharedMentions.length === 0) {
         return;
       }
 
@@ -106,7 +148,6 @@ export function RelatedByEntities({
         .slice(0, limit);
 
       if (topItems.length === 0) {
-        setLoading(false);
         return;
       }
 
@@ -121,13 +162,18 @@ export function RelatedByEntities({
         );
 
       if (detailError) {
-        console.error(
-          'RelatedByEntities: failed to fetch content item details:',
-          detailError,
+        captureClientException(detailError, {
+          scope: 'item-detail.related-by-entities.fetchItemDetails',
+          extras: { contentItemId, relatedIds: ids },
+        });
+        setError(
+          detailError instanceof Error
+            ? detailError
+            : new Error(String(detailError)),
         );
+        return;
       }
-      if (detailError || !details) {
-        setLoading(false);
+      if (!details) {
         return;
       }
 
@@ -149,11 +195,14 @@ export function RelatedByEntities({
         .filter((item): item is RelatedItem => item !== null);
 
       setItems(result);
+    } finally {
       setLoading(false);
-    };
-
-    fetchRelated();
+    }
   }, [contentItemId, limit]);
+
+  useEffect(() => {
+    fetchRelated();
+  }, [fetchRelated]);
 
   if (loading) {
     return (
@@ -162,6 +211,10 @@ export function RelatedByEntities({
         Finding related content by entities…
       </div>
     );
+  }
+
+  if (error) {
+    return <ErrorState className={className} onRetry={fetchRelated} />;
   }
 
   if (items.length === 0) {

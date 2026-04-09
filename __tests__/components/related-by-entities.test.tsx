@@ -378,31 +378,23 @@ describe('RelatedByEntities', () => {
   // ── Error handling for each of the 3 sequential queries ──
 
   it('handles error in step 1 (fetching own entities) gracefully', async () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    // S158 WP4: the component now surfaces failures via an inline error
+    // state + Retry button instead of silently rendering nothing.
     const fetchError = { message: 'Network error' };
 
     configureThreeQueries({ data: null, error: fetchError });
 
-    const { container } = render(<RelatedByEntities contentItemId="item-1" />);
+    render(<RelatedByEntities contentItemId="item-1" />);
 
     await waitFor(() => {
-      expect(consoleSpy).toHaveBeenCalledWith(
-        'RelatedByEntities: failed to fetch entities for item:',
-        fetchError,
-      );
+      expect(
+        screen.getByText(/couldn't load related items/i),
+      ).toBeInTheDocument();
     });
-
-    // Should render nothing
-    expect(
-      screen.queryByText('Related by Shared Entities'),
-    ).not.toBeInTheDocument();
-    expect(container.innerHTML).toBe('');
-
-    consoleSpy.mockRestore();
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
   });
 
   it('handles error in step 2 (fetching shared mentions) gracefully', async () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const sharedError = { message: 'Query failed' };
 
     configureThreeQueries(
@@ -410,22 +402,17 @@ describe('RelatedByEntities', () => {
       { data: null, error: sharedError },
     );
 
-    const { container } = render(<RelatedByEntities contentItemId="item-1" />);
+    render(<RelatedByEntities contentItemId="item-1" />);
 
     await waitFor(() => {
-      expect(consoleSpy).toHaveBeenCalledWith(
-        'RelatedByEntities: failed to fetch shared entity mentions:',
-        sharedError,
-      );
+      expect(
+        screen.getByText(/couldn't load related items/i),
+      ).toBeInTheDocument();
     });
-
-    expect(container.innerHTML).toBe('');
-
-    consoleSpy.mockRestore();
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
   });
 
   it('handles error in step 3 (fetching content details) gracefully', async () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const detailError = { message: 'Table not found' };
 
     configureThreeQueries(
@@ -437,18 +424,14 @@ describe('RelatedByEntities', () => {
       { data: null, error: detailError },
     );
 
-    const { container } = render(<RelatedByEntities contentItemId="item-1" />);
+    render(<RelatedByEntities contentItemId="item-1" />);
 
     await waitFor(() => {
-      expect(consoleSpy).toHaveBeenCalledWith(
-        'RelatedByEntities: failed to fetch content item details:',
-        detailError,
-      );
+      expect(
+        screen.getByText(/couldn't load related items/i),
+      ).toBeInTheDocument();
     });
-
-    expect(container.innerHTML).toBe('');
-
-    consoleSpy.mockRestore();
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
   });
 
   it('renders nothing when shared mentions exist but no content details match', async () => {

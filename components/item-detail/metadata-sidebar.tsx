@@ -34,6 +34,7 @@ import { ContentOwnerBadge } from '@/components/content/content-owner-badge';
 import { QualityScoreBreakdown } from '@/components/shared/quality-score-breakdown';
 import { useDisplayNames } from '@/hooks/use-display-names';
 import { createClient } from '@/lib/supabase/client';
+import { captureClientException } from '@/lib/client-telemetry';
 import { cn } from '@/lib/utils';
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
 
@@ -109,25 +110,31 @@ export function MetadataSidebar({
     fetchFlags();
   }, [item.id]);
 
-  const resolveFlag = useCallback(async (flagId: string) => {
-    try {
-      const res = await fetch('/api/quality', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ flag_id: flagId }),
-      });
-      if (res.ok) {
-        setQualityFlags((prev) => prev.filter((f) => f.id !== flagId));
-        toast.success('Quality flag resolved');
-      } else {
-        const data = await res.json();
-        toast.error(data.error ?? 'Failed to resolve flag');
+  const resolveFlag = useCallback(
+    async (flagId: string) => {
+      try {
+        const res = await fetch('/api/quality', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ flag_id: flagId }),
+        });
+        if (res.ok) {
+          setQualityFlags((prev) => prev.filter((f) => f.id !== flagId));
+          toast.success('Quality flag resolved');
+        } else {
+          const data = await res.json();
+          toast.error(data.error ?? 'Failed to resolve flag');
+        }
+      } catch (err) {
+        captureClientException(err, {
+          scope: 'item-detail.metadata-sidebar.resolveQualityFlag',
+          extras: { flagId, itemId: item.id },
+        });
+        toast.error('Failed to resolve quality flag');
       }
-    } catch (err) {
-      console.error('Failed to resolve quality flag:', err);
-      toast.error('Failed to resolve quality flag');
-    }
-  }, []);
+    },
+    [item.id],
+  );
 
   const createdByName = item.created_by
     ? (displayNames.get(item.created_by as string) ?? 'System')

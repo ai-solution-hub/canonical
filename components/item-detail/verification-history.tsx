@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   CheckCircle2,
   XCircle,
@@ -8,11 +8,14 @@ import {
   ChevronDown,
   ChevronUp,
   History,
+  RotateCcw,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
+import { captureClientException } from '@/lib/client-telemetry';
 import { useDisplayNames } from '@/hooks/use-display-names';
 import { formatRelativeTime } from '@/components/shared/verification-badge';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 // ---------------------------------------------------------------------------
@@ -127,9 +130,10 @@ export function VerificationHistory({
 }: VerificationHistoryProps) {
   const [entries, setEntries] = useState<VerificationHistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
 
-  useEffect(() => {
+  const fetchHistory = useCallback(() => {
     const supabase = createClient();
 
     Promise.resolve(
@@ -141,9 +145,17 @@ export function VerificationHistory({
         .eq('content_item_id', contentItemId)
         .order('performed_at', { ascending: false }),
     )
-      .then(({ data, error }) => {
-        if (error) {
-          console.error('Failed to load verification history:', error.message);
+      .then(({ data, error: fetchError }) => {
+        if (fetchError) {
+          captureClientException(fetchError, {
+            scope: 'item-detail.verification-history.loadError',
+            extras: { contentItemId },
+          });
+          setError(
+            fetchError instanceof Error
+              ? fetchError
+              : new Error(String(fetchError)),
+          );
           setIsLoading(false);
           return;
         }
@@ -151,10 +163,18 @@ export function VerificationHistory({
         setIsLoading(false);
       })
       .catch((err) => {
-        console.error('Failed to load verification history:', err);
+        captureClientException(err, {
+          scope: 'item-detail.verification-history.loadCatch',
+          extras: { contentItemId },
+        });
+        setError(err instanceof Error ? err : new Error(String(err)));
         setIsLoading(false);
       });
   }, [contentItemId]);
+
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
 
   // Collect all performer IDs for display name resolution
   const performerIds = entries.map((e) => e.performed_by);
@@ -164,6 +184,34 @@ export function VerificationHistory({
     return (
       <div className={cn('text-xs text-muted-foreground', className)}>
         Loading verification history...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div
+        className={cn(
+          'rounded-lg border bg-card p-4 text-sm text-muted-foreground',
+          className,
+        )}
+      >
+        <p className="mb-3">
+          Couldn&apos;t load verification history. Please try again.
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setError(null);
+            setIsLoading(true);
+            fetchHistory();
+          }}
+          className="gap-1.5"
+        >
+          <RotateCcw className="size-3.5" aria-hidden="true" />
+          Retry
+        </Button>
       </div>
     );
   }

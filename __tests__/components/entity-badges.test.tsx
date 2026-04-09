@@ -250,25 +250,22 @@ describe('EntityBadges', () => {
     expect(screen.getByText('Widgets:')).toBeInTheDocument();
   });
 
-  it('logs error and renders empty state on fetch error', async () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  it('renders error state with retry button on fetch error', async () => {
+    // S158 WP4: the component now surfaces failures via an inline error
+    // state + Retry button instead of silently falling through to the
+    // empty state.
     const fetchError = { message: 'Database error', code: '500' };
     configureFetchResult(null, fetchError);
 
     render(<EntityBadges contentItemId="item-1" />);
 
     await waitFor(() => {
-      expect(consoleSpy).toHaveBeenCalledWith(
-        'EntityBadges: failed to fetch entity mentions:',
-        fetchError,
-      );
+      expect(
+        screen.getByText(/couldn't load entities/i),
+      ).toBeInTheDocument();
     });
 
-    // Should render empty state on error (entities remains empty)
-    expect(
-      screen.getByText('No entities detected in this content.'),
-    ).toBeInTheDocument();
-    consoleSpy.mockRestore();
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
   });
 
   it('queries the correct table with the content item ID', async () => {

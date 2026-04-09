@@ -15,6 +15,7 @@ import { WorkspaceSelector } from '@/components/workspace/workspace-selector';
 import { UserTagInput } from '@/components/shared/user-tag-input';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { captureClientException } from '@/lib/client-telemetry';
 import Link from 'next/link';
 import type { Workspace } from '@/types/content';
 
@@ -217,7 +218,10 @@ function KeywordsRow({
         });
         if (!res.ok) throw new Error();
       } catch (err) {
-        console.error('Failed to remove keyword:', err);
+        captureClientException(err, {
+          scope: 'item-detail.organise-section.removeKeyword',
+          extras: { itemId, keyword },
+        });
         // Rollback handled by parent
         onKeywordsChanged(keywords);
       }
@@ -244,7 +248,10 @@ function KeywordsRow({
           });
           if (!res.ok) throw new Error();
         } catch (err) {
-          console.error('Failed to add keyword:', err);
+          captureClientException(err, {
+            scope: 'item-detail.organise-section.addKeyword',
+            extras: { itemId, keyword: val },
+          });
           onKeywordsChanged(keywords);
         }
       }

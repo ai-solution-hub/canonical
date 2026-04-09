@@ -16,6 +16,7 @@ import { VersionDiff } from '@/components/item-detail/version-diff';
 import { useDisplayNames } from '@/hooks/use-display-names';
 import { useUserRole } from '@/hooks/use-user-role';
 import { toast } from 'sonner';
+import { captureClientException } from '@/lib/client-telemetry';
 import { cn } from '@/lib/utils';
 
 interface VersionEntry {
@@ -102,6 +103,7 @@ export function VersionHistory({
   );
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [rollingBack, setRollingBack] = useState(false);
+  const [listError, setListError] = useState<Error | null>(null);
 
   // Collect all created_by UUIDs for display name resolution
   const creatorIds = versions.map((v) => v.created_by);
@@ -113,6 +115,7 @@ export function VersionHistory({
     if (loadingRef.current) return;
     loadingRef.current = true;
     setLoading(true);
+    setListError(null);
     try {
       const res = await fetch(`/api/items/${itemId}/history?limit=50`);
       if (!res.ok) throw new Error('Failed to fetch');
@@ -120,7 +123,11 @@ export function VersionHistory({
       setVersions(data.versions ?? []);
       setTotal(data.total ?? 0);
     } catch (err) {
-      console.error('Failed to load version history:', err);
+      captureClientException(err, {
+        scope: 'item-detail.version-history.loadList',
+        extras: { itemId },
+      });
+      setListError(err instanceof Error ? err : new Error(String(err)));
       toast.error('Failed to load version history');
     } finally {
       loadingRef.current = false;
@@ -150,7 +157,10 @@ export function VersionHistory({
       const data = await res.json();
       setVersionDetail(data);
     } catch (err) {
-      console.error('Failed to load version detail:', err);
+      captureClientException(err, {
+        scope: 'item-detail.version-history.loadDetail',
+        extras: { itemId, versionId },
+      });
       toast.error('Failed to load version detail');
       setExpandedVersion(null);
     } finally {
@@ -210,6 +220,21 @@ export function VersionHistory({
           {loading && versions.length === 0 ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="size-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : listError && versions.length === 0 ? (
+            <div className="px-4 py-6 text-sm text-muted-foreground">
+              <p className="mb-3">
+                Couldn&apos;t load version history. Please try again.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchVersions}
+                className="gap-1.5"
+              >
+                <RotateCcw className="size-3.5" aria-hidden="true" />
+                Retry
+              </Button>
             </div>
           ) : versions.length === 0 ? (
             <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">

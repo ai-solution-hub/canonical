@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { FileX } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { FileX, RotateCcw } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { captureClientException } from '@/lib/client-telemetry';
 
 interface EntityMention {
   id: string;
@@ -41,6 +43,36 @@ function getTypeLabel(entityType: string): string {
   );
 }
 
+function ErrorState({
+  onRetry,
+  message,
+  className,
+}: {
+  onRetry: () => void;
+  message: string;
+  className?: string;
+}) {
+  return (
+    <section className={className} aria-label="Entities mentioned in this content">
+      <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        Entities
+      </h3>
+      <div className="rounded-lg border bg-card p-4 text-sm text-muted-foreground">
+        <p className="mb-3">{message}</p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onRetry}
+          className="gap-1.5"
+        >
+          <RotateCcw className="size-3.5" aria-hidden="true" />
+          Retry
+        </Button>
+      </div>
+    </section>
+  );
+}
+
 /**
  * Displays entity mentions for a content item, grouped by type.
  * Renders nothing if no entities are found (graceful empty state).
@@ -48,20 +80,34 @@ function getTypeLabel(entityType: string): string {
 export function EntityBadges({ contentItemId, className }: EntityBadgesProps) {
   const [entities, setEntities] = useState<EntityMention[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
 
-  useEffect(() => {
-    const fetchEntities = async () => {
+  const fetchEntities = useCallback(async () => {
+    setError(null);
+    setLoaded(false);
+    try {
       const supabase = createClient();
-      const { data, error } = await supabase
+      const { data, error: fetchError } = await supabase
         .from('entity_mentions')
         .select('id, entity_type, canonical_name, confidence')
         .eq('content_item_id', contentItemId)
         .order('entity_type')
         .order('canonical_name');
 
-      if (error) {
-        console.error('EntityBadges: failed to fetch entity mentions:', error);
-      } else if (data) {
+      if (fetchError) {
+        captureClientException(fetchError, {
+          scope: 'item-detail.entity-badges.fetchMentions',
+          extras: { contentItemId },
+        });
+        setError(
+          fetchError instanceof Error
+            ? fetchError
+            : new Error(String(fetchError)),
+        );
+        return;
+      }
+
+      if (data) {
         // Deduplicate by canonical_name within each type
         const seen = new Set<string>();
         const deduped = (data as EntityMention[]).filter((e) => {
@@ -72,15 +118,28 @@ export function EntityBadges({ contentItemId, className }: EntityBadgesProps) {
         });
         setEntities(deduped);
       }
+    } finally {
       setLoaded(true);
-    };
-
-    fetchEntities();
+    }
   }, [contentItemId]);
+
+  useEffect(() => {
+    fetchEntities();
+  }, [fetchEntities]);
 
   // Don't render anything until loaded
   if (!loaded) {
     return null;
+  }
+
+  if (error) {
+    return (
+      <ErrorState
+        className={className}
+        onRetry={fetchEntities}
+        message="Couldn't load entities. Please try again."
+      />
+    );
   }
 
   // Empty state

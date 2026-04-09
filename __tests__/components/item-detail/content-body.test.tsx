@@ -7,19 +7,33 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 // ---------------------------------------------------------------------------
 // vi.hoisted() — mocks referenced in vi.mock() factories
 // ---------------------------------------------------------------------------
 
-const { mockIsFeatureEnabled, mockCreateClient } = vi.hoisted(() => ({
+const {
+  mockIsFeatureEnabled,
+  mockCreateClient,
+  mockCaptureClientException,
+  mockToastError,
+  mockToastSuccess,
+  mockUpdateEq,
+} = vi.hoisted(() => ({
   mockIsFeatureEnabled: vi.fn((f: string) => f === 'draft_status'),
-  mockCreateClient: vi.fn(() => ({
-    from: () => ({
-      update: () => ({ eq: () => Promise.resolve({ error: null }) }),
-    }),
-  })),
+  mockUpdateEq: vi.fn(() => Promise.resolve({ error: null })),
+  mockCreateClient: vi.fn(),
+  mockCaptureClientException: vi.fn(),
+  mockToastError: vi.fn(),
+  mockToastSuccess: vi.fn(),
+}));
+
+mockCreateClient.mockImplementation(() => ({
+  from: () => ({
+    update: () => ({ eq: mockUpdateEq }),
+  }),
 }));
 
 vi.mock('@/lib/client-config', () => ({
@@ -30,8 +44,16 @@ vi.mock('@/lib/supabase/client', () => ({
   createClient: mockCreateClient,
 }));
 
+vi.mock('@/lib/client-telemetry', () => ({
+  captureClientException: mockCaptureClientException,
+}));
+
 vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
+  toast: {
+    success: mockToastSuccess,
+    error: mockToastError,
+    info: vi.fn(),
+  },
 }));
 
 vi.mock('next/dynamic', () => ({
@@ -160,6 +182,7 @@ describe('ContentBody', () => {
     mockIsFeatureEnabled.mockImplementation(
       (f: string) => f === 'draft_status',
     );
+    mockUpdateEq.mockImplementation(() => Promise.resolve({ error: null }));
   });
 
   afterEach(() => {
@@ -239,5 +262,38 @@ describe('ContentBody', () => {
     expect(
       screen.getByText('This document contains charts and tables.'),
     ).toBeInTheDocument();
+  });
+
+  describe('Draft toggle error handling', () => {
+    it('reports telemetry, rolls back optimistic update, and toasts on failure', async () => {
+      mockUpdateEq.mockResolvedValueOnce({ error: new Error('db fail') });
+      const setItem = vi.fn();
+      const props = createDefaultProps({
+        canEdit: true,
+        setItem,
+        item: createMockItem({ governance_review_status: null }),
+      });
+      render(<ContentBody {...props} />);
+
+      const toggle = screen.getByRole('button', { name: /click to draft/i });
+      await userEvent.click(toggle);
+
+      await waitFor(() => {
+        expect(mockCaptureClientException).toHaveBeenCalledTimes(1);
+      });
+      expect(mockCaptureClientException).toHaveBeenCalledWith(
+        expect.any(Error),
+        expect.objectContaining({
+          scope: 'item-detail.content-body.updateGovernanceStatus',
+          extras: expect.objectContaining({
+            itemId: 'item-1',
+            newStatus: 'draft',
+          }),
+        }),
+      );
+      expect(mockToastError).toHaveBeenCalledWith('Failed to update status');
+      // Optimistic update applied once, then rollback called
+      expect(setItem).toHaveBeenCalledTimes(2);
+    });
   });
 });

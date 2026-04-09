@@ -12,6 +12,7 @@ import { TableOfContents } from '@/components/item-detail/table-of-contents';
 import { TranscriptReader } from '@/components/reader/transcript-reader';
 import { ToggleLeft, ToggleRight } from 'lucide-react';
 import { toast } from 'sonner';
+import { captureClientException } from '@/lib/client-telemetry';
 
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
 import type { VisionAnalysisResult } from '@/hooks/use-vision-analysis';
@@ -212,7 +213,10 @@ function DraftToggle({
               if (error) throw error;
               toast.success(isDraft ? 'Published' : 'Marked as draft');
             } catch (err) {
-              console.error('Failed to update governance review status:', err);
+              captureClientException(err, {
+                scope: 'item-detail.content-body.updateGovernanceStatus',
+                extras: { itemId: item.id, newStatus },
+              });
               setItem((prev) => ({
                 ...prev,
                 governance_review_status: isDraft ? 'draft' : null,
