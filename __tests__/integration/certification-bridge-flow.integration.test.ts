@@ -76,7 +76,20 @@ afterAll(async () => {
 
 async function createContentItemWithTemporalRefs(
   title: string,
-  temporalRefs: Array<{ date: string; context: string; context_type: string }>,
+  temporalRefs: Array<{
+    date: string;
+    context: string;
+    context_type: string;
+    /**
+     * Canonical name of the entity this temporal reference relates to.
+     * Populated by Claude during co-extraction (see
+     * `.planning/.archive/.specs/temporal-entity-co-extraction-spec.md`)
+     * and used by the bridge as the authoritative match. Realistic
+     * post-co-extraction fixtures should always set this where the
+     * reference clearly belongs to a single entity.
+     */
+    related_entity?: string;
+  }>,
 ): Promise<string> {
   const { data, error } = await serviceClient
     .from('content_items')
@@ -230,6 +243,13 @@ describe('Certification Bridge Flow — Real DB Integration', () => {
 
   // T2.4b: Create multiple certification entities with different temporal
   // references, run bridge, verify each has correct metadata and expiry_status.
+  //
+  // Note: Fixture refs set `related_entity` to match production data shape
+  // after co-extraction (commit 39b6556b added this field to the classifier
+  // output; the bridge uses it as the authoritative link). Without
+  // `related_entity`, tokenMatch's 2-token short-name rule would false-match
+  // ISO 27001's temporal ref to the ISO 9001 entity (both share the "iso"
+  // token → 0.5 coverage → 0.6 confidence).
   it('T2.4b: multiple certification entities get correct metadata and expiry_status', async () => {
     // 1. Create content item with temporal references for multiple certifications
     const itemId = await createContentItemWithTemporalRefs(
@@ -239,16 +259,19 @@ describe('Certification Bridge Flow — Real DB Integration', () => {
           date: FUTURE_EXPIRY_DATE,
           context: 'ISO 27001 certification valid until this date',
           context_type: 'expiry',
+          related_entity: 'ISO 27001',
         },
         {
           date: PAST_EXPIRY_DATE,
           context: 'Cyber Essentials Plus expired on this date',
           context_type: 'expiry',
+          related_entity: 'Cyber Essentials Plus',
         },
         {
           date: '2024-06-01',
           context: 'ISO 9001 certification obtained on this date',
           context_type: 'effective',
+          related_entity: 'ISO 9001',
         },
       ],
     );

@@ -109,16 +109,26 @@ export async function bridgeTemporalReferencesToEntities(
     for (const ref of sortedRefs) {
       let matched = false;
 
-      // Direct match via related_entity (co-extraction path)
+      // When the classifier has performed co-extraction, related_entity is
+      // the authoritative link from the temporal reference to its entity.
+      // Trust it exclusively — do not fall back to tokenMatch, because
+      // tokenMatch can produce false positives across same-family entities
+      // (e.g. "ISO 27001" context tokens overlap with "ISO 9001" canonical
+      // via the shared "iso" token, causing 0.5 coverage / 0.6 confidence
+      // hits on any 2-token name). The co-extraction spec intent (see
+      // Part A architecture diagram) is that tokenMatch is only a
+      // *backwards-compat fallback for refs without related_entity*.
       if (ref.related_entity) {
         const relatedNormalised = ref.related_entity.toLowerCase();
         if (relatedNormalised === mention.canonical_name.toLowerCase()) {
           matched = true;
         }
-      }
-
-      // Fallback: token-level matching (legacy path)
-      if (!matched) {
+        // related_entity is set but names don't match: skip this ref for
+        // this mention. Do not fall through to tokenMatch.
+      } else {
+        // Legacy path: no related_entity on this ref (pre-co-extraction
+        // data, regex-only refs, or AI failed to link). Token-level
+        // matching against the context string is the only option.
         const result = tokenMatch(ref.context, mention.canonical_name);
         if (result.match) {
           matched = true;
