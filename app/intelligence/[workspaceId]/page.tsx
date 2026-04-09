@@ -232,7 +232,12 @@ export default function WorkspaceOverviewPage() {
             </Button>
           )}
           {isAdmin && (
-            <Button variant="outline" size="sm" disabled>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled
+              title="Manual polling is not yet available — feeds refresh automatically on the scheduled cron."
+            >
               <Play className="mr-1.5 size-3.5" aria-hidden="true" />
               Trigger Poll
             </Button>

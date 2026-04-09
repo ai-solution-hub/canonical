@@ -224,7 +224,26 @@ describe('CoverageContent', () => {
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
   });
 
-  it('shows empty state with Settings link when no taxonomy is configured', async () => {
+  it('shows empty-content state with Browse link when taxonomy exists but no content is catalogued', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ matrix: [], summary: [] }),
+    });
+
+    render(<CoverageContent />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Your knowledge base is empty'),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole('link', { name: /browse content/i }),
+    ).toHaveAttribute('href', '/browse');
+  });
+
+  it('shows no-taxonomy empty state with Settings link when no domains exist', async () => {
+    mockTaxonomy.value = mockTaxonomyContext({ domains: [] });
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve({ matrix: [], summary: [] }),

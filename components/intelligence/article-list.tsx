@@ -47,6 +47,16 @@ export function ArticleList({ workspaceId }: ArticleListProps) {
     limit,
     source_id: sourceId,
   });
+  // Fetch count for the opposite tab so both tab badges can display totals.
+  const inactiveTab: ArticleTab = tab === 'passed' ? 'filtered' : 'passed';
+  const { data: inactiveData } = useFeedArticles(workspaceId, {
+    tab: inactiveTab,
+    page: 1,
+    limit: 1,
+    source_id: sourceId,
+  });
+  const passedTotal = tab === 'passed' ? data?.total : inactiveData?.total;
+  const filteredTotal = tab === 'filtered' ? data?.total : inactiveData?.total;
   const flagMutation = useFlagArticle(workspaceId);
 
   const totalPages = data ? Math.ceil(data.total / limit) : 0;
@@ -95,17 +105,17 @@ export function ArticleList({ workspaceId }: ArticleListProps) {
           <TabsList>
             <TabsTrigger value="passed" className="gap-1.5">
               Passed
-              {data && tab === 'passed' && (
+              {passedTotal !== undefined && (
                 <Badge variant="secondary" className="ml-1 text-xs">
-                  {data.total}
+                  {passedTotal}
                 </Badge>
               )}
             </TabsTrigger>
             <TabsTrigger value="filtered" className="gap-1.5">
               Filtered
-              {data && tab === 'filtered' && (
+              {filteredTotal !== undefined && (
                 <Badge variant="secondary" className="ml-1 text-xs">
-                  {data.total}
+                  {filteredTotal}
                 </Badge>
               )}
             </TabsTrigger>

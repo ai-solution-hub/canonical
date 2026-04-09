@@ -1,7 +1,6 @@
 'use client';
 
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   FileText,
   CheckCircle,
@@ -15,15 +14,7 @@ import type { MetricsSummary } from '@/hooks/intelligence/use-intelligence-metri
 
 interface MetricsPanelProps {
   metrics: MetricsSummary;
-  onPeriodChange: (period: string) => void;
-  currentPeriod: string;
 }
-
-const PERIODS = [
-  { value: '7d', label: 'Last 7 days' },
-  { value: '30d', label: 'Last 30 days' },
-  { value: 'all', label: 'All time' },
-] as const;
 
 function formatRelativeTime(dateString: string | null): string {
   if (!dateString) return 'Never';
@@ -45,33 +36,9 @@ function formatRelativeTime(dateString: string | null): string {
   });
 }
 
-export function MetricsPanel({
-  metrics,
-  onPeriodChange,
-  currentPeriod,
-}: MetricsPanelProps) {
+export function MetricsPanel({ metrics }: MetricsPanelProps) {
   return (
     <div className="space-y-4">
-      {/* Period selector */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-foreground">
-          Performance Metrics
-        </h2>
-        <div className="flex gap-1">
-          {PERIODS.map(({ value, label }) => (
-            <Button
-              key={value}
-              variant={currentPeriod === value ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => onPeriodChange(value)}
-              className="h-7 text-xs"
-            >
-              {label}
-            </Button>
-          ))}
-        </div>
-      </div>
-
       {/* Stats grid */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {/* Articles Ingested */}

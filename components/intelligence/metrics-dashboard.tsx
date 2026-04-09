@@ -76,13 +76,7 @@ export function MetricsDashboard({ workspaceId }: MetricsDashboardProps) {
       </div>
 
       {/* Stat cards */}
-      {metricsQuery.data && (
-        <MetricsPanel
-          metrics={metricsQuery.data}
-          onPeriodChange={(p) => setPeriod(p as Period)}
-          currentPeriod={period}
-        />
-      )}
+      {metricsQuery.data && <MetricsPanel metrics={metricsQuery.data} />}
       {metricsQuery.isLoading && (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -91,6 +85,14 @@ export function MetricsDashboard({ workspaceId }: MetricsDashboardProps) {
               className="h-24 animate-pulse rounded-lg border bg-muted"
             />
           ))}
+        </div>
+      )}
+      {metricsQuery.isError && !metricsQuery.isLoading && (
+        <div
+          role="alert"
+          className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"
+        >
+          Metrics are temporarily unavailable. Please refresh to try again.
         </div>
       )}
 
