@@ -1,0 +1,8 @@
+{
+  "name": "knowledge-hub",
+  "version": "1.0.0",
+  "description": "Search your knowledge base, manage bids, and draft responses. Access articles, policies, case studies, and Q&A pairs organised by domain, with quality tracking and freshness monitoring.",
+  "author": {
+    "name": "Knowledge Hub Team"
+  }
+}

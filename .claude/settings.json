@@ -1,0 +1,8 @@
+{
+  "enabledPlugins": {
+    "playground@claude-plugins-official": false,
+    "asana@claude-plugins-official": false,
+    "firecrawl@claude-plugins-official": true,
+    "knowledge-hub@local": true
+  }
+}

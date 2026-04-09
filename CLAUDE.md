@@ -276,12 +276,6 @@ management only for merge-conflict-prone work requiring interactive resolution.
   behaviour (e.g. a component renders incorrectly, a function returns wrong
   data, dead code paths, or tests that can only pass by not actually testing the
   real logic), **they MUST escalate these findings to the main session**.
-- **`plugin-taxonomy-consistency.test.ts` fails on worktree branches:** The
-  test reads `.claude/plugins/knowledge-hub/1.0.0/skills/*/SKILL.md` and
-  `settings.template.json` which are tracked in `.claude/` — but `.claude/` is
-  gitignored, so worktrees created via `isolation: "worktree"` don't include
-  those files. Tests pass on main, fail in worktrees. Not a regression —
-  ignore the 2 failures when merging from a worktree, and verify on main after.
 
 ### E2E / Playwright
 

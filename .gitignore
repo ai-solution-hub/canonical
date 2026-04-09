@@ -15,8 +15,38 @@ __pycache__/
 .venv/
 venv/
 
-# Claude Code workspace
-.claude/
+# Claude Code workspace — selective tracking (S157 WP4)
+# Blanket-ignore everything under .claude/ by default to protect per-machine
+# state (settings.local.json, worktree metadata) and prevent marketplace-
+# sourced skills/plugins from being pinned in git. Track explicit project-
+# specific paths via the `!` un-ignores below.
+# See docs/audits/s157-claude-dot-tracking-audit.md for the classification
+# of which subdirectories are project-specific vs marketplace-sourced.
+.claude/*
+
+# Project-specific files we want tracked
+!.claude/checks/
+!.claude/hooks/
+!.claude/settings.json
+
+# Local knowledge-hub plugin (tracked). Marketplace plugins
+# (customer-support, design, enterprise-search, operations,
+# product-management, productivity, sales) stay ignored.
+!.claude/plugins/
+.claude/plugins/*
+!.claude/plugins/knowledge-hub/
+
+# Project-specific skills (tracked). Marketplace skills (frontend-design,
+# mcp-builder, ast-grep, context-engineering-collection, create-mcp-app,
+# llm-evaluation, markdown-converter, prompt-engineering-patterns,
+# supabase-postgres-best-practices, vercel-react-best-practices,
+# writing-skills) stay ignored.
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/handoff/
+!.claude/skills/review/
+!.claude/skills/start-session/
+!.claude/skills/update-docs/
 
 # IDE
 .idea/
