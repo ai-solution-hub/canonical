@@ -103,11 +103,12 @@ export function WorkspaceSettings({ workspaceId }: WorkspaceSettingsProps) {
               id="threshold-section-title"
               className="text-base font-semibold text-foreground"
             >
-              Relevance Scoring
+              Relevance
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Control how strict the AI is when filtering articles for this
-              workspace.
+              Set the relevance cutoff for articles in this workspace. Lower
+              lets through more articles; higher keeps only the strongest
+              matches.
             </p>
           </div>
         </div>

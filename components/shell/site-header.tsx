@@ -141,6 +141,7 @@ export function SiteHeader() {
             size="icon"
             onClick={() => router.push('/settings')}
             aria-label="Settings"
+            title="Settings"
             className={cn(
               pathname === '/settings' || pathname?.startsWith('/settings/')
                 ? 'text-foreground'

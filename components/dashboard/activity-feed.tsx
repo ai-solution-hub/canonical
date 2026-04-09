@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { useDisplayNames } from '@/hooks/use-display-names';
 import { formatRelativeDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import type { GroupedActivityItem } from '@/lib/dashboard';
 
 export type ActivityEventFilter =
@@ -203,8 +204,12 @@ export function ActivityFeed({
         }
 
         setHasMore(data.has_more ?? false);
-      } catch {
-        // Non-critical
+      } catch (err) {
+        logBestEffortWarn(
+          'dashboard.activity_feed.fetch',
+          'Failed to load activity feed',
+          { err },
+        );
       } finally {
         setLoading(false);
         setLoadingMore(false);

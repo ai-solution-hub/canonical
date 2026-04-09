@@ -45,7 +45,7 @@ export async function GET(
     const { data, error, count } = await supabase
       .from('content_history')
       .select(
-        'id, content_item_id, version, change_summary, change_type, created_by, created_at',
+        'id, content_item_id, version, change_summary, change_reason, change_type, created_by, created_at',
         { count: 'exact' },
       )
       .eq('content_item_id', id)

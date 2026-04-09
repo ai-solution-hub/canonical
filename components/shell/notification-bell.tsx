@@ -174,6 +174,7 @@ export function NotificationBell({ mobile }: NotificationBellProps) {
           variant="ghost"
           size="icon"
           aria-label={badgeLabel}
+          title={badgeLabel}
           className="relative"
         >
           <Bell className="size-4" />

@@ -25,7 +25,7 @@ import {
 const CHANNEL: RssChannelConfig = {
   title: 'example-client Design — Sector Intelligence',
   link: 'https://example.com/intelligence/ws-1',
-  description: 'AI-filtered intelligence feed for example-client Design',
+  description: 'Sector intelligence for example-client Design',
   language: 'en-GB',
   lastBuildDate: 'Wed, 02 Apr 2025 12:00:00 GMT',
   ttl: 15,
@@ -62,7 +62,7 @@ describe('generateRss', () => {
     expect(xml).toContain('<title>example-client Design — Sector Intelligence</title>');
     expect(xml).toContain('<link>https://example.com/intelligence/ws-1</link>');
     expect(xml).toContain(
-      '<description>AI-filtered intelligence feed for example-client Design</description>',
+      '<description>Sector intelligence for example-client Design</description>',
     );
     expect(xml).toContain('<language>en-GB</language>');
     expect(xml).toContain('<ttl>15</ttl>');

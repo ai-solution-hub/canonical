@@ -7,7 +7,6 @@ import { VerificationBadge } from '@/components/shared/verification-badge';
 import { FreshnessBadge } from '@/components/shared/freshness-badge';
 import { formatSmartDate } from '@/lib/format';
 import { useDisplayNames } from '@/hooks/use-display-names';
-import { useUserRole } from '@/hooks/use-user-role';
 import {
   LatestVerificationNote,
   VerificationHistory,
@@ -48,9 +47,6 @@ export function ItemTitleSection({
     ? (displayNames.get(item.verified_by) ?? null)
     : null;
 
-  // Role-gate detailed trust levels (editor/admin only)
-  const { canEdit } = useUserRole();
-
   return (
     <>
       {/* Title + inline badges */}
@@ -88,12 +84,6 @@ export function ItemTitleSection({
             verified={!!item.verified_at}
             verifiedAt={item.verified_at}
             verifiedByName={verifiedByName}
-            trustData={{
-              brief: item.brief,
-              detail: item.detail,
-              content_owner_id: item.content_owner_id,
-            }}
-            showDetailedTrust={canEdit}
             size="md"
             liveRegion
           />

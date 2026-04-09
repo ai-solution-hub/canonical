@@ -113,7 +113,7 @@ describe('CertificationSummaryCard — Renew button', () => {
     );
 
     const renewLink = screen.getByRole('link', {
-      name: /view ISO 27001 for renewal/i,
+      name: /Review ISO 27001/i,
     });
     expect(renewLink).toBeInTheDocument();
     expect(renewLink).toHaveAttribute(
@@ -134,7 +134,7 @@ describe('CertificationSummaryCard — Renew button', () => {
 
     expect(
       screen.getByRole('link', {
-        name: /view ISO 27001 for renewal/i,
+        name: /Review ISO 27001/i,
       }),
     ).toBeInTheDocument();
   });
@@ -151,7 +151,7 @@ describe('CertificationSummaryCard — Renew button', () => {
 
     expect(
       screen.queryByRole('link', {
-        name: /view.*for renewal/i,
+        name: /Review .*/i,
       }),
     ).not.toBeInTheDocument();
   });
@@ -168,7 +168,7 @@ describe('CertificationSummaryCard — Renew button', () => {
 
     expect(
       screen.queryByRole('link', {
-        name: /view.*for renewal/i,
+        name: /Review .*/i,
       }),
     ).not.toBeInTheDocument();
   });
@@ -184,7 +184,7 @@ describe('CertificationSummaryCard — Renew button', () => {
     );
 
     const renewLink = screen.getByRole('link', {
-      name: /view ICO Registration for renewal/i,
+      name: /Review ICO Registration/i,
     });
     expect(renewLink).toBeInTheDocument();
     expect(renewLink).toHaveAttribute(
@@ -205,7 +205,7 @@ describe('CertificationSummaryCard — Renew button', () => {
 
     expect(
       screen.getByRole('link', {
-        name: /view ICO Registration for renewal/i,
+        name: /Review ICO Registration/i,
       }),
     ).toBeInTheDocument();
   });
@@ -225,7 +225,7 @@ describe('CertificationSummaryCard — Renew button', () => {
 
     expect(
       screen.queryByRole('link', {
-        name: /view.*for renewal/i,
+        name: /Review .*/i,
       }),
     ).not.toBeInTheDocument();
   });
@@ -245,7 +245,7 @@ describe('CertificationSummaryCard — Renew button', () => {
 
     expect(
       screen.getByRole('link', {
-        name: 'View Cyber Essentials Plus for renewal',
+        name: 'Review Cyber Essentials Plus',
       }),
     ).toBeInTheDocument();
   });

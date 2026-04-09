@@ -13,6 +13,7 @@ import { ReorientSection } from '@/components/dashboard/reorient-section';
 import { OwnedContentHealth } from '@/components/dashboard/owned-content-health';
 import { ContentPerformanceSection } from '@/components/dashboard/content-performance-section';
 import { WarningsBanner } from '@/components/dashboard/warnings-banner';
+import { McpSetupNudge } from '@/components/shell/mcp-setup-nudge';
 import { PipelineRunsPanel } from '@/components/intelligence/pipeline-runs-panel';
 import type { ReorientData } from '@/types/reorient';
 
@@ -143,7 +144,10 @@ async function DashboardContent() {
   const reorientData: ReorientData = {
     last_active_at: unified.reorient.last_active_at,
     last_active_relative: unified.reorient.last_active_relative,
-    urgent: [], // Empty — urgent items are now in the attention model
+    // Empty — the dashboard UI moved to the unified attention model (S157 WP5).
+    // The field is retained on `ReorientData` because MCP dashboard tooling
+    // still consumes `fetchReorientData().urgent` server-side.
+    urgent: [],
     team_changes: unified.reorient.team_changes,
     my_recent_work: unified.reorient.my_recent_work,
     bid_summary: unified.reorient.bid_summary,
@@ -171,6 +175,12 @@ async function DashboardContent() {
           <WarningsBanner warnings={warnings} />
         </div>
       )}
+
+      {/* MCP setup nudge — one-shot discoverability prompt for the MCP
+          connector (S157 WP5, M5). Dismisses permanently via localStorage. */}
+      <div className="mt-6">
+        <McpSetupNudge />
+      </div>
 
       {/* Reorient Me — personalised briefing */}
       <div className="mt-6">

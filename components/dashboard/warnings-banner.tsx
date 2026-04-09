@@ -54,9 +54,8 @@ export function WarningsBanner({ warnings }: WarningsBannerProps) {
               id={headingId}
               className="text-sm font-medium text-status-warning"
             >
-              {warnings.length === 1
-                ? 'Some dashboard data could not be loaded'
-                : `${warnings.length} dashboard sections could not be loaded`}
+              Parts of your dashboard are temporarily unavailable — the data
+              shown here is the most recent we have.
             </p>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-foreground">
               {warnings.map((warning, idx) => (

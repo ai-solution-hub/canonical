@@ -12,7 +12,15 @@ interface FilterRatioChartProps {
 }
 
 const PADDING = { top: 20, right: 20, bottom: 40, left: 45 };
-const Y_TICKS = [0, 25, 50, 75, 100];
+
+/**
+ * Compute a "nice" set of 5 y-axis ticks for a count-based series.
+ * Returns ascending values from 0 to a rounded maximum.
+ */
+function niceTicks(max: number): number[] {
+  const step = Math.ceil(max / 4 / 5) * 5 || 1;
+  return [0, step, step * 2, step * 3, step * 4];
+}
 
 /** Format a YYYY-MM-DD date as DD/MM for daily or "W{nn}" for weekly */
 function formatXLabel(
@@ -86,9 +94,12 @@ export function FilterRatioChart({
 
   // X positions: evenly spaced across chart width
   const xStep = data.length > 1 ? chartWidth / (data.length - 1) : 0;
+  const maxPassed = Math.max(1, ...data.map((d) => d.passed));
+  const yTicks = niceTicks(maxPassed);
+  const yMax = yTicks[yTicks.length - 1];
   const points = data.map((d, i) => ({
     x: PADDING.left + i * xStep,
-    y: PADDING.top + chartHeight - (d.ratio / 100) * chartHeight,
+    y: PADDING.top + chartHeight - (d.passed / yMax) * chartHeight,
     ...d,
   }));
 
@@ -114,13 +125,13 @@ export function FilterRatioChart({
         className="w-full"
         style={{ height }}
         role="img"
-        aria-label={`Filter ratio trend chart showing ${data.length} data points from ${formatXLabel(data[0].date, granularity)} to ${formatXLabel(data[data.length - 1].date, granularity)}`}
+        aria-label={`Relevant articles per ${granularity === 'weekly' ? 'week' : 'day'}, trending over the selected period.`}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
       >
         {/* Gridlines */}
-        {Y_TICKS.map((tick) => {
-          const y = PADDING.top + chartHeight - (tick / 100) * chartHeight;
+        {yTicks.map((tick) => {
+          const y = PADDING.top + chartHeight - (tick / yMax) * chartHeight;
           return (
             <g key={tick}>
               <line
@@ -129,7 +140,7 @@ export function FilterRatioChart({
                 x2={PADDING.left + chartWidth}
                 y2={y}
                 className="stroke-border"
-                strokeDasharray={tick === 0 || tick === 100 ? undefined : '4 4'}
+                strokeDasharray={tick === 0 || tick === yMax ? undefined : '4 4'}
                 strokeWidth={0.5}
               />
               <text
@@ -139,7 +150,7 @@ export function FilterRatioChart({
                 className="fill-muted-foreground"
                 fontSize={10}
               >
-                {tick}%
+                {tick}
               </text>
             </g>
           );
@@ -211,19 +222,17 @@ export function FilterRatioChart({
             {formatXLabel(hoveredPoint.date, granularity)}
           </p>
           <p>
-            Pass rate:{' '}
-            <span className="font-semibold">{hoveredPoint.ratio}%</span>
-          </p>
-          <p>
-            Total: {hoveredPoint.total} | Passed: {hoveredPoint.passed} |
-            Filtered: {hoveredPoint.filtered}
+            <span className="font-semibold">{hoveredPoint.passed}</span>{' '}
+            relevant / {hoveredPoint.total} total
           </p>
         </div>
       )}
 
       {/* Accessible hidden table for screen readers */}
       <table className="sr-only">
-        <caption>Filter ratio trend data</caption>
+        <caption>
+          Relevant articles per {granularity === 'weekly' ? 'week' : 'day'}
+        </caption>
         <thead>
           <tr>
             <th scope="col">Date</th>

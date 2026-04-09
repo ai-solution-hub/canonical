@@ -11,6 +11,7 @@ import {
   type PriorityFilter,
 } from './priority-gaps-filters';
 import { PriorityGapCard } from './priority-gap-card';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import type { UnifiedGapSummary } from '@/types/unified-gap';
 
 // ---------------------------------------------------------------------------
@@ -112,7 +113,12 @@ export function PriorityGapsTab() {
       if (!res.ok) throw new Error('Failed to fetch');
       const json: UnifiedGapSummary = await res.json();
       setData(json);
-    } catch {
+    } catch (err) {
+      logBestEffortWarn(
+        'coverage.gap_summary.load',
+        'Failed to fetch priority gaps summary',
+        { err },
+      );
       setError(true);
     } finally {
       setLoading(false);

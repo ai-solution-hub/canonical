@@ -40,7 +40,7 @@ export function MetricsDashboard({ workspaceId }: MetricsDashboardProps) {
       {/* Controls */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-foreground">
-          Metrics Dashboard
+          Workspace metrics
         </h2>
         <div className="flex gap-2">
           {/* Period selector */}
@@ -76,13 +76,7 @@ export function MetricsDashboard({ workspaceId }: MetricsDashboardProps) {
       </div>
 
       {/* Stat cards */}
-      {metricsQuery.data && (
-        <MetricsPanel
-          metrics={metricsQuery.data}
-          onPeriodChange={(p) => setPeriod(p as Period)}
-          currentPeriod={period}
-        />
-      )}
+      {metricsQuery.data && <MetricsPanel metrics={metricsQuery.data} />}
       {metricsQuery.isLoading && (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -93,11 +87,19 @@ export function MetricsDashboard({ workspaceId }: MetricsDashboardProps) {
           ))}
         </div>
       )}
+      {metricsQuery.isError && !metricsQuery.isLoading && (
+        <div
+          role="alert"
+          className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"
+        >
+          Metrics are temporarily unavailable. Please refresh to try again.
+        </div>
+      )}
 
       {/* Filter ratio trend chart */}
       <div>
         <h3 className="mb-2 text-sm font-semibold text-foreground">
-          Filter Ratio Trend
+          Relevant articles per week
         </h3>
         {trendQuery.isLoading ? (
           <div className="h-[200px] animate-pulse rounded-lg border bg-muted" />
@@ -112,7 +114,7 @@ export function MetricsDashboard({ workspaceId }: MetricsDashboardProps) {
       {/* Prompt performance table */}
       <div>
         <h3 className="mb-2 text-sm font-semibold text-foreground">
-          Prompt Performance
+          Filter rule history
         </h3>
         {promptQuery.isLoading ? (
           <div className="h-32 animate-pulse rounded-lg border bg-muted" />

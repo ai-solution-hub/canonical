@@ -1,85 +1,17 @@
 /**
  * VerificationBadge Component Tests
  *
- * Tests basic verified/unverified, "Verified by {name}" display,
- * relative time formatting, trust levels, role-gating, and backwards compat.
+ * Binary `Unverified` / `Verified` badge (three-tier `Curated` model retired
+ * in S157 WP4). Tests cover the binary states, "Verified by {name}" display,
+ * relative time formatting, WCAG multi-channel rendering, and live region.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import {
   VerificationBadge,
-  getTrustLevel,
   formatRelativeTime,
 } from '@/components/shared/verification-badge';
-
-// ---------------------------------------------------------------------------
-// getTrustLevel unit tests
-// ---------------------------------------------------------------------------
-
-describe('getTrustLevel', () => {
-  it('returns 1 (Unverified) when not verified', () => {
-    expect(getTrustLevel(false)).toBe(1);
-  });
-
-  it('returns 1 (Unverified) when not verified, even with trust data', () => {
-    expect(
-      getTrustLevel(false, {
-        brief: 'brief',
-        detail: 'detail',
-        content_owner_id: 'user-1',
-      }),
-    ).toBe(1);
-  });
-
-  it('returns 2 (Verified) when verified but missing trust data', () => {
-    expect(getTrustLevel(true)).toBe(2);
-  });
-
-  it('returns 2 (Verified) when verified but trust data is null', () => {
-    expect(getTrustLevel(true, null)).toBe(2);
-  });
-
-  it('returns 2 (Verified) when verified but trust data is partial', () => {
-    expect(
-      getTrustLevel(true, {
-        brief: 'brief',
-        detail: null,
-        content_owner_id: 'user-1',
-      }),
-    ).toBe(2);
-  });
-
-  it('returns 2 (Verified) when verified but brief is empty string', () => {
-    expect(
-      getTrustLevel(true, {
-        brief: '',
-        detail: 'detail',
-        content_owner_id: 'user-1',
-      }),
-    ).toBe(2);
-  });
-
-  it('returns 2 (Verified) when verified but content_owner_id is null', () => {
-    expect(
-      getTrustLevel(true, {
-        brief: 'brief',
-        detail: 'detail',
-        content_owner_id: null,
-      }),
-    ).toBe(2);
-  });
-
-  it('returns 3 (Curated) when verified with all trust data present', () => {
-    expect(
-      getTrustLevel(true, {
-        brief: 'Executive summary',
-        detail: 'Detailed explanation',
-        content_owner_id: 'user-123',
-      }),
-    ).toBe(3);
-  });
-});
 
 // ---------------------------------------------------------------------------
 // formatRelativeTime unit tests
@@ -150,8 +82,8 @@ describe('VerificationBadge', () => {
     vi.useRealTimers();
   });
 
-  // Backwards compatibility
-  it('renders "Verified" with just verified=true', () => {
+  // Binary states
+  it('renders "Verified" with verified=true', () => {
     render(<VerificationBadge verified />);
     expect(screen.getByText('Verified')).toBeInTheDocument();
     // Default liveRegion is false, so role is "img"
@@ -198,83 +130,6 @@ describe('VerificationBadge', () => {
     expect(screen.getByText('Verified 3 days ago')).toBeInTheDocument();
   });
 
-  // Trust level: curated with detailed trust
-  it('shows "Curated" when showDetailedTrust is true and item is fully curated', () => {
-    render(
-      <VerificationBadge
-        verified
-        showDetailedTrust
-        trustData={{
-          brief: 'Executive summary',
-          detail: 'Detailed explanation',
-          content_owner_id: 'user-123',
-        }}
-      />,
-    );
-    expect(screen.getByText('Curated')).toBeInTheDocument();
-  });
-
-  // Trust level role-gating: curated collapses to verified
-  it('collapses "Curated" to "Verified" when showDetailedTrust is false', () => {
-    render(
-      <VerificationBadge
-        verified
-        showDetailedTrust={false}
-        trustData={{
-          brief: 'Executive summary',
-          detail: 'Detailed explanation',
-          content_owner_id: 'user-123',
-        }}
-      />,
-    );
-    expect(screen.getByText('Verified')).toBeInTheDocument();
-    expect(screen.queryByText('Curated')).not.toBeInTheDocument();
-  });
-
-  // Curated with name and date
-  it('shows "Curated by {name}, X days ago" in detailed trust mode', () => {
-    render(
-      <VerificationBadge
-        verified
-        verifiedByName="Alice"
-        verifiedAt="2026-03-24T12:00:00Z"
-        showDetailedTrust
-        trustData={{
-          brief: 'brief',
-          detail: 'detail',
-          content_owner_id: 'user-1',
-        }}
-      />,
-    );
-    expect(screen.getByText('Curated by Alice, 1 day ago')).toBeInTheDocument();
-  });
-
-  // tooltipOnly mode
-  it('shows short label inline and full label in title when tooltipOnly is true', () => {
-    render(
-      <VerificationBadge
-        verified
-        verifiedByName="Bob"
-        verifiedAt="2026-03-22T12:00:00Z"
-        tooltipOnly
-      />,
-    );
-    // Short label shown inline
-    expect(screen.getByText('Verified')).toBeInTheDocument();
-    // Full label in title attribute (role is "img" by default)
-    const badge = screen.getByRole('img');
-    expect(badge).toHaveAttribute('title', 'Verified by Bob, 3 days ago');
-  });
-
-  // tooltipOnly with no extra info
-  it('does not show tooltip when tooltipOnly but no extra info', () => {
-    render(<VerificationBadge verified tooltipOnly />);
-    expect(screen.getByText('Verified')).toBeInTheDocument();
-    const badge = screen.getByRole('img');
-    // No title when full label equals short label
-    expect(badge).not.toHaveAttribute('title');
-  });
-
   // Unverified ignores name/date
   it('shows "Unverified" and ignores name/date when not verified', () => {
     render(
@@ -286,6 +141,18 @@ describe('VerificationBadge', () => {
     );
     expect(screen.getByText('Unverified')).toBeInTheDocument();
     expect(screen.queryByText(/Should not appear/)).not.toBeInTheDocument();
+  });
+
+  // Curated tier retired — confirm the label no longer exists for any input
+  it('never renders "Curated" regardless of props', () => {
+    render(
+      <VerificationBadge
+        verified
+        verifiedByName="Alice"
+        verifiedAt="2026-03-24T12:00:00Z"
+      />,
+    );
+    expect(screen.queryByText(/Curated/)).not.toBeInTheDocument();
   });
 
   // Size prop

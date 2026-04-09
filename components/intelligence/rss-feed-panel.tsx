@@ -59,14 +59,14 @@ function FeedRow({ label, description, url, sensitive = false }: FeedRowProps) {
           {sensitive ? 'Public — internal use only' : 'Public'}
         </Badge>
       </div>
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-2">
         <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1 text-xs text-muted-foreground">
           {url}
         </code>
         <Button
           variant="ghost"
           size="sm"
-          className="size-7 shrink-0 p-0"
+          className="size-8 shrink-0 p-0"
           onClick={handleCopy}
           title="Copy feed URL"
         >
@@ -80,7 +80,7 @@ function FeedRow({ label, description, url, sensitive = false }: FeedRowProps) {
         <Button
           variant="ghost"
           size="sm"
-          className="size-7 shrink-0 p-0"
+          className="size-8 shrink-0 p-0"
           asChild
         >
           <a
@@ -104,9 +104,9 @@ function FeedRow({ label, description, url, sensitive = false }: FeedRowProps) {
             aria-hidden="true"
           />
           <span>
-            Filtered feed exposes relevance reasoning — share only with internal
-            stakeholders. A competitor subscribing to this URL could learn what
-            you monitor and how you evaluate it.
+            This feed shows borderline articles and the criteria they were
+            judged against — share only with internal stakeholders. A
+            competitor subscribing to this URL could learn what you monitor.
           </span>
         </p>
       )}
@@ -136,7 +136,7 @@ export function RssFeedPanel({
       <div className="space-y-2">
         <FeedRow
           label="Passed Articles"
-          description={`AI-filtered intelligence for ${workspaceName}`}
+          description={`Sector intelligence for ${workspaceName}`}
           url={passedUrl}
         />
         <FeedRow

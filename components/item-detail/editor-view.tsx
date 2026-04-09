@@ -25,6 +25,7 @@ import { ContentEffectivenessPanel } from '@/components/item-detail/content-effe
 import { ContentBody } from '@/components/item-detail/content-body';
 import { LayerSwitcherNav } from '@/components/item-detail/layer-switcher-nav';
 import { ItemTitleSection } from '@/components/item-detail/item-title-section';
+import { ItemCompletenessChecklist } from '@/components/item-detail/item-completeness-checklist';
 import { ItemBreadcrumb } from '@/components/item-detail/item-breadcrumb';
 import { TopicLayerComparison } from '@/components/browse/topic-layer-comparison';
 
@@ -143,7 +144,6 @@ export function EditorView({
       frameable={item.metadata?.frameable === true}
       canEdit={canEdit}
       editConfig={tabEditConfig}
-      showSourceToggle={true}
       className="mb-6"
     />
   );
@@ -380,6 +380,14 @@ export function EditorView({
               setItem((prev) => ({ ...prev, content_owner_id: ownerId }))
             }
           />
+          {canEdit && (
+            <ItemCompletenessChecklist
+              brief={item.brief ?? null}
+              detail={item.detail ?? null}
+              contentOwnerId={item.content_owner_id ?? null}
+              className="mt-4"
+            />
+          )}
           {/* Source document lineage */}
           {item.source_document_id && (
             <div className="mt-4 border-t border-border pt-4">

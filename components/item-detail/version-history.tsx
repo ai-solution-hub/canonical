@@ -24,6 +24,7 @@ interface VersionEntry {
   version: number;
   title: string;
   change_summary: string | null;
+  change_reason: string | null;
   change_type: string;
   created_by: string | null;
   created_at: string;
@@ -71,7 +72,7 @@ function changeTypeLabel(type: string): string {
     case 'edit':
       return 'Edited';
     case 'ai_update':
-      return 'AI Update';
+      return 'Auto update';
     case 'import':
       return 'Imported';
     case 'merge':
@@ -248,6 +249,11 @@ export function VersionHistory({
                         </div>
                         <p className="mt-1 text-sm text-foreground">
                           {version.change_summary ?? 'No description'}
+                          {version.change_reason && (
+                            <span className="ml-1 text-muted-foreground">
+                              — {version.change_reason}
+                            </span>
+                          )}
                         </p>
                         <p className="mt-0.5 text-xs text-muted-foreground">
                           {creatorName} <span aria-hidden="true">&middot;</span>{' '}

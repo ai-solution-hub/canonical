@@ -98,6 +98,7 @@ export function ThemeSettings() {
           variant="ghost"
           size="icon"
           aria-label="Appearance settings"
+          title="Appearance settings"
           className="relative"
         >
           <Settings2 className="size-4" />

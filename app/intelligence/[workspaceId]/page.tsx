@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -20,6 +19,7 @@ import { useIntelligenceMetrics } from '@/hooks/intelligence/use-intelligence-me
 import { useIntelligenceWorkspace } from '@/hooks/intelligence/use-intelligence-workspaces';
 import { useFeedArticles } from '@/hooks/intelligence/use-feed-articles';
 import { useUserRole } from '@/hooks/use-user-role';
+import { getRelevanceLabel } from '@/lib/intelligence/relevance-display';
 
 export default function WorkspaceOverviewPage() {
   const params = useParams();
@@ -27,10 +27,9 @@ export default function WorkspaceOverviewPage() {
   const { role } = useUserRole();
   const isAdmin = role === 'admin';
 
-  const [period, setPeriod] = useState('30d');
   const { data: metrics, isLoading: metricsLoading } = useIntelligenceMetrics(
     workspaceId,
-    period,
+    '30d',
   );
   const { data: workspace } = useIntelligenceWorkspace(workspaceId);
   const guideId = workspace?.domain_metadata?.guide_id;
@@ -70,11 +69,7 @@ export default function WorkspaceOverviewPage() {
       {/* Metrics panel */}
       {metrics && (
         <div className="rounded-lg border bg-card p-4 shadow-sm">
-          <MetricsPanel
-            metrics={metrics}
-            currentPeriod={period}
-            onPeriodChange={setPeriod}
-          />
+          <MetricsPanel metrics={metrics} />
         </div>
       )}
 
@@ -122,7 +117,7 @@ export default function WorkspaceOverviewPage() {
                     )}
                     {article.relevance_score !== null && (
                       <span className="text-xs text-muted-foreground">
-                        {(article.relevance_score * 100).toFixed(0)}% relevant
+                        {getRelevanceLabel(article.relevance_score)}
                       </span>
                     )}
                   </div>
@@ -187,7 +182,7 @@ export default function WorkspaceOverviewPage() {
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">
-              No unresolved flags. The scoring prompt is performing well.
+              No unresolved flags. No false positives or false negatives flagged.
             </p>
           )}
         </div>
@@ -217,12 +212,14 @@ export default function WorkspaceOverviewPage() {
               View Full Metrics
             </Link>
           </Button>
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/intelligence/${workspaceId}/prompts`}>
-              <Settings2 className="mr-1.5 size-3.5" aria-hidden="true" />
-              Edit Prompt
-            </Link>
-          </Button>
+          {isAdmin && (
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/intelligence/${workspaceId}/prompts`}>
+                <Settings2 className="mr-1.5 size-3.5" aria-hidden="true" />
+                Edit filter rules
+              </Link>
+            </Button>
+          )}
           {guideId && (
             <Button variant="outline" size="sm" asChild>
               <Link href="/guide">
@@ -232,7 +229,12 @@ export default function WorkspaceOverviewPage() {
             </Button>
           )}
           {isAdmin && (
-            <Button variant="outline" size="sm" disabled>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled
+              title="Manual polling is not yet available — feeds refresh automatically on the scheduled cron."
+            >
               <Play className="mr-1.5 size-3.5" aria-hidden="true" />
               Trigger Poll
             </Button>

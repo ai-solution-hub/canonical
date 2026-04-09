@@ -4,15 +4,9 @@ import { useState } from 'react';
 import Link from 'next/link';
 import {
   X,
-  AlertTriangle,
-  Bell,
   Clock,
-  ArrowRight,
   Users,
   History,
-  Briefcase,
-  RefreshCw,
-  ShieldCheck,
   Compass,
   UserCircle,
 } from 'lucide-react';
@@ -20,11 +14,10 @@ import { Button } from '@/components/ui/button';
 import { formatRelativeDate } from '@/lib/format';
 import { useDisplayNames } from '@/hooks/use-display-names';
 import { useHydrated } from '@/hooks/use-hydrated';
-import { ClaudePromptButton } from '@/components/content/claude-prompt-button';
+import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { cn } from '@/lib/utils';
 import type {
   ReorientData,
-  UrgentItem,
   TeamChange,
   RecentWorkItem,
 } from '@/types/reorient';
@@ -69,145 +62,10 @@ function WelcomeBack({
   );
 }
 
-function getUrgentClaudePrompt(item: UrgentItem): string | undefined {
-  switch (item.type) {
-    case 'bid_deadline':
-      return `The "${item.title}" bid needs attention — ${item.detail}. Show me the current progress and help me prioritise which unanswered questions to tackle first.`;
-    case 'content_expired':
-      return `Content item "${item.title}" has expired. Fetch it, check what's changed in this area, and help me update it.`;
-    case 'review_pending':
-      return `There's a governance review pending for "${item.title}". Show me the content and recommend whether to approve or request changes.`;
-    case 'quality_flag':
-      return `Content item "${item.title}" was flagged for quality issues. Fetch the item, diagnose the issue, and help me fix it.`;
-    case 'notification':
-      return `I have a notification: "${item.title}" — ${item.detail}. Help me understand what action is needed and guide me through resolving it.`;
-    default:
-      return undefined;
-  }
-}
-
-function UrgentItems({ items }: { items: UrgentItem[] }) {
-  if (items.length === 0) return null;
-
-  const urgentIcon = (type: UrgentItem['type']): typeof AlertTriangle => {
-    switch (type) {
-      case 'bid_deadline':
-        return Briefcase;
-      case 'content_expired':
-        return RefreshCw;
-      case 'review_pending':
-        return ShieldCheck;
-      case 'quality_flag':
-        return AlertTriangle;
-      case 'notification':
-        return Bell;
-      default:
-        return AlertTriangle;
-    }
-  };
-
-  return (
-    <div>
-      <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        <AlertTriangle className="size-3" aria-hidden="true" />
-        Needs your attention
-      </h3>
-      <div
-        className={
-          items.length <= 3
-            ? cn(
-                'grid grid-cols-1 gap-2',
-                items.length === 1 && 'lg:grid-cols-1',
-                items.length === 2 && 'lg:grid-cols-2',
-                items.length === 3 && 'lg:grid-cols-3',
-              )
-            : 'space-y-2'
-        }
-      >
-        {items.map((item) => {
-          const Icon = urgentIcon(item.type);
-          const claudePrompt = getUrgentClaudePrompt(item);
-          // Use text-bid-overdue for overdue bids, text-status-warning for everything else
-          const iconColour =
-            item.type === 'bid_deadline' &&
-            item.deadline &&
-            new Date(item.deadline) < new Date()
-              ? 'text-bid-overdue'
-              : 'text-status-warning';
-          return (
-            <div
-              key={`${item.type}-${item.entity_id}`}
-              className="group flex items-start gap-3 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50"
-            >
-              <Icon
-                className={`mt-0.5 size-4 shrink-0 ${iconColour}`}
-                aria-hidden="true"
-              />
-              <div className="min-w-0 flex-1">
-                <Link
-                  href={item.href}
-                  className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-                  aria-label={`${item.title} — ${item.detail}`}
-                >
-                  <p className="text-sm font-medium text-foreground hover:underline">
-                    {item.title}
-                  </p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {item.detail}
-                  </p>
-                </Link>
-              </div>
-              <div className="flex shrink-0 items-center gap-1">
-                {claudePrompt && (
-                  <ClaudePromptButton
-                    prompt={claudePrompt}
-                    size="sm"
-                    className="h-auto px-1 py-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
-                  />
-                )}
-                <Link
-                  href={item.href}
-                  className="mt-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
-                  aria-label={`Go to ${item.title}`}
-                  tabIndex={-1}
-                >
-                  <ArrowRight
-                    className="size-4 text-muted-foreground"
-                    aria-hidden="true"
-                  />
-                </Link>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Known domain-to-CSS-token mapping. Domain names from the API (primary_domain)
- * are lowercase kebab-case. The CSS variables use `--domain-{key}-text` where
- * the key may differ (e.g. "product-feature" maps to "product"). Domains not in
- * this map fall back to `text-foreground`.
- *
- * NOTE: If new taxonomy domains are added, this map needs updating to match the
- * CSS variable names in globals.css. A fully dynamic solution would require the
- * TaxonomyContext here, but that couples the reorient section to taxonomy loading.
- */
-const DOMAIN_COLOUR_CLASS: Record<string, string> = {
-  security: 'text-[var(--domain-security-text)]',
-  compliance: 'text-[var(--domain-compliance-text)]',
-  implementation: 'text-[var(--domain-implementation-text)]',
-  support: 'text-[var(--domain-support-text)]',
-  corporate: 'text-[var(--domain-corporate-text)]',
-  'product-feature': 'text-[var(--domain-product-text)]',
-  methodology: 'text-[var(--domain-methodology-text)]',
-};
-
 function TeamChanges({ changes }: { changes: TeamChange[] }) {
   const userIds = changes.map((c) => c.user_id).filter(Boolean);
   const displayNames = useDisplayNames(userIds);
+  const { getDomainColourKey } = useTaxonomy();
 
   if (changes.length === 0) return null;
 
@@ -256,8 +114,7 @@ function TeamChanges({ changes }: { changes: TeamChange[] }) {
       <ul className="space-y-1">
         {Array.from(grouped.values()).map((group, i) => {
           const domainColourClass = group.domain
-            ? (DOMAIN_COLOUR_CLASS[group.domain.toLowerCase()] ??
-              'text-foreground')
+            ? `text-[var(--domain-${getDomainColourKey(group.domain)}-text)]`
             : undefined;
 
           const noun =
@@ -391,10 +248,9 @@ export function ReorientSection({ data }: ReorientSectionProps) {
     setDismissed(true);
   };
 
-  const hasUrgent = data.urgent.length > 0;
   const hasTeamChanges = data.team_changes.length > 0;
   const hasRecentWork = data.my_recent_work.length > 0;
-  const isEmpty = !hasUrgent && !hasTeamChanges && !hasRecentWork;
+  const isEmpty = !hasTeamChanges && !hasRecentWork;
 
   // First-login detection: no prior activity and no recent work
   const isFirstLogin =
@@ -437,7 +293,6 @@ export function ReorientSection({ data }: ReorientSectionProps) {
         </p>
       ) : (
         <div className="mt-4 space-y-4">
-          <UrgentItems items={data.urgent} />
           <TeamChanges changes={data.team_changes} />
           <RecentWork items={data.my_recent_work} />
         </div>

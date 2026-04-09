@@ -135,7 +135,6 @@ export function ReaderView({
       highlights={highlights}
       frameable={item.metadata?.frameable === true}
       canEdit={false}
-      showSourceToggle={false}
       className="mb-6"
     />
   );
@@ -193,7 +192,6 @@ export function ReaderView({
                 verifiedAt={item.verified_at}
                 size="md"
                 showLabel={true}
-                showDetailedTrust={false}
                 liveRegion={false}
               />
               {item.updated_at && (

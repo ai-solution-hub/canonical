@@ -5,6 +5,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ExternalLink, Flag, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  getRelevanceColourClass,
+  getRelevanceLabel,
+} from '@/lib/intelligence/relevance-display';
 import type {
   FeedArticle,
   ArticleTab,
@@ -27,22 +31,6 @@ function formatDate(dateString: string | null): string {
   });
 }
 
-function getRelevanceColourClass(score: number | null): string {
-  if (score === null) return '';
-  if (score >= 0.8)
-    return 'bg-[var(--color-relevance-high)] text-[var(--color-relevance-high-text)]';
-  if (score >= 0.5)
-    return 'bg-[var(--color-relevance-medium)] text-[var(--color-relevance-medium-text)]';
-  if (score >= 0.2)
-    return 'bg-[var(--color-relevance-low)] text-[var(--color-relevance-low-text)]';
-  return 'bg-[var(--color-relevance-irrelevant)] text-[var(--color-relevance-irrelevant-text)]';
-}
-
-function getRelevanceLabel(score: number | null): string {
-  if (score === null) return 'Unknown';
-  return `${(score * 100).toFixed(0)}%`;
-}
-
 export function ArticleCard({
   article,
   tab,
@@ -53,7 +41,7 @@ export function ArticleCard({
 
   const reasoning =
     tab === 'passed' ? article.ai_summary : article.relevance_reasoning;
-  const reasoningLabel = tab === 'passed' ? 'Summary' : 'Relevance reasoning';
+  const reasoningLabel = tab === 'passed' ? 'Summary' : 'Why filtered';
 
   return (
     <div className="rounded-lg border bg-card p-4 shadow-sm">

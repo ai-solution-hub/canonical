@@ -38,10 +38,10 @@ describe('RssFeedPanel', () => {
       />,
     );
 
-    // Warning copy should explicitly mention relevance reasoning + competitor risk
+    // Warning copy should explicitly flag the borderline-articles risk + competitor risk
     expect(
       screen.getByText(
-        /Filtered feed exposes relevance reasoning — share only with internal stakeholders\. A competitor subscribing to this URL could learn what you monitor and how you evaluate it\./,
+        /This feed shows borderline articles and the criteria they were judged against — share only with internal stakeholders\. A competitor subscribing to this URL could learn what you monitor\./,
       ),
     ).toBeInTheDocument();
   });
@@ -56,7 +56,7 @@ describe('RssFeedPanel', () => {
 
     const notes = screen.getAllByRole('note');
     expect(notes).toHaveLength(1);
-    expect(notes[0]).toHaveTextContent(/Filtered feed exposes relevance/);
+    expect(notes[0]).toHaveTextContent(/This feed shows borderline articles/);
   });
 
   it('renders the AlertTriangle warning icon on the filtered row', () => {
@@ -121,7 +121,7 @@ describe('RssFeedPanel', () => {
     // No warning text should appear within the passed row
     expect(
       within(passedRow as HTMLElement).queryByText(
-        /Filtered feed exposes relevance/,
+        /This feed shows borderline articles/,
       ),
     ).toBeNull();
     // No warning icon should appear within the passed row

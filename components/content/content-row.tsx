@@ -173,7 +173,6 @@ export const ContentRow = memo(function ContentRow({
                   verified={true}
                   verifiedAt={item.verified_at}
                   verifiedByName={verifiedByName}
-                  tooltipOnly={true}
                   size="sm"
                 />
               </span>
@@ -338,7 +337,6 @@ export const ContentRow = memo(function ContentRow({
                 verified={true}
                 verifiedAt={item.verified_at}
                 verifiedByName={verifiedByName}
-                tooltipOnly={true}
                 size="sm"
               />
             </span>

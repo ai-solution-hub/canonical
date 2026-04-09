@@ -50,6 +50,15 @@ describe('workspace-types registry', () => {
     it('returns undefined for empty string', () => {
       expect(getWorkspaceType('')).toBeUndefined();
     });
+
+    it('intelligence description is free of AI branding and prompt language', () => {
+      const config = getWorkspaceType('intelligence');
+      expect(config).toBeDefined();
+      // Guards S157 WP1 C4 regression — no "AI" or "prompt" words in the
+      // user-visible workspace type description.
+      expect(config!.description).not.toMatch(/\bAI\b/i);
+      expect(config!.description).not.toMatch(/prompt/i);
+    });
   });
 
   describe('getAllWorkspaceTypes', () => {

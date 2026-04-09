@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { cn } from '@/lib/utils';
 
 /**
@@ -48,7 +49,11 @@ export function SignOutButton({
       // land; the local auth cookies will still be cleared by the
       // client-side supabase-js teardown, and the full navigation below
       // forces the next request through proxy.ts. Log for diagnostics.
-      console.error('[sign-out] supabase.auth.signOut() failed', err);
+      logBestEffortWarn(
+        'auth.sign_out.supabase',
+        'supabase.auth.signOut() failed',
+        { err },
+      );
     } finally {
       onBeforeNavigate?.();
       // Full navigation — clears auth cookies before the next request
@@ -84,6 +89,7 @@ export function SignOutButton({
       disabled={isSigningOut}
       aria-busy={isSigningOut}
       aria-label="Sign out"
+      title="Sign out"
       className="text-muted-foreground hover:text-foreground"
     >
       <LogOut className="size-4" />

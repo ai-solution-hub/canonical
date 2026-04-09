@@ -27,6 +27,22 @@ interface HealthPanelProps {
 /** Threshold above which "time since last run" is treated as stale (30 min). */
 const STALE_RUN_MS = 30 * 60 * 1000;
 
+/**
+ * Backend pipeline status messages may leak implementation vocabulary
+ * (model names, retrieval terms, classifier terms). Strip those from
+ * user-facing copy — non-admin safety net. Admins can still inspect raw
+ * messages via logs.
+ */
+const LEAK_PATTERNS =
+  /\b(claude|sonnet|opus|haiku|anthropic|openai|gpt|llm|model|token|inference|classification|classifier|embedding|embed|vector|rag|prompt|scoring|relevance[_\s-]?score)\b/i;
+function sanitisePipelineMessage(message: string | null | undefined): string {
+  if (!message) return 'Pipeline status unavailable.';
+  if (LEAK_PATTERNS.test(message)) {
+    return 'Pipeline error — see admin logs.';
+  }
+  return message;
+}
+
 type HealthSeverity = 'healthy' | 'degraded' | 'failing';
 
 /**
@@ -215,10 +231,16 @@ export function HealthPanel({ workspaceId }: HealthPanelProps) {
         </Badge>
       </div>
 
-      {/* Status message */}
-      <p className="mt-2 text-sm text-muted-foreground">
-        {pipeline.statusMessage}
-      </p>
+      {/* Status message — both visible body and hover tooltip share the
+          sanitised string so implementation vocabulary never reaches the user. */}
+      {(() => {
+        const sanitised = sanitisePipelineMessage(pipeline.statusMessage);
+        return (
+          <p className="mt-2 text-sm text-muted-foreground" title={sanitised}>
+            {sanitised}
+          </p>
+        );
+      })()}
 
       {/* Stats grid */}
       <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">

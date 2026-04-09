@@ -23,6 +23,16 @@ export default function PromptsPage() {
 
   const [viewingText, setViewingText] = useState<string | null>(null);
 
+  if (role !== null && role !== 'admin') {
+    return (
+      <div className="flex flex-col items-center justify-center rounded-lg border bg-card p-12 text-center shadow-sm">
+        <p className="text-sm text-muted-foreground">
+          You don&apos;t have access to this section.
+        </p>
+      </div>
+    );
+  }
+
   const activePrompt = prompts?.find((p) => p.is_active) ?? null;
 
   function handleViewVersion(version: FeedPrompt) {
@@ -47,7 +57,7 @@ export default function PromptsPage() {
     return (
       <div className="flex flex-col items-center justify-center rounded-lg border bg-card p-12 text-center shadow-sm">
         <p className="text-sm text-muted-foreground">
-          No prompts configured. This should not happen — contact admin.
+          No filter rules configured for this workspace yet.
         </p>
       </div>
     );
