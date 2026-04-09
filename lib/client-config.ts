@@ -151,6 +151,7 @@ export const CLIENT_CONFIG = {
     'Security awareness training, confidentiality clauses, and security governance belong in security/data-protection or corporate/staffing, NOT support/sla.',
     'Data security controls (encryption, access control, secure data transfer, infrastructure security) belong in security/*, NOT product-feature/*.',
     'Financial questions (pricing, costs, audited accounts, hidden costs) belong in corporate/financial.',
+    'When "{CLIENT_ORGANISATION_NAME}" or its short form "{CLIENT_ORGANISATION_SHORT}" appears verbatim in content — including first-party Q&A answers where it reads as a self-reference (e.g. "{CLIENT_ORGANISATION_SHORT} is complying", "{CLIENT_ORGANISATION_SHORT} must", "{CLIENT_ORGANISATION_SHORT} Project Manager", "Phase 2. Implementation ({CLIENT_ORGANISATION_SHORT})") — extract it as an `organisation` entity. Client self-references are named entities, NOT pronouns. The alias map normalises the short form to the full formal name, so extracting the verbatim short form is correct.',
   ],
 
   layer_vocabulary: [

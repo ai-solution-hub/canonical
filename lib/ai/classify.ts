@@ -511,6 +511,38 @@ const ENTITY_TYPE_ENUM = [
 const PASS_2_MODEL = 'claude-haiku-4-5';
 
 /**
+ * ISO certification family — deterministic type override (S158A Iteration 4).
+ *
+ * The taxonomy spec at `docs/reference/entity-type-taxonomy-spec.md:234-238`
+ * states that ISO 27001 / 9001 / 14001 / 22301 / 45001 / 50001 are
+ * context-dependent: `certification` when held, `standard` when discussing
+ * the published document. In UK SMB bid libraries the overwhelming majority
+ * of mentions are certification-context — iter1 cross-item consistency
+ * showed the classifier flip-flopping between the two types per item, and
+ * Pass 2 occasionally retyped held certifications to `standard`. This
+ * override forces the six ISO certification families to `certification`
+ * uniformly at the storage layer (after canonicalise/alias/filter, before
+ * upsert), eliminating the cross-item type flip-flop.
+ *
+ * Entries must match the canonicalised, lowercased form of the
+ * canonical_name exactly (not `iso 27001 control 6.1`, not
+ * `iso 22301 business continuity management` — only the bare certification
+ * name). CREST is deliberately NOT in the override list; it is genuinely
+ * ambiguous (professional body vs credential) and should be handled via
+ * fixture multi-type acceptance. BS / PAS / prEN / ISO 13485 / 18091 etc
+ * are also excluded — these are published standards, not commonly-held
+ * certifications in this domain.
+ */
+const _ISO_CERTIFICATION_OVERRIDE: ReadonlySet<string> = new Set([
+  'iso 9001',
+  'iso 14001',
+  'iso 22301',
+  'iso 27001',
+  'iso 45001',
+  'iso 50001',
+]);
+
+/**
  * Build the validation prompt for Pass 2.
  * Embeds compressed universal rules and per-type diagnostic questions.
  */
@@ -1199,6 +1231,33 @@ ${contentForClassification}`,
         }
         return !excluded;
       });
+
+      // Step 15b: ISO certification family type override (S158A Iteration 4).
+      //
+      // Forces the six ISO certification families to `certification` uniformly
+      // per the taxonomy spec §3.1 "if ambiguous, prefer certification" rule.
+      // Runs after the canonicalise + alias + filter pipeline so it sees the
+      // fully-normalised canonical_name. The mutation is in-place on the
+      // filteredEntityRows array because by this point the row is ready to
+      // upsert and no further transformations apply. See
+      // `_ISO_CERTIFICATION_OVERRIDE` (module top) for the list and rationale.
+      for (const row of filteredEntityRows) {
+        if (
+          _ISO_CERTIFICATION_OVERRIDE.has(row.canonical_name) &&
+          row.entity_type !== 'certification'
+        ) {
+          logBestEffortWarn(
+            'classify.entity.iso_type_override',
+            `ISO family override: forcing ${row.canonical_name} from ${row.entity_type} to certification`,
+            {
+              itemId,
+              canonicalName: row.canonical_name,
+              originalType: row.entity_type,
+            },
+          );
+          row.entity_type = 'certification';
+        }
+      }
 
       if (filteredEntityRows.length > 0) {
         // INSERT (not upsert) is safe here because Step 13a already

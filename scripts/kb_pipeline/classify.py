@@ -25,6 +25,28 @@ _valid_domains: Optional[List[str]] = None
 _valid_subtopics: Optional[List[str]] = None
 
 # ──────────────────────────────────────────
+# ISO certification family override (S158A Iteration 4)
+# ──────────────────────────────────────────
+#
+# Mirrors lib/ai/classify.ts `_ISO_CERTIFICATION_OVERRIDE` — forces the six
+# common ISO certification families to `certification` uniformly to eliminate
+# cross-item type flip-flop. Per taxonomy spec §3.1: "if ambiguous, prefer
+# certification because in UK SMB bid documents, ISO standards are typically
+# held as certifications." Entries must match the canonicalised lowercased
+# canonical_name exactly (not the extended-form variants like "iso 22301
+# business continuity management" or subclauses like "iso 27001 control 6.1").
+# CREST, BS, PAS, prEN and rare ISO families (13485, 18091, 22163, 29001) are
+# deliberately NOT in this list.
+_ISO_CERTIFICATION_OVERRIDE = frozenset({
+    "iso 9001",
+    "iso 14001",
+    "iso 22301",
+    "iso 27001",
+    "iso 45001",
+    "iso 50001",
+})
+
+# ──────────────────────────────────────────
 # Identifier exclusion patterns
 # ──────────────────────────────────────────
 
@@ -1052,6 +1074,19 @@ def store_entities(
         canonical = canonicalise(canonical, ent_type)
         canonical = resolve_entity_alias(canonical)
         canonical = canonical.lower()
+
+        # ISO certification family type override (S158A Iteration 4).
+        # Mirrors lib/ai/classify.ts Step 15b — see _ISO_CERTIFICATION_OVERRIDE
+        # module constant for the list and rationale. Forces the six common
+        # ISO certification families to `certification` uniformly to eliminate
+        # cross-item type flip-flop. Aligned with taxonomy spec §3.1 "if
+        # ambiguous, prefer certification" rule.
+        if canonical in _ISO_CERTIFICATION_OVERRIDE and ent_type != "certification":
+            logger.info(
+                "ISO family override: forcing %s from %s to certification",
+                canonical, ent_type,
+            )
+            ent_type = "certification"
 
         record = {
             "content_item_id": content_item_id,
