@@ -7,7 +7,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Json } from '@/supabase/types/database.types';
 import { getAnthropicClient, getAIModel, estimateCost } from '@/lib/anthropic';
 import { extractToolResult } from '@/lib/ai-parse';
-import { generateEmbedding } from '@/lib/ai/embed';
+import { generateEmbedding, MAX_EMBEDDING_CHARS } from '@/lib/ai/embed';
 import { htmlToPlainText } from '@/lib/editor-utils';
 import { AIServiceError } from '@/lib/ai/errors';
 import { loadSkill } from '@/lib/ai/skills/loader';
@@ -439,9 +439,41 @@ export interface ClassificationTemporalReference {
   related_entity?: string;
 }
 
+/**
+ * Coerce classifier-returned subtopic strings.
+ *
+ * The Claude tool JSON schema declares `primary_subtopic` as a required
+ * string with no `minLength`, so the classifier occasionally emits `""`
+ * (or a whitespace-only string) to satisfy the required-string contract
+ * when it cannot confidently choose a subtopic. The DB column is
+ * nullable and accepts empty strings silently, leaving downstream
+ * filters / guides / relevance scoring with an ambiguous value.
+ *
+ * `classifyContent` calls this on both `primary_subtopic` and
+ * `secondary_subtopic` before writing to the DB row. Closes §2.1.11
+ * (S158 WP2 Run 2 residual finding; audit at
+ * `docs/audits/si-classification-verification-s156.md`).
+ *
+ * Exported so the regression test can exercise it without having to
+ * mock out the full classifyContent pipeline.
+ */
+export function coerceSubtopic(
+  value: string | null | undefined,
+): string | null {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : null;
+}
+
 export interface ClassificationResult {
   primary_domain: string;
-  primary_subtopic: string;
+  /**
+   * Subtopic slug. Nullable because the Claude tool JSON schema declares
+   * it as a required string with no minLength, so the classifier can emit
+   * literal `""` to satisfy the "required string" contract when it is not
+   * confident. `classifyContent` coerces empty / whitespace-only values to
+   * `null` via `coerceSubtopic` before they reach the DB (closes §2.1.11).
+   */
+  primary_subtopic: string | null;
   secondary_domain?: string | null;
   secondary_subtopic?: string | null;
   ai_keywords: string[];
@@ -1016,6 +1048,10 @@ ${contentForClassification}`,
     'return_classification',
   );
 
+  // Coerce empty / whitespace-only subtopics to null (closes §2.1.11).
+  result.primary_subtopic = coerceSubtopic(result.primary_subtopic);
+  result.secondary_subtopic = coerceSubtopic(result.secondary_subtopic);
+
   // Validate domains against taxonomy slugs
   const validDomainSlugs = (domains ?? []).map((d) => d.name);
   if (validDomainSlugs.length > 0) {
@@ -1055,15 +1091,47 @@ ${contentForClassification}`,
     updated_by: userId,
   };
 
-  // Regenerate embedding with updated keywords
+  // Regenerate embedding with updated keywords.
+  //
+  // OpenAI `text-embedding-3-large` caps input at 8,192 tokens. Long
+  // content items (tens of thousands of chars) exceed this and cause
+  // a 400 BadRequestError. Truncate to `MAX_EMBEDDING_CHARS` (~7k tokens)
+  // before calling and emit a separate best-effort warning when
+  // truncation fires so we can track how often it happens. The first
+  // ~7k tokens of a document carry the dominant semantic signal, and
+  // the alternative (no embedding at all) is strictly worse for
+  // downstream semantic search. Closes §2.1.12 (audit at
+  // docs/audits/si-classification-verification-s156.md § Run 2).
   try {
-    const embeddingText = `${result.suggested_title}\n\n${plainText}`;
+    const rawEmbeddingText = `${result.suggested_title}\n\n${plainText}`;
+    const wasTruncated = rawEmbeddingText.length > MAX_EMBEDDING_CHARS;
+    const embeddingText = wasTruncated
+      ? rawEmbeddingText.slice(0, MAX_EMBEDDING_CHARS)
+      : rawEmbeddingText;
+    if (wasTruncated) {
+      logBestEffortWarn(
+        'classify.embedding.input_truncated',
+        'Embedding input exceeded MAX_EMBEDDING_CHARS and was truncated',
+        {
+          itemId,
+          originalLength: rawEmbeddingText.length,
+          truncatedLength: MAX_EMBEDDING_CHARS,
+          titleLength: result.suggested_title?.length ?? 0,
+        },
+      );
+    }
     const embedding = await generateEmbedding(embeddingText);
     updateData.embedding = JSON.stringify(embedding);
   } catch (embedErr) {
-    console.error(
-      'Embedding regeneration during classification failed:',
-      embedErr,
+    logBestEffortWarn(
+      'classify.embedding.generation_failed',
+      'Embedding regeneration during classification failed',
+      {
+        itemId,
+        contentLength: plainText.length,
+        titleLength: result.suggested_title?.length ?? 0,
+        err: embedErr,
+      },
     );
   }
 
