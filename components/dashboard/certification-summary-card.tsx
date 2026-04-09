@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ClaudePromptButton } from '@/components/content/claude-prompt-button';
-import { cn } from '@/lib/utils';
+import { ExpiryBadge } from '@/components/dashboard/expiry-badge';
 import { generateCertificationReviewPrompt } from '@/lib/claude-prompts';
 import { formatEntityDisplayName } from '@/lib/entities/entity-dedup';
 import type { ExpiryStatus } from '@/lib/certification-status';
@@ -76,51 +76,6 @@ interface CertificationSummaryCardProps {
   onEditEntity?: (canonicalName: string) => void;
 }
 
-// ---------------------------------------------------------------------------
-// Expiry status badge
-// ---------------------------------------------------------------------------
-
-const EXPIRY_BADGE_CONFIG: Record<
-  ExpiryStatus,
-  { label: string; textClass: string; bgClass: string }
-> = {
-  valid: {
-    label: 'Valid',
-    textClass: 'text-freshness-fresh',
-    bgClass: 'bg-freshness-fresh-bg',
-  },
-  expiring_soon: {
-    label: 'Expiring Soon',
-    textClass: 'text-freshness-aging',
-    bgClass: 'bg-freshness-aging-bg',
-  },
-  expired: {
-    label: 'Expired',
-    textClass: 'text-freshness-expired',
-    bgClass: 'bg-freshness-expired-bg',
-  },
-  unknown: {
-    label: 'No expiry date',
-    textClass: 'text-muted-foreground',
-    bgClass: 'bg-muted',
-  },
-};
-
-function ExpiryBadge({ status }: { status: ExpiryStatus }) {
-  const config = EXPIRY_BADGE_CONFIG[status];
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
-        config.textClass,
-        config.bgClass,
-      )}
-      aria-label={`Expiry status: ${config.label}`}
-    >
-      {config.label}
-    </span>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Date formatting
@@ -225,27 +180,34 @@ function CertificationRow({
     <>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-              onEdit?.(cert.canonical_name);
-            }}
-            className={cn(
-              'text-sm font-medium text-foreground',
-              onEdit && 'cursor-pointer hover:underline',
-            )}
-            aria-label={`Edit ${formatEntityDisplayName(cert.canonical_name)}`}
-            disabled={!onEdit}
-          >
-            {formatEntityDisplayName(cert.canonical_name)}
-            {cert.metadata.version && (
-              <span className="ml-1 text-xs text-muted-foreground">
-                v{cert.metadata.version}
-              </span>
-            )}
-          </button>
+          {onEdit ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onEdit(cert.canonical_name);
+              }}
+              className="cursor-pointer text-sm font-medium text-foreground hover:underline"
+              aria-label={`Edit ${formatEntityDisplayName(cert.canonical_name)}`}
+            >
+              {formatEntityDisplayName(cert.canonical_name)}
+              {cert.metadata.version && (
+                <span className="ml-1 text-xs text-muted-foreground">
+                  v{cert.metadata.version}
+                </span>
+              )}
+            </button>
+          ) : (
+            <span className="text-sm font-medium text-foreground">
+              {formatEntityDisplayName(cert.canonical_name)}
+              {cert.metadata.version && (
+                <span className="ml-1 text-xs text-muted-foreground">
+                  v{cert.metadata.version}
+                </span>
+              )}
+            </span>
+          )}
           <ExpiryBadge status={cert.expiry_status} />
           {needsRenewal && renewalItemId && (
             <Button
@@ -256,11 +218,11 @@ function CertificationRow({
             >
               <Link
                 href={`/item/${renewalItemId}`}
-                aria-label={`View ${cert.canonical_name} for renewal`}
+                aria-label={`Review ${cert.canonical_name}`}
                 onClick={(e) => e.stopPropagation()}
               >
                 <RefreshCw className="size-3" aria-hidden="true" />
-                Renew
+                Review
               </Link>
             </Button>
           )}
@@ -332,22 +294,24 @@ function RegistrationRow({
     <>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-              onEdit?.(reg.canonical_name);
-            }}
-            className={cn(
-              'text-sm font-medium text-foreground',
-              onEdit && 'cursor-pointer hover:underline',
-            )}
-            aria-label={`Edit ${formatEntityDisplayName(reg.canonical_name)}`}
-            disabled={!onEdit}
-          >
-            {formatEntityDisplayName(reg.canonical_name)}
-          </button>
+          {onEdit ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onEdit(reg.canonical_name);
+              }}
+              className="cursor-pointer text-sm font-medium text-foreground hover:underline"
+              aria-label={`Edit ${formatEntityDisplayName(reg.canonical_name)}`}
+            >
+              {formatEntityDisplayName(reg.canonical_name)}
+            </button>
+          ) : (
+            <span className="text-sm font-medium text-foreground">
+              {formatEntityDisplayName(reg.canonical_name)}
+            </span>
+          )}
           <ExpiryBadge status={reg.expiry_status} />
           {needsRenewal && renewalItemId && (
             <Button
@@ -358,11 +322,11 @@ function RegistrationRow({
             >
               <Link
                 href={`/item/${renewalItemId}`}
-                aria-label={`View ${reg.canonical_name} for renewal`}
+                aria-label={`Review ${reg.canonical_name}`}
                 onClick={(e) => e.stopPropagation()}
               >
                 <RefreshCw className="size-3" aria-hidden="true" />
-                Renew
+                Review
               </Link>
             </Button>
           )}

@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { formatRelativeDate } from '@/lib/format';
 import { useDisplayNames } from '@/hooks/use-display-names';
 import { useHydrated } from '@/hooks/use-hydrated';
+import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { ClaudePromptButton } from '@/components/content/claude-prompt-button';
 import { cn } from '@/lib/utils';
 import type {
@@ -185,29 +186,11 @@ function UrgentItems({ items }: { items: UrgentItem[] }) {
   );
 }
 
-/**
- * Known domain-to-CSS-token mapping. Domain names from the API (primary_domain)
- * are lowercase kebab-case. The CSS variables use `--domain-{key}-text` where
- * the key may differ (e.g. "product-feature" maps to "product"). Domains not in
- * this map fall back to `text-foreground`.
- *
- * NOTE: If new taxonomy domains are added, this map needs updating to match the
- * CSS variable names in globals.css. A fully dynamic solution would require the
- * TaxonomyContext here, but that couples the reorient section to taxonomy loading.
- */
-const DOMAIN_COLOUR_CLASS: Record<string, string> = {
-  security: 'text-[var(--domain-security-text)]',
-  compliance: 'text-[var(--domain-compliance-text)]',
-  implementation: 'text-[var(--domain-implementation-text)]',
-  support: 'text-[var(--domain-support-text)]',
-  corporate: 'text-[var(--domain-corporate-text)]',
-  'product-feature': 'text-[var(--domain-product-text)]',
-  methodology: 'text-[var(--domain-methodology-text)]',
-};
 
 function TeamChanges({ changes }: { changes: TeamChange[] }) {
   const userIds = changes.map((c) => c.user_id).filter(Boolean);
   const displayNames = useDisplayNames(userIds);
+  const { getDomainColourKey } = useTaxonomy();
 
   if (changes.length === 0) return null;
 
@@ -256,8 +239,7 @@ function TeamChanges({ changes }: { changes: TeamChange[] }) {
       <ul className="space-y-1">
         {Array.from(grouped.values()).map((group, i) => {
           const domainColourClass = group.domain
-            ? (DOMAIN_COLOUR_CLASS[group.domain.toLowerCase()] ??
-              'text-foreground')
+            ? `text-[var(--domain-${getDomainColourKey(group.domain)}-text)]`
             : undefined;
 
           const noun =

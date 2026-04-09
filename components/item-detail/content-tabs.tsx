@@ -101,9 +101,6 @@ interface ContentTabsProps {
   // Editing support (optional — viewer role gets none)
   canEdit?: boolean;
   editConfig?: ContentTabsEditConfig;
-  /** When false, hides the human/AI content source toggle and auto-generated messages.
-   *  Reader mode and viewer roles should set this to false. Default: true. */
-  showSourceToggle?: boolean;
   className?: string;
 }
 
@@ -114,46 +111,6 @@ interface ContentTabsProps {
 function estimateReadingTime(text: string): number {
   const wordCount = text.split(/\s+/).length;
   return Math.ceil(wordCount / 200);
-}
-
-/** Dual-content toggle (original vs auto-summary) within a tab */
-function ContentSourceToggle({
-  viewMode,
-  onToggle,
-}: {
-  viewMode: 'human' | 'ai';
-  onToggle: (mode: 'human' | 'ai') => void;
-}) {
-  return (
-    <div className="mb-3 flex items-center gap-1 rounded-md border bg-muted/30 p-0.5 w-fit text-xs">
-      <button
-        type="button"
-        onClick={() => onToggle('human')}
-        className={cn(
-          'rounded px-2.5 py-1 transition-colors',
-          viewMode === 'human'
-            ? 'bg-background font-medium shadow-sm text-foreground'
-            : 'text-muted-foreground hover:text-foreground',
-        )}
-        aria-pressed={viewMode === 'human'}
-      >
-        Original
-      </button>
-      <button
-        type="button"
-        onClick={() => onToggle('ai')}
-        className={cn(
-          'rounded px-2.5 py-1 transition-colors',
-          viewMode === 'ai'
-            ? 'bg-background font-medium shadow-sm text-foreground'
-            : 'text-muted-foreground hover:text-foreground',
-        )}
-        aria-pressed={viewMode === 'ai'}
-      >
-        Auto-summary
-      </button>
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -181,7 +138,6 @@ export function ContentTabs({
   frameable,
   canEdit,
   editConfig,
-  showSourceToggle = true,
   className,
 }: ContentTabsProps) {
   const [summaryData, setSummaryData] = useState<SummaryData | null>(
@@ -193,10 +149,6 @@ export function ContentTabs({
   const [flagged, setFlagged] = useState(false);
   const [showFlagForm, setShowFlagForm] = useState(false);
   const [flagNote, setFlagNote] = useState('Summary needs improvement');
-
-  // Dual-content toggle state (when both human + AI exist for a tab)
-  const [briefViewMode, setBriefViewMode] = useState<'human' | 'ai'>('human');
-  const [detailViewMode, setDetailViewMode] = useState<'human' | 'ai'>('human');
 
   const isQAPair = contentType === 'q_a_pair';
 
@@ -572,65 +524,49 @@ export function ContentTabs({
           <TabsContent value="brief" className="p-4">
             {isEditing('brief') ? (
               <InlineTextEditor field="brief" />
-            ) : (
+            ) : hasBriefHuman ? (
               <>
-                {showSourceToggle && hasBriefHuman && hasBriefAI && (
-                  <ContentSourceToggle
-                    viewMode={briefViewMode}
-                    onToggle={setBriefViewMode}
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground" />
+                  <EditButton
+                    field="brief"
+                    label={brief ? 'Edit' : 'Write Summary'}
                   />
-                )}
-                {hasBriefHuman &&
-                (showSourceToggle ? briefViewMode === 'human' : true) ? (
-                  <>
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground" />
-                      <EditButton
-                        field="brief"
-                        label={brief ? 'Edit' : 'Write Summary'}
-                      />
-                    </div>
-                    <ContentRenderer content={brief!} />
-                  </>
-                ) : hasBriefAI && (briefViewMode === 'ai' || !hasBriefHuman) ? (
-                  <>
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground" />
-                      <EditButton field="brief" label="Write Summary" />
-                    </div>
-                    {showSourceToggle && !hasBriefHuman && canEdit && (
-                      <p className="mb-3 text-xs text-muted-foreground">
-                        Auto-generated — write a Summary to replace
-                      </p>
-                    )}
-                    <p className="text-base leading-relaxed text-foreground">
-                      {summaryData?.executive ?? aiSummary}
-                    </p>
-                  </>
-                ) : (
-                  // Empty state
-                  <div className="flex flex-col items-center gap-3 py-8 text-center">
-                    <FileText
-                      className="size-6 text-muted-foreground/50"
-                      aria-hidden="true"
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      No summary yet for this item.
-                    </p>
-                    {canEdit && showSourceToggle && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleGenerate}
-                        className="gap-1.5"
-                      >
-                        <RefreshCw className="size-3.5" aria-hidden="true" />
-                        Generate summary
-                      </Button>
-                    )}
-                  </div>
-                )}
+                </div>
+                <ContentRenderer content={brief!} />
               </>
+            ) : hasBriefAI ? (
+              <>
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground" />
+                  <EditButton field="brief" label="Write Summary" />
+                </div>
+                <p className="text-base leading-relaxed text-foreground">
+                  {summaryData?.executive ?? aiSummary}
+                </p>
+              </>
+            ) : (
+              // Empty state
+              <div className="flex flex-col items-center gap-3 py-8 text-center">
+                <FileText
+                  className="size-6 text-muted-foreground/50"
+                  aria-hidden="true"
+                />
+                <p className="text-sm text-muted-foreground">
+                  No summary yet for this item.
+                </p>
+                {canEdit && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGenerate}
+                    className="gap-1.5"
+                  >
+                    <RefreshCw className="size-3.5" aria-hidden="true" />
+                    Generate summary
+                  </Button>
+                )}
+              </div>
             )}
           </TabsContent>
         )}
@@ -640,40 +576,23 @@ export function ContentTabs({
           <TabsContent value="detail" className="p-4">
             {isEditing('detail') ? (
               <InlineTextEditor field="detail" />
-            ) : (
+            ) : hasDetailHuman ? (
               <>
-                {showSourceToggle && hasDetailHuman && hasDetailAI && (
-                  <ContentSourceToggle
-                    viewMode={detailViewMode}
-                    onToggle={setDetailViewMode}
-                  />
-                )}
-                {hasDetailHuman &&
-                (showSourceToggle ? detailViewMode === 'human' : true) ? (
-                  <>
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground" />
-                      <EditButton field="detail" />
-                    </div>
-                    <ContentRenderer content={detail!} />
-                  </>
-                ) : hasDetailAI &&
-                  (detailViewMode === 'ai' || !hasDetailHuman) ? (
-                  <>
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground" />
-                      <EditButton field="detail" label="Write Detailed" />
-                    </div>
-                    {showSourceToggle && !hasDetailHuman && canEdit && (
-                      <p className="mb-3 text-xs text-muted-foreground">
-                        Auto-generated — write In Depth content to replace
-                      </p>
-                    )}
-                    <ContentRenderer content={summaryData!.detailed} />
-                  </>
-                ) : null}
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground" />
+                  <EditButton field="detail" />
+                </div>
+                <ContentRenderer content={detail!} />
               </>
-            )}
+            ) : hasDetailAI ? (
+              <>
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground" />
+                  <EditButton field="detail" label="Write Detailed" />
+                </div>
+                <ContentRenderer content={summaryData!.detailed} />
+              </>
+            ) : null}
           </TabsContent>
         )}
 
@@ -747,7 +666,7 @@ export function ContentTabs({
             <span />
           )}
           <div className="flex items-center gap-2">
-            {canEdit && showSourceToggle && !summaryData && (
+            {canEdit && !summaryData && (
               <Button
                 onClick={handleGenerate}
                 variant="ghost"
@@ -758,23 +677,19 @@ export function ContentTabs({
                 Generate summary
               </Button>
             )}
-            {canEdit &&
-              showSourceToggle &&
-              summaryData &&
-              !flagged &&
-              !showFlagForm && (
-                <Button
-                  onClick={() => setShowFlagForm(true)}
-                  variant="ghost"
-                  size="sm"
-                  className="gap-1.5 text-xs"
-                  aria-label="Flag summary for review"
-                >
-                  <Flag className="size-3.5" aria-hidden="true" />
-                  Flag for review
-                </Button>
-              )}
-            {canEdit && showSourceToggle && summaryData && flagged && (
+            {canEdit && summaryData && !flagged && !showFlagForm && (
+              <Button
+                onClick={() => setShowFlagForm(true)}
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 text-xs"
+                aria-label="Flag summary for review"
+              >
+                <Flag className="size-3.5" aria-hidden="true" />
+                Flag for review
+              </Button>
+            )}
+            {canEdit && summaryData && flagged && (
               <>
                 <span
                   className="flex items-center gap-1.5 text-xs text-muted-foreground"

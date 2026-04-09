@@ -71,7 +71,7 @@ function changeTypeLabel(type: string): string {
     case 'edit':
       return 'Edited';
     case 'ai_update':
-      return 'AI Update';
+      return 'Auto update';
     case 'import':
       return 'Imported';
     case 'merge':

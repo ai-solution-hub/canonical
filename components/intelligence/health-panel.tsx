@@ -27,6 +27,21 @@ interface HealthPanelProps {
 /** Threshold above which "time since last run" is treated as stale (30 min). */
 const STALE_RUN_MS = 30 * 60 * 1000;
 
+/**
+ * Backend pipeline status messages may leak implementation vocabulary
+ * ("claude", "classification", "embedding", "prompt"). Strip those from
+ * user-facing copy — non-admin safety net. Admins can still inspect raw
+ * messages via logs.
+ */
+const LEAK_PATTERNS = /claude|classification|embedding|prompt/i;
+function sanitisePipelineMessage(message: string | null | undefined): string {
+  if (!message) return 'Pipeline status unavailable.';
+  if (LEAK_PATTERNS.test(message)) {
+    return 'Pipeline error — see admin logs.';
+  }
+  return message;
+}
+
 type HealthSeverity = 'healthy' | 'degraded' | 'failing';
 
 /**
@@ -216,8 +231,11 @@ export function HealthPanel({ workspaceId }: HealthPanelProps) {
       </div>
 
       {/* Status message */}
-      <p className="mt-2 text-sm text-muted-foreground">
-        {pipeline.statusMessage}
+      <p
+        className="mt-2 text-sm text-muted-foreground"
+        title={pipeline.statusMessage ?? undefined}
+      >
+        {sanitisePipelineMessage(pipeline.statusMessage)}
       </p>
 
       {/* Stats grid */}

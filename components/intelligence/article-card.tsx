@@ -40,7 +40,10 @@ function getRelevanceColourClass(score: number | null): string {
 
 function getRelevanceLabel(score: number | null): string {
   if (score === null) return 'Unknown';
-  return `${(score * 100).toFixed(0)}%`;
+  if (score >= 0.8) return 'High match';
+  if (score >= 0.5) return 'Medium match';
+  if (score >= 0.2) return 'Low match';
+  return 'Weak match';
 }
 
 export function ArticleCard({

@@ -48,6 +48,22 @@ vi.mock('@/hooks/use-display-names', () => ({
   },
 }));
 
+// Mock useTaxonomy — we only exercise getDomainColourKey here.
+vi.mock('@/contexts/taxonomy-context', () => ({
+  useTaxonomy: () => ({
+    domains: [],
+    subtopics: [],
+    loading: false,
+    error: null,
+    getDomainNames: () => [],
+    getSubtopics: () => [],
+    getDomainColourKey: (_name: string) => 'corporate',
+    formatSubtopic: (s: string) => s,
+    formatDomainName: (s: string) => s,
+    refresh: () => {},
+  }),
+}));
+
 // Mock formatRelativeDate
 vi.mock('@/lib/format', () => ({
   formatRelativeDate: (date: string | null) => {

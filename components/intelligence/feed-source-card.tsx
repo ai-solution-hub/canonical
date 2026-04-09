@@ -107,21 +107,23 @@ export function FeedSourceCard({
               href={source.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground hover:text-foreground"
+              className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
             >
-              {source.url.replace(/^https?:\/\//, '').slice(0, 50)}
+              <span className="truncate">
+                {source.url.replace(/^https?:\/\//, '')}
+              </span>
               <ExternalLink className="size-3 shrink-0" aria-hidden="true" />
             </a>
           </div>
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink-0 items-center gap-2">
             <Button
               variant="ghost"
               size="icon"
               onClick={onEdit}
               aria-label={`Edit ${source.name}`}
-              className="size-7"
+              className="size-8"
             >
-              <Pencil className="size-3" />
+              <Pencil className="size-3.5" />
             </Button>
             {canAdmin && (
               <Button
@@ -129,9 +131,9 @@ export function FeedSourceCard({
                 size="icon"
                 onClick={() => setShowDeleteDialog(true)}
                 aria-label={`Delete ${source.name}`}
-                className="size-7 text-muted-foreground hover:text-destructive"
+                className="size-8 text-muted-foreground hover:text-destructive"
               >
-                <Trash2 className="size-3" />
+                <Trash2 className="size-3.5" />
               </Button>
             )}
           </div>

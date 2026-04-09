@@ -78,18 +78,40 @@ function CoverageError({
 // Empty state
 // ---------------------------------------------------------------------------
 
-function CoverageEmpty() {
+function CoverageEmpty({ reason }: { reason: 'no-taxonomy' | 'no-content' }) {
+  if (reason === 'no-taxonomy') {
+    return (
+      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border px-6 py-16 text-center">
+        <LayoutGrid
+          className="size-10 text-muted-foreground/50"
+          aria-hidden="true"
+        />
+        <h3 className="mt-4 text-base font-medium text-foreground">
+          No taxonomy configured
+        </h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Configure domains and subtopics in Settings to see coverage data.
+        </p>
+        <Button asChild variant="outline" size="sm" className="mt-4">
+          <Link href="/settings">Go to Settings</Link>
+        </Button>
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border px-6 py-16 text-center">
-      <LayoutGrid className="size-10 text-muted-foreground/50" aria-hidden="true" />
+      <LayoutGrid
+        className="size-10 text-muted-foreground/50"
+        aria-hidden="true"
+      />
       <h3 className="mt-4 text-base font-medium text-foreground">
-        No taxonomy configured
+        Your knowledge base is empty
       </h3>
       <p className="mt-1 text-sm text-muted-foreground">
-        Configure domains and subtopics in Settings to see coverage data.
+        Add some content to see coverage broken down by domain.
       </p>
       <Button asChild variant="outline" size="sm" className="mt-4">
-        <Link href="/settings">Go to Settings</Link>
+        <Link href="/browse">Browse content</Link>
       </Button>
     </div>
   );
@@ -187,8 +209,13 @@ function exportCoverageCSV(
 // ---------------------------------------------------------------------------
 
 export function CoverageContent() {
-  const { getSubtopics, getDomainColourKey, formatSubtopic, formatDomainName } =
-    useTaxonomy();
+  const {
+    getSubtopics,
+    getDomainColourKey,
+    formatSubtopic,
+    formatDomainName,
+    getDomainNames,
+  } = useTaxonomy();
   const { targets, saveTargets } = useCoverageTargets();
   const { canAdmin } = useUserRole();
 
@@ -349,7 +376,11 @@ export function CoverageContent() {
         ) : error ? (
           <CoverageError message={error} onRetry={handleRetry} />
         ) : !data || data.summary.length === 0 ? (
-          <CoverageEmpty />
+          <CoverageEmpty
+            reason={
+              getDomainNames().length === 0 ? 'no-taxonomy' : 'no-content'
+            }
+          />
         ) : (
           <>
             {/* Summary cards */}

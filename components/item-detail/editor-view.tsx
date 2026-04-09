@@ -143,7 +143,6 @@ export function EditorView({
       frameable={item.metadata?.frameable === true}
       canEdit={canEdit}
       editConfig={tabEditConfig}
-      showSourceToggle={true}
       className="mb-6"
     />
   );
