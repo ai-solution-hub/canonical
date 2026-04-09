@@ -13,31 +13,22 @@ import userEvent from '@testing-library/user-event';
 // Mocks
 // ---------------------------------------------------------------------------
 
-const { mockUseDisplayNames, mockUseUserRole } = vi.hoisted(() => ({
+const { mockUseDisplayNames } = vi.hoisted(() => ({
   mockUseDisplayNames: vi.fn(() => new Map<string, string>()),
-  mockUseUserRole: vi.fn(() => ({
-    role: 'viewer',
-    loading: false,
-    canEdit: false,
-    canAdmin: false,
-  })),
 }));
 
 vi.mock('@/components/shared/verification-badge', () => ({
   VerificationBadge: ({
     verified,
     verifiedByName,
-    showDetailedTrust,
   }: {
     verified: boolean;
     verifiedByName?: string | null;
-    showDetailedTrust?: boolean;
   }) => (
     <span
       data-testid="verification-badge"
       data-verified={verified}
       data-verified-by-name={verifiedByName ?? ''}
-      data-show-detailed-trust={showDetailedTrust}
     >
       {verified
         ? verifiedByName
@@ -72,10 +63,6 @@ vi.mock('@/components/ui/input', () => ({
 
 vi.mock('@/hooks/use-display-names', () => ({
   useDisplayNames: mockUseDisplayNames,
-}));
-
-vi.mock('@/hooks/use-user-role', () => ({
-  useUserRole: mockUseUserRole,
 }));
 
 import { ItemTitleSection } from '@/components/item-detail/item-title-section';
@@ -144,12 +131,6 @@ describe('ItemTitleSection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseDisplayNames.mockReturnValue(new Map<string, string>());
-    mockUseUserRole.mockReturnValue({
-      role: 'viewer',
-      loading: false,
-      canEdit: false,
-      canAdmin: false,
-    });
   });
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -200,30 +181,13 @@ describe('ItemTitleSection', () => {
     expect(mockUseDisplayNames).toHaveBeenCalledWith(['user-456']);
   });
 
-  it('passes showDetailedTrust=true when user canEdit', () => {
-    mockUseUserRole.mockReturnValue({
-      role: 'editor',
-      loading: false,
-      canEdit: true,
-      canAdmin: false,
-    });
+  it('renders verification badge as binary Verified when verified_at is set', () => {
     const item = createMockItem({ verified_at: '2026-01-01T00:00:00Z' });
     render(<ItemTitleSection {...createDefaultProps({ item })} />);
     const badge = screen.getByTestId('verification-badge');
-    expect(badge).toHaveAttribute('data-show-detailed-trust', 'true');
-  });
-
-  it('passes showDetailedTrust=false when user is viewer', () => {
-    mockUseUserRole.mockReturnValue({
-      role: 'viewer',
-      loading: false,
-      canEdit: false,
-      canAdmin: false,
-    });
-    const item = createMockItem({ verified_at: '2026-01-01T00:00:00Z' });
-    render(<ItemTitleSection {...createDefaultProps({ item })} />);
-    const badge = screen.getByTestId('verification-badge');
-    expect(badge).toHaveAttribute('data-show-detailed-trust', 'false');
+    expect(badge).toHaveAttribute('data-verified', 'true');
+    // Curated tier retired in S157 WP4 — binary only
+    expect(badge).not.toHaveAttribute('data-show-detailed-trust');
   });
 
   it('shows freshness badge when freshness is set', () => {

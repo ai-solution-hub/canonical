@@ -168,7 +168,7 @@ describe('ContentRow — Verification Badge', () => {
     expect(verifiedBadge).toBeUndefined();
   });
 
-  it('shows full attribution in title attribute for standard rows', () => {
+  it('shows full attribution inline for standard rows', () => {
     const verifierNames = new Map([['user-uuid-1', 'Jane Smith']]);
     render(
       <ContentRow
@@ -184,7 +184,8 @@ describe('ContentRow — Verification Badge', () => {
       el.textContent?.includes('Verified'),
     );
     expect(verifiedBadge).toBeTruthy();
-    expect(verifiedBadge!.getAttribute('title')).toMatch(
+    // S157 WP4: binary badge shows full attribution inline via aria-label
+    expect(verifiedBadge!.getAttribute('aria-label')).toMatch(
       /Verified by Jane Smith/,
     );
   });
@@ -208,12 +209,12 @@ describe('ContentRow — Verification Badge', () => {
       el.textContent?.includes('Verified'),
     );
     expect(verifiedBadge).toBeTruthy();
-    expect(verifiedBadge!.getAttribute('title')).toMatch(
+    expect(verifiedBadge!.getAttribute('aria-label')).toMatch(
       /Verified by Jane Smith/,
     );
   });
 
-  it('falls back to time-only tooltip when UUID not in verifierNames', () => {
+  it('falls back to time-only label when UUID not in verifierNames', () => {
     const verifierNames = new Map([['other-uuid', 'Other Person']]);
     render(
       <ContentRow
@@ -229,13 +230,13 @@ describe('ContentRow — Verification Badge', () => {
       el.textContent?.includes('Verified'),
     );
     expect(verifiedBadge).toBeTruthy();
-    // Tooltip shows relative time but no name attribution
-    const title = verifiedBadge!.getAttribute('title');
-    expect(title).toMatch(/Verified \d+ \w+ ago/);
-    expect(title).not.toMatch(/by/);
+    // Label shows relative time but no name attribution
+    const label = verifiedBadge!.getAttribute('aria-label');
+    expect(label).toMatch(/Verified \d+ \w+ ago/);
+    expect(label).not.toMatch(/ by /);
   });
 
-  it('shows time-only tooltip without verifierNames prop (backwards compatible)', () => {
+  it('shows time-only label without verifierNames prop (backwards compatible)', () => {
     render(
       <ContentRow
         item={makeItem({
@@ -249,33 +250,9 @@ describe('ContentRow — Verification Badge', () => {
       el.textContent?.includes('Verified'),
     );
     expect(verifiedBadge).toBeTruthy();
-    // verifiedAt is still passed, so tooltip shows relative time
-    const title = verifiedBadge!.getAttribute('title');
-    expect(title).toMatch(/Verified \d+ \w+ ago/);
-    expect(title).not.toMatch(/by/);
-  });
-
-  it('shows inline text "Verified" only (not full name) with tooltipOnly', () => {
-    const verifierNames = new Map([['user-uuid-1', 'Jane Smith']]);
-    render(
-      <ContentRow
-        item={makeItem({
-          verified_at: '2026-03-20T12:00:00Z',
-          verified_by: 'user-uuid-1',
-        })}
-        verifierNames={verifierNames}
-      />,
-    );
-    const badges = screen.getAllByRole('img');
-    const verifiedBadge = badges.find((el) =>
-      el.textContent?.includes('Verified'),
-    );
-    expect(verifiedBadge).toBeTruthy();
-    // The inline text should be just "Verified", not the full attribution
-    const inlineSpans = verifiedBadge!.querySelectorAll('span');
-    const textSpan = Array.from(inlineSpans).find(
-      (s) => s.textContent === 'Verified',
-    );
-    expect(textSpan).toBeTruthy();
+    // verifiedAt is still passed, so label shows relative time
+    const label = verifiedBadge!.getAttribute('aria-label');
+    expect(label).toMatch(/Verified \d+ \w+ ago/);
+    expect(label).not.toMatch(/ by /);
   });
 });

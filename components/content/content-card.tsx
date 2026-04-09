@@ -312,7 +312,6 @@ function CardFooter({
               verified={true}
               verifiedAt={item.verified_at}
               verifiedByName={verifiedByName}
-              tooltipOnly={true}
               size="sm"
             />
           </span>
@@ -532,7 +531,6 @@ export const ContentCard = memo(function ContentCard({
                     verified={true}
                     verifiedAt={item.verified_at}
                     verifiedByName={verifiedByName}
-                    tooltipOnly={true}
                     size="sm"
                   />
                 </span>
