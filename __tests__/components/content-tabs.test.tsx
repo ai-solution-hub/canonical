@@ -2,8 +2,8 @@
  * ContentTabs Component Tests
  *
  * Tests the ContentTabs component (renamed from SummaryTabs).
- * Covers tab rendering, AI summary display, generate button, loading state,
- * and the showSourceToggle prop for role-aware AI messaging.
+ * Covers tab rendering, content display (human + machine-generated with
+ * fallback), generate button, and loading state.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -297,308 +297,46 @@ describe('ContentTabs', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Tests -- showSourceToggle prop (Phase 2: Role-aware AI messaging)
+  // Tests -- content source fallback (S157 WP3: toggle removed entirely)
   // ---------------------------------------------------------------------------
 
-  describe('showSourceToggle prop', () => {
-    describe('when showSourceToggle is true (default)', () => {
-      it('renders ContentSourceToggle when both human and AI content exist', () => {
-        render(
-          <ContentTabs
-            itemId="item-1"
-            summaryData={makeSummaryData()}
-            brief="Human brief content"
-            contentType="article"
-            canEdit={true}
-            showSourceToggle={true}
-          />,
-        );
-        // The toggle renders "Original" and "Auto-summary" buttons
-        expect(screen.getByText('Original')).toBeInTheDocument();
-        expect(screen.getByText('Auto-summary')).toBeInTheDocument();
-      });
-
-      it('shows "Auto-generated" message when only AI brief exists and canEdit', () => {
-        render(
-          <ContentTabs
-            itemId="item-1"
-            summaryData={makeSummaryData()}
-            contentType="article"
-            canEdit={true}
-            showSourceToggle={true}
-          />,
-        );
-        expect(
-          screen.getByText(/Auto-generated \u2014 write a Summary to replace/),
-        ).toBeInTheDocument();
-      });
-
-      it('shows "Generate summary" buttons in empty state for editors', () => {
-        render(
-          <ContentTabs
-            itemId="item-1"
-            summaryData={null}
-            contentType="article"
-            canEdit={true}
-            showSourceToggle={true}
-          />,
-        );
-        const buttons = screen.getAllByText('Generate summary');
-        expect(buttons.length).toBeGreaterThanOrEqual(1);
-      });
+  describe('content source fallback', () => {
+    it('shows human brief when both human and machine summary exist', () => {
+      render(
+        <ContentTabs
+          itemId="item-1"
+          summaryData={makeSummaryData({
+            executive: 'Machine-generated summary text',
+          })}
+          brief="Human-authored brief for readers"
+          contentType="article"
+          canEdit={false}
+        />,
+      );
+      expect(
+        screen.getByText('Human-authored brief for readers'),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText('Machine-generated summary text'),
+      ).not.toBeInTheDocument();
     });
 
-    describe('when showSourceToggle is omitted (defaults to true)', () => {
-      it('renders ContentSourceToggle when both human and AI content exist', () => {
-        render(
-          <ContentTabs
-            itemId="item-1"
-            summaryData={makeSummaryData()}
-            brief="Human brief content"
-            contentType="article"
-            canEdit={true}
-          />,
-        );
-        expect(screen.getByText('Original')).toBeInTheDocument();
-        expect(screen.getByText('Auto-summary')).toBeInTheDocument();
-      });
-
-      it('shows "Auto-generated" message when only AI brief exists and canEdit', () => {
-        render(
-          <ContentTabs
-            itemId="item-1"
-            summaryData={makeSummaryData()}
-            contentType="article"
-            canEdit={true}
-          />,
-        );
-        expect(
-          screen.getByText(/Auto-generated \u2014 write a Summary to replace/),
-        ).toBeInTheDocument();
-      });
-    });
-
-    describe('when showSourceToggle is false', () => {
-      it('does NOT render ContentSourceToggle when both human and AI brief exist', () => {
-        render(
-          <ContentTabs
-            itemId="item-1"
-            summaryData={makeSummaryData()}
-            brief="Human brief content"
-            contentType="article"
-            canEdit={false}
-            showSourceToggle={false}
-          />,
-        );
-        expect(screen.queryByText('Original')).not.toBeInTheDocument();
-        expect(screen.queryByText('Auto-summary')).not.toBeInTheDocument();
-      });
-
-      it('shows human content (not AI) when both exist and toggle is hidden', () => {
-        render(
-          <ContentTabs
-            itemId="item-1"
-            summaryData={makeSummaryData({
-              executive: 'AI generated summary text',
-            })}
-            brief="Human-authored brief for readers"
-            contentType="article"
-            canEdit={false}
-            showSourceToggle={false}
-          />,
-        );
-        // Human content should be visible
-        expect(
-          screen.getByText('Human-authored brief for readers'),
-        ).toBeInTheDocument();
-        // AI content should NOT be visible (human takes priority)
-        expect(
-          screen.queryByText('AI generated summary text'),
-        ).not.toBeInTheDocument();
-      });
-
-      it('shows AI content without label when only AI exists and toggle is hidden', () => {
-        render(
-          <ContentTabs
-            itemId="item-1"
-            summaryData={makeSummaryData({
-              executive: 'AI-only summary content',
-            })}
-            contentType="article"
-            canEdit={false}
-            showSourceToggle={false}
-          />,
-        );
-        // AI content should be displayed
-        expect(screen.getByText('AI-only summary content')).toBeInTheDocument();
-        // But the "Auto-generated" message should NOT appear
-        expect(screen.queryByText(/Auto-generated/)).not.toBeInTheDocument();
-      });
-
-      it('hides "Auto-generated" summary message even when canEdit is true', () => {
-        // Edge case: editor in reader mode (canEdit=true, showSourceToggle=false)
-        render(
-          <ContentTabs
-            itemId="item-1"
-            summaryData={makeSummaryData()}
-            contentType="article"
-            canEdit={true}
-            showSourceToggle={false}
-          />,
-        );
-        expect(
-          screen.queryByText(
-            /Auto-generated \u2014 write a Summary to replace/,
-          ),
-        ).not.toBeInTheDocument();
-      });
-
-      it('hides "Auto-generated" In Depth message when showSourceToggle is false', async () => {
-        const user = userEvent.setup();
-        render(
-          <ContentTabs
-            itemId="item-1"
-            summaryData={makeSummaryData()}
-            contentType="article"
-            canEdit={true}
-            showSourceToggle={false}
-          />,
-        );
-        // Switch to In Depth tab
-        const inDepthTab = screen.getByText('In Depth');
-        await user.click(inDepthTab);
-
-        expect(
-          screen.queryByText(
-            /Auto-generated \u2014 write In Depth content to replace/,
-          ),
-        ).not.toBeInTheDocument();
-      });
-
-      it('does NOT render ContentSourceToggle in the detail tab when both human and AI exist', async () => {
-        const user = userEvent.setup();
-        render(
-          <ContentTabs
-            itemId="item-1"
-            summaryData={makeSummaryData()}
-            detail="Human detailed content"
-            contentType="article"
-            canEdit={false}
-            showSourceToggle={false}
-          />,
-        );
-        // Switch to In Depth tab
-        const inDepthTab = screen.getByText('In Depth');
-        await user.click(inDepthTab);
-
-        // No toggle buttons
-        expect(screen.queryByText('Original')).not.toBeInTheDocument();
-        expect(screen.queryByText('Auto-summary')).not.toBeInTheDocument();
-      });
-
-      it('shows human detail content when both exist and toggle is hidden', async () => {
-        const user = userEvent.setup();
-        render(
-          <ContentTabs
-            itemId="item-1"
-            summaryData={makeSummaryData({ detailed: 'AI detailed analysis' })}
-            detail="Human-written detail section"
-            contentType="article"
-            canEdit={false}
-            showSourceToggle={false}
-          />,
-        );
-        // Switch to In Depth tab
-        const inDepthTab = screen.getByText('In Depth');
-        await user.click(inDepthTab);
-
-        expect(
-          screen.getByText('Human-written detail section'),
-        ).toBeInTheDocument();
-        expect(
-          screen.queryByText('AI detailed analysis'),
-        ).not.toBeInTheDocument();
-      });
-
-      it('hides empty-state "Generate summary" button when showSourceToggle is false', () => {
-        render(
-          <ContentTabs
-            itemId="item-1"
-            summaryData={null}
-            contentType="article"
-            canEdit={true}
-            showSourceToggle={false}
-          />,
-        );
-        expect(screen.queryByText('Generate summary')).not.toBeInTheDocument();
-      });
-
-      it('hides footer "Generate summary" button when showSourceToggle is false', () => {
-        render(
-          <ContentTabs
-            itemId="item-1"
-            summaryData={null}
-            contentType="article"
-            canEdit={true}
-            showSourceToggle={false}
-          />,
-        );
-        // Both empty-state and footer generate buttons should be hidden
-        expect(screen.queryByText('Generate summary')).not.toBeInTheDocument();
-      });
-    });
-
-    describe('interaction between showSourceToggle and canEdit', () => {
-      it('toggle shown for editors with showSourceToggle=true', () => {
-        render(
-          <ContentTabs
-            itemId="item-1"
-            summaryData={makeSummaryData()}
-            brief="Human brief"
-            contentType="article"
-            canEdit={true}
-            showSourceToggle={true}
-          />,
-        );
-        expect(screen.getByText('Original')).toBeInTheDocument();
-        expect(screen.getByText('Auto-summary')).toBeInTheDocument();
-      });
-
-      it('toggle hidden for viewers even with showSourceToggle=true when no dual content', () => {
-        // Only AI exists, no human content -- no toggle rendered regardless of showSourceToggle
-        render(
-          <ContentTabs
-            itemId="item-1"
-            summaryData={makeSummaryData()}
-            contentType="article"
-            canEdit={false}
-            showSourceToggle={true}
-          />,
-        );
-        // Toggle only shows when BOTH human and AI exist
-        expect(screen.queryByText('Original')).not.toBeInTheDocument();
-      });
-
-      it('AI content displays without messaging for reader view', () => {
-        render(
-          <ContentTabs
-            itemId="item-1"
-            summaryData={makeSummaryData({
-              executive: 'Clean AI summary for readers',
-            })}
-            contentType="article"
-            canEdit={false}
-            showSourceToggle={false}
-          />,
-        );
-        // Content should be clean -- no "Auto-generated" text
-        expect(
-          screen.getByText('Clean AI summary for readers'),
-        ).toBeInTheDocument();
-        expect(screen.queryByText(/Auto-generated/)).not.toBeInTheDocument();
-        expect(screen.queryByText('Original')).not.toBeInTheDocument();
-        expect(screen.queryByText('Auto-summary')).not.toBeInTheDocument();
-      });
+    it('falls back to machine summary with no provenance caption', () => {
+      render(
+        <ContentTabs
+          itemId="item-1"
+          summaryData={makeSummaryData({
+            executive: 'Fallback summary content',
+          })}
+          contentType="article"
+          canEdit={true}
+        />,
+      );
+      expect(screen.getByText('Fallback summary content')).toBeInTheDocument();
+      expect(screen.queryByText(/Auto-generated/)).not.toBeInTheDocument();
+      expect(screen.queryByText('Original')).not.toBeInTheDocument();
+      expect(screen.queryByText('Auto-summary')).not.toBeInTheDocument();
     });
   });
+
 });
