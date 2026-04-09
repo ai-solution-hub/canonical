@@ -753,3 +753,45 @@ class TestStoreRelationships:
         # Already canonicalised by classify() -> alias resolution (no-op) -> lowercase
         assert record["source_entity"] == "acme limited"
         assert record["target_entity"] == "iso 27001"
+
+
+# ──────────────────────────────────────────
+# _is_internal_document — statutory allowlist
+# ──────────────────────────────────────────
+
+
+def test_is_internal_document_statutory_allowlist():
+    """Statutory documents in the allowlist are NOT treated as internal documents.
+
+    Parity with lib/ai/classify.ts isInternalDocument() — see pipeline parity
+    guard in __tests__/validation/pipeline-parity.test.ts.
+    """
+    from kb_pipeline.classify import _is_internal_document, _STATUTORY_ALLOWLIST
+
+    allowlist_entries = [
+        'wales safeguarding procedure',
+        'working together to safeguard children',
+        'keeping children safe in education',
+        'government security classification policy',
+        'modern slavery statement',
+    ]
+
+    # Sanity check: constant matches expected contents
+    assert _STATUTORY_ALLOWLIST == frozenset(allowlist_entries)
+
+    # All 5 allowlist entries must be exempted
+    for entry in allowlist_entries:
+        assert _is_internal_document(entry) is False, (
+            f"Expected allowlist entry '{entry}' to be exempted from internal-document filter"
+        )
+
+    # Case-insensitive: title-case variant of a ...policy entry still exempted
+    assert _is_internal_document('Government Security Classification Policy') is False
+    # Case-insensitive: title-case variant of a ...procedure entry
+    assert _is_internal_document('Keeping Children Safe In Education') is False
+
+    # Whitespace trimming: leading/trailing whitespace still exempted
+    assert _is_internal_document('  keeping children safe in education  ') is False
+
+    # Control: a non-allowlisted "... policy" is still filtered as internal
+    assert _is_internal_document('acme acceptable use policy') is True

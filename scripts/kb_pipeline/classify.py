@@ -109,6 +109,17 @@ _INTERNAL_DOCUMENT_SUFFIXES = [
     re.compile(r"process$", re.IGNORECASE),
 ]
 
+# Statutory documents that match suffix patterns but should be retained as
+# regulation entities. Source of truth: lib/ai/classify.ts:258-264 — any change
+# MUST be made in both places (enforced by __tests__/validation/pipeline-parity.test.ts).
+_STATUTORY_ALLOWLIST = frozenset([
+    'wales safeguarding procedure',
+    'working together to safeguard children',
+    'keeping children safe in education',
+    'government security classification policy',
+    'modern slavery statement',
+])
+
 # Abstract concepts and generic terms that should not be extracted as entities
 _GENERIC_CONCEPTS = frozenset([
     "information security", "information governance", "business continuity",
@@ -216,8 +227,17 @@ _GDPR_ARTEFACTS = frozenset([
 
 
 def _is_internal_document(name: str) -> bool:
-    """Check whether an entity name matches an internal document suffix pattern."""
-    return any(p.search(name.strip()) for p in _INTERNAL_DOCUMENT_SUFFIXES)
+    """Check whether an entity name matches an internal document suffix pattern.
+
+    Statutory documents in ``_STATUTORY_ALLOWLIST`` are exempted — they match
+    the suffix patterns (e.g. "... policy", "... procedure") but should be
+    retained as regulation entities. Mirrors ``isInternalDocument`` in
+    lib/ai/classify.ts.
+    """
+    trimmed = name.strip()
+    if trimmed.lower() in _STATUTORY_ALLOWLIST:
+        return False
+    return any(p.search(trimmed) for p in _INTERNAL_DOCUMENT_SUFFIXES)
 
 
 def _is_generic_concept(name: str) -> bool:

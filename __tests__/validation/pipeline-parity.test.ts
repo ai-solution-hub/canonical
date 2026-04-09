@@ -296,7 +296,64 @@ describe('Pipeline Parity', () => {
   });
 
   // ────────────────────────────────────────────────────────────────
-  // 8. Pipeline step presence in main entry point
+  // 8. Statutory allowlist match (internal-document filter exemptions)
+  // ────────────────────────────────────────────────────────────────
+
+  it('STATUTORY_ALLOWLIST entries match between TS and Python', () => {
+    const tsContent = readSource('lib/ai/classify.ts');
+    const pyContent = readSource('scripts/kb_pipeline/classify.py');
+
+    // TS: const STATUTORY_ALLOWLIST = new Set([...])
+    const tsBlock = tsContent.match(
+      /STATUTORY_ALLOWLIST\s*=\s*new Set\(\[([\s\S]*?)\]\)/,
+    );
+    expect(
+      tsBlock,
+      'Could not find STATUTORY_ALLOWLIST in lib/ai/classify.ts — regex may need updating',
+    ).not.toBeNull();
+    const tsValues = new Set(
+      [...tsBlock![1].matchAll(/'([^']+)'/g)].map((m) => m[1]),
+    );
+
+    // Python: _STATUTORY_ALLOWLIST = frozenset([...])
+    const pyBlock = pyContent.match(
+      /_STATUTORY_ALLOWLIST\s*=\s*frozenset\(\[([\s\S]*?)\]\)/,
+    );
+    expect(
+      pyBlock,
+      'Could not find _STATUTORY_ALLOWLIST in scripts/kb_pipeline/classify.py — regex may need updating',
+    ).not.toBeNull();
+    const pyValues = new Set(
+      [...pyBlock![1].matchAll(/'([^']+)'/g)].map((m) => m[1]),
+    );
+
+    expect(
+      tsValues.size,
+      'No entries parsed from TS STATUTORY_ALLOWLIST — regex may be broken',
+    ).toBeGreaterThan(0);
+
+    const missingFromTs = [...pyValues].filter((v) => !tsValues.has(v));
+    expect(
+      missingFromTs,
+      `Statutory allowlist entries in Python but missing from TS: ${missingFromTs.join(', ')}. ` +
+        'Update lib/ai/classify.ts STATUTORY_ALLOWLIST',
+    ).toHaveLength(0);
+
+    const missingFromPy = [...tsValues].filter((v) => !pyValues.has(v));
+    expect(
+      missingFromPy,
+      `Statutory allowlist entries in TS but missing from Python: ${missingFromPy.join(', ')}. ` +
+        'Update scripts/kb_pipeline/classify.py _STATUTORY_ALLOWLIST',
+    ).toHaveLength(0);
+
+    expect(
+      tsValues.size,
+      `TS STATUTORY_ALLOWLIST size (${tsValues.size}) does not match Python (${pyValues.size})`,
+    ).toBe(pyValues.size);
+  });
+
+  // ────────────────────────────────────────────────────────────────
+  // 9. Pipeline step presence in main entry point
   // ────────────────────────────────────────────────────────────────
 
   describe('pipeline step presence in pipeline.py', () => {
