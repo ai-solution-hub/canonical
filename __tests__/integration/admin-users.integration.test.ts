@@ -14,31 +14,45 @@
  *
  * The load-bearing scenario is the probe-row regression test: it
  * inserts a row into `auth.users` with the SAME bad shape that broke
- * S156 (NULL token columns, no `auth.identities` row) via the
- * `_test_insert_broken_auth_user` SECURITY DEFINER helper shipped in
- * the WP-2 migration (`20260408223728_create_get_user_display_names.sql`),
- * then calls `listUsersGET()`.
+ * S156 (NULL token columns) via the `_test_insert_broken_auth_user`
+ * SECURITY DEFINER helper shipped in the WP-2 migration
+ * (`20260408223728_create_get_user_display_names.sql`), then calls
+ * `listUsersGET()`.
  *
- * **Important discovery (S156 WP-1 execution, 2026-04-09):** the
- * original spec assumed that after the corrective migration landed,
- * GoTrue would tolerate NULL token columns. That assumption was WRONG.
- * The probe-row test proved that GoTrue 500s on ANY `auth.users` row
- * with NULL token columns, not just the one pipeline row that was
- * already fixed. This means:
- *   - The production "fix" is data-level (patch the bad row), not
- *     GoTrue-level (make GoTrue resilient). The upstream bug is still
- *     live in the deployed GoTrue version.
- *   - The primary line of defence is therefore the vitest migration
- *     guard at `__tests__/migrations/auth-users-insert-guard.test.ts`,
- *     which blocks new migrations from shipping bad-shape INSERTs.
- *   - Any runtime code path that directly INSERTs into `auth.users`
- *     (there are none today — confirmed by the S156 audit Sweep 2)
- *     would immediately regress the S156 incident class.
- *   - The probe-row test now asserts HTTP 500 with a structured error
- *     envelope, not HTTP 200. It is intentionally a WITNESS test: if
- *     it ever starts returning 200, Supabase has shipped a GoTrue
- *     upgrade that fixed the root cause and we can celebrate by
- *     revisiting (but not necessarily relaxing) the migration guard.
+ * **Evolution across S156 → S157:**
+ *
+ * S156 (2026-04-08): the original spec assumed that after the
+ * corrective migration landed, GoTrue would tolerate NULL token
+ * columns. That assumption was WRONG. The probe-row test proved that
+ * GoTrue 500s on ANY `auth.users` row with NULL token columns, not
+ * just the one pipeline row that had been patched. For S156 the
+ * witness test asserted HTTP 500 — it was documenting an unresolved
+ * upstream bug, not verifying a fix.
+ *
+ * S157 WP3 (2026-04-09): landed
+ * `supabase/migrations/20260409110643_auth_users_token_column_null_guard.sql`
+ * — a `BEFORE INSERT OR UPDATE` trigger on `auth.users` that coerces
+ * NULL → `''` on the 8 GoTrue-scanned token columns. This means:
+ *   - `_test_insert_broken_auth_user` can no longer produce a broken
+ *     shape via the normal INSERT path. The trigger fires before the
+ *     row is written and replaces NULLs with empty strings.
+ *   - The probe-row test now asserts HTTP 200 — it is the positive
+ *     witness that the trigger is fully effective at the runtime
+ *     layer.
+ *   - The vitest migration guard (`auth-users-insert-guard.test.ts`)
+ *     remains in place as a defence-in-depth layer catching migrations
+ *     that try to INSERT with the bad shape. Its scope is different
+ *     from the trigger's (static vs runtime).
+ *   - Residual gap: the trigger is in default ENABLE ORIGIN mode
+ *     because `ALTER TABLE auth.users ENABLE ALWAYS TRIGGER` requires
+ *     `supabase_auth_admin` ownership which the managed-platform
+ *     `postgres` role does not have. This means the trigger is bypassed
+ *     during `pg_restore` (replica mode). For ordinary runtime writes
+ *     it is fully effective.
+ *   - If this test ever starts returning 500 again, either the trigger
+ *     has been dropped, `_test_insert_broken_auth_user` has been
+ *     rewritten to bypass the trigger, or GoTrue has changed its
+ *     failure mode. Investigate before relaxing any assertion.
  *
  * Prereqs:
  *   - `.env` with NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
@@ -261,12 +275,24 @@ describe('GET /api/admin/users — real DB', () => {
     expect(body.find((u) => u.id === TEST_USER_1_ID)).toBeDefined();
   });
 
-  it('surfaces the GoTrue NULL-token-columns bug as a structured 500 (WITNESS test — see file header)', async () => {
-    // Insert a row with the EXACT shape that broke S156: NULL token
-    // columns, no auth.identities row. See the migration comment in
-    // `20260408223728_create_get_user_display_names.sql` and the file
-    // header above for the full "GoTrue is still broken upstream"
-    // story.
+  it('returns 200 after inserting a probe row with NULL token columns (S157 WP3 trigger witness)', async () => {
+    // S156 origin: this test used to assert HTTP 500 as a witness of
+    // the unresolved upstream GoTrue bug (NULL token columns cause
+    // `auth.admin.listUsers` to 500 on scan). After S157 WP3 landed
+    // the `public.coerce_null_token_columns()` trigger on auth.users,
+    // the raw-SQL insert path goes through a BEFORE INSERT hook that
+    // coerces NULL → '' on the 8 token columns BEFORE the row is
+    // written. The "broken shape" therefore cannot land in the table,
+    // and `listUsers` succeeds with HTTP 200.
+    //
+    // This is now a POSITIVE witness test: it proves the trigger is
+    // fully effective at the runtime layer. If it ever flips back to
+    // 500, either the trigger has been dropped
+    // (supabase/migrations/20260409110643_auth_users_token_column_null_guard.sql),
+    // or _test_insert_broken_auth_user has been rewritten to bypass
+    // the trigger (e.g. via SET session_replication_role = 'replica'),
+    // or GoTrue's failure mode has changed. Investigate before
+    // weakening this assertion.
     const { error: insertErr } = await serviceClient.rpc(
       '_test_insert_broken_auth_user',
       { probe_id: PROBE_USER_ID, probe_email: PROBE_EMAIL },
@@ -277,52 +303,56 @@ describe('GET /api/admin/users — real DB', () => {
     ).toBeNull();
 
     const res = await listUsersGET();
+    expect(
+      res.status,
+      'S157 WP3 trigger witness: listUsers must return 200 after inserting a probe row with NULL token columns — the trigger coerces them to empty string before the row is written',
+    ).toBe(200);
 
-    // This is the WITNESS assertion: as of 2026-04-09 GoTrue still
-    // 500s on any auth.users row with NULL token columns, so the
-    // admin route's `authError` branch (route.ts:30) fires and
-    // returns a structured 500. If this ever flips to 200, Supabase
-    // has shipped a GoTrue fix — and this test is the canary that
-    // tells us to revisit the S156 defence posture.
-    expect(res.status).toBe(500);
-
-    const body = (await res.json()) as { error: string };
-    // The error envelope must be structured — NOT a crash, NOT a
-    // truncated response. This is the part that defends against
-    // regressions to the route's error handling: someone removing
-    // the early-return in the authError branch would fail this
-    // assertion (probably with a crash instead).
-    expect(body).toBeDefined();
-    expect(typeof body.error).toBe('string');
-    expect(body.error).toMatch(/list users/i);
+    const body = (await res.json()) as Array<{ id: string }>;
+    expect(Array.isArray(body)).toBe(true);
+    // The probe row itself will NOT appear in the response because
+    // `app/api/admin/users/route.ts:58-61` filters out any row whose
+    // id is in the pipeline-system UUID range — and our probe UUID
+    // (`00000000-0000-4000-8000-...`) is in that range. That filter
+    // is cosmetic (the comment at route.ts:58-61 says so explicitly)
+    // and the filter wasn't touched by WP3. What matters is that the
+    // rest of the list loads without poisoning.
+    expect(
+      body.find((u) => u.id === TEST_USER_1_ID),
+      'signed-in admin should still appear in the listUsers result',
+    ).toBeDefined();
   });
 
-  it('returns 200 immediately after the probe row is torn down (recovery witness)', async () => {
-    // Insert, confirm 500, delete, confirm 200. This proves:
-    //   1. The failure mode is transient — removing the bad row
-    //      restores service without needing to restart anything.
-    //   2. The afterEach cleanup is actually tearing down the probe
-    //      row (otherwise this test would 500 too).
-    // This is the closest analogue to "the corrective migration
-    // successfully restored prod" that we can construct in a test.
+  it('returns 200 after probe-row cleanup (regression-guard for cleanup path)', async () => {
+    // Pre-S157 WP3 this test was the "recovery witness": insert →
+    // confirm 500 → delete → confirm 200. With the trigger in place
+    // the broken shape can never land, so the insert path already
+    // produces a healthy row. This test now exists purely as a
+    // regression guard for the `afterEach` cleanup helper: if the
+    // cleanup ever fails silently, subsequent tests would accumulate
+    // probe rows in auth.users and that accumulation could still be
+    // problematic (e.g. it would break the PIPELINE_SYSTEM_USER_ID
+    // uniqueness invariant the cosmetic filter at route.ts:58-61
+    // depends on).
     const { error: insertErr } = await serviceClient.rpc(
       '_test_insert_broken_auth_user',
       { probe_id: PROBE_USER_ID, probe_email: PROBE_EMAIL },
     );
     expect(insertErr).toBeNull();
 
-    const brokenRes = await listUsersGET();
-    expect(brokenRes.status).toBe(500);
+    // Both before AND after delete, the route returns 200 because
+    // the trigger coerced the insert to a healthy shape.
+    const afterInsertRes = await listUsersGET();
+    expect(afterInsertRes.status).toBe(200);
 
-    // Tear down the probe row mid-test and try again.
     const { error: deleteErr } = await serviceClient.rpc(
       '_test_delete_broken_auth_user',
       { probe_id: PROBE_USER_ID },
     );
     expect(deleteErr).toBeNull();
 
-    const recoveredRes = await listUsersGET();
-    expect(recoveredRes.status).toBe(200);
+    const afterDeleteRes = await listUsersGET();
+    expect(afterDeleteRes.status).toBe(200);
   });
 
   it('returns 401 when the caller has no session', async () => {
