@@ -24,9 +24,16 @@ test.describe('Workspaces page', () => {
       { timeout: 10000 },
     );
 
+    // Scope via the ARIA region (from section[aria-label="Workspaces"]):
+    // this reads the accessibility tree, which excludes React's streaming
+    // suspense templates. A raw `section[aria-label="Workspaces"]` CSS
+    // selector resolves to two elements in Next.js 16 / React 19 dev mode —
+    // the hydrated section under <main> and a duplicate inside the
+    // <div id="S:1"> streaming template at the body level. The AX tree
+    // only sees the hydrated one.
     await expect(
       page
-        .locator('section[aria-label="Workspaces"]')
+        .getByRole('region', { name: 'Workspaces' })
         .getByText('Use your knowledge base to power different types of work.'),
     ).toBeVisible();
   });
