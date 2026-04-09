@@ -84,6 +84,7 @@ export function SignOutButton({
       disabled={isSigningOut}
       aria-busy={isSigningOut}
       aria-label="Sign out"
+      title="Sign out"
       className="text-muted-foreground hover:text-foreground"
     >
       <LogOut className="size-4" />

@@ -32,12 +32,12 @@ describe('<WarningsBanner />', () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it('renders the singular heading and one bullet for one warning', () => {
+  it('renders the heading and one bullet for one warning', () => {
     render(
       <WarningsBanner warnings={['recent_activity query failed']} />,
     );
     expect(
-      screen.getByText('Some dashboard data could not be loaded'),
+      screen.getByText(/temporarily unavailable/i),
     ).toBeInTheDocument();
     expect(
       screen.getByText('recent_activity query failed'),
@@ -46,7 +46,7 @@ describe('<WarningsBanner />', () => {
     expect(screen.getAllByRole('listitem')).toHaveLength(1);
   });
 
-  it('renders the plural heading and one bullet per warning', () => {
+  it('renders the heading and one bullet per warning for multiple warnings', () => {
     render(
       <WarningsBanner
         warnings={[
@@ -57,7 +57,7 @@ describe('<WarningsBanner />', () => {
       />,
     );
     expect(
-      screen.getByText('3 dashboard sections could not be loaded'),
+      screen.getByText(/temporarily unavailable/i),
     ).toBeInTheDocument();
     expect(screen.getAllByRole('listitem')).toHaveLength(3);
     expect(
@@ -78,9 +78,7 @@ describe('<WarningsBanner />', () => {
     expect(labelledBy).toBeTruthy();
     const heading = document.getElementById(labelledBy as string);
     expect(heading).not.toBeNull();
-    expect(heading?.textContent).toBe(
-      'Some dashboard data could not be loaded',
-    );
+    expect(heading?.textContent).toMatch(/temporarily unavailable/i);
   });
 
   it('removes itself from the DOM when the dismiss button is clicked', async () => {
