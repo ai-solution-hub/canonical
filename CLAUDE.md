@@ -374,6 +374,10 @@ management only for merge-conflict-prone work requiring interactive resolution.
 
 ### General
 
+- **`bun run format` reformats the entire repo.** The `format` script is
+  `prettier --write .` — running it bare rewrites every file, not just the
+  currently-changed ones. Use `bunx prettier --write <path>` for targeted
+  formatting, or `bun run format:check` to verify without modifying.
 - **Python background output:** Use `PYTHONUNBUFFERED=1` or output is invisible.
 - **python-docx and Track Changes:** Use `open_document_safe()` from
   `scripts/docx_utils.py`, not `Document(path)` directly. Mammoth (TypeScript
