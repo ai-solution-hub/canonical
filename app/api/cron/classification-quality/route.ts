@@ -149,12 +149,12 @@ export async function GET(request: NextRequest) {
         });
 
         const newDomain = classification.primary_domain;
-        const newSubtopic = classification.primary_subtopic;
+        const newSubtopic = classification.primary_subtopic ?? undefined;
         const newConfidence = classification.classification_confidence;
 
         const sameTaxonomy =
           oldDomain?.toLowerCase() === newDomain.toLowerCase() &&
-          oldSubtopic?.toLowerCase() === newSubtopic.toLowerCase();
+          oldSubtopic?.toLowerCase() === newSubtopic?.toLowerCase();
 
         if (!oldDomain || !oldSubtopic) {
           // Previously unclassified — auto-update already happened in classifyContent
