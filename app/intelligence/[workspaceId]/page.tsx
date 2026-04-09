@@ -217,12 +217,14 @@ export default function WorkspaceOverviewPage() {
               View Full Metrics
             </Link>
           </Button>
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/intelligence/${workspaceId}/prompts`}>
-              <Settings2 className="mr-1.5 size-3.5" aria-hidden="true" />
-              Edit Prompt
-            </Link>
-          </Button>
+          {isAdmin && (
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/intelligence/${workspaceId}/prompts`}>
+                <Settings2 className="mr-1.5 size-3.5" aria-hidden="true" />
+                Edit filter rules
+              </Link>
+            </Button>
+          )}
           {guideId && (
             <Button variant="outline" size="sm" asChild>
               <Link href="/guide">
