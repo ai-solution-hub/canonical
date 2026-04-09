@@ -11,27 +11,39 @@ import {
   Sliders,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useUserRole } from '@/hooks/use-user-role';
 
 interface WorkspaceSubNavProps {
   workspaceId: string;
 }
 
 const SUB_NAV_ITEMS = [
-  { segment: '', label: 'Overview', icon: LayoutDashboard },
-  { segment: '/sources', label: 'Sources', icon: Rss },
-  { segment: '/articles', label: 'Articles', icon: FileText },
-  { segment: '/metrics', label: 'Metrics', icon: BarChart3 },
-  { segment: '/prompts', label: 'Prompts', icon: Settings2 },
-  { segment: '/settings', label: 'Settings', icon: Sliders },
+  { segment: '', label: 'Overview', icon: LayoutDashboard, adminOnly: false },
+  { segment: '/sources', label: 'Sources', icon: Rss, adminOnly: false },
+  { segment: '/articles', label: 'Articles', icon: FileText, adminOnly: false },
+  { segment: '/metrics', label: 'Metrics', icon: BarChart3, adminOnly: false },
+  {
+    segment: '/prompts',
+    label: 'Filter rules',
+    icon: Settings2,
+    adminOnly: true,
+  },
+  { segment: '/settings', label: 'Settings', icon: Sliders, adminOnly: false },
 ] as const;
 
 export function WorkspaceSubNav({ workspaceId }: WorkspaceSubNavProps) {
   const pathname = usePathname();
+  const { role } = useUserRole();
+  const isAdmin = role === 'admin';
   const basePath = `/intelligence/${workspaceId}`;
+
+  const visibleItems = SUB_NAV_ITEMS.filter(
+    (item) => !item.adminOnly || isAdmin,
+  );
 
   return (
     <nav aria-label="Workspace sections" className="flex gap-1 border-b pb-px">
-      {SUB_NAV_ITEMS.map(({ segment, label, icon: Icon }) => {
+      {visibleItems.map(({ segment, label, icon: Icon }) => {
         const href = `${basePath}${segment}`;
         const isActive =
           segment === ''
