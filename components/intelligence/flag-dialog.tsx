@@ -54,8 +54,8 @@ export function FlagDialog({
         <DialogHeader>
           <DialogTitle>{label}</DialogTitle>
           <DialogDescription>
-            Your feedback helps improve article filtering accuracy. Notes are
-            optional but helpful.
+            Let us know why this one shouldn&apos;t be in your feed. Notes are
+            optional.
           </DialogDescription>
         </DialogHeader>
 
@@ -66,7 +66,7 @@ export function FlagDialog({
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             maxLength={1000}
-            placeholder="Describe why this article was incorrectly classified..."
+            placeholder="Tell us what we missed about this article…"
             rows={3}
           />
           <p className="text-xs text-muted-foreground">

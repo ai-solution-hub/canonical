@@ -40,7 +40,7 @@ export function MetricsDashboard({ workspaceId }: MetricsDashboardProps) {
       {/* Controls */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-foreground">
-          Metrics Dashboard
+          Workspace metrics
         </h2>
         <div className="flex gap-2">
           {/* Period selector */}
@@ -99,7 +99,7 @@ export function MetricsDashboard({ workspaceId }: MetricsDashboardProps) {
       {/* Filter ratio trend chart */}
       <div>
         <h3 className="mb-2 text-sm font-semibold text-foreground">
-          Filter Ratio Trend
+          Relevant articles per week
         </h3>
         {trendQuery.isLoading ? (
           <div className="h-[200px] animate-pulse rounded-lg border bg-muted" />
@@ -114,7 +114,7 @@ export function MetricsDashboard({ workspaceId }: MetricsDashboardProps) {
       {/* Prompt performance table */}
       <div>
         <h3 className="mb-2 text-sm font-semibold text-foreground">
-          Prompt Performance
+          Filter rule history
         </h3>
         {promptQuery.isLoading ? (
           <div className="h-32 animate-pulse rounded-lg border bg-muted" />

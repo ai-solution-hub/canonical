@@ -10,12 +10,9 @@ export default function MetricsPage() {
   return (
     <div>
       <div className="mb-6">
-        <h2 className="text-lg font-semibold text-foreground">
-          Workspace Metrics
-        </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Track filter performance trends and per-prompt-version accuracy over
-          time.
+        <p className="text-sm text-muted-foreground">
+          See how your workspace is performing — what&apos;s getting through,
+          what&apos;s being filtered out, and how your filter rules are evolving.
         </p>
       </div>
 
