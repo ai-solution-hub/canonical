@@ -172,6 +172,63 @@ describe('RefinementPanel', () => {
   });
 
   // -------------------------------------------------------------------------
+  // Safety guard — minimum flag threshold (spec §8)
+  // -------------------------------------------------------------------------
+  it('does not render the minimum-flag warning when no unresolved flags exist', () => {
+    renderPanel({ flags: [] });
+    expect(
+      screen.queryByTestId('minimum-flag-warning'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('renders the minimum-flag warning when fewer than 3 unresolved flags exist', () => {
+    const flags = [
+      makeWorkspaceFlag({
+        id: '550e8400-e29b-41d4-a716-446655440080',
+        flag_type: 'false_positive',
+      }),
+      makeWorkspaceFlag({
+        id: '550e8400-e29b-41d4-a716-446655440081',
+        flag_type: 'false_negative',
+      }),
+    ];
+    renderPanel({ flags });
+    const warning = screen.getByTestId('minimum-flag-warning');
+    expect(warning).toBeInTheDocument();
+    expect(warning).toHaveTextContent(/Only 2 flags available/);
+    expect(warning).toHaveTextContent(/at least 3 flags/);
+    expect(warning).toHaveTextContent(/may not generalise well/);
+    // Analyse button must remain enabled — warning is advisory only.
+    expect(
+      screen.getByRole('button', { name: /Analyse unresolved flags/i }),
+    ).toBeEnabled();
+  });
+
+  it('uses singular pluralisation in the warning when exactly one flag is available', () => {
+    const flags = [
+      makeWorkspaceFlag({ id: '550e8400-e29b-41d4-a716-446655440082' }),
+    ];
+    renderPanel({ flags });
+    expect(
+      screen.getByTestId('minimum-flag-warning'),
+    ).toHaveTextContent(/Only 1 flag available/);
+  });
+
+  it('does not render the minimum-flag warning when 3 or more flags exist', () => {
+    const flags = [
+      makeWorkspaceFlag({ id: '550e8400-e29b-41d4-a716-446655440083' }),
+      makeWorkspaceFlag({ id: '550e8400-e29b-41d4-a716-446655440084' }),
+      makeWorkspaceFlag({ id: '550e8400-e29b-41d4-a716-446655440085' }),
+      makeWorkspaceFlag({ id: '550e8400-e29b-41d4-a716-446655440086' }),
+      makeWorkspaceFlag({ id: '550e8400-e29b-41d4-a716-446655440087' }),
+    ];
+    renderPanel({ flags });
+    expect(
+      screen.queryByTestId('minimum-flag-warning'),
+    ).not.toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
   // State 3 — analysing
   // -------------------------------------------------------------------------
   it('renders the analysing skeleton when the analyse mutation is pending', () => {

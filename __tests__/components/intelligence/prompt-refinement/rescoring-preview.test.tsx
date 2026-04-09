@@ -138,6 +138,72 @@ describe('RescoringPreview', () => {
     ).toBeInTheDocument();
   });
 
+  // -------------------------------------------------------------------------
+  // Safety guard — catastrophic prompt change (spec §8)
+  // -------------------------------------------------------------------------
+  describe('catastrophic-change warning', () => {
+    it('does not render the warning when proposed and current prompts are the same length', () => {
+      const result = makeRescoringPreviewResponse();
+      const current = 'a'.repeat(200);
+      const proposed = 'b'.repeat(200);
+      render(
+        <RescoringPreview
+          result={result}
+          currentPromptText={current}
+          proposedPromptText={proposed}
+        />,
+      );
+      expect(
+        screen.queryByTestId('catastrophic-change-warning'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('does not render the warning when proposed prompt is 60% of the current length (above threshold)', () => {
+      const result = makeRescoringPreviewResponse();
+      const current = 'a'.repeat(200);
+      const proposed = 'b'.repeat(120);
+      render(
+        <RescoringPreview
+          result={result}
+          currentPromptText={current}
+          proposedPromptText={proposed}
+        />,
+      );
+      expect(
+        screen.queryByTestId('catastrophic-change-warning'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('renders the warning with character counts when proposed is 40% of current length', () => {
+      const result = makeRescoringPreviewResponse();
+      const current = 'a'.repeat(200);
+      const proposed = 'b'.repeat(80);
+      render(
+        <RescoringPreview
+          result={result}
+          currentPromptText={current}
+          proposedPromptText={proposed}
+        />,
+      );
+      const warning = screen.getByTestId('catastrophic-change-warning');
+      expect(warning).toBeInTheDocument();
+      expect(warning).toHaveTextContent(/80 characters vs 200 characters/);
+      expect(warning).toHaveTextContent(
+        /significantly shorter than the current version/,
+      );
+      expect(warning).toHaveTextContent(/Review the changes carefully/);
+      expect(warning).toHaveAttribute('role', 'alert');
+    });
+
+    it('does not render the warning when current or proposed prompt text is absent', () => {
+      const result = makeRescoringPreviewResponse();
+      render(<RescoringPreview result={result} />);
+      expect(
+        screen.queryByTestId('catastrophic-change-warning'),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   it('is wrapped in a region with an accessible label', () => {
     const result = makeRescoringPreviewResponse();
     render(<RescoringPreview result={result} />);

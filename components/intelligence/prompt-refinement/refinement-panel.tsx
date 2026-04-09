@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import type { UseMutationResult } from '@tanstack/react-query';
-import { AlertCircle, Loader2, Sparkles } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FlagAnalysisView } from '@/components/intelligence/prompt-refinement/flag-analysis-view';
@@ -77,6 +77,7 @@ interface RefinementPanelProps {
 export function RefinementPanel({
   flags,
   flagsLoading,
+  activePromptText,
   analyseFlagsMutation,
   rescoringPreviewMutation,
   resolveFlagsMutation,
@@ -266,6 +267,26 @@ export function RefinementPanel({
         </p>
       </header>
 
+      {!hasAnalysis && !isAnalysing && unresolvedCount < 3 && (
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="minimum-flag-warning"
+          className="flex items-start gap-2 rounded-md border border-status-warning/30 bg-status-warning/10 p-3 text-sm text-status-warning"
+        >
+          <AlertTriangle
+            className="mt-0.5 size-4 shrink-0"
+            aria-hidden="true"
+          />
+          <p>
+            Only {unresolvedCount} {unresolvedCount === 1 ? 'flag' : 'flags'}{' '}
+            available. For reliable analysis, we recommend accumulating at
+            least 3 flags before running an analysis. You can still proceed,
+            but the recommendations may not generalise well.
+          </p>
+        </div>
+      )}
+
       {!hasAnalysis && !isAnalysing && (
         <div className="flex flex-wrap gap-2">
           <Button
@@ -323,7 +344,11 @@ export function RefinementPanel({
 
       {/* State 5 — preview ready (layered on top of state 4) */}
       {hasAnalysis && hasPreview && previewData && (
-        <RescoringPreview result={previewData} />
+        <RescoringPreview
+          result={previewData}
+          currentPromptText={activePromptText}
+          proposedPromptText={analysisData?.proposedPromptText ?? null}
+        />
       )}
 
       {previewError && (

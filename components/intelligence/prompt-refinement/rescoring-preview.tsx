@@ -26,7 +26,22 @@ import type {
 
 interface RescoringPreviewProps {
   result: RescoringPreviewResponse;
+  /** The active prompt text, used to compare proposed prompt length and
+   *  surface a warning when the proposed prompt is catastrophically shorter
+   *  (>50% reduction) than the current version. Optional so existing
+   *  callers continue to compile. */
+  currentPromptText?: string | null;
+  /** The proposed prompt text being previewed — paired with
+   *  `currentPromptText` to compute the length-reduction warning. */
+  proposedPromptText?: string | null;
 }
+
+/**
+ * Catastrophic-change threshold: if the proposed prompt is less than
+ * this fraction of the current prompt's length, the user sees a warning.
+ * 0.5 = ">50% shorter".
+ */
+const CATASTROPHIC_LENGTH_RATIO = 0.5;
 
 const PASS_THRESHOLD = 0.5;
 
@@ -121,8 +136,23 @@ function ResultTable({ rows, bucket }: ResultTableProps) {
   );
 }
 
-export function RescoringPreview({ result }: RescoringPreviewProps) {
+export function RescoringPreview({
+  result,
+  currentPromptText,
+  proposedPromptText,
+}: RescoringPreviewProps) {
   const [showUnchanged, setShowUnchanged] = useState(false);
+
+  const catastrophicChange = useMemo(() => {
+    if (!currentPromptText || !proposedPromptText) return null;
+    const currentLength = currentPromptText.length;
+    const proposedLength = proposedPromptText.length;
+    if (currentLength === 0) return null;
+    if (proposedLength >= currentLength * CATASTROPHIC_LENGTH_RATIO) {
+      return null;
+    }
+    return { currentLength, proposedLength };
+  }, [currentPromptText, proposedPromptText]);
 
   const { newlyFiltered, newlyPassed, unchanged } = useMemo(() => {
     const nf: RescoringPreviewResult[] = [];
@@ -182,6 +212,23 @@ export function RescoringPreview({ result }: RescoringPreviewProps) {
           Average score change: {meanDeltaLabel}
         </p>
       </header>
+
+      {catastrophicChange && (
+        <div
+          role="alert"
+          data-testid="catastrophic-change-warning"
+          className="flex items-start gap-2 rounded-md border border-status-warning/30 bg-status-warning/10 p-3 text-sm text-status-warning"
+        >
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <p>
+            The proposed prompt is significantly shorter than the current
+            version ({catastrophicChange.proposedLength} characters vs{' '}
+            {catastrophicChange.currentLength} characters). This may remove
+            important scoring criteria. Review the changes carefully before
+            applying.
+          </p>
+        </div>
+      )}
 
       {warnings.length > 0 && (
         <div
