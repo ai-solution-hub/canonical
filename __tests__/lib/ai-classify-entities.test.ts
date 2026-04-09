@@ -668,6 +668,157 @@ describe('classifyContent — entity extraction', () => {
         ]),
       );
     });
+
+    // ── S158A Iteration 4 — ISO certification family type override ──
+    //
+    // Forces the six common ISO certification families to `certification`
+    // uniformly at the storage layer, after canonicalise/alias/filter but
+    // before the upsert. Aligned with taxonomy spec §3.1 "if ambiguous,
+    // prefer certification" and the continuation prompt's deterministic
+    // override recommendation. See `_ISO_CERTIFICATION_OVERRIDE` at module
+    // top of lib/ai/classify.ts for the list and rationale.
+
+    it.each([
+      ['ISO 9001', 'iso 9001'],
+      ['ISO 14001', 'iso 14001'],
+      ['ISO 22301', 'iso 22301'],
+      ['ISO 27001', 'iso 27001'],
+      ['ISO 45001', 'iso 45001'],
+      ['ISO 50001', 'iso 50001'],
+    ])(
+      'overrides %s typed as standard to certification',
+      async (displayName, expectedCanonical) => {
+        const misTyped: ExtractedEntity[] = [
+          {
+            name: displayName,
+            type: 'standard',
+            canonical_name: displayName,
+          },
+        ];
+
+        mockCreate.mockResolvedValueOnce(
+          createToolUseResponse({
+            ...baseClassificationInput,
+            entities: misTyped,
+          }),
+        );
+
+        await classifyContent({
+          supabase: mockSupabase as never,
+          itemId: ITEM_ID,
+          force: true,
+          userId: USER_ID,
+        });
+
+        expect(mockSupabase._chain.upsert).toHaveBeenCalledWith(
+          expect.arrayContaining([
+            expect.objectContaining({
+              canonical_name: expectedCanonical,
+              entity_type: 'certification',
+            }),
+          ]),
+          expect.anything(),
+        );
+      },
+    );
+
+    it('leaves ISO 27001 unchanged when already typed as certification (no-op)', async () => {
+      const correctlyTyped: ExtractedEntity[] = [
+        {
+          name: 'ISO 27001',
+          type: 'certification',
+          canonical_name: 'ISO 27001',
+        },
+      ];
+
+      mockCreate.mockResolvedValueOnce(
+        createToolUseResponse({
+          ...baseClassificationInput,
+          entities: correctlyTyped,
+        }),
+      );
+
+      await classifyContent({
+        supabase: mockSupabase as never,
+        itemId: ITEM_ID,
+        force: true,
+        userId: USER_ID,
+      });
+
+      expect(mockSupabase._chain.upsert).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            canonical_name: 'iso 27001',
+            entity_type: 'certification',
+          }),
+        ]),
+        expect.anything(),
+      );
+    });
+
+    it('does NOT override ISO 13485 (not in the certification override list)', async () => {
+      const iso13485: ExtractedEntity[] = [
+        {
+          name: 'ISO 13485',
+          type: 'standard',
+          canonical_name: 'ISO 13485',
+        },
+      ];
+
+      mockCreate.mockResolvedValueOnce(
+        createToolUseResponse({
+          ...baseClassificationInput,
+          entities: iso13485,
+        }),
+      );
+
+      await classifyContent({
+        supabase: mockSupabase as never,
+        itemId: ITEM_ID,
+        force: true,
+        userId: USER_ID,
+      });
+
+      expect(mockSupabase._chain.upsert).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            canonical_name: 'iso 13485',
+            entity_type: 'standard', // NOT overridden
+          }),
+        ]),
+        expect.anything(),
+      );
+    });
+
+    it('does NOT override CREST (explicit exclusion — ambiguous body/credential)', async () => {
+      const crest: ExtractedEntity[] = [
+        { name: 'CREST', type: 'organisation', canonical_name: 'CREST' },
+      ];
+
+      mockCreate.mockResolvedValueOnce(
+        createToolUseResponse({
+          ...baseClassificationInput,
+          entities: crest,
+        }),
+      );
+
+      await classifyContent({
+        supabase: mockSupabase as never,
+        itemId: ITEM_ID,
+        force: true,
+        userId: USER_ID,
+      });
+
+      expect(mockSupabase._chain.upsert).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            canonical_name: 'crest',
+            entity_type: 'organisation', // NOT overridden
+          }),
+        ]),
+        expect.anything(),
+      );
+    });
   });
 
   describe('cached classification does not include entities', () => {
