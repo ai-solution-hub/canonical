@@ -10,7 +10,6 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type {
   ReorientData,
-  UrgentItem,
   TeamChange,
   RecentWorkItem,
 } from '@/types/reorient';
@@ -101,18 +100,6 @@ import { ReorientSection } from '@/components/dashboard/reorient-section';
 // ---------------------------------------------------------------------------
 // Factories
 // ---------------------------------------------------------------------------
-
-function makeUrgentItem(overrides: Partial<UrgentItem> = {}): UrgentItem {
-  return {
-    type: 'bid_deadline',
-    priority: 1,
-    title: 'Urgent Bid — deadline passed',
-    detail: 'Deadline was 2 hours ago',
-    href: '/bid/bid-1',
-    entity_id: 'bid-1',
-    ...overrides,
-  };
-}
 
 function makeTeamChange(overrides: Partial<TeamChange> = {}): TeamChange {
   return {
@@ -216,94 +203,6 @@ describe('ReorientSection', () => {
     expect(statusEl.textContent).toContain('3 hours ago');
   });
 
-  // ── Urgent items ──
-
-  it('renders urgent items', () => {
-    const data = makeReorientData({
-      urgent: [
-        makeUrgentItem({ title: 'Bid A — deadline passed', priority: 1 }),
-        makeUrgentItem({
-          type: 'content_expired',
-          title: '5 content items need refreshing',
-          priority: 2,
-          href: '/browse?freshness=stale,expired',
-          entity_id: 'freshness',
-        }),
-      ],
-    });
-
-    render(<ReorientSection data={data} />);
-    expect(screen.getByText('Needs your attention')).toBeInTheDocument();
-    expect(screen.getByText('Bid A — deadline passed')).toBeInTheDocument();
-    expect(
-      screen.getByText('5 content items need refreshing'),
-    ).toBeInTheDocument();
-  });
-
-  it('renders urgent items in priority order (as provided by data)', () => {
-    const data = makeReorientData({
-      urgent: [
-        makeUrgentItem({
-          title: 'Priority 1 Item',
-          priority: 1,
-          entity_id: 'e1',
-        }),
-        makeUrgentItem({
-          type: 'content_expired',
-          title: 'Priority 2 Item',
-          priority: 2,
-          entity_id: 'e2',
-        }),
-        makeUrgentItem({
-          type: 'review_pending',
-          title: 'Priority 3 Item',
-          priority: 3,
-          entity_id: 'e3',
-        }),
-      ],
-    });
-
-    render(<ReorientSection data={data} />);
-
-    const items = screen
-      .getAllByRole('link')
-      .filter(
-        (link) =>
-          link.getAttribute('aria-label')?.includes('Priority') &&
-          link.getAttribute('aria-label')?.includes(' — '),
-      );
-    expect(items).toHaveLength(3);
-    // Order should match input (which is already sorted by priority)
-    expect(items[0].textContent).toContain('Priority 1');
-    expect(items[1].textContent).toContain('Priority 2');
-    expect(items[2].textContent).toContain('Priority 3');
-  });
-
-  it('urgent items link to correct hrefs', () => {
-    const data = makeReorientData({
-      urgent: [
-        makeUrgentItem({ href: '/bid/bid-42', entity_id: 'bid-42' }),
-        makeUrgentItem({
-          type: 'content_expired',
-          href: '/browse?freshness=stale,expired',
-          entity_id: 'freshness',
-          title: 'Stale content',
-        }),
-      ],
-    });
-
-    render(<ReorientSection data={data} />);
-
-    const links = screen.getAllByRole('link');
-    const bidLink = links.find((l) => l.getAttribute('href') === '/bid/bid-42');
-    const browseLink = links.find(
-      (l) => l.getAttribute('href') === '/browse?freshness=stale,expired',
-    );
-
-    expect(bidLink).toBeDefined();
-    expect(browseLink).toBeDefined();
-  });
-
   // ── Team changes ──
 
   it('renders team changes block when changes exist', () => {
@@ -371,31 +270,10 @@ describe('ReorientSection', () => {
     expect(link).toHaveAttribute('href', '/item/item-55');
   });
 
-  // ── Notification urgent items ──
-
-  it('renders notification urgent items', () => {
-    const data = makeReorientData({
-      urgent: [
-        makeUrgentItem({
-          type: 'notification',
-          title: '8 unread notifications',
-          detail: 'You have unread notifications that may need attention',
-          href: '/settings?tab=notifications',
-          entity_id: 'notifications',
-          priority: 3,
-        }),
-      ],
-    });
-
-    render(<ReorientSection data={data} />);
-    expect(screen.getByText('8 unread notifications')).toBeInTheDocument();
-  });
-
   // ── Empty state ──
 
   it('shows empty state when all blocks are empty', () => {
     const data = makeReorientData({
-      urgent: [],
       team_changes: [],
       my_recent_work: [],
     });
@@ -404,26 +282,12 @@ describe('ReorientSection', () => {
     expect(screen.getByText(/everything looks good/i)).toBeInTheDocument();
   });
 
-  it('does not show empty state when urgent items exist', () => {
-    const data = makeReorientData({
-      urgent: [makeUrgentItem()],
-      team_changes: [],
-      my_recent_work: [],
-    });
-
-    render(<ReorientSection data={data} />);
-    expect(
-      screen.queryByText(/everything looks good/i),
-    ).not.toBeInTheDocument();
-  });
-
   // ── First-login empty state ──
 
   it('shows welcome message for first-login users', () => {
     const data = makeReorientData({
       last_active_at: null,
       last_active_relative: '',
-      urgent: [],
       team_changes: [],
       my_recent_work: [],
     });
@@ -438,7 +302,6 @@ describe('ReorientSection', () => {
   it('shows standard empty state for returning users with no changes', () => {
     const data = makeReorientData({
       last_active_at: '2026-03-08T08:00:00Z',
-      urgent: [],
       team_changes: [],
       my_recent_work: [],
     });
@@ -456,7 +319,9 @@ describe('ReorientSection', () => {
     const user = userEvent.setup();
 
     const data = makeReorientData({
-      urgent: [makeUrgentItem()],
+      team_changes: [
+        makeTeamChange({ user_id: 'user-a', action: 'updated' }),
+      ],
     });
 
     render(<ReorientSection data={data} />);
