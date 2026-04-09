@@ -69,13 +69,13 @@ export function PriorityGapsSummary({ summary }: PriorityGapsSummaryProps) {
         icon={FileText}
         label="Template gaps"
         value={summary.template_gaps}
-        colourClass="bg-freshness-aging"
+        colourClass="bg-accent"
       />
       <StatCard
         icon={BookOpen}
         label="Guide gaps"
         value={summary.guide_gaps}
-        colourClass="bg-freshness-expired"
+        colourClass="bg-muted-foreground"
       />
     </div>
   );

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -71,7 +72,11 @@ export function OwnedContentHealth() {
           totalOwned: totalOwned ?? 0,
         });
       } catch (err) {
-        console.error('Failed to fetch owned content health:', err);
+        logBestEffortWarn(
+          'dashboard.owned_content_health.fetch',
+          'Failed to fetch owned content health',
+          { err },
+        );
       } finally {
         setLoading(false);
       }

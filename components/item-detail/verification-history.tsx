@@ -10,6 +10,7 @@ import {
   History,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { useDisplayNames } from '@/hooks/use-display-names';
 import { formatRelativeTime } from '@/components/shared/verification-badge';
 import { cn } from '@/lib/utils';
@@ -87,9 +88,10 @@ export function LatestVerificationNote({
     )
       .then(({ data, error }) => {
         if (error) {
-          console.error(
-            'Failed to load latest verification note:',
-            error.message,
+          logBestEffortWarn(
+            'item_detail.verification_history.latest_note',
+            'Failed to load latest verification note',
+            { err: error },
           );
           return;
         }
@@ -98,7 +100,11 @@ export function LatestVerificationNote({
         }
       })
       .catch((err) => {
-        console.error('Failed to load latest verification note:', err);
+        logBestEffortWarn(
+          'item_detail.verification_history.latest_note',
+          'Failed to load latest verification note',
+          { err },
+        );
       });
   }, [contentItemId]);
 
