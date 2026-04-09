@@ -106,32 +106,7 @@ describe('ContentCard — Verification Badge', () => {
     expect(verifiedBadge).toBeUndefined();
   });
 
-  it('shows inline text "Verified" (not full attribution) with tooltipOnly', () => {
-    const verifierNames = new Map([['user-uuid-1', 'Jane Smith']]);
-    render(
-      <ContentCard
-        item={makeItem({
-          verified_at: '2026-03-20T12:00:00Z',
-          verified_by: 'user-uuid-1',
-        })}
-        verifierNames={verifierNames}
-      />,
-    );
-    // With tooltipOnly, inline text should just say "Verified", not "Verified by Jane Smith"
-    const badges = screen.getAllByRole('img');
-    const verifiedBadge = badges.find((el) =>
-      el.textContent?.includes('Verified'),
-    );
-    expect(verifiedBadge).toBeTruthy();
-    // The inline span should not contain "by Jane Smith"
-    const inlineSpans = verifiedBadge!.querySelectorAll('span');
-    const textSpan = Array.from(inlineSpans).find(
-      (s) => s.textContent === 'Verified',
-    );
-    expect(textSpan).toBeTruthy();
-  });
-
-  it('shows full attribution in title attribute (tooltip) when verifierNames includes UUID', () => {
+  it('shows full attribution inline when verifierNames includes UUID', () => {
     const verifierNames = new Map([['user-uuid-1', 'Jane Smith']]);
     render(
       <ContentCard
@@ -147,13 +122,13 @@ describe('ContentCard — Verification Badge', () => {
       el.textContent?.includes('Verified'),
     );
     expect(verifiedBadge).toBeTruthy();
-    // The title attribute should contain the full attribution
-    expect(verifiedBadge!.getAttribute('title')).toMatch(
+    // S157 WP4: binary badge shows full attribution inline via aria-label
+    expect(verifiedBadge!.getAttribute('aria-label')).toMatch(
       /Verified by Jane Smith/,
     );
   });
 
-  it('falls back to time-only tooltip when UUID is not in verifierNames map', () => {
+  it('falls back to time-only label when UUID is not in verifierNames map', () => {
     const verifierNames = new Map([['other-uuid', 'Other Person']]);
     render(
       <ContentCard
@@ -169,10 +144,10 @@ describe('ContentCard — Verification Badge', () => {
       el.textContent?.includes('Verified'),
     );
     expect(verifiedBadge).toBeTruthy();
-    // Tooltip shows relative time but no name attribution
-    const title = verifiedBadge!.getAttribute('title');
-    expect(title).toMatch(/Verified \d+ \w+ ago/);
-    expect(title).not.toMatch(/by/);
+    // Label shows relative time but no name attribution
+    const label = verifiedBadge!.getAttribute('aria-label');
+    expect(label).toMatch(/Verified \d+ \w+ ago/);
+    expect(label).not.toMatch(/ by /);
   });
 
   it('renders VerificationBadge for Q&A pair cards', () => {
@@ -193,7 +168,7 @@ describe('ContentCard — Verification Badge', () => {
       el.textContent?.includes('Verified'),
     );
     expect(verifiedBadge).toBeTruthy();
-    expect(verifiedBadge!.getAttribute('title')).toMatch(
+    expect(verifiedBadge!.getAttribute('aria-label')).toMatch(
       /Verified by Jane Smith/,
     );
   });
@@ -215,12 +190,12 @@ describe('ContentCard — Verification Badge', () => {
       el.textContent?.includes('Verified'),
     );
     expect(verifiedBadge).toBeTruthy();
-    expect(verifiedBadge!.getAttribute('title')).toMatch(
+    expect(verifiedBadge!.getAttribute('aria-label')).toMatch(
       /Verified by Bob Jones/,
     );
   });
 
-  it('shows time-only tooltip without verifierNames prop (backwards compatible)', () => {
+  it('shows time-only label without verifierNames prop (backwards compatible)', () => {
     render(
       <ContentCard
         item={makeItem({
@@ -234,9 +209,9 @@ describe('ContentCard — Verification Badge', () => {
       el.textContent?.includes('Verified'),
     );
     expect(verifiedBadge).toBeTruthy();
-    // verifiedAt is still passed, so tooltip shows relative time
-    const title = verifiedBadge!.getAttribute('title');
-    expect(title).toMatch(/Verified \d+ \w+ ago/);
-    expect(title).not.toMatch(/by/);
+    // verifiedAt is still passed, so label shows relative time
+    const label = verifiedBadge!.getAttribute('aria-label');
+    expect(label).toMatch(/Verified \d+ \w+ ago/);
+    expect(label).not.toMatch(/ by /);
   });
 });

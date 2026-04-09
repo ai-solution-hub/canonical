@@ -192,7 +192,6 @@ export function ReaderView({
                 verifiedAt={item.verified_at}
                 size="md"
                 showLabel={true}
-                showDetailedTrust={false}
                 liveRegion={false}
               />
               {item.updated_at && (
