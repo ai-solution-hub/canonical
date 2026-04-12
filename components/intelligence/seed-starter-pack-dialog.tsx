@@ -75,7 +75,7 @@ export function SeedStarterPackDialog({
               {result.seeded.length > 0 && (
                 <div className="flex items-start gap-2 text-sm text-muted-foreground">
                   <Check
-                    className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400"
+                    className="mt-0.5 size-4 shrink-0 text-success"
                     aria-hidden="true"
                   />
                   <span>
@@ -87,7 +87,7 @@ export function SeedStarterPackDialog({
               {result.skipped_existing.length > 0 && (
                 <div className="flex items-start gap-2 text-sm text-muted-foreground">
                   <Info
-                    className="mt-0.5 size-4 shrink-0 text-blue-600 dark:text-blue-400"
+                    className="mt-0.5 size-4 shrink-0 text-muted-foreground"
                     aria-hidden="true"
                   />
                   <span>
