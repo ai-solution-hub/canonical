@@ -282,6 +282,8 @@ management only for merge-conflict-prone work requiring interactive resolution.
 
 ### General
 
+- **Next.js Image rejects query-string cache-busters on local paths.**
+  `<Image src="/foo.webp?v=dev">` fails — Next.js handles its own caching.
 - **`bun run format` reformats the entire repo.** Use
   `bunx prettier --write <path>` for targeted formatting.
 - **Python background output:** Use `PYTHONUNBUFFERED=1` or output is invisible.
