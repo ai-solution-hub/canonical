@@ -155,7 +155,7 @@ point-in-time snapshots.
 ## Implementation Workflow
 
 Spec-Code-Verify workflow is loaded via `/start-session` skill at session start.
-Key rules: max 2-4h per agent, verification gates after every phase, fix ALL
+Key rules: max 2h per agent, verification gates after every phase, fix ALL
 findings before merge, sequential merges only.
 
 **Parallel agent isolation:** Use `isolation: "worktree"` on Agent tool calls

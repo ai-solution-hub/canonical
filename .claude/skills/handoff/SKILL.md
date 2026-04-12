@@ -32,7 +32,7 @@ If they exist, read the most recent file in full. This provides:
 ## Step 2: Determine the Next Session Number
 
 Parse the highest session number from existing files and add 1. The filename
-format is `continuation-prompt-kh-{NN}-{purpose}.md`.
+format is `continuation-prompt-kh-{NNN}-{purpose}.md`.
 
 ---
 
@@ -51,31 +51,25 @@ cd /Users/liamj/Documents/development/knowledge-hub && bun lint 2>&1 | tail -10
 
 ---
 
-## Step 4: Ask Liam for Session Context
+## Step 4: Determine Next Session Context
 
-Before generating the continuation prompt, ask Liam the following questions.
-Present them all at once so he can answer in a single response:
+Before generating the continuation prompt, assess whether you can confidently answer the following questions, based on reference documentation, git history and the conversation context. If you can answer the questions confidently, proceed to step 5.
 
-> I am gathering context for the continuation prompt. Please help me fill in
-> the gaps:
->
-> 1. **Session purpose (for the NEXT session):** What should the next session
->    focus on? Or should I suggest based on what was deferred?
->
-> 2. **Key decisions made this session:** Were there any architectural decisions,
->    design choices, or direction changes I should capture?
->
-> 3. **Anything that didn't get finished:** Work that was started but not
->    completed, or items that were planned but skipped?
->
-> 4. **Anything to flag for next session:** Gotchas discovered, things that
->    almost broke, or important context the next session needs?
->
-> 5. **Priority for deferred items:** Any changes to what should be tackled
->    next vs pushed further out?
+Key information required to allow creation of the next session's continuation prompt:
 
-If Liam says to just generate it based on what you can see, proceed with your
-best assessment from the git history and conversation context.
+ 1. **Was there work that was started but not completed**, or items that were planned but skipped?
+
+ 2. **Was there work that was completed** which opens up capacity to focus on the next priority item(s) from the roadmap? Our workflow allows us to focus on 3-4 areas per session.
+
+ 3. **Session purpose (for the NEXT session):** Based on points 1 and 2, and your interactions during the session, what should the next session focus on?
+
+ 4. **Key decisions made this session:** Have any architectural decisions,
+    design choices, or direction changes already been captured in the relevant document(s)?
+
+ 5. **Anything to flag for next session:** Gotchas discovered, things that
+    almost broke, or important context the next session needs and which isn't already documented?
+
+If you are unsure on what the next session's focus should be, ask Liam to confirm.
 
 ---
 
@@ -86,7 +80,7 @@ Write the full continuation prompt following these rules:
 ### Section 1: Header & Identity
 
 ```markdown
-# {Session Purpose} — Knowledge Hub Session {NN} Continuation Prompt
+# {Session Purpose} — Knowledge Hub Session {NNN} Continuation Prompt
 
 ## Context
 
@@ -128,16 +122,16 @@ Apply **recency-weighted compression**:
 - **Current session (N-1):** One paragraph (1-3 lines) per WP to provide a concise 
   update of what was completed, including only genuinely useful context - no fluff.
 
-## Section 3: Build Status
+## Section 4: Build Status
 
 ```markdown
-## Build Status (end of S{N})
+## Build Status (end of S{NNN})
 
 - [ ] `bun run test` passes ({test_count}+ tests — populate from actual run)
 - [ ] `bun lint` passes (0 new errors/warnings)
 ```
 
-### Section 4: Session Objectives (Work Packages for NEXT Session)
+### Section 5: Session Objectives (Work Packages for NEXT Session)
 
 Structure as numbered work packages (WP1, WP2, etc.) with priority labels:
 
@@ -157,19 +151,18 @@ Each work package must include:
 
 Only include steps/actions to take if these aren't already covered by a specification.
 
-### Section 5: Agent Allocation (if parallel work is possible)
+### Section 6: Agent Allocation
 
 Include a table showing which agents handle which work packages, with file
 ownership boundaries to prevent merge conflicts. The Wave column defines
-execution order — dependencies between work packages are expressed through
-wave sequencing, not a separate graph.
+execution order, with work package dependencies managed through wave sequencing.
 
 Add this preamble before the table:
 
 ```markdown
 ## Agent Allocation
 
-Waves execute sequentially. All implementation work packages are verified via adversarial review within the same wave or the next. Spec and plan creation is verified before implementation begins. Where adversarial reviews identify any issues, deploy agent(s) to resolve ALL findings, not just critical/high severity.
+Waves execute sequentially. All implementation/spec/plan work packages are verified via adversarial review within the same wave or the next. Where adversarial reviews identify any issues, deploy agent(s) to resolve ALL findings, not just critical/high severity.
 ```
 
 Then the allocation table:
@@ -190,9 +183,9 @@ Then the allocation table:
 - WP{2}: {list all files this WP may create or modify}
 ```
 
-Every WP must have its file ownership boundaries populated — no blank entries.
+Every WP must have its file ownership boundaries populated.
 
-### Section 6: Documents to Read Before Starting
+### Section 7: Documents to Read Before Starting
 
 Always include CLAUDE.md, post-mvp-roadmap.md, and state-of-the-product.md. Add additional documents to "Must read first (in order)", as necessary.
 
@@ -214,77 +207,43 @@ Add documents relevant to the next session to "Read per work package".
 
 | WP | Documents |
 |---|---|
-| WP{1} | `docs/specs/{example file name}` - §{N} + §{I} |
-| WP{2} | `docs/audit/{example file name}` - §{N} |
+| WP{N} | `docs/specs/{example file name}` - §{N} + §{I} |
+| WP{N} | `docs/audit/{example file name}` - §{N} |
 | ...   | ... |
 ```
 
 ---
 
-## Step 6: Update Memory Files
-
-Update your memory files to reflect this session's work. This step exists
-because sessions typically end when the handoff is complete and Liam takes the
-continuation prompt to the next session — there is no natural "wrap up" moment
-for memory updates otherwise.
-
----
-
-## Step 7: Write the File
+## Step 6: Write the File
 
 Write the completed continuation prompt to:
 
 ```
-docs/continuation-prompts/continuation-prompt-kh-{NN}-{purpose-slug}.md
+docs/continuation-prompts/continuation-prompt-kh-{NNN}-{purpose-slug}.md
 ```
 
 ---
 
-## Step 8: Commit the Draft Immediately
+## Step 7: Commit and Push the Draft Immediately
 
-**CRITICAL — do not skip.** Commit the file as soon as it is written, BEFORE
-presenting it for review. Untracked files in this directory have been
-destroyed in the past by worktree operations between sessions (see missing
-s144/s148/s150 continuation prompts). Committing first guarantees the work
-survives a session switch even if Liam cannot review immediately.
+Commit the file as soon as it is written. Committing first guarantees the work survives a session switch even if Liam cannot review immediately.
 
 ```bash
-git add docs/continuation-prompts/continuation-prompt-kh-{NN}-*.md
-git commit -m "docs: draft session {NN} continuation prompt"
-```
-
-Do NOT push yet — the draft may need edits after Liam reviews.
-
----
-
-## Step 9: Present for Review
-
-After the draft commit lands, tell Liam:
-
-> The continuation prompt has been written and committed (draft) to
-> `docs/continuation-prompts/continuation-prompt-kh-{NN}-{purpose-slug}.md`.
->
-> **Please review it** — I will make any edits you request and create a follow-up commit before we consider it final.
-> 
-
----
-
-## Step 10: Apply Edits and Push
-
-If Liam requests changes, apply them via `Edit`, then create a **new** commit
-(never amend, per the CLAUDE.md rule):
-
-```bash
-git add docs/continuation-prompts/continuation-prompt-kh-{NN}-*.md
-git commit -m "docs: finalise session {NN} continuation prompt"
+git add docs/continuation-prompts/continuation-prompt-kh-{NNN}-*.md
+git commit -m "docs: draft session {NNN} continuation prompt"
 git push
 ```
 
-If Liam approves without edits, skip the edit step and push directly:
+After reviewing, if changes are required, Liam will apply these directly and will create a **new** commit.
 
-```bash
-git push
-```
+---
+
+## Step 8: Update Memory Files
+
+Update your memory files. 
+
+This step exists because sessions typically end when the handoff is complete and Liam takes the
+continuation prompt to the next session — there is no natural "wrap up" moment for memory updates otherwise.
 
 ---
 

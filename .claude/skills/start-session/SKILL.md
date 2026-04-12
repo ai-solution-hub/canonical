@@ -49,13 +49,11 @@ Read file: CLAUDE.md
 
 This contains commands, architecture, schema, gotchas, and conventions. Pay
 special attention to the "Gotchas" section — the implementation workflow is
-covered in Step 3 below.
+covered in Step 4 below.
 
 ### 2b: Memory Files
 
-Read the MEMORY.md file from the project memory directory. This provides the
-current project state, build status baseline, specs ready for implementation,
-and learned rules from previous sessions.
+Read the MEMORY.md file from the project memory directory. 
 
 ### 2c: Latest Continuation Prompt (identify but do NOT read yet)
 
@@ -79,8 +77,7 @@ After Steps 1 and 2 are complete, present this message to the user:
 > `docs/continuation-prompts/{filename}`
 >
 > **Please paste the continuation prompt into the chat** so I have the full
-> session context before we begin. I will not start any implementation work
-> until I have reviewed it.
+> session context before we begin.
 
 **IMPORTANT:** Wait for the user to paste the continuation prompt. Do NOT
 proceed with any implementation, planning, or code changes until the
@@ -97,7 +94,7 @@ After receiving the continuation prompt:
 3. Identify the session objectives and work packages
 4. Present a summary to the user:
 
-> ## Session {N} Plan
+> ## Session {NNN} Plan
 >
 > **Objectives:** {summarise from continuation prompt}
 >
@@ -108,7 +105,9 @@ After receiving the continuation prompt:
 > **Estimated scope:** {hours of work}
 >
 
-5. Proceed with outlined plan - if any adjustments are required, user will notify you
+5. Invoke `/using-agent-skills`, taking note of any skills which will be relevant to you for your tasks this session, or which should be provided to subagents based on their respective tasks e.g., `/spec-driven-development` if a task requires a new spec, `/planning-and-task-breakdown` if a spec requires decomposing to tasks, `/code-simplification` when adversarially reviewing a spec/plan, `/code-review-and-quality` if implementation work is being adversarially reviewed, `/documentation -and-adrs` for documentation-related tasks, and so on.
+
+6. Proceed with outlined plan - if any adjustments are required, user will notify you.
 
 ---
 
@@ -119,30 +118,27 @@ must follow this workflow.
 
 ### Agent Work Limits
 
-- **Max 2-4 hours of work per agent** — never let one agent complete an entire
-  multi-phase spec without a verification gate. If a spec is estimated at
-  more than 4 hours, split it into phases for sequential agents, with verification 
-  between each phase.
-- The work limit depends on complexity: simpler tasks (styling, small
-  features) can run to 4 hours; complex tasks (new API endpoints, data model
-  changes) should verify after 2 hours of work.
+- **Max 2 hours of work per agent** — never let one agent complete an entire
+  multi-phase spec without a verification gate. If a spec/plan is estimated at
+  more than 2 hours, split it between sequential agents with verification 
+  between each stage.
 
 ### Verification Gates
 
-After EVERY implementation and spec-writing agent completes, deploy a **separate verification
+After EVERY implementation and spec/plan-writing agent completes, deploy a **separate verification
 agent** before merging. This is not optional. The verification agent must:
 
-1. Read the spec requirements for the implemented work
+1. Read the spec/plan requirements for the implemented work
 2. Read the implementation code
-3. Check spec compliance — are all requirements met?
+3. Check spec/plan compliance — are all requirements met?
 4. Check code quality — semantic tokens, UK English, auth patterns, error handling
 5. Check test quality — do tests verify real behaviour, not just mock returns?
 6. Return a verdict: **PASS** / **PASS WITH NOTES** / **FAIL**
 
 **Fix ALL verification findings** (including minor/low severity) before
-merging. Deploy a fix agent for any notes, no matter the severity. Not 
+merging. Deploy a fix agent for any findings, no matter the severity. Not 
 integrating all findings creates unneccessary technical debt that can be easily 
-avoided by doing things right the first time round.
+avoided by doing things right the first time.
 
 ### Wave Structure
 
@@ -154,6 +150,10 @@ avoided by doing things right the first time round.
 4. **Wave N merge:** Merge worktrees sequentially, run full test suite after
    each merge
 5. Proceed to Wave N+1 only after current wave is merged and green
+
+### Documentation
+
+Documentation will be updated at the end of the session when `/update-docs` is invoked. There is no requirement to update reference documentation (roadmap, state-of-the-product, etc.) throughout the session.
 
 ---
 

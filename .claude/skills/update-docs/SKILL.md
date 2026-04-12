@@ -83,6 +83,8 @@ Read the file, then:
 
 ## Step 4: Archive Completed Specs (Conditional)
 
+**"Spec" below also applies to "plan" files.*
+
 If any roadmap items were marked as completed in Step 3, check whether their
 backing spec is now fully delivered — i.e. **every item** in the spec has
 shipped. A spec is only archived once ALL of its items are complete, not before.
@@ -179,7 +181,7 @@ git diff --name-only HEAD~20 HEAD 2>/dev/null | grep -E "^(app/api|lib/ai|lib/mc
 # Commit any product-functionality doc updates
 git diff --quiet docs/product-functionality/ || \
   (git add docs/product-functionality/ && \
-   git commit -m "docs: patch product-functionality docs for session changes")
+   git commit -m "docs: update product-functionality docs with session changes")
 ```
 
 ---
@@ -212,7 +214,7 @@ git diff --quiet docs/reference/ || \
   (git add docs/reference/post-mvp-roadmap.md docs/reference/state-of-the-product.md \
   docs/reference/product-backlog.md 2>/dev/null && \
   
-   git commit -m "chore: update reference docs for session")
+   git commit -m "docs: update reference docs for session")
 ```
 
 ---
