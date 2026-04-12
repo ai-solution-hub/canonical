@@ -11,9 +11,7 @@ template and style conventions. The output is a markdown file that a future
 Claude Code session can consume to pick up exactly where this session left off.
 
 **Pre-requisite:** `/update-docs` should have run before this skill. It
-regenerates stats, updates the roadmap/backlog, and gathers git context — all
-of which are already in the conversation. If `/update-docs` has not been run,
-remind the user before proceeding.
+regenerates stats, updates the roadmap/state-of-the-product/product-functionality/backlog documents, and gathers git context — all of which are already in the conversation. If `/update-docs` has not been run, remind the user before proceeding.
 
 ---
 
@@ -28,7 +26,6 @@ ls -1 docs/continuation-prompts/continuation-prompt-kh-*.md 2>/dev/null | sort -
 If they exist, read the most recent file in full. This provides:
 - The cumulative "Completed Work" section to compress further
 - The previous session's objectives (to confirm what was done)
-- The deferred items list (to carry forward or resolve)
 
 ---
 
@@ -51,10 +48,6 @@ cd /Users/liamj/Documents/development/knowledge-hub && bun run test 2>&1 | tail 
 # Run lint and capture result
 cd /Users/liamj/Documents/development/knowledge-hub && bun lint 2>&1 | tail -10
 ```
-
-Note: `bun run build` needs `dangerouslyDisableSandbox: true`. Only run if
-needed to verify build status — the test and lint results are usually
-sufficient for the continuation prompt.
 
 ---
 
@@ -98,11 +91,11 @@ Write the full continuation prompt following these rules:
 ## Context
 
 Knowledge Hub is a knowledge base platform where the core value is high-quality,
-structured data accessible by AI. The first domain application is bid management
-for UK SMBs. The knowledge base is the foundation; bids are the first use case,
-not the only one.
+structured data accessible by AI. The first domain applications are bid
+management and sector intelligence for UK SMBs. The knowledge base
+is the foundation for these and future applications.
 
-Forked from the IMS codebase. Multi-user with role-based access (admin/editor/viewer).
+Multi-user with role-based access (admin/editor/viewer).
 
 **Team:** Liam (product owner) + Claude Code as development partner.
 
@@ -112,32 +105,39 @@ Forked from the IMS codebase. Multi-user with role-based access (admin/editor/vi
 
 The Context paragraph should be consistent across all prompts.
 
-After the Context block, include **"Critical rules from recent sessions"** only
-for items that meet ALL of these criteria:
+### Section 2: Critical rules from recent sessions
+
+Include **"Critical rules from recent sessions"** only for items that meet ALL of these criteria:
 1. Discovered in the last 1-2 sessions (genuinely recent)
 2. NOT already documented in `CLAUDE.md` Gotchas or elsewhere
 3. NOT already captured in memory files
 4. Would cause bugs or confusion if a new session didn't know
 
 **Graduation rule:** If an item has been carried across 3+ continuation prompts,
-it has graduated from "recent session context" to "project knowledge". Move it
-to `CLAUDE.md` Gotchas (one concise line) and REMOVE it from the continuation
-prompt. Do not let this section grow beyond 5 items — if it exceeds 5, the
-oldest items must either graduate to CLAUDE.md or be dropped.
+it has graduated from "recent session context" to "project knowledge". Move it to `CLAUDE.md` Gotchas (one concise line) and REMOVE it from the continuatio prompt. Do not let this section grow beyond 5 items — if it exceeds 5, the oldest items must either graduate to CLAUDE.md or be dropped.
 
 Before writing the critical rules section, read `CLAUDE.md` Gotchas to check
 for duplicates. Every item already in CLAUDE.md MUST be excluded.
 
-### Section 2: Completed Work (Cumulative, Recency-Weighted)
+### Section 3: Completed Work (Cumulative, Recency-Weighted)
 
 Apply **recency-weighted compression**:
 
-- **Older sessions:** Collapse into a single paragraph (2-3 lines).
-- **Recent sessions (N-3 to N-2):** One paragraph each (3-5 lines).
-- **Current session (N-1):** Full detail with bullet points.
-- **Build Status:** Always include actual results from Step 3.
+- **Older sessions:** Collapse into a single paragraph (1-2 lines).
+- **Recent sessions (N-3 to N-2):** One paragraph each (3-4 lines).
+- **Current session (N-1):** One paragraph (1-3 lines) per WP to provide a concise 
+  update of what was completed, including only genuinely useful context - no fluff.
 
-### Section 3: Session Objectives (Work Packages for NEXT Session)
+## Section 3: Build Status
+
+```markdown
+## Build Status (end of S{N})
+
+- [ ] `bun run test` passes ({test_count}+ tests — populate from actual run)
+- [ ] `bun lint` passes (0 new errors/warnings)
+```
+
+### Section 4: Session Objectives (Work Packages for NEXT Session)
 
 Structure as numbered work packages (WP1, WP2, etc.) with priority labels:
 
@@ -146,6 +146,8 @@ Structure as numbered work packages (WP1, WP2, etc.) with priority labels:
 - **(COULD)** — Nice to have
 
 Each work package must include:
+- **Roadmap ref**
+- **Spec or source file reference**
 - **What** needs to change
 - **File(s)** to modify
 - **Why** this matters
@@ -153,32 +155,60 @@ Each work package must include:
 - **Gotchas** or constraints
 - **Estimated effort**
 
-Include a **Dependency Graph** showing execution order.
+Only include steps/actions to take if these aren't already covered by a specification.
 
-### Section 4: Agent Allocation (if parallel work is possible)
+### Section 5: Agent Allocation (if parallel work is possible)
 
 Include a table showing which agents handle which work packages, with file
 ownership boundaries to prevent merge conflicts.
 
-### Section 5: Verification Checklist
-
 ```markdown
-## Verification After This Session
 
-- [ ] `bun run build` passes with 0 errors
-- [ ] `bun run test` passes ({test_count}+ tests — populate from actual run)
-- [ ] `bun lint` passes (0 new errors/warnings)
-- [ ] {Session-specific verification items from WPs}
+| Agent | Work Package | Scope | Type | Wave |
+|---|---|---|---|
+| Main session | WP{x} | {Task} | Main | 1 |
+| `wp{1}-{wp-name}` | WP{1} | {Task} | Research-only subagent (no worktree) | 1 |
+| `wp{2}-{wp-name}` | WP{2} | {Task} | Worktree subagent | 1 |
+| ... | ... | ... | ... | ... |
+
+**Where adversarial reviews identify any issues, deploy an agent(s) to resolve ALL of the findings, not just critical/high severity.**
+
+**File ownership boundaries:**
+
+- WP{1}: 
+- WP{2}:
 ```
 
-### Section 6: Deferred Items
+### Section 6: Dependency Graph
 
-Carry forward unresolved deferred items. Add new items deferred this session.
-Remove completed items.
+Include a **Dependency Graph** showing execution order.
 
-### Section 7: Documents to Read
+### Section 7: Documents to Read Before Starting
 
-Always include `CLAUDE.md` first. Add documents relevant to the next session.
+Always include CLAUDE.md, post-mvp-roadmap.md, and state-of-the-product.md. Add additional documents to "Must read first (in order)", as necessary.
+
+```markdown
+**Must read first (in order):**
+
+| Document | Purpose |
+|---|---|
+| `CLAUDE.md` | Project commands, architecture, schema, gotchas |
+| `docs/reference/post-mvp-roadmap.md` | Implementation priorities; Forward-looking only |
+| `docs/reference/state-of-the-product.md` | Canonical product document |
+| `{example file name} | {Example purpose} |
+```
+
+Add documents relevant to the next session to "Read per work package".
+
+```markdown
+**Read per work package:**
+
+| WP | Documents |
+|---|---|
+| WP{1} | `docs/specs/{example file name}` - §{N} + §{I} |
+| WP{2} | `docs/audit/{example file name}` - §{N} |
+| ...   | ... |
+```
 
 ---
 
@@ -216,14 +246,8 @@ After the draft commit lands, tell Liam:
 > The continuation prompt has been written and committed (draft) to
 > `docs/continuation-prompts/continuation-prompt-kh-{NN}-{purpose-slug}.md`.
 >
-> **Please review it** — particularly:
-> - Is the session purpose accurate for what you want to do next?
-> - Are the work packages correctly prioritised?
-> - Is anything missing from the completed work summary?
-> - Should any deferred items be promoted or removed?
->
-> I will make any edits you request and create a follow-up commit before we
-> consider it final.
+> **Please review it** — I will make any edits you request and create a follow-up commit before we consider it final.
+> 
 
 ---
 

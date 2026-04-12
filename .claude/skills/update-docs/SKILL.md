@@ -1,13 +1,12 @@
 ---
 name: update-docs
-description: Update roadmap, product backlog, auto-generated stats, and product-functionality docs to reflect the current session's work, then auto-chain to /handoff. Triggers on "update docs", "update roadmap", "update backlog".
+description: Update roadmap, state of the product, auto-generated stats, product-functionality docs, and product backlog to reflect the current session's work, then auto-chain to /handoff. Triggers on "update docs", "update roadmap", "update state of the product", "update backlog".
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob, Skill
 ---
 
 # Update Docs — Session Documentation Sync
 
-Updates roadmap, product backlog, auto-generated stats, and product-functionality
-docs to reflect the current session's work, then auto-chains to `/handoff` to
+Updates roadmap, state-of-the-product, auto-generated stats, product-functionality, and product backlog docs to reflect the current session's work, then auto-chains to `/handoff` to
 generate the continuation prompt. The user reviews the continuation prompt at the end.
 
 ## Document Roles (READ FIRST)
@@ -17,29 +16,11 @@ must respect this distinction or the docs will drift back into chaos:
 
 | Document | File | Role |
 |---|---|---|
-| **Roadmap** | `docs/reference/post-mvp-roadmap.md` | **Forward-looking only.** Active and ready-for-implementation items. Never contains Done/Resolved items. |
-| **Product backlog** | `docs/reference/product-backlog.md` | Items not currently on the roadmap. Active, deferred, and "needs spec" items. |
-| **State of the product** | `docs/reference/state-of-the-product.md` | **Canonical record of what is CURRENTLY built.** Describes the platform in its present state, organised by functional area (Feature State, AI Integration Points, Test Infrastructure, etc.). Updated whenever a significant feature lands — updates integrate into the relevant functional section, NOT as per-session addendum blocks. |
-| **State of the product — history** | `docs/reference/state-of-the-product-history.md` | **Frozen historical archive** of per-session "what shipped in session N" narrative blocks (S53→S152A), split out of the canonical doc in S152B WP10 (commit `3e3eccc5`) to keep the canonical doc under control. **Do NOT write new session additions to this file** — it is read-only and only touched to correct historical errors. New session deliverables go into `state-of-the-product.md`. |
+| **State of the product** | `docs/reference/state-of-the-product.md` | **Canonical record of what is CURRENTLY built.** Describes the platform in its present state, organised by functional area (Feature State, AI Integration Points, Test Infrastructure, etc.). Updated whenever a significant feature lands — updates integrate into the relevant functional section. |
+| **Roadmap** | `docs/reference/post-mvp-roadmap.md` | **Forward-looking only.** Active and ready-for-implementation items. All session work is driven from here. Never contains Done/Resolved items. |
+| **Product backlog** | `docs/reference/product-backlog.md` | It's unlikely that product backlog items will have been completed during the session as the roadmap drives implementation priorities, but it's possible that new items may have been identified during the session, which will need to be added to the backlog, awaiting promotion to the roadmap. |
+| **State of the product — history** | `docs/reference/state-of-the-product-history.md` | **Frozen historical archive** of per-session "what shipped in session N" narrative blocks (S53→S152A), split out of the canonical doc in S152B WP10 (commit `3e3eccc5`) to keep the canonical doc under control. 
 | **Backlog completed archive** | `docs/reference/product-backlog-completed.md` | Frozen historical record of completed backlog items. |
-
-**The canonical vs history split (important for all future sessions):** The
-S152B WP10 split took `state-of-the-product.md` from 2325 lines to a
-canonical 674 lines + the 1695-line history file. The canonical doc now
-describes only the **current** state, not the evolution. When landing new
-work in a session:
-
-- **DO:** Find the relevant functional section in `state-of-the-product.md`
-  (e.g. "Sector Intelligence (Phases 0-1d + Production Hardening)") and
-  add the new capability to the description of what's built today.
-- **DO NOT:** Append a "Session NNN Additions" block at the bottom of the
-  canonical doc. That pattern was explicitly deprecated in S152B WP10 —
-  it caused the unbounded growth that forced the split.
-- **DO NOT:** Write anything to `state-of-the-product-history.md`. It is
-  frozen as a point-in-time snapshot through S152A.
-
-When marking something Done, **move it out of the backlog/roadmap** to the
-appropriate destination — never leave Done items in either active document.
 
 ---
 
@@ -84,41 +65,14 @@ work packages were completed, partially completed, or deferred.
 
 ---
 
-## Step 3: Update Product Backlog
-
-**File:** `docs/reference/product-backlog.md`
-
-Read the file, then for each item that was addressed this session:
-
-1. **Done items must move out** — when marking something Done, do NOT leave it
-   in the main backlog with a `Done` status. Move it to
-   `docs/reference/product-backlog-completed.md` (the archive) with the session
-   number, OR if it was promoted to the roadmap and then completed, move it to
-   `state-of-the-product.md`. The active backlog should only contain items that
-   are still actionable, deferred, or in-progress.
-
-2. Update the **status** of any in-progress items (e.g. `Partial`, with a note
-   about what remains).
-
-3. Update the **summary counts** at the top of the file to match the new
-   status distribution.
-
-4. Add any **new backlog items** discovered during the session (bugs found,
-   UX issues observed, missing features identified).
-
----
-
-## Step 4: Update Roadmap
+## Step 3: Update Roadmap
 
 **File:** `docs/reference/post-mvp-roadmap.md`
 
 Read the file, then:
 
 1. Move any completed roadmap items to `state-of-the-product.md` (the canonical
-   built record). The roadmap is **forward-looking only** — never leave Done items
-   in it. If a completed item was previously promoted from the backlog, it can
-   ALSO be referenced from `product-backlog-completed.md` for the historical
-   trail, but the primary destination is state-of-the-product.
+   built record) and the relevant product-functionality document(s). The roadmap is **forward-looking only** — never leave Completed/Done items in it. This provides clear visibility of priority, actionable tasks on the roadmap, which can be updated with new items from the product backlog when capacity allows/priorities evolve.
 2. Update statuses for in-progress items (with effort and source-spec references
    where helpful).
 3. Add new items discovered during the session — under the appropriate
@@ -127,19 +81,18 @@ Read the file, then:
 
 ---
 
-## Step 5: Update State of the Product (conditional)
+## Step 4: Update State of the Product
 
 **File:** `docs/reference/state-of-the-product.md` (canonical — CURRENT state)
-**Do NOT touch:** `docs/reference/state-of-the-product-history.md` (frozen archive)
 
 If the session introduced significant architecture changes, new features, or
 removed major components, update `state-of-the-product.md`. Skip if the session
 was primarily bug fixes, styling, or minor enhancements.
 
-**How to update (important — the S152B WP10 split rule):**
+**How to update:**
 
 1. **Find the relevant functional section** (e.g. "Sector Intelligence",
-   "AI Evaluation", "Test Infrastructure", "MCP Server Integration"). Read
+   "AI Evaluation", "Test Infrastructure", "MCP Server Integration" etc.). Read
    the existing section structure — each section describes the
    present-tense capability, not a session-by-session changelog.
 2. **Integrate the new capability into the section's narrative.** If the
@@ -147,27 +100,17 @@ was primarily bug fixes, styling, or minor enhancements.
    Skill landed Phase 1b"), update the bullet in place. If it's a genuinely
    new sub-capability, add a new bullet with a session marker in parentheses
    (e.g. "(S155 WP3)").
-3. **DO NOT append a "Session NNN Additions" block.** That pattern was
-   deprecated in S152B WP10. New per-session additions belong inside the
-   functional sections, integrated with what's already there.
-4. **If a feature was REMOVED or rewritten**, update the description to
+3. **If a feature was REMOVED or rewritten**, update the description to
    match the new state, not to track both old and new.
 5. **If a functional section does not exist for the work** (rare), add a
    new section at the bottom of §5 Feature State or §8 AI Integration
    Points, whichever fits. Do not create an entirely new top-level section
    unless the work warrants it.
-
-**Check the history file is untouched:**
-
-```bash
-# state-of-the-product-history.md should be unchanged this session
-git diff --quiet docs/reference/state-of-the-product-history.md || \
-  echo "WARNING: history file modified — this is almost always wrong; history is frozen through S152A"
-```
+6. **If you notice that a section hasn't followed this aproach** (e.g., content appears like a session-by-session changelog), resolve this if it's the section(s) your actively updating, or for separate sections flag this as an action to be resolved in the next session and add to the continuation prompt created during /handoff - this keeps the document aligned and representative of the canonical product state.
 
 ---
 
-## Step 6: Update Product Functionality Docs (Conditional)
+## Step 5: Update Product Functionality Docs (Conditional)
 
 **File directory:** `docs/product-functionality/`
 
@@ -196,20 +139,15 @@ git diff --name-only HEAD~20 HEAD 2>/dev/null | grep -E "^(app/api|lib/ai|lib/mc
 
 3. For each affected area:
    - Check if a doc already exists in `docs/product-functionality/[area]/`
-   - If **no doc exists yet** — add a note to the deferred items in the continuation prompt
-     (do not create a doc mid-session; docs are written in dedicated documentation sessions)
+   - If **no doc exists yet — add a note to the deferred items** in the continuation prompt that you are about to create during /handoff (do not create a doc mid-session; docs are written in dedicated documentation sessions)
    - If **a doc exists** — open it and:
      a. Identify any claims that are now outdated
-     b. Add a brief addendum section at the bottom:
-        ```markdown
-        ## Updates — Session NNN
-        - [describe what changed]
-        ```
+     b. Update the relevant section, replacing outdated information
      c. Update the `Last verified` header date and session number
      d. Mark any sections that need fuller review with `[NEEDS REVIEW — updated S{NNN}]`
 
-4. If the addition is substantial (a whole new feature area, not a tweak), flag it in
-   the session report so a dedicated documentation sub-session can be planned.
+4. If the addition is substantial (a whole new feature area, not a tweak), flag it in the
+   continuation prompt that you are about to create during /handoff so a dedicated documentation sub-session can be planned. The table in 'Step 5: Item 2' will also need to be updated to include the new path/functional area.
 
 ```bash
 # Commit any product-functionality doc updates
@@ -220,22 +158,35 @@ git diff --quiet docs/product-functionality/ || \
 
 ---
 
+## Step 6: Update Product Backlog (Conditional)
+
+**File:** `docs/reference/product-backlog.md`
+
+If new work items were discovered in the session which aren't related to sections already covered by the product roadmap, these will need to be added to the product backlog, awaiting prioritisation. 
+
+It's also possible that during the session an item or items have been identified as candidates for promotion to the roadmap.
+
+Read the file, then for each item that was identified in this session:
+
+1. Add a **new backlog item** under the relevant section (bugs found, UX issues observed, missing features identified).
+
+2. **If an item was identifed for promotion to the roadmap, remove it entirely from the backlog and create a record in the roadmap document.
+
+3. Update the **summary counts** at the top of the file to match the new status distribution.
+
+---
+
 ## Step 7: Commit Reference Doc Changes
 
-Stage the canonical docs only. `state-of-the-product-history.md` is frozen
-and should NOT be staged — if it shows in `git diff`, investigate before
-committing.
+Stage the canonical docs.
 
 ```bash
-# Commit reference doc updates (canonical files only — history file is frozen)
+# Commit reference doc updates
 git diff --quiet docs/reference/ || \
-  (git add docs/reference/post-mvp-roadmap.md docs/reference/product-backlog.md \
-   docs/reference/product-backlog-completed.md docs/reference/state-of-the-product.md 2>/dev/null && \
-   git commit -m "chore: update roadmap, backlog, and reference docs for session")
-
-# Safety check: warn if the frozen history file was modified
-git diff --quiet docs/reference/state-of-the-product-history.md || \
-  echo "WARNING: state-of-the-product-history.md has uncommitted changes — this file is frozen (S152B WP10 split). Investigate before committing."
+  (git add docs/reference/post-mvp-roadmap.md docs/reference/state-of-the-product.md \
+  docs/reference/product-backlog.md 2>/dev/null && \
+  
+   git commit -m "chore: update reference docs for session")
 ```
 
 ---
@@ -246,10 +197,10 @@ Present a summary to the user:
 
 > Documentation updated:
 > - **Stats:** {regenerated / no changes}
-> - **Backlog:** {N items updated — X done, Y partial, Z new}
-> - **Roadmap:** {N items updated}
+> - **Roadmap:** {N items updated — X done, Y partial, Z new}
 > - **State of product:** {updated / no changes needed}
-> - **Product-functionality docs:** {N areas patched / no existing docs affected / N areas flagged for doc session}
+> - **Product-functionality docs:** {N areas updated / no existing docs affected / N areas flagged for doc session}
+> - **Backlog:** {N items updated — Z new}
 >
 > Generating continuation prompt now.
 

@@ -10,10 +10,10 @@ code in this repository.
 
 Knowledge Hub is a knowledge base platform where the core value is high-quality,
 structured data accessible by AI. The first domain applications are bid
-management and intelligence (research pipelines) for UK SMBs. The knowledge base
+management and sector intelligence for UK SMBs. The knowledge base
 is the foundation for these and future applications.
 
-**Team:** Liam (product owner, zero development experience) + Claude Code as
+**Team:** Liam (product owner) + Claude Code as
 development partner. All code is written through human-AI collaboration.
 
 ## Commands
@@ -177,11 +177,17 @@ Consult these references when adding or modifying UI elements.
 | Document                      | Location                                                              |
 | ----------------------------- | --------------------------------------------------------------------- |
 | State of the Product          | `docs/reference/state-of-the-product.md`                              |
+| Roadmap                       | `docs/reference/post-mvp-roadmap.md`                                  |
 | Product backlog               | `docs/reference/product-backlog.md`                                   |
 | Codebase mapping (7 docs)     | `.planning/codebase/`                                                 |
 | Quality checks (10 files)     | `.claude/checks/`                                                     |
 | Schema quick reference        | `docs/reference/SCHEMA-QUICK-REFERENCE.md`                            |
 | Auto-generated stats          | `docs/generated/codebase-stats.md`, `docs/generated/mcp-inventory.md` |
+| Product differentiation audit | `docs/reference/product-differentiation-audit.md`                     |
+| AI visibility policy          | `docs/reference/ai-visibility-policy.md`                              |
+| AI integration strategy       | `docs/reference/ai-integration-strategy.md`                           |
+| AI integration layer map      | `docs/reference/ai-integration-layers.md`                             |
+| UX principles                 | `docs/reference/ux-principles.md`                                     |
 | Documentation inventory       | `docs/reference/documentation-inventory.md`                           |
 | Session handoffs              | `docs/continuation-prompts/`                                          |
 | Classification prompt         | `docs/reference/classification-prompt.md`                             |
@@ -191,14 +197,8 @@ Consult these references when adding or modifying UI elements.
 | Field-consumer dependency map | `docs/reference/field-consumer-dependency-map.md`                     |
 | Data entry points             | `docs/reference/data-entry-points.md`                                 |
 | Taxonomy change runbook       | `docs/operations/taxonomy-change-runbook.md`                          |
-| Roadmap                       | `docs/reference/post-mvp-roadmap.md`                                  |
-| AI integration strategy       | `docs/reference/ai-integration-strategy.md`                           |
-| AI integration layer map      | `docs/reference/ai-integration-layers.md`                             |
-| UX principles                 | `docs/reference/ux-principles.md`                                     |
-| AI visibility policy          | `docs/reference/ai-visibility-policy.md`                              |
 | Sector intelligence pathway   | `docs/reference/sector-intelligence-pathway.md`                       |
 | Client personas               | `docs/reference/client-personas.md`                                   |
-| Product differentiation audit | `docs/reference/product-differentiation-audit.md`                     |
 | Pipeline parity spec          | `.planning/.archive/.specs/pipeline-parity-spec.md` (archived S151)   |
 
 Historical planning documents live in `.planning/.archive/` with subfolders:
@@ -409,16 +409,9 @@ management only for merge-conflict-prone work requiring interactive resolution.
   trace from the production entry point to the change. Run `bun run knip` for
   deterministic detection of unused files/exports.
 - **Sub-agents are hard-limited to 200K tokens — NOT the parent session's 1M.**
-  Even when the main session has a 1M context window, sub-agents launched via
-  the Agent tool (including `isolation: "worktree"` agents) get their own
-  isolated 200K context. Performance degrades around 147K (~73%); "Prompt is
-  too long" fires near the ceiling. Scope rule: budget ~80 tool calls, hard
-  stop at 120. For tasks that need to read >15 large files or walk large
+  Scope rule: For tasks that need to read >15 large files or walk large
   codebases, split into multiple sub-agents or do the work in the main session.
-  Confirmed via claude-code issues #12312, #23377. S151 saw 3 sub-agent failures
-  from this: Task 17 (ai-integration audit — retried as 17a/17b split), Task 4
-  Phase 2 (continuation prompt audit — rescued from worktree), Task 6 (lint
-  cleanup — rescued from worktree). Common failure mode: the agent writes its
+  Confirmed via claude-code issues #12312, #23377. Common failure mode: the agent writes its
   output correctly but runs out of budget during the final `git commit`. Always
   check the worktree's `git status` before removing it; uncommitted work can be
   rescued.
