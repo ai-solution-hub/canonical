@@ -56,18 +56,16 @@ development partner. All code is written through human-AI collaboration.
 
 Full directory layout with file-level detail: `.planning/codebase/STRUCTURE.md`
 
-Key directories:
-
-Key file: `proxy.ts` — Next.js 16 convention file (auto-discovered, not
-imported) — auth middleware, `publicRoutes` allowlist
+Key file: `proxy.ts` — Next.js 16 auth middleware, `publicRoutes` allowlist
+(auto-discovered, not imported)
 
 | Directory     | Contents                                                                                                                                                                                                                                        |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `app/`        | Next.js 16 App Router — API routes, page routes                                                                                                                                                                                                 |
 | `mcp-apps/`   | MCP App UIs (Vite single-file builds for Claude Desktop/Claude.ai)                                                                                                                                                                              |
-| `components/` | 20 domain subdirs — new components go in their domain dir, never at root                                                                                                                                                                        |
+| `components/` | 21 domain subdirs — new components go in their domain dir, never at root                                                                                                                                                                        |
 | `contexts/`   | React contexts (read-marks, taxonomy, client-features, layer-vocabulary)                                                                                                                                                                        |
-| `hooks/`      | Custom React hooks — 5 domain subdirs (bid, browse, review, streaming, ui) + general hooks at root                                                                                                                                              |
+| `hooks/`      | Custom React hooks — 6 domain subdirs (bid, browse, intelligence, review, streaming, ui) + general hooks at root                                                                                                                                              |
 | `lib/`        | Core modules — `ai/`, `mcp/` (tools, resources, prompts), `bid/`, `content/`, `coverage/`, `digest/`, `entities/`, `extraction/`, `quality/`, `source-documents/`, `supabase/`, `taxonomy/`, `templates/`, `validation/`, plus standalone utils |
 | `types/`      | TypeScript types (content, bid, bid-metadata, digest, review, template, owner, reorient, unified-gap, filter-preset, css.d)                                                                                                                     |
 | `scripts/`    | Python pipeline (`kb_pipeline/`), ingestion CLIs, search CLI, batch scripts                                                                                                                                                                     |
@@ -81,55 +79,32 @@ Current counts (routes, components, hooks, tools, migrations, tests):
 
 ## Environment
 
-Required env vars (in `.env` and `.env.local`; see `.env.example` for template):
+Env vars in `.env` and `.env.local` — see `.env.example` for full template.
+Key vars: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `SUPABASE_URL`,
+`SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+`SUPABASE_SECRET_KEY`, `AI_SUMMARY_MODEL` (optional, defaults `claude-sonnet-4-6`).
 
-- `ANTHROPIC_API_KEY` — Claude API (classification, summaries, digests)
-- `OPENAI_API_KEY` — OpenAI API (embeddings)
-- `SUPABASE_URL` — Supabase project URL (Python scripts)
-- `SUPABASE_ANON_KEY` — Supabase anon key (Python scripts)
-- `NEXT_PUBLIC_SUPABASE_URL` — Supabase URL (Next.js client)
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anon key (Next.js client)
-- `SUPABASE_SECRET_KEY` — Supabase service role key (batch scripts, MCP server)
-- `AI_SUMMARY_MODEL` — (optional) Claude model for AI summaries/digests,
-  defaults to `claude-sonnet-4-6`
+## Supabase & Schema
 
-## Supabase
-
-- **Project ID:** `rovrymhhffssilaftdwd` (knowledge-base, eu-west-2 London)
-- **pgvector:** 0.8.0
+- **Project ID:** `rovrymhhffssilaftdwd` (eu-west-2 London), pgvector 0.8.0
 - **CLI:** `/opt/homebrew/bin/supabase`
-- **Prefer Supabase CLI** for DDL migrations — creates local files and applies
-  remotely
-- Use Supabase MCP tools (`execute_sql`, `list_tables`, etc.) for queries and
-  quick DML
-- **Never use MCP `execute_sql` for DDL** (CREATE TABLE, ALTER TABLE, etc.) —
-  always use `supabase migration new` + `supabase db push`.
+- **DDL via CLI only** (`supabase migration new` + `db push`), never MCP
+  `execute_sql`. MCP tools for queries and quick DML only.
 - **Function search_path:** All new PL/pgSQL functions **MUST** include
-  `SET search_path = public, extensions` to avoid security warnings
-- **Prefer proper schema** -- tables and columns over JSONB for key data
+  `SET search_path = public, extensions`
+- **Prefer proper schema** — tables and columns over JSONB for key data
 - One Supabase project per client — simple isolation, not multi-tenant RLS
-
-## Schema
-
-Full reference: `docs/reference/SCHEMA-QUICK-REFERENCE.md`
-
-RLS: role-based via `get_user_role()` — see schema reference for full model.
-Embeddings: `vector(1024)` (text-embedding-3-large, Matryoshka). Enum-like
-columns use CHECK constraints. Canonical constants: `lib/validation/schemas.ts`.
+- **Schema reference:** `docs/reference/SCHEMA-QUICK-REFERENCE.md`
+- RLS: role-based via `get_user_role()`. Embeddings: `vector(1024)`
+  (text-embedding-3-large). Canonical constants: `lib/validation/schemas.ts`.
 
 ## Testing
 
-- **Framework:** Vitest — run via `bun run test`
-- **Coverage:** `bun run test:coverage` (via `@vitest/coverage-v8`)
-- **Location:** `__tests__/` — see `docs/generated/codebase-stats.md` for
-  current counts
+- **Framework:** Vitest (`bun run test`), coverage via `bun run test:coverage`
+- **Location:** `__tests__/` — counts in `docs/generated/codebase-stats.md`
 - **Mock pattern:** Shared `createMockSupabaseClient()` in
-  `__tests__/helpers/mock-supabase.ts` — all API tests use this
-- **Integration testing:** Integrate with Supabase DB for testing real data
-  flows
-- **Python tests:** `python3 -m pytest scripts/tests/`
-- **E2E:** Playwright — specs in `e2e/tests/`. Worker-scoped fixtures,
-  multi-role auth (admin/editor/viewer).
+  `__tests__/helpers/mock-supabase.ts`
+- **E2E:** Playwright in `e2e/tests/` — worker-scoped fixtures, multi-role auth
 
 ## Deployment
 
@@ -140,77 +115,42 @@ columns use CHECK constraints. Canonical constants: `lib/validation/schemas.ts`.
 
 ## Key Product Design Principles
 
-- **"One record, many views"** — no content duplication. One authoritative
-  record per topic, multiple views for different audiences (the Wikipedia
-  principle)
-- **"Helping you get organised, not learning from you"** — AI is invisible
-  infrastructure, **not** a visible product feature - see
-  `docs/reference/ai-visibility-policy.md` for guidance when creating/updating
-  UI
-- **Programmatic where possible** — save AI for response generation and
-  classification. Use deterministic functions for deterministic tasks
-- **Generic over specific** — containers, workflows, lifecycle machines should
-  be reusable across use cases, not bid-specific
-- **UK English throughout** — DD/MM/YYYY, "colour" not "color", "organisation"
-  not "organization"
+- **"One record, many views"** — no content duplication, multiple views
+- **AI is invisible infrastructure** — not a visible product feature. See
+  `docs/reference/ai-visibility-policy.md`
+- **Programmatic where possible** — deterministic functions for deterministic tasks
+- **Generic over specific** — reusable containers/workflows, not bid-specific
+- **UK English throughout** — DD/MM/YYYY, "colour", "organisation"
 - **WCAG 2.1 AA** — never colour alone for meaning
-- **Package manager: bun** (NOT npm/yarn) — `bun install`, `bun dev`,
-  `bun run test`, `bun build`
-- **The KB is the product** — bids and intelligence are the first applications,
-  not the only ones. Data quality is of the utmost importance
+- **Package manager: bun** (NOT npm/yarn)
+- **The KB is the product** — data quality is paramount
 
-## Design Context
+## Design System: Warm Meridian
 
-### Design System: Warm Meridian
-
-- **Philosophy:** `docs/design/warm-meridian-philosophy.md`
-- **Implementation spec:** `docs/design/warm-meridian-implementation-spec.md`
-- **Visual reference:** `docs/design/warm-meridian-identity.pdf`
-- **Token reference:** `docs/design/warm-meridian-implementation-spec.md`
-  §Semantic Tokens
-- **Quality checks:** `.claude/checks/` (design-system, accessibility, etc.)
-
-Consult these references when adding or modifying UI elements.
+Spec: `docs/design/warm-meridian-implementation-spec.md` (tokens in §Semantic
+Tokens). Philosophy: `docs/design/warm-meridian-philosophy.md`. Visual:
+`docs/design/warm-meridian-identity.pdf`. Quality checks: `.claude/checks/`.
+Consult when adding or modifying UI elements.
 
 ## Key Reference Documents
 
-| Document                      | Location                                                              |
-| ----------------------------- | --------------------------------------------------------------------- |
-| State of the Product          | `docs/reference/state-of-the-product.md`                              |
-| Roadmap                       | `docs/reference/post-mvp-roadmap.md`                                  |
-| Product backlog               | `docs/reference/product-backlog.md`                                   |
-| Codebase mapping (7 docs)     | `.planning/codebase/`                                                 |
-| Quality checks (10 files)     | `.claude/checks/`                                                     |
-| Schema quick reference        | `docs/reference/SCHEMA-QUICK-REFERENCE.md`                            |
-| Auto-generated stats          | `docs/generated/codebase-stats.md`, `docs/generated/mcp-inventory.md` |
-| Product differentiation audit | `docs/reference/product-differentiation-audit.md`                     |
-| AI visibility policy          | `docs/reference/ai-visibility-policy.md`                              |
-| AI integration strategy       | `docs/reference/ai-integration-strategy.md`                           |
-| AI integration layer map      | `docs/reference/ai-integration-layers.md`                             |
-| UX principles                 | `docs/reference/ux-principles.md`                                     |
-| Documentation inventory       | `docs/reference/documentation-inventory.md`                           |
-| Session handoffs              | `docs/continuation-prompts/`                                          |
-| Classification prompt         | `docs/reference/classification-prompt.md`                             |
-| Classification architecture   | `docs/reference/classification-architecture.md`                       |
-| Two-pass validation arch      | `docs/reference/two-pass-validation-architecture.md`                  |
-| Entity type taxonomy spec     | `docs/reference/entity-type-taxonomy-spec.md`                         |
-| Field-consumer dependency map | `docs/reference/field-consumer-dependency-map.md`                     |
-| Data entry points             | `docs/reference/data-entry-points.md`                                 |
-| Taxonomy change runbook       | `docs/operations/taxonomy-change-runbook.md`                          |
-| Sector intelligence pathway   | `docs/reference/sector-intelligence-pathway.md`                       |
-| Client personas               | `docs/reference/client-personas.md`                                   |
-| Pipeline parity spec          | `.planning/.archive/.specs/pipeline-parity-spec.md` (archived S151)   |
+| Document                  | Location                                                              |
+| ------------------------- | --------------------------------------------------------------------- |
+| State of the Product      | `docs/reference/state-of-the-product.md`                              |
+| Roadmap                   | `docs/reference/post-mvp-roadmap.md`                                  |
+| Product backlog           | `docs/reference/product-backlog.md`                                   |
+| Schema quick reference    | `docs/reference/SCHEMA-QUICK-REFERENCE.md`                            |
+| Auto-generated stats      | `docs/generated/codebase-stats.md`, `docs/generated/mcp-inventory.md` |
+| AI visibility policy      | `docs/reference/ai-visibility-policy.md`                              |
+| Session handoffs          | `docs/continuation-prompts/`                                          |
+| Codebase mapping (7 docs) | `.planning/codebase/`                                                 |
+| Quality checks (11 files) | `.claude/checks/`                                                     |
 
-Historical planning documents live in `.planning/.archive/` with subfolders:
+Full inventory of all reference docs: `docs/reference/documentation-inventory.md`
 
-- `.specs/` — archived spec documents
-- `.audits/` — archived audit reports
-- `.reference/` — archived reference docs (e.g. ads-v1)
-- `.research/` — archived research documents
-- `.continuation-prompts/` — archived session handoff prompts (s41–s131+)
-- `.session-exports/`, `.session-extracts/`, `.feasibility/`, `.design-audit/`, `.extracted-patterns/`
-
-These directories contain valuable historical context — why decisions were made, what was tried, what failed — but the `.` prefix keeps them out of normal search results. Grep them explicitly when researching historical context for current work, and treat their content as a point-in-time snapshot (decisions may have been superseded).
+Historical planning: `.planning/.archive/` (specs, audits, research, session
+handoffs s41–s131+). Grep explicitly when researching past decisions; treat as
+point-in-time snapshots.
 
 ## Implementation Workflow
 
@@ -237,45 +177,33 @@ management only for merge-conflict-prone work requiring interactive resolution.
 - **RLS requires user_roles entry:** New users cannot write until seeded.
 - **notifications_type_check:** Valid types listed in schema reference (§29
   CHECK Constraints). Other values fail the DB constraint.
-- **CLI in Claude Code sandbox:** The CLI uses direct Postgres connections via
-  the pooler hostname (`aws-1-eu-west-2.pooler.supabase.com`) which the sandbox
-  blocks. Run `supabase migration new`, `supabase db push`, and
-  `supabase gen types` with `dangerouslyDisableSandbox: true`.
-  `SUPABASE_DB_PASSWORD` must be set as a shell env var (source from `.env`).
-- **Empty migration files from worktree cherry-picks:** When cherry-picking from
-  worktrees, migration files may arrive as 0-byte files. Supabase CLI marks them
-  as "applied" even though no SQL ran. Always verify migration file content
-  after cherry-pick. If an empty migration was already recorded, the SQL must be
-  applied directly via `execute_sql` and the local file backfilled.
-- **Bun fetch hangs on HTTP 204 through sandbox proxy:** Bun 1.3.4 fetch hangs
-  for the full 300s default timeout on HTTP/2 204 No Content responses tunneled
-  through the Claude Code sandbox HTTP CONNECT proxy. supabase-js sends
-  `Prefer: return=minimal` for `.update()`/`.insert()`/`.upsert()`/`.delete()`
-  without chained `.select()`, PostgREST returns 204, and Bun never reads the
-  body. AbortController is ignored. Production (Vercel) is unaffected — verified
-  via pg_stat_statements (6,215+ UPDATEs at 150ms mean). **Fix:** run any script
-  doing supabase writes (`scripts/eval-*.ts`, ad-hoc bun -e snippets) with
-  `dangerouslyDisableSandbox: true`. Do NOT add `.select()` workarounds in
-  production code — the production code is fine.
+- **CLI in Claude Code sandbox:** Run `supabase migration new`, `db push`, and
+  `gen types` with `dangerouslyDisableSandbox: true`. `SUPABASE_DB_PASSWORD`
+  must be set as a shell env var.
+- **Empty migration files from worktree cherry-picks:** Migration files may
+  arrive as 0-byte. Supabase CLI marks them "applied" anyway. Always verify
+  content after cherry-pick; if empty was already recorded, apply SQL via
+  `execute_sql` and backfill the local file.
+- **Bun fetch hangs on HTTP 204 through sandbox proxy:** supabase-js
+  `.update()`/`.insert()`/`.upsert()`/`.delete()` without `.select()` returns
+  204, which Bun hangs on in the sandbox. Production is unaffected. **Fix:** run
+  supabase-writing scripts with `dangerouslyDisableSandbox: true`. Do NOT add
+  `.select()` workarounds in production code.
 
 ### Testing
 
-- **Guard tests break on structural changes:** `mcp-fixture-sync.test.ts` (MCP
-  tool/prompt counts), `doc-freshness.test.ts` (reference doc paths), and
-  `pipeline-parity.test.ts` (TS/Python pipeline alignment) run on every
-  `bun run test`. Update fixtures when adding tools or changing doc paths.
+- **Guard tests break on structural changes:** `mcp-fixture-sync.test.ts`,
+  `doc-freshness.test.ts`, and `pipeline-parity.test.ts` run on every test.
+  Update fixtures when adding tools or changing doc paths.
 - **vi.mock() hoisting:** Use `vi.hoisted()` for mock variables. Arrow functions
   in `mockImplementation()` cannot be used with `new` — use `function` keyword.
-- **Zod UUID validation is strict:** `z.string().uuid()` enforces RFC 4122
-  (version nibble = 4, variant nibble in `[89ab]`). Test UUIDs like
-  `00000000-0000-0000-0000-000000000001` will fail — use v4-compliant values.
-- **Date-sensitive tests need pinned time:** Tests that compute "days ago" must
-  use `vi.spyOn(Date, 'now')` with a fixed timestamp or the `daysAgo()` buffer
-  pattern — `setDate()` rounding causes midnight-boundary flakiness.
-- **Agent escalation rule:** When test agents encounter unexpected production
-  behaviour (e.g. a component renders incorrectly, a function returns wrong
-  data, dead code paths, or tests that can only pass by not actually testing the
-  real logic), **they MUST escalate these findings to the main session**.
+- **Zod UUID validation is strict:** `z.string().uuid()` enforces RFC 4122.
+  Test UUIDs like `00000000-...0001` fail — use v4-compliant values.
+- **Date-sensitive tests need pinned time:** Use `vi.spyOn(Date, 'now')` with a
+  fixed timestamp — `setDate()` rounding causes midnight-boundary flakiness.
+- **Agent escalation rule:** Test agents encountering unexpected production
+  behaviour (wrong renders, dead code, tests that can only pass by not testing
+  real logic) **MUST escalate to the main session**.
 
 ### E2E / Playwright
 
@@ -302,137 +230,83 @@ management only for merge-conflict-prone work requiring interactive resolution.
 
 ### Data & Architecture
 
-- **Silent failures in Supabase calls:** For every `await supabase.` call in
-  `app/api/**/*.ts` or `lib/**/*.ts`, use `sb()` (fail-fast) or `tryQuery()`
-  (Result-returning) from `@/lib/supabase/safe`, or destructure `{ data, error }`
-  and branch on `error`. Composite responses use `warningsEnvelope()` from
-  `@/lib/supabase/warnings` (sibling shape `T & { warnings: readonly string[] }`,
-  field omitted when empty — canonical reference at `app/api/items/[id]/route.ts:419-423`).
-  "Best-effort" swallows use `logBestEffortWarn('domain.entity.action', msg, { err })`
-  from `@/lib/supabase/telemetry`. The ESLint rules `local/no-unchecked-supabase-error`
-  and `local/no-silent-promise-catch` enforce this at `error` level. Full spec:
-  `docs/specs/silent-failure-prevention-spec.md`.
+- **Silent failures in Supabase calls:** Use `sb()` (fail-fast) or `tryQuery()`
+  (Result-returning) from `@/lib/supabase/safe`. Composite responses use
+  `warningsEnvelope()` from `@/lib/supabase/warnings`. Best-effort swallows use
+  `logBestEffortWarn()` from `@/lib/supabase/telemetry`. Enforced by ESLint
+  rules `local/no-unchecked-supabase-error` and `local/no-silent-promise-catch`.
+  Full spec: `docs/specs/silent-failure-prevention-spec.md`.
 - **Cron `pipeline_runs` inserts:** Use `recordPipelineRun()` from
-  `@/lib/pipeline/record-run`, not raw `supabase.from('pipeline_runs').insert(...)`.
-  The helper uses `sb()` internally, fires Sentry at error/warning level on
-  failed / completed_with_errors runs, and never throws. Closes Q-10 (pipeline
-  monitoring) and Q-36 (cron silent insert failures). S152B WP4.
+  `@/lib/pipeline/record-run`, not raw insert. Uses `sb()` internally, fires
+  Sentry on failures, never throws.
 - **Data fetching:** TanStack Query exclusively. Keys in
   `lib/query/query-keys.ts`, fetchers in `lib/query/fetchers.ts`. No SWR or raw
   fetch in hooks.
 - **`getAuthorisedClient()` discriminated union:** Returns
   `{ success: boolean }` — check `auth.success` not `auth.authorised`. Three
-  failure reasons are distinguished: `unauthenticated` (→401), `forbidden`
-  (→403), `role_lookup_failed` (→500, new in S151 — covers transient DB
-  failures on the `user_roles` read so admins are never silently downgraded
-  to viewer). **Always** handle failures via the `authFailureResponse(auth)`
-  helper rather than hand-rolling `NextResponse.json({ error: '...' }, ...)`
-  — the helper routes each reason to the correct HTTP status.
+  failure reasons: `unauthenticated` (→401), `forbidden` (→403),
+  `role_lookup_failed` (→500). **Always** use `authFailureResponse(auth)` helper
+  to route each reason to the correct HTTP status.
 - **No barrel re-exports:** Always use direct file imports
   (`@/lib/bid/helpers`), never import from index files.
-- **taxonomy.ts dual-source:** App uses DB-driven taxonomy
-  (`contexts/taxonomy-context.tsx`), but `lib/taxonomy/taxonomy.ts` remains for
-  the Python pipeline. Constants in `lib/validation/schemas.ts`.
-- **Taxonomy changes require `bun run sync:taxonomy`:** After adding/editing
-  domains or subtopics via admin UI, run `sync:taxonomy` to regenerate the
-  classification prompt and plugin files. DB is the single source of truth.
-- **Content review vs governance review:** `/review` = content quality (speed
-  review cards). `/api/governance/review` = freshness/ownership. Separate
-  workflows.
-- **"Change Reports" not "Digest":** User-facing label is "Change Reports".
-  Internal code, types, routes, and file names still use "digest".
-- **Entity classification: false positives, not type errors:** S140 eval showed
-  99.2% type accuracy but 45.7% precision. The problem is extracting
-  non-entities (policies, generic concepts, job titles), not mistyping real
-  ones. Source of truth: `docs/reference/entity-type-taxonomy-spec.md`.
+- **Taxonomy dual-source:** App uses DB-driven taxonomy
+  (`contexts/taxonomy-context.tsx`); `lib/taxonomy/taxonomy.ts` remains for the
+  Python pipeline. After taxonomy changes, run `bun run sync:taxonomy` to
+  regenerate classification prompt and plugin files. DB is single source of truth.
+- **Content review vs governance review:** `/review` = content quality.
+  `/api/governance/review` = freshness/ownership. Separate workflows.
+- **"Change Reports" not "Digest":** User-facing label is "Change Reports";
+  internal code still uses "digest".
+- **Entity classification: false positives, not type errors:** The problem is
+  extracting non-entities (policies, generic concepts, job titles), not mistyping
+  real ones. Source of truth: `docs/reference/entity-type-taxonomy-spec.md`.
 
 ### UI / Frontend
 
 - **No raw Tailwind colours:** Always use semantic tokens. Define new ones in
   `app/globals.css`. See `docs/design/warm-meridian-implementation-spec.md`.
-- **Tailwind v4 dark mode is class-based:**
-  `@custom-variant dark (&:is(.dark *))` in `globals.css` — without it, `dark:`
-  compiles to a media query and class-based toggling (next-themes) breaks.
-- **Tailwind v4 scans ALL files:** Never put wildcard class patterns in
-  backticks in any project file (including docs). Use `{name}` not `*`.
-- **Tailwind v4 removed default border-color preflight:** Bare `border` uses
-  `currentColor` not `--border`. The base rule in `globals.css`
-  (`*, ::after, ::before { border-color: var(--border) }`) restores the expected
-  behaviour. Never remove it.
+- **Tailwind v4 gotchas:** (1) Dark mode is class-based via
+  `@custom-variant dark (&:is(.dark *))` in `globals.css` — don't remove.
+  (2) Scans ALL files — never put wildcard class patterns in backticks.
+  (3) Bare `border` uses `currentColor` — the `globals.css` base rule restoring
+  `var(--border)` must not be removed.
 - **React compiler memoisation:** Destructure nested properties before using in
   `useCallback` deps (e.g. `const { fn } = data;` not `data.fn`).
 - **Stable empty array/object defaults in hook returns:** Inline `data?.foo ?? []`
-  in hook return values creates a new array reference every render, cascading
-  into broken `useMemo`/`useCallback` dependency arrays downstream. Hoist a
-  module-level `const EMPTY_X: T[] = [];` and wrap with `useMemo(() => data?.foo ?? EMPTY_X, [data?.foo])`.
-  Pattern confirmed by `vercel-react-best-practices` skill (S151 WP6).
-- **Reset local state via `key` prop, not `setState` in effect:** If a child
-  component needs to reset its local state when a parent prop changes, add
+  creates a new reference every render, breaking downstream deps. Hoist a
+  module-level `const EMPTY_X: T[] = [];` and wrap with
+  `useMemo(() => data?.foo ?? EMPTY_X, [data?.foo])`.
+- **Reset local state via `key` prop, not `setState` in effect:** Add
   `key={propId}` at the call site to force a clean remount — don't write a
-  `useEffect` that calls `setState` in response to the prop change. This is
-  the `react-hooks/set-state-in-effect` rule fix; see S151 WP6.
+  `useEffect` that calls `setState` in response to prop changes.
 
 ### General
 
-- **`bun run format` reformats the entire repo.** The `format` script is
-  `prettier --write .` — running it bare rewrites every file, not just the
-  currently-changed ones. Use `bunx prettier --write <path>` for targeted
-  formatting, or `bun run format:check` to verify without modifying.
+- **`bun run format` reformats the entire repo.** Use
+  `bunx prettier --write <path>` for targeted formatting.
 - **Python background output:** Use `PYTHONUNBUFFERED=1` or output is invisible.
 - **python-docx and Track Changes:** Use `open_document_safe()` from
-  `scripts/docx_utils.py`, not `Document(path)` directly. Mammoth (TypeScript
-  path) handles Track Changes correctly.
-- **Concurrent Claude sessions:** Two sessions on same working tree destroy each
-  other's files. Use `isolation: "worktree"` for parallel agents, or sequence
-  sessions. For planned parallel sessions (e.g. split S152A/B/C), use top-level
-  `git worktree add ../project-sessionN -b sessionN` so each session has its
-  own filesystem + `.claude/worktrees/` namespace and shares only the git
-  object database. `/start-session`'s worktree cleanup is safe (`git branch -d`
-  refuses unmerged), but its "investigate unmerged worktrees" instruction can
-  be misinterpreted if the investigator agent doesn't know about the other
-  concurrent sessions.
-- **Worktree merges leak files:** After merging worktree branches (including
-  `isolation: worktree` agent branches), run `git status` on main and clean with
-  `git checkout -- .` and `git clean -fd`.
-- **Worktree branches stale on parallel launch:** Agents launched in parallel
-  branch from main at launch time. If earlier agents merge first, later
-  branches no longer match main. **Cherry-pick (not merge)** the unique commit
-  to avoid reverting newer work — `git diff main worktree-branch --stat` will
-  show the full reverse diff if you naively merge.
-- **`hooks/` directory needs sandbox bypass for cherry-picks:** Sandbox blocks
-  writes to project `hooks/` for some operations. When cherry-picking commits
-  that create files there, use `dangerouslyDisableSandbox: true`.
-- **"Build the thing, forget to turn it on":** S150 found multiple cases of
-  backend code shipped without UI/cron/migration/test wiring (SI-C1 cron not
-  scheduled, SI-H5 health endpoint orphaned, SI-L5 read-only, SI-M5 metadata
-  unread, AI-H2 dead flag, AI-L2 dead skill). Verification rule: every fix must
-  trace from the production entry point to the change. Run `bun run knip` for
-  deterministic detection of unused files/exports.
+  `scripts/docx_utils.py`, not `Document(path)` directly.
+- **Worktree isolation rules:**
+  - Two sessions on same working tree destroy each other's files — use
+    `isolation: "worktree"` or `git worktree add` for parallel work.
+  - After merging worktree branches, run `git status` on main and clean with
+    `git checkout -- .` and `git clean -fd` (merges leak files).
+  - **Cherry-pick (not merge)** parallel agent branches — agents branch from
+    main at launch time and go stale when earlier agents merge first.
+  - `hooks/` directory needs `dangerouslyDisableSandbox: true` for cherry-picks.
+  - **Sub-agent instructions must always use relative paths** — absolute paths
+    resolve to main repo, not the worktree. If rescuing, check `git status` in
+    main first to detect leaked files.
 - **Sub-agents are hard-limited to 200K tokens — NOT the parent session's 1M.**
-  Scope rule: For tasks that need to read >15 large files or walk large
-  codebases, split into multiple sub-agents or do the work in the main session.
-  Confirmed via claude-code issues #12312, #23377. Common failure mode: the agent writes its
-  output correctly but runs out of budget during the final `git commit`. Always
-  check the worktree's `git status` before removing it; uncommitted work can be
-  rescued.
-- **Worktree sub-agents: absolute paths resolve to MAIN REPO, not the worktree.**
-  When a sub-agent uses `Write`/`Edit` with an absolute path like
-  `/Users/liamj/Documents/development/knowledge-hub/docs/foo.md`, the tool
-  writes to the main repo, NOT the worktree copy at
-  `/Users/liamj/Documents/development/knowledge-hub/.claude/worktrees/agent-XXXX/docs/foo.md`.
-  This is because Claude Code's file tools use absolute paths directly; the
-  agent's `pwd` is the worktree but the absolute path points elsewhere.
-  **Sub-agent instructions must always use relative paths** (e.g.
-  `docs/audits/s151-decision-responses.md`, not `/Users/liamj/.../docs/audits/s151-decision-responses.md`) OR
-  must explicitly derive the worktree root first: `cd "$(git rev-parse --show-toplevel)"`.
-  S151 saw this across multiple Phase 4 agents; in each case the agent caught
-  it mid-task and recovered by copying files into the worktree + reverting
-  main. When rescuing, run `git status` in main FIRST to detect leaked files,
-  then copy to the worktree path and `git checkout --` the main paths.
-- **`classifyContent` userId must be a UUID:** `content_items.updated_by` is a
-  uuid column. Eval scripts and other callers must use the pipeline service
-  account UUID (`a0000000-0000-4000-8000-000000000001`), never a literal string
-  like `'eval-runner'`.
+  Split large tasks across multiple sub-agents. Common failure: agent runs out
+  of budget during final `git commit` — always check worktree `git status`
+  before removing it.
+- **"Build the thing, forget to turn it on":** Every fix must trace from the
+  production entry point to the change. Run `bun run knip` for deterministic
+  detection of unused files/exports.
+- **`classifyContent` userId must be a UUID:** Use pipeline service account
+  UUID (`a0000000-0000-4000-8000-000000000001`), never literal strings.
 - **Proxy blocks non-API public routes:** New public endpoints must be added to
   `publicRoutes` in `proxy.ts` (project root) or they silently redirect to
   `/login`.
