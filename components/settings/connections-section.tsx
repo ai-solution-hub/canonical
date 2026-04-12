@@ -13,6 +13,7 @@ import {
   Info,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { BRANDING } from '@/lib/client-config';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -124,7 +125,7 @@ export function ConnectionsSection() {
           </TooltipProvider>
         </h3>
         <p className="text-sm text-muted-foreground">
-          Connect your Knowledge Hub to Claude so you can search, draft, and get
+          Connect your {BRANDING.productName} to Claude so you can search, draft, and get
           briefings from any conversation.
         </p>
       </div>
@@ -141,7 +142,7 @@ export function ConnectionsSection() {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <p className="text-sm text-muted-foreground">
-            Connect your Knowledge Hub to Claude to search your knowledge base,
+            Connect your {BRANDING.productName} to Claude to search your knowledge base,
             check bid status, and get briefings directly from Claude.
           </p>
 
@@ -159,7 +160,7 @@ export function ConnectionsSection() {
               <CopyButton value={mcpUrl} label="Copy MCP server URL" />
             </div>
             <p className="text-xs text-muted-foreground">
-              Use this URL to connect Claude to your Knowledge Hub via MCP.
+              Use this URL to connect Claude to your {BRANDING.productName} via MCP.
             </p>
           </div>
         </CardContent>

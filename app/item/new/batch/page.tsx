@@ -1,9 +1,10 @@
 import { redirect } from 'next/navigation';
+import { BRANDING } from '@/lib/client-config';
 import { createClient } from '@/lib/supabase/server';
 import { BatchCreateClient } from './batch-create-client';
 
 export const metadata = {
-  title: 'Batch Create Q&A Pairs | Knowledge Hub',
+  title: `Batch Create Q&A Pairs | ${BRANDING.productName}`,
   description:
     'Create multiple Q&A pairs at once by pasting from a spreadsheet.',
 };

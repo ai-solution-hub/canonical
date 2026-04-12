@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { BRANDING } from '@/lib/client-config';
 import {
   X,
   Clock,
@@ -288,7 +289,7 @@ export function ReorientSection({ data }: ReorientSectionProps) {
       {isEmpty ? (
         <p className="mt-3 text-sm text-muted-foreground">
           {isFirstLogin
-            ? 'Welcome to Knowledge Hub. Start by browsing the knowledge base or creating your first bid.'
+            ? `Welcome to ${BRANDING.productName}. Start by browsing the knowledge base or creating your first bid.`
             : 'Everything looks good \u2014 no urgent items and nothing new since your last visit.'}
         </p>
       ) : (

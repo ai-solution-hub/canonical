@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Download, FileText, Copy, Printer, Mail, Loader2 } from 'lucide-react';
+import { BRANDING } from '@/lib/client-config';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -56,7 +57,7 @@ export function DigestExportMenu({ digest }: DigestExportMenuProps) {
 
   function handleEmail() {
     const label = digestTypeLabel(digest.digest_type);
-    const subject = encodeURIComponent(`${label} — Knowledge Hub`);
+    const subject = encodeURIComponent(`${label} — ${BRANDING.productName}`);
     const md = digestToMarkdown(digest);
     const body = encodeURIComponent(md);
     window.open(`mailto:?subject=${subject}&body=${body}`, '_self');

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { ShieldCheck, ShieldX, Loader2, RefreshCw } from 'lucide-react';
+import { BRANDING } from '@/lib/client-config';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -134,8 +135,8 @@ export function ConnectedAppsSection() {
           </div>
         ) : grants.length === 0 ? (
           <p className="py-4 text-center text-sm text-muted-foreground">
-            No connected apps. When you authorise an application to access your
-            Knowledge Hub, it will appear here.
+            No connected apps. When you authorise an application to access
+            your {BRANDING.productName}, it will appear here.
           </p>
         ) : (
           <ul className="flex flex-col gap-3" role="list">

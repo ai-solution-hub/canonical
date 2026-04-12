@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import { BRANDING } from '@/lib/client-config';
 import { createClient } from '@/lib/supabase/server';
 import { SearchBar } from '@/components/browse/search-bar';
 import { ActiveBidsSection } from '@/components/dashboard/active-bids-section';
@@ -254,7 +255,7 @@ export default function HomePage() {
       {/* Compact search bar */}
       <section className="mb-6 text-center" aria-label="Search">
         <h1 className="mb-4 text-fluid-2xl font-bold tracking-tight">
-          Knowledge Hub
+          {BRANDING.productName}
         </h1>
         <Suspense fallback={<SearchSkeleton />}>
           <SearchBar variant="hero" autoFocus />

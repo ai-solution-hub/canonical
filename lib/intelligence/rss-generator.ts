@@ -8,6 +8,8 @@
  * with a custom `kh:relevanceScore` namespace element for AI score metadata.
  */
 
+import { BRANDING } from '@/lib/client-config';
+
 // ── Interfaces ──
 
 export interface RssItem {
@@ -60,7 +62,7 @@ export function generateRss(
     `    <lastBuildDate>${escapeXml(channel.lastBuildDate)}</lastBuildDate>`,
   );
   lines.push(`    <ttl>${channel.ttl}</ttl>`);
-  lines.push('    <generator>Knowledge Hub Sector Intelligence</generator>');
+  lines.push(`    <generator>${BRANDING.productName} Sector Intelligence</generator>`);
 
   for (const item of items) {
     lines.push('    <item>');

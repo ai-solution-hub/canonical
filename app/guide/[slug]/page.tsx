@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { BRANDING } from '@/lib/client-config';
 import { GuideContent } from './guide-content';
 
 interface GuidePageProps {
@@ -16,7 +17,7 @@ export async function generateMetadata({
     .join(' ');
 
   return {
-    title: `${title} — Guides — Knowledge Hub`,
+    title: `${title} — Guides — ${BRANDING.productShortName}`,
     description: `Guide: ${title}`,
   };
 }

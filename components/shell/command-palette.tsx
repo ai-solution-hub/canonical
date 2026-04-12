@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { BRANDING } from '@/lib/client-config';
 import { useTheme } from 'next-themes';
 import { AnimatePresence, motion } from 'motion/react';
 import { Command } from 'cmdk';
@@ -139,7 +140,7 @@ export function CommandPalette() {
                 <Command.Input
                   value={search}
                   onValueChange={setSearch}
-                  placeholder="Search Knowledge Hub..."
+                  placeholder={`Search ${BRANDING.productShortName}...`}
                   className="flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
                 />
               </div>

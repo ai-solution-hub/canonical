@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Check, Copy, Download, Terminal } from 'lucide-react';
+import { BRANDING } from '@/lib/client-config';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -74,7 +75,7 @@ export function DeveloperSetupSection() {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <p className="text-sm text-muted-foreground">
-            Download the Knowledge Hub plugin for Claude Code or Cowork. Adds
+            Download the {BRANDING.productName} plugin for Claude Code or Cowork. Adds
             slash commands for searching your knowledge base, checking bid
             status, and drafting responses.
           </p>
@@ -137,7 +138,7 @@ export function DeveloperSetupSection() {
         <CardContent className="flex flex-col gap-4">
           <p className="text-sm text-muted-foreground">
             Using Claude Code? The MCP connector works there too. Add it to your
-            project&apos;s MCP configuration to access Knowledge Hub tools
+            project&apos;s MCP configuration to access {BRANDING.productName} tools
             directly from the terminal.
           </p>
 
@@ -229,7 +230,7 @@ export function DeveloperSetupSection() {
                       6
                     </span>
                     <span>
-                      Knowledge Hub tools are now available &mdash; try{' '}
+                      {BRANDING.productName} tools are now available &mdash; try{' '}
                       <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">
                         /mcp
                       </code>{' '}
