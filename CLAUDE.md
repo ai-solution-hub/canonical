@@ -294,6 +294,8 @@ management only for merge-conflict-prone work requiring interactive resolution.
     `git checkout -- .` and `git clean -fd` (merges leak files).
   - **Cherry-pick (not merge)** parallel agent branches — agents branch from
     main at launch time and go stale when earlier agents merge first.
+  - **Worktree agents start stale:** `isolation: "worktree"` branches from a
+    historical commit. Agent's first action must be `git reset --hard main`.
   - `hooks/` directory needs `dangerouslyDisableSandbox: true` for cherry-picks.
   - **Sub-agent instructions must always use relative paths** — absolute paths
     resolve to main repo, not the worktree. If rescuing, check `git status` in
