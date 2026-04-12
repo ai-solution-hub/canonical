@@ -115,20 +115,26 @@ export const STARTER_PACKS: StarterPack[] = [
         notes: 'Google News RSS — broad safeguarding coverage',
       },
       {
-        name: 'NSPCC Learning',
-        url: 'https://placeholder.example.com/nspcc-learning-feed',
+        name: 'Safeguarding Audit (Google News)',
+        url: 'https://news.google.com/rss/search?q=%22safeguarding+audit%22+OR+%22safeguarding+inspection%22&hl=en-GB&gl=GB&ceid=GB:en',
+        source_type: 'rss',
+        polling_interval_minutes: 120,
+        notes: 'Google News RSS — safeguarding audit and inspection coverage',
+      },
+      {
+        name: 'NSPCC Learning (Google News)',
+        url: 'https://news.google.com/rss/search?q=NSPCC+learning+safeguarding+UK&hl=en-GB&gl=GB&ceid=GB:en',
         source_type: 'rss',
         polling_interval_minutes: 120,
         notes:
-          'Placeholder — replace with validated NSPCC Learning RSS URL during feed onboarding (§2.1.2)',
+          'Google News RSS — NSPCC does not publish a direct RSS feed; covers NSPCC safeguarding learning content',
       },
       {
         name: 'CQC Safeguarding News',
-        url: 'https://placeholder.example.com/cqc-safeguarding-feed',
+        url: 'https://www.gov.uk/search/news-and-communications.atom?organisations%5B%5D=care-quality-commission',
         source_type: 'rss',
         polling_interval_minutes: 120,
-        notes:
-          'Placeholder — replace with validated CQC safeguarding feed URL during feed onboarding (§2.1.2)',
+        notes: 'Atom feed from GOV.UK — CQC news and communications including safeguarding',
       },
       {
         name: 'LADO Updates (Google News)',
@@ -155,11 +161,10 @@ export const STARTER_PACKS: StarterPack[] = [
       },
       {
         name: 'CQC Press Releases',
-        url: 'https://placeholder.example.com/cqc-press-releases-feed',
+        url: 'https://www.gov.uk/search/news-and-communications.atom?organisations%5B%5D=care-quality-commission',
         source_type: 'rss',
         polling_interval_minutes: 120,
-        notes:
-          'Placeholder — replace with validated CQC press releases feed URL during feed onboarding (§2.1.2)',
+        notes: 'Atom feed from GOV.UK — CQC news, press releases, and communications',
       },
       {
         name: 'CQC Inspections (Google News)',
@@ -169,12 +174,19 @@ export const STARTER_PACKS: StarterPack[] = [
         notes: 'Google News RSS — CQC inspection coverage',
       },
       {
-        name: 'LGA Social Care Updates',
-        url: 'https://placeholder.example.com/lga-social-care-feed',
+        name: 'LGA Social Care Updates (Google News)',
+        url: 'https://news.google.com/rss/search?q=LGA+%22social+care%22+UK&hl=en-GB&gl=GB&ceid=GB:en',
         source_type: 'rss',
         polling_interval_minutes: 120,
         notes:
-          'Placeholder — replace with validated LGA social care feed URL during feed onboarding (§2.1.2)',
+          'Google News RSS — LGA does not publish a direct RSS feed; covers LGA social care policy and updates',
+      },
+      {
+        name: 'Local Government Chronicle',
+        url: 'https://www.lgcplus.com/feed/',
+        source_type: 'rss',
+        polling_interval_minutes: 60,
+        notes: 'Local government sector news — cross-sector relevance for health and social care',
       },
     ],
   },
