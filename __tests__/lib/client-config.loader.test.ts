@@ -39,7 +39,7 @@ describe('loadBranding', () => {
     const branding = loadBranding('example-client');
     expect(branding.clientId).toBe('example-client');
     expect(branding.productName).toBe('example-client Design - Knowledge Hub');
-    expect(branding.faviconSvgUrl).toBeUndefined();
+    expect(branding.faviconSvgUrl).toBe('/clients/example-client/favicon.svg');
     expect(branding.faviconPngUrl).toBe('/clients/example-client/favicon.png');
     warnSpy.mockRestore();
   });
