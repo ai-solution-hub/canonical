@@ -1,0 +1,19 @@
+{
+  "clientId": "default",
+  "productName": "Knowledge Hub",
+  "productShortName": "Knowledge Hub",
+  "organisationName": "Knowledge Hub",
+  "tagline": "Knowledge base platform for bid management",
+  "supportEmail": "support@knowledgehub.dev",
+  "brandPrimaryColour": "oklch(0.65 0.16 55)",
+  "logoUrl": "/favicon.svg",
+  "logoAlt": "Knowledge Hub logo",
+  "logoMaxWidthPx": 32,
+  "logoAspectRatio": 1,
+  "faviconSvgUrl": "/favicon.svg",
+  "faviconPngUrl": "/favicon.png",
+  "classificationDisambiguation": {
+    "entityExamples": [],
+    "selfReferenceRules": []
+  }
+}

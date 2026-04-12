@@ -13,6 +13,7 @@ import { QueryProvider } from '@/lib/query/query-provider';
 import { AuthAwareChrome } from '@/components/shell/auth-aware-chrome';
 import { SessionGuard } from '@/components/shell/session-guard';
 import { Analytics } from '@vercel/analytics/next';
+import { BRANDING, buildBrandStyleProps } from '@/lib/client-config';
 import './globals.css';
 import './a11y.css';
 
@@ -23,12 +24,19 @@ const instrumentSans = Instrument_Sans({
 });
 
 export const metadata: Metadata = {
-  title: 'Knowledge Hub',
-  description: 'Knowledge base platform for bid management',
+  title: BRANDING.productName,
+  description: BRANDING.tagline,
   icons: {
     icon: [
-      { url: '/favicon.svg', type: 'image/svg+xml' },
-      { url: '/favicon.png', type: 'image/png', sizes: '32x32' },
+      {
+        url: `${BRANDING.faviconSvgUrl}?v=${process.env.VERCEL_GIT_COMMIT_SHA ?? 'dev'}`,
+        type: 'image/svg+xml',
+      },
+      {
+        url: `${BRANDING.faviconPngUrl}?v=${process.env.VERCEL_GIT_COMMIT_SHA ?? 'dev'}`,
+        type: 'image/png',
+        sizes: '32x32',
+      },
     ],
   },
 };
@@ -38,8 +46,15 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const brandStyleProps = buildBrandStyleProps();
   return (
     <html lang="en-GB" suppressHydrationWarning>
+      <head>
+        {/* Brand CSS is build-time-computed from a Zod-validated JSON file —
+            the content is never user-supplied, so raw HTML injection is safe.
+            See lib/client-config.ts buildBrandStyleProps for the helper. */}
+        <style {...brandStyleProps} />
+      </head>
       <body className={`${instrumentSans.variable} font-sans antialiased`}>
         <ThemeProvider>
           <QueryProvider>
