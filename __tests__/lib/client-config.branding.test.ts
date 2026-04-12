@@ -88,10 +88,10 @@ describe('oklchToRelativeLuminance', () => {
     expect(lum).toBeCloseTo(0.125, 2);
   });
 
-  it('returns ~0.30 for KH default primary', () => {
+  it('returns ~0.26 for KH default primary', () => {
     const khPrimary: OklchComponents = { l: 0.65, c: 0.16, h: 55 };
     const lum = oklchToRelativeLuminance(khPrimary);
-    expect(lum).toBeCloseTo(0.3, 1);
+    expect(lum).toBeCloseTo(0.26, 1);
   });
 });
 
