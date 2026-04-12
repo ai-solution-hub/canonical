@@ -1,5 +1,6 @@
 // lib/intelligence/guide-generator.ts
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { findParentSector } from '@/lib/intelligence/topic-mappings';
 
 export interface CompanyProfile {
   id: string;
@@ -15,12 +16,16 @@ export interface GeneratedGuide {
 }
 
 /**
- * Auto-generate a guide for an intelligence workspace.
+ * Auto-generate a hierarchical guide for an intelligence workspace.
  *
- * Creates a guide with sections derived from the company profile:
- * - One section per sector (e.g. "Education", "Health & Social Care")
- * - One section per key topic (e.g. "KCSIE", "Safeguarding")
- * - A "Research Feed" section for uncategorised articles
+ * Creates a guide with a two-level content tree derived from the company
+ * profile:
+ *
+ * Pass 1 — sector parent sections (top-level, parent_section_id = null)
+ * Pass 2 — topic child sections nested under their parent sector where
+ *           a mapping exists (via lib/intelligence/topic-mappings.ts).
+ *           Topics with no matching sector remain top-level.
+ * Catch-all — "Research Feed" section always at top level.
  *
  * The guide uses guide_type = 'research' and is published by default.
  */
@@ -37,53 +42,7 @@ export async function createIntelligenceGuide(
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '')}`;
 
-  // 2. Build section definitions from profile
-  const sections: Array<{
-    section_name: string;
-    description: string;
-    expected_layer: string;
-    display_order: number;
-    is_required: boolean;
-    content_type_filter?: string;
-  }> = [];
-
-  let order = 1;
-
-  // Sector-based sections
-  for (const sector of profile.sectors ?? []) {
-    sections.push({
-      section_name: sector,
-      description: `Intelligence coverage for the ${sector} sector`,
-      expected_layer: 'research',
-      display_order: order++,
-      is_required: true,
-      content_type_filter: 'article',
-    });
-  }
-
-  // Key topic sections
-  for (const topic of profile.key_topics ?? []) {
-    sections.push({
-      section_name: topic,
-      description: `Articles and updates related to ${topic}`,
-      expected_layer: 'research',
-      display_order: order++,
-      is_required: false,
-      content_type_filter: 'article',
-    });
-  }
-
-  // Research feed catch-all
-  sections.push({
-    section_name: 'Research Feed',
-    description:
-      'General intelligence articles not matching a specific section',
-    expected_layer: 'research',
-    display_order: order,
-    is_required: false,
-  });
-
-  // 3. Insert guide — try base slug first, then fallback with workspace ID fragment
+  // 2. Insert guide — try base slug first, then fallback with workspace ID fragment
   const guidePayload = {
     name: `${workspaceName} Intelligence Guide`,
     description: `Auto-generated intelligence coverage guide for ${profile.name}`,
@@ -118,26 +77,98 @@ export async function createIntelligenceGuide(
     guideId = retryAttempt.id;
   }
 
-  // 4. Insert guide sections
-  const sectionRows = sections.map((s) => ({
-    guide_id: guideId!,
-    section_name: s.section_name,
-    description: s.description,
-    expected_layer: s.expected_layer,
-    display_order: s.display_order,
-    is_required: s.is_required,
-    content_type_filter: s.content_type_filter ?? null,
-  }));
+  // 3. Build hierarchical sections — two-pass approach
+  const sectors = profile.sectors ?? [];
+  const topics = profile.key_topics ?? [];
 
-  const { error: sectionError } = await supabase
-    .from('guide_sections')
-    .insert(sectionRows);
+  let order = 1;
 
-  if (sectionError) {
-    // Clean up guide if sections failed
-    await supabase.from('guides').delete().eq('id', guideId);
-    return null;
+  // Pass 1: Insert sector parent sections and capture their IDs
+  const sectorIdMap = new Map<string, string>(); // sector name -> section UUID
+
+  if (sectors.length > 0) {
+    const sectorRows = sectors.map((sector) => ({
+      guide_id: guideId!,
+      section_name: sector,
+      description: `Intelligence coverage for the ${sector} sector`,
+      expected_layer: 'research',
+      display_order: order++,
+      is_required: true,
+      content_type_filter: 'article',
+      parent_section_id: null as string | null,
+    }));
+
+    const { data: insertedSectors, error: sectorError } = await supabase
+      .from('guide_sections')
+      .insert(sectorRows)
+      .select('id, section_name');
+
+    if (sectorError) {
+      await supabase.from('guides').delete().eq('id', guideId);
+      return null;
+    }
+
+    // Build lookup from sector name to its new section UUID
+    for (const row of insertedSectors ?? []) {
+      sectorIdMap.set(row.section_name, row.id);
+    }
   }
 
-  return { guideId: guideId!, sectionCount: sectionRows.length };
+  // Pass 2: Insert topic sections, nested under parent sector where mapped
+  const topicAndCatchAllRows: Array<{
+    guide_id: string;
+    section_name: string;
+    description: string;
+    expected_layer: string;
+    display_order: number;
+    is_required: boolean;
+    content_type_filter: string | null;
+    parent_section_id: string | null;
+  }> = [];
+
+  for (const topic of topics) {
+    const parentSector = findParentSector(topic, sectors);
+    const parentSectionId = parentSector
+      ? (sectorIdMap.get(parentSector) ?? null)
+      : null;
+
+    topicAndCatchAllRows.push({
+      guide_id: guideId!,
+      section_name: topic,
+      description: `Articles and updates related to ${topic}`,
+      expected_layer: 'research',
+      display_order: order++,
+      is_required: false,
+      content_type_filter: 'article',
+      parent_section_id: parentSectionId,
+    });
+  }
+
+  // Catch-all: Research Feed at top level
+  topicAndCatchAllRows.push({
+    guide_id: guideId!,
+    section_name: 'Research Feed',
+    description:
+      'General intelligence articles not matching a specific section',
+    expected_layer: 'research',
+    display_order: order,
+    is_required: false,
+    content_type_filter: null,
+    parent_section_id: null,
+  });
+
+  if (topicAndCatchAllRows.length > 0) {
+    const { error: topicError } = await supabase
+      .from('guide_sections')
+      .insert(topicAndCatchAllRows);
+
+    if (topicError) {
+      // Clean up guide and any sector sections already inserted (CASCADE handles children)
+      await supabase.from('guides').delete().eq('id', guideId);
+      return null;
+    }
+  }
+
+  const totalSections = sectors.length + topicAndCatchAllRows.length;
+  return { guideId: guideId!, sectionCount: totalSections };
 }

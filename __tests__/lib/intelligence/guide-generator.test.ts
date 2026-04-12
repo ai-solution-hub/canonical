@@ -1,46 +1,133 @@
 /**
  * Unit tests for intelligence guide auto-creation.
  *
- * Tests the createIntelligenceGuide() function which generates a guide
- * with sections derived from a company profile when an intelligence
- * workspace is created.
+ * Tests the createIntelligenceGuide() function which generates a
+ * hierarchical guide with sections derived from a company profile when
+ * an intelligence workspace is created.
+ *
+ * The generator uses a two-pass approach:
+ *   Pass 1: Insert sector parent sections (top-level)
+ *   Pass 2: Insert topic child sections nested under their parent sector
+ *           (where a mapping exists) plus the Research Feed catch-all.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createIntelligenceGuide } from '@/lib/intelligence/guide-generator';
 import type { CompanyProfile } from '@/lib/intelligence/guide-generator';
 
 // ---------------------------------------------------------------------------
-// Mock Supabase client
+// Mock Supabase client — supports two-pass section inserts
 // ---------------------------------------------------------------------------
 
-function createMockChain() {
-  const chain: Record<string, ReturnType<typeof vi.fn>> = {};
-  const methods = ['select', 'insert', 'update', 'delete', 'eq', 'single'];
-  for (const m of methods) {
-    chain[m] = vi.fn().mockReturnThis();
-  }
-  // Default: single() resolves to null
-  chain.single.mockResolvedValue({ data: null, error: null });
-  return chain;
+const EDUCATION_SECTION_ID = 'e1e1e1e1-aaaa-4bbb-8ccc-dddddddddd01';
+const HEALTH_SECTION_ID = 'e1e1e1e1-aaaa-4bbb-8ccc-dddddddddd02';
+
+/** Track insert calls across the guide_sections table */
+interface SectionInsertCall {
+  rows: Array<Record<string, unknown>>;
 }
 
 function createMockSupabase() {
-  const chains: Record<string, ReturnType<typeof createMockChain>> = {};
-  let currentTable = '';
+  const guideSectionInsertCalls: SectionInsertCall[] = [];
+  let sectorInsertIndex = 0;
+
+  // Sector UUIDs returned by Pass 1 (keyed by section_name)
+  const sectorIdLookup: Record<string, string> = {
+    Education: EDUCATION_SECTION_ID,
+    'Health & Social Care': HEALTH_SECTION_ID,
+  };
+
+  // --- guides table chain ---
+  let guidesInsertCount = 0;
+  const guidesInsertResults: Array<{
+    data: unknown;
+    error: unknown;
+  }> = [];
+
+  const guidesChain = {
+    insert: vi.fn().mockImplementation(() => guidesChain),
+    select: vi.fn().mockImplementation(() => guidesChain),
+    single: vi.fn().mockImplementation(() => {
+      const idx = guidesInsertCount++;
+      if (idx < guidesInsertResults.length) return guidesInsertResults[idx];
+      return { data: null, error: { message: 'unexpected call' } };
+    }),
+    delete: vi.fn().mockImplementation(() => guidesChain),
+    eq: vi.fn().mockImplementation(() => guidesChain),
+  };
+
+  // --- guide_sections table chain ---
+  // Supports two insert calls: pass 1 (sectors) returns data with IDs,
+  // pass 2 (topics + catch-all) returns success with no data.
+  let sectionInsertFail = false;
+  let sectionInsertFailOnPass: 1 | 2 | null = null;
+
+  const sectionsChain = {
+    insert: vi.fn().mockImplementation((rows: unknown[]) => {
+      const call: SectionInsertCall = {
+        rows: rows as Array<Record<string, unknown>>,
+      };
+      guideSectionInsertCalls.push(call);
+      const passNumber = guideSectionInsertCalls.length;
+
+      if (sectionInsertFail || sectionInsertFailOnPass === passNumber) {
+        return {
+          select: vi.fn().mockReturnValue({
+            data: null,
+            error: { message: 'section insert failed' },
+          }),
+          data: null,
+          error: { message: 'section insert failed' },
+        };
+      }
+
+      if (passNumber === 1) {
+        // Pass 1: sector insert — returns with .select('id, section_name')
+        const insertedData = (rows as Array<Record<string, unknown>>).map(
+          (r) => ({
+            id:
+              sectorIdLookup[r.section_name as string] ??
+              `auto-${sectorInsertIndex++}`,
+            section_name: r.section_name,
+          }),
+        );
+        return {
+          select: vi.fn().mockReturnValue({
+            data: insertedData,
+            error: null,
+          }),
+          data: insertedData,
+          error: null,
+        };
+      }
+
+      // Pass 2: topic + catch-all insert — no .select()
+      return { data: [], error: null };
+    }),
+  };
 
   const supabase = {
     from: vi.fn((table: string) => {
-      currentTable = table;
-      if (!chains[table]) {
-        chains[table] = createMockChain();
-      }
-      return chains[table];
+      if (table === 'guides') return guidesChain;
+      if (table === 'guide_sections') return sectionsChain;
+      throw new Error(`Unexpected table: ${table}`);
     }),
-    _chains: chains,
-    _getCurrentTable: () => currentTable,
   };
 
-  return supabase;
+  return {
+    supabase,
+    guidesChain,
+    sectionsChain,
+    guideSectionInsertCalls,
+    guidesInsertResults,
+    /** Make the next section insert fail */
+    failSectionInsert: () => {
+      sectionInsertFail = true;
+    },
+    /** Fail only a specific pass (1 = sectors, 2 = topics) */
+    failSectionInsertOnPass: (pass: 1 | 2) => {
+      sectionInsertFailOnPass = pass;
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -67,46 +154,56 @@ const MINIMAL_PROFILE: CompanyProfile = {
   key_topics: [],
 };
 
+// Profile with topics that have no matching sector
+const ORPHAN_TOPICS_PROFILE: CompanyProfile = {
+  id: 'd1e2f3a4-b5c6-4d7e-8f9a-0b1c2d3e4f5a',
+  name: 'Orphan Topics Co',
+  sectors: ['Education'],
+  services: [],
+  key_topics: ['KCSIE', 'Unmapped Topic', 'Another Unknown'],
+};
+
+// Profile with sectors only (no topics)
+const SECTORS_ONLY_PROFILE: CompanyProfile = {
+  id: 'd1e2f3a4-b5c6-4d7e-8f9a-0b1c2d3e4f5a',
+  name: 'Sectors Only Co',
+  sectors: ['Education', 'Health & Social Care'],
+  services: [],
+  key_topics: [],
+};
+
+// ---------------------------------------------------------------------------
+// Helper to configure guide insert success
+// ---------------------------------------------------------------------------
+
+function configureGuideSuccess(
+  mock: ReturnType<typeof createMockSupabase>,
+  guideId = GUIDE_ID,
+) {
+  mock.guidesInsertResults.push({ data: { id: guideId }, error: null });
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
 describe('createIntelligenceGuide', () => {
-  let mockSupabase: ReturnType<typeof createMockSupabase>;
+  let mock: ReturnType<typeof createMockSupabase>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockSupabase = createMockSupabase();
+    mock = createMockSupabase();
   });
 
-  // Helper to configure a successful guide insert
-  function configureGuideInsertSuccess(guideId = GUIDE_ID) {
-    const guidesChain = createMockChain();
-    guidesChain.insert.mockReturnThis();
-    guidesChain.select.mockReturnThis();
-    guidesChain.single.mockResolvedValueOnce({
-      data: { id: guideId },
-      error: null,
-    });
-    mockSupabase._chains['guides'] = guidesChain;
-    return guidesChain;
-  }
-
-  // Helper to configure a successful section insert
-  function configureSectionInsertSuccess() {
-    const sectionsChain = createMockChain();
-    // insert() resolves directly (no .single())
-    sectionsChain.insert.mockResolvedValueOnce({ data: [], error: null });
-    mockSupabase._chains['guide_sections'] = sectionsChain;
-    return sectionsChain;
-  }
+  // -----------------------------------------------------------------------
+  // Guide creation basics (unchanged from flat)
+  // -----------------------------------------------------------------------
 
   it('creates a guide with correct name, slug, and type', async () => {
-    const guidesChain = configureGuideInsertSuccess();
-    configureSectionInsertSuccess();
+    configureGuideSuccess(mock);
 
     const result = await createIntelligenceGuide(
-      mockSupabase as never,
+      mock.supabase as never,
       WORKSPACE_ID,
       'Education Watch',
       FULL_PROFILE,
@@ -116,8 +213,7 @@ describe('createIntelligenceGuide', () => {
     expect(result).not.toBeNull();
     expect(result!.guideId).toBe(GUIDE_ID);
 
-    // Verify guide insert was called with correct payload
-    const insertCall = guidesChain.insert.mock.calls[0][0];
+    const insertCall = mock.guidesChain.insert.mock.calls[0][0];
     expect(insertCall.name).toBe('Education Watch Intelligence Guide');
     expect(insertCall.slug).toBe('intelligence-education-watch');
     expect(insertCall.guide_type).toBe('research');
@@ -125,106 +221,34 @@ describe('createIntelligenceGuide', () => {
     expect(insertCall.created_by).toBe(USER_ID);
   });
 
-  it('creates sections: one per sector, one per key topic, plus Research Feed', async () => {
-    configureGuideInsertSuccess();
-    const sectionsChain = configureSectionInsertSuccess();
-
-    const result = await createIntelligenceGuide(
-      mockSupabase as never,
-      WORKSPACE_ID,
-      'Education Watch',
-      FULL_PROFILE,
-      USER_ID,
-    );
-
-    expect(result).not.toBeNull();
-    // 2 sectors + 2 key topics + 1 Research Feed = 5
-    expect(result!.sectionCount).toBe(5);
-
-    const insertedSections = sectionsChain.insert.mock.calls[0][0];
-    expect(insertedSections).toHaveLength(5);
-
-    // Sector sections (required)
-    expect(insertedSections[0].section_name).toBe('Education');
-    expect(insertedSections[0].is_required).toBe(true);
-    expect(insertedSections[0].content_type_filter).toBe('article');
-    expect(insertedSections[1].section_name).toBe('Health & Social Care');
-    expect(insertedSections[1].is_required).toBe(true);
-
-    // Key topic sections (optional)
-    expect(insertedSections[2].section_name).toBe('KCSIE');
-    expect(insertedSections[2].is_required).toBe(false);
-    expect(insertedSections[3].section_name).toBe('Ofsted');
-    expect(insertedSections[3].is_required).toBe(false);
-
-    // Research Feed catch-all
-    expect(insertedSections[4].section_name).toBe('Research Feed');
-    expect(insertedSections[4].is_required).toBe(false);
-    expect(insertedSections[4].content_type_filter).toBeNull();
-  });
-
-  it('assigns sequential display_order to sections', async () => {
-    configureGuideInsertSuccess();
-    const sectionsChain = configureSectionInsertSuccess();
-
-    await createIntelligenceGuide(
-      mockSupabase as never,
-      WORKSPACE_ID,
-      'Education Watch',
-      FULL_PROFILE,
-      USER_ID,
-    );
-
-    const insertedSections = sectionsChain.insert.mock.calls[0][0];
-    const orders = insertedSections.map(
-      (s: { display_order: number }) => s.display_order,
-    );
-    expect(orders).toEqual([1, 2, 3, 4, 5]);
-  });
-
   it('generates correct slug from workspace name', async () => {
-    configureGuideInsertSuccess();
-    configureSectionInsertSuccess();
+    configureGuideSuccess(mock);
 
     await createIntelligenceGuide(
-      mockSupabase as never,
+      mock.supabase as never,
       WORKSPACE_ID,
       'My Complex & Special Workspace!',
       FULL_PROFILE,
       USER_ID,
     );
 
-    const guidesChain = mockSupabase._chains['guides'];
-    const insertCall = guidesChain.insert.mock.calls[0][0];
+    const insertCall = mock.guidesChain.insert.mock.calls[0][0];
     expect(insertCall.slug).toBe('intelligence-my-complex-special-workspace');
   });
 
   it('retries with workspace ID fragment on slug conflict', async () => {
-    // First insert fails (slug conflict)
-    const guidesChain = createMockChain();
-    guidesChain.insert.mockReturnThis();
-    guidesChain.select.mockReturnThis();
-    guidesChain.single
-      .mockResolvedValueOnce({
-        data: null,
-        error: {
-          message: 'duplicate key value violates unique constraint',
-          code: '23505',
-        },
-      })
-      .mockResolvedValueOnce({
-        data: { id: GUIDE_ID },
-        error: null,
-      });
-    // delete chain for potential cleanup
-    guidesChain.delete.mockReturnThis();
-    guidesChain.eq.mockReturnThis();
-    mockSupabase._chains['guides'] = guidesChain;
-
-    configureSectionInsertSuccess();
+    // First fails, second succeeds
+    mock.guidesInsertResults.push({
+      data: null,
+      error: {
+        message: 'duplicate key value violates unique constraint',
+        code: '23505',
+      },
+    });
+    mock.guidesInsertResults.push({ data: { id: GUIDE_ID }, error: null });
 
     const result = await createIntelligenceGuide(
-      mockSupabase as never,
+      mock.supabase as never,
       WORKSPACE_ID,
       'Education Watch',
       FULL_PROFILE,
@@ -233,59 +257,26 @@ describe('createIntelligenceGuide', () => {
 
     expect(result).not.toBeNull();
     expect(result!.guideId).toBe(GUIDE_ID);
+    expect(mock.guidesChain.insert).toHaveBeenCalledTimes(2);
 
-    // Should have called insert twice
-    expect(guidesChain.insert).toHaveBeenCalledTimes(2);
-
-    // Second insert should use fallback slug with workspace ID fragment
-    const secondInsert = guidesChain.insert.mock.calls[1][0];
+    const secondInsert = mock.guidesChain.insert.mock.calls[1][0];
     expect(secondInsert.slug).toBe(
       `intelligence-education-watch-${WORKSPACE_ID.slice(0, 8)}`,
     );
   });
 
   it('returns null if both guide insert attempts fail', async () => {
-    const guidesChain = createMockChain();
-    guidesChain.insert.mockReturnThis();
-    guidesChain.select.mockReturnThis();
-    guidesChain.single
-      .mockResolvedValueOnce({
-        data: null,
-        error: { message: 'duplicate key' },
-      })
-      .mockResolvedValueOnce({
-        data: null,
-        error: { message: 'duplicate key again' },
-      });
-    mockSupabase._chains['guides'] = guidesChain;
-
-    const result = await createIntelligenceGuide(
-      mockSupabase as never,
-      WORKSPACE_ID,
-      'Education Watch',
-      FULL_PROFILE,
-      USER_ID,
-    );
-
-    expect(result).toBeNull();
-  });
-
-  it('cleans up guide when section insert fails', async () => {
-    const guidesChain = configureGuideInsertSuccess();
-    // Override delete chain to track calls
-    guidesChain.delete.mockReturnThis();
-    guidesChain.eq.mockResolvedValueOnce({ data: null, error: null });
-
-    // Section insert fails
-    const sectionsChain = createMockChain();
-    sectionsChain.insert.mockResolvedValueOnce({
+    mock.guidesInsertResults.push({
       data: null,
-      error: { message: 'section insert failed' },
+      error: { message: 'duplicate key' },
     });
-    mockSupabase._chains['guide_sections'] = sectionsChain;
+    mock.guidesInsertResults.push({
+      data: null,
+      error: { message: 'duplicate key again' },
+    });
 
     const result = await createIntelligenceGuide(
-      mockSupabase as never,
+      mock.supabase as never,
       WORKSPACE_ID,
       'Education Watch',
       FULL_PROFILE,
@@ -293,17 +284,170 @@ describe('createIntelligenceGuide', () => {
     );
 
     expect(result).toBeNull();
-
-    // Should have tried to delete the guide
-    expect(guidesChain.delete).toHaveBeenCalled();
   });
 
-  it('handles profile with no sectors or key topics (only Research Feed)', async () => {
-    configureGuideInsertSuccess();
-    const sectionsChain = configureSectionInsertSuccess();
+  it('sets guide description with company profile name', async () => {
+    configureGuideSuccess(mock);
+
+    await createIntelligenceGuide(
+      mock.supabase as never,
+      WORKSPACE_ID,
+      'Education Watch',
+      FULL_PROFILE,
+      USER_ID,
+    );
+
+    const insertCall = mock.guidesChain.insert.mock.calls[0][0];
+    expect(insertCall.description).toContain('example-client Design');
+  });
+
+  // -----------------------------------------------------------------------
+  // Hierarchical structure — sectors with nested topics
+  // -----------------------------------------------------------------------
+
+  it('creates sectors as top-level sections and topics nested under them', async () => {
+    configureGuideSuccess(mock);
 
     const result = await createIntelligenceGuide(
-      mockSupabase as never,
+      mock.supabase as never,
+      WORKSPACE_ID,
+      'Education Watch',
+      FULL_PROFILE,
+      USER_ID,
+    );
+
+    expect(result).not.toBeNull();
+    // 2 sectors + 2 topics + 1 Research Feed = 5
+    expect(result!.sectionCount).toBe(5);
+
+    // Two insert calls to guide_sections: pass 1 (sectors), pass 2 (topics + catch-all)
+    expect(mock.guideSectionInsertCalls).toHaveLength(2);
+
+    // Pass 1: sector parent sections
+    const sectorRows = mock.guideSectionInsertCalls[0].rows;
+    expect(sectorRows).toHaveLength(2);
+    expect(sectorRows[0].section_name).toBe('Education');
+    expect(sectorRows[0].is_required).toBe(true);
+    expect(sectorRows[0].parent_section_id).toBeNull();
+    expect(sectorRows[1].section_name).toBe('Health & Social Care');
+    expect(sectorRows[1].is_required).toBe(true);
+    expect(sectorRows[1].parent_section_id).toBeNull();
+
+    // Pass 2: topic sections + Research Feed
+    const topicRows = mock.guideSectionInsertCalls[1].rows;
+    expect(topicRows).toHaveLength(3);
+
+    // KCSIE -> Education (nested)
+    expect(topicRows[0].section_name).toBe('KCSIE');
+    expect(topicRows[0].parent_section_id).toBe(EDUCATION_SECTION_ID);
+    expect(topicRows[0].is_required).toBe(false);
+
+    // Ofsted -> Education (nested)
+    expect(topicRows[1].section_name).toBe('Ofsted');
+    expect(topicRows[1].parent_section_id).toBe(EDUCATION_SECTION_ID);
+    expect(topicRows[1].is_required).toBe(false);
+
+    // Research Feed (top-level)
+    expect(topicRows[2].section_name).toBe('Research Feed');
+    expect(topicRows[2].parent_section_id).toBeNull();
+    expect(topicRows[2].content_type_filter).toBeNull();
+  });
+
+  it('assigns sequential display_order across both passes', async () => {
+    configureGuideSuccess(mock);
+
+    await createIntelligenceGuide(
+      mock.supabase as never,
+      WORKSPACE_ID,
+      'Education Watch',
+      FULL_PROFILE,
+      USER_ID,
+    );
+
+    const sectorOrders = mock.guideSectionInsertCalls[0].rows.map(
+      (s) => s.display_order,
+    );
+    const topicOrders = mock.guideSectionInsertCalls[1].rows.map(
+      (s) => s.display_order,
+    );
+
+    // Sectors first, then topics, then Research Feed
+    expect([...sectorOrders, ...topicOrders]).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  // -----------------------------------------------------------------------
+  // Topics with no matching sector remain top-level
+  // -----------------------------------------------------------------------
+
+  it('leaves unmapped topics at top level (parent_section_id = null)', async () => {
+    configureGuideSuccess(mock);
+
+    const result = await createIntelligenceGuide(
+      mock.supabase as never,
+      WORKSPACE_ID,
+      'Orphan Test',
+      ORPHAN_TOPICS_PROFILE,
+      USER_ID,
+    );
+
+    expect(result).not.toBeNull();
+    // 1 sector + 3 topics + 1 Research Feed = 5
+    expect(result!.sectionCount).toBe(5);
+
+    const topicRows = mock.guideSectionInsertCalls[1].rows;
+    expect(topicRows).toHaveLength(4); // 3 topics + Research Feed
+
+    // KCSIE -> Education (mapped)
+    expect(topicRows[0].section_name).toBe('KCSIE');
+    expect(topicRows[0].parent_section_id).toBe(EDUCATION_SECTION_ID);
+
+    // Unmapped Topic -> top-level
+    expect(topicRows[1].section_name).toBe('Unmapped Topic');
+    expect(topicRows[1].parent_section_id).toBeNull();
+
+    // Another Unknown -> top-level
+    expect(topicRows[2].section_name).toBe('Another Unknown');
+    expect(topicRows[2].parent_section_id).toBeNull();
+  });
+
+  // -----------------------------------------------------------------------
+  // Sectors with no topics — parents only
+  // -----------------------------------------------------------------------
+
+  it('creates sector sections even when no topics exist', async () => {
+    configureGuideSuccess(mock);
+
+    const result = await createIntelligenceGuide(
+      mock.supabase as never,
+      WORKSPACE_ID,
+      'Sectors Only',
+      SECTORS_ONLY_PROFILE,
+      USER_ID,
+    );
+
+    expect(result).not.toBeNull();
+    // 2 sectors + 0 topics + 1 Research Feed = 3
+    expect(result!.sectionCount).toBe(3);
+
+    // Pass 1: sectors
+    const sectorRows = mock.guideSectionInsertCalls[0].rows;
+    expect(sectorRows).toHaveLength(2);
+
+    // Pass 2: only Research Feed
+    const topicRows = mock.guideSectionInsertCalls[1].rows;
+    expect(topicRows).toHaveLength(1);
+    expect(topicRows[0].section_name).toBe('Research Feed');
+  });
+
+  // -----------------------------------------------------------------------
+  // Research Feed always present and top-level
+  // -----------------------------------------------------------------------
+
+  it('always creates Research Feed at top level', async () => {
+    configureGuideSuccess(mock);
+
+    const result = await createIntelligenceGuide(
+      mock.supabase as never,
       WORKSPACE_ID,
       'Minimal Workspace',
       MINIMAL_PROFILE,
@@ -313,60 +457,92 @@ describe('createIntelligenceGuide', () => {
     expect(result).not.toBeNull();
     expect(result!.sectionCount).toBe(1);
 
-    const insertedSections = sectionsChain.insert.mock.calls[0][0];
-    expect(insertedSections).toHaveLength(1);
-    expect(insertedSections[0].section_name).toBe('Research Feed');
+    // No sectors, so only one insert call (pass 2 with just Research Feed)
+    expect(mock.guideSectionInsertCalls).toHaveLength(1);
+    const rows = mock.guideSectionInsertCalls[0].rows;
+    expect(rows).toHaveLength(1);
+    expect(rows[0].section_name).toBe('Research Feed');
+    expect(rows[0].parent_section_id).toBeNull();
+    expect(rows[0].is_required).toBe(false);
   });
 
-  it('sets guide description with company profile name', async () => {
-    const guidesChain = configureGuideInsertSuccess();
-    configureSectionInsertSuccess();
-
-    await createIntelligenceGuide(
-      mockSupabase as never,
-      WORKSPACE_ID,
-      'Education Watch',
-      FULL_PROFILE,
-      USER_ID,
-    );
-
-    const insertCall = guidesChain.insert.mock.calls[0][0];
-    expect(insertCall.description).toContain('example-client Design');
-  });
+  // -----------------------------------------------------------------------
+  // All sections have expected_layer = 'research'
+  // -----------------------------------------------------------------------
 
   it('sets all section expected_layer to research', async () => {
-    configureGuideInsertSuccess();
-    const sectionsChain = configureSectionInsertSuccess();
+    configureGuideSuccess(mock);
 
     await createIntelligenceGuide(
-      mockSupabase as never,
+      mock.supabase as never,
       WORKSPACE_ID,
       'Education Watch',
       FULL_PROFILE,
       USER_ID,
     );
 
-    const insertedSections = sectionsChain.insert.mock.calls[0][0];
-    for (const section of insertedSections) {
-      expect(section.expected_layer).toBe('research');
+    for (const call of mock.guideSectionInsertCalls) {
+      for (const section of call.rows) {
+        expect(section.expected_layer).toBe('research');
+      }
     }
   });
 
+  // -----------------------------------------------------------------------
+  // All sections reference the correct guide
+  // -----------------------------------------------------------------------
+
   it('sets all section guide_id to the created guide', async () => {
-    configureGuideInsertSuccess();
-    const sectionsChain = configureSectionInsertSuccess();
+    configureGuideSuccess(mock);
 
     await createIntelligenceGuide(
-      mockSupabase as never,
+      mock.supabase as never,
       WORKSPACE_ID,
       'Education Watch',
       FULL_PROFILE,
       USER_ID,
     );
 
-    const insertedSections = sectionsChain.insert.mock.calls[0][0];
-    for (const section of insertedSections) {
-      expect(section.guide_id).toBe(GUIDE_ID);
+    for (const call of mock.guideSectionInsertCalls) {
+      for (const section of call.rows) {
+        expect(section.guide_id).toBe(GUIDE_ID);
+      }
     }
+  });
+
+  // -----------------------------------------------------------------------
+  // Error handling — cleanup on section insert failure
+  // -----------------------------------------------------------------------
+
+  it('cleans up guide when sector insert fails (pass 1)', async () => {
+    configureGuideSuccess(mock);
+    mock.failSectionInsertOnPass(1);
+
+    const result = await createIntelligenceGuide(
+      mock.supabase as never,
+      WORKSPACE_ID,
+      'Education Watch',
+      FULL_PROFILE,
+      USER_ID,
+    );
+
+    expect(result).toBeNull();
+    expect(mock.guidesChain.delete).toHaveBeenCalled();
+  });
+
+  it('cleans up guide when topic insert fails (pass 2)', async () => {
+    configureGuideSuccess(mock);
+    mock.failSectionInsertOnPass(2);
+
+    const result = await createIntelligenceGuide(
+      mock.supabase as never,
+      WORKSPACE_ID,
+      'Education Watch',
+      FULL_PROFILE,
+      USER_ID,
+    );
+
+    expect(result).toBeNull();
+    expect(mock.guidesChain.delete).toHaveBeenCalled();
   });
 });
