@@ -15,6 +15,7 @@ import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ShieldCheck, ShieldX } from 'lucide-react';
+import { BRANDING } from '@/lib/client-config';
 
 export const metadata: Metadata = {
   title: 'Authorise Application',
@@ -82,7 +83,8 @@ export default async function ConsentPage({ searchParams }: ConsentPageProps) {
               Authorise {authDetails.client.name}
             </h2>
             <p className="text-sm text-muted-foreground">
-              This application wants to access your Knowledge Hub account.
+              This application wants to access your {BRANDING.productName}{' '}
+              account.
             </p>
           </div>
 
@@ -175,7 +177,7 @@ function ConsentLayout({ children }: { children: React.ReactNode }) {
       <div>
         <div className="mb-8 text-center">
           <h1 className="text-2xl font-semibold tracking-wide text-foreground">
-            Knowledge Hub
+            {BRANDING.productName}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Authorise external access

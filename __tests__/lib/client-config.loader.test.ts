@@ -33,6 +33,16 @@ describe('loadBranding', () => {
     );
     warnSpy.mockRestore();
   });
+
+  it('resolves example-client branding when called with "example-client"', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const branding = loadBranding('example-client');
+    expect(branding.clientId).toBe('example-client');
+    expect(branding.productName).toBe('example-client Design - Knowledge Hub');
+    expect(branding.faviconSvgUrl).toBeUndefined();
+    expect(branding.faviconPngUrl).toBe('/clients/example-client/favicon.png');
+    warnSpy.mockRestore();
+  });
 });
 
 describe('module-level BRANDING constants', () => {

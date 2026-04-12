@@ -28,10 +28,14 @@ export const metadata: Metadata = {
   description: BRANDING.tagline,
   icons: {
     icon: [
-      {
-        url: `${BRANDING.faviconSvgUrl}?v=${process.env.VERCEL_GIT_COMMIT_SHA ?? 'dev'}`,
-        type: 'image/svg+xml',
-      },
+      ...(BRANDING.faviconSvgUrl
+        ? [
+            {
+              url: `${BRANDING.faviconSvgUrl}?v=${process.env.VERCEL_GIT_COMMIT_SHA ?? 'dev'}`,
+              type: 'image/svg+xml',
+            },
+          ]
+        : []),
       {
         url: `${BRANDING.faviconPngUrl}?v=${process.env.VERCEL_GIT_COMMIT_SHA ?? 'dev'}`,
         type: 'image/png',

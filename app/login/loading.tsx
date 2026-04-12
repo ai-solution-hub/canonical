@@ -7,7 +7,7 @@ export default function LoginLoading() {
     >
       <span className="sr-only">Loading sign-in...</span>
       <div>
-        {/* "Knowledge Hub" heading */}
+        {/* Brand heading skeleton */}
         <div className="mb-8 text-center">
           <div className="mx-auto h-7 w-40 animate-pulse rounded-md bg-accent" />
         </div>

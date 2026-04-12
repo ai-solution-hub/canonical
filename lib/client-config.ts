@@ -379,14 +379,15 @@ export const BrandingConfigSchema = z.object({
   logoMaxWidthPx: z.number().int().positive().max(400).optional().default(140),
   /** Logo aspect ratio (width / height). Defaults to 3.0. */
   logoAspectRatio: z.number().positive().max(10).optional().default(3),
-  /** Favicon SVG path relative to public/. */
+  /** Favicon SVG path relative to public/. Optional — not all clients have one. */
   faviconSvgUrl: z
     .string()
     .startsWith('/')
     .endsWith('.svg')
     .refine(brandAssetExists, {
       message: 'faviconSvgUrl does not resolve to a file under public/.',
-    }),
+    })
+    .optional(),
   /** Favicon PNG path relative to public/. */
   faviconPngUrl: z
     .string()
@@ -584,9 +585,11 @@ export function derivePrimaryForeground(primary: string): string {
 // here, (3) add the mapping to CLIENT_BRANDING_MAP, (4) set
 // NEXT_PUBLIC_CLIENT_ID in the Vercel project.
 import defaultBranding from '@/lib/branding/clients/default.json';
+import example-clientBranding from '@/lib/branding/clients/example-client.json';
 
 const CLIENT_BRANDING_MAP: Record<string, unknown> = {
   default: defaultBranding,
+  example-client: example-clientBranding,
 };
 
 /**

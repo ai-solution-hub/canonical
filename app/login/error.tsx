@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { BRANDING } from '@/lib/client-config';
 
 export default function LoginError({
   error,
@@ -24,7 +25,7 @@ export default function LoginError({
       <div>
         <div className="mb-8 text-center">
           <h1 className="text-2xl font-semibold tracking-wide text-foreground">
-            Knowledge Hub
+            {BRANDING.productName}
           </h1>
         </div>
         <Card className="w-full max-w-md border-t-2 border-t-destructive">

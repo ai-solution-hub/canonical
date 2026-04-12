@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ShieldX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { BRANDING } from '@/lib/client-config';
 
 export default function ConsentError({
   error,
@@ -25,7 +26,7 @@ export default function ConsentError({
       <div>
         <div className="mb-8 text-center">
           <h1 className="text-2xl font-semibold tracking-wide text-foreground">
-            Knowledge Hub
+            {BRANDING.productName}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Authorise external access

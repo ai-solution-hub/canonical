@@ -30,6 +30,8 @@ import { SignOutButton } from '@/components/shell/sign-out-button';
 import { Separator } from '@/components/ui/separator';
 import { useUserRole } from '@/hooks/use-user-role';
 import { cn } from '@/lib/utils';
+import { BrandLogo } from '@/components/shell/brand-logo';
+import { BRANDING } from '@/lib/client-config';
 
 const NAV_LINKS = [
   { href: '/browse', label: 'Browse', icon: LayoutGrid, requiresEdit: false },
@@ -88,9 +90,9 @@ export function SiteHeader() {
 
         <Link
           href="/"
-          className="flex shrink-0 items-center gap-1.5 text-lg font-semibold tracking-tight text-foreground transition-opacity hover:opacity-80"
+          className="flex shrink-0 items-center gap-1.5 transition-opacity hover:opacity-80"
         >
-          Knowledge Hub
+          <BrandLogo />
         </Link>
 
         <div className="hidden items-center gap-1 sm:flex">
@@ -160,7 +162,7 @@ export function SiteHeader() {
         <SheetContent side="left" className="w-72 p-0">
           <SheetHeader className="border-b border-border px-4 py-3">
             <SheetTitle className="text-lg font-semibold">
-              Knowledge Hub
+              {BRANDING.productShortName}
             </SheetTitle>
             <SheetDescription className="sr-only">
               Main navigation menu

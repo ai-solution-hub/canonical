@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { ArrowLeft, ChevronRight, KeyRound, Mail, Loader2 } from 'lucide-react';
+import { BRANDING } from '@/lib/client-config';
 
 type LoginStep =
   | 'email'
@@ -588,13 +589,13 @@ export default function LoginPage() {
   return (
     <div
       className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background via-background to-accent/40 px-4"
-      aria-label="Sign in to Knowledge Hub"
+      aria-label={`Sign in to ${BRANDING.productName}`}
     >
       <div>
         {/* Brand mark — visible on all steps */}
         <div className="mb-8 text-center">
           <h1 className="text-2xl font-semibold tracking-wide text-foreground">
-            Knowledge Hub
+            {BRANDING.productName}
           </h1>
           {step === 'email' && (
             <p className="mt-1 text-sm text-muted-foreground">
