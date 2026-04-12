@@ -21,6 +21,7 @@ import { FeedSourceForm } from '@/components/intelligence/feed-source-form';
 import type { LastAddedFeedConfirmation } from '@/components/intelligence/feed-source-form';
 import { FeedSourceCard } from '@/components/intelligence/feed-source-card';
 import { FeedSourceTestDialog } from '@/components/intelligence/feed-source-test-dialog';
+import { SeedStarterPackDialog } from '@/components/intelligence/seed-starter-pack-dialog';
 
 export default function FeedSourcesPage() {
   const params = useParams();
@@ -126,16 +127,19 @@ export default function FeedSourcesPage() {
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-lg font-semibold text-foreground">Feed Sources</h2>
         {!showForm && (
-          <Button
-            onClick={() => {
-              setLastAdded(null);
-              setShowForm(true);
-            }}
-            size="sm"
-          >
-            <Plus className="mr-1.5 size-4" />
-            Add Source
-          </Button>
+          <div className="flex items-center gap-2">
+            {canAdmin && <SeedStarterPackDialog workspaceId={workspaceId} />}
+            <Button
+              onClick={() => {
+                setLastAdded(null);
+                setShowForm(true);
+              }}
+              size="sm"
+            >
+              <Plus className="mr-1.5 size-4" />
+              Add Source
+            </Button>
+          </div>
         )}
       </div>
 

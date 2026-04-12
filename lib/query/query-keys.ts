@@ -140,6 +140,8 @@ export const queryKeys = {
         ['intelligence', 'sources', workspaceId, 'list'] as const,
       detail: (workspaceId: string, sourceId: string) =>
         ['intelligence', 'sources', workspaceId, 'detail', sourceId] as const,
+      seedStarterPack: (workspaceId: string) =>
+        ['intelligence', 'sources', workspaceId, 'seed-starter-pack'] as const,
     },
     articles: {
       all: (workspaceId: string) =>
