@@ -1207,6 +1207,7 @@ export type Database = {
           guide_id: string
           id: string
           is_required: boolean
+          parent_section_id: string | null
           section_name: string
           subtopic_filter: string | null
           updated_at: string
@@ -1220,6 +1221,7 @@ export type Database = {
           guide_id: string
           id?: string
           is_required?: boolean
+          parent_section_id?: string | null
           section_name: string
           subtopic_filter?: string | null
           updated_at?: string
@@ -1233,6 +1235,7 @@ export type Database = {
           guide_id?: string
           id?: string
           is_required?: boolean
+          parent_section_id?: string | null
           section_name?: string
           subtopic_filter?: string | null
           updated_at?: string
@@ -1243,6 +1246,13 @@ export type Database = {
             columns: ["guide_id"]
             isOneToOne: false
             referencedRelation: "guides"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guide_sections_parent_section_id_fkey"
+            columns: ["parent_section_id"]
+            isOneToOne: false
+            referencedRelation: "guide_sections"
             referencedColumns: ["id"]
           },
         ]
