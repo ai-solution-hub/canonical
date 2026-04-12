@@ -482,6 +482,11 @@ statutory consequences?"
 Safety at Work Act 1974, RIDDOR, CDM Regulations, Working Together to Safeguard
 Children, Keeping Children Safe in Education, PPN 06/20, PPN 02/23, Prevent Duty
 
+**Also regulation — specific article and section references:** UK GDPR Article 32,
+GDPR Article 30, UK GDPR Article 5(1)(f), Section 175 of the Children Act 2004,
+Section 11 of the Children Act 2004, Data Protection Act 2018 Section 18, Public
+Contracts Regulations 2015, Modern Slavery Act 2015, Children Act 2004
+
 **Exclusions:** Generic concepts ("data protection", "health and safety");
 GDPR sub-concepts (lawful bases, rights, artefacts); conditions or safeguarding
 topics; industry codes of practice without statutory backing.
