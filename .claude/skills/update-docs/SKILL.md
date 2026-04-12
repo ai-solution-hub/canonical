@@ -81,7 +81,33 @@ Read the file, then:
 
 ---
 
-## Step 4: Update State of the Product
+## Step 4: Archive Completed Specs (Conditional)
+
+If any roadmap items were marked as completed in Step 3, check whether their
+backing spec is now fully delivered — i.e. **every item** in the spec has
+shipped. A spec is only archived once ALL of its items are complete, not before.
+
+For each fully-completed spec:
+
+1. Move it to `.planning/.archive/.specs/`:
+
+```bash
+git mv docs/specs/<spec-file>.md .planning/.archive/.specs/<spec-file>.md
+```
+
+2. Update any roadmap or state-of-the-product references that point to the old
+   path.
+
+If a spec still has outstanding items (even one), leave it in `docs/specs/`.
+
+```bash
+# Commit any archived specs
+git diff --cached --quiet || git commit -m "chore: archive completed specs"
+```
+
+---
+
+## Step 5: Update State of the Product
 
 **File:** `docs/reference/state-of-the-product.md` (canonical — CURRENT state)
 
@@ -110,7 +136,7 @@ was primarily bug fixes, styling, or minor enhancements.
 
 ---
 
-## Step 5: Update Product Functionality Docs (Conditional)
+## Step 6: Update Product Functionality Docs (Conditional)
 
 **File directory:** `docs/product-functionality/`
 
@@ -158,7 +184,7 @@ git diff --quiet docs/product-functionality/ || \
 
 ---
 
-## Step 6: Update Product Backlog (Conditional)
+## Step 7: Update Product Backlog (Conditional)
 
 **File:** `docs/reference/product-backlog.md`
 
@@ -176,7 +202,7 @@ Read the file, then for each item that was identified in this session:
 
 ---
 
-## Step 7: Commit Reference Doc Changes
+## Step 8: Commit Reference Doc Changes
 
 Stage the canonical docs.
 
@@ -191,13 +217,14 @@ git diff --quiet docs/reference/ || \
 
 ---
 
-## Step 8: Report and Chain to Handoff
+## Step 9: Report and Chain to Handoff
 
 Present a summary to the user:
 
 > Documentation updated:
 > - **Stats:** {regenerated / no changes}
 > - **Roadmap:** {N items updated — X done, Y partial, Z new}
+> - **Specs archived:** {N specs archived / none eligible}
 > - **State of product:** {updated / no changes needed}
 > - **Product-functionality docs:** {N areas updated / no existing docs affected / N areas flagged for doc session}
 > - **Backlog:** {N items updated — Z new}

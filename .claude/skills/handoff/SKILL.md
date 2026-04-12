@@ -160,30 +160,39 @@ Only include steps/actions to take if these aren't already covered by a specific
 ### Section 5: Agent Allocation (if parallel work is possible)
 
 Include a table showing which agents handle which work packages, with file
-ownership boundaries to prevent merge conflicts.
+ownership boundaries to prevent merge conflicts. The Wave column defines
+execution order — dependencies between work packages are expressed through
+wave sequencing, not a separate graph.
+
+Add this preamble before the table:
 
 ```markdown
+## Agent Allocation
 
+Waves execute sequentially. All implementation work packages are verified via adversarial review within the same wave or the next. Spec and plan creation is verified before implementation begins. Where adversarial reviews identify any issues, deploy agent(s) to resolve ALL findings, not just critical/high severity.
+```
+
+Then the allocation table:
+
+```markdown
 | Agent | Work Package | Scope | Type | Wave |
-|---|---|---|---|
+|---|---|---|---|---|
 | Main session | WP{x} | {Task} | Main | 1 |
 | `wp{1}-{wp-name}` | WP{1} | {Task} | Research-only subagent (no worktree) | 1 |
-| `wp{2}-{wp-name}` | WP{2} | {Task} | Worktree subagent | 1 |
+| `wp{1}-verification` | WP{1} (verification) | Review of WP{1} | Worktree subagent | 2 |
+| `wp{2}-{wp-name}` | WP{2} | {Task} | Worktree subagent | 2 |
+| `wp{2}-verification` | WP{2} (verification) | Review of WP{2} | Worktree subagent | 3 |
 | ... | ... | ... | ... | ... |
-
-**Where adversarial reviews identify any issues, deploy an agent(s) to resolve ALL of the findings, not just critical/high severity.**
 
 **File ownership boundaries:**
 
-- WP{1}: 
-- WP{2}:
+- WP{1}: {list all files this WP may create or modify}
+- WP{2}: {list all files this WP may create or modify}
 ```
 
-### Section 6: Dependency Graph
+Every WP must have its file ownership boundaries populated — no blank entries.
 
-Include a **Dependency Graph** showing execution order.
-
-### Section 7: Documents to Read Before Starting
+### Section 6: Documents to Read Before Starting
 
 Always include CLAUDE.md, post-mvp-roadmap.md, and state-of-the-product.md. Add additional documents to "Must read first (in order)", as necessary.
 
@@ -195,7 +204,7 @@ Always include CLAUDE.md, post-mvp-roadmap.md, and state-of-the-product.md. Add 
 | `CLAUDE.md` | Project commands, architecture, schema, gotchas |
 | `docs/reference/post-mvp-roadmap.md` | Implementation priorities; Forward-looking only |
 | `docs/reference/state-of-the-product.md` | Canonical product document |
-| `{example file name} | {Example purpose} |
+| `{example file name}` | {Example purpose} |
 ```
 
 Add documents relevant to the next session to "Read per work package".
@@ -212,7 +221,16 @@ Add documents relevant to the next session to "Read per work package".
 
 ---
 
-## Step 6: Write the File
+## Step 6: Update Memory Files
+
+Update your memory files to reflect this session's work. This step exists
+because sessions typically end when the handoff is complete and Liam takes the
+continuation prompt to the next session — there is no natural "wrap up" moment
+for memory updates otherwise.
+
+---
+
+## Step 7: Write the File
 
 Write the completed continuation prompt to:
 
@@ -222,7 +240,7 @@ docs/continuation-prompts/continuation-prompt-kh-{NN}-{purpose-slug}.md
 
 ---
 
-## Step 7: Commit the Draft Immediately
+## Step 8: Commit the Draft Immediately
 
 **CRITICAL — do not skip.** Commit the file as soon as it is written, BEFORE
 presenting it for review. Untracked files in this directory have been
@@ -239,7 +257,7 @@ Do NOT push yet — the draft may need edits after Liam reviews.
 
 ---
 
-## Step 8: Present for Review
+## Step 9: Present for Review
 
 After the draft commit lands, tell Liam:
 
@@ -251,7 +269,7 @@ After the draft commit lands, tell Liam:
 
 ---
 
-## Step 9: Apply Edits and Push
+## Step 10: Apply Edits and Push
 
 If Liam requests changes, apply them via `Edit`, then create a **new** commit
 (never amend, per the CLAUDE.md rule):
@@ -280,6 +298,7 @@ Before presenting the file to Liam, verify:
 - [ ] Build status reflects ACTUAL results, not assumed ones
 - [ ] Recency-weighted compression applied (older = shorter)
 - [ ] Every WP has acceptance criteria
+- [ ] Every WP in agent allocation has file ownership boundaries populated
 - [ ] Deferred items carried forward correctly
 - [ ] Session number is correct (previous + 1)
 - [ ] No emojis anywhere in the document
