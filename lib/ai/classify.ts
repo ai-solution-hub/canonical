@@ -813,7 +813,7 @@ export async function classifyContent(
   if (item.classified_at && !force) {
     return {
       primary_domain: item.primary_domain!,
-      primary_subtopic: item.primary_subtopic!,
+      primary_subtopic: item.primary_subtopic ?? null,
       secondary_domain: item.secondary_domain,
       secondary_subtopic: item.secondary_subtopic,
       ai_keywords: item.ai_keywords ?? [],

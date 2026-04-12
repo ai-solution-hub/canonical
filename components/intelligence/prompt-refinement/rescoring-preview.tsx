@@ -215,7 +215,7 @@ export function RescoringPreview({
 
       {catastrophicChange && (
         <div
-          role="alert"
+          role="status"
           data-testid="catastrophic-change-warning"
           className="flex items-start gap-2 rounded-md border border-status-warning/30 bg-status-warning/10 p-3 text-sm text-status-warning"
         >

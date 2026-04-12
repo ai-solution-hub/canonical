@@ -118,6 +118,23 @@ export function RefinementPanel({
   const { mutate: previewMutate } = rescoringPreviewMutation;
   const { mutate: resolveMutate } = resolveFlagsMutation;
 
+  // Catastrophic-change detection — hoisted from RescoringPreview so the
+  // warning also renders in state 4 (analysis ready, no preview yet),
+  // not just state 5. The user can click "Apply changes" from state 4
+  // without ever previewing, so the safety guard must fire here too.
+  // In state 5, RescoringPreview renders its own copy of this warning.
+  // Destructure nested property for React Compiler memo stability
+  // (see CLAUDE.md "React compiler memoisation" rule).
+  const proposedPromptText = analysisData?.proposedPromptText ?? null;
+  const catastrophicChange = useMemo(() => {
+    if (!activePromptText || !proposedPromptText) return null;
+    const currentLength = activePromptText.length;
+    const proposedLength = proposedPromptText.length;
+    if (currentLength === 0) return null;
+    if (proposedLength >= currentLength * 0.5) return null;
+    return { currentLength, proposedLength };
+  }, [activePromptText, proposedPromptText]);
+
   // ---------------------------------------------------------------
   // Handlers
   // ---------------------------------------------------------------
@@ -340,6 +357,30 @@ export function RefinementPanel({
       {/* State 4 — analysis ready */}
       {hasAnalysis && analysisData && (
         <FlagAnalysisView result={analysisData} />
+      )}
+
+      {/* Catastrophic-change warning — renders in state 4 (before preview).
+          In state 5, RescoringPreview renders its own instance of this
+          warning, so we suppress it here when the preview is visible to
+          avoid duplication. */}
+      {hasAnalysis && !hasPreview && catastrophicChange && (
+        <div
+          role="status"
+          data-testid="catastrophic-change-warning-state4"
+          className="flex items-start gap-2 rounded-md border border-status-warning/30 bg-status-warning/10 p-3 text-sm text-status-warning"
+        >
+          <AlertTriangle
+            className="mt-0.5 size-4 shrink-0"
+            aria-hidden="true"
+          />
+          <p>
+            The proposed prompt is significantly shorter than the current
+            version ({catastrophicChange.proposedLength} characters vs{' '}
+            {catastrophicChange.currentLength} characters). This may remove
+            important scoring criteria. Review the changes carefully before
+            applying.
+          </p>
+        </div>
       )}
 
       {/* State 5 — preview ready (layered on top of state 4) */}

@@ -8,9 +8,15 @@ const EMBEDDING_DIMENSIONS = 1024;
  *
  * OpenAI `text-embedding-3-large` caps input at 8,192 tokens. For English
  * text the rough ratio is ~4 chars per token, so 8,192 tokens ≈ 32,768
- * chars. We budget ~28,000 chars (~7,000 tokens) to stay safely under
- * the hard cap with headroom for tokenisation variance on non-English
- * content and unusual whitespace.
+ * chars. We budget ~24,000 chars (~6,000 tokens) to stay safely under
+ * the hard cap with headroom for tokenisation variance.
+ *
+ * **Non-English headroom:** The `cl100k_base` tokeniser averages ~4
+ * chars/token on English but drops to ~3 chars/token on code and
+ * non-English text. At 24,000 chars / 3 ≈ 8,000 tokens — still within
+ * the 8,192-token cap. The previous value (28,000) could produce ~9,333
+ * tokens on non-English content, exceeding the cap. Lowered in S161
+ * per adversarial verification finding (S159 WP4b §2).
  *
  * Callers that pass text longer than this MUST truncate (or chunk) before
  * calling `generateEmbedding`, otherwise the OpenAI SDK throws a 400
@@ -20,7 +26,7 @@ const EMBEDDING_DIMENSIONS = 1024;
  * when truncation fires. Closes §2.1.12 (S158 WP2 Run 2 residual finding
  * on items 819b285f and c1042ca4 which were 138k and 55k chars).
  */
-export const MAX_EMBEDDING_CHARS = 28_000;
+export const MAX_EMBEDDING_CHARS = 24_000;
 
 let openaiClient: OpenAI | null = null;
 

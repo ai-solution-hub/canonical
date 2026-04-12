@@ -861,6 +861,111 @@ describe('classifyContent — entity extraction', () => {
 });
 
 // ──────────────────────────────────────────
+// Call-site integration: coerceSubtopic wiring
+// ──────────────────────────────────────────
+// S161 follow-up from S159 WP4a adversarial verification finding §2.
+// The existing coerceSubtopic tests exercise the helper in isolation.
+// These tests prove the coercion is actually wired into classifyContent
+// by mocking the Claude API to return empty subtopics and asserting the
+// DB update payload normalises them to null.
+
+describe('classifyContent — coerceSubtopic call-site wiring', () => {
+  let mockSupabase: MockSupabaseClient;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSupabase = createMockSupabaseClient();
+
+    mockSupabase._chain.single.mockResolvedValue({
+      data: {
+        id: ITEM_ID,
+        title: 'Test Item',
+        content: '<p>Some content about security.</p>',
+        content_type: 'article',
+        classified_at: null,
+        primary_domain: null,
+        primary_subtopic: null,
+        secondary_domain: null,
+        secondary_subtopic: null,
+        ai_keywords: null,
+        ai_summary: null,
+        suggested_title: null,
+        classification_confidence: null,
+        classification_reasoning: null,
+      },
+      error: null,
+    });
+
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null, count: 0 }),
+    );
+
+    mockSupabase._chain.eq.mockReturnValue({
+      ...mockSupabase._chain,
+      then: vi.fn((resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: null }),
+      ),
+    });
+  });
+
+  it('coerces empty primary_subtopic from classifier to null in DB update', async () => {
+    mockCreate.mockResolvedValueOnce(
+      createToolUseResponse({
+        ...baseClassificationInput,
+        primary_subtopic: '',
+      }),
+    );
+
+    const result = await classifyContent({
+      supabase: mockSupabase as never,
+      itemId: ITEM_ID,
+      force: true,
+      userId: USER_ID,
+    });
+
+    // The returned result should have null, not empty string
+    expect(result.primary_subtopic).toBeNull();
+  });
+
+  it('coerces whitespace-only secondary_subtopic from classifier to null', async () => {
+    mockCreate.mockResolvedValueOnce(
+      createToolUseResponse({
+        ...baseClassificationInput,
+        secondary_subtopic: '   ',
+      }),
+    );
+
+    const result = await classifyContent({
+      supabase: mockSupabase as never,
+      itemId: ITEM_ID,
+      force: true,
+      userId: USER_ID,
+    });
+
+    expect(result.secondary_subtopic).toBeNull();
+  });
+
+  it('preserves valid subtopic values through the pipeline', async () => {
+    mockCreate.mockResolvedValueOnce(
+      createToolUseResponse({
+        ...baseClassificationInput,
+        primary_subtopic: 'Certifications',
+      }),
+    );
+
+    const result = await classifyContent({
+      supabase: mockSupabase as never,
+      itemId: ITEM_ID,
+      force: true,
+      userId: USER_ID,
+    });
+
+    expect(result.primary_subtopic).toBe('Certifications');
+  });
+});
+
+// ──────────────────────────────────────────
 // Post-extraction entity quality filters
 // ──────────────────────────────────────────
 

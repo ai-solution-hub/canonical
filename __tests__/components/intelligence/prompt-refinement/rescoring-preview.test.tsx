@@ -192,7 +192,7 @@ describe('RescoringPreview', () => {
         /significantly shorter than the current version/,
       );
       expect(warning).toHaveTextContent(/Review the changes carefully/);
-      expect(warning).toHaveAttribute('role', 'alert');
+      expect(warning).toHaveAttribute('role', 'status');
     });
 
     it('does not render the warning when current or proposed prompt text is absent', () => {

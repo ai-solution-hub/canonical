@@ -174,9 +174,9 @@ export const ItemCreateBodySchema = z.object({
 
   // Optional metadata
   primary_domain: z.string().max(200).optional(),
-  primary_subtopic: z.string().max(200).optional(),
+  primary_subtopic: z.string().trim().min(1).max(200).nullable().optional(),
   secondary_domain: z.string().max(200).optional(),
-  secondary_subtopic: z.string().max(200).optional(),
+  secondary_subtopic: z.string().trim().min(1).max(200).nullable().optional(),
   priority: z.enum(['high', 'medium', 'low']).optional(),
   user_tags: z.array(z.string().max(100)).max(50).optional(),
   ai_keywords: z.array(z.string().max(100)).max(50).optional(),
