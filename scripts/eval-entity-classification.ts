@@ -61,6 +61,10 @@ interface GoldEntity {
   name: string;
   type: string;
   canonical_name: string;
+  /** Additional acceptable types for context-dependent entities (e.g. CREST: organisation OR certification) */
+  alternate_types?: string[];
+  /** Additional acceptable canonical names for alias matching (e.g. "example-client platform" for "example-client audit system") */
+  alternate_names?: string[];
 }
 
 interface ExcludedEntity {
@@ -344,17 +348,28 @@ function scoreItem(gold: GoldStandardItem, extracted: DbEntity[]): ItemScore {
       if (matchedExpected.has(gi)) continue;
 
       const exp = gold.expected_entities[gi];
-      // Match on canonical name (primary) or entity name (fallback)
-      if (
+      // Match on canonical name (primary), alternate names, or entity name (fallback)
+      const nameMatches =
         entityNamesMatch(ext.canonical_name, exp.canonical_name) ||
         entityNamesMatch(ext.entity_name, exp.name) ||
-        entityNamesMatch(ext.canonical_name, exp.name)
-      ) {
+        entityNamesMatch(ext.canonical_name, exp.name) ||
+        (exp.alternate_names ?? []).some(
+          (alt) =>
+            entityNamesMatch(ext.canonical_name, alt) ||
+            entityNamesMatch(ext.entity_name, alt),
+        );
+
+      if (nameMatches) {
         matchedExtracted.add(ei);
         matchedExpected.add(gi);
         truePositives.push(ext.entity_name);
 
-        if (ext.entity_type !== exp.type) {
+        // Check type match including alternate_types
+        const typeMatches =
+          ext.entity_type === exp.type ||
+          (exp.alternate_types ?? []).includes(ext.entity_type);
+
+        if (!typeMatches) {
           typeErrors.push({
             name: ext.entity_name,
             expected: exp.type,
