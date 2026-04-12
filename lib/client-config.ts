@@ -583,7 +583,7 @@ export function derivePrimaryForeground(primary: string): string {
 // To add a new client: (1) create config/clients/{id}.json, (2) import it
 // here, (3) add the mapping to CLIENT_BRANDING_MAP, (4) set
 // NEXT_PUBLIC_CLIENT_ID in the Vercel project.
-import defaultBranding from '@/config/clients/default.json';
+import defaultBranding from '@/lib/branding/clients/default.json';
 
 const CLIENT_BRANDING_MAP: Record<string, unknown> = {
   default: defaultBranding,
