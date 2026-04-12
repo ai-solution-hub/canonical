@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Check, Copy, ExternalLink } from 'lucide-react';
+import { BRANDING } from '@/lib/client-config';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -108,7 +109,7 @@ export function ClaudePromptButton({
         <TooltipContent side="bottom" className="max-w-xs">
           <p className="text-xs">
             Copies a prompt to your clipboard and opens Claude. Works best with
-            the Knowledge Hub connector.
+            the {BRANDING.productName} connector.
           </p>
         </TooltipContent>
       </Tooltip>
