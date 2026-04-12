@@ -460,6 +460,16 @@ the certification or undergoing audits, type as `certification`. When discussing
 the published standard's requirements, type as `standard`. In bid documents,
 prefer `certification`.
 
+**Type anchors (always `certification`, regardless of context):**
+- **PCI-DSS / PCI DSS** — always `certification`, never `standard`. PCI DSS is a
+  certification programme operated by the PCI Security Standards Council; organisations
+  are assessed and certified against it.
+- **SOC 2** — always `certification`. SOC 2 is an audit-and-attestation programme,
+  not a published standard.
+- **ISO 13485** — `certification` in bid documents (the same rule as ISO 27001:
+  when the context is "we hold ISO 13485" or "certified to ISO 13485", type as
+  `certification`).
+
 ### regulation
 
 Law, statutory instrument, or statutory guidance that carries legal force —
@@ -475,6 +485,14 @@ Children, Keeping Children Safe in Education, PPN 06/20, PPN 02/23, Prevent Duty
 **Exclusions:** Generic concepts ("data protection", "health and safety");
 GDPR sub-concepts (lawful bases, rights, artefacts); conditions or safeguarding
 topics; industry codes of practice without statutory backing.
+
+**Type anchors (always `regulation`, regardless of how they are described):**
+- **Keeping Children Safe in Education (KCSiE)** — always `regulation`, never
+  `framework`. KCSiE is statutory guidance issued under Section 175 of the
+  Education Act 2002; schools are legally required to have regard to it.
+- **Working Together to Safeguard Children** — always `regulation`, never
+  `framework`. Statutory guidance issued under Section 11 of the Children Act
+  2004 with legal force on local authorities and partner agencies.
 
 ### framework
 
