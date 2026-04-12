@@ -131,10 +131,10 @@ export const STARTER_PACKS: StarterPack[] = [
       },
       {
         name: 'CQC Safeguarding News',
-        url: 'https://www.gov.uk/search/news-and-communications.atom?organisations%5B%5D=care-quality-commission',
+        url: 'https://www.gov.uk/search/news-and-communications.atom?organisations%5B%5D=care-quality-commission&content_purpose_supergroup%5B%5D=news_stories',
         source_type: 'rss',
         polling_interval_minutes: 120,
-        notes: 'Atom feed from GOV.UK — CQC news and communications including safeguarding',
+        notes: 'Atom feed from GOV.UK — CQC news stories filtered for safeguarding relevance',
       },
       {
         name: 'LADO Updates (Google News)',
@@ -161,10 +161,10 @@ export const STARTER_PACKS: StarterPack[] = [
       },
       {
         name: 'CQC Press Releases',
-        url: 'https://www.gov.uk/search/news-and-communications.atom?organisations%5B%5D=care-quality-commission',
+        url: 'https://www.gov.uk/search/news-and-communications.atom?organisations%5B%5D=care-quality-commission&content_purpose_supergroup%5B%5D=press_releases_and_notices',
         source_type: 'rss',
         polling_interval_minutes: 120,
-        notes: 'Atom feed from GOV.UK — CQC news, press releases, and communications',
+        notes: 'Atom feed from GOV.UK — CQC press releases and official notices',
       },
       {
         name: 'CQC Inspections (Google News)',
