@@ -10,13 +10,21 @@ import { createServiceClient } from '../fixtures/supabase';
  *   - Cross-pack: seeding a second pack adds feeds additively
  *   - A11Y: ARIA attributes on the seed dialog
  *
- * Uses the pre-seeded intelligence workspace from worker fixtures for
- * navigation, but creates a fresh workspace for seeding tests to avoid
- * contaminating the shared fixture data.
+ * IMPORTANT — Database verification required:
+ *   Every write-path test MUST verify DB state via createServiceClient(),
+ *   not just UI text. The dialog shows the API response, which could be
+ *   wrong. Only a direct DB query proves data was persisted correctly.
  *
- * IMPORTANT: The `guides` table has NO `workspace_id` column, so deleting
- * a workspace does NOT cascade to guides. Guides must be cleaned up
- * separately in afterAll.
+ * Cleanup notes:
+ *   The `guides` table has NO `workspace_id` column, so deleting a
+ *   workspace does NOT cascade to guides. Guides must be cleaned up
+ *   separately in afterAll.
+ *
+ * Forbidden patterns:
+ *   - DO NOT check only UI text for write operations
+ *   - DO NOT assume dialog text proves DB state
+ *   - DO NOT skip the DB verification step after seeding
+ *   - DO NOT rely on optimistic UI without reload verification
  */
 
 test.describe('SI Starter Pack Seeding', () => {
@@ -27,7 +35,6 @@ test.describe('SI Starter Pack Seeding', () => {
     const supabase = createServiceClient();
 
     // Safety-net cleanup: find any orphaned guides matching the test pattern.
-    // The seed dialog does not create guides, but defend against future changes.
     const { data: orphanGuides } = await supabase
       .from('guides')
       .select('id')
@@ -35,7 +42,6 @@ test.describe('SI Starter Pack Seeding', () => {
 
     if (orphanGuides && orphanGuides.length > 0) {
       const guideIds = orphanGuides.map((g) => g.id);
-      // guide_sections CASCADE from guides, so deleting guides is sufficient.
       await supabase.from('guides').delete().in('id', guideIds);
     }
 
@@ -65,6 +71,8 @@ test.describe('SI Starter Pack Seeding', () => {
     authenticatedPage: page,
     workerData,
   }) => {
+    const supabase = createServiceClient();
+
     // 1. Navigate to /intelligence
     await page.goto('/intelligence');
     await expect(
@@ -120,9 +128,6 @@ test.describe('SI Starter Pack Seeding', () => {
     // 9. Navigate to the sources tab
     await page.goto(`/intelligence/${workspaceId}/sources`);
     await page.waitForLoadState('networkidle', { timeout: 15000 });
-    await expect(
-      page.getByRole('heading', { name: /Feed Sources/i }),
-    ).toBeVisible({ timeout: 10000 });
 
     // 10. Click "Seed Starter Pack" button
     const seedButton = page.getByRole('button', {
@@ -142,30 +147,66 @@ test.describe('SI Starter Pack Seeding', () => {
     await expect(procurementOption).toBeVisible({ timeout: 3000 });
     await procurementOption.click();
 
-    // 13. Click "Seed Feeds"
+    // 13. Click "Seed Feeds" and intercept the API response
+    const seedResponsePromise = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/seed-starter-pack') && resp.status() === 200,
+    );
     const seedFeedsButton = seedDialog.getByRole('button', {
       name: /Seed Feeds/i,
     });
     await expect(seedFeedsButton).toBeEnabled({ timeout: 3000 });
     await seedFeedsButton.click();
 
-    // 14. Wait for completion — dialog should show "4 feeds added"
+    // 14. Verify API returned 200
+    const seedResponse = await seedResponsePromise;
+    expect(seedResponse.status()).toBe(200);
+
+    // 15. Wait for completion — dialog should show "4 feeds added"
     await expect(seedDialog.getByText(/4 feeds? added/)).toBeVisible({
       timeout: 15000,
     });
 
-    // 15. Click "Done" to close dialog
+    // 16. Click "Done" to close dialog
     const doneButton = seedDialog.getByRole('button', { name: /Done/i });
     await expect(doneButton).toBeVisible({ timeout: 3000 });
     await doneButton.click();
-
-    // 16. Verify dialog closes
     await expect(seedDialog).not.toBeVisible({ timeout: 5000 });
 
-    // 17. Wait for sources list to refresh and verify 4 feed source cards
-    await page.waitForLoadState('networkidle', { timeout: 10000 });
+    // ── DB VERIFICATION ─────────────────────────────────────────────────
+    // Query feed_sources directly to prove rows were actually persisted.
+    const { data: feeds, error: feedsErr } = await supabase
+      .from('feed_sources')
+      .select('id, name, url, source_type, workspace_id, is_active')
+      .eq('workspace_id', workspaceId!)
+      .order('name');
+    if (feedsErr) throw feedsErr;
 
-    // Verify Procurement feed names appear — check for at least one known feed
+    // ASSERTION: exactly 4 feed_sources rows exist for this workspace
+    expect(feeds, 'feed_sources must exist in DB').toBeTruthy();
+    expect(feeds).toHaveLength(4);
+
+    // ASSERTION: correct feed names from the Procurement pack
+    const feedNames = feeds!.map((f) => f.name).sort();
+    expect(feedNames).toEqual([
+      'Contracts Finder (Google News)',
+      'Crown Commercial Service News',
+      'Find a Tender Service (Google News)',
+      'Public Contracts Scotland (Google News)',
+    ]);
+
+    // ASSERTION: all feeds have correct source_type and are active
+    for (const feed of feeds!) {
+      expect(feed.source_type).toBe('rss');
+      expect(feed.is_active).toBe(true);
+      expect(feed.workspace_id).toBe(workspaceId);
+    }
+
+    // ── POST-RELOAD VERIFICATION ────────────────────────────────────────
+    // Reload and verify feeds still render (proves DB persistence, not
+    // optimistic UI state).
+    await page.reload();
+    await page.waitForLoadState('networkidle', { timeout: 15000 });
     await expect(
       page.getByText('Crown Commercial Service News'),
     ).toBeVisible({ timeout: 10000 });
@@ -179,14 +220,13 @@ test.describe('SI Starter Pack Seeding', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    // This test depends on Test 1 having created a workspace and seeded
-    // Procurement. We re-use the same workspace if available, otherwise
-    // create a fresh one and seed it first.
+    const supabase = createServiceClient();
+
+    // This test depends on Test 1 having created and seeded a workspace.
+    // Fallback: create + seed via service client if Test 1 didn't run.
     let workspaceId = createdWorkspaceIds[0];
 
     if (!workspaceId) {
-      // Create a workspace via the service client as a fallback
-      const supabase = createServiceClient();
       const { data: ws } = await supabase
         .from('workspaces')
         .insert({
@@ -204,22 +244,30 @@ test.describe('SI Starter Pack Seeding', () => {
       await page.goto(`/intelligence/${workspaceId}/sources`);
       await page.waitForLoadState('networkidle', { timeout: 15000 });
 
-      const seedButton = page.getByRole('button', {
+      const seedBtn = page.getByRole('button', {
         name: /Seed Starter Pack/i,
       });
-      await expect(seedButton).toBeVisible({ timeout: 5000 });
-      await seedButton.click();
+      await expect(seedBtn).toBeVisible({ timeout: 5000 });
+      await seedBtn.click();
 
-      const dialog = page.getByRole('dialog');
-      await expect(dialog).toBeVisible({ timeout: 5000 });
-      await dialog.getByText('Procurement', { exact: true }).click();
-      await dialog.getByRole('button', { name: /Seed Feeds/i }).click();
-      await expect(dialog.getByText(/4 feeds? added/)).toBeVisible({
+      const dlg = page.getByRole('dialog');
+      await expect(dlg).toBeVisible({ timeout: 5000 });
+      await dlg.getByText('Procurement', { exact: true }).click();
+      await dlg.getByRole('button', { name: /Seed Feeds/i }).click();
+      await expect(dlg.getByText(/4 feeds? added/)).toBeVisible({
         timeout: 15000,
       });
-      await dialog.getByRole('button', { name: /Done/i }).click();
-      await expect(dialog).not.toBeVisible({ timeout: 5000 });
+      await dlg.getByRole('button', { name: /Done/i }).click();
+      await expect(dlg).not.toBeVisible({ timeout: 5000 });
     }
+
+    // ── DB BASELINE ─────────────────────────────────────────────────────
+    // Record feed count before re-seeding
+    const { count: countBefore } = await supabase
+      .from('feed_sources')
+      .select('id', { count: 'exact', head: true })
+      .eq('workspace_id', workspaceId);
+    expect(countBefore).toBe(4);
 
     // Navigate to sources page for this workspace
     await page.goto(`/intelligence/${workspaceId}/sources`);
@@ -238,11 +286,16 @@ test.describe('SI Starter Pack Seeding', () => {
     // 2. Select "Procurement" again
     await seedDialog.getByText('Procurement', { exact: true }).click();
 
-    // 3. Click "Seed Feeds"
+    // 3. Click "Seed Feeds" and intercept response
+    const responsePromise = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/seed-starter-pack') && resp.status() === 200,
+    );
     await seedDialog.getByRole('button', { name: /Seed Feeds/i }).click();
+    const response = await responsePromise;
+    expect(response.status()).toBe(200);
 
-    // 4. Verify dialog shows feeds already existed (0 seeded, 4 skipped)
-    // The result view should show "4 feeds already existed" (or similar)
+    // 4. Verify dialog shows feeds already existed
     await expect(
       seedDialog.getByText(/already existed/),
     ).toBeVisible({ timeout: 15000 });
@@ -251,11 +304,16 @@ test.describe('SI Starter Pack Seeding', () => {
     await seedDialog.getByRole('button', { name: /Done/i }).click();
     await expect(seedDialog).not.toBeVisible({ timeout: 5000 });
 
-    // 6. Verify source count is unchanged — Crown Commercial Service News
-    // should still appear exactly once
-    await expect(
-      page.getByText('Crown Commercial Service News'),
-    ).toBeVisible({ timeout: 10000 });
+    // ── DB VERIFICATION ─────────────────────────────────────────────────
+    // ASSERTION: feed count is STILL exactly 4 (no duplicates created)
+    const { count: countAfter } = await supabase
+      .from('feed_sources')
+      .select('id', { count: 'exact', head: true })
+      .eq('workspace_id', workspaceId);
+    expect(
+      countAfter,
+      'Feed count must not change after re-seeding the same pack',
+    ).toBe(4);
   });
 
   // ---------------------------------------------------------------------------
@@ -266,12 +324,13 @@ test.describe('SI Starter Pack Seeding', () => {
     authenticatedPage: page,
     workerData,
   }) => {
+    const supabase = createServiceClient();
+
     // Re-use workspace from previous tests (Procurement already seeded)
     let workspaceId = createdWorkspaceIds[0];
 
     if (!workspaceId) {
       // Fallback: create + seed Procurement first
-      const supabase = createServiceClient();
       const { data: ws } = await supabase
         .from('workspaces')
         .insert({
@@ -322,8 +381,14 @@ test.describe('SI Starter Pack Seeding', () => {
     // 2. Select "Safeguarding" (5 feeds)
     await seedDialog.getByText('Safeguarding', { exact: true }).click();
 
-    // 3. Click "Seed Feeds"
+    // 3. Click "Seed Feeds" and intercept response
+    const responsePromise = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/seed-starter-pack') && resp.status() === 200,
+    );
     await seedDialog.getByRole('button', { name: /Seed Feeds/i }).click();
+    const response = await responsePromise;
+    expect(response.status()).toBe(200);
 
     // 4. Verify "5 feeds added"
     await expect(seedDialog.getByText(/5 feeds? added/)).toBeVisible({
@@ -334,11 +399,35 @@ test.describe('SI Starter Pack Seeding', () => {
     await seedDialog.getByRole('button', { name: /Done/i }).click();
     await expect(seedDialog).not.toBeVisible({ timeout: 5000 });
 
-    // 6. Verify total sources = 9 (4 Procurement + 5 Safeguarding)
-    // Wait for the sources list to refresh
-    await page.waitForLoadState('networkidle', { timeout: 10000 });
+    // ── DB VERIFICATION ─────────────────────────────────────────────────
+    // ASSERTION: total feed_sources count is exactly 9 (4 Procurement + 5 Safeguarding)
+    const { data: allFeeds, error: feedsErr } = await supabase
+      .from('feed_sources')
+      .select('id, name, source_type')
+      .eq('workspace_id', workspaceId)
+      .order('name');
+    if (feedsErr) throw feedsErr;
 
-    // Verify both packs' feeds are present — check a feed from each pack
+    expect(allFeeds).toHaveLength(9);
+
+    // ASSERTION: feeds from both packs present
+    const feedNames = allFeeds!.map((f) => f.name);
+    // Procurement pack feeds
+    expect(feedNames).toContain('Crown Commercial Service News');
+    expect(feedNames).toContain('Contracts Finder (Google News)');
+    // Safeguarding pack feeds
+    expect(feedNames).toContain('CQC Safeguarding News');
+    expect(feedNames).toContain('Safeguarding News (Google News)');
+
+    // ASSERTION: all feeds have source_type 'rss'
+    for (const feed of allFeeds!) {
+      expect(feed.source_type).toBe('rss');
+    }
+
+    // ── POST-RELOAD VERIFICATION ────────────────────────────────────────
+    await page.reload();
+    await page.waitForLoadState('networkidle', { timeout: 15000 });
+    // Verify feeds from both packs render after reload
     await expect(
       page.getByText('Crown Commercial Service News'),
     ).toBeVisible({ timeout: 10000 });
