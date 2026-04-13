@@ -121,8 +121,8 @@ vi.mock('@/lib/quality/quality-score', () => ({
   calculateAndRoundQualityScore: vi.fn().mockReturnValue(65),
 }));
 
-vi.mock('@/lib/editor-utils', () => ({
-  htmlToPlainText: vi.fn((text: string) => text),
+vi.mock('@/lib/content/strip-markdown', () => ({
+  stripMarkdown: vi.fn((text: string) => text),
 }));
 
 // Import route AFTER mocks are registered

@@ -222,7 +222,7 @@ const {
   mockCanonicalise,
   mockResolveAlias,
   mockLoadAliases,
-  mockHtmlToPlainText,
+  mockStripMarkdown,
   mockDeriveExpiryStatus,
 } = vi.hoisted(() => ({
   mockClassifyContent: vi.fn(),
@@ -230,7 +230,7 @@ const {
   mockCanonicalise: vi.fn((name: string) => name),
   mockResolveAlias: vi.fn((name: string) => name),
   mockLoadAliases: vi.fn(),
-  mockHtmlToPlainText: vi.fn((html: string) => html.replace(/<[^>]*>/g, '')),
+  mockStripMarkdown: vi.fn((text: string) => text),
   mockDeriveExpiryStatus: vi.fn(),
 }));
 
@@ -252,8 +252,8 @@ vi.mock('@/lib/entities/entity-aliases', () => ({
   BASELINE_ALIASES: {},
 }));
 
-vi.mock('@/lib/editor-utils', () => ({
-  htmlToPlainText: mockHtmlToPlainText,
+vi.mock('@/lib/content/strip-markdown', () => ({
+  stripMarkdown: mockStripMarkdown,
 }));
 
 vi.mock('@/lib/certification-status', () => ({
@@ -377,9 +377,7 @@ beforeEach(() => {
   mockCanonicalise.mockImplementation((name: string) => name);
   mockResolveAlias.mockImplementation((name: string) => name);
   mockLoadAliases.mockResolvedValue(undefined);
-  mockHtmlToPlainText.mockImplementation((html: string) =>
-    html.replace(/<[^>]*>/g, ''),
-  );
+  mockStripMarkdown.mockImplementation((text: string) => text);
   mockDeriveExpiryStatus.mockReturnValue('unknown');
   mockGenerateEmbedding.mockResolvedValue(new Array(1024).fill(0.1));
 });

@@ -23,8 +23,8 @@ vi.mock('@/lib/ai/embed', () => ({
   generateEmbedding: vi.fn().mockResolvedValue(new Array(1024).fill(0)),
 }));
 
-vi.mock('@/lib/editor-utils', () => ({
-  htmlToPlainText: (html: string) => html,
+vi.mock('@/lib/content/strip-markdown', () => ({
+  stripMarkdown: (text: string) => text,
 }));
 
 vi.mock('@/lib/ai/skills/loader', () => ({

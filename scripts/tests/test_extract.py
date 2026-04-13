@@ -333,6 +333,12 @@ class TestExtractWithTrafilatura:
         assert result.source_url == "https://example.com/article"
         assert result.source_domain == "example.com"
 
+        # Verify trafilatura.extract called with markdown output and links
+        mock_traf.extract.assert_called_once()
+        call_kwargs = mock_traf.extract.call_args[1]  # keyword arguments
+        assert call_kwargs.get('output_format') == 'markdown'
+        assert call_kwargs.get('include_links') is True
+
     @patch("kb_pipeline.extract.trafilatura")
     def test_fetch_url_returns_none(self, mock_traf):
         """fetch_url returning None results in None."""
@@ -486,6 +492,7 @@ class TestExtractPdf:
         assert result is not None
         assert "Page one content" in result.content
         assert "Page two content" in result.content
+        assert "\n\n---\n\n" in result.content
         assert result.metadata["page_count"] == 2
 
     @patch("pdfplumber.open")

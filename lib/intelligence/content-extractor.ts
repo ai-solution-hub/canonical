@@ -32,28 +32,6 @@ function wordCount(text: string): number {
   return text.split(/\s+/).filter(Boolean).length;
 }
 
-/** Strip HTML tags to get plain text */
-function stripHtml(html: string): string {
-  return html
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-/** Try extracting the main content from HTML using simple heuristics */
-function extractMainContent(html: string): string {
-  // Try <article> first, then <main>, then <body>
-  const articleMatch = html.match(/<article[^>]*>([\s\S]*?)<\/article>/i);
-  if (articleMatch) return stripHtml(articleMatch[1]);
-
-  const mainMatch = html.match(/<main[^>]*>([\s\S]*?)<\/main>/i);
-  if (mainMatch) return stripHtml(mainMatch[1]);
-
-  return stripHtml(html);
-}
-
 /** Extract the main content HTML (not stripped) for Turndown conversion */
 function extractMainContentHtml(html: string): string {
   const articleMatch = html.match(/<article[^>]*>([\s\S]*?)<\/article>/i);
