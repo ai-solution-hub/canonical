@@ -214,7 +214,7 @@ export default function WorkspaceOverviewPage() {
           </Button>
           {isAdmin && (
             <Button variant="outline" size="sm" asChild>
-              <Link href={`/intelligence/${workspaceId}/prompts`}>
+              <Link href={`/intelligence/${workspaceId}/filter-rules`}>
                 <Settings2 className="mr-1.5 size-3.5" aria-hidden="true" />
                 Edit filter rules
               </Link>

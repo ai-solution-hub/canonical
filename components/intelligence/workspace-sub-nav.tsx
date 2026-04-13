@@ -23,7 +23,7 @@ const SUB_NAV_ITEMS = [
   { segment: '/articles', label: 'Articles', icon: FileText, adminOnly: false },
   { segment: '/metrics', label: 'Metrics', icon: BarChart3, adminOnly: false },
   {
-    segment: '/prompts',
+    segment: '/filter-rules',
     label: 'Filter rules',
     icon: Settings2,
     adminOnly: true,
