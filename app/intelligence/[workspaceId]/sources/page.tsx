@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Plus, Rss } from 'lucide-react';
 import { useUserRole } from '@/hooks/use-user-role';
+import { ApiError } from '@/lib/query/fetchers';
 import {
   useFeedSources,
   useCreateFeedSource,
@@ -187,7 +188,9 @@ export default function FeedSourcesPage() {
           role="alert"
         >
           <p className="text-sm text-destructive">
-            Failed to load feed sources. Please try refreshing.
+            {error instanceof ApiError && error.status === 403
+              ? 'You don\u2019t have permission to manage feed sources. Contact an administrator if you need access.'
+              : 'Failed to load feed sources. Please try refreshing.'}
           </p>
         </div>
       )}
