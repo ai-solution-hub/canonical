@@ -277,6 +277,10 @@ management only for merge-conflict-prone work requiring interactive resolution.
   (2) Scans ALL files — never put wildcard class patterns in backticks.
   (3) Bare `border` uses `currentColor` — the `globals.css` base rule restoring
   `var(--border)` must not be removed.
+- **`@tiptap/markdown` is NOT `tiptap-markdown`:** Official package uses
+  `editor.getMarkdown()` (not `editor.storage.markdown.getMarkdown()`), has no
+  `html`/`transformCopiedText`/`transformPastedText` options. Context7 docs show
+  the community package — verify against `node_modules/@tiptap/markdown/dist/`.
 - **React compiler memoisation:** Destructure nested properties before using in
   `useCallback` deps (e.g. `const { fn } = data;` not `data.fn`).
 - **Stable empty array/object defaults in hook returns:** Inline `data?.foo ?? []`
@@ -296,6 +300,8 @@ management only for merge-conflict-prone work requiring interactive resolution.
 - **Python background output:** Use `PYTHONUNBUFFERED=1` or output is invisible.
 - **python-docx and Track Changes:** Use `open_document_safe()` from
   `scripts/docx_utils.py`, not `Document(path)` directly.
+- **mammoth `convertToMarkdown()` drops tables:** Use two-step
+  `mammoth.convertToHtml()` → Turndown (with `turndown-plugin-gfm`).
 - **Worktree isolation rules:**
   - Two sessions on same working tree destroy each other's files — use
     `isolation: "worktree"` or `git worktree add` for parallel work.
