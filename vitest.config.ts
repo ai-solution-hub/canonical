@@ -14,11 +14,7 @@ export default defineConfig({
     globals: true,
     setupFiles: ['__tests__/setup.ts'],
     pool: 'forks',
-    poolOptions: {
-      forks: {
-        maxForks: 4,
-      },
-    },
+    maxWorkers: 4,
     coverage: {
       provider: 'v8',
       include: [
