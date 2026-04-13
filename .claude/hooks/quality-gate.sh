@@ -61,8 +61,9 @@ trap restore_untracked EXIT
 
 # --- Run checks ---
 
-# Tests (vitest via package.json script)
-TEST_OUTPUT=$(cd "$PROJECT_DIR" && bun run test 2>&1)
+# Tests: run only tests affected by uncommitted changes (fast feedback on stop).
+# Full regression suite should be run explicitly via `bun run test` after merges.
+TEST_OUTPUT=$(cd "$PROJECT_DIR" && ./node_modules/.bin/vitest run --changed 2>&1)
 TEST_EXIT=$?
 
 # Lint only files changed in THIS session (staged + unstaged vs HEAD)

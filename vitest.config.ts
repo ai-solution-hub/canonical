@@ -13,6 +13,12 @@ export default defineConfig({
     exclude: ['__tests__/**/*.integration.test.{ts,tsx}', 'node_modules'],
     globals: true,
     setupFiles: ['__tests__/setup.ts'],
+    pool: 'forks',
+    poolOptions: {
+      forks: {
+        maxForks: 4,
+      },
+    },
     coverage: {
       provider: 'v8',
       include: [

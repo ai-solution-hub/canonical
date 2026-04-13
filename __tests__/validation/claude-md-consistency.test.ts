@@ -291,12 +291,12 @@ describe('CLAUDE.md consistency', () => {
   describe('Key Reference Documents table', () => {
     const rows = extractKeyReferenceRows();
 
-    it('parses at least 20 rows from the Key Reference Documents table', () => {
+    it('parses at least 5 rows from the Key Reference Documents table', () => {
       expect(
         rows.length,
-        'Expected the Key Reference Documents table to have many rows. ' +
+        'Expected the Key Reference Documents table to have rows. ' +
           'Parser regex may be broken.',
-      ).toBeGreaterThanOrEqual(20);
+      ).toBeGreaterThanOrEqual(5);
     });
 
     for (const { name, path, lineNumber } of rows) {

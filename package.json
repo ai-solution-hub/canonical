@@ -38,6 +38,8 @@
     "eval:bid-drafting": "bun run scripts/eval-bid-drafting.ts",
     "eval:entity": "EVAL_ENTITY=1 bun run test __tests__/eval/entity-classification-eval.test.ts",
     "eval:all": "bun run eval:classification && bun run eval:summarisation && bun run eval:search && bun run eval:bid-drafting && bun run eval:entity",
+    "dev:clean": "rm -rf .next && next dev --turbopack",
+    "analyze": "ANALYZE=true next build",
     "vercel-build": "bun run build:mcp-apps && next build"
   },
   "dependencies": {
@@ -97,6 +99,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "^16.2.3",
     "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4",
     "@tanstack/eslint-plugin-query": "^5.95.2",
@@ -113,6 +116,7 @@
     "glob": "^13.0.6",
     "jsdom": "^28.1.0",
     "knip": "^6.3.0",
+    "madge": "^8.0.0",
     "prettier": "^3.8.1",
     "tailwindcss": "^4",
     "typescript": "^5",

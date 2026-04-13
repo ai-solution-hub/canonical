@@ -314,3 +314,4 @@ management only for merge-conflict-prone work requiring interactive resolution.
 - **Proxy blocks non-API public routes:** New public endpoints must be added to
   `publicRoutes` in `proxy.ts` (project root) or they silently redirect to
   `/login`.
+- **Dev server memory:** If OOM, run `bun run dev:clean`. Monitor with `btm`.
