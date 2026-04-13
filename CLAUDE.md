@@ -318,6 +318,8 @@ management only for merge-conflict-prone work requiring interactive resolution.
   detection of unused files/exports.
 - **`classifyContent` userId must be a UUID:** Use pipeline service account
   UUID (`a0000000-0000-4000-8000-000000000001`), never literal strings.
+- **`content_items.summary` (not `ai_summary`):** Column renamed in S164b.
+  `feed_articles.ai_summary` was intentionally NOT renamed.
 - **Proxy blocks non-API public routes:** New public endpoints must be added to
   `publicRoutes` in `proxy.ts` (project root) or they silently redirect to
   `/login`.
