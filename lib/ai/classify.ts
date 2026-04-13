@@ -1087,9 +1087,14 @@ ${contentForClassification}`,
   }
 
   // Normalise AI keywords before storage to prevent duplicates.
-  // Defensive: the schema marks ai_keywords required, but Claude occasionally
-  // omits the field; treat undefined/null as an empty list rather than crashing.
-  const normalisedKeywords = (result.ai_keywords ?? [])
+  // Defensive: Claude occasionally returns ai_keywords as a comma-separated
+  // string instead of an array. Handle string, null, undefined, and array cases.
+  const rawKeywords = Array.isArray(result.ai_keywords)
+    ? result.ai_keywords
+    : typeof result.ai_keywords === 'string'
+      ? result.ai_keywords.split(',').map((s: string) => s.trim()).filter(Boolean)
+      : [];
+  const normalisedKeywords = rawKeywords
     .map(normaliseTag)
     .filter((k) => k.length > 0);
   // Deduplicate after normalisation (different forms may collapse)
