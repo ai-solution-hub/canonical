@@ -10,8 +10,8 @@ import { parseBody } from '@/lib/validation';
 import { EmbedBodySchema } from '@/lib/validation/schemas';
 import {
   generateEmbedding,
-  EMBEDDING_MODEL,
-  EMBEDDING_DIMENSIONS,
+  getEmbeddingModel,
+  getEmbeddingDimensions,
 } from '@/lib/ai/embed';
 
 export const maxDuration = 60;
@@ -36,8 +36,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       embedding,
-      model: EMBEDDING_MODEL,
-      dimensions: EMBEDDING_DIMENSIONS,
+      model: getEmbeddingModel(),
+      dimensions: getEmbeddingDimensions(),
     });
   } catch (err) {
     return NextResponse.json(

@@ -1,7 +1,20 @@
 import OpenAI from 'openai';
 
-const EMBEDDING_MODEL = 'text-embedding-3-large';
-const EMBEDDING_DIMENSIONS = 1024;
+function getEmbeddingModel(): string {
+  return process.env.AI_EMBEDDING_MODEL ?? 'text-embedding-3-large';
+}
+
+function getEmbeddingDimensions(): number {
+  const raw = process.env.AI_EMBEDDING_DIMS;
+  if (!raw) return 1024;
+  const parsed = Number.parseInt(raw, 10);
+  if (Number.isNaN(parsed) || parsed <= 0) {
+    throw new Error(
+      `AI_EMBEDDING_DIMS must be a positive integer, got "${raw}"`,
+    );
+  }
+  return parsed;
+}
 
 /**
  * Maximum character budget for an embedding input.
@@ -90,9 +103,9 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 
   const openai = getOpenAIClient();
   const response = await openai.embeddings.create({
-    model: EMBEDDING_MODEL,
+    model: getEmbeddingModel(),
     input: text,
-    dimensions: EMBEDDING_DIMENSIONS,
+    dimensions: getEmbeddingDimensions(),
   });
   const embedding = response.data[0].embedding;
 
@@ -103,4 +116,4 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   return embedding;
 }
 
-export { EMBEDDING_MODEL, EMBEDDING_DIMENSIONS };
+export { getEmbeddingModel, getEmbeddingDimensions };

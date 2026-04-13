@@ -353,7 +353,69 @@ describe('Pipeline Parity', () => {
   });
 
   // ────────────────────────────────────────────────────────────────
-  // 9. Pipeline step presence in main entry point
+  // 9. Embedding model defaults match
+  // ────────────────────────────────────────────────────────────────
+
+  it('embedding model defaults match between TS and Python', () => {
+    const tsContent = readSource('lib/ai/embed.ts');
+    const pyContent = readSource('scripts/kb_pipeline/config.py');
+
+    // TS: return process.env.AI_EMBEDDING_MODEL ?? 'text-embedding-3-large';
+    const tsMatch = tsContent.match(
+      /AI_EMBEDDING_MODEL\s*\?\?\s*'([^']+)'/,
+    );
+    expect(
+      tsMatch,
+      'Could not find AI_EMBEDDING_MODEL default in lib/ai/embed.ts',
+    ).not.toBeNull();
+    const tsModel = tsMatch![1];
+
+    // Python: AI_EMBEDDING_MODEL fallback chain ending with or "default"
+    const pyMatch = pyContent.match(
+      /AI_EMBEDDING_MODEL[\s\S]*?or\s+"([^"]+)"\s*\n\)/,
+    );
+    expect(
+      pyMatch,
+      'Could not find AI_EMBEDDING_MODEL default in scripts/kb_pipeline/config.py',
+    ).not.toBeNull();
+    const pyModel = pyMatch![1];
+
+    expect(
+      tsModel,
+      `Embedding model default differs: TS=${tsModel}, Python=${pyModel}. ` +
+        'Both pipelines write to the same vector column — they MUST agree.',
+    ).toBe(pyModel);
+  });
+
+  it('embedding dimensions defaults match between TS and Python', () => {
+    const tsContent = readSource('lib/ai/embed.ts');
+    const pyContent = readSource('scripts/kb_pipeline/config.py');
+
+    // TS: if (!raw) return 1024;
+    const tsMatch = tsContent.match(/if \(!raw\) return (\d+)/);
+    expect(
+      tsMatch,
+      'Could not find AI_EMBEDDING_DIMS default in lib/ai/embed.ts',
+    ).not.toBeNull();
+    const tsDims = tsMatch![1];
+
+    // Python: or "1024" at end of EMBEDDING_DIMS chain
+    const pyMatch = pyContent.match(/AI_EMBEDDING_DIMS[\s\S]*?or\s+"(\d+)"/);
+    expect(
+      pyMatch,
+      'Could not find AI_EMBEDDING_DIMS default in scripts/kb_pipeline/config.py',
+    ).not.toBeNull();
+    const pyDims = pyMatch![1];
+
+    expect(
+      tsDims,
+      `Embedding dimensions differ: TS=${tsDims}, Python=${pyDims}. ` +
+        'A mismatch corrupts vector search — both pipelines write to a vector(N) column.',
+    ).toBe(pyDims);
+  });
+
+  // ────────────────────────────────────────────────────────────────
+  // 10. Pipeline step presence in main entry point
   // ────────────────────────────────────────────────────────────────
 
   describe('pipeline step presence in pipeline.py', () => {

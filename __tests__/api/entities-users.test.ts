@@ -41,8 +41,8 @@ vi.mock('@/lib/rate-limit', () => ({
 
 vi.mock('@/lib/ai/embed', () => ({
   generateEmbedding: mockGenerateEmbedding,
-  EMBEDDING_MODEL: 'text-embedding-3-large',
-  EMBEDDING_DIMENSIONS: 1024,
+  getEmbeddingModel: () => 'text-embedding-3-large',
+  getEmbeddingDimensions: () => 1024,
 }));
 
 vi.mock('@/lib/ai/extract-content', () => ({

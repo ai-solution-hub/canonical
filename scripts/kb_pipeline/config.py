@@ -18,10 +18,22 @@ SUPABASE_URL = None  # loaded from .env via get_env()
 # Load .env into os.environ (does not override existing env vars)
 load_dotenv(ENV_PATH)
 
-# Models (overridable via env vars)
-CLASSIFICATION_MODEL = os.environ.get("CLASSIFICATION_MODEL", "claude-opus-4-6")
-EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "text-embedding-3-large")
-EMBEDDING_DIMS = int(os.environ.get("EMBEDDING_DIMS", "1024"))
+# Models (overridable via env vars — AI_-prefixed names preferred, legacy fallback for one cycle)
+CLASSIFICATION_MODEL = (
+    os.environ.get("AI_CLASSIFICATION_MODEL")
+    or os.environ.get("CLASSIFICATION_MODEL")
+    or "claude-opus-4-6"
+)
+EMBEDDING_MODEL = (
+    os.environ.get("AI_EMBEDDING_MODEL")
+    or os.environ.get("EMBEDDING_MODEL")
+    or "text-embedding-3-large"
+)
+EMBEDDING_DIMS = int(
+    os.environ.get("AI_EMBEDDING_DIMS")
+    or os.environ.get("EMBEDDING_DIMS")
+    or "1024"
+)
 
 # Pricing (per token) — must match lib/ai/pricing.ts
 OPUS_INPUT_PRICE = 15.00 / 1_000_000

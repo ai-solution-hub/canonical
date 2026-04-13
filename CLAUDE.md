@@ -85,6 +85,9 @@ Env vars in `.env` and `.env.local` — see `.env.example` for full template.
 Key vars: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `SUPABASE_URL`,
 `SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
 `SUPABASE_SECRET_KEY`, `AI_SUMMARY_MODEL` (optional, defaults `claude-sonnet-4-6`).
+`AI_CLASSIFICATION_MODEL` (optional) — Python classification model, defaults `claude-opus-4-6`.
+`AI_EMBEDDING_MODEL` (optional) — embedding model for both pipelines, defaults `text-embedding-3-large`.
+`AI_EMBEDDING_DIMS` (optional) — embedding dimensions, defaults `1024`. Schema-locked to `vector(N)` columns.
 
 ## Supabase & Schema
 
