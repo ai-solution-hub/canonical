@@ -1089,10 +1089,13 @@ ${contentForClassification}`,
   // Normalise AI keywords before storage to prevent duplicates.
   // Defensive: Claude occasionally returns ai_keywords as a comma-separated
   // string instead of an array. Handle string, null, undefined, and array cases.
-  const rawKeywords = Array.isArray(result.ai_keywords)
-    ? result.ai_keywords
-    : typeof result.ai_keywords === 'string'
-      ? result.ai_keywords.split(',').map((s: string) => s.trim()).filter(Boolean)
+  // Cast to unknown: the TS type says string[] but Claude occasionally returns
+  // a bare string at runtime (no Zod validation on extractToolResult path).
+  const aiKw: unknown = result.ai_keywords;
+  const rawKeywords = Array.isArray(aiKw)
+    ? (aiKw as string[])
+    : typeof aiKw === 'string'
+      ? aiKw.split(',').map((s) => s.trim()).filter(Boolean)
       : [];
   const normalisedKeywords = rawKeywords
     .map(normaliseTag)
