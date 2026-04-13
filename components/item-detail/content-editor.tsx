@@ -38,11 +38,7 @@ export function ContentEditor({
       StarterKit.configure({
         link: false,
       }),
-      Markdown.configure({
-        html: false,
-        transformCopiedText: true,
-        transformPastedText: true,
-      }),
+      Markdown,
       CharacterCount.configure({
         wordCounter: (text) => text.split(/\s+/).filter(Boolean).length,
       }),
@@ -61,7 +57,7 @@ export function ContentEditor({
       },
     },
     onUpdate: ({ editor: e }) => {
-      onChange(e.storage.markdown.getMarkdown());
+      onChange(e.getMarkdown());
     },
   });
 
@@ -74,7 +70,7 @@ export function ContentEditor({
 
   // Sync content from parent
   useEffect(() => {
-    if (editor && content !== editor.storage.markdown.getMarkdown()) {
+    if (editor && content !== editor.getMarkdown()) {
       editor.commands.setContent(content);
     }
   }, [content, editor]);
@@ -82,7 +78,7 @@ export function ContentEditor({
   // Ctrl+S / Cmd+S save shortcut
   const handleSave = useCallback(() => {
     if (onSave) {
-      onSave(editor?.storage.markdown.getMarkdown() ?? '');
+      onSave(editor?.getMarkdown() ?? '');
     }
   }, [editor, onSave]);
 
