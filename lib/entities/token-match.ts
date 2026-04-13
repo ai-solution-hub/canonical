@@ -194,48 +194,75 @@ export function tokenMatch(
   return { match: false, confidence: 0, coverage };
 }
 
+/** Parsed result from an ISO 8601 duration string */
+export interface ParsedDuration {
+  years: number;
+  months: number;
+  days: number;
+  hours: number;
+  minutes: number;
+  seconds: number;
+}
+
 /**
  * Parse an ISO 8601 duration string into component parts.
  *
- * Supports: P{n}Y, P{n}M, P{n}D, and combinations like P1Y6M.
- * Does not support time components (hours, minutes, seconds).
+ * Supports date components (P{n}Y, P{n}M, P{n}D), time components
+ * (PT{n}H, PT{n}M, PT{n}S), and combinations like P1Y6M, P1YT12H, PT72H.
  *
- * @param duration - ISO 8601 duration string (e.g. "P3Y", "P6M", "P1Y6M")
+ * @param duration - ISO 8601 duration string (e.g. "P3Y", "P6M", "PT72H", "P1YT12H")
  * @returns Parsed components or null if not a valid duration
  */
-export function parseDuration(
-  duration: string,
-): { years: number; months: number; days: number } | null {
+export function parseDuration(duration: string): ParsedDuration | null {
   if (!duration || !duration.startsWith('P')) return null;
 
-  const match = duration.match(/^P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)D)?$/);
+  const match = duration.match(
+    /^P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/,
+  );
   if (!match) return null;
 
   const years = match[1] ? parseInt(match[1], 10) : 0;
   const months = match[2] ? parseInt(match[2], 10) : 0;
   const days = match[3] ? parseInt(match[3], 10) : 0;
+  const hours = match[4] ? parseInt(match[4], 10) : 0;
+  const minutes = match[5] ? parseInt(match[5], 10) : 0;
+  const seconds = match[6] ? parseInt(match[6], 10) : 0;
 
   // At least one component must be present
-  if (years === 0 && months === 0 && days === 0) return null;
+  if (
+    years === 0 &&
+    months === 0 &&
+    days === 0 &&
+    hours === 0 &&
+    minutes === 0 &&
+    seconds === 0
+  )
+    return null;
 
-  return { years, months, days };
+  return { years, months, days, hours, minutes, seconds };
 }
 
 /**
  * Check whether a date string looks like an ISO 8601 duration rather than a calendar date.
  *
+ * Matches both date durations (P3Y, P6M) and time durations (PT72H, PT30M).
+ *
  * @param date - The date field from a temporal reference
- * @returns true if the date is a duration (e.g. "P3Y", "P6M")
+ * @returns true if the date is a duration (e.g. "P3Y", "P6M", "PT72H")
  */
 export function isDuration(date: string): boolean {
-  return /^P\d/.test(date);
+  return /^P(\d|T\d)/.test(date);
 }
 
 /**
  * Compute a calendar date by adding a duration to a start date.
  *
+ * Supports both date components (years, months, days) and time components
+ * (hours, minutes, seconds). Time components are converted to their effect
+ * on the calendar date (e.g. 72 hours = 3 days forward).
+ *
  * @param startDate - ISO 8601 date string (YYYY-MM-DD) to add the duration to
- * @param duration - ISO 8601 duration string (e.g. "P3Y", "P6M", "P1Y6M")
+ * @param duration - ISO 8601 duration string (e.g. "P3Y", "P6M", "PT72H", "P1YT12H")
  * @returns ISO 8601 date string, or null if the duration cannot be parsed
  */
 export function addDurationToDate(
@@ -251,6 +278,9 @@ export function addDurationToDate(
   date.setUTCFullYear(date.getUTCFullYear() + parsed.years);
   date.setUTCMonth(date.getUTCMonth() + parsed.months);
   date.setUTCDate(date.getUTCDate() + parsed.days);
+  date.setUTCHours(date.getUTCHours() + parsed.hours);
+  date.setUTCMinutes(date.getUTCMinutes() + parsed.minutes);
+  date.setUTCSeconds(date.getUTCSeconds() + parsed.seconds);
 
   // Format as YYYY-MM-DD
   const year = date.getUTCFullYear();

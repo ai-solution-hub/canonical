@@ -30,6 +30,57 @@ const TEMPORAL_ENTITY_TYPES = new Set([
   'regulation',
 ]);
 
+/** Keywords suggesting a temporal reference describes an expiry or renewal date */
+const EXPIRY_KEYWORDS = [
+  'expires',
+  'expiry',
+  'renewal',
+  'valid for',
+  'due',
+  'valid until',
+  'renew',
+  'lapse',
+  'expire',
+];
+
+/** Keywords suggesting a temporal reference describes an effective or obtained date */
+const EFFECTIVE_KEYWORDS = [
+  'effective',
+  'came into force',
+  'achieved',
+  'awarded',
+  'obtained',
+  'certified',
+  'introduced',
+  'implemented',
+  'enacted',
+  'commenced',
+];
+
+/**
+ * Infer context type from keywords in the temporal reference context string.
+ *
+ * Scans for expiry-related and effective-related keywords to determine the
+ * likely meaning of an "unknown" or "historical" context_type reference.
+ *
+ * @param context - The temporal reference context string
+ * @returns Inferred context type, or null if neither direction is clear
+ */
+export function inferContextType(
+  context: string,
+): 'expiry' | 'effective' | null {
+  if (!context) return null;
+  const lower = context.toLowerCase();
+
+  const hasExpiry = EXPIRY_KEYWORDS.some((kw) => lower.includes(kw));
+  const hasEffective = EFFECTIVE_KEYWORDS.some((kw) => lower.includes(kw));
+
+  // If both match or neither matches, we cannot infer
+  if (hasExpiry && !hasEffective) return 'expiry';
+  if (hasEffective && !hasExpiry) return 'effective';
+  return null;
+}
+
 /**
  * Sort temporal references so that 'effective' types come before 'expiry' types.
  * This ensures date_obtained is available when computing duration-based expiry dates.
@@ -137,7 +188,20 @@ export async function bridgeTemporalReferencesToEntities(
 
       if (!matched) continue;
 
-      if (ref.context_type === 'expiry') {
+      // Determine the effective context type — use the declared type when
+      // it is explicit, otherwise attempt keyword inference for ambiguous refs.
+      let effectiveType: string = ref.context_type;
+      if (
+        ref.context_type === 'unknown' ||
+        ref.context_type === 'historical'
+      ) {
+        const inferred = inferContextType(ref.context);
+        if (inferred) {
+          effectiveType = inferred;
+        }
+      }
+
+      if (effectiveType === 'expiry') {
         // Check if the date is a duration (e.g. "P3Y") that needs computation
         if (isDuration(ref.date)) {
           const startDate = (newMetadata.date_obtained as string) ?? null;
@@ -148,13 +212,25 @@ export async function bridgeTemporalReferencesToEntities(
               updated = true;
             }
           }
-          // If no start date available, skip — cannot compute from duration alone
+          // If no start date available but we know it's expiry-related,
+          // store the duration as renewal_period for downstream use
+          if (!updated || !newMetadata.expiry_date) {
+            newMetadata.renewal_period = ref.date;
+            updated = true;
+          }
         } else {
           newMetadata.expiry_date = ref.date;
           updated = true;
         }
-      } else if (ref.context_type === 'effective') {
+      } else if (effectiveType === 'effective') {
         newMetadata.date_obtained = ref.date;
+        updated = true;
+      } else if (isDuration(ref.date)) {
+        // Matched entity with a duration value but context type is still
+        // ambiguous after keyword inference — store as renewal_period.
+        // Duration values like P1Y describe certification/regulation lifecycle
+        // periods and are valuable metadata even without expiry/effective context.
+        newMetadata.renewal_period = ref.date;
         updated = true;
       }
     }

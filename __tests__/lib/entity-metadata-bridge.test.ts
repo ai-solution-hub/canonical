@@ -600,7 +600,7 @@ describe('bridgeTemporalReferencesToEntities', () => {
     });
   });
 
-  it('T1.12: duration P3Y without date_obtained — no expiry computed', async () => {
+  it('T1.12: duration P3Y without date_obtained — no expiry computed, renewal_period stored', async () => {
     setupContentItem({
       ai_temporal_references: [
         {
@@ -628,13 +628,26 @@ describe('bridgeTemporalReferencesToEntities', () => {
       },
     ]);
 
+    // Duration without date_obtained now stores renewal_period as fallback
+    const updateChain = setupUpdateCall();
+
     await bridgeTemporalReferencesToEntities(
       mockClient as unknown as import('@supabase/supabase-js').SupabaseClient,
       contentItemId,
     );
 
-    // No update call — duration cannot be resolved without a start date
-    expect(mockClient.from).toHaveBeenCalledTimes(2);
+    // Duration cannot be resolved to a calendar date without date_obtained,
+    // but renewal_period is stored as useful lifecycle metadata
+    expect(mockClient.from).toHaveBeenCalledTimes(3);
+    expect(updateChain.update).toHaveBeenCalledWith({
+      metadata: expect.objectContaining({ renewal_period: 'P3Y' }),
+    });
+    // expiry_date should NOT be set since no date_obtained was available
+    expect(updateChain.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ expiry_date: expect.any(String) }),
+      }),
+    );
   });
 
   it('T1.13: effective-first ordering ensures duration can be computed', async () => {

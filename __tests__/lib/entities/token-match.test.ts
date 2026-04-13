@@ -228,19 +228,47 @@ describe('tokenMatch', () => {
 
 describe('parseDuration', () => {
   it('parses years only: P3Y', () => {
-    expect(parseDuration('P3Y')).toEqual({ years: 3, months: 0, days: 0 });
+    expect(parseDuration('P3Y')).toEqual({
+      years: 3,
+      months: 0,
+      days: 0,
+      hours: 0,
+      minutes: 0,
+      seconds: 0,
+    });
   });
 
   it('parses months only: P6M', () => {
-    expect(parseDuration('P6M')).toEqual({ years: 0, months: 6, days: 0 });
+    expect(parseDuration('P6M')).toEqual({
+      years: 0,
+      months: 6,
+      days: 0,
+      hours: 0,
+      minutes: 0,
+      seconds: 0,
+    });
   });
 
   it('parses days only: P30D', () => {
-    expect(parseDuration('P30D')).toEqual({ years: 0, months: 0, days: 30 });
+    expect(parseDuration('P30D')).toEqual({
+      years: 0,
+      months: 0,
+      days: 30,
+      hours: 0,
+      minutes: 0,
+      seconds: 0,
+    });
   });
 
   it('parses combined: P1Y6M', () => {
-    expect(parseDuration('P1Y6M')).toEqual({ years: 1, months: 6, days: 0 });
+    expect(parseDuration('P1Y6M')).toEqual({
+      years: 1,
+      months: 6,
+      days: 0,
+      hours: 0,
+      minutes: 0,
+      seconds: 0,
+    });
   });
 
   it('parses full combination: P2Y3M15D', () => {
@@ -248,6 +276,9 @@ describe('parseDuration', () => {
       years: 2,
       months: 3,
       days: 15,
+      hours: 0,
+      minutes: 0,
+      seconds: 0,
     });
   });
 
@@ -267,8 +298,52 @@ describe('parseDuration', () => {
     expect(parseDuration('P')).toBeNull();
   });
 
-  it('returns null for time-only durations', () => {
-    expect(parseDuration('PT3H')).toBeNull();
+  it('parses time-only duration: PT72H', () => {
+    expect(parseDuration('PT72H')).toEqual({
+      years: 0,
+      months: 0,
+      days: 0,
+      hours: 72,
+      minutes: 0,
+      seconds: 0,
+    });
+  });
+
+  it('parses time-only duration: PT3H', () => {
+    expect(parseDuration('PT3H')).toEqual({
+      years: 0,
+      months: 0,
+      days: 0,
+      hours: 3,
+      minutes: 0,
+      seconds: 0,
+    });
+  });
+
+  it('parses combined date and time: P1YT12H', () => {
+    expect(parseDuration('P1YT12H')).toEqual({
+      years: 1,
+      months: 0,
+      days: 0,
+      hours: 12,
+      minutes: 0,
+      seconds: 0,
+    });
+  });
+
+  it('parses minutes and seconds: PT30M45S', () => {
+    expect(parseDuration('PT30M45S')).toEqual({
+      years: 0,
+      months: 0,
+      days: 0,
+      hours: 0,
+      minutes: 30,
+      seconds: 45,
+    });
+  });
+
+  it('returns null for PT0H0M0S (all zeros)', () => {
+    expect(parseDuration('PT0H0M0S')).toBeNull();
   });
 });
 
@@ -283,6 +358,14 @@ describe('isDuration', () => {
 
   it('returns false for calendar date', () => {
     expect(isDuration('2027-06-15')).toBe(false);
+  });
+
+  it('returns true for time-only duration PT72H', () => {
+    expect(isDuration('PT72H')).toBe(true);
+  });
+
+  it('returns true for combined duration P1YT12H', () => {
+    expect(isDuration('P1YT12H')).toBe(true);
   });
 
   it('returns false for empty string', () => {
@@ -333,5 +416,19 @@ describe('addDurationToDate', () => {
 
   it('returns null for empty duration', () => {
     expect(addDurationToDate('2024-06-15', '')).toBeNull();
+  });
+
+  it('adds hours correctly: PT72H (3 days)', () => {
+    expect(addDurationToDate('2024-01-15', 'PT72H')).toBe('2024-01-18');
+  });
+
+  it('adds combined date and time: P1YT12H', () => {
+    // 1 year + 12 hours from midnight = same date one year later
+    expect(addDurationToDate('2024-06-15', 'P1YT12H')).toBe('2025-06-15');
+  });
+
+  it('adds hours that cross day boundary: PT36H', () => {
+    // 36 hours = 1 day + 12 hours
+    expect(addDurationToDate('2024-01-15', 'PT36H')).toBe('2024-01-16');
   });
 });
