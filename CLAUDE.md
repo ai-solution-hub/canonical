@@ -22,6 +22,7 @@ development partner. All code is written through human-AI collaboration.
 | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `bun install`                                                                                                                          | Install Node dependencies                                                                            |
 | `bun dev`                                                                                                                              | Start Next.js dev server (Turbopack) - default port is localhost:3000                                |
+| `bun run dev:clean`                                                                                                                    | Clear `.next` cache + start dev server (use when OOM)                                                |
 | `bun build`                                                                                                                            | Production build                                                                                     |
 | `bun run test`                                                                                                                         | Run Vitest tests (NOT `bun test` — see Gotchas)                                                      |
 | `bun lint`                                                                                                                             | ESLint                                                                                               |
@@ -51,6 +52,7 @@ development partner. All code is written through human-AI collaboration.
 | `bun run stats`                                                                                                                        | Generate codebase statistics to `docs/generated/` (run end-of-session when file counts change)       |
 | `bun run generate:mcp-inventory`                                                                                                       | Generate MCP tool/resource/prompt inventory to `docs/generated/` (run when MCP registrations change) |
 | `bun run knip`                                                                                                                         | Detect unused files, exports, types, and dependencies (run before merging large changes)             |
+| `bun run analyze`                                                                                                                      | Bundle analyzer (opens browser with bundle visualisation)                                            |
 
 ## Architecture
 
@@ -105,6 +107,8 @@ Key vars: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `SUPABASE_URL`,
 - **Mock pattern:** Shared `createMockSupabaseClient()` in
   `__tests__/helpers/mock-supabase.ts`
 - **E2E:** Playwright in `e2e/tests/` — worker-scoped fixtures, multi-role auth
+- **Quality gate:** Stop hook runs `vitest --changed` (scoped). Use
+  `bun run test` explicitly for full regression checks after merges.
 
 ## Deployment
 
@@ -315,3 +319,4 @@ management only for merge-conflict-prone work requiring interactive resolution.
   `publicRoutes` in `proxy.ts` (project root) or they silently redirect to
   `/login`.
 - **Dev server memory:** If OOM, run `bun run dev:clean`. Monitor with `btm`.
+- **Node 24 has V8 memory regressions:** `.node-version` pins to 22 LTS.
