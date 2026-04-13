@@ -19,7 +19,7 @@ export interface QualityScoreInput {
   brief?: string | null;
   detail?: string | null;
   reference?: string | null;
-  ai_summary?: string | null;
+  summary?: string | null;
   citation_count?: number; // from content_citations or metadata
 }
 
@@ -125,7 +125,7 @@ export function calculateQualityScore(
     input.detail,
     input.reference,
   );
-  const rawSummary = summaryRaw(input.ai_summary);
+  const rawSummary = summaryRaw(input.summary);
   const rawCitations = citationsRaw(input.citation_count);
 
   const components = {

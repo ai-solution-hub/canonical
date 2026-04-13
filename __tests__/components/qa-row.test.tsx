@@ -45,7 +45,7 @@ function createQAItem(
     id: 'qa-1',
     title: 'How does your organisation handle data security?',
     suggested_title: null,
-    ai_summary: null,
+    summary: null,
     primary_domain: 'Technical',
     primary_subtopic: 'Information Security',
     content_type: 'qa_pair',

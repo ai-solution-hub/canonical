@@ -200,7 +200,7 @@ interface ClassificationWithEntities {
   secondary_domain?: string | null;
   secondary_subtopic?: string | null;
   ai_keywords: string[];
-  ai_summary: string;
+  summary: string;
   suggested_title: string;
   classification_confidence: number;
   classification_reasoning: string;
@@ -345,7 +345,7 @@ const CLASSIFICATION_TOOL: Anthropic.Tool = {
         items: { type: 'string' },
         description: '3-8 specific keywords/phrases',
       },
-      ai_summary: {
+      summary: {
         type: 'string',
         description: '1-2 sentence summary (20-50 words)',
       },
@@ -460,7 +460,7 @@ const CLASSIFICATION_TOOL: Anthropic.Tool = {
       'primary_domain',
       'primary_subtopic',
       'ai_keywords',
-      'ai_summary',
+      'summary',
       'suggested_title',
       'classification_confidence',
       'classification_reasoning',
@@ -1069,7 +1069,7 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
               secondary_domain: result.secondary_domain ?? null,
               secondary_subtopic: result.secondary_subtopic ?? null,
               ai_keywords: uniqueKeywords,
-              ai_summary: result.ai_summary,
+              summary: result.summary,
               suggested_title: result.suggested_title,
               classification_confidence: result.classification_confidence,
               classification_reasoning: result.classification_reasoning,

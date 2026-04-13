@@ -99,8 +99,8 @@ function summariseFieldChange(change: FieldChange): string {
       return `Priority changed from ${oldPriority} to ${newPriority}`;
     }
 
-    case 'ai_summary': {
-      return 'AI summary updated';
+    case 'summary': {
+      return 'Summary updated';
     }
 
     case 'content_type': {

@@ -805,7 +805,7 @@ Generate **3–5 descriptive keywords** that:
 
 ## Summary and Title Guidance
 
-- **ai_summary:** One sentence, maximum 200 characters (20–50 words). Capture
+- **summary:** One sentence, maximum 200 characters (20–50 words). Capture
   the core value proposition or key finding. Write in UK English. For fragments,
   state what the content appears to be about.
 - **suggested_title:** 40–100 characters. Clear, descriptive, and specific.

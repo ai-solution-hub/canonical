@@ -100,7 +100,7 @@ export async function registerResources(server: McpServer): Promise<void> {
         const { data: item, error } = await supabase
           .from('content_items')
           .select(
-            'id, title, suggested_title, content_type, primary_domain, primary_subtopic, ai_summary, ai_keywords, freshness, content, created_at, updated_at',
+            'id, title, suggested_title, content_type, primary_domain, primary_subtopic, summary, ai_keywords, freshness, content, created_at, updated_at',
           )
           .eq('id', itemId)
           .single();
@@ -304,7 +304,7 @@ export async function registerResources(server: McpServer): Promise<void> {
         const { data: item, error } = await supabase
           .from('content_items')
           .select(
-            'id, title, suggested_title, content, answer_standard, answer_advanced, primary_domain, primary_subtopic, ai_summary',
+            'id, title, suggested_title, content, answer_standard, answer_advanced, primary_domain, primary_subtopic, summary',
           )
           .eq('id', qaId)
           .eq('content_type', 'q_a_pair')

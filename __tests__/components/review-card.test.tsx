@@ -51,7 +51,7 @@ function makeReviewItem(
     id: 'item-1',
     title: 'Default Title',
     suggested_title: null,
-    ai_summary: null,
+    summary: null,
     primary_domain: 'Corporate',
     primary_subtopic: 'Company History',
     content_type: 'article',

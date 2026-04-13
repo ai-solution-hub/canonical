@@ -33,7 +33,7 @@ function makeItem(overrides: Partial<ContentListItem> = {}): ContentListItem {
     id: overrides.id ?? 'item-1',
     title: 'Test Item',
     suggested_title: null,
-    ai_summary: null,
+    summary: null,
     primary_domain: 'Technical',
     primary_subtopic: null,
     content_type: 'article',

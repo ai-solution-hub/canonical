@@ -4,7 +4,7 @@ Generates multi-level summaries (executive, detailed, takeaways) for content
 items. Used by all pipeline scripts: ingest and markdown ingestion.
 
 The summary result dict can be stored directly into content_items.summary_data
-(JSONB), with summary['executive'] denormalised to content_items.ai_summary.
+(JSONB), with summary['executive'] denormalised to content_items.summary.
 """
 
 import os

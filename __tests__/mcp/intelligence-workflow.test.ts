@@ -104,7 +104,7 @@ const CONTENT_ITEM_1 = {
   content_type: 'article',
   primary_domain: 'Legislation & Policy',
   primary_subtopic: 'Regulatory Changes',
-  ai_summary: 'Overview of new cyber security regulations.',
+  summary: 'Overview of new cyber security regulations.',
   similarity: 0.92,
 };
 
@@ -114,7 +114,7 @@ const CONTENT_ITEM_2 = {
   content_type: 'article',
   primary_domain: 'Market Intelligence',
   primary_subtopic: 'Industry Trends',
-  ai_summary: 'Quarterly market analysis.',
+  summary: 'Quarterly market analysis.',
   similarity: 0.85,
 };
 
@@ -124,7 +124,7 @@ const CONTENT_ITEM_3 = {
   content_type: 'article',
   primary_domain: 'Corporate',
   primary_subtopic: 'Company Profile',
-  ai_summary: 'Company overview.',
+  summary: 'Company overview.',
   similarity: 0.78,
 };
 

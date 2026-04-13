@@ -21,7 +21,7 @@ export interface BelowThresholdItem {
   primary_subtopic: string | null;
   quality_score: number;
   freshness: string | null;
-  ai_summary: string | null;
+  summary: string | null;
   classification_confidence: number | null;
 }
 
@@ -91,7 +91,7 @@ function describeDeficiencies(item: BelowThresholdItem): string {
   if (item.freshness === 'stale' || item.freshness === 'expired') {
     issues.push(`freshness ${item.freshness}`);
   }
-  if (!item.ai_summary) {
+  if (!item.summary) {
     issues.push('no summary');
   }
   if (

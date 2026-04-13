@@ -352,7 +352,7 @@ describe('GET /api/bids/:id/responses/:rId', () => {
               suggested_title: 'ISO 27001 Policy',
               content_type: 'policy',
               primary_domain: 'Information Security',
-              ai_summary: 'Our ISO 27001 certification details',
+              summary: 'Our ISO 27001 certification details',
             },
           ],
           error: null,

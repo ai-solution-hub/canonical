@@ -425,10 +425,10 @@ export function useItemDetailData({
   const getActiveTabContent = useCallback((): string => {
     if (item.brief) return item.brief;
     if (item.summary_data?.executive) return item.summary_data.executive;
-    if (item.ai_summary) return item.ai_summary;
+    if (item.summary) return item.summary;
     if (item.content) return item.content;
     return '';
-  }, [item.brief, item.summary_data, item.ai_summary, item.content]);
+  }, [item.brief, item.summary_data, item.summary, item.content]);
 
   // --- Before-unload guard for dirty edits ---
   useEffect(() => {

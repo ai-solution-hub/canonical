@@ -31,7 +31,7 @@ export interface ContentItemShape {
   title: string;
   content_type: string;
   primary_domain: string;
-  ai_summary: string;
+  summary: string;
   platform: string;
   content: string;
   source_url?: string;
@@ -60,12 +60,12 @@ export function buildCoreContentItems(timestamps: {
   expiredDate: string;
 }): ContentItemShape[] {
   return [
-    // [0] Article — Service Delivery (ai_summary, progressive depth layers)
+    // [0] Article — Service Delivery (summary, progressive depth layers)
     {
       title: 'IT Support Policy',
       content_type: 'article',
       primary_domain: 'Service Delivery',
-      ai_summary: 'E2E test article about IT support policies and procedures.',
+      summary: 'E2E test article about IT support policies and procedures.',
       platform: 'manual',
       source_url: 'https://e2e-test.example.com/it-support',
       content: 'This is an E2E test content item covering IT support policies.',
@@ -81,7 +81,7 @@ export function buildCoreContentItems(timestamps: {
       title: 'What is your SLA?',
       content_type: 'q_a_pair',
       primary_domain: 'Service Delivery',
-      ai_summary: 'Q&A pair about service level agreements.',
+      summary: 'Q&A pair about service level agreements.',
       platform: 'manual',
       content:
         'Q: What is your SLA?\nA: We provide tiered SLAs with 15-minute P1 response.',
@@ -93,7 +93,7 @@ export function buildCoreContentItems(timestamps: {
       title: 'Project Management Approach',
       content_type: 'q_a_pair',
       primary_domain: 'Technical Capability',
-      ai_summary:
+      summary:
         'Q&A pair about project management methodology and governance.',
       platform: 'manual',
       content:
@@ -108,7 +108,7 @@ export function buildCoreContentItems(timestamps: {
       title: 'Cyber Essentials Compliance',
       content_type: 'policy',
       primary_domain: 'Security & Compliance',
-      ai_summary:
+      summary:
         'Policy document covering Cyber Essentials certification requirements.',
       platform: 'manual',
       content:
@@ -122,7 +122,7 @@ export function buildCoreContentItems(timestamps: {
       title: 'Pricing Model Template',
       content_type: 'note',
       primary_domain: 'Commercial',
-      ai_summary: 'Template for pricing model breakdowns in bid responses.',
+      summary: 'Template for pricing model breakdowns in bid responses.',
       platform: 'manual',
       content:
         'Standard pricing model template: Day rates, fixed-price deliverables, managed service charges, and optional extras. Effective from 01/01/2025. Review by 31/12/2026.',
@@ -158,7 +158,7 @@ export function buildCoreContentItems(timestamps: {
       title: 'ISO 27001 Certification',
       content_type: 'certification',
       primary_domain: 'Security & Compliance',
-      ai_summary:
+      summary:
         'ISO 27001 information security management system certification details.',
       platform: 'manual',
       content:
@@ -166,12 +166,12 @@ export function buildCoreContentItems(timestamps: {
       freshness: 'fresh',
       verified_at: timestamps.now,
     },
-    // [6] Case Study — Experience & Track Record (ai_summary, metadata)
+    // [6] Case Study — Experience & Track Record (summary, metadata)
     {
       title: 'Case Study: NHS Digital',
       content_type: 'case_study',
       primary_domain: 'Experience & Track Record',
-      ai_summary:
+      summary:
         'Case study demonstrating NHS Digital infrastructure modernisation project delivery.',
       platform: 'manual',
       content:
@@ -188,7 +188,7 @@ export function buildCoreContentItems(timestamps: {
       title: 'Cloud Migration Methodology',
       content_type: 'methodology',
       primary_domain: 'Technical Capability',
-      ai_summary:
+      summary:
         'Our structured approach to cloud migration using the 6R framework.',
       platform: 'manual',
       content:
@@ -199,7 +199,7 @@ export function buildCoreContentItems(timestamps: {
       title: 'Social Value Framework',
       content_type: 'policy',
       primary_domain: 'Social Value',
-      ai_summary:
+      summary:
         'Framework for delivering social value through public sector contracts.',
       platform: 'manual',
       content:
@@ -212,7 +212,7 @@ export function buildCoreContentItems(timestamps: {
       title: 'Data Protection Policy',
       content_type: 'policy',
       primary_domain: 'Security & Compliance',
-      ai_summary:
+      summary:
         'Data protection policy covering GDPR compliance and data handling procedures.',
       platform: 'manual',
       content:
@@ -224,7 +224,7 @@ export function buildCoreContentItems(timestamps: {
       title: 'Staff CVs and Experience',
       content_type: 'other',
       primary_domain: 'People & Skills',
-      ai_summary:
+      summary:
         'Overview of key staff qualifications and experience for bid submissions.',
       platform: 'manual',
       content:
@@ -235,7 +235,7 @@ export function buildCoreContentItems(timestamps: {
       title: 'Environmental Policy',
       content_type: 'policy',
       primary_domain: 'Sustainability',
-      ai_summary:
+      summary:
         'Environmental policy covering carbon reduction and sustainable operations.',
       platform: 'manual',
       content:
@@ -411,7 +411,7 @@ export interface FeedArticleShape {
   external_url: string;
   relevance_score: number;
   relevance_category: string;
-  ai_summary: string | null;
+  summary: string | null;
   matched_categories: string[];
   passed: boolean;
   published_at: string;
@@ -626,7 +626,7 @@ export function buildIntelligenceFeedArticles(
       external_url: 'https://example.com/articles/cyber-regulation',
       relevance_score: 0.92,
       relevance_category: 'high',
-      ai_summary: 'New regulations requiring enhanced security measures for UK public sector contractors.',
+      summary: 'New regulations requiring enhanced security measures for UK public sector contractors.',
       matched_categories: ['Cyber Security', 'Regulation'],
       passed: true,
       published_at: now,
@@ -637,7 +637,7 @@ export function buildIntelligenceFeedArticles(
       external_url: 'https://example.com/articles/cloud-trends',
       relevance_score: 0.78,
       relevance_category: 'medium',
-      ai_summary: 'Analysis of cloud infrastructure spending trends among UK SMBs.',
+      summary: 'Analysis of cloud infrastructure spending trends among UK SMBs.',
       matched_categories: ['Cloud Infrastructure', 'Market Analysis'],
       passed: true,
       published_at: now,
@@ -648,7 +648,7 @@ export function buildIntelligenceFeedArticles(
       external_url: 'https://example.com/articles/sports-news',
       relevance_score: 0.15,
       relevance_category: 'irrelevant',
-      ai_summary: null,
+      summary: null,
       matched_categories: [],
       passed: false,
       published_at: now,

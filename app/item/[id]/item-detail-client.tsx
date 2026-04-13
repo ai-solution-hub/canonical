@@ -28,7 +28,7 @@ export interface ItemData {
   title: string | null;
   suggested_title: string | null;
   content: string | null;
-  ai_summary: string | null;
+  summary: string | null;
   ai_keywords: string[] | null;
   primary_domain: string | null;
   primary_subtopic: string | null;

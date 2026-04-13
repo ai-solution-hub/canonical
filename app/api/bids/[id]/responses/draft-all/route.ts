@@ -175,7 +175,7 @@ export async function POST(
         if (matchedIds.length > 0) {
           const { data: contentItems, error: contentError } = await supabase
             .from('content_items')
-            .select('id, suggested_title, content, content_type, ai_summary')
+            .select('id, suggested_title, content, content_type, summary')
             .in('id', matchedIds);
 
           if (contentError) {
@@ -192,7 +192,7 @@ export async function POST(
             title: item.suggested_title,
             content: item.content,
             content_type: item.content_type,
-            ai_summary: item.ai_summary,
+            summary: item.summary,
           }));
         }
 

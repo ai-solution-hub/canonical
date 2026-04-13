@@ -122,7 +122,7 @@ def process_url(
             result.classify_cache_read = cls.cache_read_tokens
 
             print(f"             → {cls.primary_domain} / {cls.primary_subtopic} ({cls.confidence:.2f})")
-            print(f"             Summary: {cls.ai_summary[:100]}")
+            print(f"             Summary: {cls.summary[:100]}")
         except Exception as e:
             result.error = f"Classification failed: {e}"
             print(f"  [Classify] ERROR: {e}")
@@ -138,7 +138,7 @@ def process_url(
         try:
             embed_text = build_embedding_text(
                 title=cls.suggested_title if cls else extracted.title,
-                ai_summary=cls.ai_summary if cls else "",
+                summary=cls.summary if cls else "",
                 content=extracted.content,
                 content_type=extracted.content_type,
             )
@@ -213,7 +213,7 @@ def process_url(
             "secondary_subtopic": cls.secondary_subtopic,
             "classification_confidence": cls.confidence,
             "suggested_title": cls.suggested_title,
-            "ai_summary": cls.ai_summary,
+            "summary": cls.summary,
             "ai_keywords": cls.ai_keywords,
             "classification_reasoning": cls.reasoning,
             "classified_at": datetime.now(timezone.utc).isoformat(),
@@ -229,7 +229,7 @@ def process_url(
             "model": summary_result["model"],
             "tokens_used": summary_result["tokens_used"],
         }
-        record["ai_summary"] = summary_result["executive"]
+        record["summary"] = summary_result["executive"]
 
     # Add embedding
     if embedding:

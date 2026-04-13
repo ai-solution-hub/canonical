@@ -24,7 +24,7 @@ export function AiProcessingIndicators({
   const [summarising, setSummarising] = useState(false);
 
   const needsClassification = !item.classified_at;
-  const needsSummary = !item.ai_summary;
+  const needsSummary = !item.summary;
 
   if (!needsClassification && !needsSummary) return null;
 
@@ -48,7 +48,7 @@ export function AiProcessingIndicators({
         secondary_domain: data.secondary_domain,
         secondary_subtopic: data.secondary_subtopic,
         ai_keywords: data.ai_keywords,
-        ai_summary: data.ai_summary,
+        summary: data.summary,
         suggested_title: data.suggested_title,
         classification_confidence: data.classification_confidence,
         classification_reasoning: data.classification_reasoning,
@@ -78,7 +78,7 @@ export function AiProcessingIndicators({
       }
       onItemUpdated((prev) => ({
         ...prev,
-        ai_summary: data.ai_summary ?? prev.ai_summary,
+        summary: data.summary ?? prev.summary,
         summary_data: data.summary_data ?? prev.summary_data,
       }));
       toast.success('Summary generated');

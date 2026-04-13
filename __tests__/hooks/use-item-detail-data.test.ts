@@ -193,7 +193,7 @@ function createMockItem(overrides: Partial<ItemData> = {}): ItemData {
     title: 'Test Item',
     suggested_title: 'Suggested Title',
     content: 'Test content',
-    ai_summary: 'AI summary text',
+    summary: 'AI summary text',
     ai_keywords: ['keyword1', 'keyword2'],
     primary_domain: 'business_operations',
     primary_subtopic: 'procurement',
@@ -485,13 +485,13 @@ describe('useItemDetailData', () => {
       expect(result.current.getActiveTabContent()).toBe('Executive summary');
     });
 
-    it('returns ai_summary when no brief or executive', () => {
+    it('returns summary when no brief or executive', () => {
       const { result } = renderItemDetailHook(
         defaultOptions({
           initialItem: createMockItem({
             brief: undefined,
             summary_data: null,
-            ai_summary: 'AI summary',
+            summary: 'AI summary',
           }),
         }),
       );
@@ -505,7 +505,7 @@ describe('useItemDetailData', () => {
           initialItem: createMockItem({
             brief: undefined,
             summary_data: null,
-            ai_summary: null,
+            summary: null,
             content: 'Raw content',
           }),
         }),
@@ -520,7 +520,7 @@ describe('useItemDetailData', () => {
           initialItem: createMockItem({
             brief: undefined,
             summary_data: null,
-            ai_summary: null,
+            summary: null,
             content: null,
           }),
         }),

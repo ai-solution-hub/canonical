@@ -15,7 +15,7 @@ export interface ContentItemDetail {
   content_type: string | null;
   primary_domain: string | null;
   primary_subtopic: string | null;
-  ai_summary: string | null;
+  summary: string | null;
   ai_keywords: string[] | null;
   freshness: string | null;
   classification_confidence: number | null;
@@ -77,8 +77,8 @@ export function formatContentItem(item: ContentItemDetail): string {
   lines.push(`**ID:** ${item.id}`);
 
   // Summary
-  if (item.ai_summary) {
-    lines.push('', '## Summary', '', item.ai_summary);
+  if (item.summary) {
+    lines.push('', '## Summary', '', item.summary);
   }
 
   // Content excerpt

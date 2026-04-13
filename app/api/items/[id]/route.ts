@@ -127,7 +127,7 @@ export async function PATCH(
     const { data: currentItem, error: fetchError } = await supabase
       .from('content_items')
       .select(
-        'title, content, brief, detail, reference, suggested_title, ai_keywords, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, priority, ai_summary, content_type, platform, author_name, user_tags, answer_standard, answer_advanced, governance_review_status, expiry_date, lifecycle_type',
+        'title, content, brief, detail, reference, suggested_title, ai_keywords, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, priority, summary, content_type, platform, author_name, user_tags, answer_standard, answer_advanced, governance_review_status, expiry_date, lifecycle_type',
       )
       .eq('id', id)
       .single();
@@ -211,7 +211,7 @@ export async function PATCH(
     try {
       const significantFields = [
         'content',
-        'ai_summary',
+        'summary',
         'suggested_title',
         'primary_domain',
         'primary_subtopic',
@@ -354,7 +354,7 @@ export async function PATCH(
         // Fetch the updated item to build embedding text
         const { data: updatedItem, error: updatedItemError } = await supabase
           .from('content_items')
-          .select('title, content, ai_summary')
+          .select('title, content, summary')
           .eq('id', id)
           .single();
 
@@ -406,7 +406,7 @@ export async function PATCH(
       'brief',
       'detail',
       'reference',
-      'ai_summary',
+      'summary',
       'content',
       'title',
     ];
@@ -420,7 +420,7 @@ export async function PATCH(
           await supabase
             .from('content_items')
             .select(
-              'freshness, classification_confidence, brief, detail, reference, ai_summary, citation_count, quality_score',
+              'freshness, classification_confidence, brief, detail, reference, summary, citation_count, quality_score',
             )
             .eq('id', id)
             .single();
@@ -448,7 +448,7 @@ export async function PATCH(
             brief: updatedForQuality.brief,
             detail: updatedForQuality.detail,
             reference: updatedForQuality.reference,
-            ai_summary: updatedForQuality.ai_summary,
+            summary: updatedForQuality.summary,
             citation_count: updatedForQuality.citation_count ?? 0,
           });
 

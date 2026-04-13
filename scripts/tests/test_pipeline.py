@@ -55,7 +55,7 @@ def _make_cls(
     secondary_domain=None,
     secondary_subtopic=None,
     suggested_title="Suggested Title",
-    ai_summary="A summary of the content for testing purposes.",
+    summary="A summary of the content for testing purposes.",
     ai_keywords=None,
     reasoning="This is a reasoning string.",
     is_fragment=False,
@@ -74,7 +74,7 @@ def _make_cls(
         secondary_domain=secondary_domain,
         secondary_subtopic=secondary_subtopic,
         suggested_title=suggested_title,
-        ai_summary=ai_summary,
+        summary=summary,
         ai_keywords=ai_keywords or ["testing", "pipeline"],
         reasoning=reasoning,
         is_fragment=is_fragment,
@@ -157,7 +157,7 @@ class TestProcessUrlHappyPath:
         assert insert_call["primary_domain"] == "Technology & Digital"
         assert insert_call["embedding"] == [0.1] * 1024
         assert insert_call["summary_data"]["executive"] == "Executive summary"
-        assert insert_call["ai_summary"] == "Executive summary"
+        assert insert_call["summary"] == "Executive summary"
 
 
 # ── process_url — extraction failure ────────────────────────────────────────

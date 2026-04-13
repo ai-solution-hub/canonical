@@ -125,9 +125,9 @@ export function ReviewQueuePanel({
               <p className="mt-1 line-clamp-1 text-sm font-medium text-foreground">
                 {title}
               </p>
-              {item.ai_summary && (
+              {item.summary && (
                 <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
-                  {item.ai_summary}
+                  {item.summary}
                 </p>
               )}
             </button>

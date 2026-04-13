@@ -53,7 +53,7 @@ function makeContentItem(
     id: 'item-1',
     title: 'Default Article Title',
     suggested_title: null,
-    ai_summary: 'This is an AI-generated summary.',
+    summary: 'This is an AI-generated summary.',
     primary_domain: 'Corporate',
     primary_subtopic: 'Company History',
     content_type: 'article',

@@ -104,14 +104,14 @@ const sampleContent: DraftableContent[] = [
     content:
       'We use AES-256 encryption for all data at rest and TLS 1.3 for data in transit.',
     content_type: 'policy',
-    ai_summary: 'Covers encryption standards and key management practices.',
+    summary: 'Covers encryption standards and key management practices.',
   },
   {
     id: 'uuid-2',
     title: 'ISO 27001 Certification',
     content: 'Our company holds ISO 27001 certification, renewed annually.',
     content_type: 'certification',
-    ai_summary: 'Details of ISO 27001 certification and audit schedule.',
+    summary: 'Details of ISO 27001 certification and audit schedule.',
   },
 ];
 

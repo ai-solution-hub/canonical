@@ -52,7 +52,7 @@ async function fetchAndFormatContentItems(
   const { data: rows, error } = await supabase
     .from('content_items')
     .select(
-      'id, title, suggested_title, content_type, primary_domain, primary_subtopic, ai_summary, ai_keywords, freshness, classification_confidence, source_url, content, created_at, updated_at, governance_review_status, priority',
+      'id, title, suggested_title, content_type, primary_domain, primary_subtopic, summary, ai_keywords, freshness, classification_confidence, source_url, content, created_at, updated_at, governance_review_status, priority',
     )
     .in('id', itemIds);
 
@@ -81,7 +81,7 @@ async function fetchAndFormatContentItems(
       content_type: item.content_type as string | null,
       primary_domain: item.primary_domain as string | null,
       primary_subtopic: item.primary_subtopic as string | null,
-      ai_summary: item.ai_summary as string | null,
+      summary: item.summary as string | null,
       ai_keywords: item.ai_keywords as string[] | null,
       freshness: item.freshness as string | null,
       classification_confidence: item.classification_confidence as
@@ -134,7 +134,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         const { data: item, error } = await supabase
           .from('content_items')
           .select(
-            'id, title, suggested_title, content_type, primary_domain, primary_subtopic, ai_summary, ai_keywords, freshness, classification_confidence, source_url, content, created_at, updated_at, governance_review_status, priority',
+            'id, title, suggested_title, content_type, primary_domain, primary_subtopic, summary, ai_keywords, freshness, classification_confidence, source_url, content, created_at, updated_at, governance_review_status, priority',
           )
           .eq('id', args.id)
           .single();
@@ -158,7 +158,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           content_type: item.content_type,
           primary_domain: item.primary_domain,
           primary_subtopic: item.primary_subtopic,
-          ai_summary: item.ai_summary,
+          summary: item.summary,
           ai_keywords: item.ai_keywords,
           freshness: item.freshness,
           classification_confidence: item.classification_confidence,

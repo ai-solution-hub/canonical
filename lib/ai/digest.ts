@@ -31,7 +31,7 @@ interface ContentItemRow {
   id: string;
   title: string;
   suggested_title: string | null;
-  ai_summary: string | null;
+  summary: string | null;
   primary_domain: string | null;
   primary_subtopic: string | null;
   content_type: string;
@@ -186,7 +186,7 @@ export async function generateDigest(
   let query = supabase
     .from('content_items')
     .select(
-      'id, title, suggested_title, ai_summary, primary_domain, primary_subtopic, content_type, ai_keywords, captured_date, summary_data',
+      'id, title, suggested_title, summary, primary_domain, primary_subtopic, content_type, ai_keywords, captured_date, summary_data',
     )
     .gte('captured_date', periodStartISO)
     .lte('captured_date', periodEndISO)
@@ -270,11 +270,11 @@ export async function generateDigest(
     itemsByDomainText += `\n## ${domain} (${domainItems.length} items)\n`;
     for (const item of domainItems) {
       const displayTitle = item.suggested_title || item.title || 'Untitled';
-      // Prefer summary_data.executive (full-content summary) over ai_summary (classification-time)
+      // Prefer summary_data.executive (full-content summary) over summary (classification-time)
       const summary =
         item.summary_data?.executive ??
-        (item.ai_summary
-          ? item.ai_summary.slice(0, summaryMaxLen)
+        (item.summary
+          ? item.summary.slice(0, summaryMaxLen)
           : 'No summary available');
       const keywords = item.ai_keywords?.slice(0, maxKeywords).join(', ') ?? '';
 

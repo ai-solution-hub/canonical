@@ -48,7 +48,7 @@ function makeMockItem(overrides: Record<string, unknown> = {}) {
     id: VALID_UUID,
     title: 'Test Item',
     suggested_title: 'Suggested Title',
-    ai_summary: 'A summary',
+    summary: 'A summary',
     primary_domain: 'Technology',
     primary_subtopic: 'AI',
     secondary_domain: null,

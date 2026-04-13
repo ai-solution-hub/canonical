@@ -566,7 +566,7 @@ class ClassificationResult:
     secondary_domain: Optional[str]
     secondary_subtopic: Optional[str]
     suggested_title: str
-    ai_summary: str
+    summary: str
     ai_keywords: List[str]
     reasoning: str
     is_fragment: bool
@@ -739,7 +739,7 @@ def classify(
         secondary_domain=parsed.get("secondary_domain"),
         secondary_subtopic=parsed.get("secondary_subtopic"),
         suggested_title=parsed.get("suggested_title", ""),
-        ai_summary=parsed.get("ai_summary", ""),
+        summary=parsed.get("summary", ""),
         ai_keywords=list(dict.fromkeys(normalise_keyword(kw) for kw in parsed.get("ai_keywords", []) if normalise_keyword(kw))),
         reasoning=parsed.get("reasoning", ""),
         is_fragment=flags.get("is_fragment", False),

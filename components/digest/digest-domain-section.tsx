@@ -83,9 +83,9 @@ export function DigestDomainSection({
                     <span className="ml-2 text-xs text-muted-foreground">
                       {formatContentType(item.content_type ?? null)}
                     </span>
-                    {(item.why_notable || item.ai_summary) && (
+                    {(item.why_notable || item.summary) && (
                       <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
-                        {item.why_notable || item.ai_summary}
+                        {item.why_notable || item.summary}
                       </p>
                     )}
                   </div>

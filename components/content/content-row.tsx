@@ -94,7 +94,7 @@ export const ContentRow = memo(function ContentRow({
 
   // Answer snippet for Q&A rows
   const answerSnippet = isQAPair
-    ? item.content || item.brief || item.ai_summary || null
+    ? item.content || item.brief || item.summary || null
     : null;
 
   // --- Q&A PAIR ROW ---
@@ -350,8 +350,8 @@ export const ContentRow = memo(function ContentRow({
         >
           {isSearchResult(item) && item.snippet ? (
             renderText(`\u2026${item.snippet}\u2026`)
-          ) : item.brief || item.ai_summary ? (
-            renderText(item.brief || item.ai_summary || '')
+          ) : item.brief || item.summary ? (
+            renderText(item.brief || item.summary || '')
           ) : item.content ? (
             <span className="truncate">
               {renderText(item.content.slice(0, 200))}

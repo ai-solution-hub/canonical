@@ -76,7 +76,7 @@ export async function GET(
       title: string | null;
       content_type: string | null;
       primary_domain: string | null;
-      ai_summary: string | null;
+      summary: string | null;
     }> = [];
 
     if (response.source_content_ids && response.source_content_ids.length > 0) {
@@ -84,7 +84,7 @@ export async function GET(
         supabase
           .from('content_items')
           .select(
-            'id, suggested_title, content_type, primary_domain, ai_summary',
+            'id, suggested_title, content_type, primary_domain, summary',
           )
           .in('id', response.source_content_ids),
         'bids.response.detail.sourceContent',
@@ -95,7 +95,7 @@ export async function GET(
         title: item.suggested_title,
         content_type: item.content_type,
         primary_domain: item.primary_domain,
-        ai_summary: item.ai_summary,
+        summary: item.summary,
       }));
     }
 

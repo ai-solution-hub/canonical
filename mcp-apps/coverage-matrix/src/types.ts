@@ -62,7 +62,7 @@ export interface SearchResultItem {
   content_type: string | null;
   primary_domain: string | null;
   primary_subtopic: string | null;
-  ai_summary: string | null;
+  summary: string | null;
   similarity: number;
 }
 

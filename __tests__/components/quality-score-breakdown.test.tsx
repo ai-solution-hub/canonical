@@ -14,7 +14,7 @@ const excellentItem: QualityScoreInput = {
   brief: 'Brief content here',
   detail: 'Detailed content here',
   reference: 'Reference content here',
-  ai_summary: 'This is an AI summary.',
+  summary: 'This is an AI summary.',
   citation_count: 5,
 };
 
@@ -25,7 +25,7 @@ const poorItem: QualityScoreInput = {
   brief: null,
   detail: null,
   reference: null,
-  ai_summary: null,
+  summary: null,
   citation_count: 0,
 };
 
@@ -36,7 +36,7 @@ const goodItem: QualityScoreInput = {
   brief: 'Brief content here',
   detail: 'Detailed content here',
   reference: null,
-  ai_summary: 'This is an AI summary.',
+  summary: 'This is an AI summary.',
   citation_count: 0,
 };
 
@@ -47,7 +47,7 @@ const fairItem: QualityScoreInput = {
   brief: 'Brief only',
   detail: null,
   reference: null,
-  ai_summary: 'A summary.',
+  summary: 'A summary.',
   citation_count: 0,
 };
 
@@ -58,7 +58,7 @@ const emptyItem: QualityScoreInput = {
   brief: null,
   detail: null,
   reference: null,
-  ai_summary: null,
+  summary: null,
   citation_count: undefined,
 };
 

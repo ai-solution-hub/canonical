@@ -279,7 +279,7 @@ describe.skipIf(!isLiveMockEnabled)(
           primary_subtopic: 'cyber-security',
           secondary_domain: null,
           ai_keywords: ['penetration testing', 'CREST'],
-          ai_summary: 'Mocked summary',
+          summary: 'Mocked summary',
           suggested_title: 'Mocked title',
           classification_confidence: 0.92,
           classification_reasoning: 'Mocked reasoning',

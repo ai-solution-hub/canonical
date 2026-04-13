@@ -189,7 +189,7 @@ export async function generateSummary(
   const { data: item, error: fetchError } = await supabase
     .from('content_items')
     .select(
-      'id, content, title, suggested_title, content_type, ai_summary, primary_domain, summary_data',
+      'id, content, title, suggested_title, content_type, summary, primary_domain, summary_data',
     )
     .eq('id', itemId)
     .single();
@@ -222,10 +222,10 @@ export async function generateSummary(
     domain,
   });
 
-  // Store in Supabase (also sync ai_summary with the higher-quality executive)
+  // Store in Supabase (also sync summary with the higher-quality executive)
   const updatePayload: Record<string, unknown> = {
     summary_data: toJson(summaryData),
-    ai_summary: summaryData.executive,
+    summary: summaryData.executive,
   };
   if (userId) {
     updatePayload.updated_by = userId;

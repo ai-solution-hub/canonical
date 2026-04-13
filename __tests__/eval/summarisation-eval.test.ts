@@ -38,7 +38,7 @@ interface SummaryData {
 interface DbRow {
   id: string;
   summary_data: SummaryData | null;
-  ai_summary: string | null;
+  summary: string | null;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -98,7 +98,7 @@ describe.skipIf(!isEvalEnabled)(
       const itemIds = goldStandard.map((g) => g.content_item_id);
       const { data, error } = await supabase
         .from('content_items')
-        .select('id, summary_data, ai_summary')
+        .select('id, summary_data, summary')
         .in('id', itemIds);
 
       if (error) throw new Error(`DB fetch failed: ${error.message}`);
@@ -118,7 +118,7 @@ describe.skipIf(!isEvalEnabled)(
       for (const gold of evaluated) {
         const db = dbMap.get(gold.content_item_id)!;
         const summary = parseSummaryData(db.summary_data);
-        const aiExecutive = summary?.executive ?? db.ai_summary ?? '';
+        const aiExecutive = summary?.executive ?? db.summary ?? '';
         const rl = rougeL(aiExecutive, gold.reference_executive);
         totalRougeL += rl.f1;
       }

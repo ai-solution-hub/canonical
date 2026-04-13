@@ -259,7 +259,7 @@ export async function POST(request: NextRequest) {
       const { data: latestItem } = await qualityServiceClient
         .from('content_items')
         .select(
-          'freshness, classification_confidence, brief, detail, reference, ai_summary, citation_count',
+          'freshness, classification_confidence, brief, detail, reference, summary, citation_count',
         )
         .eq('id', newItem.id)
         .single();
@@ -271,7 +271,7 @@ export async function POST(request: NextRequest) {
           brief: latestItem.brief,
           detail: latestItem.detail,
           reference: latestItem.reference,
-          ai_summary: latestItem.ai_summary,
+          summary: latestItem.summary,
           citation_count: latestItem.citation_count ?? 0,
         });
 
@@ -401,7 +401,7 @@ export async function POST(request: NextRequest) {
     const finalItem = await sb(
       supabase
         .from('content_items')
-        .select('primary_domain, primary_subtopic, ai_summary')
+        .select('primary_domain, primary_subtopic, summary')
         .eq('id', newItem.id)
         .maybeSingle(),
       'content_items.finalState',
@@ -414,7 +414,7 @@ export async function POST(request: NextRequest) {
       content_type: contentType,
       primary_domain: finalItem?.primary_domain,
       primary_subtopic: finalItem?.primary_subtopic,
-      ai_summary: finalItem?.ai_summary,
+      summary: finalItem?.summary,
       content_length: extracted.contentLength,
       warnings,
       duplicate_matches: dedupMatches,

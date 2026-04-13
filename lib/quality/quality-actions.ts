@@ -34,7 +34,7 @@ export interface QualityActionInput {
   primary_subtopic: string | null;
   freshness: string | null;
   classification_confidence: number | null;
-  ai_summary: string | null;
+  summary: string | null;
   brief: string | null;
   detail: string | null;
   reference: string | null;
@@ -171,7 +171,7 @@ export function suggestQualityActions(
     }
 
     // c. Completeness — weight 20% for depth, plus source URL and owner
-    if (!item.ai_summary) {
+    if (!item.summary) {
       actions.push({
         itemId: item.id,
         itemTitle,
@@ -214,14 +214,14 @@ export function suggestQualityActions(
 
     // d. Summary quality — short summaries
     if (
-      item.ai_summary &&
-      item.ai_summary.trim().length > 0 &&
-      item.ai_summary.trim().length < 50
+      item.summary &&
+      item.summary.trim().length > 0 &&
+      item.summary.trim().length < 50
     ) {
       actions.push({
         itemId: item.id,
         itemTitle,
-        action: `Improve summary — current summary is very short (${item.ai_summary.trim().length} chars)`,
+        action: `Improve summary — current summary is very short (${item.summary.trim().length} chars)`,
         category: 'summary',
         priority: 'low',
         estimatedScoreImpact: 5,
@@ -357,7 +357,7 @@ export async function getTopQualityActions(
     primary_subtopic: string | null;
     freshness: string | null;
     classification_confidence: number | null;
-    ai_summary: string | null;
+    summary: string | null;
     brief: string | null;
     detail: string | null;
     reference: string | null;
@@ -372,7 +372,7 @@ export async function getTopQualityActions(
   let query = supabase
     .from('content_items')
     .select(
-      'id, title, suggested_title, content_type, primary_domain, primary_subtopic, freshness, classification_confidence, ai_summary, brief, detail, reference, content_owner_id, source_url, quality_score, previous_quality_score, metadata, citation_count',
+      'id, title, suggested_title, content_type, primary_domain, primary_subtopic, freshness, classification_confidence, summary, brief, detail, reference, content_owner_id, source_url, quality_score, previous_quality_score, metadata, citation_count',
     )
     .is('archived_at', null)
     .not('quality_score', 'is', null)
@@ -411,7 +411,7 @@ export async function getTopQualityActions(
         primary_subtopic: item.primary_subtopic,
         freshness: item.freshness,
         classification_confidence: item.classification_confidence,
-        ai_summary: item.ai_summary,
+        summary: item.summary,
         brief: item.brief ?? null,
         detail: item.detail ?? null,
         reference: item.reference ?? null,

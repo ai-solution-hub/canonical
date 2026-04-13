@@ -2,7 +2,7 @@
  * ContentRow Search Mode Tests
  *
  * Tests the Q&A badge on ContentRow when items are SearchResults, and the
- * content snippet for standard (non-Q&A) rows that shows ai_summary/brief
+ * content snippet for standard (non-Q&A) rows that shows summary/brief
  * instead of the content type + platform fallback.
  */
 import { describe, it, expect, vi } from 'vitest';
@@ -118,7 +118,7 @@ function makeItem(overrides: Partial<ContentListItem> = {}): ContentListItem {
     id: 'item-1',
     title: 'Default Article Title',
     suggested_title: null,
-    ai_summary: null,
+    summary: null,
     primary_domain: 'Corporate',
     primary_subtopic: 'Company History',
     content_type: 'article',
@@ -215,11 +215,11 @@ describe('ContentRow — search mode features', () => {
   });
 
   describe('content snippets for non-Q&A standard rows', () => {
-    it('shows ai_summary as snippet when available and not a search result', () => {
+    it('shows summary as snippet when available and not a search result', () => {
       render(
         <ContentRow
           item={makeItem({
-            ai_summary: 'A comprehensive overview of data protection measures.',
+            summary: 'A comprehensive overview of data protection measures.',
           })}
         />,
       );
@@ -230,12 +230,12 @@ describe('ContentRow — search mode features', () => {
       ).toBeInTheDocument();
     });
 
-    it('shows brief over ai_summary when both are available', () => {
+    it('shows brief over summary when both are available', () => {
       render(
         <ContentRow
           item={makeItem({
             brief: 'Brief summary of the article.',
-            ai_summary: 'AI-generated summary of the article.',
+            summary: 'AI-generated summary of the article.',
           })}
         />,
       );
@@ -251,7 +251,7 @@ describe('ContentRow — search mode features', () => {
       render(
         <ContentRow
           item={makeItem({
-            ai_summary: null,
+            summary: null,
             brief: null,
             content_type: 'article',
             platform: 'web',
@@ -264,12 +264,12 @@ describe('ContentRow — search mode features', () => {
       expect(screen.getByText('John Smith')).toBeInTheDocument();
     });
 
-    it('shows search snippet for SearchResult items instead of ai_summary', () => {
+    it('shows search snippet for SearchResult items instead of summary', () => {
       render(
         <ContentRow
           item={makeSearchResult({
             content_type: 'article',
-            ai_summary: 'This should not appear.',
+            summary: 'This should not appear.',
             snippet: 'This is the search snippet.',
           })}
         />,

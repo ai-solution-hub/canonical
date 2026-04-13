@@ -281,12 +281,12 @@ async function main(): Promise<void> {
             });
 
           // Store in Supabase (cast to bypass JSONB typing)
-          // Also sync ai_summary with the higher-quality executive summary
+          // Also sync summary with the higher-quality executive summary
           const { error: updateError } = await supabase
             .from('content_items')
             .update({
               summary_data: summaryData as unknown as Record<string, unknown>,
-              ai_summary: summaryData.executive,
+              summary: summaryData.executive,
             })
             .eq('id', item.id);
 

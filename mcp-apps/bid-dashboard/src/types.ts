@@ -56,7 +56,7 @@ export interface KBSearchResult {
   suggested_title: string | null;
   content_type: string | null;
   primary_domain: string | null;
-  ai_summary: string | null;
+  summary: string | null;
   similarity: number;
 }
 

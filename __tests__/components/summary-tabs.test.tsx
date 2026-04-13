@@ -220,7 +220,7 @@ describe('SummaryTabs', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows ai_summary fallback in Quick tab when no summaryData', () => {
+  it('shows summary fallback in Quick tab when no summaryData', () => {
     render(
       <SummaryTabs
         {...defaultProps}

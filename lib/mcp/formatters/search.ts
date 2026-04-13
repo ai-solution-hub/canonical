@@ -15,7 +15,7 @@ export interface SearchResult {
   content_type: string | null;
   primary_domain: string | null;
   primary_subtopic: string | null;
-  ai_summary: string | null;
+  summary: string | null;
   similarity: number;
 }
 
@@ -51,8 +51,8 @@ export function formatSearchResults(
 
     lines.push(`**Relevance:** ${similarity}%`);
 
-    if (r.ai_summary) {
-      lines.push(truncate(r.ai_summary, 300));
+    if (r.summary) {
+      lines.push(truncate(r.summary, 300));
     }
 
     lines.push(`**ID:** ${r.id}`);
@@ -97,8 +97,8 @@ export function formatQASearchResults(
 
     lines.push(`**Relevance:** ${similarity}%`);
 
-    if (r.ai_summary) {
-      lines.push(truncate(r.ai_summary, 300));
+    if (r.summary) {
+      lines.push(truncate(r.summary, 300));
     }
 
     lines.push(`**ID:** ${r.id}`);

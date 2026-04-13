@@ -123,11 +123,11 @@ describe('generateSingleFieldChangeSummary', () => {
 
   it('summarises AI summary update', () => {
     const result = generateSingleFieldChangeSummary(
-      'ai_summary',
+      'summary',
       'Old summary',
       'New summary',
     );
-    expect(result).toBe('AI summary updated');
+    expect(result).toBe('Summary updated');
   });
 
   it('summarises content type change', () => {

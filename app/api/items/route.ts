@@ -237,7 +237,7 @@ export async function POST(request: NextRequest) {
       const { data: latestItem } = await serviceClient
         .from('content_items')
         .select(
-          'freshness, classification_confidence, brief, detail, reference, ai_summary, citation_count',
+          'freshness, classification_confidence, brief, detail, reference, summary, citation_count',
         )
         .eq('id', newItem.id)
         .single();
@@ -249,7 +249,7 @@ export async function POST(request: NextRequest) {
           brief: latestItem.brief,
           detail: latestItem.detail,
           reference: latestItem.reference,
-          ai_summary: latestItem.ai_summary,
+          summary: latestItem.summary,
           citation_count: latestItem.citation_count ?? 0,
         });
 

@@ -41,7 +41,7 @@ function makeQueueItem(
     id: overrides.id ?? `item-${index}`,
     title: overrides.title ?? `Item ${index}`,
     suggested_title: null,
-    ai_summary: null,
+    summary: null,
     primary_domain: 'Technical',
     primary_subtopic: null,
     content_type: 'article',

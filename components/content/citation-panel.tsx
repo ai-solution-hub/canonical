@@ -20,7 +20,7 @@ interface SourceContent {
   content_type: string | null;
   primary_domain: string | null;
   primary_subtopic: string | null;
-  ai_summary: string | null;
+  summary: string | null;
   similarity?: number;
 }
 
@@ -171,9 +171,9 @@ export function CitationPanel({
                     </div>
 
                     {/* Expandable source detail */}
-                    {isExpandedCitation && source?.ai_summary && (
+                    {isExpandedCitation && source?.summary && (
                       <p className="mt-2 text-xs text-muted-foreground border-l-2 border-primary/20 pl-2">
-                        {source.ai_summary}
+                        {source.summary}
                       </p>
                     )}
                   </div>

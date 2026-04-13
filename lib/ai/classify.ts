@@ -496,7 +496,7 @@ export interface ClassificationResult {
   secondary_domain?: string | null;
   secondary_subtopic?: string | null;
   ai_keywords: string[];
-  ai_summary: string;
+  summary: string;
   suggested_title: string;
   classification_confidence: number;
   classification_reasoning: string;
@@ -819,7 +819,7 @@ export async function classifyContent(
   const { data: item, error: fetchError } = await supabase
     .from('content_items')
     .select(
-      'id, title, content, content_type, classified_at, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, ai_keywords, ai_summary, suggested_title, classification_confidence, classification_reasoning, metadata',
+      'id, title, content, content_type, classified_at, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, ai_keywords, summary, suggested_title, classification_confidence, classification_reasoning, metadata',
     )
     .eq('id', itemId)
     .single();
@@ -836,7 +836,7 @@ export async function classifyContent(
       secondary_domain: item.secondary_domain,
       secondary_subtopic: item.secondary_subtopic,
       ai_keywords: item.ai_keywords ?? [],
-      ai_summary: item.ai_summary ?? '',
+      summary: item.summary ?? '',
       suggested_title: item.suggested_title ?? '',
       classification_confidence: item.classification_confidence ?? 0,
       classification_reasoning: item.classification_reasoning ?? '',
@@ -918,7 +918,7 @@ export async function classifyContent(
             secondary_domain: { type: ['string', 'null'] },
             secondary_subtopic: { type: ['string', 'null'] },
             ai_keywords: { type: 'array', items: { type: 'string' } },
-            ai_summary: { type: 'string' },
+            summary: { type: 'string' },
             suggested_title: { type: 'string' },
             classification_confidence: { type: 'number' },
             classification_reasoning: { type: 'string' },
@@ -1030,7 +1030,7 @@ export async function classifyContent(
             'primary_domain',
             'primary_subtopic',
             'ai_keywords',
-            'ai_summary',
+            'summary',
             'suggested_title',
             'classification_confidence',
             'classification_reasoning',
@@ -1102,7 +1102,7 @@ ${contentForClassification}`,
     secondary_domain: result.secondary_domain ?? null,
     secondary_subtopic: result.secondary_subtopic ?? null,
     ai_keywords: uniqueKeywords,
-    ai_summary: result.ai_summary,
+    summary: result.summary,
     suggested_title: result.suggested_title,
     classification_confidence: result.classification_confidence,
     classification_reasoning: result.classification_reasoning,
@@ -1406,7 +1406,7 @@ ${contentForClassification}`,
     secondary_domain: result.secondary_domain ?? null,
     secondary_subtopic: result.secondary_subtopic ?? null,
     ai_keywords: uniqueKeywords,
-    ai_summary: result.ai_summary,
+    summary: result.summary,
     suggested_title: result.suggested_title,
     classification_confidence: result.classification_confidence,
     classification_reasoning: result.classification_reasoning,

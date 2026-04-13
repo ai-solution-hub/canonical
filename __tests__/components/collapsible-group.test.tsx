@@ -25,7 +25,7 @@ function createQAItem(
     id: overrides.id ?? 'item-1',
     title: overrides.title ?? 'Test Q&A',
     suggested_title: null,
-    ai_summary: null,
+    summary: null,
     primary_domain: overrides.primary_domain ?? 'Corporate',
     primary_subtopic: null,
     content_type: 'qa_pair',

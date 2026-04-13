@@ -7,7 +7,7 @@ export interface ContentListItem {
   id: ContentItemRow['id'];
   title: ContentItemRow['title'];
   suggested_title: ContentItemRow['suggested_title'];
-  ai_summary: ContentItemRow['ai_summary'];
+  summary: ContentItemRow['summary'];
   primary_domain: ContentItemRow['primary_domain'];
   primary_subtopic: ContentItemRow['primary_subtopic'];
   content_type: ContentItemRow['content_type'];
@@ -204,7 +204,7 @@ export interface BrowseFilters {
 
 /** Columns selected for list/grid views */
 export const CONTENT_LIST_COLUMNS = `
-  id, title, suggested_title, ai_summary,
+  id, title, suggested_title, summary,
   primary_domain, primary_subtopic, content_type, platform,
   author_name, source_domain, thumbnail_url, captured_date,
   ai_keywords, classification_confidence, priority, freshness, user_tags, governance_review_status, metadata,

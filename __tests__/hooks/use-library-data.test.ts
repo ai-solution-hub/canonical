@@ -53,7 +53,7 @@ const MOCK_ITEMS = [
     content_type: 'q_a_pair',
     primary_domain: 'Technical',
     primary_subtopic: null,
-    ai_summary: null,
+    summary: null,
     suggested_title: null,
     platform: null,
     author_name: null,

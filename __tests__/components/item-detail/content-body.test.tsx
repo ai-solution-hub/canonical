@@ -119,7 +119,7 @@ function createMockItem(overrides: Partial<ItemData> = {}): ItemData {
     title: 'Test Item',
     suggested_title: null,
     content: 'Some content body',
-    ai_summary: null,
+    summary: null,
     ai_keywords: null,
     primary_domain: 'Corporate',
     primary_subtopic: null,

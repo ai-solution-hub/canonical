@@ -97,7 +97,7 @@ function buildQualityInput(item: UploadReviewItem): QualityScoreInput {
   return {
     freshness: 'fresh', // Just uploaded — always fresh
     classification_confidence: item.classification?.confidence ?? null,
-    ai_summary: item.aiSummary ?? null,
+    summary: item.aiSummary ?? null,
     // These are not available from the upload response
     brief: null,
     detail: null,

@@ -166,7 +166,7 @@ describe('Classification skill file', () => {
 
   it('contains summary and title guidance', () => {
     expect(skillContent).toContain('## Summary and Title Guidance');
-    expect(skillContent).toContain('ai_summary');
+    expect(skillContent).toContain('summary');
     expect(skillContent).toContain('suggested_title');
   });
 

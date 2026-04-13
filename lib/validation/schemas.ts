@@ -223,7 +223,7 @@ export const ItemUpdateBodySchema = z
       'primary_subtopic',
       'secondary_domain',
       'secondary_subtopic',
-      'ai_summary',
+      'summary',
       'author_name',
       'content_type',
       'platform',
@@ -389,7 +389,7 @@ export const EDITABLE_FIELDS = new Set([
   'primary_subtopic',
   'secondary_domain',
   'secondary_subtopic',
-  'ai_summary',
+  'summary',
   'author_name',
   'content_type',
   'platform',
@@ -412,7 +412,7 @@ export type EditableField =
   | 'primary_subtopic'
   | 'secondary_domain'
   | 'secondary_subtopic'
-  | 'ai_summary'
+  | 'summary'
   | 'author_name'
   | 'content_type'
   | 'platform'

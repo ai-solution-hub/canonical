@@ -95,7 +95,7 @@ describe('classify route — topic inference wiring', () => {
       primary_domain: 'security',
       primary_subtopic: 'certifications',
       ai_keywords: ['ISO 27001'],
-      ai_summary: 'Test summary',
+      summary: 'Test summary',
       suggested_title: 'Test title',
       classification_confidence: 0.95,
       classification_reasoning: 'Test reasoning',

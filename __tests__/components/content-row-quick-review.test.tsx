@@ -138,7 +138,7 @@ function makeContentItem(
     id: 'row-1',
     title: 'Default Row Title',
     suggested_title: null,
-    ai_summary: 'A summary.',
+    summary: 'A summary.',
     primary_domain: 'Corporate',
     primary_subtopic: 'Company History',
     content_type: 'article',

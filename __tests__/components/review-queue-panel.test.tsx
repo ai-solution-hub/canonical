@@ -48,7 +48,7 @@ function makeItem(
     id,
     title: `Item ${id}`,
     suggested_title: null,
-    ai_summary: null,
+    summary: null,
     primary_domain: 'Technology',
     primary_subtopic: null,
     content_type: 'article',

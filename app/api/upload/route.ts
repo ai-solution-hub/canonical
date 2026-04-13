@@ -699,7 +699,7 @@ export async function POST(request: NextRequest) {
         const { data: latestItem } = await serviceClient
           .from('content_items')
           .select(
-            'freshness, classification_confidence, brief, detail, reference, ai_summary, citation_count',
+            'freshness, classification_confidence, brief, detail, reference, summary, citation_count',
           )
           .eq('id', itemId)
           .single();
@@ -711,7 +711,7 @@ export async function POST(request: NextRequest) {
             brief: latestItem.brief,
             detail: latestItem.detail,
             reference: latestItem.reference,
-            ai_summary: latestItem.ai_summary,
+            summary: latestItem.summary,
             citation_count: latestItem.citation_count ?? 0,
           });
 
@@ -946,7 +946,7 @@ export async function POST(request: NextRequest) {
         const { data: processedItem } = await serviceClient
           .from('content_items')
           .select(
-            'primary_domain, primary_subtopic, ai_summary, classification_confidence, quality_score, content_type',
+            'primary_domain, primary_subtopic, summary, classification_confidence, quality_score, content_type',
           )
           .eq('id', itemId)
           .single();
@@ -959,7 +959,7 @@ export async function POST(request: NextRequest) {
               confidence: processedItem.classification_confidence,
             };
           }
-          aiSummary = processedItem.ai_summary ?? undefined;
+          aiSummary = processedItem.summary ?? undefined;
           qualityScore = processedItem.quality_score ?? undefined;
         }
       } catch (enrichErr) {
@@ -979,7 +979,7 @@ export async function POST(request: NextRequest) {
       pipeline_run_id: pipelineRunId,
       governance_review_status: createAsDraft ? 'draft' : null,
       ...(classificationData && { classification: classificationData }),
-      ...(aiSummary !== undefined && { ai_summary: aiSummary }),
+      ...(aiSummary !== undefined && { summary: aiSummary }),
       ...(qualityScore !== undefined && { quality_score: qualityScore }),
       ...(sourceDocumentId && { source_document_id: sourceDocumentId }),
       ...(reuploadInfo && {

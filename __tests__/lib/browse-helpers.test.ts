@@ -13,7 +13,7 @@ function makeItem(overrides: Partial<ContentListItem> = {}): ContentListItem {
     id: 'abc-123',
     title: 'Test Item',
     suggested_title: null,
-    ai_summary: null,
+    summary: null,
     primary_domain: 'Technology',
     primary_subtopic: null,
     content_type: 'article',

@@ -34,7 +34,7 @@ function createItem(overrides: Record<string, unknown> = {}) {
     id: 'item-1',
     title: 'Test Article',
     content: 'Some content',
-    ai_summary: null as string | null,
+    summary: null as string | null,
     classified_at: null as string | null,
     primary_domain: null,
     primary_subtopic: null,
@@ -69,7 +69,7 @@ describe('AiProcessingIndicators', () => {
   it('returns null when both classified and has summary', () => {
     const item = createItem({
       classified_at: '2026-01-01T00:00:00Z',
-      ai_summary: 'A summary',
+      summary: 'A summary',
     });
     const { container } = render(
       <AiProcessingIndicators item={item as never} onItemUpdated={vi.fn()} />,
@@ -79,7 +79,7 @@ describe('AiProcessingIndicators', () => {
   });
 
   it('shows "Classification pending" when not classified', () => {
-    const item = createItem({ ai_summary: 'Has summary' });
+    const item = createItem({ summary: 'Has summary' });
 
     render(
       <AiProcessingIndicators item={item as never} onItemUpdated={vi.fn()} />,
@@ -111,7 +111,7 @@ describe('AiProcessingIndicators', () => {
     });
 
     const onItemUpdated = vi.fn();
-    const item = createItem({ ai_summary: 'Has summary' });
+    const item = createItem({ summary: 'Has summary' });
 
     render(
       <AiProcessingIndicators
@@ -139,12 +139,12 @@ describe('AiProcessingIndicators', () => {
           primary_domain: 'Technical',
           primary_subtopic: 'Infrastructure',
           ai_keywords: ['infra'],
-          ai_summary: 'Tech summary',
+          summary: 'Tech summary',
         }),
     });
 
     const onItemUpdated = vi.fn();
-    const item = createItem({ ai_summary: 'Has summary' });
+    const item = createItem({ summary: 'Has summary' });
 
     render(
       <AiProcessingIndicators
@@ -168,7 +168,7 @@ describe('AiProcessingIndicators', () => {
       json: () => Promise.resolve({ error: 'Rate limit exceeded' }),
     });
 
-    const item = createItem({ ai_summary: 'Has summary' });
+    const item = createItem({ summary: 'Has summary' });
 
     render(
       <AiProcessingIndicators item={item as never} onItemUpdated={vi.fn()} />,

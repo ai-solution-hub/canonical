@@ -24,7 +24,7 @@ const base: ClassificationResult = {
   secondary_domain: null,
   secondary_subtopic: null,
   ai_keywords: ['funding', 'schools'],
-  ai_summary: 'A brief summary.',
+  summary: 'A brief summary.',
   classification_confidence: 0.87,
   classification_reasoning: 'Because reasons.',
   entities: [],

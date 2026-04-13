@@ -8,7 +8,7 @@
  *   Evaluated against structured summary_data (executive + detailed + takeaways)
  *
  * Tier 2 (Short-Form): q_a_pair, certification, product_description, and all others
- *   Evaluated against ai_summary only (plain text)
+ *   Evaluated against summary only (plain text)
  *
  * Metrics:
  *   Tier 1: ROUGE-L/1 executive+detailed, structural compliance, length compliance, takeaway count
@@ -77,7 +77,7 @@ interface SummaryData {
 interface DbRow {
   id: string;
   summary_data: SummaryData | null;
-  ai_summary: string | null;
+  summary: string | null;
 }
 
 interface ItemScore {
@@ -136,7 +136,7 @@ async function fetchSummaries(
 ): Promise<Map<string, DbRow>> {
   const { data, error } = await supabase
     .from('content_items')
-    .select('id, summary_data, ai_summary')
+    .select('id, summary_data, summary')
     .in('id', itemIds);
 
   if (error) {
@@ -218,7 +218,7 @@ function scoreTier1(gold: GoldItem, db: DbRow, details: string[]): ItemScore {
   }
 
   // Get text for ROUGE comparison
-  const aiExecutive = summary?.executive ?? db.ai_summary ?? '';
+  const aiExecutive = summary?.executive ?? db.summary ?? '';
   const aiDetailed = summary?.detailed ?? '';
 
   // ROUGE scores
@@ -266,22 +266,22 @@ function scoreTier1(gold: GoldItem, db: DbRow, details: string[]): ItemScore {
 }
 
 function scoreTier2(gold: GoldItem, db: DbRow, details: string[]): ItemScore {
-  const aiSummary = db.ai_summary ?? '';
+  const aiSummary = db.summary ?? '';
 
   // Non-empty check
   const nonEmpty = aiSummary.trim().length > 0;
   if (!nonEmpty) {
-    details.push('ai_summary is empty or null');
+    details.push('summary is empty or null');
   }
 
   // Length appropriateness: 8-350 chars
   const len = aiSummary.length;
   const lengthAppropriate = len >= 8 && len <= 350;
   if (!lengthAppropriate && nonEmpty) {
-    details.push(`ai_summary length: ${len} chars (expected 8-350)`);
+    details.push(`summary length: ${len} chars (expected 8-350)`);
   }
 
-  // ROUGE-L and ROUGE-1: ai_summary vs reference_executive
+  // ROUGE-L and ROUGE-1: summary vs reference_executive
   const rlExec = rougeL(aiSummary, gold.reference_executive);
   const r1Exec = rouge1(aiSummary, gold.reference_executive);
 
@@ -435,7 +435,7 @@ async function main() {
 
       // Executive summary pair
       const summary = parseSummaryData(db.summary_data);
-      const candidateExec = summary?.executive ?? db.ai_summary ?? '';
+      const candidateExec = summary?.executive ?? db.summary ?? '';
       if (candidateExec && gold.reference_executive) {
         execPairs.push({ candidate: candidateExec, reference: gold.reference_executive });
         execIndices.push(i);

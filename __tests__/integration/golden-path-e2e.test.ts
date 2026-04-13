@@ -82,7 +82,7 @@ function createIsoClassificationResult(
     secondary_domain: 'compliance',
     secondary_subtopic: 'audit',
     ai_keywords: ['iso 27001', 'information security', 'certification'],
-    ai_summary:
+    summary:
       'Organisation holds ISO 27001:2022 certification with BSI, valid until March 2028.',
     suggested_title: 'ISO 27001 Information Security Certification',
     classification_confidence: 0.95,
@@ -138,7 +138,7 @@ function createMultiEntityClassificationResult(): ClassificationResult {
     secondary_domain: 'compliance',
     secondary_subtopic: 'audit',
     ai_keywords: ['iso 27001', 'iso 9001', 'cyber essentials plus'],
-    ai_summary:
+    summary:
       'Organisation holds three certifications: ISO 27001, ISO 9001, and Cyber Essentials Plus.',
     suggested_title: 'Certification Portfolio Overview',
     classification_confidence: 0.92,
@@ -197,7 +197,7 @@ function createNoEntityClassificationResult(): ClassificationResult {
     secondary_domain: null,
     secondary_subtopic: null,
     ai_keywords: ['technology company', 'public sector', 'digital services'],
-    ai_summary:
+    summary:
       'UK-based technology company providing digital services to the public sector.',
     suggested_title: 'Company Overview',
     classification_confidence: 0.88,
@@ -316,7 +316,7 @@ async function simulateClassificationFlow(
     secondary_domain: classificationResult.secondary_domain ?? null,
     secondary_subtopic: classificationResult.secondary_subtopic ?? null,
     ai_keywords: classificationResult.ai_keywords,
-    ai_summary: classificationResult.ai_summary,
+    summary: classificationResult.summary,
     suggested_title: classificationResult.suggested_title,
     classification_confidence: classificationResult.classification_confidence,
     classification_reasoning: classificationResult.classification_reasoning,
@@ -849,7 +849,7 @@ describe('GP7: MCP search finds classified content', () => {
         content_type: classifiedItem.content_type,
         primary_domain: classifiedItem.primary_domain,
         similarity: 0.87,
-        ai_summary: classifiedItem.ai_summary,
+        summary: classifiedItem.summary,
       },
     ];
     mockSupabase.rpc.mockResolvedValueOnce({

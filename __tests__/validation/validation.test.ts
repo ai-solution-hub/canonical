@@ -16,7 +16,7 @@ describe('validateEditableField', () => {
       'primary_subtopic',
       'secondary_domain',
       'secondary_subtopic',
-      'ai_summary',
+      'summary',
       'author_name',
       'content_type',
       'platform',

@@ -53,7 +53,7 @@ export interface DraftableQuestion {
 /** Content item shape needed for drafting (with full text) */
 export interface DraftableContent extends CitationSourceItem {
   content_type: string | null;
-  ai_summary: string | null;
+  summary: string | null;
 }
 
 /** Result from the full drafting pipeline */
@@ -147,7 +147,7 @@ Use UK English throughout.`,
 Word limit: ${question.word_limit ?? 'No limit specified'}
 Section: ${question.section_name ?? 'Not specified'}
 Available KB content summaries:
-${matchedContent.map((c, i) => `${i + 1}. [${c.content_type}] ${c.title}: ${c.ai_summary}`).join('\n')}`,
+${matchedContent.map((c, i) => `${i + 1}. [${c.content_type}] ${c.title}: ${c.summary}`).join('\n')}`,
       },
     ],
     output_config: {

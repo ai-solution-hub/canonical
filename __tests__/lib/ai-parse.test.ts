@@ -148,7 +148,7 @@ describe('extractToolResult', () => {
   it('should return the input object with correct structure', () => {
     const input = {
       suggested_title: 'How to Build AI Agents',
-      ai_summary: 'A guide to building autonomous AI agents.',
+      summary: 'A guide to building autonomous AI agents.',
       ai_keywords: ['AI', 'agents', 'autonomy'],
       primary_domain: 'SECURITY',
       primary_subtopic: 'AI Agents & Autonomy',

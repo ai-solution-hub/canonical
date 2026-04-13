@@ -51,7 +51,7 @@ function createRelatedItem(
     priority: null,
     created_at: '2026-01-01',
     updated_at: '2026-01-01',
-    ai_summary: null,
+    summary: null,
     user_tags: [],
     ai_keywords: [],
     governance_review_status: null,

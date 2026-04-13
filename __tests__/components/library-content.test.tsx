@@ -181,7 +181,7 @@ function createQAItem(
     id: overrides.id ?? 'item-1',
     title: overrides.title ?? 'What is our approach?',
     suggested_title: null,
-    ai_summary: null,
+    summary: null,
     primary_domain: 'Corporate',
     primary_subtopic: 'Company History',
     content_type: 'q_a_pair',

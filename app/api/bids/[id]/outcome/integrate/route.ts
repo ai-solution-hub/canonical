@@ -172,7 +172,7 @@ export async function POST(
             source_url: null,
             embedding: JSON.stringify(embedding),
             primary_domain: (bidMetadata.domain as string) ?? null,
-            ai_summary: `Response to bid question: ${questionText.slice(0, 200)}`,
+            summary: `Response to bid question: ${questionText.slice(0, 200)}`,
             captured_date: new Date().toISOString(),
             created_by: user.id,
             metadata: {
@@ -215,7 +215,7 @@ export async function POST(
           .from('content_items')
           .update({
             content: responseText,
-            ai_summary: `Updated from winning bid response: ${questionText.slice(0, 150)}`,
+            summary: `Updated from winning bid response: ${questionText.slice(0, 150)}`,
             updated_by: user.id,
             updated_at: new Date().toISOString(),
           })

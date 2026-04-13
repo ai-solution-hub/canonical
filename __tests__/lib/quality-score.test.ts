@@ -16,7 +16,7 @@ describe('calculateQualityScore', () => {
       brief: 'Brief text',
       detail: 'Detail text',
       reference: 'Reference text',
-      ai_summary: 'Summary text',
+      summary: 'Summary text',
       citation_count: 5, // 5 * 20 = 100, capped at 100
     };
     const result = calculateQualityScore(input);
@@ -36,7 +36,7 @@ describe('calculateQualityScore', () => {
       brief: null,
       detail: null,
       reference: null,
-      ai_summary: null,
+      summary: null,
       citation_count: 0,
     };
     const result = calculateQualityScore(input);
@@ -83,8 +83,8 @@ describe('calculateQualityScore', () => {
     expect(result.components.completeness).toBe(0);
   });
 
-  it('handles whitespace-only ai_summary as no summary', () => {
-    const result = calculateQualityScore({ ai_summary: '  ' });
+  it('handles whitespace-only summary as no summary', () => {
+    const result = calculateQualityScore({ summary: '  ' });
     expect(result.components.summary).toBe(0);
   });
 
@@ -188,7 +188,7 @@ describe('calculateQualityScore', () => {
       brief: null,
       detail: null,
       reference: null,
-      ai_summary: null,
+      summary: null,
       citation_count: 3, // 3*20=60, 60*0.15=9
     });
     // 30 + 20 + 0 + 0 + 9 = 59
@@ -203,7 +203,7 @@ describe('calculateQualityScore', () => {
       brief: 'a',
       detail: 'b',
       reference: 'c',
-      ai_summary: 'Summary',
+      summary: 'Summary',
       citation_count: 0,
     });
     // 30 + 20 + 20 + 15 + 0 = 85
@@ -218,7 +218,7 @@ describe('calculateQualityScore', () => {
       brief: null,
       detail: null,
       reference: null,
-      ai_summary: null,
+      summary: null,
       citation_count: 0,
     });
     // 30 + 10 + 0 + 0 + 0 = 40
@@ -233,7 +233,7 @@ describe('calculateQualityScore', () => {
       brief: null,
       detail: null,
       reference: null,
-      ai_summary: null,
+      summary: null,
       citation_count: 0,
     });
     // 9 + 20 + 0 + 0 + 0 = 29
@@ -248,7 +248,7 @@ describe('calculateQualityScore', () => {
       brief: null,
       detail: null,
       reference: null,
-      ai_summary: null,
+      summary: null,
       citation_count: 0,
     });
     // 0 + 20 + 0 + 0 + 0 = 20
@@ -263,7 +263,7 @@ describe('calculateQualityScore', () => {
       brief: null,
       detail: null,
       reference: null,
-      ai_summary: null,
+      summary: null,
       citation_count: 0,
     });
     // 0 + 10 + 0 + 0 + 0 = 10
@@ -282,7 +282,7 @@ describe('calculateQualityScore', () => {
       brief: 'Brief content',
       detail: null,
       reference: 'Reference content',
-      ai_summary: 'AI generated summary',
+      summary: 'AI generated summary',
       citation_count: 1,
     };
     const result = calculateQualityScore(input);
@@ -305,7 +305,7 @@ describe('calculateQualityScore', () => {
       freshness: 'fresh',
       classification_confidence: 0.85,
       brief: 'A brief summary',
-      ai_summary: 'An AI-generated summary of the content',
+      summary: 'An AI-generated summary of the content',
       citation_count: 0,
     });
     // freshness: 30, confidence: 17, completeness: 6.67, summary: 15, citations: 0

@@ -75,7 +75,7 @@ function createResult(overrides: Partial<SearchResult> = {}): SearchResult {
     id: 'item-1',
     title: 'Test Article',
     suggested_title: null,
-    ai_summary: 'A summary of the article.',
+    summary: 'A summary of the article.',
     primary_domain: 'Corporate',
     primary_subtopic: 'Company History',
     content_type: 'article',

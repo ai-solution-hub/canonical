@@ -67,7 +67,7 @@ function configureItemFetch(overrides: Record<string, unknown> = {}) {
       secondary_domain: null,
       secondary_subtopic: null,
       priority: null,
-      ai_summary: null,
+      summary: null,
       content_type: 'article',
       platform: 'web',
       author_name: null,

@@ -102,7 +102,7 @@ function createItem(overrides: Partial<ItemData> = {}): ItemData {
     title: 'Test',
     suggested_title: null,
     content: null,
-    ai_summary: null,
+    summary: null,
     ai_keywords: null,
     primary_domain: 'Corporate',
     primary_subtopic: 'Topic',

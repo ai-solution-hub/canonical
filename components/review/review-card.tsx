@@ -238,7 +238,7 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
         </CardHeader>
 
         {/* Context summary — at-a-glance info */}
-        {(item.ai_summary || sourceFile || item.captured_date) && (
+        {(item.summary || sourceFile || item.captured_date) && (
           <div className="mx-6 mb-2 rounded-lg border bg-muted/30 px-4 py-3">
             {item.governance_review_status === 'pending' && (
               <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-governance-pending">
@@ -246,9 +246,9 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
                 Governance review pending
               </div>
             )}
-            {item.ai_summary && (
+            {item.summary && (
               <p className="line-clamp-2 text-sm text-muted-foreground">
-                {item.ai_summary}
+                {item.summary}
               </p>
             )}
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">

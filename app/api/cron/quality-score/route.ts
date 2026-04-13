@@ -42,7 +42,7 @@ interface ContentItemRow {
   brief: string | null;
   detail: string | null;
   reference: string | null;
-  ai_summary: string | null;
+  summary: string | null;
   metadata: Record<string, unknown> | null;
   quality_score: number | null;
   governance_review_status: string | null;
@@ -142,7 +142,7 @@ export async function GET(request: NextRequest) {
       const { data: items, error: fetchError } = await supabase
         .from('content_items')
         .select(
-          'id, title, primary_domain, freshness, classification_confidence, brief, detail, reference, ai_summary, metadata, quality_score, governance_review_status, verified_at, citation_count',
+          'id, title, primary_domain, freshness, classification_confidence, brief, detail, reference, summary, metadata, quality_score, governance_review_status, verified_at, citation_count',
         )
         .is('archived_at', null)
         .order('id', { ascending: true })
@@ -172,7 +172,7 @@ export async function GET(request: NextRequest) {
           brief: item.brief,
           detail: item.detail,
           reference: item.reference,
-          ai_summary: item.ai_summary,
+          summary: item.summary,
           citation_count: item.citation_count ?? 0,
         });
 

@@ -221,7 +221,7 @@ def build_content_record(pair: dict, batch_name: str) -> dict:
     # Build a concise title from the question (word-boundary-aware)
     title = truncate_at_word_boundary(pair["question_text"], 120)
 
-    # Build ai_summary from answer text (word-boundary-aware)
+    # Build summary from answer text (word-boundary-aware)
     answer_text = ""
     if pair.get("answer_standard"):
         answer_text = pair["answer_standard"]
@@ -230,7 +230,7 @@ def build_content_record(pair: dict, batch_name: str) -> dict:
             answer_text += "\n" + pair["answer_advanced"]
         else:
             answer_text = pair["answer_advanced"]
-    ai_summary = truncate_at_word_boundary(answer_text, 200)
+    summary = truncate_at_word_boundary(answer_text, 200)
 
     # Generate descriptive keywords from the question + answer text
     keywords = extract_keywords(
@@ -255,7 +255,7 @@ def build_content_record(pair: dict, batch_name: str) -> dict:
         "secondary_subtopic": pair.get("secondary_subtopic", ""),
         "classification_confidence": pair.get("classification_confidence", 0.0),
         "classified_at": datetime.now(timezone.utc).isoformat(),
-        "ai_summary": ai_summary,
+        "summary": summary,
         "ai_keywords": keywords,
         "source_file": pair.get("source_file", "") or None,
         "metadata": {
@@ -537,7 +537,7 @@ def main():
 
                     embed_text = build_embedding_text(
                         title=pair["question_text"][:120],
-                        ai_summary=answer_text[:500],
+                        summary=answer_text[:500],
                         content=answer_text,
                         content_type="q_a_pair",
                     )

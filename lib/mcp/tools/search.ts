@@ -175,7 +175,7 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
             content_type: r.content_type as string | null,
             primary_domain: r.primary_domain as string | null,
             primary_subtopic: r.primary_subtopic as string | null,
-            ai_summary: r.ai_summary as string | null,
+            summary: r.summary as string | null,
             similarity: r.similarity as number,
           }),
         );
@@ -286,7 +286,7 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
           content_type: r.content_type as string | null,
           primary_domain: r.primary_domain as string | null,
           primary_subtopic: r.primary_subtopic as string | null,
-          ai_summary: r.ai_summary as string | null,
+          summary: r.summary as string | null,
           similarity: r.similarity as number,
         }));
 

@@ -129,7 +129,7 @@ const sampleContentItem: ContentItemDetail = {
   content_type: 'certification',
   primary_domain: 'Compliance & Governance',
   primary_subtopic: 'ISO Standards',
-  ai_summary: 'Summary of ISO 27001 certification',
+  summary: 'Summary of ISO 27001 certification',
   ai_keywords: ['ISO 27001', 'information security'],
   freshness: 'fresh',
   classification_confidence: 0.92,

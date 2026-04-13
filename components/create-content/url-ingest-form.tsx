@@ -38,7 +38,7 @@ interface IngestResult {
   content_type: string;
   primary_domain?: string;
   primary_subtopic?: string;
-  ai_summary?: string;
+  summary?: string;
   content_length: number;
   warnings: string[];
   duplicate_matches: DedupMatch[];

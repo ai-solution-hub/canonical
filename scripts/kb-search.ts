@@ -93,7 +93,7 @@ interface SearchResult {
   id: string;
   title: string | null;
   suggested_title: string | null;
-  ai_summary: string | null;
+  summary: string | null;
   primary_domain: string | null;
   primary_subtopic: string | null;
   content_type: string | null;
@@ -361,8 +361,8 @@ async function main(): Promise<void> {
       const summary = summaryMap.get(r.id);
       if (summary?.executive) {
         console.log(`      Summary: ${truncate(summary.executive, 120)}`);
-      } else if (r.ai_summary) {
-        console.log(`      Summary: ${truncate(r.ai_summary, 120)}`);
+      } else if (r.summary) {
+        console.log(`      Summary: ${truncate(r.summary, 120)}`);
       }
     }
 

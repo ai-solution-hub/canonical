@@ -129,7 +129,7 @@ describe('GET /api/review/queue', () => {
         id: VALID_UUID,
         title: 'Test Item',
         suggested_title: 'Test Item',
-        ai_summary: 'A summary',
+        summary: 'A summary',
         primary_domain: 'Technology',
         primary_subtopic: 'AI',
         secondary_domain: null,

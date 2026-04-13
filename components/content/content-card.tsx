@@ -50,7 +50,7 @@ function qualityScoreForItem(item: ContentListItem | SearchResult) {
     classification_confidence: item.classification_confidence,
     brief: item.brief,
     // detail + reference are not fetched for list views — omitted intentionally
-    ai_summary: item.ai_summary,
+    summary: item.summary,
     citation_count: item.citation_count ?? 0,
   });
 }
@@ -197,10 +197,10 @@ function SummaryPreview({
       </p>
     );
   }
-  if (item.brief || item.ai_summary) {
+  if (item.brief || item.summary) {
     return (
       <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-        {renderText(item.brief || item.ai_summary || '')}
+        {renderText(item.brief || item.summary || '')}
       </p>
     );
   }
@@ -409,7 +409,7 @@ export const ContentCard = memo(function ContentCard({
   const shouldHideThumbnail = isCompactType || hideThumbnail;
 
   const answerPreview = isQAPair
-    ? item.content || item.brief || item.ai_summary || null
+    ? item.content || item.brief || item.summary || null
     : null;
   const sourceDocument = isQAPair ? item.source_document : null;
   const verifiedByName = item.verified_by

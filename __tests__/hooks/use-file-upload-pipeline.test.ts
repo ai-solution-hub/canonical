@@ -58,7 +58,7 @@ function successResponse(overrides: Record<string, unknown> = {}) {
         subtopic: 'ISO Standards',
         confidence: 0.92,
       },
-      ai_summary: 'A test summary of the document.',
+      summary: 'A test summary of the document.',
       quality_score: 72,
       ...overrides,
     }),
@@ -774,7 +774,7 @@ describe('useFileUploadPipeline', () => {
 
     it('stores AI summary from the API response', async () => {
       mockFetch.mockResolvedValue(
-        successResponse({ ai_summary: 'A detailed summary of the document.' }),
+        successResponse({ summary: 'A detailed summary of the document.' }),
       );
       const { result } = renderUploadHook();
 

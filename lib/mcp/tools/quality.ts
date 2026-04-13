@@ -385,7 +385,7 @@ export async function registerQualityTools(server: McpServer): Promise<void> {
           content_type: string | null;
           primary_domain: string | null;
           content_length: number;
-          ai_summary: string | null;
+          summary: string | null;
           ai_keywords: string[] | null;
           classification_confidence: number | null;
           freshness: string | null;
@@ -425,7 +425,7 @@ export async function registerQualityTools(server: McpServer): Promise<void> {
             row.classification_confidence < 0.6
           )
             issues.push('low_confidence');
-          if (!row.ai_summary) issues.push('missing_summary');
+          if (!row.summary) issues.push('missing_summary');
           if (!row.ai_keywords || row.ai_keywords.length === 0)
             issues.push('missing_keywords');
           if (!row.primary_domain) issues.push('no_domain');

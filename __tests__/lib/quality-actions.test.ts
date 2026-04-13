@@ -26,7 +26,7 @@ function makeItem(
     primary_subtopic: 'Company History',
     freshness: 'fresh',
     classification_confidence: 0.9,
-    ai_summary:
+    summary:
       'A comprehensive summary of the content that is long enough to pass the threshold check easily.',
     brief: 'Brief content here',
     detail: 'Detailed content here',
@@ -154,8 +154,8 @@ describe('suggestQualityActions', () => {
   // Missing summary actions
   // -------------------------------------------------------------------------
 
-  it('suggests generate summary for item without ai_summary', () => {
-    const item = makeItem({ id: 'no-summary', ai_summary: null });
+  it('suggests generate summary for item without summary', () => {
+    const item = makeItem({ id: 'no-summary', summary: null });
     const actions = suggestQualityActions([item]);
     const summaryActions = actions.filter(
       (a) => a.category === 'summary' && a.action.includes('Generate'),
@@ -166,9 +166,9 @@ describe('suggestQualityActions', () => {
     expect(summaryActions[0].estimatedScoreImpact).toBe(15);
   });
 
-  it('does not suggest generate summary when ai_summary exists', () => {
+  it('does not suggest generate summary when summary exists', () => {
     const item = makeItem({
-      ai_summary: 'This is a long enough summary to exceed the threshold.',
+      summary: 'This is a long enough summary to exceed the threshold.',
     });
     const actions = suggestQualityActions([item]);
     const generateActions = actions.filter(
@@ -184,7 +184,7 @@ describe('suggestQualityActions', () => {
   it('suggests improve summary for very short summary', () => {
     const item = makeItem({
       id: 'short-summary',
-      ai_summary: 'Brief.',
+      summary: 'Brief.',
     });
     const actions = suggestQualityActions([item]);
     const improveActions = actions.filter(
@@ -198,7 +198,7 @@ describe('suggestQualityActions', () => {
 
   it('does not suggest improve summary for adequately long summary', () => {
     const item = makeItem({
-      ai_summary:
+      summary:
         'This is a summary that is clearly over fifty characters in total length.',
     });
     const actions = suggestQualityActions([item]);
@@ -365,7 +365,7 @@ describe('suggestQualityActions', () => {
       id: 'multi-issue',
       freshness: 'expired',
       classification_confidence: 0.2,
-      ai_summary: null,
+      summary: null,
       brief: 'Brief only',
       detail: null,
       reference: null,
@@ -431,7 +431,7 @@ describe('suggestQualityActions', () => {
         id: 'low-impact-high',
         classification_confidence: 0.2,
         freshness: 'fresh', // no freshness issue
-        ai_summary: null, // missing summary (also high priority)
+        summary: null, // missing summary (also high priority)
       }),
       makeItem({
         id: 'high-impact-high',
@@ -459,7 +459,7 @@ describe('suggestQualityActions', () => {
     const item = makeItem({
       freshness: 'expired',
       classification_confidence: 0.1,
-      ai_summary: null,
+      summary: null,
       citation_count: 0,
       metadata: { citation_count: 0 },
       content_type: 'article',
@@ -485,7 +485,7 @@ describe('suggestQualityActions', () => {
   it('handles multiple items and returns actions for all', () => {
     const items = [
       makeItem({ id: 'item-a', freshness: 'expired' }),
-      makeItem({ id: 'item-b', ai_summary: null }),
+      makeItem({ id: 'item-b', summary: null }),
       makeItem({ id: 'item-c', classification_confidence: 0.2 }),
     ];
     const actions = suggestQualityActions(items);
@@ -681,7 +681,7 @@ describe('suggestQualityActions', () => {
       previous_quality_score: 50,
       quality_score: 30,
       freshness: 'expired', // also generates a high-priority action
-      ai_summary: null, // also generates a high-priority action
+      summary: null, // also generates a high-priority action
     });
     const actions = suggestQualityActions([item], { threshold: 40 });
 
@@ -698,7 +698,7 @@ describe('suggestQualityActions', () => {
     const item = makeItem({
       id: 'multi-issue',
       freshness: 'expired',
-      ai_summary: null,
+      summary: null,
       content_owner_id: null,
     });
     const actions = suggestQualityActions([item], { deduplicateByItem: false });
@@ -710,7 +710,7 @@ describe('suggestQualityActions', () => {
     const item = makeItem({
       id: 'multi-issue',
       freshness: 'expired', // high priority
-      ai_summary: null, // high priority
+      summary: null, // high priority
       content_owner_id: null, // medium priority
       source_url: null, // low priority
     });
@@ -725,7 +725,7 @@ describe('suggestQualityActions', () => {
       makeItem({
         id: 'item-a',
         freshness: 'expired',
-        ai_summary: null,
+        summary: null,
       }),
       makeItem({
         id: 'item-b',
@@ -744,7 +744,7 @@ describe('suggestQualityActions', () => {
     const item = makeItem({
       id: 'multi-issue',
       freshness: 'expired',
-      ai_summary: null,
+      summary: null,
     });
     // No deduplicateByItem option
     const actions = suggestQualityActions([item]);
@@ -811,7 +811,7 @@ describe('getTopQualityActions', () => {
         primary_subtopic: null,
         freshness: 'expired',
         classification_confidence: 0.9,
-        ai_summary: 'Summary text that is long enough.',
+        summary: 'Summary text that is long enough.',
         brief: 'Brief',
         detail: 'Detail',
         reference: 'Reference',
@@ -854,7 +854,7 @@ describe('getTopQualityActions', () => {
       primary_subtopic: null,
       freshness: 'expired',
       classification_confidence: 0.3,
-      ai_summary: null,
+      summary: null,
       brief: null,
       detail: null,
       reference: null,
@@ -886,7 +886,7 @@ describe('getTopQualityActions', () => {
         primary_subtopic: null,
         freshness: 'expired',
         classification_confidence: 0.9,
-        ai_summary:
+        summary:
           'A comprehensive summary of the content that is long enough.',
         brief: 'Brief',
         detail: 'Detail',

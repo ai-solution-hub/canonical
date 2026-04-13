@@ -116,7 +116,7 @@ export function ReaderView({
       summaryData={item.summary_data ?? null}
       contentType={item.content_type as string}
       content={item.content}
-      aiSummary={item.ai_summary}
+      aiSummary={item.summary}
       brief={item.brief}
       detail={item.detail}
       reference={item.reference}

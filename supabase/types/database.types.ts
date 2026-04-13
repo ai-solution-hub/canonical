@@ -401,7 +401,6 @@ export type Database = {
       content_items: {
         Row: {
           ai_keywords: string[] | null
-          ai_summary: string | null
           answer_advanced: string | null
           answer_standard: string | null
           archive_reason: string | null
@@ -454,6 +453,7 @@ export type Database = {
           source_url: string | null
           starred: boolean
           suggested_title: string | null
+          summary: string | null
           summary_data: Json | null
           thumbnail_url: string | null
           title: string
@@ -465,7 +465,6 @@ export type Database = {
         }
         Insert: {
           ai_keywords?: string[] | null
-          ai_summary?: string | null
           answer_advanced?: string | null
           answer_standard?: string | null
           archive_reason?: string | null
@@ -518,6 +517,7 @@ export type Database = {
           source_url?: string | null
           starred?: boolean
           suggested_title?: string | null
+          summary?: string | null
           summary_data?: Json | null
           thumbnail_url?: string | null
           title: string
@@ -529,7 +529,6 @@ export type Database = {
         }
         Update: {
           ai_keywords?: string[] | null
-          ai_summary?: string | null
           answer_advanced?: string | null
           answer_standard?: string | null
           archive_reason?: string | null
@@ -582,6 +581,7 @@ export type Database = {
           source_url?: string | null
           starred?: boolean
           suggested_title?: string | null
+          summary?: string | null
           summary_data?: Json | null
           thumbnail_url?: string | null
           title?: string
@@ -2494,7 +2494,7 @@ export type Database = {
         }
         Returns: {
           ai_keywords: string[]
-          ai_summary: string
+          summary: string
           author_name: string
           captured_date: string
           classification_confidence: number
@@ -2572,7 +2572,7 @@ export type Database = {
         Args: { p_domain?: string; p_limit?: number }
         Returns: {
           ai_keywords: string[]
-          ai_summary: string
+          summary: string
           classification_confidence: number
           content_length: number
           content_type: string
@@ -3000,7 +3000,7 @@ export type Database = {
         }
         Returns: {
           ai_keywords: string[]
-          ai_summary: string
+          summary: string
           author_name: string
           captured_date: string
           classification_confidence: number
@@ -3069,7 +3069,7 @@ export type Database = {
             }
             Returns: {
               ai_keywords: string[]
-              ai_summary: string
+              summary: string
               author_name: string
               captured_date: string
               classification_confidence: number
@@ -3093,7 +3093,7 @@ export type Database = {
             }
             Returns: {
               ai_keywords: string[]
-              ai_summary: string
+              summary: string
               author_name: string
               captured_date: string
               classification_confidence: number

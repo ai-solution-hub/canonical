@@ -31,8 +31,8 @@ export function formatClassification(result: ClassificationResult): string {
     lines.push(`**Keywords:** ${result.ai_keywords.join(', ')}`);
   }
 
-  if (result.ai_summary) {
-    lines.push('', '## Summary', '', result.ai_summary);
+  if (result.summary) {
+    lines.push('', '## Summary', '', result.summary);
   }
 
   if (result.classification_reasoning) {

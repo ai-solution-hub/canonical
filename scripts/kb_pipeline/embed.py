@@ -21,14 +21,14 @@ def _get_client():
 
 def build_embedding_text(
     title: str,
-    ai_summary: str,
+    summary: str,
     content: str,
     content_type: str = "article",
     metadata: dict = None,
 ) -> str:
-    """Build text for embedding: title + ai_summary + content[:1500].
+    """Build text for embedding: title + summary + content[:1500].
 
-    For transcripts, uses title + ai_summary + chapter titles as topic outline
+    For transcripts, uses title + summary + chapter titles as topic outline
     (content is too long and the summary + chapter outline captures semantic
     range better than truncated transcript).
     """
@@ -36,8 +36,8 @@ def build_embedding_text(
 
     if title:
         parts.append(title.strip())
-    if ai_summary:
-        parts.append(ai_summary.strip())
+    if summary:
+        parts.append(summary.strip())
 
     if content_type == "other":  # Legacy: was transcript type
         # Add chapter titles as topic outline for better semantic coverage

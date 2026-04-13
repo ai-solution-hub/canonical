@@ -791,14 +791,14 @@ function renderDetailPanel(): void {
     meta.textContent = parts.join(' \u00B7 ');
     card.appendChild(meta);
 
-    if (item.ai_summary) {
+    if (item.summary) {
       const summary = createElement('div', {
         className: 'detail-item-summary',
       });
       summary.textContent =
-        item.ai_summary.length > 200
-          ? item.ai_summary.slice(0, 197) + '\u2026'
-          : item.ai_summary;
+        item.summary.length > 200
+          ? item.summary.slice(0, 197) + '\u2026'
+          : item.summary;
       card.appendChild(summary);
     }
 

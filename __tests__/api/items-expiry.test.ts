@@ -67,7 +67,7 @@ function setupSuccessfulPatch() {
       secondary_domain: null,
       secondary_subtopic: null,
       priority: 'medium',
-      ai_summary: null,
+      summary: null,
       content_type: 'article',
       platform: 'gov_uk',
       author_name: null,

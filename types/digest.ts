@@ -23,7 +23,7 @@ export interface DigestDomainSummary {
     title: string;
     content_type?: string;
     why_notable?: string;
-    ai_summary?: string | null;
+    summary?: string | null;
   }[];
   key_themes: string[];
 }

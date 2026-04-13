@@ -515,7 +515,7 @@ describe('ItemUpdateBodySchema', () => {
       'primary_subtopic',
       'secondary_domain',
       'secondary_subtopic',
-      'ai_summary',
+      'summary',
       'author_name',
       'content_type',
       'platform',
@@ -559,7 +559,7 @@ describe('ItemUpdateBodySchema', () => {
 
   it('should reject string values over 5000 characters', () => {
     const result = ItemUpdateBodySchema.safeParse({
-      field: 'ai_summary',
+      field: 'summary',
       value: 'x'.repeat(5001),
     });
     expect(result.success).toBe(false);
@@ -567,7 +567,7 @@ describe('ItemUpdateBodySchema', () => {
 
   it('should accept string values at exactly 5000 characters', () => {
     const result = ItemUpdateBodySchema.safeParse({
-      field: 'ai_summary',
+      field: 'summary',
       value: 'x'.repeat(5000),
     });
     expect(result.success).toBe(true);

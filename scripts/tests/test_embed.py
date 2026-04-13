@@ -29,7 +29,7 @@ class TestBuildEmbeddingText:
         """Title, summary, and content are joined with double newlines."""
         result = build_embedding_text(
             title="My Title",
-            ai_summary="A summary.",
+            summary="A summary.",
             content="Full content here.",
         )
         assert result == "My Title\n\nA summary.\n\nFull content here."
@@ -39,7 +39,7 @@ class TestBuildEmbeddingText:
         long_content = "z" * 2000
         result = build_embedding_text(
             title="T",
-            ai_summary="S",
+            summary="S",
             content=long_content,
             content_type="article",
         )
@@ -59,7 +59,7 @@ class TestBuildEmbeddingText:
         }
         result = build_embedding_text(
             title="Podcast Ep 1",
-            ai_summary="Summary of episode.",
+            summary="Summary of episode.",
             content="Very long transcript...",
             content_type="other",
             metadata=metadata,
@@ -72,7 +72,7 @@ class TestBuildEmbeddingText:
         """Transcript with no chapters omits content section entirely."""
         result = build_embedding_text(
             title="Podcast Ep 2",
-            ai_summary="Summary.",
+            summary="Summary.",
             content="Long transcript text...",
             content_type="other",
             metadata={},
@@ -84,7 +84,7 @@ class TestBuildEmbeddingText:
         """Empty or whitespace-only parts are omitted."""
         result = build_embedding_text(
             title="",
-            ai_summary="Just a summary.",
+            summary="Just a summary.",
             content="",
         )
         assert result == "Just a summary."
@@ -93,7 +93,7 @@ class TestBuildEmbeddingText:
         """When all inputs are empty, returns a single space."""
         result = build_embedding_text(
             title="",
-            ai_summary="",
+            summary="",
             content="",
         )
         assert result == " "
@@ -102,7 +102,7 @@ class TestBuildEmbeddingText:
         """None values for content are handled without error."""
         result = build_embedding_text(
             title=None,
-            ai_summary=None,
+            summary=None,
             content=None,
         )
         assert result == " "
@@ -111,7 +111,7 @@ class TestBuildEmbeddingText:
         """Transcript type with metadata=None omits content."""
         result = build_embedding_text(
             title="Title",
-            ai_summary="",
+            summary="",
             content="Long transcript",
             content_type="other",
             metadata=None,

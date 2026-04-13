@@ -26,7 +26,7 @@ function extractQAParts(
 
   const metadata = result.metadata as Record<string, unknown> | null;
   const question = (metadata?.question as string) ?? '';
-  const answer = result.content || result.ai_summary || result.snippet || '';
+  const answer = result.content || result.summary || result.snippet || '';
 
   return { question, answer };
 }
@@ -52,7 +52,7 @@ export function ContentLibraryResult({
   const copyText =
     isQAPair && qaParts
       ? qaParts.answer
-      : result.ai_summary || result.brief || result.snippet || '';
+      : result.summary || result.brief || result.snippet || '';
 
   const handleCopy = () => {
     if (!copyText) return;
@@ -173,7 +173,7 @@ export function ContentLibraryResult({
   }
 
   // --- GENERIC RESULT ---
-  const summary = result.ai_summary || result.brief || result.snippet || '';
+  const summary = result.summary || result.brief || result.snippet || '';
 
   return (
     <div className="rounded-lg border bg-card p-3">

@@ -74,7 +74,7 @@ function makeContentItem(
     brief: string | null;
     detail: string | null;
     reference: string | null;
-    ai_summary: string | null;
+    summary: string | null;
     metadata: Record<string, unknown> | null;
     quality_score: number | null;
     governance_review_status: string | null;
@@ -90,7 +90,7 @@ function makeContentItem(
     brief: overrides.brief ?? 'A brief summary',
     detail: overrides.detail ?? null,
     reference: overrides.reference ?? null,
-    ai_summary: overrides.ai_summary ?? 'An AI summary',
+    summary: overrides.summary ?? 'An AI summary',
     metadata: overrides.metadata ?? null,
     quality_score: overrides.quality_score ?? null,
     governance_review_status: overrides.governance_review_status ?? null,
@@ -345,7 +345,7 @@ describe('GET /api/cron/quality-score', () => {
       freshness: 'fresh',
       classification_confidence: 0.9,
       brief: 'Brief content',
-      ai_summary: 'Summary content',
+      summary: 'Summary content',
       quality_score: null,
     });
 
@@ -367,7 +367,7 @@ describe('GET /api/cron/quality-score', () => {
       brief: 'Brief content',
       detail: null,
       reference: null,
-      ai_summary: 'Summary content',
+      summary: 'Summary content',
       quality_score: 70,
     });
 
@@ -387,7 +387,7 @@ describe('GET /api/cron/quality-score', () => {
       freshness: 'expired',
       classification_confidence: 0.5,
       brief: null,
-      ai_summary: null,
+      summary: null,
       quality_score: 75,
     });
 
@@ -414,7 +414,7 @@ describe('GET /api/cron/quality-score', () => {
       freshness: 'expired',
       classification_confidence: 0.3,
       brief: null,
-      ai_summary: null,
+      summary: null,
       quality_score: 50,
     });
 
@@ -455,7 +455,7 @@ describe('GET /api/cron/quality-score', () => {
       freshness: 'expired',
       classification_confidence: 0.2,
       brief: null,
-      ai_summary: null,
+      summary: null,
       quality_score: 10,
     });
 
@@ -480,7 +480,7 @@ describe('GET /api/cron/quality-score', () => {
       freshness: 'stale',
       classification_confidence: 0.7,
       brief: 'Brief',
-      ai_summary: 'Summary',
+      summary: 'Summary',
       quality_score: 65,
     });
 
@@ -491,7 +491,7 @@ describe('GET /api/cron/quality-score', () => {
       freshness: 'stale',
       classification_confidence: 0.7,
       brief: 'Brief',
-      ai_summary: 'Summary',
+      summary: 'Summary',
       quality_score: 55,
     });
 
@@ -529,7 +529,7 @@ describe('GET /api/cron/quality-score', () => {
       freshness: 'expired',
       classification_confidence: 0.3,
       brief: null,
-      ai_summary: null,
+      summary: null,
       quality_score: 50,
     });
 
@@ -581,7 +581,7 @@ describe('GET /api/cron/quality-score', () => {
       freshness: 'expired',
       classification_confidence: 0.2,
       brief: null,
-      ai_summary: null,
+      summary: null,
       quality_score: null,
     });
 
@@ -627,7 +627,7 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
       freshness: 'expired',
       classification_confidence: 0.3,
       brief: null,
-      ai_summary: null,
+      summary: null,
       quality_score: 50,
       governance_review_status: null,
     });
@@ -686,7 +686,7 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
       freshness: 'expired',
       classification_confidence: 0.3,
       brief: null,
-      ai_summary: null,
+      summary: null,
       quality_score: 50,
       governance_review_status: null,
     });
@@ -719,7 +719,7 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
       freshness: 'expired',
       classification_confidence: 0.3,
       brief: null,
-      ai_summary: null,
+      summary: null,
       quality_score: 50,
       governance_review_status: 'draft',
     });
@@ -751,7 +751,7 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
       freshness: 'expired',
       classification_confidence: 0.3,
       brief: null,
-      ai_summary: null,
+      summary: null,
       quality_score: 50,
       governance_review_status: 'pending',
     });
@@ -783,7 +783,7 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
       freshness: 'expired',
       classification_confidence: 0.3,
       brief: null,
-      ai_summary: null,
+      summary: null,
       quality_score: 50,
       governance_review_status: 'changes_requested',
     });
@@ -819,7 +819,7 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
       freshness: 'expired',
       classification_confidence: 0.3,
       brief: null,
-      ai_summary: null,
+      summary: null,
       quality_score: 50,
       governance_review_status: null,
       verified_at: threeDaysAgo,
@@ -857,7 +857,7 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
       freshness: 'expired',
       classification_confidence: 0.3,
       brief: null,
-      ai_summary: null,
+      summary: null,
       quality_score: 50,
       governance_review_status: null,
       verified_at: tenDaysAgo,
@@ -891,7 +891,7 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
       freshness: 'expired',
       classification_confidence: 0.3,
       brief: null,
-      ai_summary: null,
+      summary: null,
       quality_score: 50,
       governance_review_status: null,
     });
@@ -941,7 +941,7 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
       freshness: 'expired',
       classification_confidence: 0.3,
       brief: null,
-      ai_summary: null,
+      summary: null,
       quality_score: 50,
       governance_review_status: null,
     });
@@ -978,7 +978,7 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
       freshness: 'expired',
       classification_confidence: 0.3,
       brief: null,
-      ai_summary: null,
+      summary: null,
       quality_score: 50,
       governance_review_status: 'approved',
     });
@@ -1013,7 +1013,7 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
         freshness: 'expired',
         classification_confidence: 0.2,
         brief: null,
-        ai_summary: null,
+        summary: null,
         quality_score: 50,
         governance_review_status: null,
       }),

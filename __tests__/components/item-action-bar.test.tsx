@@ -78,7 +78,7 @@ function createDefaultItem(): ItemActionBarProps['item'] {
     title: 'Test Item',
     suggested_title: null,
     content: 'Some content here',
-    ai_summary: null,
+    summary: null,
     ai_keywords: null,
     primary_domain: 'policy',
     primary_subtopic: null,

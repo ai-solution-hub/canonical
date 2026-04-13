@@ -369,7 +369,7 @@ export function useFileUploadPipeline(
               reuploadInfo: reuploadData,
               // Enriched data for review step
               classification: data.classification ?? undefined,
-              aiSummary: data.ai_summary ?? undefined,
+              aiSummary: data.summary ?? undefined,
               qualityScore: data.quality_score ?? undefined,
               contentType: data.content_type ?? undefined,
             },
@@ -397,7 +397,7 @@ export function useFileUploadPipeline(
           classification: data.classification as
             | { domain: string; subtopic: string; confidence: number | null }
             | undefined,
-          aiSummary: data.ai_summary as string | undefined,
+          aiSummary: data.summary as string | undefined,
           qualityScore: data.quality_score as number | undefined,
           suggestedLayer: layerData,
           warnings: (data.warnings ?? []) as string[],

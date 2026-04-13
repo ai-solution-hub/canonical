@@ -130,7 +130,7 @@ function makeItem(overrides: Partial<ContentListItem> = {}): ContentListItem {
     id: 'item-1',
     title: 'Default Article Title',
     suggested_title: null,
-    ai_summary: 'This is an AI-generated summary.',
+    summary: 'This is an AI-generated summary.',
     primary_domain: 'Corporate',
     primary_subtopic: 'Company History',
     content_type: 'article',
@@ -184,7 +184,7 @@ describe('ContentRow', () => {
       <ContentRow
         item={makeItem({
           content_type: 'article',
-          ai_summary: null,
+          summary: null,
           brief: null,
         })}
       />,
@@ -195,10 +195,10 @@ describe('ContentRow', () => {
     expect(screen.getByText('John Smith')).toBeInTheDocument();
   });
 
-  it('shows ai_summary as snippet when available for standard items', () => {
+  it('shows summary as snippet when available for standard items', () => {
     render(
       <ContentRow
-        item={makeItem({ ai_summary: 'This is an AI-generated summary.' })}
+        item={makeItem({ summary: 'This is an AI-generated summary.' })}
       />,
     );
     expect(

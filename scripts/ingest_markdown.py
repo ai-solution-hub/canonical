@@ -346,7 +346,7 @@ def process_markdown_file(
             cls.primary_subtopic,
             cls.confidence,
         )
-        log.info("             Summary: %s", cls.ai_summary[:100])
+        log.info("             Summary: %s", cls.summary[:100])
     except Exception as e:
         log.error("  [Classify] ERROR: %s", e)
         result["status"] = "error"
@@ -359,7 +359,7 @@ def process_markdown_file(
     try:
         embed_text = build_embedding_text(
             title=cls.suggested_title if cls else title,
-            ai_summary=cls.ai_summary if cls else "",
+            summary=cls.summary if cls else "",
             content=cleaned_content,
             content_type="article",
         )
@@ -434,7 +434,7 @@ def process_markdown_file(
                 "secondary_subtopic": cls.secondary_subtopic,
                 "classification_confidence": cls.confidence,
                 "suggested_title": cls.suggested_title,
-                "ai_summary": cls.ai_summary,
+                "summary": cls.summary,
                 "ai_keywords": keywords,
                 "classification_reasoning": cls.reasoning,
                 "classified_at": datetime.now(timezone.utc).isoformat(),
@@ -486,7 +486,7 @@ def process_markdown_file(
                         "model": summary_result["model"],
                         "tokens_used": summary_result["tokens_used"],
                     },
-                    "ai_summary": summary_result["executive"],
+                    "summary": summary_result["executive"],
                 })
                 log.info("             Executive: %s", summary_result["executive"][:100])
                 log.info("             Takeaways: %d items", len(summary_result["takeaways"]))

@@ -74,7 +74,7 @@ const testContent: DraftableContent[] = [
     content:
       '<p>We implement ISO 27001 controls across all systems. Data is encrypted at rest and in transit using AES-256.</p>',
     content_type: 'policy',
-    ai_summary:
+    summary:
       'Comprehensive data security policy covering ISO 27001, encryption, and access controls.',
   },
   {
@@ -83,7 +83,7 @@ const testContent: DraftableContent[] = [
     content:
       '<p>Our GDPR framework includes data mapping, DPIAs, and a dedicated Data Protection Officer.</p>',
     content_type: 'article',
-    ai_summary:
+    summary:
       'GDPR compliance framework with data mapping, impact assessments, and DPO.',
   },
 ];
@@ -367,14 +367,14 @@ describe('Bid Drafting Pipeline', () => {
           title: 'Item 3',
           content: 'Content 3',
           content_type: 'article',
-          ai_summary: 'Summary 3',
+          summary: 'Summary 3',
         },
         {
           id: 'c-004',
           title: 'Item 4',
           content: 'Content 4',
           content_type: 'article',
-          ai_summary: 'Summary 4',
+          summary: 'Summary 4',
         },
       ];
 

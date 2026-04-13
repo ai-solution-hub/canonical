@@ -1007,12 +1007,12 @@ function buildKBResultsList(results: KBSearchResult[]): HTMLElement {
     meta.appendChild(similarity);
     row.appendChild(meta);
 
-    if (item.ai_summary) {
+    if (item.summary) {
       const summary = createElement('p', { className: 'kb-result-summary' });
       summary.textContent =
-        item.ai_summary.length > 150
-          ? item.ai_summary.slice(0, 147) + '...'
-          : item.ai_summary;
+        item.summary.length > 150
+          ? item.summary.slice(0, 147) + '...'
+          : item.summary;
       row.appendChild(summary);
     }
 

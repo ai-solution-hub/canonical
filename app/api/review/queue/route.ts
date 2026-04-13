@@ -17,7 +17,7 @@ type ContentItemRow = Database['public']['Tables']['content_items']['Row'];
 
 /** Columns needed by mapToReviewQueueItem — excludes embedding, summary_data, reader_html and other large/unused fields */
 const REVIEW_COLUMNS =
-  'id, title, suggested_title, ai_summary, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, platform, author_name, source_domain, thumbnail_url, captured_date, ai_keywords, classification_confidence, quality_score, priority, user_tags, metadata, content, source_url, verified_at, verified_by, freshness, governance_review_status, created_at';
+  'id, title, suggested_title, summary, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, platform, author_name, source_domain, thumbnail_url, captured_date, ai_keywords, classification_confidence, quality_score, priority, user_tags, metadata, content, source_url, verified_at, verified_by, freshness, governance_review_status, created_at';
 
 /**
  * GET /api/review/queue — fetch content items for the review workflow.
@@ -370,7 +370,7 @@ function mapToReviewQueueItem(row: ContentItemRow): ReviewQueueItem {
     id: row.id,
     title: row.title,
     suggested_title: row.suggested_title,
-    ai_summary: row.ai_summary,
+    summary: row.summary,
     primary_domain: row.primary_domain,
     primary_subtopic: row.primary_subtopic,
     content_type: row.content_type,

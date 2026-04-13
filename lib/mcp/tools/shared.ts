@@ -181,7 +181,7 @@ export async function fetchQualityBriefingData(
   let belowThresholdQuery = supabase
     .from('content_items')
     .select(
-      'id, title, suggested_title, primary_domain, primary_subtopic, quality_score, freshness, ai_summary, classification_confidence',
+      'id, title, suggested_title, primary_domain, primary_subtopic, quality_score, freshness, summary, classification_confidence',
     )
     .is('archived_at', null)
     .not('quality_score', 'is', null)
@@ -279,7 +279,7 @@ export async function fetchQualityBriefingData(
     primary_subtopic: string | null;
     quality_score: number | null;
     freshness: string | null;
-    ai_summary: string | null;
+    summary: string | null;
     classification_confidence: number | null;
   }>) {
     if (row.quality_score == null) continue;
@@ -296,7 +296,7 @@ export async function fetchQualityBriefingData(
         primary_subtopic: row.primary_subtopic,
         quality_score: row.quality_score,
         freshness: row.freshness,
-        ai_summary: row.ai_summary,
+        summary: row.summary,
         classification_confidence: row.classification_confidence,
       });
     }

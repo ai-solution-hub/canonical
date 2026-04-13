@@ -22,7 +22,7 @@ const { mockSearch, mockSearchResults, mockIsLoading, mockError } = vi.hoisted(
         content_type: string;
         primary_domain: string | null;
         similarity: number;
-        ai_summary: string | null;
+        summary: string | null;
         metadata: Record<string, unknown> | null;
         source_document: string | null;
         [key: string]: unknown;
@@ -77,7 +77,7 @@ function createSearchResult(
     id: overrides.id ?? 'res-1',
     title: overrides.title ?? 'Test result',
     suggested_title: null,
-    ai_summary: null,
+    summary: null,
     primary_domain: overrides.primary_domain ?? 'Corporate',
     primary_subtopic: null,
     content_type: overrides.content_type ?? 'article',

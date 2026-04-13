@@ -86,7 +86,7 @@ function createItem(overrides: Partial<ItemData> = {}): ItemData {
     title: 'Test Item',
     suggested_title: 'Suggested Title',
     content: 'Test content body',
-    ai_summary: 'AI-generated summary',
+    summary: 'AI-generated summary',
     ai_keywords: ['security', 'compliance'],
     primary_domain: 'Technical',
     primary_subtopic: 'Infrastructure',

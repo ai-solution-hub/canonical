@@ -57,7 +57,7 @@ function makeReviewItem(
     id: '00000000-0000-4000-8000-000000000001',
     title: 'Test Item',
     suggested_title: 'Test Title',
-    ai_summary: 'A test summary',
+    summary: 'A test summary',
     primary_domain: 'Technology',
     primary_subtopic: 'AI',
     content_type: 'article',

@@ -359,7 +359,7 @@ describe('POST /api/ingest/url — Successful Import', () => {
         brief: null,
         detail: null,
         reference: null,
-        ai_summary: null,
+        summary: null,
         citation_count: 0,
       },
       error: null,
@@ -379,7 +379,7 @@ describe('POST /api/ingest/url — Successful Import', () => {
       data: {
         primary_domain: 'General Business',
         primary_subtopic: 'Strategy',
-        ai_summary: 'A test summary',
+        summary: 'A test summary',
       },
       error: null,
     });
@@ -536,7 +536,7 @@ describe('POST /api/ingest/url — Warnings & Edge Cases', () => {
         brief: null,
         detail: null,
         reference: null,
-        ai_summary: null,
+        summary: null,
         citation_count: 0,
       },
       error: null,
@@ -548,7 +548,7 @@ describe('POST /api/ingest/url — Warnings & Edge Cases', () => {
     });
     // maybeSingle for final fetch
     mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-      data: { primary_domain: null, primary_subtopic: null, ai_summary: null },
+      data: { primary_domain: null, primary_subtopic: null, summary: null },
       error: null,
     });
 
@@ -623,7 +623,7 @@ describe('POST /api/ingest/url — Warnings & Edge Cases', () => {
         brief: null,
         detail: null,
         reference: null,
-        ai_summary: null,
+        summary: null,
         citation_count: 0,
       },
       error: null,
@@ -635,7 +635,7 @@ describe('POST /api/ingest/url — Warnings & Edge Cases', () => {
     });
     // maybeSingle for final fetch
     mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-      data: { primary_domain: null, primary_subtopic: null, ai_summary: null },
+      data: { primary_domain: null, primary_subtopic: null, summary: null },
       error: null,
     });
 
@@ -696,7 +696,7 @@ describe('POST /api/ingest/url — Warnings & Edge Cases', () => {
         brief: null,
         detail: null,
         reference: null,
-        ai_summary: null,
+        summary: null,
         citation_count: 0,
       },
       error: null,
@@ -708,7 +708,7 @@ describe('POST /api/ingest/url — Warnings & Edge Cases', () => {
     });
     // maybeSingle for final fetch
     mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-      data: { primary_domain: null, primary_subtopic: null, ai_summary: null },
+      data: { primary_domain: null, primary_subtopic: null, summary: null },
       error: null,
     });
 
@@ -764,7 +764,7 @@ describe('POST /api/ingest/url — Topic Suggestion', () => {
         brief: null,
         detail: null,
         reference: null,
-        ai_summary: null,
+        summary: null,
         citation_count: 0,
       },
       error: null,
@@ -784,7 +784,7 @@ describe('POST /api/ingest/url — Topic Suggestion', () => {
       data: {
         primary_domain: 'General Business',
         primary_subtopic: 'Strategy',
-        ai_summary: 'A test summary',
+        summary: 'A test summary',
       },
       error: null,
     });
@@ -875,7 +875,7 @@ describe('POST /api/ingest/url — Layer Column Write', () => {
     });
     // maybeSingle for final fetch
     mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-      data: { primary_domain: null, primary_subtopic: null, ai_summary: null },
+      data: { primary_domain: null, primary_subtopic: null, summary: null },
       error: null,
     });
   });
@@ -945,7 +945,7 @@ describe('POST /api/ingest/url — Date Extraction', () => {
     });
     // maybeSingle for final fetch
     mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-      data: { primary_domain: null, primary_subtopic: null, ai_summary: null },
+      data: { primary_domain: null, primary_subtopic: null, summary: null },
       error: null,
     });
   });
@@ -1031,7 +1031,7 @@ describe('POST /api/ingest/url — Quality Score', () => {
         brief: null,
         detail: null,
         reference: null,
-        ai_summary: 'A summary',
+        summary: 'A summary',
         citation_count: 0,
       },
       error: null,
@@ -1043,7 +1043,7 @@ describe('POST /api/ingest/url — Quality Score', () => {
     });
     // maybeSingle for final fetch
     mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-      data: { primary_domain: null, primary_subtopic: null, ai_summary: null },
+      data: { primary_domain: null, primary_subtopic: null, summary: null },
       error: null,
     });
   });
@@ -1059,7 +1059,7 @@ describe('POST /api/ingest/url — Quality Score', () => {
       expect.objectContaining({
         freshness: 'fresh',
         classification_confidence: 0.85,
-        ai_summary: 'A summary',
+        summary: 'A summary',
         citation_count: 0,
       }),
     );
