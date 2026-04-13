@@ -2,9 +2,12 @@
  * Readability-based HTML text extraction.
  *
  * Uses Mozilla's Readability algorithm (via jsdom) to extract the
- * main article content from a web page. Both dependencies are
+ * main article content from a web page, then converts the cleaned
+ * HTML to markdown via Turndown. Both Readability and jsdom are
  * lazy-imported to keep serverless cold starts fast.
  */
+
+import { turndown } from '@/lib/extraction/turndown';
 
 export interface HtmlExtractionResult {
   title: string;
@@ -33,13 +36,13 @@ export async function extractFromHtml(
   const reader = new Readability(dom.window.document);
   const article = reader.parse();
 
-  if (!article || !article.textContent?.trim()) {
+  if (!article || !article.content?.trim()) {
     throw new Error('Could not extract readable content from this page');
   }
 
   return {
     title: article.title || '',
-    content: article.textContent,
+    content: turndown.turndown(article.content ?? ''),
     author: article.byline || '',
     excerpt: article.excerpt || '',
   };

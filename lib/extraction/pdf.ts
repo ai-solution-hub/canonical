@@ -25,7 +25,10 @@ export async function extractPdfText(
   const { totalPages, text } = await extractText(data, { mergePages: false });
 
   return {
-    text: (text as string[]).join('\n\n'),
+    text: (text as string[])
+      .map((page) => page.trim())
+      .filter(Boolean)
+      .join('\n\n---\n\n'),
     pageCount: totalPages ?? 0,
   };
 }

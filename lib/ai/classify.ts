@@ -8,7 +8,7 @@ import type { Database, Json } from '@/supabase/types/database.types';
 import { getAnthropicClient, getAIModel, estimateCost } from '@/lib/anthropic';
 import { extractToolResult } from '@/lib/ai-parse';
 import { generateEmbedding, MAX_EMBEDDING_CHARS } from '@/lib/ai/embed';
-import { htmlToPlainText } from '@/lib/editor-utils';
+import { stripMarkdown } from '@/lib/content/strip-markdown';
 import { AIServiceError } from '@/lib/ai/errors';
 import { loadSkill } from '@/lib/ai/skills/loader';
 import { canonicalise } from '@/lib/entities/entity-dedup';
@@ -896,7 +896,7 @@ export async function classifyContent(
     + '\n\n---\n\n' + entityTypesRef;
 
   // Prepare content for classification (truncate at 5000 chars)
-  const plainText = htmlToPlainText(item.content);
+  const plainText = stripMarkdown(item.content);
   const contentForClassification = plainText.slice(0, 5000);
 
   // Call Claude API

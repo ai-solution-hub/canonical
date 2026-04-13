@@ -225,8 +225,8 @@ export async function POST(request: NextRequest) {
         // 1. Generate embedding
         try {
           const { generateEmbedding } = await import('@/lib/ai/embed');
-          const { htmlToPlainText } = await import('@/lib/editor-utils');
-          const plainText = htmlToPlainText(item.content);
+          const { stripMarkdown } = await import('@/lib/content/strip-markdown');
+          const plainText = stripMarkdown(item.content);
           const embeddingText = `${item.title}\n\n${plainText}`;
           const embedding = await generateEmbedding(embeddingText);
           await serviceClient
@@ -272,8 +272,8 @@ export async function POST(request: NextRequest) {
         // 4. Layer inference
         try {
           const { inferLayer } = await import('@/lib/layer-inference');
-          const { htmlToPlainText } = await import('@/lib/editor-utils');
-          const plainText = htmlToPlainText(item.content);
+          const { stripMarkdown } = await import('@/lib/content/strip-markdown');
+          const plainText = stripMarkdown(item.content);
           const suggestion = inferLayer({
             contentType: 'q_a_pair',
             contentLength: plainText.length,

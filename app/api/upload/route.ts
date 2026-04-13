@@ -7,6 +7,7 @@ import { extractPdfText as sharedExtractPdf } from '@/lib/extraction/pdf';
 import path from 'path';
 import crypto from 'crypto';
 import mammoth from 'mammoth';
+import { turndown } from '@/lib/extraction/turndown';
 
 export const maxDuration = 60;
 
@@ -126,8 +127,9 @@ async function extractPdfText(buffer: Buffer): Promise<PdfExtractionResult> {
  * Extract text from a DOCX file using mammoth.
  */
 async function extractDocxText(buffer: Buffer): Promise<{ text: string }> {
-  const result = await mammoth.extractRawText({ buffer });
-  return { text: result.value };
+  const result = await mammoth.convertToHtml({ buffer });
+  const markdown = turndown.turndown(result.value);
+  return { text: markdown };
 }
 
 /**

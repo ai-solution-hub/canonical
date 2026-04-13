@@ -9,7 +9,7 @@ import {
 } from '@/lib/validation/schemas';
 import { generateSingleFieldChangeSummary } from '@/lib/change-summary';
 import { generateEmbedding } from '@/lib/ai/embed';
-import { htmlToPlainText } from '@/lib/editor-utils';
+import { stripMarkdown } from '@/lib/content/strip-markdown';
 import {
   createWarningsCollector,
   warningsEnvelope,
@@ -172,7 +172,7 @@ export async function PATCH(
         const titleText =
           currentItem.title ?? currentItem.suggested_title ?? '';
         if (contentText) {
-          const plainText = htmlToPlainText(contentText);
+          const plainText = stripMarkdown(contentText);
           const embeddingText = `${titleText}\n\n${plainText}`;
           const embedding = await generateEmbedding(embeddingText);
           updateData.embedding = JSON.stringify(embedding);
@@ -374,7 +374,7 @@ export async function PATCH(
         }
 
         if (updatedItem?.content) {
-          const plainText = htmlToPlainText(updatedItem.content);
+          const plainText = stripMarkdown(updatedItem.content);
           const embeddingText = `${updatedItem.title ?? ''}\n\n${plainText}`;
           const embedding = await generateEmbedding(embeddingText);
           await supabase

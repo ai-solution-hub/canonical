@@ -2,6 +2,7 @@
 import type { ParsedFeedItem, ExtractionResult } from './types';
 import { MIN_CONTENT_WORDS, EXTRACTION_TIMEOUT_MS } from './types';
 import { RateLimitError, getGlobalRateLimiter } from './rate-limiter';
+import { turndown } from '@/lib/extraction/turndown';
 
 const USER_AGENT =
   'KnowledgeHub/1.0 (+https://knowledge-hub-seven-kappa.vercel.app)';
@@ -51,6 +52,15 @@ function extractMainContent(html: string): string {
   if (mainMatch) return stripHtml(mainMatch[1]);
 
   return stripHtml(html);
+}
+
+/** Extract the main content HTML (not stripped) for Turndown conversion */
+function extractMainContentHtml(html: string): string {
+  const articleMatch = html.match(/<article[^>]*>([\s\S]*?)<\/article>/i);
+  if (articleMatch) return articleMatch[1];
+  const mainMatch = html.match(/<main[^>]*>([\s\S]*?)<\/main>/i);
+  if (mainMatch) return mainMatch[1];
+  return html;
 }
 
 /** Check if a URL is a Google News redirect */
@@ -189,16 +199,16 @@ export async function extractContent(
 
   // 1. Check RSS content:encoded
   if (item.contentEncoded) {
-    const text = stripHtml(item.contentEncoded);
-    if (wordCount(text) >= MIN_CONTENT_WORDS) {
+    const markdown = turndown.turndown(item.contentEncoded).trim();
+    if (wordCount(markdown) >= MIN_CONTENT_WORDS) {
       console.log(
-        `[Extraction] ${item.url} — Tier 1 (rss_content), ${wordCount(text)} words`,
+        `[Extraction] ${item.url} — Tier 1 (rss_content), ${wordCount(markdown)} words`,
       );
       return {
         ...baseResult,
-        content: text,
+        content: markdown,
         method: 'rss_content',
-        wordCount: wordCount(text),
+        wordCount: wordCount(markdown),
       };
     }
   }
@@ -231,16 +241,17 @@ export async function extractContent(
         contentType.includes('application/xhtml')
       ) {
         const html = await response.text();
-        const text = extractMainContent(html);
-        if (wordCount(text) >= MIN_CONTENT_WORDS) {
+        const contentHtml = extractMainContentHtml(html);
+        const markdown = turndown.turndown(contentHtml).trim();
+        if (wordCount(markdown) >= MIN_CONTENT_WORDS) {
           console.log(
-            `[Extraction] ${item.url} — Tier 2 (fetch), ${wordCount(text)} words`,
+            `[Extraction] ${item.url} — Tier 2 (fetch), ${wordCount(markdown)} words`,
           );
           return {
             ...baseResult,
-            content: text,
+            content: markdown,
             method: 'fetch',
-            wordCount: wordCount(text),
+            wordCount: wordCount(markdown),
           };
         }
       }

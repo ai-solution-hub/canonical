@@ -24,7 +24,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import Anthropic from '@anthropic-ai/sdk';
 import type { Database } from '@/supabase/types/database.types';
 import { generateEmbedding } from '@/lib/ai/embed';
-import { htmlToPlainText } from '@/lib/editor-utils';
+import { stripMarkdown } from '@/lib/content/strip-markdown';
 import { resolveAlias, loadAliases } from '@/lib/entities/entity-aliases';
 import { isExcludedEntity, validateDomain } from '@/lib/ai/classify';
 import { extractEntityContext } from '@/lib/entities/entity-context';
@@ -728,7 +728,7 @@ async function main(): Promise<void> {
 
     // Check for fragments (content < 20 chars)
     for (const item of allItems) {
-      const plainText = htmlToPlainText(item.content || '');
+      const plainText = stripMarkdown(item.content || '');
       if (plainText.length < 20 && plainText.length > 0) {
         qualityFlags.push({
           itemId: item.id,
@@ -741,7 +741,7 @@ async function main(): Promise<void> {
 
     // Check for editorial notes in content
     for (const item of allItems) {
-      const plainText = htmlToPlainText(item.content || '');
+      const plainText = stripMarkdown(item.content || '');
       if (hasEditorialNotes(plainText)) {
         qualityFlags.push({
           itemId: item.id,
@@ -936,7 +936,7 @@ async function main(): Promise<void> {
 
         try {
           // Prepare content for classification (truncate at 5000 chars)
-          const plainText = htmlToPlainText(item.content!);
+          const plainText = stripMarkdown(item.content!);
           const contentForClassification = plainText.slice(0, 5000);
 
           // Build user message

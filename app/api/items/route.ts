@@ -9,7 +9,7 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { ItemCreateBodySchema } from '@/lib/validation/schemas';
 import { generateEmbedding } from '@/lib/ai/embed';
-import { htmlToPlainText } from '@/lib/editor-utils';
+import { stripMarkdown } from '@/lib/content/strip-markdown';
 import type { Database } from '@/supabase/types/database.types';
 
 export const maxDuration = 30;
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     let embeddingArray: number[] | undefined;
     if (auto_embed) {
       try {
-        const plainText = htmlToPlainText(content);
+        const plainText = stripMarkdown(content);
         const embeddingText = `${title}\n\n${plainText}`;
         embeddingArray = await generateEmbedding(embeddingText);
         embeddingValue = JSON.stringify(embeddingArray);
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
     try {
       const { checkForDuplicates, formatDedupWarning } =
         await import('@/lib/dedup');
-      const plainText = htmlToPlainText(content);
+      const plainText = stripMarkdown(content);
       const dedupResult = await checkForDuplicates(
         supabase,
         plainText,
@@ -196,7 +196,7 @@ export async function POST(request: NextRequest) {
       | undefined;
     try {
       const { inferLayer } = await import('@/lib/layer-inference');
-      const plainTextForLayer = htmlToPlainText(content);
+      const plainTextForLayer = stripMarkdown(content);
       const effectiveSource = (ingestion_source ?? 'manual') as
         | 'manual'
         | 'url_import'
