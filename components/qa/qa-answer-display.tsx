@@ -4,6 +4,7 @@ import { Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { VerificationBadge } from '@/components/shared/verification-badge';
 import { cn } from '@/lib/utils';
+import { ContentRenderer } from '@/components/item-detail/content-renderer';
 
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
 
@@ -144,9 +145,9 @@ export function QAAnswerDisplay({
         !isEditing &&
         item.content && (
           <div className="rounded-xl border bg-card p-4">
-            <p className="text-sm leading-relaxed whitespace-pre-line">
-              {item.content}
-            </p>
+            <div className="text-sm leading-relaxed">
+              <ContentRenderer content={item.content} />
+            </div>
           </div>
         )}
       {!item.answer_standard &&

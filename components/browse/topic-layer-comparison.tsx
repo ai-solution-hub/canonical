@@ -11,6 +11,7 @@ import {
   getOrderedLayers,
 } from '@/lib/validation/layer-schemas';
 import { cn } from '@/lib/utils';
+import { ContentRenderer } from '@/components/item-detail/content-renderer';
 import type { LayerItem } from '@/hooks/use-topic-layer-content';
 
 // ---------------------------------------------------------------------------
@@ -129,9 +130,9 @@ export function TopicLayerComparison({
               <span className="text-xs font-medium text-muted-foreground">
                 Content
               </span>
-              <p className="mt-0.5 line-clamp-4 text-sm text-foreground/80">
-                {activeItem.content}
-              </p>
+              <div className="mt-0.5 line-clamp-4 text-sm text-foreground/80">
+                <ContentRenderer content={activeItem.content} />
+              </div>
             </div>
           )}
 

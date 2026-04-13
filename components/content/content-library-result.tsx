@@ -7,6 +7,7 @@ import { DomainBadge } from '@/components/shared/domain-badge';
 import { SimilarityBadge } from '@/components/shared/similarity-badge';
 import { VerificationBadge } from '@/components/shared/verification-badge';
 import { getDisplayTitle, formatContentType } from '@/lib/format';
+import { ContentRenderer } from '@/components/item-detail/content-renderer';
 import { toast } from 'sonner';
 import type { SearchResult } from '@/types/content';
 
@@ -121,9 +122,9 @@ export function ContentLibraryResult({
         {/* Answer */}
         <div className="mt-2 rounded border bg-muted/30 px-2.5 py-1.5">
           <p className="text-xs font-medium text-muted-foreground">Answer</p>
-          <p className="mt-0.5 text-xs leading-relaxed text-foreground line-clamp-4">
-            {qaParts.answer}
-          </p>
+          <div className="mt-0.5 text-xs leading-relaxed text-foreground line-clamp-4">
+            <ContentRenderer content={qaParts.answer} />
+          </div>
           <p className="mt-1 text-[10px] text-muted-foreground">
             ~{qaParts.answer.split(/\s+/).filter(Boolean).length} words
           </p>

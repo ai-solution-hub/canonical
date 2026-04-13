@@ -29,6 +29,7 @@ import type { OnOptimisticUpdate } from '@/hooks/review/use-quick-review';
 import { QuickReviewActions } from '@/components/content/quick-review-actions';
 import type { ActiveBidWorkspace } from '@/hooks/use-quick-assign';
 import { QuickAssignButton } from '@/components/content/quick-assign-button';
+import { stripMarkdown } from '@/lib/content/strip-markdown';
 
 interface ContentRowProps {
   item: ContentListItem | SearchResult;
@@ -189,7 +190,7 @@ export const ContentRow = memo(function ContentRow({
             ) : answerSnippet ? (
               <span className="flex items-center gap-1">
                 <span className="font-medium">A:</span>
-                <span className="truncate">{renderText(answerSnippet)}</span>
+                <span className="truncate">{renderText(answerSnippet ? stripMarkdown(answerSnippet) : '')}</span>
               </span>
             ) : item.source_document ? (
               <span className="flex items-center gap-1">
@@ -354,7 +355,7 @@ export const ContentRow = memo(function ContentRow({
             renderText(item.brief || item.summary || '')
           ) : item.content ? (
             <span className="truncate">
-              {renderText(item.content.slice(0, 200))}
+              {renderText(stripMarkdown(item.content).slice(0, 200))}
             </span>
           ) : (
             <span className="flex items-center gap-1">

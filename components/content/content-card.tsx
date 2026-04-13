@@ -32,6 +32,7 @@ import type { OnOptimisticUpdate } from '@/hooks/review/use-quick-review';
 import { QuickReviewActions } from '@/components/content/quick-review-actions';
 import type { ActiveBidWorkspace } from '@/hooks/use-quick-assign';
 import { QuickAssignButton } from '@/components/content/quick-assign-button';
+import { stripMarkdown } from '@/lib/content/strip-markdown';
 
 // ---------------------------------------------------------------------------
 // Internal helpers and sub-components
@@ -207,7 +208,7 @@ function SummaryPreview({
   if (item.content) {
     return (
       <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-        {renderText(item.content.slice(0, 200))}
+        {renderText(stripMarkdown(item.content).slice(0, 200))}
       </p>
     );
   }
@@ -411,6 +412,7 @@ export const ContentCard = memo(function ContentCard({
   const answerPreview = isQAPair
     ? item.content || item.brief || item.summary || null
     : null;
+  const answerPreviewStripped = answerPreview ? stripMarkdown(answerPreview) : null;
   const sourceDocument = isQAPair ? item.source_document : null;
   const verifiedByName = item.verified_by
     ? (verifierNames?.get(item.verified_by) ?? null)
@@ -479,12 +481,12 @@ export const ContentCard = memo(function ContentCard({
             qaPrefix
             renderText={renderText}
           />
-          {answerPreview && (
+          {answerPreviewStripped && (
             <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
               <span className="font-medium text-muted-foreground">
                 A:&nbsp;
               </span>
-              {renderText(answerPreview)}
+              {renderText(answerPreviewStripped)}
             </p>
           )}
           {sourceDocument && (

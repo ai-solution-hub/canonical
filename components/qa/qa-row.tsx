@@ -15,6 +15,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { FreshnessBadge } from '@/components/shared/freshness-badge';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { ContentRenderer } from '@/components/item-detail/content-renderer';
 import type { ContentListItem } from '@/types/content';
 
 // ---------------------------------------------------------------------------
@@ -237,9 +238,9 @@ export function QARow({ item, selected, onToggleSelect }: QARowProps) {
               </div>
             )}
             {!hasStandard && !hasAdvanced && item.content && (
-              <p className="text-sm text-foreground whitespace-pre-line leading-relaxed">
-                {item.content}
-              </p>
+              <div className="text-sm text-foreground leading-relaxed">
+                <ContentRenderer content={item.content} />
+              </div>
             )}
             {!hasStandard && !hasAdvanced && !item.content && (
               <p className="text-sm italic text-muted-foreground">
