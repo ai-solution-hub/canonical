@@ -184,6 +184,15 @@ _GENERIC_CONCEPTS = frozenset([
     "child criminal exploitation", "domestic abuse",
     "modern slavery", "radicalisation", "forced marriage",
     "honour-based violence",
+    # Generic methodology/framework practices
+    "asset management", "code review", "configuration management",
+    "data classification", "identity and access management",
+    "information risk analysis", "logging and monitoring",
+    "network architecture", "secure development", "security architecture",
+    "supply chain security", "threat modelling", "threat modeling",
+    "user acceptance testing", "vulnerability scanning",
+    # Generic process/activity terms
+    "escalation procedures", "post-resolution satisfaction surveys",
     # Generic methodology approaches
     "risk-based approach", "iterative development",
     "best practice", "best practices", "agile approach",
