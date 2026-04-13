@@ -87,7 +87,7 @@ export function MetricsDashboard({ workspaceId }: MetricsDashboardProps) {
           ))}
         </div>
       )}
-      {metricsQuery.isError && !metricsQuery.isLoading && (
+      {metricsQuery.isError && !metricsQuery.isLoading && !metricsQuery.data && (
         <div
           role="alert"
           className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"
