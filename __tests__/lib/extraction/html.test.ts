@@ -11,13 +11,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock setup — must use vi.hoisted for Vitest v4 factory hoisting
 // ---------------------------------------------------------------------------
 
-const { mockParse, MockReadability } = vi.hoisted(() => {
+const { mockParse, MockReadability, mockTurndown } = vi.hoisted(() => {
   const mockParse = vi.fn();
+  const mockTurndown = vi.fn((html: string) => html);
   // Use function keyword (not arrow) so it can be used with `new`
   function MockReadability() {
     return { parse: mockParse };
   }
-  return { mockParse, MockReadability };
+  return { mockParse, MockReadability, mockTurndown };
 });
 
 vi.mock('jsdom', () => ({
@@ -35,6 +36,10 @@ vi.mock('@mozilla/readability', () => ({
   Readability: MockReadability,
 }));
 
+vi.mock('@/lib/extraction/turndown', () => ({
+  turndown: { turndown: mockTurndown },
+}));
+
 import { extractFromHtml } from '@/lib/extraction/html';
 
 describe('extractFromHtml', () => {
@@ -45,6 +50,7 @@ describe('extractFromHtml', () => {
   it('extracts title from HTML', async () => {
     mockParse.mockReturnValue({
       title: 'Test Article Title',
+      content: '<p>This is the article body content.</p>',
       textContent: 'This is the article body content.',
       byline: 'Jane Doe',
       excerpt: 'A short excerpt.',
@@ -57,9 +63,11 @@ describe('extractFromHtml', () => {
     expect(result.title).toBe('Test Article Title');
   });
 
-  it('extracts text content', async () => {
+  it('extracts text content via Turndown', async () => {
+    mockTurndown.mockReturnValue('Full article body text with multiple paragraphs.');
     mockParse.mockReturnValue({
       title: 'Title',
+      content: '<p>Full article body text with multiple paragraphs.</p>',
       textContent: 'Full article body text with multiple paragraphs.',
       byline: '',
       excerpt: '',
@@ -69,6 +77,7 @@ describe('extractFromHtml', () => {
       '<html><body>...</body></html>',
       'https://example.com',
     );
+    expect(mockTurndown).toHaveBeenCalledWith('<p>Full article body text with multiple paragraphs.</p>');
     expect(result.content).toBe(
       'Full article body text with multiple paragraphs.',
     );
@@ -77,6 +86,7 @@ describe('extractFromHtml', () => {
   it('extracts byline as author', async () => {
     mockParse.mockReturnValue({
       title: 'Title',
+      content: '<p>Content here.</p>',
       textContent: 'Content here.',
       byline: 'John Smith',
       excerpt: '',
@@ -92,6 +102,7 @@ describe('extractFromHtml', () => {
   it('extracts excerpt', async () => {
     mockParse.mockReturnValue({
       title: 'Title',
+      content: '<p>Content here.</p>',
       textContent: 'Content here.',
       byline: '',
       excerpt: 'A brief summary of the article.',
@@ -115,6 +126,7 @@ describe('extractFromHtml', () => {
   it('throws on content with only whitespace', async () => {
     mockParse.mockReturnValue({
       title: 'Title',
+      content: '   \n\t  ',
       textContent: '   \n\t  ',
       byline: '',
       excerpt: '',
@@ -128,6 +140,7 @@ describe('extractFromHtml', () => {
   it('handles missing byline gracefully', async () => {
     mockParse.mockReturnValue({
       title: 'Title',
+      content: '<p>Content.</p>',
       textContent: 'Content.',
       byline: null,
       excerpt: '',
@@ -143,6 +156,7 @@ describe('extractFromHtml', () => {
   it('handles missing title gracefully', async () => {
     mockParse.mockReturnValue({
       title: null,
+      content: '<p>Some content.</p>',
       textContent: 'Some content.',
       byline: '',
       excerpt: '',
