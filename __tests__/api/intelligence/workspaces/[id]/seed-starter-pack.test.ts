@@ -3,9 +3,11 @@
  *
  * Tests:
  *   - Auth gating (unauthenticated, viewer, editor, admin)
+ *   - Validation (missing pack ID, unknown pack ID)
  *   - Happy path (seeds feeds into workspace)
- *   - Skip-existing (idempotency)
- *   - Invalid pack ID (404)
+ *   - Workspace verification (non-intelligence type, archived)
+ *   - Partial failure response shape (mixed success/skip/fail)
+ *   - Idempotency (skip-existing)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
@@ -172,6 +174,114 @@ describe('POST /api/intelligence/workspaces/:id/seed-starter-pack', () => {
       expect(body.seeded).toHaveLength(6);
       expect(body.skipped_existing).toHaveLength(0);
       expect(body.failed).toHaveLength(0);
+    });
+  });
+
+  describe('workspace verification', () => {
+    it('returns 404 for a non-intelligence workspace', async () => {
+      configureRole(mockSupabase, 'admin');
+
+      // Workspace query filters by type='intelligence', so a non-intelligence
+      // workspace returns null from maybeSingle
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+        data: null,
+        error: null,
+      });
+
+      const res = await POST(
+        makeRequest({ starter_pack_id: 'education' }),
+        makeContext(),
+      );
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body.error).toBe('Intelligence workspace not found');
+    });
+
+    it('returns 404 for an archived workspace', async () => {
+      configureRole(mockSupabase, 'admin');
+
+      // Workspace query filters by is_archived=false, so an archived
+      // workspace returns null from maybeSingle
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+        data: null,
+        error: null,
+      });
+
+      const res = await POST(
+        makeRequest({ starter_pack_id: 'procurement' }),
+        makeContext(),
+      );
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body.error).toBe('Intelligence workspace not found');
+    });
+  });
+
+  describe('partial failure', () => {
+    it('returns correct shape when some feeds fail and some are skipped', async () => {
+      configureRole(mockSupabase, 'admin');
+
+      // Workspace verification — maybeSingle returns workspace
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+        data: { id: WORKSPACE_UUID, type: 'intelligence' },
+        error: null,
+      });
+
+      // Procurement pack has 4 feeds. Configure each feed's check + insert:
+      // Feed 1: check null (no existing), insert succeeds
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+        data: null,
+        error: null,
+      });
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: { id: 'feed-1', workspace_id: WORKSPACE_UUID },
+        error: null,
+      });
+
+      // Feed 2: check returns existing row (skip)
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+        data: { id: 'existing-feed-2' },
+        error: null,
+      });
+
+      // Feed 3: check null (no existing), insert returns DB error
+      // sb() throws SupabaseError when error is present, caught by the route's try/catch
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+        data: null,
+        error: null,
+      });
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: null,
+        error: {
+          code: '23505',
+          message: 'duplicate key value violates unique constraint',
+        },
+      });
+
+      // Feed 4: check null (no existing), insert succeeds
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+        data: null,
+        error: null,
+      });
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: { id: 'feed-4', workspace_id: WORKSPACE_UUID },
+        error: null,
+      });
+
+      const res = await POST(
+        makeRequest({ starter_pack_id: 'procurement' }),
+        makeContext(),
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+
+      expect(body.seeded).toHaveLength(2);
+      expect(body.skipped_existing).toHaveLength(1);
+      expect(body.failed).toHaveLength(1);
+      expect(body.failed[0]).toHaveProperty('url');
+      expect(body.failed[0]).toHaveProperty('error');
+      expect(body.warnings).toHaveLength(1);
+      expect(body.warnings[0]).toContain('failed');
     });
   });
 

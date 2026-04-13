@@ -52,3 +52,23 @@ describe('findParentSector', () => {
     expect(healthTopics.length).toBeGreaterThan(0);
   });
 });
+
+describe('TOPIC_TO_SECTOR_MAP exact counts', () => {
+  it('maps exactly 7 topics to Education', () => {
+    const educationTopics = Object.entries(TOPIC_TO_SECTOR_MAP).filter(
+      ([, sector]) => sector === 'Education',
+    );
+    expect(educationTopics).toHaveLength(7);
+  });
+
+  it('maps exactly 5 topics to Health & Social Care', () => {
+    const healthTopics = Object.entries(TOPIC_TO_SECTOR_MAP).filter(
+      ([, sector]) => sector === 'Health & Social Care',
+    );
+    expect(healthTopics).toHaveLength(5);
+  });
+
+  it('contains exactly 12 mappings total', () => {
+    expect(Object.keys(TOPIC_TO_SECTOR_MAP)).toHaveLength(12);
+  });
+});

@@ -545,4 +545,88 @@ describe('createIntelligenceGuide', () => {
     expect(result).toBeNull();
     expect(mock.guidesChain.delete).toHaveBeenCalled();
   });
+
+  // -----------------------------------------------------------------------
+  // SS2.1.1-01: Hierarchical sections with cross-sector topic mapping
+  // -----------------------------------------------------------------------
+
+  it('nests topics under their mapped sectors across multiple sectors', async () => {
+    configureGuideSuccess(mock);
+
+    // Profile with topics from both Education and H&SC sectors
+    const crossSectorProfile: CompanyProfile = {
+      id: 'd1e2f3a4-b5c6-4d7e-8f9a-0b1c2d3e4f5a',
+      name: 'Cross Sector Co',
+      sectors: ['Education', 'Health & Social Care'],
+      services: [],
+      key_topics: ['KCSIE', 'Ofsted', 'CQC'],
+    };
+
+    const result = await createIntelligenceGuide(
+      mock.supabase as never,
+      WORKSPACE_ID,
+      'Cross Sector Watch',
+      crossSectorProfile,
+      USER_ID,
+    );
+
+    expect(result).not.toBeNull();
+    // 2 sectors + 3 topics + 1 Research Feed = 6
+    expect(result!.sectionCount).toBe(6);
+
+    // Verify guide_sections was called multiple times for inserts
+    expect(mock.guideSectionInsertCalls.length).toBeGreaterThanOrEqual(2);
+
+    // Pass 2: topic sections
+    const topicRows = mock.guideSectionInsertCalls[1].rows;
+
+    // KCSIE nested under Education
+    const kcsieRow = topicRows.find(
+      (r) => r.section_name === 'KCSIE',
+    );
+    expect(kcsieRow).toBeDefined();
+    expect(kcsieRow!.parent_section_id).toBe(EDUCATION_SECTION_ID);
+
+    // Ofsted nested under Education
+    const ofstedRow = topicRows.find(
+      (r) => r.section_name === 'Ofsted',
+    );
+    expect(ofstedRow).toBeDefined();
+    expect(ofstedRow!.parent_section_id).toBe(EDUCATION_SECTION_ID);
+
+    // CQC nested under Health & Social Care
+    const cqcRow = topicRows.find(
+      (r) => r.section_name === 'CQC',
+    );
+    expect(cqcRow).toBeDefined();
+    expect(cqcRow!.parent_section_id).toBe(HEALTH_SECTION_ID);
+  });
+
+  // -----------------------------------------------------------------------
+  // SS2.1.1-03: Slug conflict handling (two insert attempts)
+  // -----------------------------------------------------------------------
+
+  it('makes exactly two guide insert attempts on slug conflict', async () => {
+    // First fails with 23505, second succeeds
+    mock.guidesInsertResults.push({
+      data: null,
+      error: {
+        message: 'duplicate key value violates unique constraint',
+        code: '23505',
+      },
+    });
+    mock.guidesInsertResults.push({ data: { id: GUIDE_ID }, error: null });
+
+    const result = await createIntelligenceGuide(
+      mock.supabase as never,
+      WORKSPACE_ID,
+      'Conflict Test',
+      MINIMAL_PROFILE,
+      USER_ID,
+    );
+
+    expect(result).not.toBeNull();
+    // Verify exactly two guide insert attempts were made
+    expect(mock.guidesChain.insert).toHaveBeenCalledTimes(2);
+  });
 });

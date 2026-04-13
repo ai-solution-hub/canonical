@@ -12,6 +12,35 @@ import {
 } from '@/lib/intelligence/starter-packs';
 
 describe('STARTER_PACKS', () => {
+  it('has exactly 4 starter packs', () => {
+    expect(STARTER_PACKS).toHaveLength(4);
+  });
+
+  // Deliberate guard test: exact feed counts per pack prevent accidental
+  // additions/removals from going unnoticed. Update these counts if the
+  // starter pack definitions intentionally change.
+  it.each([
+    { id: 'education', expectedCount: 6 },
+    { id: 'safeguarding', expectedCount: 5 },
+    { id: 'health-social-care', expectedCount: 5 },
+    { id: 'procurement', expectedCount: 4 },
+  ])('pack "$id" has exactly $expectedCount feeds', ({ id, expectedCount }) => {
+    const pack = STARTER_PACKS.find((p) => p.id === id);
+    expect(pack).toBeDefined();
+    expect(pack!.feeds).toHaveLength(expectedCount);
+  });
+
+  it('all feeds across all packs use source_type "rss"', () => {
+    for (const pack of STARTER_PACKS) {
+      for (const feed of pack.feeds) {
+        expect(
+          feed.source_type,
+          `Feed "${feed.name}" in pack "${pack.id}" should use source_type "rss"`,
+        ).toBe('rss');
+      }
+    }
+  });
+
   it('has at least 4 packs', () => {
     expect(STARTER_PACKS.length).toBeGreaterThanOrEqual(4);
   });
