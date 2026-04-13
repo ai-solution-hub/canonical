@@ -51,7 +51,7 @@ def _make_result(domain="security", subtopic="data-protection"):
         secondary_domain=None,
         secondary_subtopic=None,
         suggested_title="Test Title",
-        ai_summary="Test summary.",
+        summary="Test summary.",
         ai_keywords=["test"],
         reasoning="Test reasoning.",
         is_fragment=False,

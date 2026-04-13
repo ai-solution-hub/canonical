@@ -131,7 +131,7 @@ def _valid_classification_json(**overrides):
         "secondary_domain": "Operations & Delivery",
         "secondary_subtopic": "Service Management",
         "suggested_title": "Cloud Migration Guide",
-        "ai_summary": "A guide to cloud migration.",
+        "summary": "A guide to cloud migration.",
         "ai_keywords": ["Cloud", "Migration"],
         "reasoning": "Content discusses cloud infra.",
         "flags": {

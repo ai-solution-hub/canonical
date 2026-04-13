@@ -2494,7 +2494,6 @@ export type Database = {
         }
         Returns: {
           ai_keywords: string[]
-          summary: string
           author_name: string
           captured_date: string
           classification_confidence: number
@@ -2507,6 +2506,7 @@ export type Database = {
           similarity: number
           source_domain: string
           suggested_title: string
+          summary: string
           thumbnail_url: string
           title: string
           user_tags: string[]
@@ -2572,7 +2572,6 @@ export type Database = {
         Args: { p_domain?: string; p_limit?: number }
         Returns: {
           ai_keywords: string[]
-          summary: string
           classification_confidence: number
           content_length: number
           content_type: string
@@ -2580,6 +2579,7 @@ export type Database = {
           id: string
           primary_domain: string
           suggested_title: string
+          summary: string
           title: string
         }[]
       }
@@ -3000,7 +3000,6 @@ export type Database = {
         }
         Returns: {
           ai_keywords: string[]
-          summary: string
           author_name: string
           captured_date: string
           classification_confidence: number
@@ -3016,6 +3015,7 @@ export type Database = {
           snippet: string
           source_domain: string
           suggested_title: string
+          summary: string
           thumbnail_url: string
           title: string
           verified_at: string
@@ -3069,7 +3069,6 @@ export type Database = {
             }
             Returns: {
               ai_keywords: string[]
-              summary: string
               author_name: string
               captured_date: string
               classification_confidence: number
@@ -3081,6 +3080,7 @@ export type Database = {
               similarity: number
               source_domain: string
               suggested_title: string
+              summary: string
               thumbnail_url: string
               title: string
             }[]
@@ -3093,7 +3093,6 @@ export type Database = {
             }
             Returns: {
               ai_keywords: string[]
-              summary: string
               author_name: string
               captured_date: string
               classification_confidence: number
@@ -3105,6 +3104,7 @@ export type Database = {
               similarity: number
               source_domain: string
               suggested_title: string
+              summary: string
               thumbnail_url: string
               title: string
             }[]
