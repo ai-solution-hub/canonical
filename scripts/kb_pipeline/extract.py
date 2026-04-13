@@ -214,7 +214,9 @@ def extract_with_trafilatura(url: str) -> Optional[ExtractedContent]:
             downloaded,
             include_comments=False,
             include_tables=True,
+            include_links=True,
             favor_recall=True,
+            output_format='markdown',
         )
 
         if not content:
@@ -357,7 +359,7 @@ def extract_pdf(filepath: str) -> Optional[ExtractedContent]:
         if not pages:
             return None
 
-        content = "\n\n".join(pages)
+        content = "\n\n---\n\n".join(pages)
         title = pages[0].split("\n")[0][:200] if pages else ""
 
         metadata: dict = {
