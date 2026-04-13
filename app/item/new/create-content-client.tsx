@@ -109,7 +109,7 @@ export function CreateContentClient() {
 
   // Watch key values
   const contentType = watch('content_type');
-  const contentHtml = watch('content');
+  const contentValue = watch('content');
   const primaryDomain = watch('primary_domain');
   const tags = watch('user_tags') ?? [];
   const tagsInput = watch('tags_input');
@@ -216,7 +216,7 @@ export function CreateContentClient() {
   // Minimum required fields check for button state — use watched values
   // rather than formState.isValid so the button enables as soon as required
   // fields are filled, without waiting for all optional fields to validate.
-  const canSave = !!title.trim() && !!contentHtml.trim() && !!contentType;
+  const canSave = !!title.trim() && !!contentValue.trim() && !!contentType;
 
   // Reset subtopic when domain changes
   useEffect(() => {
@@ -559,7 +559,7 @@ export function CreateContentClient() {
               </Label>
               <div onBlur={() => trigger('content')}>
                 <ContentEditor
-                  content={contentHtml}
+                  content={contentValue}
                   onChange={(val: string) => {
                     setValue('content', val, {
                       shouldValidate: true,

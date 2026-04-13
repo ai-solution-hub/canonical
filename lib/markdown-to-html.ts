@@ -1,6 +1,10 @@
 /**
  * Markdown-to-HTML conversion utility for bid response rendering.
  *
+ * The content editor (`ContentEditor`) now outputs markdown directly via
+ * `@tiptap/markdown`, so this module is only used by the bid response editor
+ * (`ResponseEditor`) which still uses TipTap's HTML output mode.
+ *
  * AI-drafted responses are stored as Markdown (from Claude's text output).
  * User-edited responses are stored as HTML (from TipTap's getHTML()).
  * This module detects which format a string is in and converts Markdown

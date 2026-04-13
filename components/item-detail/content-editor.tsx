@@ -2,9 +2,9 @@
 
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import { Markdown } from '@tiptap/markdown';
 import CharacterCount from '@tiptap/extension-character-count';
 import Placeholder from '@tiptap/extension-placeholder';
-import UnderlineExt from '@tiptap/extension-underline';
 import LinkExt from '@tiptap/extension-link';
 import { useEffect, useCallback } from 'react';
 import { EditorToolbar } from '@/components/item-detail/editor-toolbar';
@@ -12,8 +12,8 @@ import { cn } from '@/lib/utils';
 
 interface ContentEditorProps {
   content: string;
-  onChange: (html: string) => void;
-  onSave?: (html: string) => void;
+  onChange: (markdown: string) => void;
+  onSave?: (markdown: string) => void;
   readOnly?: boolean;
   placeholder?: string;
   minHeight?: string;
@@ -37,13 +37,16 @@ export function ContentEditor({
     extensions: [
       StarterKit.configure({
         link: false,
-        underline: false,
+      }),
+      Markdown.configure({
+        html: false,
+        transformCopiedText: true,
+        transformPastedText: true,
       }),
       CharacterCount.configure({
         wordCounter: (text) => text.split(/\s+/).filter(Boolean).length,
       }),
       Placeholder.configure({ placeholder }),
-      UnderlineExt,
       LinkExt.configure({ openOnClick: false }),
     ],
     content,
@@ -58,7 +61,7 @@ export function ContentEditor({
       },
     },
     onUpdate: ({ editor: e }) => {
-      onChange(e.getHTML());
+      onChange(e.storage.markdown.getMarkdown());
     },
   });
 
@@ -71,7 +74,7 @@ export function ContentEditor({
 
   // Sync content from parent
   useEffect(() => {
-    if (editor && content !== editor.getHTML()) {
+    if (editor && content !== editor.storage.markdown.getMarkdown()) {
       editor.commands.setContent(content);
     }
   }, [content, editor]);
@@ -79,7 +82,7 @@ export function ContentEditor({
   // Ctrl+S / Cmd+S save shortcut
   const handleSave = useCallback(() => {
     if (onSave) {
-      onSave(editor?.getHTML() ?? '');
+      onSave(editor?.storage.markdown.getMarkdown() ?? '');
     }
   }, [editor, onSave]);
 

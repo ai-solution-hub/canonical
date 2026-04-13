@@ -4,7 +4,6 @@ import type { Editor } from '@tiptap/react';
 import {
   Bold,
   Italic,
-  Underline,
   Strikethrough,
   Heading1,
   Heading2,
@@ -53,13 +52,6 @@ function getFormattingActions(mod: string): ToolbarAction[] {
       shortcut: `${mod}+I`,
       action: (e) => e.chain().focus().toggleItalic().run(),
       isActive: (e) => e.isActive('italic'),
-    },
-    {
-      icon: Underline,
-      label: 'Underline',
-      shortcut: `${mod}+U`,
-      action: (e) => e.chain().focus().toggleUnderline().run(),
-      isActive: (e) => e.isActive('underline'),
     },
     {
       icon: Strikethrough,
