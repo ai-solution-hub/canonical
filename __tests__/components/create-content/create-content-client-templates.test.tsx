@@ -233,7 +233,7 @@ describe('CreateContentClient — template integration', () => {
       });
     });
 
-    it('selecting a template sets content HTML from contentTemplate', async () => {
+    it('selecting a template sets content from contentTemplate', async () => {
       const user = userEvent.setup();
       renderForm();
       const selector = getTemplateSelector();
