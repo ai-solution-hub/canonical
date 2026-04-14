@@ -15,7 +15,7 @@ export const maxDuration = 60;
 const MAX_FILE_SIZE = 52_428_800;
 
 /** Total steps in the upload pipeline */
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 6;
 
 /** Allowed MIME types and their corresponding content_type values */
 const ALLOWED_MIME_TYPES: Record<string, string> = {
@@ -621,11 +621,39 @@ export async function POST(request: NextRequest) {
         warnings.push('Embedding generation failed');
       }
 
-      // Step 3 complete: embedding done
+      // Step 3 complete: embedding done — begin chunking
+      if (pipelineRunId) {
+        await updatePipelineProgress(pipelineRunId, {
+          step: 'chunking',
+          steps_completed: 3,
+          steps_total: TOTAL_STEPS,
+          detail: 'Splitting content into searchable sections...',
+        });
+      }
+
+      // Chunking (after embedding, before classification)
+      try {
+        const { regenerateChunks } = await import('@/lib/content/chunk-store');
+        const chunkResult = await regenerateChunks(
+          serviceClient,
+          itemId,
+          extractedText,
+        );
+        if (chunkResult.errors.length > 0) {
+          warnings.push(
+            `Chunking completed with ${chunkResult.errors.length} error(s)`,
+          );
+        }
+      } catch (chunkErr) {
+        console.error(`Chunking failed for ${itemId}:`, chunkErr);
+        warnings.push('Content chunking failed');
+      }
+
+      // Step 4 complete: chunking done
       if (pipelineRunId) {
         await updatePipelineProgress(pipelineRunId, {
           step: 'classifying',
-          steps_completed: 3,
+          steps_completed: 4,
           steps_total: TOTAL_STEPS,
           detail: 'Running AI classification...',
         });
@@ -666,11 +694,11 @@ export async function POST(request: NextRequest) {
         warnings.push(`Classification failed: ${msg}`);
       }
 
-      // Step 4 complete: classification done
+      // Step 5 complete: classification done
       if (pipelineRunId) {
         await updatePipelineProgress(pipelineRunId, {
           step: 'summarising',
-          steps_completed: 4,
+          steps_completed: 5,
           steps_total: TOTAL_STEPS,
           detail: 'Generating AI summary...',
         });
@@ -916,7 +944,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Step 5 complete: all done
+    // Step 6 complete: all done
     if (pipelineRunId) {
       await updatePipelineProgress(
         pipelineRunId,
