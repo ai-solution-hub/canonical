@@ -751,6 +751,7 @@ export async function validateEntities(
   const response = await client.messages.create({
     model: PASS_2_MODEL,
     max_tokens: 1500,
+    temperature: 0,
     tools: [
       {
         name: 'return_entity_validation',
