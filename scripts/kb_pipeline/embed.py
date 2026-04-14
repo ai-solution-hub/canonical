@@ -7,6 +7,17 @@ from openai import OpenAI
 from .config import get_env, EMBEDDING_MODEL, EMBEDDING_DIMS, EMBEDDING_PRICE
 
 
+MAX_EMBEDDING_CHARS = 24_000
+"""Maximum characters of content included in the embedding input.
+
+Mirrors the TypeScript pipeline's constant in ``lib/ai/embed.ts`` (the single
+source of truth for the figure). Keeping the two values aligned closes the
+Plan D Divergence 1 finding — the Python pipeline previously truncated at
+1,500 characters, producing embeddings that represented only the first two or
+three paragraphs of a typical policy document.
+"""
+
+
 # Module-level client (lazy init)
 _client = None
 
@@ -26,11 +37,17 @@ def build_embedding_text(
     content_type: str = "article",
     metadata: dict = None,
 ) -> str:
-    """Build text for embedding: title + summary + content[:1500].
+    """Build text for embedding: ``title + summary + content[:MAX_EMBEDDING_CHARS]``.
 
-    For transcripts, uses title + summary + chapter titles as topic outline
-    (content is too long and the summary + chapter outline captures semantic
-    range better than truncated transcript).
+    ``MAX_EMBEDDING_CHARS`` is 24,000, matching the TypeScript classify path in
+    ``lib/ai/embed.ts``. Summary inclusion is retained on the Python path by
+    design (Plan D D5): the AI-generated summary is a useful semantic signal
+    at negligible token cost.
+
+    For transcripts (``content_type == "other"``), uses title + summary +
+    chapter titles as a topic outline instead of the raw transcript body. This
+    divergence from the TypeScript path is intentional and documented in
+    ``docs/operations/re-ingestion-quality-protocol.md`` (Divergence 3).
     """
     parts = []
 
@@ -40,7 +57,6 @@ def build_embedding_text(
         parts.append(summary.strip())
 
     if content_type == "other":  # Legacy: was transcript type
-        # Add chapter titles as topic outline for better semantic coverage
         if metadata:
             chapters = metadata.get("chapters", [])
             if chapters:
@@ -48,7 +64,7 @@ def build_embedding_text(
                 if chapter_titles:
                     parts.append("Topics: " + " | ".join(chapter_titles))
     else:
-        content_truncated = (content or "").strip()[:1500]
+        content_truncated = (content or "").strip()[:MAX_EMBEDDING_CHARS]
         if content_truncated:
             parts.append(content_truncated)
 

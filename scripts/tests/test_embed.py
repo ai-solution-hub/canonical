@@ -10,6 +10,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from kb_pipeline.embed import (
+    MAX_EMBEDDING_CHARS,
     build_embedding_text,
     generate_embedding,
     generate_embeddings_batch,
@@ -34,19 +35,35 @@ class TestBuildEmbeddingText:
         )
         assert result == "My Title\n\nA summary.\n\nFull content here."
 
-    def test_content_truncated_to_1500_for_non_transcript(self):
-        """Content is truncated to 1500 characters for non-transcript types."""
-        long_content = "z" * 2000
+    def test_content_truncated_to_max_embedding_chars_for_non_transcript(self):
+        """Content is truncated to MAX_EMBEDDING_CHARS for non-transcript types."""
+        long_content = "z" * (MAX_EMBEDDING_CHARS + 6_000)
         result = build_embedding_text(
             title="T",
             summary="S",
             content=long_content,
             content_type="article",
         )
-        # The content part should be exactly 1500 chars
         parts = result.split("\n\n")
         assert len(parts) == 3
-        assert len(parts[2]) == 1500
+        assert len(parts[2]) == MAX_EMBEDDING_CHARS
+
+    def test_content_below_limit_not_truncated(self):
+        """Content under MAX_EMBEDDING_CHARS is included verbatim."""
+        body = "paragraph one. paragraph two."
+        result = build_embedding_text(
+            title="T",
+            summary="S",
+            content=body,
+            content_type="article",
+        )
+        parts = result.split("\n\n")
+        assert len(parts) == 3
+        assert parts[2] == body
+
+    def test_max_embedding_chars_matches_ts_constant(self):
+        """Python MAX_EMBEDDING_CHARS must remain aligned with lib/ai/embed.ts."""
+        assert MAX_EMBEDDING_CHARS == 24_000
 
     def test_transcript_uses_chapter_titles(self):
         """Transcript type ('other') uses chapter titles instead of content."""
