@@ -112,6 +112,9 @@ logs/
 backups/
 test-data/
 
+# Quality protocol snapshots (large JSONL with 1024-dim embeddings)
+data/
+
 # Session output dumps (Claude Code session exports)
 output.jsonl
 *-session-output.jsonl
