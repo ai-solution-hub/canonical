@@ -165,6 +165,31 @@ export async function POST(request: NextRequest) {
       console.error('Failed to create initial version history:', historyErr);
     }
 
+    // Chunking — split markdown into heading-based chunks with embeddings.
+    // Skips drafts (drafts stay private; chunks become searchable once published).
+    // Uses service client because the chunks insert needs RLS bypass.
+    const isDraft = governance_review_status === 'draft';
+    if (!isDraft) {
+      try {
+        const { regenerateChunks } = await import('@/lib/content/chunk-store');
+        const { createServiceClient } = await import('@/lib/supabase/server');
+        const chunkServiceClient = createServiceClient();
+        const chunkResult = await regenerateChunks(
+          chunkServiceClient,
+          newItem.id,
+          content,
+        );
+        if (chunkResult.errors.length > 0) {
+          warnings.push(
+            `Chunking: ${chunkResult.errors.length} error(s)`,
+          );
+        }
+      } catch (chunkErr) {
+        console.error(`Chunking failed for ${newItem.id}:`, chunkErr);
+        warnings.push('Content chunking failed');
+      }
+    }
+
     // AI processing — awaited before response to avoid serverless truncation
     if (auto_embed && embeddingValue) {
       // Embedding already generated above
