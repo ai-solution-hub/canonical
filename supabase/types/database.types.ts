@@ -261,6 +261,69 @@ export type Database = {
         }
         Relationships: []
       }
+      content_chunks: {
+        Row: {
+          char_count: number
+          content: string
+          content_item_id: string
+          created_at: string
+          embedding: string | null
+          heading_level: number | null
+          heading_path: string[]
+          heading_text: string | null
+          id: string
+          parent_chunk_id: string | null
+          position: number
+          updated_at: string
+          word_count: number
+        }
+        Insert: {
+          char_count?: number
+          content: string
+          content_item_id: string
+          created_at?: string
+          embedding?: string | null
+          heading_level?: number | null
+          heading_path?: string[]
+          heading_text?: string | null
+          id?: string
+          parent_chunk_id?: string | null
+          position: number
+          updated_at?: string
+          word_count?: number
+        }
+        Update: {
+          char_count?: number
+          content?: string
+          content_item_id?: string
+          created_at?: string
+          embedding?: string | null
+          heading_level?: number | null
+          heading_path?: string[]
+          heading_text?: string | null
+          id?: string
+          parent_chunk_id?: string | null
+          position?: number
+          updated_at?: string
+          word_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_chunks_content_item_id_fkey"
+            columns: ["content_item_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_chunks_parent_chunk_id_fkey"
+            columns: ["parent_chunk_id"]
+            isOneToOne: false
+            referencedRelation: "content_chunks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       content_citations: {
         Row: {
           bid_response_id: string
@@ -3109,6 +3172,31 @@ export type Database = {
               title: string
             }[]
           }
+      search_content_chunks: {
+        Args: {
+          filter_content_item_id?: string
+          limit_count?: number
+          query_embedding: string
+          similarity_threshold?: number
+        }
+        Returns: {
+          char_count: number
+          chunk_id: string
+          content: string
+          content_item_id: string
+          heading_level: number
+          heading_path: string[]
+          heading_text: string
+          item_content_type: string
+          item_primary_domain: string
+          item_primary_subtopic: string
+          item_suggested_title: string
+          item_title: string
+          position: number
+          similarity: number
+          word_count: number
+        }[]
+      }
       search_for_bid_response: {
         Args: {
           limit_count?: number
@@ -3275,3 +3363,5 @@ export const Constants = {
     Enums: {},
   },
 } as const
+A new version of Supabase CLI is available: v2.90.0 (currently installed v2.84.2)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
