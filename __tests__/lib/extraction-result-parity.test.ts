@@ -58,6 +58,22 @@ const MINIMAL_CONTENT = `Just a brief note with only a handful of words here.`;
 
 const EMPTY_CONTENT = ``;
 
+const LONG_NO_HEADINGS = `The implementation of a comprehensive knowledge base platform requires careful attention to multiple interconnected concerns. First, the data model must accommodate the variety of content types that organisations produce, from short policy statements through to lengthy technical documentation. Second, the extraction pipeline needs to handle diverse source formats without losing structural information during conversion. Third, the classification layer must correctly identify domains, subtopics, entities, and relationships at scale. Fourth, the retrieval experience must be fast enough to feel responsive while still producing high-quality results for both semantic and keyword queries.
+
+Beyond these core concerns, there are many secondary considerations. Access control must respect organisational boundaries. Content freshness must be tracked so stale information can be surfaced for review. Provenance must be preserved so every claim can be traced back to a source document. The user interface must be approachable for non-technical users while still providing power features for administrators. All of this must work reliably in production, with appropriate observability and error handling.
+
+Building a system that meets all of these requirements is not simple. It takes careful sequencing of work, clear architectural decisions, and ongoing refinement based on real usage. The team must resist the urge to build everything at once and instead deliver incremental value while laying the foundations that will support future growth. Only then can the platform reach its full potential as a genuine knowledge asset rather than just another content silo.`;
+
+const PDF_NO_TABLES = `# Annual Report Summary
+
+## Key Findings
+
+The organisation achieved its primary objectives during the reporting period. Growth in core service lines exceeded expectations. Operational costs remained within budgeted levels. Staff engagement scores improved year-on-year. Customer satisfaction metrics held steady despite broader market pressures. Strategic investment in platform capabilities is beginning to yield measurable returns. The board remains confident in the direction and long-term outlook.`;
+
+const LINK_HEAVY = `# Reference Links
+
+Readers who want more detail should consult the primary documentation. See the manual at [the reference manual guide](https://example.com/documentation/reference-manual/chapter-one/part-two/section-three/subsection-four) and the companion [complete API overview documentation](https://example.com/documentation/api-overview/introduction/primer/advanced/details). Additional context is in [the architecture design brief](https://example.com/documentation/architecture/design-brief/summary/version-three-point-zero), [the integration setup guide](https://example.com/documentation/integrations/setup-guide/primer/examples/patterns), [the troubleshooting reference](https://example.com/documentation/troubleshoot/common-issues/reference-guide/patterns/solutions), and [the release notes for the current quarter](https://example.com/documentation/release/notes/latest/current/changes). These resources together cover most use cases.`;
+
 interface Expected {
   source_format: 'html' | 'pdf';
   word_count: number;
@@ -139,6 +155,45 @@ const CASES: Array<{ name: string; markdown: string; expected: Expected }> = [
       quality_warnings: ['very short content'],
     },
   },
+  {
+    name: 'LONG_NO_HEADINGS',
+    markdown: LONG_NO_HEADINGS,
+    expected: {
+      source_format: 'html',
+      word_count: 236,
+      headings: [],
+      has_tables: false,
+      has_code_blocks: false,
+      quality_warnings: ['no headings detected'],
+    },
+  },
+  {
+    name: 'PDF_NO_TABLES',
+    markdown: PDF_NO_TABLES,
+    expected: {
+      source_format: 'pdf',
+      word_count: 62,
+      headings: [
+        { level: 1, text: 'Annual Report Summary' },
+        { level: 2, text: 'Key Findings' },
+      ],
+      has_tables: false,
+      has_code_blocks: false,
+      quality_warnings: ['no tables detected in PDF'],
+    },
+  },
+  {
+    name: 'LINK_HEAVY',
+    markdown: LINK_HEAVY,
+    expected: {
+      source_format: 'html',
+      word_count: 57,
+      headings: [{ level: 1, text: 'Reference Links' }],
+      has_tables: false,
+      has_code_blocks: false,
+      quality_warnings: ['high markdown-to-plain ratio'],
+    },
+  },
 ];
 
 describe('PipelineExtractionResult parity fixtures', () => {
@@ -180,10 +235,10 @@ describe('PipelineExtractionResult parity fixtures', () => {
         expect(result.has_code_blocks).toBe(expected.has_code_blocks);
       });
 
-      it('quality_warnings contains expected entries', () => {
-        for (const warning of expected.quality_warnings) {
-          expect(result.quality_warnings).toContain(warning);
-        }
+      it('quality_warnings set matches exactly', () => {
+        expect(new Set(result.quality_warnings)).toEqual(
+          new Set(expected.quality_warnings),
+        );
       });
 
       it('content_plain does not contain markdown syntax tokens', () => {

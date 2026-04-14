@@ -63,6 +63,22 @@ MINIMAL_CONTENT = "Just a brief note with only a handful of words here."
 
 EMPTY_CONTENT = ""
 
+LONG_NO_HEADINGS = """The implementation of a comprehensive knowledge base platform requires careful attention to multiple interconnected concerns. First, the data model must accommodate the variety of content types that organisations produce, from short policy statements through to lengthy technical documentation. Second, the extraction pipeline needs to handle diverse source formats without losing structural information during conversion. Third, the classification layer must correctly identify domains, subtopics, entities, and relationships at scale. Fourth, the retrieval experience must be fast enough to feel responsive while still producing high-quality results for both semantic and keyword queries.
+
+Beyond these core concerns, there are many secondary considerations. Access control must respect organisational boundaries. Content freshness must be tracked so stale information can be surfaced for review. Provenance must be preserved so every claim can be traced back to a source document. The user interface must be approachable for non-technical users while still providing power features for administrators. All of this must work reliably in production, with appropriate observability and error handling.
+
+Building a system that meets all of these requirements is not simple. It takes careful sequencing of work, clear architectural decisions, and ongoing refinement based on real usage. The team must resist the urge to build everything at once and instead deliver incremental value while laying the foundations that will support future growth. Only then can the platform reach its full potential as a genuine knowledge asset rather than just another content silo."""
+
+PDF_NO_TABLES = """# Annual Report Summary
+
+## Key Findings
+
+The organisation achieved its primary objectives during the reporting period. Growth in core service lines exceeded expectations. Operational costs remained within budgeted levels. Staff engagement scores improved year-on-year. Customer satisfaction metrics held steady despite broader market pressures. Strategic investment in platform capabilities is beginning to yield measurable returns. The board remains confident in the direction and long-term outlook."""
+
+LINK_HEAVY = """# Reference Links
+
+Readers who want more detail should consult the primary documentation. See the manual at [the reference manual guide](https://example.com/documentation/reference-manual/chapter-one/part-two/section-three/subsection-four) and the companion [complete API overview documentation](https://example.com/documentation/api-overview/introduction/primer/advanced/details). Additional context is in [the architecture design brief](https://example.com/documentation/architecture/design-brief/summary/version-three-point-zero), [the integration setup guide](https://example.com/documentation/integrations/setup-guide/primer/examples/patterns), [the troubleshooting reference](https://example.com/documentation/troubleshoot/common-issues/reference-guide/patterns/solutions), and [the release notes for the current quarter](https://example.com/documentation/release/notes/latest/current/changes). These resources together cover most use cases."""
+
 
 CASES = [
     {
@@ -126,6 +142,39 @@ CASES = [
         "has_code_blocks": False,
         "quality_warnings": ["very short content"],
     },
+    {
+        "name": "LONG_NO_HEADINGS",
+        "markdown": LONG_NO_HEADINGS,
+        "source_format": "html",
+        "word_count": 236,
+        "headings": [],
+        "has_tables": False,
+        "has_code_blocks": False,
+        "quality_warnings": ["no headings detected"],
+    },
+    {
+        "name": "PDF_NO_TABLES",
+        "markdown": PDF_NO_TABLES,
+        "source_format": "pdf",
+        "word_count": 62,
+        "headings": [
+            {"level": 1, "text": "Annual Report Summary"},
+            {"level": 2, "text": "Key Findings"},
+        ],
+        "has_tables": False,
+        "has_code_blocks": False,
+        "quality_warnings": ["no tables detected in PDF"],
+    },
+    {
+        "name": "LINK_HEAVY",
+        "markdown": LINK_HEAVY,
+        "source_format": "html",
+        "word_count": 57,
+        "headings": [{"level": 1, "text": "Reference Links"}],
+        "has_tables": False,
+        "has_code_blocks": False,
+        "quality_warnings": ["high markdown-to-plain ratio"],
+    },
 ]
 
 
@@ -172,10 +221,9 @@ def test_has_code_blocks_matches(case):
     assert result.has_code_blocks is spec["has_code_blocks"]
 
 
-def test_quality_warnings_contain_expected(case):
+def test_quality_warnings_set_matches_exactly(case):
     spec, result = case
-    for warning in spec["quality_warnings"]:
-        assert warning in result.quality_warnings
+    assert set(result.quality_warnings) == set(spec["quality_warnings"])
 
 
 def test_content_plain_has_no_markdown_syntax(case):
