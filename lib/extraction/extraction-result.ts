@@ -43,11 +43,25 @@ export function createPipelineExtractionResult(
   const hasTables = /^\|.+\|$/m.test(raw.content_markdown);
   const hasCodeBlocks = /^```/m.test(raw.content_markdown);
 
-  // Quality warnings
   const warnings: string[] = [];
-  if (wordCount < 100) warnings.push('Very short content (under 100 words)');
-  if (headings.length === 0) warnings.push('No headings detected');
-  if (!raw.title.trim()) warnings.push('Empty title');
+  if (wordCount < 50) {
+    warnings.push('very short content');
+  }
+  if (headings.length === 0 && wordCount > 200) {
+    warnings.push('no headings detected');
+  }
+  if (raw.source_format === 'pdf' && !hasTables) {
+    warnings.push('no tables detected in PDF');
+  }
+  if (
+    contentPlain.length > 0 &&
+    raw.content_markdown.length / contentPlain.length > 1.25
+  ) {
+    warnings.push('high markdown-to-plain ratio');
+  }
+  if (!raw.title.trim()) {
+    warnings.push('empty title');
+  }
 
   return {
     ...raw,

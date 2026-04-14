@@ -66,30 +66,102 @@ describe('createPipelineExtractionResult', () => {
     expect(result.has_code_blocks).toBe(true);
   });
 
-  it('warns on short content', () => {
+  it('warns on very short content (< 50 words)', () => {
     const result = createPipelineExtractionResult({
       source_format: 'html',
       title: 'Test',
-      content_markdown: 'Short.',
+      content_markdown: 'Short piece with fewer than fifty words overall.',
       extraction_method: 'test',
       extraction_confidence: 'low',
     });
-    expect(result.quality_warnings).toContain(
-      'Very short content (under 100 words)',
-    );
+    expect(result.quality_warnings).toContain('very short content');
   });
 
-  it('warns on missing headings', () => {
+  it('does not warn "very short" when word_count >= 50', () => {
+    const fifty = Array.from({ length: 60 }, (_, i) => `word${i}`).join(' ');
     const result = createPipelineExtractionResult({
+      source_format: 'html',
+      title: 'Test',
+      content_markdown: fifty,
+      extraction_method: 'test',
+      extraction_confidence: 'high',
+    });
+    expect(result.quality_warnings).not.toContain('very short content');
+  });
+
+  it('warns on no headings only when word_count > 200', () => {
+    const longBody = Array.from({ length: 220 }, (_, i) => `word${i}`).join(
+      ' ',
+    );
+    const withLongBody = createPipelineExtractionResult({
+      source_format: 'html',
+      title: 'Test',
+      content_markdown: longBody,
+      extraction_method: 'test',
+      extraction_confidence: 'high',
+    });
+    expect(withLongBody.quality_warnings).toContain('no headings detected');
+
+    const shortBody = createPipelineExtractionResult({
       source_format: 'html',
       title: 'Test',
       content_markdown: 'Just plain text without any headings.',
       extraction_method: 'test',
       extraction_confidence: 'high',
     });
-    expect(result.quality_warnings).toContain('No headings detected');
+    expect(shortBody.quality_warnings).not.toContain('no headings detected');
   });
 
+  it('warns on PDFs with no tables detected', () => {
+    const body = Array.from({ length: 80 }, (_, i) => `word${i}`).join(' ');
+    const result = createPipelineExtractionResult({
+      source_format: 'pdf',
+      title: 'Policy PDF',
+      content_markdown: `# Heading\n\n${body}`,
+      extraction_method: 'pdfplumber',
+      extraction_confidence: 'medium',
+    });
+    expect(result.quality_warnings).toContain('no tables detected in PDF');
+  });
+
+  it('does not warn "no tables in PDF" when tables are present', () => {
+    const result = createPipelineExtractionResult({
+      source_format: 'pdf',
+      title: 'Policy PDF',
+      content_markdown:
+        '# Heading\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\nBody text.',
+      extraction_method: 'pdfplumber',
+      extraction_confidence: 'medium',
+    });
+    expect(result.quality_warnings).not.toContain('no tables detected in PDF');
+  });
+
+  it('warns on high markdown-to-plain ratio (> 1.25)', () => {
+    const result = createPipelineExtractionResult({
+      source_format: 'html',
+      title: 'Test',
+      content_markdown:
+        '[link text](https://example.com) [link text](https://example.com) [link text](https://example.com)',
+      extraction_method: 'test',
+      extraction_confidence: 'high',
+    });
+    expect(result.quality_warnings).toContain('high markdown-to-plain ratio');
+  });
+
+  it('does not warn high-ratio when syntax is modest', () => {
+    const result = createPipelineExtractionResult({
+      source_format: 'html',
+      title: 'Test',
+      content_markdown: 'Plain prose with no decoration at all.',
+      extraction_method: 'test',
+      extraction_confidence: 'high',
+    });
+    expect(result.quality_warnings).not.toContain('high markdown-to-plain ratio');
+  });
+
+  // "empty title" is kept as a defensible extension of the Plan D spec:
+  // the spec enumerates 4 warnings but does not forbid additional ones,
+  // and empty titles are a real pipeline defect worth flagging.
   it('warns on empty title', () => {
     const result = createPipelineExtractionResult({
       source_format: 'html',
@@ -98,7 +170,7 @@ describe('createPipelineExtractionResult', () => {
       extraction_method: 'test',
       extraction_confidence: 'high',
     });
-    expect(result.quality_warnings).toContain('Empty title');
+    expect(result.quality_warnings).toContain('empty title');
   });
 
   it('sets extractor_version and extracted_at', () => {
@@ -123,5 +195,22 @@ describe('createPipelineExtractionResult', () => {
       source_url: 'https://example.com',
     });
     expect(result.source_url).toBe('https://example.com');
+  });
+
+  it('handles empty content_markdown without throwing', () => {
+    const result = createPipelineExtractionResult({
+      source_format: 'html',
+      title: 'Test',
+      content_markdown: '',
+      extraction_method: 'test',
+      extraction_confidence: 'low',
+    });
+    expect(result.content_plain).toBe('');
+    expect(result.word_count).toBe(0);
+    expect(result.headings).toEqual([]);
+    expect(result.has_tables).toBe(false);
+    expect(result.has_code_blocks).toBe(false);
+    expect(result.quality_warnings).toContain('very short content');
+    expect(result.quality_warnings).not.toContain('high markdown-to-plain ratio');
   });
 });
