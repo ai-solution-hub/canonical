@@ -1,6 +1,6 @@
 # MCP Module
 
-MCP server exposing the Knowledge Hub as 41 tools, 12 resources, and 5 prompts
+MCP server exposing the Knowledge Hub as 42 tools, 12 resources, and 5 prompts
 via Streamable HTTP transport at `/api/mcp/mcp`.
 
 ## Key Files

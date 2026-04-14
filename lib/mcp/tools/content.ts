@@ -13,6 +13,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createMcpClient, getMcpUserId, checkMcpRole } from '@/lib/mcp/auth';
 import { sb, tryQuery } from '@/lib/supabase/safe';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import type { Database, Json } from '@/supabase/types/database.types';
 import {
   formatContentItem,
@@ -198,9 +199,10 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             }),
           );
         } else {
-          console.warn(
-            '[mcp.content.get_item.chunks] degraded — chunks omitted:',
-            chunkResult.error.message,
+          logBestEffortWarn(
+            'mcp.content.get_item.chunks',
+            'Chunk fetch degraded — chunks omitted from response',
+            { itemId: args.id, error: chunkResult.error.message },
           );
         }
 
