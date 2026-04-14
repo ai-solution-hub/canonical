@@ -46,6 +46,7 @@ export function ContentEditor({
       LinkExt.configure({ openOnClick: false }),
     ],
     content,
+    contentType: 'markdown',
     editable: !readOnly,
     immediatelyRender: false,
     autofocus: autofocus ? 'end' : false,
@@ -71,7 +72,7 @@ export function ContentEditor({
   // Sync content from parent
   useEffect(() => {
     if (editor && content !== editor.getMarkdown()) {
-      editor.commands.setContent(content);
+      editor.commands.setContent(content, { contentType: 'markdown' });
     }
   }, [content, editor]);
 
