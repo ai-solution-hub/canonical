@@ -520,6 +520,26 @@ export interface ClassifyParams {
 // Pass 2: Entity validation types
 // ──────────────────────────────────────────
 
+/**
+ * Payment-gateway product anchor (S169 WP2).
+ *
+ * S168 WP2 measurement showed the six branded payment gateways below are a
+ * stable (not stochastic) Pass 1 type-flip-flop — Claude oscillates between
+ * `technology` and `organisation` rather than picking `product` consistently.
+ * Anchoring both the extraction prompt (Pass 1) and the validation prompt
+ * (Pass 2) stops the oscillation at both ends. Evidence:
+ * `docs/audits/two-pass-cost-quality-measurement.md` §7 item 1.
+ */
+const PAYMENT_GATEWAY_PRODUCT_ANCHOR = `PAYMENT GATEWAY PRODUCT ANCHOR
+These are payment-gateway products — classify/validate as entity type \`product\` (never \`technology\`, never \`organisation\`):
+- Access PaySuite
+- Adalante Smartpay
+- Opayo
+- Pay360
+- WorldPay
+- Stripe
+Exception: when the surrounding text is clearly discussing the vendor company rather than the gateway itself (e.g. "Stripe, Inc. announced …"), the vendor mention is \`organisation\`. Default to \`product\`.`;
+
 export interface ValidatedEntity {
   name: string;
   type: ExtractedEntity['type'];
@@ -656,6 +676,23 @@ Common false positives to catch:
   entities or methodologies
 - Geographic regions (England, Wales, Scotland) are NOT sectors
 - Internal departments (IT Department, HR Team) are NOT organisations
+
+BULK CERTIFICATION PRESERVATION
+When the source content presents several similar-looking certifications
+together in a list — for example "Accredited to ISO 9001, ISO 27001, BS 10008,
+PCI-DSS, Cyber Essentials Plus and SOC 2" — treat those certifications as an
+atomic unit. Either confirm all of them or remove all of them. Do NOT
+surgically "remove" individual entries (e.g. keeping ISO 27001 but removing
+BS 10008 or PCI-DSS) unless an entry independently fails the NAMED ENTITY
+TEST or the EXTERNAL REFERENCE TEST. The Pass 1 extractor is more reliable at
+recognising bulk-cert lists than Pass 2 is at second-guessing individual
+entries, so the default verdict for each member of a recognisable bulk list
+is "confirmed". Examples of bulk-cert lists that must be preserved together:
+data-centre accreditations (ISO 27001 + BS 10008 + PCI-DSS), security posture
+bundles (ISO 27001 + Cyber Essentials Plus + SOC 2), and ESG stacks
+(ISO 14001 + ISO 50001 + ISO 45001).
+
+${PAYMENT_GATEWAY_PRODUCT_ANCHOR}
 
 For each entity, return a verdict:
 - "confirmed" if it passes all tests with the correct type
@@ -893,7 +930,8 @@ export async function classifyContent(
     .replaceAll('{CLIENT_ORGANISATION_SHORT}', CLIENT_CONFIG.entity_examples.organisation_short)
     .replaceAll('{CLIENT_PRODUCT_NAME}', CLIENT_CONFIG.entity_examples.product_name)
     .replaceAll('{CLIENT_PRODUCT_SHORT}', CLIENT_CONFIG.entity_examples.product_short)
-    + '\n\n---\n\n' + entityTypesRef;
+    + '\n\n---\n\n' + entityTypesRef
+    + '\n\n---\n\n' + PAYMENT_GATEWAY_PRODUCT_ANCHOR;
 
   // Prepare content for classification (truncate at 5000 chars)
   const plainText = stripMarkdown(item.content);
