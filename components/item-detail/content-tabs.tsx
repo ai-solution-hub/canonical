@@ -16,6 +16,10 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { formatDate } from '@/lib/format';
+import {
+  SAVE_SAFETY_BLOCK_MESSAGE,
+  shouldBlockSave,
+} from '@/lib/editor/save-safety';
 import { toast } from 'sonner';
 import { ContentRenderer } from '@/components/item-detail/content-renderer';
 import { ExternalLink } from 'lucide-react';
@@ -332,11 +336,36 @@ export function ContentTabs({
 
   function InlineContentEditor() {
     if (!editConfig || !isEditing('content')) return null;
+
+    // Save-safety guard for the Save-button path. Baseline is the
+    // last-persisted canonical markdown (`content` prop on ContentTabs —
+    // captured via closure here). The new length is the in-flight edit
+    // buffer (`editConfig.editValue`), which the editor keeps in sync via
+    // `onChange`. Both sides are measured in canonical markdown units so
+    // the ratio is meaningful. See `lib/editor/save-safety.ts` for the
+    // threshold and rationale. On block, we surface the canonical toast
+    // copy and keep the user in edit mode so they can recover their work.
+    const baselineLength = content?.length ?? 0;
+    const handleSaveClick = () => {
+      const nextLength = editConfig.editValue?.length ?? 0;
+      if (shouldBlockSave(baselineLength, nextLength)) {
+        toast.error(SAVE_SAFETY_BLOCK_MESSAGE);
+        return;
+      }
+      editConfig.onSaveEdit('content');
+    };
+
     return (
       <div className="space-y-3">
         <ContentEditor
           content={editConfig.editValue}
           onChange={editConfig.onEditValueChange}
+          // Secondary guard on Cmd+S. Invokes the save-edit callback on
+          // success; identical block behaviour to the Save button.
+          onSave={() => editConfig.onSaveEdit('content')}
+          // Explicit baseline — `content` here is the two-way-bound edit
+          // buffer, so the ContentEditor can't fall back to it safely.
+          baselineLength={baselineLength}
           placeholder={isQAPair ? 'Write the answer…' : 'Edit content…'}
           minHeight="200px"
         />
@@ -372,7 +401,7 @@ export function ContentTabs({
         <div className="flex items-center gap-2">
           <Button
             size="sm"
-            onClick={() => editConfig.onSaveEdit('content')}
+            onClick={handleSaveClick}
             disabled={editConfig.isSaving}
           >
             {editConfig.isSaving ? 'Saving…' : 'Save'}

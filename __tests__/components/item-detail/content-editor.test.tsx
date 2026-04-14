@@ -1,31 +1,26 @@
 /**
- * ContentEditor tests — WP1 S169.
+ * ContentEditor tests — WP1 + WP1-fix S169.
  *
- * Covers the Tiptap table-extension registration fix (P0 data-loss bug
- * where GFM tables in markdown were silently dropped on save because the
- * editor schema had no `table`/`tableRow`/`tableCell`/`tableHeader` nodes),
- * plus the defence-in-depth save-safety guard.
+ * Covers:
+ *   1. Tiptap table-extension registration (the P0 data-loss fix where GFM
+ *      tables were silently dropped on save because the schema had no
+ *      `table`/`tableRow`/`tableCell`/`tableHeader` nodes). Reproducer item:
+ *      08726af7-27ec-4540-bf24-9f8332f22b17.
+ *   2. Cmd+S save-safety guard integration (the guard helper itself is unit
+ *      tested in `__tests__/lib/editor/save-safety.test.ts`).
  *
- * Reproducer item: 08726af7-27ec-4540-bf24-9f8332f22b17.
+ * Schema + round-trip suites instantiate a real Tiptap `Editor` using the
+ * exported `buildExtensions()` from the production component — a single
+ * source of truth so the tests can't drift from what ships.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import { Editor } from '@tiptap/core';
-import StarterKit from '@tiptap/starter-kit';
-import { Markdown } from '@tiptap/markdown';
-import CharacterCount from '@tiptap/extension-character-count';
-import Placeholder from '@tiptap/extension-placeholder';
-import LinkExt from '@tiptap/extension-link';
-import { Table } from '@tiptap/extension-table';
-import { TableRow } from '@tiptap/extension-table-row';
-import { TableCell } from '@tiptap/extension-table-cell';
-import { TableHeader } from '@tiptap/extension-table-header';
 
 import {
   ContentEditor,
-  SAVE_SAFETY_MIN_RATIO,
-  shouldBlockSave,
+  buildExtensions,
 } from '@/components/item-detail/content-editor';
 
 // ---------------------------------------------------------------------------
@@ -45,76 +40,14 @@ vi.mock('sonner', () => ({
   },
 }));
 
-// The toolbar uses lucide-react icons etc. Keep it — but stub to avoid
-// pulling its dependencies into the test DOM.
+// The toolbar uses lucide-react icons etc. Stub it to keep this focused.
 vi.mock('@/components/item-detail/editor-toolbar', () => ({
   EditorToolbar: () => <div data-testid="editor-toolbar" />,
 }));
 
 // ---------------------------------------------------------------------------
-// Shared extensions array — same list as production ContentEditor.
-// ---------------------------------------------------------------------------
-
-function buildExtensions() {
-  return [
-    StarterKit.configure({ link: false }),
-    Markdown,
-    CharacterCount.configure({
-      wordCounter: (text: string) =>
-        text.split(/\s+/).filter(Boolean).length,
-    }),
-    Placeholder.configure({ placeholder: 'Start writing...' }),
-    LinkExt.configure({ openOnClick: false }),
-    Table.configure({ resizable: false }),
-    TableRow,
-    TableHeader,
-    TableCell,
-  ];
-}
-
-// ---------------------------------------------------------------------------
-// Pure guard helper
-// ---------------------------------------------------------------------------
-
-describe('shouldBlockSave', () => {
-  it('permits first save when previous length is 0', () => {
-    expect(shouldBlockSave(0, 0)).toBe(false);
-    expect(shouldBlockSave(0, 1000)).toBe(false);
-  });
-
-  it('permits first save when previous length is negative', () => {
-    expect(shouldBlockSave(-1, 10)).toBe(false);
-  });
-
-  it('permits normal edits (5% reduction)', () => {
-    // N=1000 → 0.8×N = 800; new=950 is above threshold.
-    expect(shouldBlockSave(1000, 950)).toBe(false);
-  });
-
-  it('permits edits exactly at threshold', () => {
-    // At threshold (equal) is permitted (strict <, not <=).
-    expect(shouldBlockSave(1000, 800)).toBe(false);
-  });
-
-  it('blocks save when new length drops below 80% of previous', () => {
-    expect(shouldBlockSave(1000, 799)).toBe(true);
-    expect(shouldBlockSave(1000, 500)).toBe(true);
-    expect(shouldBlockSave(1000, 0)).toBe(true);
-  });
-
-  it('uses a configurable ratio', () => {
-    // With ratio 0.5, dropping to 40% blocks, 60% does not.
-    expect(shouldBlockSave(1000, 400, 0.5)).toBe(true);
-    expect(shouldBlockSave(1000, 600, 0.5)).toBe(false);
-  });
-
-  it('exports the threshold constant', () => {
-    expect(SAVE_SAFETY_MIN_RATIO).toBe(0.8);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Schema assertion — the bug fix itself.
+// Schema assertion — the bug fix itself. Uses the REAL buildExtensions()
+// from the production module so the assertion can't drift.
 // ---------------------------------------------------------------------------
 
 describe('ContentEditor Tiptap schema — table nodes registered', () => {
@@ -169,22 +102,18 @@ describe('ContentEditor markdown round-trip — GFM tables', () => {
     });
 
     const json = editor.getJSON();
-    // The first top-level node should be a table.
     const tableNode = json.content?.find((n) => n.type === 'table');
     expect(tableNode, 'expected a table node in editor JSON').toBeDefined();
 
-    // A 3-body-row + 1-header-row GFM table → 4 tableRow children.
     const rows =
       tableNode?.content?.filter((n) => n.type === 'tableRow') ?? [];
     expect(rows.length).toBe(4);
 
-    // Header row should contain 4 tableHeader cells, not tableCell.
     const headerRow = rows[0];
     const headerCells =
       headerRow?.content?.filter((n) => n.type === 'tableHeader') ?? [];
     expect(headerCells.length).toBe(4);
 
-    // Body rows should each contain 4 tableCell cells.
     for (const bodyRow of rows.slice(1)) {
       const cells =
         bodyRow?.content?.filter((n) => n.type === 'tableCell') ?? [];
@@ -203,12 +132,9 @@ describe('ContentEditor markdown round-trip — GFM tables', () => {
 
     const roundTripped = editor.getMarkdown();
 
-    // Table semantic markers should survive (even if pipe alignment differs).
     expect(roundTripped).toContain('|');
-    // Header separator row is a GFM invariant.
     expect(roundTripped).toMatch(/\|\s*-+\s*\|/);
 
-    // Every header + body cell should be present somewhere in the output.
     for (const cell of [
       'Header 1',
       'Header 2',
@@ -235,7 +161,11 @@ describe('ContentEditor markdown round-trip — GFM tables', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Save-safety guard — end-to-end through the component (Cmd+S path).
+// Save-safety guard — Cmd+S path through the real component.
+//
+// We use the `onEditorReady` test-only hook to grab the editor instance and
+// drive setContent directly, which is much more reliable in jsdom than
+// trying to simulate keystrokes through ProseMirror.
 // ---------------------------------------------------------------------------
 
 describe('ContentEditor save-safety guard (Cmd+S path)', () => {
@@ -255,57 +185,43 @@ describe('ContentEditor save-safety guard (Cmd+S path)', () => {
 
   async function flushEditorInit() {
     // useEditor initialises asynchronously with immediatelyRender:false.
-    // A microtask + rAF tick is usually enough for jsdom.
+    // Two macrotasks is reliable in jsdom.
     await new Promise((r) => setTimeout(r, 0));
     await new Promise((r) => setTimeout(r, 0));
   }
 
-  it('permits first save when previous content length was 0', async () => {
+  it('permits first save when baseline length is 0 (empty previous content)', async () => {
     const onSave = vi.fn();
     const onChange = vi.fn();
-    const { rerender } = render(
+
+    render(
       <ContentEditor
         content=""
         onChange={onChange}
         onSave={onSave}
-        autofocus={false}
+        baselineLength={0}
       />,
     );
     await flushEditorInit();
 
-    // Simulate having typed new content by rerendering with new prop? No —
-    // editor holds the typed value internally. We can't easily type in jsdom,
-    // so instead we verify guard passes by checking the Cmd+S path fires
-    // onSave when previous length is 0 (even with empty current markdown).
     pressCtrlS();
     await flushEditorInit();
 
     expect(onSave).toHaveBeenCalledTimes(1);
     expect(mockToastError).not.toHaveBeenCalled();
-
-    rerender(
-      <ContentEditor
-        content=""
-        onChange={onChange}
-        onSave={onSave}
-        autofocus={false}
-      />,
-    );
   });
 
   it('permits normal edits within the 80% threshold', async () => {
     const onSave = vi.fn();
     const onChange = vi.fn();
 
-    // Previous content of length 100. Editor initialises with this as its
-    // content and sets the guard baseline to 100. Getting markdown out gives
-    // us roughly the same length, which is ≥ 80 → save proceeds.
     const previous = 'a'.repeat(100);
     render(
       <ContentEditor
         content={previous}
         onChange={onChange}
         onSave={onSave}
+        baselineLength={previous.length}
       />,
     );
     await flushEditorInit();
@@ -315,6 +231,42 @@ describe('ContentEditor save-safety guard (Cmd+S path)', () => {
 
     expect(onSave).toHaveBeenCalledTimes(1);
     expect(mockToastError).not.toHaveBeenCalled();
+  });
+
+  it('blocks save and toasts when new markdown is <80% of baseline', async () => {
+    const onSave = vi.fn();
+    const onChange = vi.fn();
+    let capturedEditor: import('@tiptap/core').Editor | null = null;
+
+    render(
+      <ContentEditor
+        content={'a'.repeat(500)}
+        onChange={onChange}
+        onSave={onSave}
+        // Explicit baseline; we shrink the editor body below.
+        baselineLength={1000}
+        onEditorReady={(e) => {
+          capturedEditor = e;
+        }}
+      />,
+    );
+    await flushEditorInit();
+
+    expect(capturedEditor, 'onEditorReady should fire').not.toBeNull();
+
+    // Drive the editor to dramatically shorter content (well below 80% of
+    // the baseline of 1000).
+    capturedEditor!.commands.setContent('short', { contentType: 'markdown' });
+    await flushEditorInit();
+
+    pressCtrlS();
+    await flushEditorInit();
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(mockToastError).toHaveBeenCalledTimes(1);
+    expect(mockToastError).toHaveBeenCalledWith(
+      expect.stringMatching(/^Save blocked/),
+    );
   });
 });
 
