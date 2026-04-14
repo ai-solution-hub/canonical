@@ -502,7 +502,7 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
             query_embedding: JSON.stringify(embedding),
             similarity_threshold: 0.3,
             limit_count: searchLimit,
-            filter_content_item_id: args.content_item_id ?? null,
+            filter_content_item_id: args.content_item_id ?? undefined,
           },
         );
 
