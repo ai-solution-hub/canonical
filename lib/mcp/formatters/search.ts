@@ -109,6 +109,76 @@ export function formatQASearchResults(
 }
 
 // ---------------------------------------------------------------------------
+// Chunk search results
+// ---------------------------------------------------------------------------
+
+export interface ChunkSearchResult {
+  chunk_id: string;
+  content_item_id: string;
+  item_title: string | null;
+  item_suggested_title: string | null;
+  item_content_type: string | null;
+  item_primary_domain: string | null;
+  item_primary_subtopic: string | null;
+  heading_text: string | null;
+  heading_level: number | null;
+  heading_path: string[] | null;
+  content: string;
+  position: number;
+  char_count: number;
+  word_count: number;
+  similarity: number;
+}
+
+export function formatChunkSearchResults(
+  query: string,
+  results: ChunkSearchResult[],
+): string {
+  if (results.length === 0) {
+    return `# Chunk Search Results for "${query}"\n\nNo matching sections found. Try broadening your search terms, or use search_knowledge_base for whole-document search.`;
+  }
+
+  const lines: string[] = [
+    `# Chunk Search Results for "${query}"`,
+    '',
+    `Found ${results.length} matching section${results.length === 1 ? '' : 's'}:`,
+    '',
+  ];
+
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    const itemTitle = r.item_suggested_title || r.item_title || 'Untitled';
+    const sectionTitle = r.heading_text || '(preamble)';
+    const similarity = Math.round(r.similarity * 100);
+    const path = r.heading_path?.length
+      ? r.heading_path.join(' > ')
+      : '(document root)';
+
+    lines.push(`## ${i + 1}. ${sectionTitle}`);
+    lines.push(`**Document:** ${itemTitle}`);
+    lines.push(`**Path:** ${path}`);
+    if (r.item_primary_domain) {
+      const domain = r.item_primary_subtopic
+        ? `${r.item_primary_domain} > ${r.item_primary_subtopic}`
+        : r.item_primary_domain;
+      lines.push(`**Domain:** ${domain}`);
+    }
+    lines.push(`**Relevance:** ${similarity}%`);
+    lines.push(`**Size:** ${r.word_count} words`);
+    lines.push('');
+    // Show content excerpt (truncated for large chunks)
+    lines.push(truncate(r.content, 500));
+    lines.push('');
+    lines.push(
+      `**Chunk ID:** ${r.chunk_id} | **Item ID:** ${r.content_item_id}`,
+    );
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
 // Similar items
 // ---------------------------------------------------------------------------
 

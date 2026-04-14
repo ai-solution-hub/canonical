@@ -19,6 +19,8 @@ export {
   type SimilarItem,
   type SimilarItemsResult,
   formatSimilarItems,
+  type ChunkSearchResult,
+  formatChunkSearchResults,
 } from './search';
 export {
   type ContentItemDetail,
@@ -29,6 +31,8 @@ export {
   formatUpdatedItem,
   type BatchContentItemsResult,
   formatBatchContentItems,
+  type ContentItemChunk,
+  formatContentItemChunks,
 } from './content';
 export {
   formatDashboardSummary,

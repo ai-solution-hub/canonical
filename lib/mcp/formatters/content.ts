@@ -91,6 +91,38 @@ export function formatContentItem(item: ContentItemDetail): string {
 }
 
 // ---------------------------------------------------------------------------
+// Content item chunks (for get_content_item response)
+// ---------------------------------------------------------------------------
+
+export interface ContentItemChunk {
+  id: string;
+  heading_text: string | null;
+  heading_level: number | null;
+  heading_path: string[];
+  position: number;
+  char_count: number;
+  word_count: number;
+}
+
+export function formatContentItemChunks(chunks: ContentItemChunk[]): string {
+  if (chunks.length === 0) return '';
+
+  const lines: string[] = ['', '## Document Sections', ''];
+
+  for (const chunk of chunks) {
+    const indent = chunk.heading_level
+      ? '  '.repeat(Math.max(0, chunk.heading_level - 1))
+      : '';
+    const title = chunk.heading_text || '(preamble)';
+    lines.push(
+      `${indent}- **${title}** (${chunk.word_count} words) [chunk:${chunk.id}]`,
+    );
+  }
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
 // Content item created
 // ---------------------------------------------------------------------------
 

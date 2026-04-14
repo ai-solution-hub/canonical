@@ -1,8 +1,9 @@
 /**
- * Search tool registrations (3 tools):
+ * Search tool registrations (4 tools):
  *   1. search_knowledge_base
  *  13. search_qa_library
  *  20. find_similar_items
+ *  21. search_content_chunks
  */
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -12,12 +13,14 @@ import {
   formatSearchResults,
   formatQASearchResults,
   formatSimilarItems,
+  formatChunkSearchResults,
   truncateResponse,
 } from '@/lib/mcp/formatters';
 import type {
   SearchResult,
   SimilarItem,
   SimilarItemsResult,
+  ChunkSearchResult,
 } from '@/lib/mcp/formatters';
 import {
   type ToolExtra,
@@ -444,6 +447,98 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
             {
               type: 'text' as const,
               text: `Similarity search failed: ${message}.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 21. search_content_chunks
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'search_content_chunks',
+    {
+      title: 'Search Content Chunks',
+      description:
+        'Search within content at the section level using semantic search. Returns individual sections (chunks) of documents rather than whole items, enabling fine-grained retrieval. Each chunk includes its heading path (breadcrumb) showing where it sits in the document structure. Useful for finding specific sections within long documents — e.g. "the Risk Assessment section of a health and safety policy". Use search_knowledge_base for whole-document search, use this for section-level precision.',
+      inputSchema: {
+        query: z
+          .string()
+          .describe('The search query — use natural language for best results'),
+        limit: z
+          .number()
+          .optional()
+          .describe(
+            'Maximum number of chunk results to return (default: 10, max: 30)',
+          ),
+        content_item_id: z
+          .string()
+          .uuid()
+          .optional()
+          .describe(
+            'Optional: restrict search to chunks within a specific content item. Useful for navigating within a known document.',
+          ),
+      },
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+        const searchLimit = Math.min(args.limit ?? 10, 30);
+
+        const generateEmbedding = await getGenerateEmbedding();
+        const embedding = await generateEmbedding(args.query.trim());
+
+        const { data: results, error } = await supabase.rpc(
+          'search_content_chunks',
+          {
+            query_embedding: JSON.stringify(embedding),
+            similarity_threshold: 0.3,
+            limit_count: searchLimit,
+            filter_content_item_id: args.content_item_id ?? null,
+          },
+        );
+
+        if (error) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Chunk search failed: ${error.message}. Try simplifying your query.`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const chunkResults = (results ?? []) as ChunkSearchResult[];
+        const markdown = truncateResponse(
+          formatChunkSearchResults(args.query, chunkResults),
+        );
+
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent({
+            query: args.query,
+            count: chunkResults.length,
+            content_item_id: args.content_item_id ?? null,
+            results: chunkResults,
+          }),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Chunk search failed: ${message}. Try simplifying your query.`,
             },
           ],
           isError: true,
