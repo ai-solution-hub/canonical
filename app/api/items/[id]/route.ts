@@ -149,6 +149,7 @@ export async function PATCH(
       [field]: value,
       updated_by: user.id,
     };
+    let rebuiltQaContent: string | null = null;
     if (
       (field === 'answer_standard' || field === 'answer_advanced') &&
       currentItem.content_type === 'q_a_pair'
@@ -160,7 +161,9 @@ export async function PATCH(
       const parts: string[] = [];
       if (standard) parts.push(String(standard));
       if (advanced) parts.push(String(advanced));
-      updateData.content = parts.join('\n\n') || null;
+      const joined = parts.join('\n\n') || null;
+      updateData.content = joined;
+      rebuiltQaContent = joined;
     }
 
     // Publishing from draft: generate embedding BEFORE clearing governance_review_status.
@@ -389,6 +392,38 @@ export async function PATCH(
           { itemId: id, err: String(embedErr) },
         );
         warnings.add('Embedding regeneration failed');
+      }
+    }
+
+    // Regenerate chunks when content changes.
+    // Triggered by: (a) direct content-field edits, (b) Q&A rebuilds that
+    // reconstruct `content` from answer_standard + answer_advanced.
+    const newContentForChunks: string | null =
+      field === 'content' && typeof value === 'string'
+        ? value
+        : rebuiltQaContent;
+    if (newContentForChunks !== null) {
+      try {
+        const { regenerateChunks } = await import('@/lib/content/chunk-store');
+        const { createServiceClient } = await import('@/lib/supabase/server');
+        const chunkServiceClient = createServiceClient();
+        const chunkResult = await regenerateChunks(
+          chunkServiceClient,
+          id,
+          newContentForChunks,
+        );
+        if (chunkResult.errors.length > 0) {
+          warnings.add(
+            `Chunk regeneration: ${chunkResult.errors.length} error(s)`,
+          );
+        }
+      } catch (chunkErr) {
+        logBestEffortWarn(
+          'items.patch.chunk_regenerate',
+          'Chunk regeneration failed',
+          { itemId: id, err: String(chunkErr) },
+        );
+        warnings.add('Content chunk regeneration failed');
       }
     }
 
