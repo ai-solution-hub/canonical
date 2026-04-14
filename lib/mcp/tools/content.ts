@@ -12,13 +12,14 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createMcpClient, getMcpUserId, checkMcpRole } from '@/lib/mcp/auth';
-import { sb } from '@/lib/supabase/safe';
+import { sb, tryQuery } from '@/lib/supabase/safe';
 import type { Database, Json } from '@/supabase/types/database.types';
 import {
   formatContentItem,
   formatCreatedItem,
   formatUpdatedItem,
   formatBatchContentItems,
+  formatContentItemChunks,
   truncateResponse,
   CHARACTER_LIMIT,
 } from '@/lib/mcp/formatters';
@@ -27,6 +28,7 @@ import type {
   CreatedItem,
   UpdatedItemResult,
   BatchContentItemsResult,
+  ContentItemChunk,
 } from '@/lib/mcp/formatters';
 import {
   type ToolExtra,
@@ -170,11 +172,46 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           priority: item.priority,
         };
 
-        const markdown = truncateResponse(formatContentItem(itemDetail));
+        // Fetch chunks for this item (lightweight: metadata only, no content).
+        // Non-fatal — chunks are supplementary to the item detail.
+        let chunks: ContentItemChunk[] = [];
+        const chunkResult = await tryQuery(
+          supabase
+            .from('content_chunks')
+            .select(
+              'id, heading_text, heading_level, heading_path, position, char_count, word_count',
+            )
+            .eq('content_item_id', args.id)
+            .order('position'),
+          'mcp.content.get_item.chunks',
+        );
+        if (chunkResult.ok) {
+          chunks = (chunkResult.data ?? []).map(
+            (row: Record<string, unknown>) => ({
+              id: row.id as string,
+              heading_text: row.heading_text as string | null,
+              heading_level: row.heading_level as number | null,
+              heading_path: (row.heading_path as string[] | null) ?? [],
+              position: row.position as number,
+              char_count: row.char_count as number,
+              word_count: row.word_count as number,
+            }),
+          );
+        } else {
+          console.warn(
+            '[mcp.content.get_item.chunks] degraded — chunks omitted:',
+            chunkResult.error.message,
+          );
+        }
+
+        const chunkMarkdown = formatContentItemChunks(chunks);
+        const markdown = truncateResponse(
+          formatContentItem(itemDetail) + chunkMarkdown,
+        );
 
         // Truncate content in structuredContent to prevent oversized responses
         // from large PDFs (which can exceed 500KB)
-        const structuredItem = { ...item };
+        const structuredItem: Record<string, unknown> = { ...item, chunks };
         if (
           typeof structuredItem.content === 'string' &&
           structuredItem.content.length > CHARACTER_LIMIT
