@@ -69,6 +69,8 @@ function extractBalancedBlock(source: string, startIndex: number): string {
   let inSingleQuote = false;
   let inDoubleQuote = false;
   let inTemplate = false;
+  let inLineComment = false;
+  let inBlockComment = false;
   let escaped = false;
 
   while (i < source.length && depth > 0) {
@@ -82,6 +84,22 @@ function extractBalancedBlock(source: string, startIndex: number): string {
 
     if (ch === '\\') {
       escaped = true;
+      i++;
+      continue;
+    }
+
+    if (inLineComment) {
+      if (ch === '\n') inLineComment = false;
+      i++;
+      continue;
+    }
+
+    if (inBlockComment) {
+      if (ch === '*' && source[i + 1] === '/') {
+        inBlockComment = false;
+        i += 2;
+        continue;
+      }
       i++;
       continue;
     }
@@ -101,6 +119,18 @@ function extractBalancedBlock(source: string, startIndex: number): string {
     if (inTemplate) {
       if (ch === '`') inTemplate = false;
       i++;
+      continue;
+    }
+
+    // Detect comments before entering string modes
+    if (ch === '/' && source[i + 1] === '/') {
+      inLineComment = true;
+      i += 2;
+      continue;
+    }
+    if (ch === '/' && source[i + 1] === '*') {
+      inBlockComment = true;
+      i += 2;
       continue;
     }
 

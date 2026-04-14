@@ -75,10 +75,10 @@ export function loadEnv(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Canonical lists — updated to 41 tools (current as of S144)
+// Canonical lists — updated to 42 tools (current as of S167)
 // ---------------------------------------------------------------------------
 
-/** Canonical set of all 41 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
+/** Canonical set of all 42 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
 export const CANONICAL_TOOL_NAMES = [
   'search_knowledge_base', // 1
   'search_qa_library', // 2
@@ -121,15 +121,17 @@ export const CANONICAL_TOOL_NAMES = [
   'delete_content_item', // 39
   'update_governance_status', // 40
   'get_intelligence_summary', // 41
+  'search_content_chunks', // 42
 ] as const;
 
-export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 41
+export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 42
 
 /** Read-only tools (no side effects). */
 export const READ_ONLY_TOOLS = new Set([
   'search_knowledge_base',
   'search_qa_library',
   'find_similar_items',
+  'search_content_chunks',
   'get_dashboard_summary',
   'get_reorientation',
   'get_freshness_report',
@@ -442,6 +444,8 @@ export function getMinimalArgs(
     case 'get_freshness_report':
       return {};
     case 'search_qa_library':
+      return { query: 'test' };
+    case 'search_content_chunks':
       return { query: 'test' };
     case 'get_entity_relationships':
       return { entity_type: 'certification' };
