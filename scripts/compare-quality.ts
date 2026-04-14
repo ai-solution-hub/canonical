@@ -86,15 +86,22 @@ interface ContentSnapshot {
   classification_confidence: number | null;
   ai_keywords: string[] | null;
   embedding: number[] | null;
-  entity_count: number;
+  canonical_names: string[];
   summary_length: number | null;
   word_count: number;
+  heading_count: number;
   chunk_count: number;
   created_at: string;
   freshness: string | null;
 }
 
 function readSnapshot(p: string): Map<string, ContentSnapshot> {
+  if (!fs.existsSync(p)) {
+    console.error(
+      `Could not read snapshot at ${p}. Check the path and that the snapshot script completed successfully.`,
+    );
+    process.exit(1);
+  }
   const content = fs.readFileSync(p, 'utf-8');
   const map = new Map<string, ContentSnapshot>();
   for (const line of content.split('\n')) {
@@ -183,11 +190,12 @@ function mean(values: number[]): number {
 
 // ── Dimension computations ─────────────────────────────────────────────────
 
-interface PairStat {
+export interface PairStat {
   id: string;
   content_type: string;
   contentRatio: number | null;
   wordCountRatio: number | null;
+  headingRatio: number | null;
   similarity: number | null;
   domainMatch: boolean | null;
   entityJaccard: number | null;
@@ -195,7 +203,7 @@ interface PairStat {
   chunkCountOld: number;
 }
 
-function computePairStats(
+export function computePairStats(
   oldMap: Map<string, ContentSnapshot>,
   newMap: Map<string, ContentSnapshot>,
 ): PairStat[] {
@@ -210,6 +218,10 @@ function computePairStats(
         : null;
     const wordCountRatio =
       oldItem.word_count > 0 ? newItem.word_count / oldItem.word_count : null;
+    const headingRatio =
+      oldItem.heading_count > 0
+        ? newItem.heading_count / oldItem.heading_count
+        : null;
 
     let similarity: number | null = null;
     if (
@@ -226,16 +238,11 @@ function computePairStats(
         ? oldItem.primary_domain === newItem.primary_domain
         : null;
 
-    // Entity Jaccard at the snapshot level is approximate (we only have
-    // counts, not the names). Use a trimmed-count Jaccard as a proxy:
-    // min/max of counts. This approximates set overlap when entity
-    // extraction recall is stable; true set-level Jaccard requires the
-    // entity_mentions dump.
     let entityJaccard: number | null = null;
-    if (oldItem.entity_count > 0 || newItem.entity_count > 0) {
-      const minC = Math.min(oldItem.entity_count, newItem.entity_count);
-      const maxC = Math.max(oldItem.entity_count, newItem.entity_count);
-      entityJaccard = maxC === 0 ? 1 : minC / maxC;
+    const oldNames = new Set(oldItem.canonical_names);
+    const newNames = new Set(newItem.canonical_names);
+    if (oldNames.size > 0 || newNames.size > 0) {
+      entityJaccard = jaccardSimilarity(oldNames, newNames);
     }
 
     out.push({
@@ -243,6 +250,7 @@ function computePairStats(
       content_type: oldItem.content_type,
       contentRatio,
       wordCountRatio,
+      headingRatio,
       similarity,
       domainMatch,
       entityJaccard,
@@ -290,7 +298,16 @@ function renderReport(
   lines.push(`Old items: ${oldMap.size}  |  New items: ${newMap.size}  |  Paired: ${pairs.length}`);
   lines.push('');
 
-  // Dim 1: Structural fidelity (word-count ratio proxy for headings)
+  // Dim 1: Structural fidelity (heading-count ratio)
+  const headingRatios = pairs
+    .map((p) => p.headingRatio)
+    .filter((v): v is number => v !== null && Number.isFinite(v));
+  const headingsPreserved = headingRatios.filter((r) => r >= 0.9).length;
+  const headingsPreservedPct = headingRatios.length
+    ? headingsPreserved / headingRatios.length
+    : NaN;
+
+  // Dim 8 (supplementary): Body-text completeness (word-count ratio)
   const wcRatios = pairs
     .map((p) => p.wordCountRatio)
     .filter((v): v is number => v !== null && Number.isFinite(v));
@@ -349,10 +366,10 @@ function renderReport(
   const dims: Dim[] = [
     {
       name: 'Structural fidelity',
-      metric: 'Items with word_count ratio ≥ 0.9',
+      metric: 'Items with heading_count ratio ≥ 0.9',
       threshold: '≥ 90%',
-      value: fmtPct(wcPreservedPct),
-      status: wcPreservedPct >= 0.9 ? 'PASS' : 'FAIL',
+      value: fmtPct(headingsPreservedPct),
+      status: headingsPreservedPct >= 0.9 ? 'PASS' : 'FAIL',
     },
     {
       name: 'Content completeness',
@@ -385,7 +402,7 @@ function renderReport(
     },
     {
       name: 'Entity extraction',
-      metric: 'Mean count-Jaccard',
+      metric: 'Mean Jaccard of canonical_name sets',
       threshold: '> 0.90',
       value: fmtNum(meanJaccard, 3),
       status: Number.isFinite(meanJaccard) && meanJaccard > 0.9 ? 'PASS' : 'FAIL',
@@ -416,6 +433,13 @@ function renderReport(
         Number.isFinite(qaAvgVal) && qaAvgVal >= 0.95 && qaAvgVal <= 1.1
           ? 'PASS'
           : 'WARN',
+    },
+    {
+      name: 'Body-text completeness',
+      metric: 'Items with word_count ratio ≥ 0.9',
+      threshold: '≥ 90%',
+      value: fmtPct(wcPreservedPct),
+      status: wcPreservedPct >= 0.9 ? 'PASS' : 'WARN',
     },
   ];
 

@@ -382,16 +382,14 @@ interface PerItemResult {
   python_ingested: boolean;
 }
 
-function isPythonIngested(item: SelectedItem): boolean {
+export function isPythonIngested(item: Pick<SelectedItem, 'metadata'>): boolean {
   const meta = item.metadata;
   if (!meta || typeof meta !== 'object') return false;
   const asRecord = meta as Record<string, unknown>;
   const src = asRecord.extraction_source ?? asRecord.pipeline ?? asRecord.ingest_source;
-  if (typeof src === 'string') {
-    const lower = src.toLowerCase();
-    return lower.includes('python') || lower.includes('kb_pipeline');
-  }
-  return false;
+  if (typeof src !== 'string') return false;
+  const lower = src.toLowerCase();
+  return lower === 'trafilatura' || lower === 'jina_reader' || lower === 'pdfplumber';
 }
 
 function median(values: number[]): number {

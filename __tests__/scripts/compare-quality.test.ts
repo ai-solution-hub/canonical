@@ -4,6 +4,7 @@ import {
   domainDistribution,
   domainDeltas,
   cosineSimilarity,
+  computePairStats,
 } from '@/scripts/compare-quality';
 
 describe('jaccardSimilarity', () => {
@@ -94,6 +95,67 @@ describe('cosineSimilarity (compare-quality copy)', () => {
   });
 });
 
+describe('computePairStats entity Jaccard', () => {
+  it('returns 0 when canonical_name sets are disjoint even with identical counts', () => {
+    const oldItem = mkSnapshot({
+      id: 'same',
+      canonical_names: ['Apple', 'Microsoft', 'Google'],
+    });
+    const newItem = mkSnapshot({
+      id: 'same',
+      canonical_names: ['Oracle', 'Meta', 'IBM'],
+    });
+    const oldMap = new Map([['same', oldItem]]);
+    const newMap = new Map([['same', newItem]]);
+    const stats = computePairStats(oldMap, newMap);
+    expect(stats).toHaveLength(1);
+    expect(stats[0].entityJaccard).toBe(0);
+  });
+
+  it('returns 1 when canonical_name sets are identical', () => {
+    const names = ['Apple', 'Microsoft'];
+    const oldMap = new Map([
+      ['same', mkSnapshot({ id: 'same', canonical_names: names })],
+    ]);
+    const newMap = new Map([
+      ['same', mkSnapshot({ id: 'same', canonical_names: [...names] })],
+    ]);
+    const stats = computePairStats(oldMap, newMap);
+    expect(stats[0].entityJaccard).toBe(1);
+  });
+
+  it('returns null when both sets are empty', () => {
+    const oldMap = new Map([['same', mkSnapshot({ id: 'same' })]]);
+    const newMap = new Map([['same', mkSnapshot({ id: 'same' })]]);
+    const stats = computePairStats(oldMap, newMap);
+    expect(stats[0].entityJaccard).toBeNull();
+  });
+});
+
+describe('computePairStats heading ratio', () => {
+  it('derives headingRatio from new/old heading counts', () => {
+    const oldMap = new Map([
+      ['same', mkSnapshot({ id: 'same', heading_count: 10 })],
+    ]);
+    const newMap = new Map([
+      ['same', mkSnapshot({ id: 'same', heading_count: 8 })],
+    ]);
+    const stats = computePairStats(oldMap, newMap);
+    expect(stats[0].headingRatio).toBeCloseTo(0.8, 10);
+  });
+
+  it('returns null for headingRatio when old heading_count is 0', () => {
+    const oldMap = new Map([
+      ['same', mkSnapshot({ id: 'same', heading_count: 0 })],
+    ]);
+    const newMap = new Map([
+      ['same', mkSnapshot({ id: 'same', heading_count: 5 })],
+    ]);
+    const stats = computePairStats(oldMap, newMap);
+    expect(stats[0].headingRatio).toBeNull();
+  });
+});
+
 function mkSnapshot(overrides: Partial<ContentSnapshotLike>): ContentSnapshotLike {
   return {
     id: 'id',
@@ -106,9 +168,10 @@ function mkSnapshot(overrides: Partial<ContentSnapshotLike>): ContentSnapshotLik
     classification_confidence: null,
     ai_keywords: null,
     embedding: null,
-    entity_count: 0,
+    canonical_names: [],
     summary_length: null,
     word_count: 20,
+    heading_count: 0,
     chunk_count: 1,
     created_at: '2026-01-01T00:00:00Z',
     freshness: null,
@@ -127,9 +190,10 @@ interface ContentSnapshotLike {
   classification_confidence: number | null;
   ai_keywords: string[] | null;
   embedding: number[] | null;
-  entity_count: number;
+  canonical_names: string[];
   summary_length: number | null;
   word_count: number;
+  heading_count: number;
   chunk_count: number;
   created_at: string;
   freshness: string | null;

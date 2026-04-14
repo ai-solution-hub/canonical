@@ -138,9 +138,10 @@ export interface ContentSnapshot {
   classification_confidence: number | null;
   ai_keywords: string[] | null;
   embedding: number[] | null;
-  entity_count: number;
+  canonical_names: string[];
   summary_length: number | null;
   word_count: number;
+  heading_count: number;
   chunk_count: number;
   created_at: string;
   freshness: string | null;
@@ -161,9 +162,13 @@ function wordCount(content: string): number {
   return content.split(/\s+/).filter(Boolean).length;
 }
 
+function headingCount(content: string): number {
+  return (content.match(/^#{1,6}\s+/gm) ?? []).length;
+}
+
 async function countBy(
   supabase: SupabaseScriptClient,
-  table: 'entity_mentions' | 'content_chunks',
+  table: 'content_chunks',
   ids: string[],
 ): Promise<Map<string, number>> {
   const counts = new Map<string, number>();
@@ -186,6 +191,32 @@ async function countBy(
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   return counts;
+}
+
+async function namesBy(
+  supabase: SupabaseScriptClient,
+  ids: string[],
+): Promise<Map<string, Set<string>>> {
+  const out = new Map<string, Set<string>>();
+  if (ids.length === 0) return out;
+
+  const { data, error } = await supabase
+    .from('entity_mentions')
+    .select('content_item_id, canonical_name')
+    .in('content_item_id', ids);
+
+  if (error) {
+    console.error(`Failed to fetch entity_mentions: ${error.message}`);
+    return out;
+  }
+  for (const row of data ?? []) {
+    const r = row as { content_item_id: string; canonical_name: string | null };
+    if (!r.canonical_name) continue;
+    const bucket = out.get(r.content_item_id) ?? new Set<string>();
+    bucket.add(r.canonical_name);
+    out.set(r.content_item_id, bucket);
+  }
+  return out;
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────
@@ -233,8 +264,8 @@ async function main() {
     if (!data || data.length === 0) break;
 
     const ids = data.map((row) => (row as { id: string }).id);
-    const [entityCounts, chunkCounts] = await Promise.all([
-      countBy(supabase, 'entity_mentions', ids),
+    const [entityNames, chunkCounts] = await Promise.all([
+      namesBy(supabase, ids),
       countBy(supabase, 'content_chunks', ids),
     ]);
 
@@ -270,9 +301,10 @@ async function main() {
         embedding: config.includeEmbeddings
           ? parseVectorLiteral(r.embedding ?? null)
           : null,
-        entity_count: entityCounts.get(r.id) ?? 0,
+        canonical_names: Array.from(entityNames.get(r.id) ?? []),
         summary_length: r.summary ? r.summary.length : null,
         word_count: wordCount(content),
+        heading_count: headingCount(content),
         chunk_count: chunkCounts.get(r.id) ?? 0,
         created_at: r.created_at,
         freshness: r.freshness,
