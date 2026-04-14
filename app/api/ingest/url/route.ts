@@ -180,6 +180,24 @@ export async function POST(request: NextRequest) {
       /* best-effort */
     }
 
+    // 13a. Chunking — split content into searchable sections
+    try {
+      const { regenerateChunks } = await import('@/lib/content/chunk-store');
+      const { createServiceClient } = await import('@/lib/supabase/server');
+      const chunkServiceClient = createServiceClient();
+      const chunkResult = await regenerateChunks(
+        chunkServiceClient,
+        newItem.id,
+        extracted.content,
+      );
+      if (chunkResult.errors.length > 0) {
+        warnings.push(`Chunking: ${chunkResult.errors.length} error(s)`);
+      }
+    } catch (chunkErr) {
+      console.error(`Chunking failed for ${newItem.id}:`, chunkErr);
+      warnings.push('Content chunking failed');
+    }
+
     // 13b. Date extraction — temporal references and expiry date
     let expiryDate: string | null = null;
     try {
