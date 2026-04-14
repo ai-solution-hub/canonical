@@ -256,6 +256,18 @@ def process_url(
         except Exception as e:
             print(f"  [History] ERROR (non-blocking): {e}")
 
+        # ── Step 6b: Content chunking (heading-based) ────────────────
+        # Mirrors TS chunking pipeline in app/api/upload + app/api/ingest/url.
+        try:
+            from .chunk import store_chunks
+            chunk_stored, chunk_errors = store_chunks(id_or_error, extracted.content)
+            print(f"  [Chunks]  {chunk_stored} chunks stored")
+            if chunk_errors:
+                for err in chunk_errors:
+                    print(f"  [Chunks]  WARNING: {err}")
+        except Exception as e:
+            print(f"  [Chunks]  ERROR (non-blocking): {e}")
+
         # ── Step 7: Load entity aliases (needed for both entities and relationships)
         if cls and (cls.entities or cls.relationships):
             try:
