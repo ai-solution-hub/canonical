@@ -34,13 +34,17 @@ import {
   getDashboardModule,
   getBidQueriesModule,
   fetchBidSections,
+  defineTool,
+  READ_ONLY_ANNOTATIONS,
+  SAFE_WRITE_ANNOTATIONS,
 } from './shared';
 
 export async function registerBidTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 3. list_active_bids
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'list_active_bids',
     {
       title: 'List Active Bids',
@@ -56,11 +60,7 @@ export async function registerBidTools(server: McpServer): Promise<void> {
           .optional()
           .describe('Number of bids to skip for pagination (default: 0)'),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {
@@ -142,7 +142,8 @@ export async function registerBidTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 6. get_bid_detail
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'get_bid_detail',
     {
       title: 'Get Bid Detail',
@@ -151,11 +152,7 @@ export async function registerBidTools(server: McpServer): Promise<void> {
       inputSchema: {
         id: z.string().uuid().describe('The UUID of the bid workspace'),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {
@@ -321,7 +318,8 @@ export async function registerBidTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 7. get_bid_question
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'get_bid_question',
     {
       title: 'Get Bid Question',
@@ -330,11 +328,7 @@ export async function registerBidTools(server: McpServer): Promise<void> {
       inputSchema: {
         question_id: z.string().uuid().describe('The UUID of the bid question'),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {
@@ -405,7 +399,8 @@ export async function registerBidTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 15. cite_content (write tool — editor+ only)
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'cite_content',
     {
       title: 'Cite Content',
@@ -425,12 +420,7 @@ export async function registerBidTools(server: McpServer): Promise<void> {
           .optional()
           .describe('How the content was used (default: reference)'),
       },
-      annotations: {
-        readOnlyHint: false,
-        idempotentHint: true,
-        destructiveHint: false,
-        openWorldHint: false,
-      },
+      annotations: SAFE_WRITE_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {
@@ -509,7 +499,8 @@ export async function registerBidTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 16. get_content_effectiveness
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'get_content_effectiveness',
     {
       title: 'Content Effectiveness',
@@ -521,12 +512,7 @@ export async function registerBidTools(server: McpServer): Promise<void> {
           .uuid()
           .describe('The UUID of the content item to check'),
       },
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {

@@ -27,6 +27,8 @@ import {
   toStructuredContent,
   getDashboardModule,
   getReorientModule,
+  defineTool,
+  READ_ONLY_ANNOTATIONS,
 } from './shared';
 
 interface OwnershipSummary {
@@ -40,17 +42,14 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 2. get_dashboard_summary
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'get_dashboard_summary',
     {
       title: 'Dashboard Summary',
       description:
         'Get an overview of the knowledge base health including items needing attention, content freshness breakdown, active bids, and recent activity. Use this to understand the current state of the knowledge base at a glance.',
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (extra: ToolExtra) => {
       try {
@@ -91,17 +90,14 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 5. get_reorientation
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'get_reorientation',
     {
       title: 'Reorientation Briefing',
       description:
         'Get a personal briefing on what has changed in the knowledge base since your last visit. Includes urgent items needing attention, team activity, your recent work, and active bid status. Use this to quickly catch up on what happened while you were away.',
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (extra: ToolExtra) => {
       try {
@@ -198,17 +194,14 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 9. get_freshness_report
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'get_freshness_report',
     {
       title: 'Freshness Report',
       description:
         'Get a breakdown of content freshness across the knowledge base — how many items are fresh, aging, stale, or expired. Use this to understand the health of your content.',
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (extra: ToolExtra) => {
       try {
@@ -268,7 +261,8 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 38. get_expiring_content
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'get_expiring_content',
     {
       title: 'Expiring Content',
@@ -292,11 +286,7 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
             'Include entity mention expiry dates such as certifications and registrations (default: true)',
           ),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {

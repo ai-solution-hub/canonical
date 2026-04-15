@@ -26,6 +26,8 @@ import {
   type ToolExtra,
   toStructuredContent,
   getGenerateEmbedding,
+  defineTool,
+  READ_ONLY_ANNOTATIONS,
 } from './shared';
 
 // ---------------------------------------------------------------------------
@@ -59,7 +61,8 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 1. search_knowledge_base
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'search_knowledge_base',
     {
       title: 'Search Knowledge Base',
@@ -92,11 +95,7 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
             'Filter results to a specific workspace. Items matched via content_item_workspaces junction table.',
           ),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {
@@ -215,7 +214,8 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 13. search_qa_library
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'search_qa_library',
     {
       title: 'Search Q&A Library',
@@ -236,11 +236,7 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
           .optional()
           .describe('Number of results to skip for pagination (default: 0)'),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {
@@ -322,7 +318,8 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 20. find_similar_items
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'find_similar_items',
     {
       title: 'Find Similar Items',
@@ -342,12 +339,7 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
           .optional()
           .describe('Maximum results (default: 10, max: 25)'),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        destructiveHint: false,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {
@@ -458,7 +450,8 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 21. search_content_chunks
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'search_content_chunks',
     {
       title: 'Search Content Chunks',
@@ -482,11 +475,7 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
             'Optional: restrict search to chunks within a specific content item. Useful for navigating within a known document.',
           ),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {

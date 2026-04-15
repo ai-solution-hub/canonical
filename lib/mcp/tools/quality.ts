@@ -27,23 +27,25 @@ import type {
   AuditResult,
   DuplicatePairsResult,
 } from '@/lib/mcp/formatters';
-import { type ToolExtra, toStructuredContent } from './shared';
+import {
+  type ToolExtra,
+  toStructuredContent,
+  defineTool,
+  READ_ONLY_ANNOTATIONS,
+} from './shared';
 
 export async function registerQualityTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 8. get_quality_summary
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'get_quality_summary',
     {
       title: 'Quality Summary',
       description:
         'Get a summary of open quality issues in the knowledge base, grouped by type and severity. Use this to understand what content quality problems need attention.',
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (extra: ToolExtra) => {
       try {
@@ -108,7 +110,8 @@ export async function registerQualityTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 17. get_coverage_gaps
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'get_coverage_gaps',
     {
       title: 'Coverage Gaps',
@@ -134,12 +137,7 @@ export async function registerQualityTools(server: McpServer): Promise<void> {
             'Use coverage_targets item_count to recalibrate thin thresholds per domain (default: true)',
           ),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        destructiveHint: false,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {

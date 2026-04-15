@@ -16,13 +16,16 @@ import {
   getClassifyContent,
   getGenerateSummary,
   getAIErrors,
+  defineTool,
+  SAFE_WRITE_ANNOTATIONS,
 } from './shared';
 
 export async function registerAITools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 10. classify_content (write tool — editor+ only)
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'classify_content',
     {
       title: 'Classify Content',
@@ -38,12 +41,7 @@ export async function registerAITools(server: McpServer): Promise<void> {
           .optional()
           .describe('Re-classify even if already classified (default: false)'),
       },
-      annotations: {
-        readOnlyHint: false,
-        idempotentHint: true,
-        destructiveHint: false,
-        openWorldHint: false,
-      },
+      annotations: SAFE_WRITE_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {
@@ -99,7 +97,8 @@ export async function registerAITools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 11. generate_summary (write tool — editor+ only)
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'generate_summary',
     {
       title: 'Generate Summary',
@@ -117,12 +116,7 @@ export async function registerAITools(server: McpServer): Promise<void> {
             'Regenerate even if a summary already exists. Set to true when you want to refresh an existing summary (default: false)',
           ),
       },
-      annotations: {
-        readOnlyHint: false,
-        idempotentHint: true,
-        destructiveHint: false,
-        openWorldHint: false,
-      },
+      annotations: SAFE_WRITE_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {

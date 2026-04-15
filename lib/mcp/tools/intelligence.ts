@@ -9,7 +9,12 @@ import {
   formatIntelligenceSummary,
   truncateResponse,
 } from '@/lib/mcp/formatters';
-import { type ToolExtra, toStructuredContent } from './shared';
+import {
+  type ToolExtra,
+  toStructuredContent,
+  defineTool,
+  READ_ONLY_ANNOTATIONS,
+} from './shared';
 
 export async function registerIntelligenceTools(
   server: McpServer,
@@ -17,7 +22,8 @@ export async function registerIntelligenceTools(
   // -------------------------------------------------------------------------
   // get_intelligence_summary
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'get_intelligence_summary',
     {
       title: 'Get Intelligence Summary',
@@ -37,12 +43,7 @@ export async function registerIntelligenceTools(
           .optional()
           .describe('Maximum top articles (default: 10, max: 25)'),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        destructiveHint: false,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {
