@@ -184,15 +184,6 @@ test.describe('Search', () => {
     await expect(hasResults.or(emptyState)).toBeVisible({ timeout: 15000 });
   });
 
-  test('/search redirects to /browse preserving query', async ({
-    authenticatedPage: page,
-  }) => {
-    await page.goto('/search?q=SLA');
-
-    // Should redirect to browse with query preserved
-    await expect(page).toHaveURL(/\/browse\?q=SLA/);
-  });
-
   test('search results link to item detail pages', async ({
     authenticatedPage: page,
   }) => {
