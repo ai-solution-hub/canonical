@@ -21,8 +21,6 @@ export const selectors = {
     settingsButton: 'button[aria-label="Settings"]',
     searchButton: 'button[aria-label="Search"]',
     mobileMenuButton: 'button[aria-label="Open navigation menu"]',
-    notificationBell:
-      '[data-testid="notification-bell"], button[aria-label*="notification" i]',
     aiAssistantButton:
       'button[aria-label="Open AI assistant"], button[aria-label="Close AI assistant"]',
   },
