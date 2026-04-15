@@ -40,6 +40,14 @@ vi.mock('sonner', () => ({
   toast: mockToast,
 }));
 
+// ConceptHelp renders a Radix Tooltip which needs a TooltipProvider.
+// Stub it to avoid wiring one up across every render call.
+vi.mock('@/components/ui/concept-help', () => ({
+  ConceptHelp: ({ concept }: { concept: string }) => (
+    <span data-testid={`concept-help-${concept}`} />
+  ),
+}));
+
 import { GovernanceSection } from '@/components/settings/governance-section';
 
 // ---------------------------------------------------------------------------

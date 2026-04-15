@@ -212,6 +212,14 @@ vi.mock('@/components/review/review-session-summary', () => ({
   ReviewSessionSummary: () => null,
 }));
 
+// ConceptHelp renders a Radix Tooltip which needs a TooltipProvider.
+// Stub it to avoid wiring one up across every render call.
+vi.mock('@/components/ui/concept-help', () => ({
+  ConceptHelp: ({ concept }: { concept: string }) => (
+    <span data-testid={`concept-help-${concept}`} />
+  ),
+}));
+
 // Import AFTER mocks
 import { ReviewContent } from '@/app/review/review-content';
 

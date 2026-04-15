@@ -12,6 +12,7 @@ import {
 } from './priority-gaps-filters';
 import { PriorityGapCard } from './priority-gap-card';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
+import { ConceptHelp } from '@/components/ui/concept-help';
 import type { UnifiedGapSummary } from '@/types/unified-gap';
 
 // ---------------------------------------------------------------------------
@@ -144,6 +145,12 @@ export function PriorityGapsTab() {
 
   return (
     <div className="space-y-6">
+      {/* Heading + concept helper */}
+      <h2 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+        Priority Gaps
+        <ConceptHelp concept="priority-gaps" />
+      </h2>
+
       {/* Summary strip */}
       <PriorityGapsSummary summary={data} />
 

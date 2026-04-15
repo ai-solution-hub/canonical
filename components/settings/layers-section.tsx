@@ -29,6 +29,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from '@/components/ui/tooltip';
+import { ConceptHelp } from '@/components/ui/concept-help';
 import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
 import { useLayerAdmin, type AdminLayer } from '@/hooks/use-layer-admin';
 
@@ -318,6 +319,7 @@ export function LayersSection() {
         <div>
           <h2 className="flex items-center gap-1.5 text-lg font-semibold text-foreground">
             Depth Levels
+            <ConceptHelp concept="layer" />
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>

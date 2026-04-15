@@ -8,6 +8,7 @@ import {
   Target,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ConceptHelp } from '@/components/ui/concept-help';
 import { CoverageContent } from './coverage-content';
 import { TemplateCoverageContent } from '@/components/coverage/template-coverage-content';
 import { CoverageGuideTab } from '@/components/coverage/coverage-guide-tab';
@@ -24,8 +25,9 @@ export function CoveragePageTabs() {
     <Tabs value={activeTab} onValueChange={setActiveTab}>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">
+          <h1 className="flex items-center gap-1.5 text-xl font-semibold text-foreground">
             Coverage Dashboard
+            <ConceptHelp concept="coverage" />
           </h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
             Measure knowledge base completeness

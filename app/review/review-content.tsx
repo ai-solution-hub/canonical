@@ -36,6 +36,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import { ConceptHelp } from '@/components/ui/concept-help';
 
 /**
  * Main client component for the Content Review page.
@@ -361,8 +362,9 @@ export function ReviewContent() {
       <div className="mx-auto w-full max-w-[800px]">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold text-foreground">
+            <h1 className="flex items-center gap-1.5 text-xl font-semibold text-foreground">
               Review Queue
+              <ConceptHelp concept="governance-review" />
               {progress.flagged > 0 && (
                 <span className="ml-2 inline-flex items-center rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
                   {progress.flagged} flagged

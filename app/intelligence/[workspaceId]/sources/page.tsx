@@ -23,6 +23,7 @@ import type { LastAddedFeedConfirmation } from '@/components/intelligence/feed-s
 import { FeedSourceCard } from '@/components/intelligence/feed-source-card';
 import { FeedSourceTestDialog } from '@/components/intelligence/feed-source-test-dialog';
 import { SeedStarterPackDialog } from '@/components/intelligence/seed-starter-pack-dialog';
+import { ConceptHelp } from '@/components/ui/concept-help';
 
 export default function FeedSourcesPage() {
   const params = useParams();
@@ -126,7 +127,10 @@ export default function FeedSourcesPage() {
     <div>
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
-        <h2 className="text-lg font-semibold text-foreground">Feed Sources</h2>
+        <h2 className="flex items-center gap-1.5 text-lg font-semibold text-foreground">
+          Feed Sources
+          <ConceptHelp concept="stream" />
+        </h2>
         {!showForm && (
           <div className="flex items-center gap-2">
             {canAdmin && <SeedStarterPackDialog workspaceId={workspaceId} />}
