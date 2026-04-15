@@ -245,13 +245,6 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
               {item.captured_date && (
                 <span>{formatDateUK(item.captured_date)}</span>
               )}
-              {item.classification_confidence != null &&
-                (() => {
-                  const conf = getConfidenceDisplay(
-                    item.classification_confidence,
-                  );
-                  return <span className={conf.colourClass}>{conf.label}</span>;
-                })()}
             </div>
           </div>
         )}

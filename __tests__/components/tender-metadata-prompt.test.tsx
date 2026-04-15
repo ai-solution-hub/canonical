@@ -2,8 +2,8 @@
  * TenderMetadataPrompt Component Tests
  *
  * Tests the dismissable metadata card — rendering metadata fields,
- * confidence indicator, apply/dismiss actions, API call, and edge cases
- * (empty data, partial fields, low/medium/high confidence).
+ * apply/dismiss actions, API call, and edge cases
+ * (empty data, partial fields).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -212,39 +212,19 @@ describe('TenderMetadataPrompt', () => {
     expect(screen.queryByText('Reference')).not.toBeInTheDocument();
   });
 
-  // ---- Confidence indicator ----
+  // ---- Confidence indicator removed (P0-3a AI-visibility delete sweep) ----
 
-  it('shows high confidence for values above 0.7', () => {
-    render(
-      <TenderMetadataPrompt
-        {...defaultProps}
-        metadata={makeMetadata({ confidence: 0.9 })}
-      />,
-    );
-    expect(screen.getByText(/High confidence/)).toBeInTheDocument();
-    expect(screen.getByText(/90%/)).toBeInTheDocument();
-  });
-
-  it('shows medium confidence for values between 0.3 and 0.7', () => {
+  it('does not render the bespoke confidence ladder', () => {
     render(
       <TenderMetadataPrompt
         {...defaultProps}
         metadata={makeMetadata({ confidence: 0.5 })}
       />,
     );
-    expect(screen.getByText(/Medium confidence/)).toBeInTheDocument();
-    expect(screen.getByText(/50%/)).toBeInTheDocument();
-  });
-
-  it('shows low confidence for values below 0.3', () => {
-    render(
-      <TenderMetadataPrompt
-        {...defaultProps}
-        metadata={makeMetadata({ confidence: 0.2 })}
-      />,
-    );
-    expect(screen.getByText(/Low confidence/)).toBeInTheDocument();
-    expect(screen.getByText(/20%/)).toBeInTheDocument();
+    expect(screen.queryByText(/High confidence/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Medium confidence/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Low confidence/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/50%/)).not.toBeInTheDocument();
   });
 
   // ---- Null / empty data ----

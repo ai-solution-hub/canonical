@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import type { UseMutationResult } from '@tanstack/react-query';
-import { AlertCircle, AlertTriangle, Loader2, Sparkles } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FlagAnalysisView } from '@/components/intelligence/prompt-refinement/flag-analysis-view';
@@ -233,11 +233,7 @@ export function RefinementPanel({
         aria-label="Prompt refinement"
         className="rounded-lg border bg-card p-6"
       >
-        <header className="mb-3 flex items-center gap-2">
-          <Sparkles
-            className="size-4 text-muted-foreground"
-            aria-hidden="true"
-          />
+        <header className="mb-3">
           <h2 className="text-base font-semibold text-foreground">
             Prompt refinement
           </h2>
@@ -269,15 +265,9 @@ export function RefinementPanel({
       className="space-y-4 rounded-lg border bg-card p-6"
     >
       <header className="space-y-1">
-        <div className="flex items-center gap-2">
-          <Sparkles
-            className="size-4 text-muted-foreground"
-            aria-hidden="true"
-          />
-          <h2 className="text-base font-semibold text-foreground">
-            Prompt refinement
-          </h2>
-        </div>
+        <h2 className="text-base font-semibold text-foreground">
+          Prompt refinement
+        </h2>
         <p className="text-sm text-muted-foreground">
           {unresolvedCount} {flagNoun} ({falsePositiveCount} {fpNoun},{' '}
           {falseNegativeCount} {fnNoun})

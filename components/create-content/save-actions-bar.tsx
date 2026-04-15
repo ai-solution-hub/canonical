@@ -13,8 +13,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 export interface SaveActionsBarProps {
-  autoClassify: boolean;
-  setAutoClassify: (value: boolean) => void;
   autoSummarise: boolean;
   setAutoSummarise: (value: boolean) => void;
   saveAsDraft: boolean;
@@ -26,11 +24,13 @@ export interface SaveActionsBarProps {
 }
 
 /**
- * Bottom bar with AI options (classify, summarise, draft) and save buttons.
+ * Bottom bar with save options (summary, draft) and save buttons.
+ *
+ * Classification runs automatically server-side on save
+ * (`auto_classify` defaults to `true` in the validation schema) — the
+ * toggle is deliberately invisible per the AI-visibility policy.
  */
 export function SaveActionsBar({
-  autoClassify,
-  setAutoClassify,
   autoSummarise,
   setAutoSummarise,
   saveAsDraft,
@@ -46,16 +46,6 @@ export function SaveActionsBar({
     <div className="space-y-6 border-t border-border pt-6">
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="auto-classify"
-              checked={autoClassify}
-              onCheckedChange={(checked) => setAutoClassify(checked === true)}
-            />
-            <Label htmlFor="auto-classify" className="text-sm font-normal">
-              Classify automatically
-            </Label>
-          </div>
           <div className="flex items-center gap-2">
             <Checkbox
               id="auto-summarise"

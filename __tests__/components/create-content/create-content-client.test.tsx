@@ -381,11 +381,17 @@ describe('CreateContentClient', () => {
     });
   });
 
-  describe('AI option checkboxes', () => {
-    it('renders classify and summarise checkboxes', () => {
+  describe('save option checkboxes', () => {
+    it('renders the summary checkbox', () => {
       renderForm();
-      expect(screen.getByText('Classify automatically')).toBeInTheDocument();
       expect(screen.getByText('Generate summary')).toBeInTheDocument();
+    });
+
+    it('does not render a classify-automatically checkbox', () => {
+      renderForm();
+      expect(
+        screen.queryByText('Classify automatically'),
+      ).not.toBeInTheDocument();
     });
 
     it('renders save-as-draft checkbox', () => {

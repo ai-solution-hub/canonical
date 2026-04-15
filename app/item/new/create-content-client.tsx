@@ -113,7 +113,6 @@ export function CreateContentClient() {
   const primaryDomain = watch('primary_domain');
   const tags = watch('user_tags') ?? [];
   const tagsInput = watch('tags_input');
-  const autoClassify = watch('auto_classify');
   const autoSummarise = watch('auto_summarise');
   const saveAsDraft = watch('save_as_draft');
 
@@ -674,10 +673,6 @@ export function CreateContentClient() {
 
             {/* Bottom bar: AI options + save buttons */}
             <SaveActionsBar
-              autoClassify={autoClassify}
-              setAutoClassify={(val) =>
-                setValue('auto_classify', val, { shouldDirty: true })
-              }
               autoSummarise={autoSummarise}
               setAutoSummarise={(val) =>
                 setValue('auto_summarise', val, { shouldDirty: true })
