@@ -55,41 +55,15 @@ covered in Step 4 below.
 
 Read the MEMORY.md file from the project memory directory. 
 
-### 2c: Latest Continuation Prompt (identify but do NOT read yet)
+---
+
+## Step 3: Review Continuation Prompt and Confirm Session Plan
 
 ```bash
 ls -1 docs/continuation-prompts/continuation-prompt-kh-*.md 2>/dev/null | sort -V | tail -1
 ```
 
-Note the filename for Step 3.
-
----
-
-## Step 3: Request Continuation Prompt
-
-After Steps 1 and 2 are complete, present this message to the user:
-
-> Pre-flight checks complete:
-> - Git: {N} stale worktree branches cleaned, working tree is clean
-> - Memory loaded: Session {N} state
->
-> The latest continuation prompt is:
-> `docs/continuation-prompts/{filename}`
->
-> **Please paste the continuation prompt into the chat** so I have the full
-> session context before we begin.
-
-**IMPORTANT:** Wait for the user to paste the continuation prompt. Do NOT
-proceed with any implementation, planning, or code changes until the
-continuation prompt has been received and reviewed.
-
----
-
-## Step 4: Review and Confirm Session Plan
-
-After receiving the continuation prompt:
-
-1. Read it thoroughly
+1. Read the continuation prompt thoroughly
 2. Read any referenced specs in full before planning implementation
 3. Identify the session objectives and work packages
 4. Present a summary to the user:
@@ -122,6 +96,10 @@ must follow this workflow.
   multi-phase spec without a verification gate. If a spec/plan is estimated at
   more than 2 hours, split it between sequential agents with verification 
   between each stage.
+  
+### Agent Skills  
+
+When deploying the agent make it clear which agent-skill they should be invoking based on the task(s) they will be assigned. 
 
 ### Verification Gates
 
