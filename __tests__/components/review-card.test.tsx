@@ -242,6 +242,73 @@ describe('ReviewCard', () => {
   });
 });
 
+// ─── GovernanceBadge surfacing (P0-12) ──────────────────────────────────────
+
+describe('ReviewCard — GovernanceBadge surfacing', () => {
+  it('renders GovernanceBadge "Draft" when governance_review_status is "draft"', () => {
+    render(
+      <ReviewCard
+        item={makeReviewItem({ governance_review_status: 'draft' })}
+        position={1}
+        total={1}
+      />,
+    );
+    expect(screen.getByText('Draft')).toBeInTheDocument();
+  });
+
+  it('renders GovernanceBadge "Review Pending" when governance_review_status is "pending"', () => {
+    render(
+      <ReviewCard
+        item={makeReviewItem({ governance_review_status: 'pending' })}
+        position={1}
+        total={1}
+      />,
+    );
+    expect(screen.getByText('Review Pending')).toBeInTheDocument();
+  });
+
+  it('renders GovernanceBadge "Approved" when governance_review_status is "approved"', () => {
+    render(
+      <ReviewCard
+        item={makeReviewItem({ governance_review_status: 'approved' })}
+        position={1}
+        total={1}
+      />,
+    );
+    expect(screen.getByText('Approved')).toBeInTheDocument();
+  });
+
+  it('does not render GovernanceBadge when governance_review_status is null', () => {
+    render(
+      <ReviewCard
+        item={makeReviewItem({ governance_review_status: null })}
+        position={1}
+        total={1}
+      />,
+    );
+    expect(screen.queryByText('Draft')).not.toBeInTheDocument();
+    expect(screen.queryByText('Review Pending')).not.toBeInTheDocument();
+    expect(screen.queryByText('Approved')).not.toBeInTheDocument();
+  });
+
+  it('does not render duplicate "Governance review pending" micro-warning', () => {
+    render(
+      <ReviewCard
+        item={makeReviewItem({
+          governance_review_status: 'pending',
+          summary: 'Some summary',
+        })}
+        position={1}
+        total={1}
+      />,
+    );
+    // The duplicate micro-warning text has been replaced by the header badge
+    expect(
+      screen.queryByText('Governance review pending'),
+    ).not.toBeInTheDocument();
+  });
+});
+
 describe('ReviewCard — low-confidence indicator', () => {
   it('shows "Low confidence" badge when classification_confidence < 0.7', () => {
     render(

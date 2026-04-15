@@ -174,4 +174,47 @@ describe('ReviewActionBar', () => {
       screen.queryByRole('button', { name: /Show keyboard shortcuts/i }),
     ).not.toBeInTheDocument();
   });
+
+  // ── Unified verb inventory (P0-12) ──
+
+  it('uses the unified "Verify" verb label', () => {
+    render(<ReviewActionBar {...makeProps()} />);
+    expect(
+      screen.getByRole('button', { name: /^Verify \(keyboard shortcut/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('uses the unified "Flag" verb label', () => {
+    render(<ReviewActionBar {...makeProps()} />);
+    expect(
+      screen.getByRole('button', { name: /^Flag for review/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('renders "Publish draft" button (not "Publish") when isDraft and onPublish are set', () => {
+    render(
+      <ReviewActionBar
+        {...makeProps({ isDraft: true, onPublish: vi.fn() })}
+      />,
+    );
+    expect(
+      screen.getByRole('button', { name: /^Publish draft/i }),
+    ).toBeInTheDocument();
+    // Verify button should not render when draft+publish are active
+    expect(
+      screen.queryByRole('button', { name: /^Verify \(keyboard shortcut/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('calls onPublish when "Publish draft" button clicked', async () => {
+    const user = userEvent.setup();
+    const onPublish = vi.fn();
+    render(
+      <ReviewActionBar
+        {...makeProps({ isDraft: true, onPublish })}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: /^Publish draft/i }));
+    expect(onPublish).toHaveBeenCalledOnce();
+  });
 });
