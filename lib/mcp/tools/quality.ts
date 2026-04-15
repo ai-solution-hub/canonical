@@ -313,7 +313,8 @@ export async function registerQualityTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 18. audit_content
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'audit_content',
     {
       title: 'Audit Content',
@@ -341,12 +342,7 @@ export async function registerQualityTools(server: McpServer): Promise<void> {
           .optional()
           .describe('Maximum items to return (default: 25, max: 100)'),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        destructiveHint: false,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {
@@ -480,7 +476,8 @@ export async function registerQualityTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 26. find_all_duplicates (Read tool — all roles)
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'find_all_duplicates',
     {
       title: 'Find All Duplicate Content',
@@ -500,12 +497,7 @@ export async function registerQualityTools(server: McpServer): Promise<void> {
           .transform((v) => (v != null ? Math.max(1, Math.min(200, v)) : v))
           .describe('Maximum pairs to return (default: 50, max: 200)'),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        destructiveHint: false,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {
@@ -579,7 +571,8 @@ export async function registerQualityTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 31. suggest_content_creation
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'suggest_content_creation',
     {
       title: 'Suggest Content to Create',
@@ -596,12 +589,7 @@ export async function registerQualityTools(server: McpServer): Promise<void> {
           .transform((v) => (v != null ? Math.max(1, Math.min(20, v)) : v))
           .describe('Maximum suggestions to return (default: 10)'),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        destructiveHint: false,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {
@@ -693,7 +681,8 @@ export async function registerQualityTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 36. get_quality_briefing
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'get_quality_briefing',
     {
       title: 'Quality Briefing',
@@ -715,12 +704,7 @@ export async function registerQualityTools(server: McpServer): Promise<void> {
             'Override quality score threshold (default: from governance_config, fallback 40)',
           ),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        destructiveHint: false,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {
@@ -758,7 +742,8 @@ export async function registerQualityTools(server: McpServer): Promise<void> {
 
   // 37. get_quality_actions
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'get_quality_actions',
     {
       title: 'Quality Improvement Actions',
@@ -780,12 +765,7 @@ export async function registerQualityTools(server: McpServer): Promise<void> {
             'Override quality threshold (default: from governance config or 40)',
           ),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        destructiveHint: false,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {

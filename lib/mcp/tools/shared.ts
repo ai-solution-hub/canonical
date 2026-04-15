@@ -12,7 +12,11 @@ import type {
   ServerNotification,
   ToolAnnotations,
 } from '@modelcontextprotocol/sdk/types.js';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type {
+  McpServer,
+  RegisteredTool,
+  ToolCallback,
+} from '@modelcontextprotocol/sdk/server/mcp.js';
 import type {
   AnySchema,
   ZodRawShapeCompat,
@@ -137,8 +141,8 @@ export function defineTool<
   server: McpServer,
   name: string,
   config: DefineToolConfig<InputArgs, OutputArgs>,
-  cb: Parameters<McpServer['registerTool']>[2],
-): ReturnType<McpServer['registerTool']> {
+  cb: ToolCallback<InputArgs>,
+): RegisteredTool {
   return server.registerTool(name, config, cb);
 }
 
@@ -182,8 +186,8 @@ export function defineAppTool<
   config: DefineToolConfig<InputArgs, OutputArgs> & {
     _meta: Record<string, unknown>;
   },
-  cb: Parameters<McpServer['registerTool']>[2],
-): ReturnType<McpServer['registerTool']> {
+  cb: ToolCallback<InputArgs>,
+): RegisteredTool {
   return registerAppToolFn(server, name, config, cb);
 }
 
