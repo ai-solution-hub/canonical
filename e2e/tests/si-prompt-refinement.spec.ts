@@ -100,7 +100,7 @@ test.describe('Prompt refinement page navigation', () => {
     ).toBeVisible({ timeout: 5000 });
 
     await expect(
-      editorPage.getByRole('region', { name: /prompt refinement/i }),
+      editorPage.getByRole('region', { name: /refine filter rules/i }),
     ).toHaveCount(0);
   });
 });
@@ -362,7 +362,7 @@ test.describe('Prompt refinement happy path (mocked API)', () => {
 
     // Wait for the refinement panel header — the page is ready.
     await expect(
-      page.getByRole('region', { name: /prompt refinement/i }),
+      page.getByRole('region', { name: /refine filter rules/i }),
     ).toBeVisible({ timeout: 10000 });
 
     // 3 unresolved flags should be summarised (pluralised UK English).

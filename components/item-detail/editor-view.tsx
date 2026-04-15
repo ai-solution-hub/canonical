@@ -306,7 +306,7 @@ export function EditorView({
                 {item.source_url && (
                   <ClaudePromptButton
                     prompt={generateIngestUrlPrompt(item.source_url).prompt}
-                    label="Re-ingest with Claude"
+                    label="Re-ingest source with Claude"
                     size="sm"
                   />
                 )}

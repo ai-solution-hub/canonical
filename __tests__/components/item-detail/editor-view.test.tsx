@@ -381,7 +381,9 @@ describe('EditorView', () => {
         />,
       );
       expect(screen.getByTestId('claude-prompt-button')).toBeInTheDocument();
-      expect(screen.getByText('Re-ingest with Claude')).toBeInTheDocument();
+      expect(
+        screen.getByText('Re-ingest source with Claude'),
+      ).toBeInTheDocument();
     });
 
     it('renders Claude prompt buttons when content is long', () => {

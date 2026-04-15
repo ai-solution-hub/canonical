@@ -248,7 +248,7 @@ describe('UnifiedAttentionSection', () => {
   // ---------------------------------------------------------------------------
 
   describe('ClaudePromptButton wiring', () => {
-    it('renders "Ask Claude" button for items with claude_prompt', () => {
+    it('renders "Review with Claude" button for items with claude_prompt', () => {
       const items = [
         makeItem({
           id: 'with-prompt',
@@ -260,8 +260,10 @@ describe('UnifiedAttentionSection', () => {
       render(<UnifiedAttentionSection items={items} userRole="admin" />);
 
       // Per ClaudePromptButton copy principle (P0-20), per-item action uses
-      // the action verb "Ask Claude".
-      expect(screen.getByText('Ask Claude')).toBeInTheDocument();
+      // the action verb "Review with Claude" — attention prompts ask Claude
+      // to review pending work (governance, flags, gaps, expiry) and suggest
+      // next actions.
+      expect(screen.getByText('Review with Claude')).toBeInTheDocument();
     });
 
     it('does not render prompt button for items without claude_prompt', () => {
@@ -275,8 +277,8 @@ describe('UnifiedAttentionSection', () => {
 
       render(<UnifiedAttentionSection items={items} userRole="admin" />);
 
-      // Should not have "Ask Claude" button (only action link present)
-      expect(screen.queryByText('Ask Claude')).not.toBeInTheDocument();
+      // Should not have "Review with Claude" button (only action link present)
+      expect(screen.queryByText('Review with Claude')).not.toBeInTheDocument();
     });
   });
 

@@ -179,7 +179,9 @@ vi.mock('@/components/review/review-action-bar', () => ({
       <button onClick={onExit as () => void}>Exit</button>
       <button onClick={onEdit as () => void}>Edit</button>
       <button onClick={onShowHelp as () => void}>Help</button>
-      {isDraft && <button onClick={onPublish as () => void}>Publish</button>}
+      {isDraft && (
+        <button onClick={onPublish as () => void}>Publish draft</button>
+      )}
     </div>
   ),
 }));
@@ -711,7 +713,9 @@ describe('ReviewContent', () => {
     });
     render(<ReviewContent />);
 
-    expect(screen.getByRole('button', { name: 'Publish' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Publish draft' }),
+    ).toBeInTheDocument();
   });
 
   // 20. Review Queue heading visible in main view

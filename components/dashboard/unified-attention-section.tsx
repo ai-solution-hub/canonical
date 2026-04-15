@@ -166,7 +166,7 @@ function AttentionItemCard({
           {item.claude_prompt && (
             <ClaudePromptButton
               prompt={item.claude_prompt}
-              label="Ask Claude"
+              label="Review with Claude"
               size="sm"
               className="h-auto px-1.5 py-0.5"
             />

@@ -40,6 +40,23 @@ function PriorityGapsSkeleton() {
 }
 
 // ---------------------------------------------------------------------------
+// Persistent tab header — concept helper anchored above the tab body so it
+// stays reachable across loading / error / empty / populated states. The
+// label itself (an accessible name for the helper) is deliberately visually
+// hidden to avoid duplicating the sibling `<TabsTrigger>"Priority Gaps"</>`
+// in `coverage-tabs.tsx`.
+// ---------------------------------------------------------------------------
+
+function PriorityGapsTabHeader() {
+  return (
+    <div className="flex items-center justify-end">
+      <span className="sr-only">Priority Gaps</span>
+      <ConceptHelp concept="priority-gaps" />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Empty state
 // ---------------------------------------------------------------------------
 
@@ -136,20 +153,39 @@ export function PriorityGapsTab() {
     setShowCount(PAGE_SIZE);
   }, [source, priority, domain]);
 
-  if (loading && isInitialLoadRef.current) return <PriorityGapsSkeleton />;
-  if (error) return <PriorityGapsError onRetry={fetchData} />;
-  if (!data || data.total_gaps === 0) return <PriorityGapsEmpty />;
+  if (loading && isInitialLoadRef.current) {
+    return (
+      <div className="space-y-4">
+        <PriorityGapsTabHeader />
+        <PriorityGapsSkeleton />
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <PriorityGapsTabHeader />
+        <PriorityGapsError onRetry={fetchData} />
+      </div>
+    );
+  }
+  if (!data || data.total_gaps === 0) {
+    return (
+      <div className="space-y-4">
+        <PriorityGapsTabHeader />
+        <PriorityGapsEmpty />
+      </div>
+    );
+  }
 
   const visibleGaps = data.gaps.slice(0, showCount);
   const hasMore = data.gaps.length > showCount;
 
   return (
     <div className="space-y-6">
-      {/* Heading + concept helper */}
-      <h2 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-        Priority Gaps
-        <ConceptHelp concept="priority-gaps" />
-      </h2>
+      {/* Persistent tab header (concept helper) — duplicate of the
+          `<TabsTrigger>` label is intentionally sr-only. */}
+      <PriorityGapsTabHeader />
 
       {/* Summary strip */}
       <PriorityGapsSummary summary={data} />

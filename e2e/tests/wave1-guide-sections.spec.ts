@@ -63,11 +63,8 @@ test.describe('Guide section banner on create page', { tag: '@wave1' }, () => {
       { delay: 5 },
     );
 
-    // Disable AI options to speed up the test
-    const classifyCheckbox = page.getByLabel('Classify automatically');
-    if (await classifyCheckbox.isChecked()) {
-      await classifyCheckbox.uncheck();
-    }
+    // Uncheck summary generation to speed up the test (classification is
+    // always-on server-side now — no user-facing toggle).
     const summariseCheckbox = page.getByLabel('Generate summary');
     if (await summariseCheckbox.isChecked()) {
       await summariseCheckbox.uncheck();
@@ -147,11 +144,7 @@ test.describe('Guide section banner on create page', { tag: '@wave1' }, () => {
       { delay: 5 },
     );
 
-    // Disable AI options
-    const classifyCheckbox = page.getByLabel('Classify automatically');
-    if (await classifyCheckbox.isChecked()) {
-      await classifyCheckbox.uncheck();
-    }
+    // Uncheck summary generation (classification is always-on server-side)
     const summariseCheckbox = page.getByLabel('Generate summary');
     if (await summariseCheckbox.isChecked()) {
       await summariseCheckbox.uncheck();
@@ -207,11 +200,7 @@ test.describe('Guide section banner on create page', { tag: '@wave1' }, () => {
       { delay: 5 },
     );
 
-    // Disable AI options
-    const classifyCheckbox = page.getByLabel('Classify automatically');
-    if (await classifyCheckbox.isChecked()) {
-      await classifyCheckbox.uncheck();
-    }
+    // Uncheck summary generation (classification is always-on server-side)
     const summariseCheckbox = page.getByLabel('Generate summary');
     if (await summariseCheckbox.isChecked()) {
       await summariseCheckbox.uncheck();

@@ -29,7 +29,6 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from '@/components/ui/tooltip';
-import { ConceptHelp } from '@/components/ui/concept-help';
 import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
 import { useLayerAdmin, type AdminLayer } from '@/hooks/use-layer-admin';
 
@@ -319,7 +318,13 @@ export function LayersSection() {
         <div>
           <h2 className="flex items-center gap-1.5 text-lg font-semibold text-foreground">
             Depth Levels
-            <ConceptHelp concept="layer" />
+            {/*
+             * Kept the pre-existing rich "Info" tooltip here rather than
+             * layering on a second `<ConceptHelp concept="layer" />`: the
+             * body below (examples + plurality rule) is materially richer
+             * than the one-liner ConceptHelp copy and two tab-discoverable
+             * tooltips in a single heading is confusing (P1-31 follow-up).
+             */}
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>

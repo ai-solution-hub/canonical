@@ -253,7 +253,13 @@ describe('DigestPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal('fetch', mockFetch);
-    // Pin Date.now() so the 24h account-age boundary is deterministic.
+    // Pin Date.now() so the 24h account-age boundary (P0-11 auto-gen
+    // gate) is deterministic AND so the `/digest` custom date-range
+    // default — computed via a lazy `useState` initialiser in
+    // `app/digest/page.tsx` that calls `Date.now()` directly — resolves
+    // to a fixed value across renders. Without the pin both a real
+    // date-boundary flake and a snapshot-style drift in the default
+    // filter are possible.
     vi.spyOn(Date, 'now').mockReturnValue(NOW_MS);
     // Default: unauthenticated session — keeps the pre-existing suite on
     // the original hero copy and ensures auto-gen does not fire. P0-11
