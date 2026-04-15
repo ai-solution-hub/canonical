@@ -386,6 +386,80 @@ export function shouldExcludeEntity(entity: ExtractedEntity): boolean {
 }
 
 // ──────────────────────────────────────────
+// Entity mention row dedup (pre-upsert boundary)
+// ──────────────────────────────────────────
+
+/**
+ * Shape of a row inserted into `entity_mentions` by the Step 15 pipeline.
+ *
+ * Kept as a structural type (not a DB-generated interface) because the
+ * dedup helper operates purely on the normalised-for-upsert form — it
+ * runs after canonicalise + alias-resolve + lowercase, and must NOT be
+ * coupled to downstream DB schema churn.
+ */
+export interface EntityMentionRow {
+  content_item_id: string;
+  entity_type: string;
+  entity_name: string;
+  canonical_name: string;
+  confidence: number;
+  context_snippet: string | null;
+}
+
+/**
+ * Collapse duplicate `(content_item_id, canonical_name, entity_type)`
+ * triples to a single row before the `entity_mentions` upsert.
+ *
+ * Background: the `canonicalise() + resolveAlias() + toLowerCase()`
+ * chain in Step 15 can collapse two distinct Pass 1 outputs (e.g.
+ * "ISO 27001" and "ISO27001", or "DPO" and "Data Protection Officer")
+ * onto the same triple. Postgres then rejects the upsert with error
+ * `21000` ("ON CONFLICT DO UPDATE command cannot affect row a second
+ * time") because a single statement cannot update the same conflict
+ * target twice. Dedupe at the client boundary so the upsert payload is
+ * always triple-unique.
+ *
+ * Merge rules for a duplicate group:
+ * - `confidence`: max across the group.
+ * - `entity_name`: first encountered (preserves Pass 2 confirmed order).
+ * - `context_snippet`: first non-null in group; null if all null.
+ * - `content_item_id` / `entity_type` / `canonical_name`: identical by
+ *   construction of the dedup key; taken from the first row.
+ *
+ * Deterministic: stable input order produces stable output order (rows
+ * are emitted in the order their first occurrence appeared in input).
+ *
+ * @param rows - pre-upsert entity mention rows (may contain duplicates).
+ * @returns new array with duplicate triples merged; input is not mutated.
+ */
+export function dedupeEntityMentionRows(
+  rows: EntityMentionRow[],
+): EntityMentionRow[] {
+  const byKey = new Map<string, EntityMentionRow>();
+  const order: string[] = [];
+
+  for (const row of rows) {
+    const key = `${row.content_item_id}::${row.canonical_name}::${row.entity_type}`;
+    const existing = byKey.get(key);
+    if (!existing) {
+      // Clone so we don't mutate caller's input when merging later
+      // duplicates of this key.
+      byKey.set(key, { ...row });
+      order.push(key);
+      continue;
+    }
+    existing.confidence = Math.max(existing.confidence, row.confidence);
+    if (existing.context_snippet === null && row.context_snippet !== null) {
+      existing.context_snippet = row.context_snippet;
+    }
+    // entity_name / content_item_id / entity_type / canonical_name:
+    // first-wins — already set from the initial row.
+  }
+
+  return order.map((k) => byKey.get(k) as EntityMentionRow);
+}
+
+// ──────────────────────────────────────────
 // Domain validation
 // ──────────────────────────────────────────
 
@@ -1414,6 +1488,37 @@ ${contentForClassification}`,
       }
 
       if (filteredEntityRows.length > 0) {
+        // Step 15c: Dedupe duplicate (item, canonical, type) triples before
+        // upsert. The canonicalise + resolveAlias + toLowerCase chain above
+        // can collapse two distinct Pass 1 outputs (e.g. "ISO 27001" and
+        // "ISO27001", or "DPO" and "Data Protection Officer") onto the same
+        // triple. Postgres rejects such upserts with error 21000 ("ON
+        // CONFLICT DO UPDATE command cannot affect row a second time")
+        // because a single statement cannot update the same conflict target
+        // twice. See `dedupeEntityMentionRows` for merge semantics.
+        const dedupedEntityRows = dedupeEntityMentionRows(filteredEntityRows);
+        if (dedupedEntityRows.length < filteredEntityRows.length) {
+          const seen = new Map<string, number>();
+          for (const row of filteredEntityRows) {
+            const key = `${row.content_item_id}::${row.canonical_name}::${row.entity_type}`;
+            seen.set(key, (seen.get(key) ?? 0) + 1);
+          }
+          const collapsedTriples = Array.from(seen.entries())
+            .filter(([, count]) => count > 1)
+            .map(([key]) => key)
+            .slice(0, 20);
+          logBestEffortWarn(
+            'classify.entity.dedup_collapsed_duplicates',
+            'Collapsed duplicate (item, canonical, type) triples before entity_mentions upsert',
+            {
+              itemId,
+              preCount: filteredEntityRows.length,
+              postCount: dedupedEntityRows.length,
+              collapsedTriples,
+            },
+          );
+        }
+
         // INSERT (not upsert) is safe here because Step 13a already
         // deleted any existing rows for this content_item_id.
         // onConflict/ignoreDuplicates were load-bearing previously when
@@ -1423,7 +1528,7 @@ ${contentForClassification}`,
         // same item; the classifier_item_id branch isolates them per row.
         const { error: entityError } = await supabase
           .from('entity_mentions')
-          .upsert(filteredEntityRows, {
+          .upsert(dedupedEntityRows, {
             onConflict: 'canonical_name,entity_type,content_item_id',
             ignoreDuplicates: false,
           });
