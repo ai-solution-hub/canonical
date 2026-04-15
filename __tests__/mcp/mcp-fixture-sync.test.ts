@@ -17,9 +17,9 @@ const TOOLS_DIR = join(PROJECT_ROOT, 'lib/mcp/tools');
 const RESOURCES_FILE = join(PROJECT_ROOT, 'lib/mcp/resources.ts');
 
 /**
- * Extracts tool names from MCP tool source files by scanning for
- * registerTool('name', ...) and registerAppTool(server, 'name', ...)
- * patterns.
+ * Extracts tool names from MCP tool source files. Handles the P0-19 forms
+ * (defineTool / defineAppTool wrappers) plus the legacy direct forms so the
+ * guard keeps holding even if wrappers are ever bypassed.
  */
 function extractToolNamesFromSource(): Set<string> {
   const toolNames = new Set<string>();
@@ -31,12 +31,23 @@ function extractToolNamesFromSource(): Set<string> {
 
   for (const file of files) {
     const content = readFileSync(join(TOOLS_DIR, file), 'utf8');
-    // Match registerTool(\n    'tool_name', or registerAppTool(\n    server,\n    'tool_name',
-    const registerToolPattern = /registerTool\(\s*\n?\s*'([^']+)'/g;
+    // P0-19 canonical: defineTool(server, 'tool_name', ...)
+    const defineToolPattern = /defineTool\(\s*\n?\s*server,\s*\n?\s*'([^']+)'/g;
+    // P0-19 canonical (apps): defineAppTool(registerAppTool, server, 'tool_name', ...)
+    const defineAppToolPattern =
+      /defineAppTool\(\s*\n?\s*\w+,\s*\n?\s*server,\s*\n?\s*'([^']+)'/g;
+    // Legacy fallback.
+    const registerToolPattern = /server\.registerTool\(\s*\n?\s*'([^']+)'/g;
     const registerAppToolPattern =
       /registerAppTool\(\s*\n?\s*server,\s*\n?\s*'([^']+)'/g;
 
     let match: RegExpExecArray | null;
+    while ((match = defineToolPattern.exec(content)) !== null) {
+      toolNames.add(match[1]);
+    }
+    while ((match = defineAppToolPattern.exec(content)) !== null) {
+      toolNames.add(match[1]);
+    }
     while ((match = registerToolPattern.exec(content)) !== null) {
       toolNames.add(match[1]);
     }

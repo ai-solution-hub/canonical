@@ -169,18 +169,13 @@ export function defineAppTool<
     | ZodRawShapeCompat
     | AnySchema = undefined,
 >(
-  registerAppToolFn: (
-    server: Pick<McpServer, 'registerTool'>,
-    name: string,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ext-apps
-    // `McpUiAppToolConfig` has a narrower `_meta` union than the SDK's
-    // `ToolConfig['_meta']`; we delegate to the ext-apps runtime and preserve
-    // the `RequiredToolAnnotations` contract on our wrapper.
-    config: any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- see above
-    cb: any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- delegated
-  ) => any,
+  // ext-apps `McpUiAppToolConfig` has a narrower `_meta` union than the
+  // SDK's `ToolConfig['_meta']`; we delegate to the ext-apps runtime and
+  // preserve the `RequiredToolAnnotations` contract on our wrapper. The
+  // `any` in `config`, `cb`, and the return type are all load-bearing —
+  // every narrower type we tried clashed with the ext-apps internals.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  registerAppToolFn: (server: Pick<McpServer, 'registerTool'>, name: string, config: any, cb: any) => any,
   server: McpServer,
   name: string,
   config: DefineToolConfig<InputArgs, OutputArgs> & {

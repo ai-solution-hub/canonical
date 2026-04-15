@@ -24,23 +24,29 @@ Entry point: `app/api/mcp/[transport]/route.ts`
 
 ### Tool Registration
 
+Use `defineTool` (or `defineAppTool` for MCP App trigger tools) from
+`./shared`. The wrapper enforces all four `ToolAnnotations` fields at
+compile time via `RequiredToolAnnotations` — pick one of the four named
+constants: `READ_ONLY_ANNOTATIONS`, `SAFE_WRITE_ANNOTATIONS`,
+`DESTRUCTIVE_WRITE_ANNOTATIONS`, or `NON_IDEMPOTENT_WRITE_ANNOTATIONS`.
+
 ```typescript
-server.registerTool(
+defineTool(
+  server,
   'snake_case_name',           // No service prefix — single-purpose server
   {
     title: 'Human Title',
     description: '...',
     inputSchema: { param: z.string().describe('...') },
-    annotations: {
-      readOnlyHint: true,      // Every tool has all four annotations
-      idempotentHint: true,
-      destructiveHint: false,
-      openWorldHint: false,    // Always false
-    },
+    annotations: READ_ONLY_ANNOTATIONS,
   },
   async (args, extra: ToolExtra) => { ... }
 );
 ```
+
+**Gotcha:** `destructiveHint` defaults to `true` in the MCP spec. Use one
+of the four named annotation constants via `defineTool` so clients don't
+render read-only tools as destructive.
 
 ### Response Format
 
