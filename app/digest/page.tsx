@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { handleTablistKeyDown } from '@/lib/tablist-keyboard';
 import {
   Loader2,
@@ -32,6 +32,7 @@ import { digestTypeLabel } from '@/lib/digest/digest-helpers';
 import { useReadMarks } from '@/contexts/read-marks-context';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { useDigestData } from '@/hooks/use-digest-data';
+import { useAccountAge } from '@/hooks/use-account-age';
 
 type DigestMode = 'preset' | 'daily' | 'custom';
 
@@ -420,10 +421,45 @@ export default function DigestPage() {
     loadDigest,
   } = useDigestData();
 
+  const {
+    isOver24h,
+    isNewAccount,
+    loading: accountAgeLoading,
+  } = useAccountAge();
+
   // Trigger lazy loading of read marks for this page
   useEffect(() => {
     loadReadMarks();
   }, [loadReadMarks]);
+
+  // ─── Auto-generate weekly report on first visit (P0-11) ───
+  //
+  // When a user lands on `/digest` with no existing report, fire the weekly
+  // generation automatically so Sarah's Monday reorientation does not start
+  // with a cold-click. Guarded on account age > 24h: accounts younger than
+  // that have no meaningful KB history, so auto-gen would burn an AI call
+  // and produce an empty report.
+  const autoGenTriggered = useRef(false);
+  useEffect(() => {
+    if (autoGenTriggered.current) return;
+    if (loading || accountAgeLoading) return;
+    if (currentDigest) return;
+    if (generating) return;
+    if (!isOver24h) return;
+
+    autoGenTriggered.current = true;
+    handleGenerate({
+      period_days: 7,
+      digest_type: 'weekly',
+    });
+  }, [
+    loading,
+    accountAgeLoading,
+    currentDigest,
+    generating,
+    isOver24h,
+    handleGenerate,
+  ]);
 
   const [periodDays, setPeriodDays] = useState('7');
 
@@ -528,8 +564,10 @@ export default function DigestPage() {
     domainOptions,
   };
 
-  // Loading state
-  if (loading) {
+  // Loading state — also covers the brief window after auto-gen triggers but
+  // before `generating` has flipped to true, so Sarah sees a skeleton rather
+  // than the hero empty-state flickering first.
+  if (loading || accountAgeLoading) {
     return (
       <section
         aria-label="Change reports"
@@ -544,6 +582,10 @@ export default function DigestPage() {
 
   // No digest state + generating state
   if (!currentDigest) {
+    // New-account empty-state (P0-11). Accounts < 24h old have no meaningful
+    // KB history, so skip auto-gen and show a friendlier message. The manual
+    // Generate button stays functional so the user can still trigger a run if
+    // they want.
     return (
       <section
         aria-label="Change reports"
@@ -556,10 +598,17 @@ export default function DigestPage() {
           <h1 className="mt-6 text-fluid-2xl font-bold tracking-tight">
             Change Reports
           </h1>
-          <p className="mt-2 max-w-md text-muted-foreground">
-            See what changed in your knowledge base, grouped by domain with
-            cross-cutting themes identified.
-          </p>
+          {isNewAccount && !generating ? (
+            <p className="mt-2 max-w-md text-muted-foreground">
+              No activity yet — check back after your first day of usage and
+              we&apos;ll summarise what changed in your knowledge base.
+            </p>
+          ) : (
+            <p className="mt-2 max-w-md text-muted-foreground">
+              See what changed in your knowledge base, grouped by domain with
+              cross-cutting themes identified.
+            </p>
+          )}
 
           <div className="mt-8 w-full max-w-2xl">
             <GenerateControls variant="hero" {...controlsProps} />

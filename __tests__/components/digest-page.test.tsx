@@ -25,6 +25,7 @@ const {
   mockToast,
   mockFormatDate,
   mockDigestTypeLabel,
+  mockGetUser,
 } = vi.hoisted(() => ({
   mockMarkBulkRead: vi.fn().mockResolvedValue(undefined),
   mockLoadReadMarks: vi.fn(),
@@ -47,6 +48,7 @@ const {
         return 'Custom Change Report';
     }
   }),
+  mockGetUser: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -86,8 +88,54 @@ vi.mock('@/lib/digest/digest-helpers', () => ({
   digestTypeLabel: mockDigestTypeLabel,
 }));
 
+vi.mock('@/lib/supabase/client', () => ({
+  createClient: () => ({
+    auth: {
+      getUser: mockGetUser,
+    },
+  }),
+}));
+
 // Import AFTER mocks
 import DigestPage from '@/app/digest/page';
+
+// ---------------------------------------------------------------------------
+// Fixed time anchor for date-sensitive assertions (CLAUDE.md gotcha: pin
+// `Date.now()` with `vi.spyOn` so 24h-boundary logic is deterministic).
+// ---------------------------------------------------------------------------
+const NOW_MS = new Date('2026-04-15T12:00:00Z').getTime();
+const HOUR_MS = 60 * 60 * 1000;
+
+/** Return an ISO timestamp for a user created N hours before NOW_MS. */
+function userCreatedHoursAgo(hours: number) {
+  return new Date(NOW_MS - hours * HOUR_MS).toISOString();
+}
+
+/**
+ * Default `mockGetUser` for the existing suite — unauthenticated. This keeps
+ * `isOver24h` and `isNewAccount` both false so the pre-P0-11 hero copy
+ * renders and auto-gen does not fire. The two new P0-11 tests at the bottom
+ * override this per-test with `mockOldAccount()` / `mockNewAccount()`.
+ */
+function mockUnauthenticated() {
+  mockGetUser.mockResolvedValue({ data: { user: null } });
+}
+
+function mockOldAccount() {
+  mockGetUser.mockResolvedValue({
+    data: {
+      user: { id: 'test-user', created_at: userCreatedHoursAgo(48) },
+    },
+  });
+}
+
+function mockNewAccount() {
+  mockGetUser.mockResolvedValue({
+    data: {
+      user: { id: 'new-user', created_at: userCreatedHoursAgo(2) },
+    },
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -205,10 +253,17 @@ describe('DigestPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal('fetch', mockFetch);
+    // Pin Date.now() so the 24h account-age boundary is deterministic.
+    vi.spyOn(Date, 'now').mockReturnValue(NOW_MS);
+    // Default: unauthenticated session — keeps the pre-existing suite on
+    // the original hero copy and ensures auto-gen does not fire. P0-11
+    // tests override this explicitly.
+    mockUnauthenticated();
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   // 1. Loading state
@@ -789,5 +844,124 @@ describe('DigestPage', () => {
     expect(
       screen.queryByRole('button', { name: /Mark all as read/i }),
     ).not.toBeInTheDocument();
+  });
+
+  // ─── P0-11: /digest auto-gen guard on account age > 24h ───
+
+  // 27. New account (< 24h): no auto-gen, new-account empty-state visible,
+  //     manual Generate button still functional.
+  it('new account (< 24h) does NOT auto-generate and renders new-account empty-state', async () => {
+    mockNewAccount();
+    const generated = makeDigest({ id: 'new-account-manual' });
+    setupFetch({ latest: null, list: [], generateResult: generated });
+    renderDigestPage();
+
+    // New-account copy should appear.
+    await waitFor(() => {
+      expect(
+        screen.getByText(/No activity yet — check back/i),
+      ).toBeInTheDocument();
+    });
+
+    // The default hero copy ("See what changed in your knowledge base,
+    // grouped by domain with cross-cutting themes identified.") must NOT
+    // render in this branch. Match on the distinctive "grouped by domain"
+    // fragment rather than the less specific "what changed" phrase, which
+    // also appears in the new-account copy.
+    expect(
+      screen.queryByText(/grouped by domain with cross-cutting themes/i),
+    ).not.toBeInTheDocument();
+
+    // Confirm no auto-gen call fired. Wait long enough for any stray effect
+    // to land — a short delay is fine; we assert the absence of the POST.
+    await new Promise((r) => setTimeout(r, 25));
+
+    const generateCalls = mockFetch.mock.calls.filter(
+      (call: [string, ...unknown[]]) => {
+        const url = String(call[0]);
+        return url.includes('/api/digest/generate');
+      },
+    );
+    expect(generateCalls).toHaveLength(0);
+
+    // Manual Generate button is still functional — the user can override
+    // the guard if they really want to.
+    const user = userEvent.setup();
+    const generateButton = screen.getByRole('button', {
+      name: /Generate Report/i,
+    });
+    expect(generateButton).toBeEnabled();
+    await user.click(generateButton);
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/digest/generate',
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
+  });
+
+  // 28. Established account (> 24h): auto-gen fires exactly once with the
+  //     weekly defaults.
+  it('established account (> 24h) auto-generates weekly report on first visit', async () => {
+    mockOldAccount();
+    const generated = makeDigest({ id: 'auto-generated' });
+    setupFetch({ latest: null, list: [], generateResult: generated });
+    renderDigestPage();
+
+    // The auto-gen effect fires after the initial queries settle.
+    await waitFor(() => {
+      const generateCalls = mockFetch.mock.calls.filter(
+        (call: [string, ...unknown[]]) => {
+          const url = String(call[0]);
+          return url.includes('/api/digest/generate');
+        },
+      );
+      expect(generateCalls).toHaveLength(1);
+    });
+
+    // Verify the auto-gen payload matches the weekly default.
+    const generateCall = mockFetch.mock.calls.find(
+      (call: [string, ...unknown[]]) => {
+        const url = String(call[0]);
+        return url.includes('/api/digest/generate');
+      },
+    );
+    expect(generateCall?.[1]).toEqual(
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('"period_days":7'),
+      }),
+    );
+    expect(String(generateCall?.[1]?.body)).toContain('"digest_type":"weekly"');
+
+    // On success the page transitions to the digest view.
+    await waitFor(() => {
+      expect(screen.getByTestId('digest-view')).toBeInTheDocument();
+    });
+  });
+
+  // 29. Auto-gen does NOT fire when a digest already exists — even for
+  //     established accounts. Prevents burning an AI call on a page refresh.
+  it('does not auto-generate when a digest is already cached', async () => {
+    mockOldAccount();
+    const existing = makeDigest({ id: 'existing' });
+    setupFetch({ latest: existing, list: [existing] });
+    renderDigestPage();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('digest-view')).toBeInTheDocument();
+    });
+
+    // Give any stray effect time to run.
+    await new Promise((r) => setTimeout(r, 25));
+
+    const generateCalls = mockFetch.mock.calls.filter(
+      (call: [string, ...unknown[]]) => {
+        const url = String(call[0]);
+        return url.includes('/api/digest/generate');
+      },
+    );
+    expect(generateCalls).toHaveLength(0);
   });
 });
