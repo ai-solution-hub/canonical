@@ -677,20 +677,40 @@ Common false positives to catch:
 - Geographic regions (England, Wales, Scotland) are NOT sectors
 - Internal departments (IT Department, HR Team) are NOT organisations
 
-BULK CERTIFICATION PRESERVATION
-When the source content presents several similar-looking certifications
-together in a list — for example "Accredited to ISO 9001, ISO 27001, BS 10008,
-PCI-DSS, Cyber Essentials Plus and SOC 2" — treat those certifications as an
-atomic unit. Either confirm all of them or remove all of them. Do NOT
-surgically "remove" individual entries (e.g. keeping ISO 27001 but removing
-BS 10008 or PCI-DSS) unless an entry independently fails the NAMED ENTITY
-TEST or the EXTERNAL REFERENCE TEST. The Pass 1 extractor is more reliable at
-recognising bulk-cert lists than Pass 2 is at second-guessing individual
-entries, so the default verdict for each member of a recognisable bulk list
-is "confirmed". Examples of bulk-cert lists that must be preserved together:
-data-centre accreditations (ISO 27001 + BS 10008 + PCI-DSS), security posture
-bundles (ISO 27001 + Cyber Essentials Plus + SOC 2), and ESG stacks
-(ISO 14001 + ISO 50001 + ISO 45001).
+NAMED BULK CERTIFICATION SETS (enumerated — atomic preservation only here)
+The Pass 1 extractor reliably detects three specific UK certification bundles
+that customers commonly list together. When ALL members of a named set appear
+as a co-occurring list in the source text (same sentence, same bullet list,
+or a single "Accredited to X, Y, Z" clause), treat that set as an atomic
+unit: return "confirmed" for every member UNLESS an individual member
+independently fails the NAMED ENTITY TEST or EXTERNAL REFERENCE TEST on its
+face (e.g. mis-OCR, generic-concept gloss).
+
+The three named sets are:
+
+1. Data-centre accreditation bundle: ISO 27001 + BS 10008 + PCI-DSS
+2. Security posture bundle: ISO 27001 + Cyber Essentials Plus + SOC 2
+3. ESG stack: ISO 14001 + ISO 50001 + ISO 45001
+
+Superset rule: if a co-occurring list contains every member of a named set
+plus additional entities, the named set still triggers atomic preservation;
+the additional entities fall back to normal per-entity judgement.
+
+Fall-back rule: if no named set is fully matched, apply normal per-entity
+validation to every entry in the list. Do NOT infer atomic preservation from
+"this list looks like a cert list" or from partial set matches — only the
+three named sets trigger atomic preservation, and only when every member of
+the set is present.
+
+Example — list "Accredited to ISO 9001, ISO 27001, BS 10008, PCI-DSS, Cyber
+Essentials Plus and SOC 2" contains Set 1 (ISO 27001 + BS 10008 + PCI-DSS)
+AND Set 2 (ISO 27001 + Cyber Essentials Plus + SOC 2). Both sets trigger;
+all five members confirmed. ISO 9001 is outside both sets — normal per-entity
+judgement applies.
+
+Counter-example — list "ISO 27001, Cyber Essentials, SOC 2" (Cyber Essentials
+missing the Plus) does NOT match Set 2; per-entity judgement applies to all
+three.
 
 ${PAYMENT_GATEWAY_PRODUCT_ANCHOR}
 
