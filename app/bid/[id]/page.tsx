@@ -493,20 +493,6 @@ export default function BidDetailPage({
             />
           </>
         )}
-        {activeTab === 'responses' && (
-          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center">
-            <FileText
-              className="size-8 text-muted-foreground/50"
-              aria-hidden="true"
-            />
-            <p className="mt-3 text-sm text-muted-foreground">
-              Draft and review responses in the drafting workspace.
-            </p>
-            <Button asChild className="mt-4">
-              <Link href={`/bid/${id}/session`}>Open Drafting Session</Link>
-            </Button>
-          </div>
-        )}
         {activeTab === 'documents' && (
           <DocumentsTab
             bidId={id}
@@ -740,9 +726,7 @@ function OverviewTab({
   onShowCostEstimate: (open: boolean) => void;
   draftingAll: boolean;
   onDraftAll: () => void;
-  onSwitchTab: (
-    tab: 'overview' | 'questions' | 'responses' | 'documents',
-  ) => void;
+  onSwitchTab: (tab: 'overview' | 'questions' | 'documents') => void;
   onShowOutcomeDialog: () => void;
   onShowKBReview: () => void;
   readiness: import('@/hooks/bid/use-bid-readiness').ReadinessData | null;

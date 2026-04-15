@@ -319,7 +319,6 @@ function makeDefaultHookReturn(overrides: Record<string, unknown> = {}) {
     tabs: overrides.tabs ?? [
       { id: 'overview', label: 'Overview' },
       { id: 'questions', label: 'Questions', count: totalQuestions },
-      { id: 'responses', label: 'Responses' },
       { id: 'documents', label: 'Documents', count: 1 },
     ],
   };

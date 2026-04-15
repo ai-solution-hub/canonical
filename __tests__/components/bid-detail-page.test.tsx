@@ -324,7 +324,6 @@ function makeDefaultHookReturn(overrides: Record<string, unknown> = {}) {
     tabs: overrides.tabs ?? [
       { id: 'overview', label: 'Overview' },
       { id: 'questions', label: 'Questions', count: totalQuestions },
-      { id: 'responses', label: 'Responses' },
       { id: 'documents', label: 'Documents', count: 1 },
     ],
   };
@@ -508,13 +507,13 @@ describe('BidDetailPage', () => {
 
   // ---- Tab navigation ----
 
-  it('renders all four tabs', () => {
+  it('renders all three tabs', () => {
     renderWithQuery(<BidDetailPage params={mockParams} />);
     const nav = screen.getByRole('tablist', { name: 'Bid sections' });
     expect(within(nav).getByText('Overview')).toBeInTheDocument();
     expect(within(nav).getByText(/Questions/)).toBeInTheDocument();
-    expect(within(nav).getByText('Responses')).toBeInTheDocument();
     expect(within(nav).getByText(/Documents/)).toBeInTheDocument();
+    expect(within(nav).queryByText('Responses')).not.toBeInTheDocument();
   });
 
   it('shows question count on the Questions tab', () => {

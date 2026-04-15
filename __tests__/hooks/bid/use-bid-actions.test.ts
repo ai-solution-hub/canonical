@@ -848,11 +848,10 @@ describe('useBidActions (TanStack Query)', () => {
     });
 
     const { tabs } = result.current;
-    expect(tabs).toHaveLength(4);
+    expect(tabs).toHaveLength(3);
     expect(tabs[0]).toEqual({ id: 'overview', label: 'Overview' });
     expect(tabs[1]).toEqual({ id: 'questions', label: 'Questions', count: 15 });
-    expect(tabs[2]).toEqual({ id: 'responses', label: 'Responses' });
-    expect(tabs[3]).toEqual({ id: 'documents', label: 'Documents', count: 2 });
+    expect(tabs[2]).toEqual({ id: 'documents', label: 'Documents', count: 2 });
   });
 
   // ─── 17. draftingAll reflects mutation isPending ──────────────────────
