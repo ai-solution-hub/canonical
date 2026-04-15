@@ -190,4 +190,71 @@ describe('CommandPalette', () => {
       expect(screen.getByText('Keyboard shortcuts')).toBeInTheDocument();
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // P0-18 (DECISIONS.md v4.1 §3.1): Enter-gate removal.
+  // Typing in the palette + Enter must submit the top filtered result
+  // (standard cmdk behaviour), rather than being swallowed by a
+  // word-count gate that only fired for queries >3 words.
+  // ---------------------------------------------------------------------------
+
+  it('submits the top result when Enter is pressed on a short query', async () => {
+    const user = userEvent.setup();
+    render(<CommandPalette />);
+
+    await user.keyboard('{Meta>}k{/Meta}');
+
+    const input = await screen.findByPlaceholderText(/Search /);
+    // Short query (<=3 words) — pre-fix this would be swallowed because
+    // the gate only fired handleSearchSubmit when word count > 3, while
+    // cmdk's top-result selection was also disrupted by the custom handler.
+    await user.type(input, 'browse');
+    await user.keyboard('{Enter}');
+
+    await waitFor(() => {
+      expect(mockRouter.push).toHaveBeenCalledWith('/browse');
+    });
+  });
+
+  it('submits the top result when Enter is pressed on a long query', async () => {
+    const user = userEvent.setup();
+    render(<CommandPalette />);
+
+    await user.keyboard('{Meta>}k{/Meta}');
+
+    const input = await screen.findByPlaceholderText(/Search /);
+    // Long query (>3 words) that still matches a Command.Item value
+    // ("Search knowledge base" from the Search entry). Post-fix: Enter
+    // routes through the highlighted item (cmdk native), not the
+    // removed /browse?q= search fallback.
+    await user.type(input, 'search knowledge base');
+    await user.keyboard('{Enter}');
+
+    await waitFor(() => {
+      expect(mockRouter.push).toHaveBeenCalled();
+    });
+    // Gate is gone: we must not route via the old search fallback which
+    // used /browse?q=<encoded query>.
+    const pushedPaths = mockRouter.push.mock.calls.map((c) => c[0] as string);
+    expect(
+      pushedPaths.some((p) => p.startsWith('/browse?q=')),
+    ).toBe(false);
+  });
+
+  it('does not render the "Press Enter to search" fallback copy', async () => {
+    // Copy no longer promises a behaviour that does not exist
+    // (P0-18 removed the >3-word search fallback).
+    const user = userEvent.setup();
+    render(<CommandPalette />);
+
+    await user.keyboard('{Meta>}k{/Meta}');
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    expect(
+      screen.queryByText(/Press Enter to search/i),
+    ).not.toBeInTheDocument();
+  });
 });
