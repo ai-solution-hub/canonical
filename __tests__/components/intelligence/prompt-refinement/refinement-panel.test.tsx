@@ -101,7 +101,7 @@ describe('RefinementPanel', () => {
   it('renders the no-flags empty state when the flag list is empty', () => {
     renderPanel({ flags: [] });
     expect(
-      screen.getByText(/No unresolved flags\. The scoring prompt is performing well/i),
+      screen.getByText(/No unresolved flags\. Filter rules are performing well/i),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: /Analyse flags/i }),
@@ -450,7 +450,7 @@ describe('RefinementPanel', () => {
       />,
     );
     expect(
-      container.querySelector('[aria-label="Prompt refinement"]'),
+      container.querySelector('[aria-label="Refine filter rules"]'),
     ).toBeInTheDocument();
     // Three Skeleton elements are rendered while loading.
     expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThanOrEqual(2);

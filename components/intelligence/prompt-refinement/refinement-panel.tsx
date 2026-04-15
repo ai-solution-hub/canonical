@@ -214,7 +214,7 @@ export function RefinementPanel({
   if (flagsLoading) {
     return (
       <section
-        aria-label="Prompt refinement"
+        aria-label="Refine filter rules"
         className="rounded-lg border bg-card p-6"
       >
         <div className="space-y-3">
@@ -230,16 +230,16 @@ export function RefinementPanel({
   if (unresolvedFlags.length === 0) {
     return (
       <section
-        aria-label="Prompt refinement"
+        aria-label="Refine filter rules"
         className="rounded-lg border bg-card p-6"
       >
         <header className="mb-3">
           <h2 className="text-base font-semibold text-foreground">
-            Prompt refinement
+            Refine filter rules
           </h2>
         </header>
         <p className="text-sm text-muted-foreground">
-          No unresolved flags. The scoring prompt is performing well. Flag
+          No unresolved flags. Filter rules are performing well. Flag
           articles as false positives or false negatives from the Articles
           tab to start collecting feedback.
         </p>
@@ -261,12 +261,12 @@ export function RefinementPanel({
 
   return (
     <section
-      aria-label="Prompt refinement"
+      aria-label="Refine filter rules"
       className="space-y-4 rounded-lg border bg-card p-6"
     >
       <header className="space-y-1">
         <h2 className="text-base font-semibold text-foreground">
-          Prompt refinement
+          Refine filter rules
         </h2>
         <p className="text-sm text-muted-foreground">
           {unresolvedCount} {flagNoun} ({falsePositiveCount} {fpNoun},{' '}
