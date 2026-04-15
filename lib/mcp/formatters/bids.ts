@@ -2,6 +2,7 @@
  * Bid-related formatters for MCP tool responses.
  */
 import { formatDateUK } from '@/lib/format';
+import { htmlToMarkdown } from '@/lib/content/html-to-markdown';
 import { truncate, formatProgress } from './shared';
 
 // ---------------------------------------------------------------------------
@@ -149,7 +150,12 @@ export function formatBidQuestion(q: BidQuestionDetail): string {
   lines.push(`**ID:** ${q.id}`);
 
   if (q.response_text) {
-    lines.push('', '## Response', '', truncate(q.response_text, 3000));
+    lines.push(
+      '',
+      '## Response',
+      '',
+      truncate(htmlToMarkdown(q.response_text), 3000),
+    );
   }
 
   return lines.join('\n');
