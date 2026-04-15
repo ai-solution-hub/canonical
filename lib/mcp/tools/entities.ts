@@ -13,13 +13,19 @@ import type {
   CertificationReportEntry,
   CertificationReportData,
 } from '@/lib/mcp/formatters';
-import { type ToolExtra, toStructuredContent } from './shared';
+import {
+  type ToolExtra,
+  toStructuredContent,
+  defineTool,
+  READ_ONLY_ANNOTATIONS,
+} from './shared';
 
 export async function registerEntityTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 14. get_entity_relationships
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'get_entity_relationships',
     {
       title: 'Entity Relationships',
@@ -37,11 +43,7 @@ export async function registerEntityTools(server: McpServer): Promise<void> {
             'Filter by entity type: organisation, certification, regulation, framework, capability, person, technology, project, sector',
           ),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {
@@ -151,7 +153,8 @@ export async function registerEntityTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 34. get_certification_status
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'get_certification_status',
     {
       title: 'Certification Status Report',
@@ -163,11 +166,7 @@ export async function registerEntityTools(server: McpServer): Promise<void> {
           .optional()
           .describe('Include supplier certifications (default: false)'),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {

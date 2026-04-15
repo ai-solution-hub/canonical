@@ -26,6 +26,9 @@ import {
   type ToolExtra,
   toStructuredContent,
   getGenerateEmbedding,
+  defineTool,
+  DESTRUCTIVE_WRITE_ANNOTATIONS,
+  SAFE_WRITE_ANNOTATIONS,
 } from './shared';
 
 export async function registerGovernanceTools(
@@ -34,7 +37,8 @@ export async function registerGovernanceTools(
   // -------------------------------------------------------------------------
   // 25. delete_content_item (Write tool — editor+ only)
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'delete_content_item',
     {
       title: 'Delete or Archive Content Item',
@@ -52,12 +56,7 @@ export async function registerGovernanceTools(
           .string()
           .describe('Explanation for the deletion (stored in audit trail)'),
       },
-      annotations: {
-        readOnlyHint: false,
-        idempotentHint: false,
-        destructiveHint: true,
-        openWorldHint: false,
-      },
+      annotations: DESTRUCTIVE_WRITE_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {
@@ -269,7 +268,8 @@ export async function registerGovernanceTools(
   // -------------------------------------------------------------------------
   // 30. update_governance_status (write tool — editor+ only)
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'update_governance_status',
     {
       title: 'Update Governance Status',
@@ -287,12 +287,7 @@ export async function registerGovernanceTools(
             'Target status: "publish" makes items live and searchable, "draft" hides them from search',
           ),
       },
-      annotations: {
-        readOnlyHint: false,
-        idempotentHint: true,
-        destructiveHint: false,
-        openWorldHint: false,
-      },
+      annotations: SAFE_WRITE_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {

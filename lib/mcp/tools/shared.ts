@@ -10,7 +10,17 @@ import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/proto
 import type {
   ServerRequest,
   ServerNotification,
+  ToolAnnotations,
 } from '@modelcontextprotocol/sdk/types.js';
+import type {
+  McpServer,
+  RegisteredTool,
+  ToolCallback,
+} from '@modelcontextprotocol/sdk/server/mcp.js';
+import type {
+  AnySchema,
+  ZodRawShapeCompat,
+} from '@modelcontextprotocol/sdk/server/zod-compat.js';
 import type { BidQuestionSummary, BidSection } from '@/lib/mcp/formatters';
 import { createMcpClient } from '@/lib/mcp/auth';
 import { sb } from '@/lib/supabase/safe';
@@ -20,6 +30,161 @@ import { sb } from '@/lib/supabase/safe';
 // ---------------------------------------------------------------------------
 
 export type ToolExtra = RequestHandlerExtra<ServerRequest, ServerNotification>;
+
+// ---------------------------------------------------------------------------
+// P0-19: MCP tool annotation constants + `defineTool` / `defineAppTool`
+// wrappers (DECISIONS.md v4.1 §3.1 P0-19 / C-6 gate).
+//
+// The four `ToolAnnotations` advisory fields are declared `Required<>` at the
+// type level so every tool has to set every one. Pick one of the four named
+// constants below — they encode the only policy-approved combinations.
+//
+// Why a wrapper instead of modifying SDK types? The SDK types are vendored,
+// so we can't tighten `registerTool`'s `annotations` to `Required<>` directly.
+// A thin wrapper is the idiomatic TypeScript workaround and has zero runtime
+// cost (it just delegates to `server.registerTool`).
+// ---------------------------------------------------------------------------
+
+/**
+ * A `ToolAnnotations` variant where every advisory field is explicit.
+ * `defineTool` enforces this at compile time so no tool can silently omit
+ * a field.
+ */
+export type RequiredToolAnnotations = Required<
+  Pick<
+    ToolAnnotations,
+    'readOnlyHint' | 'idempotentHint' | 'destructiveHint' | 'openWorldHint'
+  >
+>;
+
+/**
+ * Pure read — no side effects, safe to retry, non-destructive. Use for every
+ * `search_*`, `get_*`, `list_*`, `find_*`, `audit_*`, `suggest_*`, `show_*`
+ * tool.
+ */
+export const READ_ONLY_ANNOTATIONS: RequiredToolAnnotations = {
+  readOnlyHint: true,
+  idempotentHint: true,
+  destructiveHint: false,
+  openWorldHint: false,
+};
+
+/**
+ * Write that is safe to retry (same inputs → same end state) and does not
+ * destroy data. Use for `update_*`, `assign_*`, `cite_*` (upsert),
+ * `classify_content`, `generate_summary`, `update_governance_status`.
+ */
+export const SAFE_WRITE_ANNOTATIONS: RequiredToolAnnotations = {
+  readOnlyHint: false,
+  idempotentHint: true,
+  destructiveHint: false,
+  openWorldHint: false,
+};
+
+/**
+ * Destructive write — archives or deletes data. Use for `delete_content_item`
+ * and similar hard-delete tools. MCP clients may show an extra confirmation
+ * prompt for these.
+ */
+export const DESTRUCTIVE_WRITE_ANNOTATIONS: RequiredToolAnnotations = {
+  readOnlyHint: false,
+  idempotentHint: false,
+  destructiveHint: true,
+  openWorldHint: false,
+};
+
+/**
+ * Write that is NOT idempotent — each call creates a new row or fresh state.
+ * Use for `create_content_item` (fresh UUID per call) and similar creators.
+ */
+export const NON_IDEMPOTENT_WRITE_ANNOTATIONS: RequiredToolAnnotations = {
+  readOnlyHint: false,
+  idempotentHint: false,
+  destructiveHint: false,
+  openWorldHint: false,
+};
+
+/**
+ * Tool config shape for `defineTool`. Mirrors the `config` parameter of
+ * `McpServer.registerTool` but tightens `annotations` to the
+ * `RequiredToolAnnotations` variant.
+ */
+export interface DefineToolConfig<
+  InputArgs extends undefined | ZodRawShapeCompat | AnySchema = undefined,
+  OutputArgs extends ZodRawShapeCompat | AnySchema = ZodRawShapeCompat,
+> {
+  title?: string;
+  description?: string;
+  inputSchema?: InputArgs;
+  outputSchema?: OutputArgs;
+  annotations: RequiredToolAnnotations;
+  _meta?: Record<string, unknown>;
+}
+
+/**
+ * Wrapper over `server.registerTool` that enforces all four
+ * `ToolAnnotations` fields at compile time. Use one of the named
+ * constants (`READ_ONLY_ANNOTATIONS`, `SAFE_WRITE_ANNOTATIONS`,
+ * `DESTRUCTIVE_WRITE_ANNOTATIONS`, `NON_IDEMPOTENT_WRITE_ANNOTATIONS`) for
+ * the `annotations` field.
+ *
+ * Return type mirrors `server.registerTool` so callers keep the same
+ * `RegisteredTool` handle.
+ */
+export function defineTool<
+  OutputArgs extends ZodRawShapeCompat | AnySchema,
+  InputArgs extends
+    | undefined
+    | ZodRawShapeCompat
+    | AnySchema = undefined,
+>(
+  server: McpServer,
+  name: string,
+  config: DefineToolConfig<InputArgs, OutputArgs>,
+  cb: ToolCallback<InputArgs>,
+): RegisteredTool {
+  return server.registerTool(name, config, cb);
+}
+
+/**
+ * Wrapper over the `@modelcontextprotocol/ext-apps` `registerAppTool` helper
+ * that enforces the same `RequiredToolAnnotations` contract as `defineTool`.
+ *
+ * MCP App tools must carry `_meta.ui.resourceUri` (or the deprecated
+ * `_meta["ui/resourceUri"]`); the ext-apps `registerAppTool` normalises this.
+ * We keep `_meta` as `Record<string, unknown>` on this wrapper because the
+ * ext-apps package's own `McpUiAppToolConfig['_meta']` union is narrower than
+ * the SDK's base `_meta` and re-expressing it here would couple us to the
+ * ext-apps internal types. Callers always pass `{ ui: { resourceUri: '…' } }`
+ * at the call site.
+ *
+ * `registerAppToolFn` is the `registerAppTool` function obtained from
+ * `getExtAppsServer()` (it can't be statically imported because ext-apps is
+ * a lazy-loaded module for Vercel cold-start reasons).
+ */
+export function defineAppTool<
+  OutputArgs extends ZodRawShapeCompat | AnySchema,
+  InputArgs extends
+    | undefined
+    | ZodRawShapeCompat
+    | AnySchema = undefined,
+>(
+  // ext-apps `McpUiAppToolConfig` has a narrower `_meta` union than the
+  // SDK's `ToolConfig['_meta']`; we delegate to the ext-apps runtime and
+  // preserve the `RequiredToolAnnotations` contract on our wrapper. The
+  // `any` in `config`, `cb`, and the return type are all load-bearing —
+  // every narrower type we tried clashed with the ext-apps internals.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  registerAppToolFn: (server: Pick<McpServer, 'registerTool'>, name: string, config: any, cb: any) => any,
+  server: McpServer,
+  name: string,
+  config: DefineToolConfig<InputArgs, OutputArgs> & {
+    _meta: Record<string, unknown>;
+  },
+  cb: ToolCallback<InputArgs>,
+): RegisteredTool {
+  return registerAppToolFn(server, name, config, cb);
+}
 
 // ---------------------------------------------------------------------------
 // Helper — safely convert typed objects to structuredContent

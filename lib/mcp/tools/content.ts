@@ -37,6 +37,10 @@ import {
   getGenerateEmbedding,
   getClassifyContent,
   getGenerateSummary,
+  defineTool,
+  READ_ONLY_ANNOTATIONS,
+  SAFE_WRITE_ANNOTATIONS,
+  NON_IDEMPOTENT_WRITE_ANNOTATIONS,
 } from './shared';
 
 // ---------------------------------------------------------------------------
@@ -112,7 +116,8 @@ export async function registerContentTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 4. get_content_item
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'get_content_item',
     {
       title: 'Get Content Item',
@@ -124,11 +129,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           .uuid()
           .describe('The UUID of the content item to retrieve'),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {
@@ -245,7 +246,8 @@ export async function registerContentTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 12. create_content_item (write tool — editor+ only)
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'create_content_item',
     {
       title: 'Create Content Item',
@@ -302,12 +304,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             'Source document name or path for provenance tracking. Stored in metadata.source_document.',
           ),
       },
-      annotations: {
-        readOnlyHint: false,
-        idempotentHint: false,
-        destructiveHint: false,
-        openWorldHint: false,
-      },
+      annotations: NON_IDEMPOTENT_WRITE_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {
@@ -590,7 +587,8 @@ export async function registerContentTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 19. update_content_item (write tool — editor+ only)
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'update_content_item',
     {
       title: 'Update Content Item',
@@ -656,12 +654,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             'Explanation of why the update was made (stored for audit trail)',
           ),
       },
-      annotations: {
-        readOnlyHint: false,
-        idempotentHint: false,
-        destructiveHint: false,
-        openWorldHint: false,
-      },
+      annotations: SAFE_WRITE_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {
@@ -793,7 +786,8 @@ export async function registerContentTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 21. get_content_items (batch)
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'get_content_items',
     {
       title: 'Get Content Items (Batch)',
@@ -806,12 +800,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           .max(50)
           .describe('Array of content item UUIDs to fetch (max: 50)'),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        destructiveHint: false,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {
@@ -838,7 +827,8 @@ export async function registerContentTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // get_workspace_items
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'get_workspace_items',
     {
       title: 'Get Workspace Items',
@@ -858,12 +848,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           .optional()
           .describe('Pagination offset (default: 0)'),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        destructiveHint: false,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {
@@ -924,7 +909,8 @@ export async function registerContentTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 31. assign_content_owner (write tool — admin only)
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'assign_content_owner',
     {
       title: 'Assign Content Owner',
@@ -938,12 +924,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           .describe('Content item IDs to assign (1-50)'),
         owner_id: z.string().uuid().describe('User ID of the new owner'),
       },
-      annotations: {
-        readOnlyHint: false,
-        idempotentHint: true,
-        destructiveHint: false,
-        openWorldHint: false,
-      },
+      annotations: SAFE_WRITE_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {
@@ -1023,7 +1004,8 @@ export async function registerContentTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 33. get_document_versions
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'get_document_versions',
     {
       title: 'Get Source Document Versions',
@@ -1035,12 +1017,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           .uuid()
           .describe('Source document ID (any version in the chain)'),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        destructiveHint: false,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {
@@ -1173,7 +1150,8 @@ export async function registerContentTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 35. get_document_diff
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'get_document_diff',
     {
       title: 'Get Source Document Diff',
@@ -1194,11 +1172,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             'Specific diff ID to retrieve (overrides document_id lookup)',
           ),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {

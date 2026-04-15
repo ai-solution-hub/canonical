@@ -158,8 +158,8 @@ export function collectFileStats(): Record<string, number> {
 export function collectCodeStats(): Record<string, number> {
   return {
     mcp_tools: countPatternsInFiles('lib/mcp/tools/*.ts', [
-      'registerTool(',
-      'registerAppTool(',
+      'defineTool(',
+      'defineAppTool(',
     ]),
     mcp_resources: countPatternsInFiles('lib/mcp/resources.ts', [
       'registerResource(',

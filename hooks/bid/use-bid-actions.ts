@@ -19,7 +19,7 @@ import type {
 } from '@/types/bid';
 import type { TenderExtractedMetadata } from '@/types/bid-metadata';
 
-type Tab = 'overview' | 'questions' | 'responses' | 'documents';
+type Tab = 'overview' | 'questions' | 'documents';
 
 interface ExtractedQuestion {
   section_name: string;
@@ -465,7 +465,6 @@ export function useBidActions({ id }: UseBidActionsParams) {
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: 'overview', label: 'Overview' },
     { id: 'questions', label: 'Questions', count: totalQuestions },
-    { id: 'responses', label: 'Responses' },
     {
       id: 'documents',
       label: 'Documents',

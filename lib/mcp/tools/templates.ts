@@ -18,13 +18,19 @@ import type {
   TemplateListData,
   TemplateGapsData,
 } from '@/lib/mcp/formatters';
-import { type ToolExtra, toStructuredContent } from './shared';
+import {
+  type ToolExtra,
+  toStructuredContent,
+  defineTool,
+  READ_ONLY_ANNOTATIONS,
+} from './shared';
 
 export async function registerTemplateTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 27. list_templates (Read tool — all roles)
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'list_templates',
     {
       title: 'List Templates',
@@ -38,11 +44,7 @@ export async function registerTemplateTools(server: McpServer): Promise<void> {
             'Filter by template type: sq, rfp, eqq, gcloud, method_statement, dos, dps, framework, other',
           ),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {
@@ -87,7 +89,8 @@ export async function registerTemplateTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 28. get_template_coverage (Read tool — all roles)
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'get_template_coverage',
     {
       title: 'Template Coverage',
@@ -106,11 +109,7 @@ export async function registerTemplateTools(server: McpServer): Promise<void> {
             'Specific version (e.g. "PPN 03/24"). Defaults to current version.',
           ),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {
@@ -173,7 +172,8 @@ export async function registerTemplateTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 29. get_template_gaps (Read tool — all roles)
   // -------------------------------------------------------------------------
-  server.registerTool(
+  defineTool(
+    server,
     'get_template_gaps',
     {
       title: 'Template Gaps',
@@ -194,11 +194,7 @@ export async function registerTemplateTools(server: McpServer): Promise<void> {
           .optional()
           .describe('Include partial matches alongside gaps (default: true)'),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {

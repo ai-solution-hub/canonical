@@ -1,21 +1,10 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import {
   ReviewSessionSummary,
   formatDuration,
-  formatUkDateTime,
-  generateSummaryText,
 } from '@/components/review/review-session-summary';
 import type { ReviewSessionStats } from '@/components/review/review-session-summary';
-
-// Mock URL.createObjectURL and URL.revokeObjectURL
-const mockCreateObjectURL = vi.fn(() => 'blob:mock-url');
-const mockRevokeObjectURL = vi.fn();
-
-beforeEach(() => {
-  global.URL.createObjectURL = mockCreateObjectURL;
-  global.URL.revokeObjectURL = mockRevokeObjectURL;
-});
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -124,34 +113,6 @@ describe('ReviewSessionSummary', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it('creates a blob URL when Download summary is clicked', () => {
-    // Spy on createElement to intercept anchor creation, but still let it work
-    const mockClick = vi.fn();
-    const originalCreateElement = document.createElement.bind(document);
-    vi.spyOn(document, 'createElement').mockImplementation(
-      (tag: string, ...args: unknown[]) => {
-        const el = originalCreateElement(tag, ...(args as []));
-        if (tag === 'a') {
-          // Override click to capture it
-          el.click = mockClick;
-        }
-        return el;
-      },
-    );
-
-    render(<ReviewSessionSummary {...defaultProps} sessionDuration={60000} />);
-
-    const downloadButton = screen.getByRole('button', {
-      name: /Download summary/i,
-    });
-    fireEvent.click(downloadButton);
-
-    expect(mockCreateObjectURL).toHaveBeenCalledTimes(1);
-    const blobArg = mockCreateObjectURL.mock.calls[0][0];
-    expect(blobArg).toBeInstanceOf(Blob);
-    expect(mockClick).toHaveBeenCalledTimes(1);
-  });
-
   it('does not render when open is false', () => {
     render(<ReviewSessionSummary {...defaultProps} open={false} />);
 
@@ -195,71 +156,3 @@ describe('formatDuration', () => {
   });
 });
 
-describe('formatUkDateTime', () => {
-  it('formats date in DD/MM/YYYY HH:MM format', () => {
-    // 15th March 2026 at 14:30
-    const date = new Date(2026, 2, 15, 14, 30, 0);
-    expect(formatUkDateTime(date)).toBe('15/03/2026 14:30');
-  });
-
-  it('pads single-digit day and month', () => {
-    // 5th January 2026 at 09:05
-    const date = new Date(2026, 0, 5, 9, 5, 0);
-    expect(formatUkDateTime(date)).toBe('05/01/2026 09:05');
-  });
-
-  it('handles midnight correctly', () => {
-    const date = new Date(2026, 5, 20, 0, 0, 0);
-    expect(formatUkDateTime(date)).toBe('20/06/2026 00:00');
-  });
-});
-
-describe('generateSummaryText', () => {
-  const stats: ReviewSessionStats = {
-    total: 15,
-    verified: 10,
-    flagged: 3,
-    skipped: 2,
-  };
-
-  it('includes all stat lines', () => {
-    const text = generateSummaryText(stats);
-
-    expect(text).toContain('Review Session Summary');
-    expect(text).toContain('Total reviewed: 15');
-    expect(text).toContain('Verified: 10');
-    expect(text).toContain('Flagged: 3');
-    expect(text).toContain('Skipped: 2');
-  });
-
-  it('includes UK-formatted date', () => {
-    const text = generateSummaryText(stats);
-    // Should match DD/MM/YYYY HH:MM pattern
-    expect(text).toMatch(/Date: \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/);
-  });
-
-  it('includes duration when provided', () => {
-    const text = generateSummaryText(stats, 125000);
-    expect(text).toContain('Duration: 2m 5s');
-  });
-
-  it('omits duration line when not provided', () => {
-    const text = generateSummaryText(stats);
-    expect(text).not.toContain('Duration:');
-  });
-
-  it('handles zero stats', () => {
-    const zeroStats: ReviewSessionStats = {
-      total: 0,
-      verified: 0,
-      flagged: 0,
-      skipped: 0,
-    };
-    const text = generateSummaryText(zeroStats);
-
-    expect(text).toContain('Total reviewed: 0');
-    expect(text).toContain('Verified: 0');
-    expect(text).toContain('Flagged: 0');
-    expect(text).toContain('Skipped: 0');
-  });
-});

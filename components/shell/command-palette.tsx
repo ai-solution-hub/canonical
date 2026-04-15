@@ -79,15 +79,6 @@ export function CommandPalette() {
     command();
   }, []);
 
-  // If search looks like a query (>3 words or user presses Enter with text)
-  const handleSearchSubmit = useCallback(() => {
-    if (search.trim()) {
-      runCommand(() =>
-        router.push(`/browse?q=${encodeURIComponent(search.trim())}`),
-      );
-    }
-  }, [search, router, runCommand]);
-
   return (
     <AnimatePresence>
       {open && (
@@ -121,20 +112,7 @@ export function CommandPalette() {
             transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
             className="fixed left-1/2 top-[20%] z-50 w-full max-w-lg -translate-x-1/2"
           >
-            <Command
-              className="overflow-hidden rounded-xl border border-border bg-popover shadow-2xl"
-              onKeyDown={(e) => {
-                if (
-                  e.key === 'Enter' &&
-                  search.trim().split(/\s+/).length > 3
-                ) {
-                  handleSearchSubmit();
-                }
-                if (e.key === 'Escape') {
-                  setOpen(false);
-                }
-              }}
-            >
+            <Command className="overflow-hidden rounded-xl border border-border bg-popover shadow-2xl">
               <div className="flex items-center border-b border-border px-3">
                 <Search className="mr-2 size-4 shrink-0 text-muted-foreground" />
                 <Command.Input
@@ -146,7 +124,7 @@ export function CommandPalette() {
               </div>
               <Command.List className="max-h-80 overflow-y-auto p-2">
                 <Command.Empty className="px-4 py-6 text-center text-sm text-muted-foreground">
-                  No results found. Press Enter to search.
+                  No results found.
                 </Command.Empty>
 
                 {/* Navigation */}

@@ -30,6 +30,8 @@ import {
   getReorientModule,
   getExtAppsServer,
   fetchBidSections,
+  defineAppTool,
+  READ_ONLY_ANNOTATIONS,
 } from './shared';
 
 export async function registerAppTools(server: McpServer): Promise<void> {
@@ -39,7 +41,8 @@ export async function registerAppTools(server: McpServer): Promise<void> {
   // 22. show_coverage_matrix (App trigger tool — renders Coverage Matrix MCP App)
   // -------------------------------------------------------------------------
   const coverageMatrixUri = 'ui://coverage-matrix/app.html';
-  registerAppTool(
+  defineAppTool(
+    registerAppTool,
     server,
     'show_coverage_matrix',
     {
@@ -52,12 +55,7 @@ export async function registerAppTools(server: McpServer): Promise<void> {
           .optional()
           .describe('Whether to include gap analysis (default: true)'),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        destructiveHint: false,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
       _meta: { ui: { resourceUri: coverageMatrixUri } },
     },
     async (args: { include_gaps?: boolean }, extra: ToolExtra) => {
@@ -435,7 +433,8 @@ export async function registerAppTools(server: McpServer): Promise<void> {
   // 23. show_bid_dashboard (App trigger tool — renders Bid Dashboard MCP App)
   // -------------------------------------------------------------------------
   const bidDashboardUri = 'ui://bid-dashboard/app.html';
-  registerAppTool(
+  defineAppTool(
+    registerAppTool,
     server,
     'show_bid_dashboard',
     {
@@ -451,12 +450,7 @@ export async function registerAppTools(server: McpServer): Promise<void> {
             'Optionally focus on a specific bid (auto-expands that card)',
           ),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        destructiveHint: false,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
       _meta: { ui: { resourceUri: bidDashboardUri } },
     },
     async (args: { bid_id?: string }, extra: ToolExtra) => {
@@ -557,7 +551,8 @@ export async function registerAppTools(server: McpServer): Promise<void> {
   // 24. show_reorient_me (App trigger tool — renders Reorient Me MCP App)
   // -------------------------------------------------------------------------
   const reorientMeUri = 'ui://reorient-me/app.html';
-  registerAppTool(
+  defineAppTool(
+    registerAppTool,
     server,
     'show_reorient_me',
     {
@@ -565,12 +560,7 @@ export async function registerAppTools(server: McpServer): Promise<void> {
       description:
         'Display an interactive personal briefing showing what has changed since your last visit, urgent items needing attention, team activity, and active bid status. This tool renders a visual briefing inside the conversation. Use it when the user says "reorient me", "catch me up", "what did I miss?", "what should I focus on?", or wants a personal briefing.',
       inputSchema: {},
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        destructiveHint: false,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
       _meta: { ui: { resourceUri: reorientMeUri } },
     },
     async (_args: Record<string, unknown>, extra: ToolExtra) => {
@@ -616,7 +606,8 @@ export async function registerAppTools(server: McpServer): Promise<void> {
   // 25. show_intelligence_feed (App trigger tool — renders Intelligence Feed MCP App)
   // -------------------------------------------------------------------------
   const intelligenceFeedUri = 'ui://intelligence-feed/app.html';
-  registerAppTool(
+  defineAppTool(
+    registerAppTool,
     server,
     'show_intelligence_feed',
     {
@@ -633,12 +624,7 @@ export async function registerAppTools(server: McpServer): Promise<void> {
           .optional()
           .describe('Time period for the feed (default: "7d")'),
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        destructiveHint: false,
-        openWorldHint: false,
-      },
+      annotations: READ_ONLY_ANNOTATIONS,
       _meta: { ui: { resourceUri: intelligenceFeedUri } },
     },
     async (

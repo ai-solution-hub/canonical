@@ -1,12 +1,10 @@
 'use client';
 
-import { useCallback } from 'react';
 import {
   CheckCircle2,
   AlertTriangle,
   SkipForward,
   ClipboardList,
-  Download,
   Clock,
 } from 'lucide-react';
 import {
@@ -54,48 +52,8 @@ function formatDuration(ms: number): string {
 }
 
 /**
- * Formats current date/time in UK format: DD/MM/YYYY HH:MM
- */
-function formatUkDateTime(date: Date): string {
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  return `${day}/${month}/${year} ${hours}:${minutes}`;
-}
-
-/**
- * Generates a plain-text summary of the review session for download.
- */
-function generateSummaryText(
-  stats: ReviewSessionStats,
-  durationMs?: number,
-): string {
-  const lines = [
-    'Review Session Summary',
-    `Date: ${formatUkDateTime(new Date())}`,
-  ];
-
-  if (durationMs != null) {
-    lines.push(`Duration: ${formatDuration(durationMs)}`);
-  }
-
-  lines.push(
-    '',
-    `Total reviewed: ${stats.total}`,
-    `Verified: ${stats.verified}`,
-    `Flagged: ${stats.flagged}`,
-    `Skipped: ${stats.skipped}`,
-  );
-
-  return lines.join('\n');
-}
-
-/**
  * Summary dialog shown when a curator exits a review session.
- * Displays stats for items reviewed, verified, flagged, and skipped,
- * with an optional download of the session summary.
+ * Displays stats for items reviewed, verified, flagged, and skipped.
  */
 export function ReviewSessionSummary({
   open,
@@ -103,22 +61,6 @@ export function ReviewSessionSummary({
   stats,
   sessionDuration,
 }: ReviewSessionSummaryProps) {
-  const handleDownload = useCallback(() => {
-    const text = generateSummaryText(stats, sessionDuration);
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `review-session-${new Date().toISOString().slice(0, 10)}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    // Clean up the object URL after a short delay
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }, [stats, sessionDuration]);
-
   const statItems = [
     {
       label: 'Total reviewed',
@@ -210,16 +152,7 @@ export function ReviewSessionSummary({
           )}
         </div>
 
-        <DialogFooter className="flex-row gap-2 sm:justify-between">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDownload}
-            className="gap-1.5"
-          >
-            <Download className="size-3.5" aria-hidden="true" />
-            Download summary
-          </Button>
+        <DialogFooter className="flex-row gap-2 sm:justify-end">
           <Button size="sm" onClick={() => onOpenChange(false)}>
             Close
           </Button>
@@ -229,5 +162,5 @@ export function ReviewSessionSummary({
   );
 }
 
-// Export helpers for testing
-export { formatDuration, formatUkDateTime, generateSummaryText };
+// Export helper for testing
+export { formatDuration };

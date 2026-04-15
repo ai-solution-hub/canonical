@@ -21,6 +21,7 @@ must respect this distinction or the docs will drift back into chaos:
 | **Product backlog** | `docs/reference/product-backlog.md` | It's unlikely that product backlog items will have been completed during the session as the roadmap drives implementation priorities, but it's possible that new items may have been identified during the session, which will need to be added to the backlog, awaiting promotion to the roadmap. |
 | **State of the product — history** | `docs/reference/state-of-the-product-history.md` | **Frozen historical archive** of per-session "what shipped in session N" narrative blocks (S53→S152A), split out of the canonical doc in S152B WP10 (commit `3e3eccc5`) to keep the canonical doc under control. 
 | **Backlog completed archive** | `docs/reference/product-backlog-completed.md` | Frozen historical record of completed backlog items. |
+| **Wave status ledgers** | `docs/audits/*/STATUS.md` (e.g. `ui-simplification-2026-04/STATUS.md`) | **Single-page status tracker** for a multi-session wave. Views over DECISIONS/SPEC-SEQUENCE/DEFERRED rather than a new source — shows per-item `Status` / `Artefact` / `Shipped in` / `Notes`. Maintained live at close-out for any active wave the session touched. |
 
 ---
 
@@ -204,7 +205,71 @@ Read the file, then for each item that was identified in this session:
 
 ---
 
-## Step 8: Commit Reference Doc Changes
+## Step 8: Update Wave Status Ledgers (Conditional)
+
+**Directory:** `docs/audits/*/STATUS.md`
+
+If the session touched items in an active multi-session wave that maintains
+a `STATUS.md` ledger (for example `docs/audits/ui-simplification-2026-04/STATUS.md`),
+update the ledger to reflect shipped state. One ledger per wave.
+
+**When to update:**
+
+- Any item in the ledger transitioned state this session
+  (`Not started` → `In progress`, `In progress` → `Shipped`, blocker
+  discovered, spec written, etc.).
+- A C-series or similar gate cleared.
+- A new item was added to the underlying DECISIONS/SPEC-SEQUENCE and needs
+  a ledger row.
+
+**What to update:**
+
+1. **Per-item rows (§4 P0 / §5 P1 in ui-simplification).** Flip the
+   `Status` column, populate `Shipped` with `S{NNN} • {short_sha}` (first
+   commit only — session prompt captures the full SHA range), update
+   `Artefact` if the spec was written or archived, and append a one-line
+   note to `Notes` if a blocker surfaced or a dependency closed.
+2. **Gate status (§3).** If a C-series gate cleared, mark **Cleared** and
+   record the `Cleared in` session.
+3. **Summary counts (§2).** Adjust the status-count and wave-count tables.
+4. **Change log (§6).** Add one line for the session — the net delta
+   (items shipped, gates cleared, blockers surfaced).
+
+**What NOT to do:**
+
+- Do not rewrite DECISIONS or SPEC-SEQUENCE from the ledger. The ledger
+  is a view, not a source.
+- Do not add new items to the ledger without first adding them to the
+  underlying DECISIONS and SPEC-SEQUENCE.
+- Do not create a `STATUS.md` ledger for a wave that does not have one
+  already — the existing ones were created deliberately. Flag in the
+  continuation prompt if a new wave would benefit from one.
+
+**Edge cases:**
+
+- **Reverts.** If a previously-shipped item is reverted, flip its status
+  back to `In progress` or `Not started`, clear the shipped SHA, note
+  the revert commit, and log in the ledger's change log.
+- **Multi-session items.** Specs written one session but implementation
+  landing later must hold at `Spec in progress` or `In progress`; do not
+  mark `Shipped` until the item lands on main.
+- **Bidirectional resync.** If DECISIONS.md or SPEC-SEQUENCE.md changed
+  this session, the ledger MUST be resynced in the same session:
+  add/remove rows to match the new item set, move items to the correct
+  wave if a wave changed, update artefact paths, and log the resync.
+  The ledger must not drift from its source documents.
+
+**Commit separately** so the ledger update is easy to review and revert:
+
+```bash
+git diff --quiet docs/audits/ || \
+  (git add docs/audits/ && \
+   git commit -m "docs: update wave status ledger for session")
+```
+
+---
+
+## Step 9: Commit Reference Doc Changes
 
 Stage the canonical docs.
 
@@ -219,7 +284,7 @@ git diff --quiet docs/reference/ || \
 
 ---
 
-## Step 9: Report and Chain to Handoff
+## Step 10: Report and Chain to Handoff
 
 Present a summary to the user:
 
@@ -229,6 +294,7 @@ Present a summary to the user:
 > - **Specs archived:** {N specs archived / none eligible}
 > - **State of product:** {updated / no changes needed}
 > - **Product-functionality docs:** {N areas updated / no existing docs affected / N areas flagged for doc session}
+> - **Wave ledger:** {N items transitioned — X shipped, Y blocked / no active wave touched}
 > - **Backlog:** {N items updated — Z new}
 >
 > Generating continuation prompt now.

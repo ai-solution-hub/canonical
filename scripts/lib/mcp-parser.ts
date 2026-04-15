@@ -27,6 +27,39 @@ export interface ToolAnnotations {
   openWorldHint?: boolean;
 }
 
+// Resolved values of the four named `ToolAnnotations` constants exported
+// from `lib/mcp/tools/shared.ts`. Kept in sync manually — guarded by
+// `__tests__/mcp/tool-annotations-coverage.test.ts` which exercises the
+// real constants at runtime, so a drift between this table and shared.ts
+// would surface there first.
+const RESOLVED_ANNOTATION_CONSTANTS: Record<string, Required<ToolAnnotations>> =
+  {
+    READ_ONLY_ANNOTATIONS: {
+      readOnlyHint: true,
+      idempotentHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
+    SAFE_WRITE_ANNOTATIONS: {
+      readOnlyHint: false,
+      idempotentHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
+    DESTRUCTIVE_WRITE_ANNOTATIONS: {
+      readOnlyHint: false,
+      idempotentHint: false,
+      destructiveHint: true,
+      openWorldHint: false,
+    },
+    NON_IDEMPOTENT_WRITE_ANNOTATIONS: {
+      readOnlyHint: false,
+      idempotentHint: false,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
+  };
+
 export interface ToolEntry {
   name: string;
   title: string;
@@ -515,21 +548,49 @@ function extractTopLevelZodProps(
 export function parseToolFile(source: string, filename: string): ToolEntry[] {
   const tools: ToolEntry[] = [];
 
-  // Find standard tool registrations: server.registerTool(
-  const standardBlocks = findRegistrationBlocks(source, 'server.registerTool(');
-  for (const { block } of standardBlocks) {
-    const tool = parseToolBlock(block, filename, false);
+  // P0-19 migration: tool registrations go through `defineTool(server, …)` /
+  // `defineAppTool(registerAppToolFn, server, …)` wrappers in
+  // `lib/mcp/tools/shared.ts`. Both wrappers forward to
+  // `server.registerTool(…)` / `registerAppTool(server, …)` at runtime, so the
+  // legacy patterns remain recognised for robustness against backsliding.
+
+  // Find standard tool registrations: defineTool( or server.registerTool(
+  // `defineTool(server, 'name', …)` — name is after 'server,' (skip-first-arg
+  // mode, same as app tools).
+  const defineBlocks = findRegistrationBlocks(source, 'defineTool(');
+  for (const { block } of defineBlocks) {
+    const tool = parseToolBlock(block, filename, true, false);
     if (tool) {
       tool.registration_order = tools.length + 1;
       tools.push(tool);
     }
   }
 
-  // Find app tool registrations: registerAppTool(
+  const standardBlocks = findRegistrationBlocks(source, 'server.registerTool(');
+  for (const { block } of standardBlocks) {
+    const tool = parseToolBlock(block, filename, false, false);
+    if (tool) {
+      tool.registration_order = tools.length + 1;
+      tools.push(tool);
+    }
+  }
+
+  // Find app tool registrations: defineAppTool( or registerAppTool(
+  // `defineAppTool(registerAppToolFn, server, 'name', …)` — skip 2 args to
+  // reach the name.
+  const defineAppBlocks = findRegistrationBlocks(source, 'defineAppTool(');
+  for (const { block } of defineAppBlocks) {
+    const tool = parseToolBlock(block, filename, true, true);
+    if (tool) {
+      tool.registration_order = tools.length + 1;
+      tools.push(tool);
+    }
+  }
+
   // Note: registerAppTool blocks start with: server, 'tool_name', ...
   const appBlocks = findRegistrationBlocks(source, 'registerAppTool(');
   for (const { block } of appBlocks) {
-    const tool = parseToolBlock(block, filename, true);
+    const tool = parseToolBlock(block, filename, true, false);
     if (tool) {
       tool.registration_order = tools.length + 1;
       tools.push(tool);
@@ -541,20 +602,39 @@ export function parseToolFile(source: string, filename: string): ToolEntry[] {
 
 /**
  * Parse a single tool registration block.
+ *
+ * @param skipToName How many leading comma-separated args to skip before the
+ *   name literal.
+ *   - `false` for `server.registerTool('name', …)` — name is arg 0.
+ *   - `true` for `registerAppTool(server, 'name', …)` / `defineTool(server,
+ *     'name', …)` — skip 1 arg.
+ * @param isDefineAppTool `defineAppTool(registerAppToolFn, server, 'name',
+ *   …)` — skip 2 args.
  */
 function parseToolBlock(
   block: string,
   filename: string,
-  isAppTool: boolean,
+  skipToName: boolean,
+  isDefineAppTool: boolean,
 ): ToolEntry | null {
+  // Treat as app tool for inventory classification purposes if the caller is
+  // one of the app-tool registration paths. The distinction matters because
+  // App tools render interactive UIs rather than plain text/JSON responses.
+  const isAppTool = skipToName && (isDefineAppTool || filename === 'apps.ts');
   // For app tools, the first arg is 'server', then the name
   // For standard tools, the first arg is the name
   let nameSearchBlock = block;
-  if (isAppTool) {
-    // Skip past 'server,' to find the tool name
-    const serverCommaIdx = block.indexOf(',');
-    if (serverCommaIdx === -1) return null;
-    nameSearchBlock = block.slice(serverCommaIdx + 1);
+  if (skipToName) {
+    // Skip past the leading arg(s) to find the tool name. `defineAppTool`
+    // has two leading args (registerAppToolFn, server); the others have one.
+    const argsToSkip = isDefineAppTool ? 2 : 1;
+    let cursor = 0;
+    for (let i = 0; i < argsToSkip; i++) {
+      const commaIdx = block.indexOf(',', cursor);
+      if (commaIdx === -1) return null;
+      cursor = commaIdx + 1;
+    }
+    nameSearchBlock = block.slice(cursor);
   }
 
   const name = extractFirstStringArg(nameSearchBlock);
@@ -592,14 +672,22 @@ function parseToolBlock(
     }
   }
 
-  // Extract annotations
+  // Extract annotations — either an inline `{ … }` object or one of the
+  // four named constants from `lib/mcp/tools/shared.ts`. The named-constant
+  // path is the P0-19 canonical form.
   const annotations: ToolAnnotations = {};
   const annotIdx = configBlock.indexOf('annotations:');
   if (annotIdx !== -1) {
-    const afterAnnot = configBlock.slice(annotIdx);
-    const braceIdx = afterAnnot.indexOf('{');
-    if (braceIdx !== -1) {
-      const annotBlock = extractBalancedBlock(afterAnnot, braceIdx + 1);
+    const afterAnnot = configBlock.slice(annotIdx + 'annotations:'.length);
+    // Skip whitespace then see whether the value is `{` (inline object) or
+    // an identifier (named constant).
+    let probe = 0;
+    while (probe < afterAnnot.length && /\s/.test(afterAnnot[probe])) probe++;
+    const nextChar = afterAnnot[probe];
+
+    if (nextChar === '{') {
+      // Inline literal — original behaviour.
+      const annotBlock = extractBalancedBlock(afterAnnot, probe + 1);
       annotations.readOnlyHint = extractPropertyBoolean(
         annotBlock,
         'readOnlyHint',
@@ -616,6 +704,18 @@ function parseToolBlock(
         annotBlock,
         'openWorldHint',
       );
+    } else {
+      // Named constant — resolve the four canonical identifiers.
+      const identMatch = afterAnnot
+        .slice(probe)
+        .match(/^(READ_ONLY_ANNOTATIONS|SAFE_WRITE_ANNOTATIONS|DESTRUCTIVE_WRITE_ANNOTATIONS|NON_IDEMPOTENT_WRITE_ANNOTATIONS)\b/);
+      if (identMatch) {
+        const resolved = RESOLVED_ANNOTATION_CONSTANTS[identMatch[1]];
+        annotations.readOnlyHint = resolved.readOnlyHint;
+        annotations.idempotentHint = resolved.idempotentHint;
+        annotations.destructiveHint = resolved.destructiveHint;
+        annotations.openWorldHint = resolved.openWorldHint;
+      }
     }
   }
 

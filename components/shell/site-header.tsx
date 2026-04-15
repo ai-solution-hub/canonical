@@ -25,7 +25,6 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { ThemeSettings } from '@/components/shell/theme-settings';
-import { NotificationBell } from '@/components/shell/notification-bell';
 import { SignOutButton } from '@/components/shell/sign-out-button';
 import { Separator } from '@/components/ui/separator';
 import { useUserRole } from '@/hooks/use-user-role';
@@ -137,7 +136,6 @@ export function SiteHeader() {
           >
             <Search className="size-4" />
           </Button>
-          <NotificationBell />
           <Button
             variant="ghost"
             size="icon"
@@ -212,7 +210,6 @@ export function SiteHeader() {
               );
             })}
             <Separator className="my-1" />
-            <NotificationBell mobile />
             <Link
               href={SETTINGS_LINK.href}
               onClick={() => setMobileMenuOpen(false)}
