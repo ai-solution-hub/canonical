@@ -6,7 +6,6 @@ import {
   PanelRight,
   CheckCircle2,
   BookOpen,
-  ClipboardList,
   Activity,
   ClipboardCheck,
   X,
@@ -370,23 +369,6 @@ export function ReviewContent() {
                 </span>
               )}
             </h1>
-            {/* Session summary indicator */}
-            {progress.sessionReviewed > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  updateSessionStats();
-                  setSessionDuration(Date.now() - sessionStart);
-                  setShowSummary(true);
-                }}
-                className="gap-1.5 text-xs text-muted-foreground"
-                aria-label={`Session: ${progress.sessionReviewed} reviewed. Click for summary.`}
-              >
-                <ClipboardList className="size-3.5" aria-hidden="true" />
-                Session: {progress.sessionReviewed}
-              </Button>
-            )}
             {/* Review health toggle */}
             <Button
               variant="ghost"
