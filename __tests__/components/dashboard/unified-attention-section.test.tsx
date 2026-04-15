@@ -248,7 +248,7 @@ describe('UnifiedAttentionSection', () => {
   // ---------------------------------------------------------------------------
 
   describe('ClaudePromptButton wiring', () => {
-    it('renders "Take action" button for items with claude_prompt', () => {
+    it('renders "Ask Claude" button for items with claude_prompt', () => {
       const items = [
         makeItem({
           id: 'with-prompt',
@@ -259,8 +259,9 @@ describe('UnifiedAttentionSection', () => {
 
       render(<UnifiedAttentionSection items={items} userRole="admin" />);
 
-      // ClaudePromptButton default label is "Take action"
-      expect(screen.getByText('Take action')).toBeInTheDocument();
+      // Per ClaudePromptButton copy principle (P0-20), per-item action uses
+      // the action verb "Ask Claude".
+      expect(screen.getByText('Ask Claude')).toBeInTheDocument();
     });
 
     it('does not render prompt button for items without claude_prompt', () => {
@@ -274,8 +275,8 @@ describe('UnifiedAttentionSection', () => {
 
       render(<UnifiedAttentionSection items={items} userRole="admin" />);
 
-      // Should not have "Take action" button (only action link present)
-      expect(screen.queryByText('Take action')).not.toBeInTheDocument();
+      // Should not have "Ask Claude" button (only action link present)
+      expect(screen.queryByText('Ask Claude')).not.toBeInTheDocument();
     });
   });
 
@@ -294,18 +295,18 @@ describe('UnifiedAttentionSection', () => {
       expect(screen.getByText(/2 high priority/i)).toBeInTheDocument();
     });
 
-    it('shows "Plan actions" button in prompt strip', () => {
+    it('shows "Plan with Claude" button in prompt strip', () => {
       render(
         <UnifiedAttentionSection items={makeTestItems()} userRole="admin" />,
       );
 
-      expect(screen.getByText('Plan actions')).toBeInTheDocument();
+      expect(screen.getByText('Plan with Claude')).toBeInTheDocument();
     });
 
     it('hides prompt strip when no items', () => {
       render(<UnifiedAttentionSection items={[]} userRole="admin" />);
 
-      expect(screen.queryByText('Plan actions')).not.toBeInTheDocument();
+      expect(screen.queryByText('Plan with Claude')).not.toBeInTheDocument();
     });
 
     it('hides prompt strip when all items filtered out by role', () => {
@@ -320,7 +321,7 @@ describe('UnifiedAttentionSection', () => {
         <UnifiedAttentionSection items={adminOnlyItems} userRole="viewer" />,
       );
 
-      expect(screen.queryByText('Plan actions')).not.toBeInTheDocument();
+      expect(screen.queryByText('Plan with Claude')).not.toBeInTheDocument();
     });
   });
 

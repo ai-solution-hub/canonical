@@ -476,7 +476,7 @@ describe('UploadTabContent', () => {
 
     expect(screen.getByTestId('claude-prompt-button')).toBeInTheDocument();
     expect(screen.getByTestId('claude-prompt-button')).toHaveTextContent(
-      'Open in Claude for complex documents',
+      'Open in Claude',
     );
   });
 });

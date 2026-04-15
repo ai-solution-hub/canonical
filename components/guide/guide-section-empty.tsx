@@ -47,7 +47,7 @@ export function GuideSectionEmpty({
         {claudePrompt && (
           <ClaudePromptButton
             prompt={claudePrompt}
-            label="Suggest content"
+            label="Draft with Claude"
             size="sm"
             className="h-auto px-1.5 py-0.5"
           />

@@ -632,7 +632,7 @@ export function UploadTabContent({
         <div className="flex items-center justify-center">
           <ClaudePromptButton
             prompt={generateIngestDocumentPrompt().prompt}
-            label="Open in Claude for complex documents"
+            label="Open in Claude"
             size="sm"
           />
         </div>

@@ -154,7 +154,11 @@ export function BidListCard({
         {/* Claude prompt button */}
         {claudePrompt && (
           <div className="relative z-10 flex justify-end">
-            <ClaudePromptButton prompt={claudePrompt} size="sm" />
+            <ClaudePromptButton
+              prompt={claudePrompt}
+              label="Review with Claude"
+              size="sm"
+            />
           </div>
         )}
       </div>

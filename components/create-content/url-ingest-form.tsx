@@ -379,7 +379,7 @@ export function UrlIngestForm({ onSuggestManual }: UrlIngestFormProps = {}) {
               </p>
               <ClaudePromptButton
                 prompt={generateIngestDocumentPrompt().prompt}
-                label="Use automatic extraction"
+                label="Extract with Claude"
                 size="sm"
               />
             </div>

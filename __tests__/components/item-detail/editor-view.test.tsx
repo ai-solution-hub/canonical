@@ -381,7 +381,7 @@ describe('EditorView', () => {
         />,
       );
       expect(screen.getByTestId('claude-prompt-button')).toBeInTheDocument();
-      expect(screen.getByText('Re-ingest source')).toBeInTheDocument();
+      expect(screen.getByText('Re-ingest with Claude')).toBeInTheDocument();
     });
 
     it('renders Claude prompt buttons when content is long', () => {
@@ -394,7 +394,7 @@ describe('EditorView', () => {
           relatedItems={[]}
         />,
       );
-      expect(screen.getByText('Summarise and add to KB')).toBeInTheDocument();
+      expect(screen.getByText('Summarise with Claude')).toBeInTheDocument();
     });
 
     it('does not render Claude prompts when no source_url and content is short', () => {
