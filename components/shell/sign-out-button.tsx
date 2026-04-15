@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils';
  *
  * Two variants:
  *   - `desktop` (default): icon-only ghost button, matches the other
- *     header action buttons (NotificationBell, Settings, ThemeSettings).
+ *     header action buttons (Settings, ThemeSettings).
  *   - `mobile`: full-width row styled to match the mobile drawer nav
  *     links, for use inside the Sheet drawer.
  */

@@ -58,16 +58,6 @@ vi.mock('@/components/browse/search-bar', () => ({
   ),
 }));
 
-vi.mock('@/components/shell/notification-bell', () => ({
-  NotificationBell: ({ mobile }: { mobile?: boolean }) => (
-    <div
-      data-testid={mobile ? 'notification-bell-mobile' : 'notification-bell'}
-    >
-      NotificationBell
-    </div>
-  ),
-}));
-
 vi.mock('@/components/shell/theme-settings', () => ({
   ThemeSettings: () => <div data-testid="theme-settings">ThemeSettings</div>,
 }));
