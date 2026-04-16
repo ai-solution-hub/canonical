@@ -121,14 +121,13 @@ export async function GET(request: NextRequest) {
     );
 
     // Generate PDF
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- @react-pdf/renderer
-    // types expect ReactElement<DocumentProps> but our wrapper wraps Document internally
     const element = React.createElement(ReportDocument, {
       rows,
       from,
       to,
       generatedBy: exporterName,
     });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- renderToBuffer expects ReactElement<DocumentProps> but JSX.Element is structurally compatible
     const pdfBuffer = await renderToBuffer(element as any);
 
     // Log access
