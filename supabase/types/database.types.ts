@@ -1299,6 +1299,7 @@ export type Database = {
           domain: string
           id: string
           posture: string
+          preset: string | null
           quality_score_threshold: number | null
           reviewer_id: string | null
           timeout_days: number | null
@@ -1314,6 +1315,7 @@ export type Database = {
           domain: string
           id?: string
           posture?: string
+          preset?: string | null
           quality_score_threshold?: number | null
           reviewer_id?: string | null
           timeout_days?: number | null
@@ -1329,6 +1331,7 @@ export type Database = {
           domain?: string
           id?: string
           posture?: string
+          preset?: string | null
           quality_score_threshold?: number | null
           reviewer_id?: string | null
           timeout_days?: number | null
