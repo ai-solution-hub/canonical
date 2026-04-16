@@ -115,15 +115,19 @@ describe('GET /api/governance', () => {
     expect(json.error).toBe('Unauthorised');
   });
 
-  it('returns 200 with governance config list', async () => {
-    // getAuthenticatedClient only checks auth, no role lookup
+  it('returns 200 with governance config list including preset', async () => {
     const mockConfigs = [
       {
         id: VALID_UUID,
         domain: 'Cyber Security',
         posture: 'review_on_change',
-        reviewer_id: VALID_UUID_2,
-        timeout_days: 14,
+        preset: 'strict',
+        reviewer_id: null,
+        timeout_days: 7,
+        quality_score_threshold: 60,
+        auto_flag_on_quality_drop: true,
+        auto_flag_on_freshness_transition: true,
+        auto_flag_cooldown_days: 14,
         created_at: '2026-01-01T00:00:00Z',
         created_by: 'test-user-id',
         updated_at: '2026-01-01T00:00:00Z',
@@ -142,6 +146,7 @@ describe('GET /api/governance', () => {
     const json = await res.json();
     expect(json).toHaveLength(1);
     expect(json[0].domain).toBe('Cyber Security');
+    expect(json[0].preset).toBe('strict');
     expect(json[0].posture).toBe('review_on_change');
   });
 
@@ -183,7 +188,7 @@ describe('POST /api/governance', () => {
 
     const req = createTestRequest('/api/governance', {
       method: 'POST',
-      body: { domain: 'Test', posture: 'open' },
+      body: { domain: 'Test', preset: 'light_touch' },
     });
     const res = await postConfig(req);
 
@@ -197,7 +202,7 @@ describe('POST /api/governance', () => {
 
     const req = createTestRequest('/api/governance', {
       method: 'POST',
-      body: { domain: 'Test', posture: 'open' },
+      body: { domain: 'Test', preset: 'light_touch' },
     });
     const res = await postConfig(req);
 
@@ -209,7 +214,7 @@ describe('POST /api/governance', () => {
 
     const req = createTestRequest('/api/governance', {
       method: 'POST',
-      body: { domain: 'Test', posture: 'open' },
+      body: { domain: 'Test', preset: 'light_touch' },
     });
     const res = await postConfig(req);
 
@@ -221,7 +226,7 @@ describe('POST /api/governance', () => {
 
     const req = createTestRequest('/api/governance', {
       method: 'POST',
-      body: { posture: 'open' },
+      body: { preset: 'light_touch' },
     });
     const res = await postConfig(req);
 
@@ -233,12 +238,12 @@ describe('POST /api/governance', () => {
     );
   });
 
-  it('returns 400 for invalid posture value', async () => {
+  it('returns 400 for invalid preset value', async () => {
     configureRole(mockSupabase, 'admin');
 
     const req = createTestRequest('/api/governance', {
       method: 'POST',
-      body: { domain: 'Test Domain', posture: 'strict' },
+      body: { domain: 'Test Domain', preset: 'relaxed' },
     });
     const res = await postConfig(req);
 
@@ -246,29 +251,58 @@ describe('POST /api/governance', () => {
     const json = await res.json();
     expect(json.error).toBe('Validation failed');
     expect(json.details).toEqual(
-      expect.arrayContaining([expect.objectContaining({ field: 'posture' })]),
+      expect.arrayContaining([expect.objectContaining({ field: 'preset' })]),
     );
   });
 
-  it('creates new config when domain does not exist', async () => {
+  it('returns 400 for old-format body (posture field only)', async () => {
     configureRole(mockSupabase, 'admin');
 
-    // configureRole consumes .single() (role lookup).
-    // Domain existence check now uses .maybeSingle() — no row → fall through
-    // to insert.
+    const req = createTestRequest('/api/governance', {
+      method: 'POST',
+      body: { domain: 'Test Domain', posture: 'open' },
+    });
+    const res = await postConfig(req);
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe('Validation failed');
+    expect(json.details).toEqual(
+      expect.arrayContaining([expect.objectContaining({ field: 'preset' })]),
+    );
+  });
+
+  it('returns 400 for mixed old+new format body (preset AND posture)', async () => {
+    configureRole(mockSupabase, 'admin');
+
+    const req = createTestRequest('/api/governance', {
+      method: 'POST',
+      body: { domain: 'Test Domain', preset: 'strict', posture: 'open' },
+    });
+    const res = await postConfig(req);
+
+    // Schema uses .strict() — unknown keys like posture are rejected.
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe('Validation failed');
+  });
+
+  it('creates config with light_touch preset values', async () => {
+    configureRole(mockSupabase, 'admin');
+
+    // Domain existence check uses .maybeSingle() — no row -> insert
     mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: null,
       error: null,
     });
 
-    // insert chain resolves
     mockSupabase._chain.then.mockImplementation(
       (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const req = createTestRequest('/api/governance', {
       method: 'POST',
-      body: { domain: 'New Domain', posture: 'open', timeout_days: 14 },
+      body: { domain: 'New Domain', preset: 'light_touch' },
     });
     const res = await postConfig(req);
 
@@ -280,77 +314,23 @@ describe('POST /api/governance', () => {
     expect(mockSupabase._chain.insert).toHaveBeenCalledWith(
       expect.objectContaining({
         domain: 'New Domain',
+        preset: 'light_touch',
         posture: 'open',
-        timeout_days: 14,
+        timeout_days: null,
+        quality_score_threshold: 40,
+        auto_flag_on_quality_drop: false,
+        auto_flag_on_freshness_transition: false,
+        auto_flag_cooldown_days: null,
+        reviewer_id: null,
         created_by: 'test-user-id',
         updated_by: 'test-user-id',
       }),
     );
   });
 
-  it('updates existing config when domain exists', async () => {
+  it('creates config with strict preset values', async () => {
     configureRole(mockSupabase, 'admin');
 
-    // Domain existence check now uses .maybeSingle()
-    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-      data: { id: VALID_UUID },
-      error: null,
-    });
-
-    // update chain resolves
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
-    );
-
-    const req = createTestRequest('/api/governance', {
-      method: 'POST',
-      body: { domain: 'Existing Domain', posture: 'review_on_change' },
-    });
-    const res = await postConfig(req);
-
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.success).toBe(true);
-    expect(json.action).toBe('updated');
-
-    expect(mockSupabase._chain.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        posture: 'review_on_change',
-        updated_by: 'test-user-id',
-      }),
-    );
-  });
-
-  it('returns 500 when insert fails', async () => {
-    configureRole(mockSupabase, 'admin');
-
-    // Domain existence check returns no row → fall through to insert
-    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-      data: null,
-      error: null,
-    });
-
-    // insert fails
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: { message: 'Insert failed' } }),
-    );
-
-    const req = createTestRequest('/api/governance', {
-      method: 'POST',
-      body: { domain: 'Test', posture: 'open' },
-    });
-    const res = await postConfig(req);
-
-    expect(res.status).toBe(500);
-    const json = await res.json();
-    expect(json.error).toBe('Failed to create governance configuration');
-  });
-
-  it('accepts auto_flag_on_quality_drop in request body', async () => {
-    configureRole(mockSupabase, 'admin');
-
-    // Domain existence check returns no row → fall through to insert
     mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: null,
       error: null,
@@ -362,13 +342,7 @@ describe('POST /api/governance', () => {
 
     const req = createTestRequest('/api/governance', {
       method: 'POST',
-      body: {
-        domain: 'Test Domain',
-        posture: 'open',
-        auto_flag_on_quality_drop: true,
-        auto_flag_cooldown_days: 14,
-        quality_score_threshold: 50,
-      },
+      body: { domain: 'Sensitive Domain', preset: 'strict' },
     });
     const res = await postConfig(req);
 
@@ -379,81 +353,24 @@ describe('POST /api/governance', () => {
 
     expect(mockSupabase._chain.insert).toHaveBeenCalledWith(
       expect.objectContaining({
-        domain: 'Test Domain',
+        domain: 'Sensitive Domain',
+        preset: 'strict',
+        posture: 'review_on_change',
+        timeout_days: 7,
+        quality_score_threshold: 60,
         auto_flag_on_quality_drop: true,
+        auto_flag_on_freshness_transition: true,
         auto_flag_cooldown_days: 14,
-        quality_score_threshold: 50,
+        reviewer_id: null,
+        created_by: 'test-user-id',
+        updated_by: 'test-user-id',
       }),
     );
   });
 
-  it('accepts auto_flag_on_freshness_transition in request body', async () => {
+  it('updates existing config when domain exists', async () => {
     configureRole(mockSupabase, 'admin');
 
-    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-      data: null,
-      error: null,
-    });
-
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
-    );
-
-    const req = createTestRequest('/api/governance', {
-      method: 'POST',
-      body: {
-        domain: 'Test Domain',
-        posture: 'open',
-        auto_flag_on_freshness_transition: true,
-      },
-    });
-    const res = await postConfig(req);
-
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.success).toBe(true);
-  });
-
-  it('returns 400 for invalid auto_flag_cooldown_days (above max)', async () => {
-    configureRole(mockSupabase, 'admin');
-
-    const req = createTestRequest('/api/governance', {
-      method: 'POST',
-      body: {
-        domain: 'Test',
-        posture: 'open',
-        auto_flag_cooldown_days: 100, // max is 90
-      },
-    });
-    const res = await postConfig(req);
-
-    expect(res.status).toBe(400);
-    const json = await res.json();
-    expect(json.error).toBe('Validation failed');
-  });
-
-  it('returns 400 for invalid quality_score_threshold (above max)', async () => {
-    configureRole(mockSupabase, 'admin');
-
-    const req = createTestRequest('/api/governance', {
-      method: 'POST',
-      body: {
-        domain: 'Test',
-        posture: 'open',
-        quality_score_threshold: 200, // max is 100
-      },
-    });
-    const res = await postConfig(req);
-
-    expect(res.status).toBe(400);
-    const json = await res.json();
-    expect(json.error).toBe('Validation failed');
-  });
-
-  it('includes new fields when updating existing config', async () => {
-    configureRole(mockSupabase, 'admin');
-
-    // Domain existence check uses .maybeSingle()
     mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { id: VALID_UUID },
       error: null,
@@ -465,27 +382,47 @@ describe('POST /api/governance', () => {
 
     const req = createTestRequest('/api/governance', {
       method: 'POST',
-      body: {
-        domain: 'Existing Domain',
-        posture: 'review_on_change',
-        auto_flag_on_quality_drop: true,
-        auto_flag_cooldown_days: 30,
-        quality_score_threshold: 60,
-      },
+      body: { domain: 'Existing Domain', preset: 'strict' },
     });
     const res = await postConfig(req);
 
     expect(res.status).toBe(200);
     const json = await res.json();
+    expect(json.success).toBe(true);
     expect(json.action).toBe('updated');
 
     expect(mockSupabase._chain.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        auto_flag_on_quality_drop: true,
-        auto_flag_cooldown_days: 30,
-        quality_score_threshold: 60,
+        preset: 'strict',
+        posture: 'review_on_change',
+        timeout_days: 7,
+        updated_by: 'test-user-id',
       }),
     );
+  });
+
+  it('returns 500 when insert fails', async () => {
+    configureRole(mockSupabase, 'admin');
+
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: { message: 'Insert failed' } }),
+    );
+
+    const req = createTestRequest('/api/governance', {
+      method: 'POST',
+      body: { domain: 'Test', preset: 'light_touch' },
+    });
+    const res = await postConfig(req);
+
+    expect(res.status).toBe(500);
+    const json = await res.json();
+    expect(json.error).toBe('Failed to create governance configuration');
   });
 });
 

@@ -440,11 +440,14 @@ export const RollbackBodySchema = z.object({
   version_id: z.string().uuid('version_id must be a valid UUID'),
 });
 
-/** POST /api/governance (create/update governance config via preset) */
-export const GovernanceConfigBodySchema = z.object({
-  domain: z.string().trim().min(1, 'Domain is required').max(200),
-  preset: z.enum(['light_touch', 'strict']),
-});
+/** POST /api/governance (create/update governance config via preset).
+ *  `.strict()` rejects old-format bodies that include posture or other fields. */
+export const GovernanceConfigBodySchema = z
+  .object({
+    domain: z.string().trim().min(1, 'Domain is required').max(200),
+    preset: z.enum(['light_touch', 'strict']),
+  })
+  .strict();
 
 /** POST /api/governance/review */
 export const GovernanceReviewBodySchema = z.object({
