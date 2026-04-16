@@ -186,16 +186,6 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
                 {item.content_type.replace(/_/g, ' ')}
               </Badge>
             )}
-            {item.classification_confidence != null &&
-              item.classification_confidence < 0.7 && (
-                <Badge
-                  variant="outline"
-                  className="border-confidence-low-border bg-confidence-low-bg text-confidence-low text-[10px]"
-                  role="status"
-                >
-                  Low confidence
-                </Badge>
-              )}
             <span className="ml-auto text-xs tabular-nums text-muted-foreground">
               #{position} of {total.toLocaleString('en-GB')}
             </span>

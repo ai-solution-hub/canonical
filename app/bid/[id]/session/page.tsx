@@ -607,7 +607,6 @@ export default function BidSessionPage({
                   phase={stream.phase}
                   error={stream.error}
                   qualityScore={stream.qualityScore}
-                  totalCost={stream.totalCost}
                   onCancel={stream.cancel}
                 />
               )}

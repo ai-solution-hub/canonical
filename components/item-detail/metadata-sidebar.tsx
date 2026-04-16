@@ -4,12 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { Check, Pencil, AlertTriangle, X } from 'lucide-react';
 import { toast } from 'sonner';
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion';
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -22,7 +16,6 @@ import {
   formatDateUK,
   formatContentType,
   formatPlatform,
-  getConfidenceDisplay,
 } from '@/lib/format';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { FreshnessBadge } from '@/components/shared/freshness-badge';
@@ -437,21 +430,6 @@ export function MetadataSidebar({
           </dd>
         </div>
 
-        {item.classification_confidence != null &&
-          (() => {
-            const confidence = getConfidenceDisplay(
-              item.classification_confidence as number | null,
-            );
-            return (
-              <div>
-                <dt className="text-xs text-muted-foreground">Confidence</dt>
-                <dd className={`font-medium ${confidence.colourClass}`}>
-                  {confidence.label}
-                </dd>
-              </div>
-            );
-          })()}
-
         {/* Quality score breakdown */}
         <QualityScoreBreakdown
           item={{
@@ -535,44 +513,6 @@ export function MetadataSidebar({
           </div>
         )}
       </dl>
-
-      {/* Classification details accordion */}
-      <Accordion type="single" collapsible className="mt-2">
-        <AccordionItem
-          value="classification"
-          className="border-t border-border"
-        >
-          <AccordionTrigger className="text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:no-underline py-3">
-            Classification Details
-          </AccordionTrigger>
-          <AccordionContent className="pb-2">
-            <dl className="flex flex-col gap-3 text-sm">
-              {item.classification_reasoning && (
-                <div>
-                  <dt className="text-xs text-muted-foreground">Reasoning</dt>
-                  <dd className="mt-0.5 text-xs leading-relaxed text-foreground">
-                    {item.classification_reasoning}
-                  </dd>
-                </div>
-              )}
-              {(item.secondary_domain || item.secondary_subtopic) && (
-                <div>
-                  <dt className="text-xs text-muted-foreground">Secondary</dt>
-                  <dd className="text-foreground">
-                    {item.secondary_domain}
-                    {item.secondary_subtopic && (
-                      <>
-                        {' '}
-                        / {formatSubtopic(item.secondary_subtopic as string)}
-                      </>
-                    )}
-                  </dd>
-                </div>
-              )}
-            </dl>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
 
       {/* Temporal references — merged from regex extraction and AI classification */}
       {(() => {

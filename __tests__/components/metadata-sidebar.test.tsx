@@ -233,31 +233,6 @@ describe('MetadataSidebar', () => {
     expect(screen.queryByText('Freshness')).not.toBeInTheDocument();
   });
 
-  it('renders classification confidence display', async () => {
-    const item = createItem({ classification_confidence: 0.92 });
-
-    render(<MetadataSidebar item={item} {...defaultProps} />);
-
-    await waitFor(() => {
-      expect(mockFrom).toHaveBeenCalledWith('ingestion_quality_log');
-    });
-
-    expect(screen.getByText('Confidence')).toBeInTheDocument();
-    expect(screen.getByText('High')).toBeInTheDocument();
-  });
-
-  it('renders low confidence with correct label', async () => {
-    const item = createItem({ classification_confidence: 0.3 });
-
-    render(<MetadataSidebar item={item} {...defaultProps} />);
-
-    await waitFor(() => {
-      expect(mockFrom).toHaveBeenCalledWith('ingestion_quality_log');
-    });
-
-    expect(screen.getByText('Low')).toBeInTheDocument();
-  });
-
   it('shows quality flags when present', async () => {
     configureFetchResult([
       {
@@ -408,7 +383,6 @@ describe('MetadataSidebar', () => {
     expect(screen.queryByText('Source')).not.toBeInTheDocument();
     expect(screen.queryByText('Freshness')).not.toBeInTheDocument();
     expect(screen.queryByText('Review Status')).not.toBeInTheDocument();
-    expect(screen.queryByText('Confidence')).not.toBeInTheDocument();
   });
 
   it('renders created-by display name from useDisplayNames', async () => {
@@ -454,17 +428,4 @@ describe('MetadataSidebar', () => {
     expect(mockChain.eq).toHaveBeenCalledWith('resolved', false);
   });
 
-  it('renders classification details accordion', async () => {
-    const item = createItem({
-      classification_reasoning: 'Strong match for technical domain',
-    });
-
-    render(<MetadataSidebar item={item} {...defaultProps} />);
-
-    await waitFor(() => {
-      expect(mockFrom).toHaveBeenCalledWith('ingestion_quality_log');
-    });
-
-    expect(screen.getByText('Classification Details')).toBeInTheDocument();
-  });
 });

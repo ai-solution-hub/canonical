@@ -60,12 +60,6 @@ describe('StreamingPhaseIndicator', () => {
     expect(screen.getByText('Quality: 92%')).toBeInTheDocument();
   });
 
-  it('shows cost when phase is done', () => {
-    render(<StreamingPhaseIndicator phase="done" totalCost={0.0123} />);
-
-    expect(screen.getByText('Cost: £0.0123')).toBeInTheDocument();
-  });
-
   it('shows cancel button for active phases and calls onCancel', async () => {
     const user = userEvent.setup();
     const onCancel = vi.fn();

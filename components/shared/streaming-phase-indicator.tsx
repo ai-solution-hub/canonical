@@ -54,7 +54,6 @@ interface StreamingPhaseIndicatorProps {
   phase: StreamPhase;
   error?: string | null;
   qualityScore?: number | null;
-  totalCost?: number | null;
   onCancel?: () => void;
   className?: string;
 }
@@ -63,7 +62,6 @@ export function StreamingPhaseIndicator({
   phase,
   error,
   qualityScore,
-  totalCost,
   onCancel,
   className,
 }: StreamingPhaseIndicatorProps) {
@@ -106,14 +104,6 @@ export function StreamingPhaseIndicator({
             Quality: {Math.round(qualityScore * 100)}%
           </span>
         )}
-
-      {/* Cost on done */}
-      {phase === 'done' && totalCost !== null && totalCost !== undefined && (
-        <span className="text-xs text-muted-foreground">
-          Cost: {'\u00A3'}
-          {totalCost.toFixed(4)}
-        </span>
-      )}
 
       {/* Cancel button for active phases */}
       {isActive && onCancel && (

@@ -117,13 +117,6 @@ export function LayerSuggestionBanner({
 
   if (isDismissed) return null;
 
-  const confidenceLabel =
-    suggestedLayer.confidence === 'high'
-      ? 'High confidence'
-      : suggestedLayer.confidence === 'medium'
-        ? 'Medium confidence'
-        : 'Low confidence';
-
   return (
     <div
       role="region"
@@ -154,12 +147,9 @@ export function LayerSuggestionBanner({
             </button>
           </div>
 
-          {/* Reason + confidence */}
+          {/* Reason */}
           <p className="mt-1 text-xs text-muted-foreground">
             {suggestedLayer.reason}
-            <span className="ml-2 inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium leading-none">
-              {confidenceLabel}
-            </span>
           </p>
 
           {/* Topic suggestion (if present) */}

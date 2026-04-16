@@ -275,7 +275,6 @@ function makeStreamCoordinationReturn(overrides: Record<string, unknown> = {}) {
       phase: 'idle',
       error: null,
       qualityScore: null,
-      totalCost: null,
       cancel: vi.fn(),
     },
     isStreaming: overrides.isStreaming ?? false,

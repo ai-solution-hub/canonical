@@ -103,27 +103,6 @@ describe('LayerSuggestionBanner', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders the confidence badge', () => {
-    render(<LayerSuggestionBanner {...defaultProps} />);
-
-    expect(screen.getByText('High confidence')).toBeInTheDocument();
-  });
-
-  it('renders low confidence badge correctly', () => {
-    render(
-      <LayerSuggestionBanner
-        {...defaultProps}
-        suggestedLayer={{
-          suggestedLayer: 'research',
-          reason: 'Default suggestion',
-          confidence: 'low',
-        }}
-      />,
-    );
-
-    expect(screen.getByText('Low confidence')).toBeInTheDocument();
-  });
-
   it('Accept button calls PATCH API with the suggested layer', async () => {
     const user = userEvent.setup();
     const mockFetch = vi.fn().mockResolvedValueOnce({

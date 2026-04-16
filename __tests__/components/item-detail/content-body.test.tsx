@@ -75,12 +75,6 @@ vi.mock('@/components/shared/content-type-header', () => ({
   ),
 }));
 
-vi.mock('@/components/shared/ai-processing-indicators', () => ({
-  AiProcessingIndicators: () => (
-    <div data-testid="ai-processing-indicators">AiProcessingIndicators</div>
-  ),
-}));
-
 vi.mock('@/components/qa/qa-answer-display', () => ({
   QAAnswerDisplay: () => (
     <div data-testid="qa-answer-display">QAAnswerDisplay</div>
@@ -195,28 +189,6 @@ describe('ContentBody', () => {
     const header = screen.getByTestId('content-type-header');
     expect(header).toBeInTheDocument();
     expect(header).toHaveAttribute('data-content-type', 'article');
-  });
-
-  it('shows AiProcessingIndicators when canEdit is true, content exists, and not QA pair', () => {
-    const props = createDefaultProps({
-      canEdit: true,
-      isQAPair: false,
-      item: createMockItem({ content: 'Some content' }),
-    });
-    render(<ContentBody {...props} />);
-    expect(screen.getByTestId('ai-processing-indicators')).toBeInTheDocument();
-  });
-
-  it('hides AiProcessingIndicators when isQAPair is true', () => {
-    const props = createDefaultProps({
-      canEdit: true,
-      isQAPair: true,
-      item: createMockItem({ content: 'Some content' }),
-    });
-    render(<ContentBody {...props} />);
-    expect(
-      screen.queryByTestId('ai-processing-indicators'),
-    ).not.toBeInTheDocument();
   });
 
   it('renders QAAnswerDisplay when isQAPair is true', () => {

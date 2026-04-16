@@ -386,13 +386,6 @@ describe('ReaderView', () => {
       ).not.toBeInTheDocument();
     });
 
-    it('does not render AI processing indicators', () => {
-      render(<ReaderView data={createMockData()} relatedItems={[]} />);
-      expect(
-        screen.queryByTestId('ai-processing-indicators'),
-      ).not.toBeInTheDocument();
-    });
-
     it('does not render star button', () => {
       render(<ReaderView data={createMockData()} relatedItems={[]} />);
       expect(screen.queryByTestId('star-button')).not.toBeInTheDocument();

@@ -5,7 +5,7 @@ import { isFeatureEnabled } from '@/lib/client-config';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 import { ContentTypeHeader } from '@/components/shared/content-type-header';
-import { AiProcessingIndicators } from '@/components/shared/ai-processing-indicators';
+
 import { QAAnswerDisplay } from '@/components/qa/qa-answer-display';
 import { ContentLayerSelector } from '@/components/content/content-layer-selector';
 import { TableOfContents } from '@/components/item-detail/table-of-contents';
@@ -95,10 +95,6 @@ export function ContentBody({
         authorName={item.author_name}
       />
 
-      {/* AI processing indicators (classify / summarise — not for Q&A pairs) */}
-      {canEdit && item.content && !isQAPair && (
-        <AiProcessingIndicators item={item} onItemUpdated={setItem} />
-      )}
 
       {/* Content display — Q&A pair gets dedicated layout, others get tabs */}
       {isQAPair ? (
@@ -130,9 +126,7 @@ export function ContentBody({
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
             Analysed{' '}
-            {new Date(visionAnalysis.analysed_at).toLocaleDateString('en-GB')} ·{' '}
-            {visionAnalysis.model} ·{' '}
-            {visionAnalysis.tokens_used.toLocaleString()} tokens
+            {new Date(visionAnalysis.analysed_at).toLocaleDateString('en-GB')}
           </p>
         </section>
       )}

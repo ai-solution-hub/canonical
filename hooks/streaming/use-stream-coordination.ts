@@ -361,15 +361,11 @@ export function useStreamCoordination({
       queryClient.invalidateQueries({
         queryKey: queryKeys.bids.questions(bidId),
       });
-      const costMsg = stream.totalCost
-        ? ` (cost: $${stream.totalCost.toFixed(4)})`
-        : '';
-      toast.success(`Response drafted successfully${costMsg}`);
+      toast.success('Response drafted successfully');
     }
   }, [
     stream.phase,
     stream.text,
-    stream.totalCost,
     queryClient,
     bidId,
     currentQuestion?.id,
