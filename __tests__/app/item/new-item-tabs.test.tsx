@@ -32,10 +32,6 @@ vi.mock('@/components/create-content/upload-tab-content', () => ({
   UploadTabContent: () => <div data-testid="upload-tab-content" />,
 }));
 
-vi.mock('@/components/create-content/file-upload-dialog', () => ({
-  FileUploadDialog: () => null,
-}));
-
 vi.mock('@/app/item/new/batch/batch-create-client', () => ({
   BatchCreateContent: () => <div data-testid="batch-create-content" />,
 }));

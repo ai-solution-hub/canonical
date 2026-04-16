@@ -44,12 +44,14 @@ const MAX_PAIRS = 100;
 // ---------------------------------------------------------------------------
 
 /**
- * Batch Q&A creation client component.
+ * Batch Q&A creation content component.
  *
  * Provides a paste-from-spreadsheet interface for creating multiple Q&A pairs
  * at once. Supports tab-separated and pipe-separated formats.
+ *
+ * Embedded as a tab within NewItemTabs at /item/new?tab=batch.
  */
-export function BatchCreateClient() {
+export function BatchCreateContent() {
   const { getDomainNames, getSubtopics, formatSubtopic, formatDomainName } =
     useTaxonomy();
 
@@ -467,6 +469,3 @@ export function BatchCreateClient() {
       </section>
   );
 }
-
-/** Re-export for tab embedding. */
-export { BatchCreateClient as BatchCreateContent };
