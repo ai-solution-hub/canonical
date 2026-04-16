@@ -1,15 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ShieldCheck, Loader2, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
   DialogContent,
@@ -26,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import {
   TooltipProvider,
@@ -34,6 +33,12 @@ import {
   TooltipContent,
 } from '@/components/ui/tooltip';
 import { ConceptHelp } from '@/components/ui/concept-help';
+import { useTaxonomy } from '@/contexts/taxonomy-context';
+import {
+  PRESET_LABELS,
+  inferPreset,
+  type GovernancePreset,
+} from '@/lib/governance/presets';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -43,6 +48,7 @@ interface GovernanceConfigEntry {
   id: string;
   domain: string;
   posture: string;
+  preset: string | null;
   reviewer_id: string | null;
   timeout_days: number | null;
   quality_score_threshold: number | null;
@@ -53,16 +59,6 @@ interface GovernanceConfigEntry {
   updated_at: string | null;
 }
 
-interface InitialDialogState {
-  domain: string;
-  posture: string;
-  timeout: string;
-  autoFlagQuality: boolean;
-  autoFlagFreshness: boolean;
-  cooldownDays: string;
-  qualityThreshold: string;
-}
-
 // ---------------------------------------------------------------------------
 // Governance Section
 // ---------------------------------------------------------------------------
@@ -71,38 +67,21 @@ export function GovernanceSection() {
   const [configs, setConfigs] = useState<GovernanceConfigEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [editDomain, setEditDomain] = useState('');
-  const [editPosture, setEditPosture] = useState<'open' | 'review_on_change'>(
-    'open',
-  );
-  const [editTimeoutDays, setEditTimeoutDays] = useState('7');
-  const [editAutoFlagQuality, setEditAutoFlagQuality] = useState(false);
-  const [editAutoFlagFreshness, setEditAutoFlagFreshness] = useState(false);
-  const [editCooldownDays, setEditCooldownDays] = useState('7');
-  const [editQualityThreshold, setEditQualityThreshold] = useState('40');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingDomain, setEditingDomain] = useState<string | null>(null);
+  const [selectedDomain, setSelectedDomain] = useState('');
+  const [selectedPreset, setSelectedPreset] =
+    useState<GovernancePreset>('light_touch');
   const [recalculating, setRecalculating] = useState(false);
   const [lastRecalcAt, setLastRecalcAt] = useState<string | null>(null);
 
-  // Track initial dialog values for dirty detection
-  const initialDialogRef = useRef<InitialDialogState>({
-    domain: '',
-    posture: 'open',
-    timeout: '7',
-    autoFlagQuality: false,
-    autoFlagFreshness: false,
-    cooldownDays: '7',
-    qualityThreshold: '40',
-  });
-  const isDialogDirty =
-    dialogOpen &&
-    (editDomain !== initialDialogRef.current.domain ||
-      editPosture !== initialDialogRef.current.posture ||
-      editTimeoutDays !== initialDialogRef.current.timeout ||
-      editAutoFlagQuality !== initialDialogRef.current.autoFlagQuality ||
-      editAutoFlagFreshness !== initialDialogRef.current.autoFlagFreshness ||
-      editCooldownDays !== initialDialogRef.current.cooldownDays ||
-      editQualityThreshold !== initialDialogRef.current.qualityThreshold);
+  const { domains: taxonomyDomains, loading: taxonomyLoading } = useTaxonomy();
+
+  // Domains already configured — exclude from the "Add" dropdown
+  const configuredDomainNames = new Set(configs.map((c) => c.domain));
+  const availableDomains = taxonomyDomains.filter(
+    (d) => !configuredDomainNames.has(d.name),
+  );
 
   const fetchConfigs = useCallback(async () => {
     setLoading(true);
@@ -143,20 +122,25 @@ export function GovernanceSection() {
     fetchLastFreshnessCheck();
   }, [fetchConfigs, fetchLastFreshnessCheck]);
 
-  // Unsaved changes warning
-  useEffect(() => {
-    const handler = (e: BeforeUnloadEvent) => {
-      if (isDialogDirty && !saving) {
-        e.preventDefault();
-      }
-    };
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
-  }, [isDialogDirty, saving]);
+  function resetDialogState() {
+    setEditingDomain(null);
+    setSelectedDomain('');
+    setSelectedPreset('light_touch');
+  }
+
+  function handleEdit(config: GovernanceConfigEntry) {
+    setEditingDomain(config.domain);
+    setSelectedDomain(config.domain);
+    setSelectedPreset(
+      (config.preset as GovernancePreset) ?? inferPreset(config.posture),
+    );
+    setDialogOpen(true);
+  }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!editDomain.trim()) return;
+    const domain = editingDomain ?? selectedDomain;
+    if (!domain) return;
 
     setSaving(true);
     try {
@@ -164,13 +148,8 @@ export function GovernanceSection() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          domain: editDomain.trim(),
-          posture: editPosture,
-          timeout_days: parseInt(editTimeoutDays, 10) || 7,
-          auto_flag_on_quality_drop: editAutoFlagQuality,
-          auto_flag_on_freshness_transition: editAutoFlagFreshness,
-          auto_flag_cooldown_days: parseInt(editCooldownDays, 10) || 7,
-          quality_score_threshold: parseInt(editQualityThreshold, 10) || 40,
+          domain,
+          preset: selectedPreset,
         }),
       });
 
@@ -190,44 +169,6 @@ export function GovernanceSection() {
     } finally {
       setSaving(false);
     }
-  }
-
-  function resetDialogState() {
-    setEditDomain('');
-    setEditPosture('open');
-    setEditTimeoutDays('7');
-    setEditAutoFlagQuality(false);
-    setEditAutoFlagFreshness(false);
-    setEditCooldownDays('7');
-    setEditQualityThreshold('40');
-  }
-
-  function handleEdit(config: GovernanceConfigEntry) {
-    const domain = config.domain;
-    const posture = config.posture as 'open' | 'review_on_change';
-    const timeout = String(config.timeout_days ?? 7);
-    const autoFlagQuality = config.auto_flag_on_quality_drop ?? false;
-    const autoFlagFreshness = config.auto_flag_on_freshness_transition ?? false;
-    const cooldownDays = String(config.auto_flag_cooldown_days ?? 7);
-    const qualityThreshold = String(config.quality_score_threshold ?? 40);
-
-    setEditDomain(domain);
-    setEditPosture(posture);
-    setEditTimeoutDays(timeout);
-    setEditAutoFlagQuality(autoFlagQuality);
-    setEditAutoFlagFreshness(autoFlagFreshness);
-    setEditCooldownDays(cooldownDays);
-    setEditQualityThreshold(qualityThreshold);
-    initialDialogRef.current = {
-      domain,
-      posture,
-      timeout,
-      autoFlagQuality,
-      autoFlagFreshness,
-      cooldownDays,
-      qualityThreshold,
-    };
-    setDialogOpen(true);
   }
 
   async function handleRecalculateFreshness() {
@@ -252,6 +193,18 @@ export function GovernanceSection() {
     }
   }
 
+  /**
+   * Resolve a preset label for display. Falls back to inferPreset
+   * for rows that were created before the preset column existed.
+   */
+  function getPresetForConfig(
+    config: GovernanceConfigEntry,
+  ): GovernancePreset {
+    return (
+      (config.preset as GovernancePreset) ?? inferPreset(config.posture)
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -259,6 +212,8 @@ export function GovernanceSection() {
       </div>
     );
   }
+
+  const isEditing = editingDomain !== null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -281,21 +236,13 @@ export function GovernanceSection() {
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="right" className="max-w-xs">
-                  &ldquo;Open&rdquo; posture means anyone can edit without
-                  review. &ldquo;Review on Change&rdquo; means edits are flagged
-                  for a reviewer before being accepted. The timeout sets how
-                  many days a review can sit before it auto-approves. Freshness
-                  recalculation checks whether content has gone stale based on
-                  its type (e.g. policies expire faster than case studies).
+                  Choose a governance preset per domain.
+                  &ldquo;Light-touch&rdquo; lets edits land immediately;
+                  &ldquo;Strict&rdquo; holds edits for review and automatically
+                  flags stale or low-quality items.
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            {isDialogDirty && (
-              <span
-                className="ml-2 inline-block size-2 rounded-full bg-primary"
-                aria-label="Unsaved changes"
-              />
-            )}
           </h3>
           <p className="text-sm text-muted-foreground">
             Rules that determine when content changes need a second pair of
@@ -308,15 +255,6 @@ export function GovernanceSection() {
               size="sm"
               onClick={() => {
                 resetDialogState();
-                initialDialogRef.current = {
-                  domain: '',
-                  posture: 'open',
-                  timeout: '7',
-                  autoFlagQuality: false,
-                  autoFlagFreshness: false,
-                  cooldownDays: '7',
-                  qualityThreshold: '40',
-                };
               }}
             >
               Add Domain
@@ -325,137 +263,84 @@ export function GovernanceSection() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {editDomain ? 'Edit Governance' : 'Add Governance Config'}
+                {isEditing
+                  ? 'Edit Governance Config'
+                  : 'Add Governance Config'}
               </DialogTitle>
               <DialogDescription>
-                Configure governance posture for a domain.
+                Choose a governance preset for this domain.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSave} className="flex flex-col gap-4">
+              {/* Domain selection */}
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="gov-domain">Domain</Label>
-                <Input
-                  id="gov-domain"
-                  value={editDomain}
-                  onChange={(e) => setEditDomain(e.target.value)}
-                  placeholder="e.g. Technology & Systems"
-                  required
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="gov-posture">Posture</Label>
-                <Select
-                  value={editPosture}
-                  onValueChange={(v) =>
-                    setEditPosture(v as 'open' | 'review_on_change')
-                  }
-                >
-                  <SelectTrigger id="gov-posture">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="open">Open</SelectItem>
-                    <SelectItem value="review_on_change">
-                      Review on Change
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {editPosture === 'review_on_change' && (
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="gov-timeout">Review Timeout (days)</Label>
-                  <Input
-                    id="gov-timeout"
-                    type="number"
-                    min="1"
-                    max="365"
-                    value={editTimeoutDays}
-                    onChange={(e) => setEditTimeoutDays(e.target.value)}
-                  />
-                </div>
-              )}
-
-              <Separator />
-
-              <div className="flex flex-col gap-3">
-                <p className="text-sm font-medium">Automated Governance</p>
-                <p className="text-xs text-muted-foreground">
-                  Automatically flag items for governance review when quality or
-                  freshness thresholds are breached.
-                </p>
-
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="gov-quality-threshold">
-                    Quality Score Threshold
-                  </Label>
-                  <Input
-                    id="gov-quality-threshold"
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={editQualityThreshold}
-                    onChange={(e) => setEditQualityThreshold(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Items scoring below this value are flagged for attention
-                    (0-100).
+                {isEditing ? (
+                  <p className="text-sm font-medium">{editingDomain}</p>
+                ) : taxonomyLoading ? (
+                  <p className="text-sm text-muted-foreground">
+                    Loading domains...
                   </p>
-                </div>
-
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex-1">
-                    <Label htmlFor="gov-auto-flag-quality" className="text-sm">
-                      Auto-flag on quality drop
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Send items to governance review when their quality score
-                      drops below threshold.
-                    </p>
-                  </div>
-                  <Switch
-                    id="gov-auto-flag-quality"
-                    checked={editAutoFlagQuality}
-                    onCheckedChange={setEditAutoFlagQuality}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex-1">
-                    <Label
-                      htmlFor="gov-auto-flag-freshness"
-                      className="text-sm"
-                    >
-                      Auto-flag on freshness transition
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Send items to governance review when they transition to
-                      stale or expired.
-                    </p>
-                  </div>
-                  <Switch
-                    id="gov-auto-flag-freshness"
-                    checked={editAutoFlagFreshness}
-                    onCheckedChange={setEditAutoFlagFreshness}
-                  />
-                </div>
-
-                {(editAutoFlagQuality || editAutoFlagFreshness) && (
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="gov-cooldown">Cooldown Period (days)</Label>
-                    <Input
-                      id="gov-cooldown"
-                      type="number"
-                      min="1"
-                      max="90"
-                      value={editCooldownDays}
-                      onChange={(e) => setEditCooldownDays(e.target.value)}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Don&apos;t re-flag items that were auto-flagged within
-                      this many days (1-90).
-                    </p>
-                  </div>
+                ) : availableDomains.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    {taxonomyDomains.length === 0
+                      ? 'No taxonomy domains configured. Add domains in the taxonomy settings first.'
+                      : 'All taxonomy domains already have governance rules configured.'}
+                  </p>
+                ) : (
+                  <Select
+                    value={selectedDomain}
+                    onValueChange={setSelectedDomain}
+                  >
+                    <SelectTrigger id="gov-domain">
+                      <SelectValue placeholder="Select a domain" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableDomains.map((d) => (
+                        <SelectItem key={d.id} value={d.name}>
+                          {d.display_name || d.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 )}
+              </div>
+
+              {/* Preset selection */}
+              <div className="flex flex-col gap-1.5">
+                <Label>Preset</Label>
+                <RadioGroup
+                  value={selectedPreset}
+                  onValueChange={(v) =>
+                    setSelectedPreset(v as GovernancePreset)
+                  }
+                  className="grid gap-3"
+                >
+                  {(
+                    Object.entries(PRESET_LABELS) as [
+                      GovernancePreset,
+                      (typeof PRESET_LABELS)[GovernancePreset],
+                    ][]
+                  ).map(([key, label]) => (
+                    <label
+                      key={key}
+                      htmlFor={`preset-${key}`}
+                      className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3 transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5"
+                    >
+                      <RadioGroupItem
+                        value={key}
+                        id={`preset-${key}`}
+                        className="mt-0.5"
+                      />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{label.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {label.description}
+                        </p>
+                      </div>
+                    </label>
+                  ))}
+                </RadioGroup>
               </div>
 
               <DialogFooter>
@@ -466,7 +351,14 @@ export function GovernanceSection() {
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={saving}>
+                <Button
+                  type="submit"
+                  disabled={
+                    saving ||
+                    (!isEditing && !selectedDomain) ||
+                    (!isEditing && availableDomains.length === 0)
+                  }
+                >
                   {saving && <Loader2 className="mr-2 size-4 animate-spin" />}
                   Save
                 </Button>
@@ -487,8 +379,7 @@ export function GovernanceSection() {
               No governance rules configured
             </p>
             <p className="text-xs text-muted-foreground">
-              All domains use the &quot;Open&quot; posture by default. Add rules
-              to enforce freshness and ownership.
+              Add a domain and choose a preset to get started.
             </p>
           </div>
         ) : (
@@ -497,51 +388,40 @@ export function GovernanceSection() {
             role="list"
             aria-labelledby="governance-config-heading"
           >
-            {configs.map((config) => (
-              <div
-                key={config.id}
-                role="listitem"
-                className="flex items-center justify-between px-4 py-3"
-              >
-                <div>
-                  <p className="text-sm font-medium">{config.domain}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {config.posture === 'open' ? 'Open' : 'Review on Change'}
-                    {config.posture === 'review_on_change' &&
-                      ` (${config.timeout_days ?? 7} day timeout)`}
-                  </p>
-                  {(config.auto_flag_on_quality_drop ||
-                    config.auto_flag_on_freshness_transition) && (
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      Auto-flag:{' '}
-                      {[
-                        config.auto_flag_on_quality_drop && 'quality drop',
-                        config.auto_flag_on_freshness_transition && 'freshness',
-                      ]
-                        .filter(Boolean)
-                        .join(', ')}{' '}
-                      ({config.auto_flag_cooldown_days ?? 7}d cooldown)
+            {configs.map((config) => {
+              const preset = getPresetForConfig(config);
+              const label = PRESET_LABELS[preset];
+              return (
+                <div
+                  key={config.id}
+                  role="listitem"
+                  className="flex items-center justify-between px-4 py-3"
+                >
+                  <div>
+                    <p className="text-sm font-medium">{config.domain}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {label.description}
                     </p>
-                  )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant={
+                        preset === 'light_touch' ? 'secondary' : 'default'
+                      }
+                    >
+                      {label.name}
+                    </Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleEdit(config)}
+                    >
+                      Edit
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge
-                    variant={
-                      config.posture === 'open' ? 'secondary' : 'default'
-                    }
-                  >
-                    {config.posture === 'open' ? 'Open' : 'Review'}
-                  </Badge>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleEdit(config)}
-                  >
-                    Edit
-                  </Button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </Card>
