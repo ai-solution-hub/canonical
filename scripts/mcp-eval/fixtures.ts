@@ -75,7 +75,7 @@ export function loadEnv(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Canonical lists — updated to 46 tools (current as of S175 WP-F)
+// Canonical lists — updated to 47 tools (current as of S178 P0-10)
 // ---------------------------------------------------------------------------
 
 /** Canonical set of all 47 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */

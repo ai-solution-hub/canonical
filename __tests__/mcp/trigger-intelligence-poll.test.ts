@@ -121,13 +121,13 @@ describe('trigger_intelligence_poll MCP tool', () => {
     expect(tools.some((t) => t.name === 'trigger_intelligence_poll')).toBe(true);
   });
 
-  it('has NON_IDEMPOTENT_WRITE_ANNOTATIONS', () => {
+  it('has NON_IDEMPOTENT_OPEN_WORLD_WRITE_ANNOTATIONS', () => {
     const tool = getTriggerTool();
     const annotations = tool.config.annotations as Record<string, boolean>;
     expect(annotations.readOnlyHint).toBe(false);
     expect(annotations.idempotentHint).toBe(false);
     expect(annotations.destructiveHint).toBe(false);
-    expect(annotations.openWorldHint).toBe(false);
+    expect(annotations.openWorldHint).toBe(true);
   });
 
   it('returns pipeline run summary on success', async () => {
@@ -208,18 +208,9 @@ describe('trigger_intelligence_poll MCP tool', () => {
     expect(result.content[0].text).toContain('Database connection lost');
   });
 
-  it('accepts optional workspace_id argument without error', async () => {
-    mocks.runPipeline.mockResolvedValue(MOCK_PIPELINE_RESULT);
-
+  it('takes no input parameters', () => {
     const tool = getTriggerTool();
-    const result = await tool.callback(
-      { workspace_id: 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d' },
-      MOCK_EXTRA,
-    );
-
-    const typedResult = result as {
-      content: Array<{ type: string; text: string }>;
-    };
-    expect(typedResult.content[0].text).toContain('Intelligence Poll Triggered');
+    const inputSchema = tool.config.inputSchema as Record<string, unknown>;
+    expect(Object.keys(inputSchema)).toHaveLength(0);
   });
 });

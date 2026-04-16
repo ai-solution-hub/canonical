@@ -105,6 +105,19 @@ export const NON_IDEMPOTENT_WRITE_ANNOTATIONS: RequiredToolAnnotations = {
 };
 
 /**
+ * Non-idempotent write that interacts with external systems over the network
+ * (third-party HTTP APIs, RSS feeds, etc.). Use for tools that trigger
+ * pipelines fetching from outside services — clients can warn users about
+ * external interactions.
+ */
+export const NON_IDEMPOTENT_OPEN_WORLD_WRITE_ANNOTATIONS: RequiredToolAnnotations = {
+  readOnlyHint: false,
+  idempotentHint: false,
+  destructiveHint: false,
+  openWorldHint: true,
+};
+
+/**
  * Tool config shape for `defineTool`. Mirrors the `config` parameter of
  * `McpServer.registerTool` but tightens `annotations` to the
  * `RequiredToolAnnotations` variant.

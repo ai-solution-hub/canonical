@@ -85,7 +85,7 @@ async function collectAllTools(): Promise<ToolRegistration[]> {
 
   // Registration order matches `tools/index.ts` for completeness. The
   // `registerAppTool` path in apps.ts delegates internally to
-  // `server.registerTool`, so the single mock catches all 42 tools.
+  // `server.registerTool`, so the single mock catches all 47 tools.
   await registerSearchTools(server);
   await registerDashboardTools(server);
   await registerBidTools(server);

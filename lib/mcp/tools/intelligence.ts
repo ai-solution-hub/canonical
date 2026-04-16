@@ -15,7 +15,7 @@ import {
   toStructuredContent,
   defineTool,
   READ_ONLY_ANNOTATIONS,
-  NON_IDEMPOTENT_WRITE_ANNOTATIONS,
+  NON_IDEMPOTENT_OPEN_WORLD_WRITE_ANNOTATIONS,
 } from './shared';
 
 export async function registerIntelligenceTools(
@@ -93,17 +93,9 @@ export async function registerIntelligenceTools(
     {
       title: 'Trigger Intelligence Poll',
       description:
-        'Manually trigger the sector intelligence pipeline to poll all due RSS sources, score new articles, and update workspace feeds. Admin-only — returns the pipeline run summary including sources processed, articles found, and filter results. Use when a user wants to refresh intelligence data immediately rather than waiting for the scheduled cron.',
-      inputSchema: {
-        workspace_id: z
-          .string()
-          .uuid()
-          .optional()
-          .describe(
-            'Optional workspace UUID to scope the result context. The pipeline always processes all due sources across all workspaces.',
-          ),
-      },
-      annotations: NON_IDEMPOTENT_WRITE_ANNOTATIONS,
+        'Manually trigger the sector intelligence pipeline to poll all due RSS sources, score new articles, and update workspace feeds. Admin-only — returns the pipeline run summary including sources processed, articles found, and filter results. Use when a user wants to refresh intelligence data immediately rather than waiting for the scheduled cron. The pipeline always processes all due sources across all workspaces.',
+      inputSchema: {},
+      annotations: NON_IDEMPOTENT_OPEN_WORLD_WRITE_ANNOTATIONS,
     },
     async (args, extra: ToolExtra) => {
       try {

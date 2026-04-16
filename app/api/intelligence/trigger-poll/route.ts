@@ -1,15 +1,13 @@
 // app/api/intelligence/trigger-poll/route.ts
 import { NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import { getAuthorisedClient } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { runPipeline } from '@/lib/intelligence/pipeline';
 
 export async function POST() {
   // Admin-only manual trigger
   const auth = await getAuthorisedClient(['admin']);
-  if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
-  }
+  if (!auth.success) return authFailureResponse(auth);
 
   try {
     const supabase = createServiceClient();
