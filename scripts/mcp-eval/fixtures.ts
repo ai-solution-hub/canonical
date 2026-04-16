@@ -75,10 +75,10 @@ export function loadEnv(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Canonical lists — updated to 42 tools (current as of S167)
+// Canonical lists — updated to 46 tools (current as of S175 WP-F)
 // ---------------------------------------------------------------------------
 
-/** Canonical set of all 42 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
+/** Canonical set of all 46 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
 export const CANONICAL_TOOL_NAMES = [
   'search_knowledge_base', // 1
   'search_qa_library', // 2
@@ -122,9 +122,13 @@ export const CANONICAL_TOOL_NAMES = [
   'update_governance_status', // 40
   'get_intelligence_summary', // 41
   'search_content_chunks', // 42
+  'list_guides', // 43
+  'get_guide', // 44
+  'create_guide', // 45
+  'update_guide', // 46
 ] as const;
 
-export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 42
+export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 46
 
 /** Read-only tools (no side effects). */
 export const READ_ONLY_TOOLS = new Set([
@@ -162,6 +166,8 @@ export const READ_ONLY_TOOLS = new Set([
   'get_document_versions',
   'get_document_diff',
   'get_intelligence_summary',
+  'get_guide',
+  'list_guides',
 ]);
 
 /** Write tools that modify data. */
@@ -174,6 +180,8 @@ export const WRITE_TOOLS = new Set([
   'delete_content_item', // 25
   'update_governance_status', // 30
   'assign_content_owner', // 31
+  'create_guide',
+  'update_guide',
 ]);
 
 /**
