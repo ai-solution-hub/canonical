@@ -1,13 +1,16 @@
 /**
  * ItemTitleSection Component Tests
  *
- * Tests the title display, inline editing, verification badge (with trust data),
- * source document, and editing banner with save/cancel buttons.
+ * Tests the read-only title display, verification badge (with trust data),
+ * freshness indicator, source document, and metadata strip.
+ *
+ * Editing is no longer handled by this component — it was removed as part
+ * of P0-1 F-5 (dead props cleanup). Per-field editing goes through
+ * `useInlineFieldEdit` via the metadata sidebar or keyboard shortcut.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -47,18 +50,6 @@ vi.mock('@/components/shared/freshness-badge', () => ({
 
 vi.mock('@/lib/format', () => ({
   formatSmartDate: (date: string) => (date ? 'Recently' : ''),
-}));
-
-vi.mock('@/components/ui/button', () => ({
-  Button: ({ children, onClick, ...props }: Record<string, unknown>) => (
-    <button onClick={onClick as () => void} {...props}>
-      {children as React.ReactNode}
-    </button>
-  ),
-}));
-
-vi.mock('@/components/ui/input', () => ({
-  Input: (props: Record<string, unknown>) => <input {...props} />,
 }));
 
 vi.mock('@/hooks/use-display-names', () => ({
@@ -112,13 +103,6 @@ function createDefaultProps(
   return {
     item: createMockItem(),
     title: 'Test Title',
-    isEditing: false,
-    editDirty: false,
-    editTitle: 'Test Title',
-    setEditTitle: vi.fn(),
-    setEditDirty: vi.fn(),
-    handleSaveAll: vi.fn(),
-    cancelEditMode: vi.fn(),
     ...overrides,
   };
 }
@@ -136,17 +120,10 @@ describe('ItemTitleSection', () => {
     vi.unstubAllGlobals();
   });
 
-  it('renders title as h1 when not editing', () => {
+  it('renders title as h1', () => {
     render(<ItemTitleSection {...createDefaultProps()} />);
     const heading = screen.getByRole('heading', { level: 1 });
     expect(heading).toHaveTextContent('Test Title');
-  });
-
-  it('renders Input when isEditing is true', () => {
-    render(<ItemTitleSection {...createDefaultProps({ isEditing: true })} />);
-    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
-    const input = screen.getByDisplayValue('Test Title');
-    expect(input).toBeInTheDocument();
   });
 
   it('always shows metadata strip with verification badge', () => {
@@ -217,36 +194,12 @@ describe('ItemTitleSection', () => {
     expect(screen.getByLabelText('Content metadata')).toBeInTheDocument();
   });
 
-  it('shows editing banner with "unsaved changes" when editDirty is true', () => {
-    render(
-      <ItemTitleSection
-        {...createDefaultProps({ isEditing: true, editDirty: true })}
-      />,
-    );
-    expect(screen.getByText(/unsaved changes/i)).toBeInTheDocument();
-  });
-
-  it('save button calls handleSaveAll', async () => {
-    const handleSaveAll = vi.fn();
-    const user = userEvent.setup();
-    render(
-      <ItemTitleSection
-        {...createDefaultProps({ isEditing: true, handleSaveAll })}
-      />,
-    );
-    await user.click(screen.getByText('Save'));
-    expect(handleSaveAll).toHaveBeenCalledOnce();
-  });
-
-  it('cancel button calls cancelEditMode', async () => {
-    const cancelEditMode = vi.fn();
-    const user = userEvent.setup();
-    render(
-      <ItemTitleSection
-        {...createDefaultProps({ isEditing: true, cancelEditMode })}
-      />,
-    );
-    await user.click(screen.getByText('Cancel'));
-    expect(cancelEditMode).toHaveBeenCalledOnce();
+  it('does not render editing banner or inline input (read-only component)', () => {
+    render(<ItemTitleSection {...createDefaultProps()} />);
+    // No input fields should be rendered
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    // No Save/Cancel buttons
+    expect(screen.queryByText('Save')).not.toBeInTheDocument();
+    expect(screen.queryByText('Cancel')).not.toBeInTheDocument();
   });
 });
