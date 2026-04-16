@@ -29,10 +29,43 @@ If they exist, read the most recent file in full. This provides:
 
 ---
 
-## Step 2: Determine the Next Session Number
+## Step 1b: Identify Active Parallel Tracks (Conditional)
 
-Parse the highest session number from existing files and add 1. The filename
-format is `continuation-prompt-kh-{NNN}-{purpose}.md`.
+The project sometimes runs parallel work tracks on separate top-level git
+worktrees (e.g. a UI simplification wave on
+`/Users/liamj/Documents/development/knowledge-hub-ui-ux-simplification`
+alongside main-track work on the primary repo). These are **long-lived
+worktrees** — distinct from the ephemeral `isolation: "worktree"` agent
+worktrees created during sessions under `.claude/worktrees/`.
+
+Check for active parallel tracks:
+
+```bash
+git worktree list
+```
+
+If a top-level worktree exists outside `.claude/worktrees/`:
+- Note which branch it tracks and its current HEAD.
+- This session's continuation prompt is for **this track only** — do not
+  write objectives for the other track.
+- Include a "Parallel track note" section (see Section 1) pointing to the
+  other track's continuation prompt so a future session knows both exist.
+- Use the track-suffixed filename convention (see Step 2).
+
+---
+
+## Step 2: Determine the Next Session Number and Track Suffix
+
+Parse the highest session number from existing files and add 1.
+
+**Filename convention:** When parallel tracks are active, suffix the filename
+with a track identifier to avoid confusion:
+
+- Main track: `continuation-prompt-kh-s{NNN}-main-{purpose}.md`
+- UI simp track: `continuation-prompt-kh-s{NNN}-uisimp-{purpose}.md`
+
+When only one track is active, the track suffix is optional:
+`continuation-prompt-kh-s{NNN}-{purpose}.md`.
 
 ---
 
@@ -219,8 +252,11 @@ Add documents relevant to the next session to "Read per work package".
 Write the completed continuation prompt to:
 
 ```
-docs/continuation-prompts/continuation-prompt-kh-{NNN}-{purpose-slug}.md
+docs/continuation-prompts/continuation-prompt-kh-s{NNN}-{track}-{purpose-slug}.md
 ```
+
+See Step 2 for the track-suffix convention. When parallel tracks are active,
+always include the track suffix (`main-`, `uisimp-`, etc.).
 
 ---
 

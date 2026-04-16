@@ -35,6 +35,20 @@ Report any unmerged worktree branches or uncommitted changes. If unmerged
 branches exist, deploy an agent to investigate whether they should be merged 
 or deleted.
 
+**Parallel track worktrees vs agent worktrees:** The project may have two
+types of worktrees:
+
+- **Top-level track worktrees** (e.g.
+  `/Users/liamj/Documents/development/knowledge-hub-ui-ux-simplification`)
+  — long-lived worktrees for parallel development tracks. These have their
+  own continuation prompts and are NOT cleaned up between sessions. Do not
+  delete or prune these.
+- **Agent worktrees** under `.claude/worktrees/` — ephemeral worktrees
+  created by `isolation: "worktree"` during sessions. These SHOULD be
+  cleaned up (prune + delete merged branches).
+
+When reporting worktree state, distinguish between the two types.
+
 ---
 
 ## Step 2: Read Critical Documents (parallel with Step 1)
