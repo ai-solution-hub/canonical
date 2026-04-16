@@ -83,7 +83,6 @@ export function EditorView({
     segments,
     highlights,
     inlineEdit,
-    qaEditMode,
     isAnalysing,
     handleVisionAnalysis,
     qaProvenance,
@@ -100,22 +99,11 @@ export function EditorView({
 
   // Destructure sub-hook values
   const { editingField, editValue, saveSuccess, saveAnnouncement } = inlineEdit;
-  const {
-    isEditing,
-    editDirty,
-    editTitle,
-    setEditTitle,
-    setEditDirty,
-    editStandard,
-    editAdvanced,
-    setEditStandard,
-    setEditAdvanced,
-    enterEditMode,
-    cancelEditMode,
-    handleSaveAll,
-  } = qaEditMode;
   const { usedInWorkspaces, relatedQA, topicLayers, handleLayerChange } =
     qaProvenance;
+
+  // Q&A inline editing: the item is being edited when any field is active
+  const isEditing = !!inlineEdit.editingField;
 
   // --- Content tabs element ---
   const contentTabsElement = (
@@ -212,17 +200,17 @@ export function EditorView({
             />
           ) : null}
 
-          {/* Title + inline badges + editing banner */}
+          {/* Title + inline badges */}
           <ItemTitleSection
             item={item}
             title={title}
-            isEditing={isEditing}
-            editDirty={editDirty}
-            editTitle={editTitle}
-            setEditTitle={setEditTitle}
-            setEditDirty={setEditDirty}
-            handleSaveAll={handleSaveAll}
-            cancelEditMode={cancelEditMode}
+            isEditing={false}
+            editDirty={false}
+            editTitle=""
+            setEditTitle={() => {}}
+            setEditDirty={() => {}}
+            handleSaveAll={() => {}}
+            cancelEditMode={() => {}}
           />
 
           {/* Action bar — full editor controls */}
@@ -239,8 +227,8 @@ export function EditorView({
               hasReaderContent={hasReaderContent}
               title={title}
               readerOpen={readerOpen}
-              enterEditMode={enterEditMode}
-              cancelEditMode={cancelEditMode}
+              enterEditMode={() => data.startEdit('suggested_title')}
+              cancelEditMode={() => data.cancelEdit()}
               handleCopyLink={handleCopyLink}
               handleCopyAnswer={handleCopyAnswer}
               handleVisionAnalysis={handleVisionAnalysis}
@@ -258,11 +246,11 @@ export function EditorView({
               canEdit={canEdit}
               contentTabsElement={contentTabsElement}
               isEditing={isEditing}
-              editStandard={editStandard}
-              editAdvanced={editAdvanced}
-              setEditStandard={setEditStandard}
-              setEditAdvanced={setEditAdvanced}
-              setEditDirty={setEditDirty}
+              editStandard=""
+              editAdvanced=""
+              setEditStandard={() => {}}
+              setEditAdvanced={() => {}}
+              setEditDirty={() => {}}
               handleCopyAnswer={handleCopyAnswer}
               visionAnalysis={visionAnalysis}
               transcriptChapters={transcriptChapters}
@@ -270,6 +258,7 @@ export function EditorView({
               highlights={highlights}
               handleLayerChange={handleLayerChange}
               getActiveTabContent={getActiveTabContent}
+              saveEdit={data.saveEdit}
             />
 
             {/* Q&A provenance: bids using this pair */}
@@ -306,7 +295,7 @@ export function EditorView({
                 {item.source_url && (
                   <ClaudePromptButton
                     prompt={generateIngestUrlPrompt(item.source_url).prompt}
-                    label="Re-ingest source with Claude"
+                    label="Replace with fresh copy"
                     size="sm"
                   />
                 )}
@@ -318,7 +307,7 @@ export function EditorView({
                         item.content.slice(0, 500),
                       ).prompt
                     }
-                    label="Summarise with Claude"
+                    label="Summarise and add to knowledge base"
                     size="sm"
                   />
                 )}

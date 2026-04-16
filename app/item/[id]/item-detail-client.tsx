@@ -97,7 +97,7 @@ export function ItemDetailClient({
 
   // Unsaved changes guard: block mode switch while editing
   const handleModeToggle = useCallback(() => {
-    if (data.qaEditMode.editDirty) {
+    if (data.inlineEdit.editingField) {
       if (
         !window.confirm(
           'You have unsaved changes. Discard and switch to reader mode?',
@@ -105,10 +105,10 @@ export function ItemDetailClient({
       ) {
         return;
       }
-      data.qaEditMode.cancelEditMode();
+      data.inlineEdit.cancelEdit();
     }
     toggleDetailMode();
-  }, [data.qaEditMode, toggleDetailMode]);
+  }, [data.inlineEdit, toggleDetailMode]);
 
   // Keyboard shortcuts — mode-aware (disables edit shortcuts in reader mode)
   useItemDetailShortcuts({
@@ -120,14 +120,9 @@ export function ItemDetailClient({
     readerOpen: data.readerOpen,
     toggleDetached: data.toggleDetached,
     canEdit: data.canEdit,
-    title: data.title,
-    answerStandard: data.item.answer_standard,
-    answerAdvanced: data.item.answer_advanced,
-    setIsEditing: data.qaEditMode.setIsEditing,
-    setEditTitle: data.qaEditMode.setEditTitle,
-    setEditStandard: data.qaEditMode.setEditStandard,
-    setEditAdvanced: data.qaEditMode.setEditAdvanced,
-    setEditDirty: data.qaEditMode.setEditDirty,
+    startEdit: data.startEdit,
+    cancelEdit: data.cancelEdit,
+    editingField: data.inlineEdit.editingField,
     router: data.router,
     detailMode,
     toggleDetailMode: handleModeToggle,

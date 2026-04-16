@@ -12,14 +12,12 @@ interface UseItemDetailShortcutsParams {
   readerOpen: boolean;
   toggleDetached: () => void;
   canEdit: boolean;
-  title: string;
-  answerStandard: string | null | undefined;
-  answerAdvanced: string | null | undefined;
-  setIsEditing: React.Dispatch<React.SetStateAction<boolean>>;
-  setEditTitle: (v: string) => void;
-  setEditStandard: (v: string) => void;
-  setEditAdvanced: (v: string) => void;
-  setEditDirty: (v: boolean) => void;
+  /** Start inline editing a field (E key targets suggested_title) */
+  startEdit: (field: string) => void;
+  /** Cancel current inline edit (Escape key) */
+  cancelEdit: () => void;
+  /** Currently editing field (null when no edit in progress) */
+  editingField: string | null;
   router: AppRouterInstance;
   /** Current detail mode — enables mode-aware shortcut behaviour */
   detailMode?: DetailMode;
@@ -34,7 +32,8 @@ interface UseItemDetailShortcutsParams {
  *  m — toggle read state (all modes)
  *  s — toggle star (editor mode only)
  *  p — cycle priority (editor mode only)
- *  e — toggle edit mode (editor mode only)
+ *  e — start inline edit on suggested_title (editor mode only)
+ *  Escape — cancel current inline edit
  *  r — toggle reader panel (all modes)
  *  Shift+R — toggle detached reader (if open) or navigate to /review
  *  Shift+D — toggle detail mode between reader and editor
@@ -51,14 +50,9 @@ export function useItemDetailShortcuts({
   readerOpen,
   toggleDetached,
   canEdit,
-  title,
-  answerStandard,
-  answerAdvanced,
-  setIsEditing,
-  setEditTitle,
-  setEditStandard,
-  setEditAdvanced,
-  setEditDirty,
+  startEdit,
+  cancelEdit,
+  editingField,
   router,
   detailMode,
   toggleDetailMode,
@@ -106,7 +100,7 @@ export function useItemDetailShortcuts({
         e.preventDefault();
         handlePriorityCycle();
       }
-      // e — edit mode toggle (editor mode only)
+      // e — start inline edit on suggested_title (editor mode only)
       if (
         e.key === 'e' &&
         !e.metaKey &&
@@ -115,15 +109,14 @@ export function useItemDetailShortcuts({
         editShortcutsEnabled
       ) {
         e.preventDefault();
-        setIsEditing((prev) => {
-          if (!prev) {
-            setEditTitle(title);
-            setEditStandard(answerStandard ?? '');
-            setEditAdvanced(answerAdvanced ?? '');
-            setEditDirty(false);
-          }
-          return !prev;
-        });
+        if (!editingField) {
+          startEdit('suggested_title');
+        }
+      }
+      // Escape — cancel current inline edit
+      if (e.key === 'Escape' && editingField) {
+        e.preventDefault();
+        cancelEdit();
       }
       // r — toggle reader panel (active in all modes)
       if (
@@ -169,8 +162,6 @@ export function useItemDetailShortcuts({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     itemId,
-    answerStandard,
-    answerAdvanced,
     toggleRead,
     router,
     handleStarToggle,
@@ -179,12 +170,9 @@ export function useItemDetailShortcuts({
     readerOpen,
     toggleDetached,
     canEdit,
-    title,
-    setIsEditing,
-    setEditTitle,
-    setEditStandard,
-    setEditAdvanced,
-    setEditDirty,
+    startEdit,
+    cancelEdit,
+    editingField,
     editShortcutsEnabled,
     detailMode,
     toggleDetailMode,

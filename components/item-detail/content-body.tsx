@@ -1,8 +1,8 @@
 'use client';
 
+import React from 'react';
 import dynamic from 'next/dynamic';
 import { isFeatureEnabled } from '@/lib/client-config';
-import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 import { ContentTypeHeader } from '@/components/shared/content-type-header';
 
@@ -10,9 +10,7 @@ import { QAAnswerDisplay } from '@/components/qa/qa-answer-display';
 import { ContentLayerSelector } from '@/components/content/content-layer-selector';
 import { TableOfContents } from '@/components/item-detail/table-of-contents';
 import { TranscriptReader } from '@/components/reader/transcript-reader';
-import { ToggleLeft, ToggleRight } from 'lucide-react';
-import { toast } from 'sonner';
-import { captureClientException } from '@/lib/client-telemetry';
+import { ToggleLeft, ToggleRight, Loader2 } from 'lucide-react';
 
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
 import type { VisionAnalysisResult } from '@/hooks/use-vision-analysis';
@@ -56,6 +54,12 @@ export interface ContentBodyProps {
   handleLayerChange: (newLayer: string | null) => Promise<void>;
   /** Active tab content getter for table of contents */
   getActiveTabContent: () => string;
+  /** Inline field save callback -- used by DraftToggle to route through PATCH */
+  saveEdit?: (
+    field: string,
+    value: unknown,
+    changeReason?: string | null,
+  ) => Promise<void>;
 }
 
 /**
@@ -83,6 +87,7 @@ export function ContentBody({
   highlights,
   handleLayerChange,
   getActiveTabContent,
+  saveEdit,
 }: ContentBodyProps) {
   return (
     <>
@@ -169,20 +174,34 @@ export function ContentBody({
 
       {/* Draft toggle (editors only, when draft_status feature enabled) */}
       {isFeatureEnabled('draft_status') && canEdit && (
-        <DraftToggle item={item} setItem={setItem} />
+        <DraftToggle item={item} setItem={setItem} saveEdit={saveEdit} />
       )}
     </>
   );
 }
 
-/** Draft status toggle — extracted for clarity. */
+/**
+ * Draft status toggle -- routes through the PATCH /api/items/:id endpoint
+ * via `saveEdit('governance_review_status', ...)` so the change gets:
+ *   - content_history audit trail
+ *   - governance checks
+ *   - embedding regeneration on publish
+ */
 function DraftToggle({
   item,
   setItem,
+  saveEdit,
 }: {
   item: ItemData;
   setItem: React.Dispatch<React.SetStateAction<ItemData>>;
+  saveEdit?: (
+    field: string,
+    value: unknown,
+    changeReason?: string | null,
+  ) => Promise<void>;
 }) {
+  const [isSaving, setIsSaving] = React.useState(false);
+
   return (
     <section className="mb-6 border-t border-border pt-4">
       <div className="flex items-center justify-between">
@@ -191,41 +210,44 @@ function DraftToggle({
         </h3>
         <button
           type="button"
+          disabled={isSaving}
           onClick={async () => {
             const isDraft = item.governance_review_status === 'draft';
             const newStatus = isDraft ? null : 'draft';
-            setItem((prev) => ({
-              ...prev,
-              governance_review_status: newStatus,
-            }));
-            try {
-              const supabase = createClient();
-              const { error } = await supabase
-                .from('content_items')
-                .update({ governance_review_status: newStatus })
-                .eq('id', item.id);
-              if (error) throw error;
-              toast.success(isDraft ? 'Published' : 'Marked as draft');
-            } catch (err) {
-              captureClientException(err, {
-                scope: 'item-detail.content-body.updateGovernanceStatus',
-                extras: { itemId: item.id, newStatus },
-              });
+
+            if (saveEdit) {
+              // Route through PATCH for audit trail + embedding regen on publish
+              setIsSaving(true);
+              try {
+                await saveEdit(
+                  'governance_review_status',
+                  newStatus,
+                  isDraft ? 'Published from draft' : 'Marked as draft',
+                );
+              } finally {
+                setIsSaving(false);
+              }
+            } else {
+              // Fallback: optimistic update only (should not happen in practice)
               setItem((prev) => ({
                 ...prev,
-                governance_review_status: isDraft ? 'draft' : null,
+                governance_review_status: newStatus,
               }));
-              toast.error('Failed to update status');
             }
           }}
           className={cn(
             'inline-flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors',
+            isSaving && 'opacity-60 cursor-not-allowed',
             item.governance_review_status === 'draft'
               ? 'border-status-warning bg-quality-moderate-bg text-status-warning hover:bg-freshness-aging-bg'
               : 'border-status-success bg-freshness-fresh-bg text-status-success hover:opacity-85',
           )}
         >
-          {item.governance_review_status === 'draft' ? (
+          {isSaving ? (
+            <>
+              <Loader2 className="size-4 animate-spin" /> Saving…
+            </>
+          ) : item.governance_review_status === 'draft' ? (
             <>
               <ToggleLeft className="size-4" /> Draft — click to publish
             </>

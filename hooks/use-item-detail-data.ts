@@ -8,7 +8,6 @@ import { useTranscript } from '@/hooks/use-transcript';
 import { useReaderPreferences } from '@/hooks/ui/use-reader-preferences';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useInlineFieldEdit } from '@/hooks/use-inline-field-edit';
-import { useQAEditMode } from '@/hooks/use-qa-edit-mode';
 import { useVisionAnalysis } from '@/hooks/use-vision-analysis';
 import type { VisionAnalysisResult } from '@/hooks/use-vision-analysis';
 import { useQAProvenance } from '@/hooks/use-qa-provenance';
@@ -22,7 +21,6 @@ import type { ItemData } from '@/app/item/[id]/item-detail-client';
 import type { ContentListItem, TranscriptChapter } from '@/types/content';
 import type { Priority } from '@/components/shared/priority-selector';
 import type { UseInlineFieldEditReturn } from '@/hooks/use-inline-field-edit';
-import type { UseQAEditModeReturn } from '@/hooks/use-qa-edit-mode';
 import type { UseQAProvenanceReturn } from '@/hooks/use-qa-provenance';
 import type {
   ReaderFontSize,
@@ -96,9 +94,6 @@ export interface ItemDetailData {
 
   // --- Inline field edit ---
   inlineEdit: UseInlineFieldEditReturn;
-
-  // --- Q&A edit mode ---
-  qaEditMode: UseQAEditModeReturn;
 
   // --- Vision analysis ---
   isAnalysing: boolean;
@@ -232,18 +227,6 @@ export function useItemDetailData({
   });
 
   const isQAPair = item.content_type === 'q_a_pair';
-
-  // --- Q&A edit mode ---
-  const qaEditMode = useQAEditMode({
-    itemId: item.id,
-    title,
-    answerStandard: item.answer_standard,
-    answerAdvanced: item.answer_advanced,
-    isQAPair,
-    onFieldSaved: useCallback((field: string, value: string | null) => {
-      setItem((prev) => ({ ...prev, [field]: value }));
-    }, []),
-  });
 
   // --- Vision analysis ---
   const { isAnalysing, handleVisionAnalysis } = useVisionAnalysis({
@@ -431,13 +414,15 @@ export function useItemDetailData({
   }, [item.brief, item.summary_data, item.summary, item.content]);
 
   // --- Before-unload guard for dirty edits ---
+  // Guard fires when any inline edit is in progress (editingField is non-null)
+  const editingFieldRef = inlineEdit.editingField;
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (qaEditMode.editDirty) e.preventDefault();
+      if (editingFieldRef) e.preventDefault();
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [qaEditMode.editDirty]);
+  }, [editingFieldRef]);
 
   // --- Derived: transcript chapters ---
   const transcriptChapters =
@@ -471,18 +456,13 @@ export function useItemDetailData({
     ? {
         editingField: tabEditingField,
         editValue: inlineEdit.editValue,
-        isSaving: qaEditMode.isSavingTab,
+        isSaving: inlineEdit.isSaving,
         onStartEdit: (field: TabField) => startEdit(field),
         onEditValueChange: inlineEdit.setEditValue,
         onSaveEdit: async (field: string) => {
-          qaEditMode.setIsSavingTab(true);
-          try {
-            // S153 WP3(a): pass the captured reason and clear it after save.
-            await saveEdit(field, inlineEdit.editValue, tabChangeReason);
-            setTabChangeReason('');
-          } finally {
-            qaEditMode.setIsSavingTab(false);
-          }
+          // S153 WP3(a): pass the captured reason and clear it after save.
+          await saveEdit(field, inlineEdit.editValue, tabChangeReason);
+          setTabChangeReason('');
         },
         onCancelEdit: () => {
           cancelEdit();
@@ -541,9 +521,6 @@ export function useItemDetailData({
 
     // Inline field edit
     inlineEdit,
-
-    // Q&A edit mode
-    qaEditMode,
 
     // Vision analysis
     isAnalysing,
