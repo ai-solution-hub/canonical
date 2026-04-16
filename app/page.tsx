@@ -179,18 +179,19 @@ async function DashboardContent() {
 
       {/* MCP setup nudge — one-shot discoverability prompt for the MCP
           connector (S157 WP5, M5). Dismisses permanently via localStorage.
-          Gated on KB having ≥1 item (P0-14) — no point nudging when empty. */}
-      <div className="mt-6">
-        <McpSetupNudge
-          hasContent={
-            unified.freshness_summary.fresh +
-              unified.freshness_summary.aging +
-              unified.freshness_summary.stale +
-              unified.freshness_summary.expired >
-            0
-          }
-        />
-      </div>
+          Gated on KB having ≥1 item (P0-14) — no point nudging when empty.
+          No wrapper div — component returns null when hidden, avoiding a
+          phantom margin gap in the layout. */}
+      <McpSetupNudge
+        className="mt-6"
+        hasContent={
+          unified.freshness_summary.fresh +
+            unified.freshness_summary.aging +
+            unified.freshness_summary.stale +
+            unified.freshness_summary.expired >
+          0
+        }
+      />
 
       {/* Reorient Me — personalised briefing */}
       <div className="mt-6">

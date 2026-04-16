@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { X, Plug } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useHydrated } from '@/hooks/use-hydrated';
+import { cn } from '@/lib/utils';
 
 const DISMISS_KEY = 'mcp-setup-nudge-dismissed';
 
@@ -12,6 +13,9 @@ interface McpSetupNudgeProps {
   /** Whether the KB has at least one content item. When false the nudge is
    *  hidden — there is nothing to connect to yet. */
   hasContent: boolean;
+  /** Optional class name for layout spacing (e.g. `mt-6`). Applied to the
+   *  root element so no phantom margin renders when the nudge is hidden. */
+  className?: string;
 }
 
 /**
@@ -26,7 +30,7 @@ interface McpSetupNudgeProps {
  * preserves the discoverability commitment made in the policy note on that
  * removal without re-adding a persistent header link.
  */
-export function McpSetupNudge({ hasContent }: McpSetupNudgeProps) {
+export function McpSetupNudge({ hasContent, className }: McpSetupNudgeProps) {
   const hydrated = useHydrated();
   const [dismissed, setDismissed] = useState<boolean>(() => {
     // Lazy initial state — runs once per mount. On SSR the effect never runs,
@@ -56,7 +60,10 @@ export function McpSetupNudge({ hasContent }: McpSetupNudgeProps) {
   return (
     <div
       role="status"
-      className="flex items-center justify-between gap-3 rounded-md border border-border bg-accent/30 px-3 py-2 text-sm"
+      className={cn(
+        'flex items-center justify-between gap-3 rounded-md border border-border bg-accent/30 px-3 py-2 text-sm',
+        className,
+      )}
     >
       <div className="flex items-center gap-2">
         <Plug className="size-4 text-muted-foreground" aria-hidden="true" />
