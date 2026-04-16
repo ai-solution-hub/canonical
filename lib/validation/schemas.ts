@@ -403,6 +403,7 @@ export const EDITABLE_FIELDS = new Set([
   'answer_advanced',
   'expiry_date',
   'lifecycle_type',
+  'governance_review_status',
 ] as const);
 
 export type EditableField =
@@ -425,7 +426,8 @@ export type EditableField =
   | 'answer_standard'
   | 'answer_advanced'
   | 'expiry_date'
-  | 'lifecycle_type';
+  | 'lifecycle_type'
+  | 'governance_review_status';
 
 export function validateEditableField(field: string): field is EditableField {
   return EDITABLE_FIELDS.has(field as EditableField);

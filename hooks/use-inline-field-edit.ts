@@ -23,6 +23,8 @@ export interface UseInlineFieldEditReturn {
   editValue: string;
   saveSuccess: string | null;
   saveAnnouncement: string;
+  /** Whether a save operation is currently in progress */
+  isSaving: boolean;
   startEdit: (field: string, currentValue: unknown) => void;
   cancelEdit: () => void;
   /**
@@ -160,6 +162,7 @@ export function useInlineFieldEdit<T extends object = Record<string, unknown>>({
     editValue,
     saveSuccess,
     saveAnnouncement,
+    isSaving: mutation.isPending,
     startEdit,
     cancelEdit,
     saveEdit,

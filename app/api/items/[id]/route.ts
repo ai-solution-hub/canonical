@@ -123,6 +123,22 @@ export async function PATCH(
       }
     }
 
+    if (
+      field === 'governance_review_status' &&
+      value !== null &&
+      typeof value === 'string'
+    ) {
+      const validStatuses = ['draft', 'pending', 'approved', 'rejected'];
+      if (!validStatuses.includes(value)) {
+        return NextResponse.json(
+          {
+            error: `governance_review_status must be one of: ${validStatuses.join(', ')}`,
+          },
+          { status: 400 },
+        );
+      }
+    }
+
     // Fetch current state before update (for version history)
     const { data: currentItem, error: fetchError } = await supabase
       .from('content_items')
