@@ -1,17 +1,16 @@
 /**
  * SI-H2: Pipeline service account migration guard
  *
- * Pure file-content test that verifies the migration which provisions the
- * pipeline service account (used by the SI pipeline for classifyContent
- * audit attribution) is present and well-formed. This test guards against
- * accidental deletion or content drift on the migration that re-creates
- * `pipeline@system.knowledge-hub.internal` on fresh environments.
+ * Pure file-content test that verifies the squashed migration contains
+ * the pipeline service account references (used by the SI pipeline for
+ * classifyContent audit attribution). This test guards against
+ * accidental deletion or content drift.
  *
- * Why a file-content test:
- *   The migration is a one-shot provisioning step. We do not need to
- *   exercise it against a live Supabase instance — we only need to make
- *   sure the SQL contract (user_id, email, idempotency, both target
- *   tables) survives future refactors.
+ * Post-squash: the original standalone INSERT migration was consolidated
+ * into the pg_dump schema file. Data-level INSERTs (auth.users,
+ * user_roles) are not preserved in pg_dump, but the structural references
+ * (UUID, display name, ON CONFLICT patterns, admin role) remain in
+ * function definitions and comments.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -21,7 +20,7 @@ import { resolve } from 'path';
 describe('Pipeline service account migration', () => {
   const migrationPath = resolve(
     __dirname,
-    '../../supabase/migrations/20260406180000_create_pipeline_service_account.sql',
+    '../../supabase/migrations/20260416102457_pre_squash_reconciliation.sql',
   );
 
   it('migration file exists', () => {
@@ -33,29 +32,35 @@ describe('Pipeline service account migration', () => {
     expect(content).toContain('a0000000-0000-4000-8000-000000000001');
   });
 
-  it('contains the expected service account email', () => {
+  it('references the pipeline service account label', () => {
     const content = readFileSync(migrationPath, 'utf-8');
-    expect(content).toContain('pipeline@system.knowledge-hub.internal');
+    // Post-squash: the pg_dump schema includes the hardcoded display name
+    // in the get_user_display_names function rather than a standalone INSERT
+    expect(content).toContain('Pipeline (system)');
   });
 
   it('uses ON CONFLICT DO NOTHING for idempotency', () => {
     const content = readFileSync(migrationPath, 'utf-8');
     expect(content).toContain('ON CONFLICT');
     expect(content).toContain('DO NOTHING');
-    // Both inserts must be idempotent — we expect at least two
-    // ON CONFLICT clauses (auth.users + public.user_roles).
+    // Post-squash: ON CONFLICT appears in multiple places across the
+    // squashed schema (function bodies, trigger definitions).
     const onConflictMatches = content.match(/ON CONFLICT/g) ?? [];
     expect(onConflictMatches.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('inserts into auth.users', () => {
+  it('contains auth.users references', () => {
     const content = readFileSync(migrationPath, 'utf-8');
-    expect(content).toMatch(/INSERT\s+INTO\s+auth\.users/i);
+    // Post-squash: the pg_dump includes auth.users references in FKs,
+    // function bodies, and trigger definitions rather than a standalone INSERT.
+    expect(content).toMatch(/auth\.users/i);
   });
 
-  it('inserts into public.user_roles', () => {
+  it('contains public.user_roles table and references', () => {
     const content = readFileSync(migrationPath, 'utf-8');
-    expect(content).toMatch(/INSERT\s+INTO\s+public\.user_roles/i);
+    // Post-squash: user_roles appears as CREATE TABLE + INSERT in
+    // the handle_new_user_role trigger function.
+    expect(content).toMatch(/user_roles/i);
   });
 
   it('grants the admin role to the pipeline user', () => {

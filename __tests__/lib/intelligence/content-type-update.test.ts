@@ -2,8 +2,8 @@
 //
 // SI-L3 regression suite: every value returned by inferContentType() must be
 // in VALID_CONTENT_TYPES (the canonical list also enforced by the
-// content_items_valid_content_type CHECK constraint added in migration
-// 20260406181000_align_content_type_check.sql).
+// content_items_valid_content_type CHECK constraint, now in the squashed
+// migration 20260416102457_pre_squash_reconciliation.sql).
 //
 // VALID_CONTENT_TYPES is the single source of truth on the application side
 // (lib/validation/schemas.ts). The DB CHECK constraint mirrors it. If
@@ -347,28 +347,32 @@ describe('SI-L3: pipeline content_type update logs errors on DB rejection', () =
 });
 
 describe('SI-L3: migration file enforces canonical CHECK constraint', () => {
-  // Guard test: if anyone weakens or removes the migration, this fails.
+  // Guard test: if anyone weakens or removes the constraint, this fails.
+  // Post-squash: the constraint is inline in the CREATE TABLE statement
+  // within the squashed pg_dump file.
   const migrationPath = join(
     process.cwd(),
-    'supabase/migrations/20260406181000_align_content_type_check.sql',
+    'supabase/migrations/20260416102457_pre_squash_reconciliation.sql',
   );
 
   it('migration file exists', () => {
     expect(() => readFileSync(migrationPath, 'utf-8')).not.toThrow();
   });
 
-  it('migration drops the legacy narrow constraint', () => {
+  it('contains the canonical content_type constraint name', () => {
     const sql = readFileSync(migrationPath, 'utf-8');
+    // Post-squash: the pg_dump format includes the constraint inline
+    // in the CREATE TABLE rather than as a separate DROP+ADD pair.
     expect(sql).toMatch(
-      /DROP\s+CONSTRAINT\s+IF\s+EXISTS\s+content_items_content_type_check/i,
+      /content_items_valid_content_type/i,
     );
   });
 
-  it('migration re-creates the canonical constraint with all VALID_CONTENT_TYPES', () => {
+  it('constraint includes all VALID_CONTENT_TYPES', () => {
     const sql = readFileSync(migrationPath, 'utf-8');
-    // Confirm the constraint is added
+    // Confirm the constraint is present
     expect(sql).toMatch(
-      /ADD\s+CONSTRAINT\s+content_items_valid_content_type/i,
+      /content_items_valid_content_type/i,
     );
     // Confirm every canonical type appears in the SQL body
     for (const type of VALID_CONTENT_TYPES) {

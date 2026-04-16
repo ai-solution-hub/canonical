@@ -80,6 +80,73 @@ CREATE EXTENSION IF NOT EXISTS "vector" WITH SCHEMA "public";
 
 
 
+CREATE OR REPLACE FUNCTION "public"."_test_delete_broken_auth_user"("probe_id" "uuid") RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public', 'extensions', 'auth'
+    AS $$
+BEGIN
+  IF probe_id::text NOT LIKE '00000000-0000-4000-8000-%' THEN
+    RAISE EXCEPTION
+      'refusing to delete probe row outside the test UUID range (got %)',
+      probe_id;
+  END IF;
+
+  DELETE FROM public.user_roles WHERE user_id = probe_id;
+  DELETE FROM auth.identities WHERE user_id = probe_id;
+  DELETE FROM auth.users WHERE id = probe_id;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."_test_delete_broken_auth_user"("probe_id" "uuid") OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."_test_delete_broken_auth_user"("probe_id" "uuid") IS 'S156 WP-1 test helper — DO NOT call from production code. Hard-deletes the matching probe row including any user_roles + auth.identities children. Hard-locked to UUIDs in the 00000000-0000-4000-8000-%% range.';
+
+
+
+CREATE OR REPLACE FUNCTION "public"."_test_insert_broken_auth_user"("probe_id" "uuid", "probe_email" "text") RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public', 'extensions', 'auth'
+    AS $$
+BEGIN
+  IF probe_id::text NOT LIKE '00000000-0000-4000-8000-%' THEN
+    RAISE EXCEPTION
+      'refusing to insert probe row outside the test UUID range (got %)',
+      probe_id;
+  END IF;
+
+  -- Deliberately omit the 8 token columns so they default to NULL.
+  -- This is the EXACT shape that broke S156 — the test exists to prove
+  -- that GoTrue's admin API tolerates it (post-S156 fix) or to catch a
+  -- regression if the corrective migration is ever reverted.
+  INSERT INTO auth.users (
+    instance_id, id, aud, role, email, encrypted_password,
+    email_confirmed_at, created_at, updated_at,
+    raw_app_meta_data, raw_user_meta_data,
+    is_super_admin, is_sso_user, is_anonymous
+  ) VALUES (
+    '00000000-0000-0000-0000-000000000000',
+    probe_id,
+    'authenticated', 'authenticated',
+    probe_email,
+    '!s156-probe-no-login!',
+    NOW(), NOW(), NOW(),
+    '{}'::jsonb, '{}'::jsonb,
+    false, false, false
+  )
+  ON CONFLICT (id) DO NOTHING;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."_test_insert_broken_auth_user"("probe_id" "uuid", "probe_email" "text") OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."_test_insert_broken_auth_user"("probe_id" "uuid", "probe_email" "text") IS 'S156 WP-1 test helper — DO NOT call from production code. Inserts a deliberately-broken auth.users row (NULL token columns, no identities row) for the S156 regression test. Hard-locked to UUIDs in the 00000000-0000-4000-8000-%% range.';
+
+
+
 CREATE OR REPLACE FUNCTION "public"."auto_version_content_history"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -98,7 +165,7 @@ ALTER FUNCTION "public"."auto_version_content_history"() OWNER TO "postgres";
 
 CREATE OR REPLACE FUNCTION "public"."bid_response_auto_version"() RETURNS "trigger"
     LANGUAGE "plpgsql"
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
@@ -264,7 +331,7 @@ ALTER FUNCTION "public"."bulk_merge_tags"("p_sources" "text"[], "p_target" "text
 
 CREATE OR REPLACE FUNCTION "public"."check_content_exists"("ids" "uuid"[]) RETURNS TABLE("id" "uuid", "item_exists" boolean)
     LANGUAGE "sql" STABLE
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
   SELECT
     unnest_id AS id,
@@ -275,10 +342,124 @@ $$;
 
 ALTER FUNCTION "public"."check_content_exists"("ids" "uuid"[]) OWNER TO "postgres";
 
+SET default_tablespace = '';
+
+SET default_table_access_method = "heap";
+
+
+CREATE TABLE IF NOT EXISTS "public"."processing_queue" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "task_type" "text" NOT NULL,
+    "payload" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "status" "text" DEFAULT 'pending'::"text",
+    "priority" integer DEFAULT 0,
+    "attempts" integer DEFAULT 0,
+    "max_attempts" integer DEFAULT 3,
+    "error_message" "text",
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    "started_at" timestamp with time zone,
+    "completed_at" timestamp with time zone,
+    "result" "jsonb",
+    "created_by" "uuid",
+    CONSTRAINT "processing_queue_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'processing'::"text", 'completed'::"text", 'failed'::"text", 'cancelled'::"text"]))),
+    CONSTRAINT "processing_queue_task_type_check" CHECK (("task_type" = ANY (ARRAY['embed'::"text", 'classify'::"text", 'extract_qa'::"text", 'summarise'::"text", 'validate'::"text", 'reprocess'::"text"])))
+);
+
+
+ALTER TABLE "public"."processing_queue" OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."claim_next_job"() RETURNS SETOF "public"."processing_queue"
+    LANGUAGE "sql"
+    SET "search_path" TO 'public', 'extensions'
+    AS $$
+  UPDATE public.processing_queue
+  SET status = 'processing', started_at = NOW()
+  WHERE id = (
+    SELECT id FROM processing_queue
+    WHERE status = 'pending'
+    ORDER BY created_at ASC
+    LIMIT 1
+    FOR UPDATE SKIP LOCKED
+  )
+  RETURNING *;
+$$;
+
+
+ALTER FUNCTION "public"."claim_next_job"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."cleanup_filtered_articles"() RETURNS integer
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public', 'extensions'
+    AS $$
+DECLARE
+  deleted_count integer;
+BEGIN
+  DELETE FROM feed_articles
+  WHERE passed = false
+    AND created_at < now() - interval '90 days';
+
+  GET DIAGNOSTICS deleted_count = ROW_COUNT;
+  RETURN deleted_count;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."cleanup_filtered_articles"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."coerce_null_token_columns"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public', 'extensions'
+    AS $$
+BEGIN
+  -- Coerce each of the 8 GoTrue-scanned token columns from NULL to ''.
+  -- These are the exact columns that break `auth.admin.listUsers` /
+  -- `auth.admin.getUserById` with `sql: Scan error on column "<col>":
+  -- converting NULL to string is unsupported` when NULL. Keep this list
+  -- in lockstep with __tests__/migrations/auth-users-insert-guard.test.ts
+  -- (REQUIRED_TOKEN_COLUMNS).
+  NEW.confirmation_token          := COALESCE(NEW.confirmation_token,          '');
+  NEW.recovery_token              := COALESCE(NEW.recovery_token,              '');
+  NEW.email_change_token_new      := COALESCE(NEW.email_change_token_new,      '');
+  NEW.email_change_token_current  := COALESCE(NEW.email_change_token_current,  '');
+  NEW.email_change                := COALESCE(NEW.email_change,                '');
+  NEW.phone_change                := COALESCE(NEW.phone_change,                '');
+  NEW.phone_change_token          := COALESCE(NEW.phone_change_token,          '');
+  NEW.reauthentication_token      := COALESCE(NEW.reauthentication_token,      '');
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."coerce_null_token_columns"() OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."coerce_null_token_columns"() IS 'S156/S157 runtime guard: coerce NULL to '''' on the 8 GoTrue-scanned token columns of auth.users, so raw-SQL insert/update paths cannot reproduce the listUsers/getUserById scan-error failure mode. See docs/audits/s156-gotrue-upstream-investigation.md for the upstream status review. Function lives in public schema because auth schema disallows DDL from the postgres role; trigger on auth.users follows the same pattern as the existing on_auth_user_created trigger.';
+
+
+
+CREATE OR REPLACE FUNCTION "public"."content_history_auto_version"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    SET "search_path" TO 'public', 'extensions'
+    AS $$
+BEGIN
+  NEW.version := COALESCE(
+    (SELECT MAX(version) FROM content_history WHERE content_item_id = NEW.content_item_id),
+    0
+  ) + 1;
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."content_history_auto_version"() OWNER TO "postgres";
+
 
 CREATE OR REPLACE FUNCTION "public"."delete_duplicate_entity_mentions"("p_canonical_name" "text") RETURNS integer
     LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
 DECLARE
   deleted_count integer;
@@ -312,7 +493,7 @@ COMMENT ON FUNCTION "public"."delete_duplicate_entity_mentions"("p_canonical_nam
 
 CREATE OR REPLACE FUNCTION "public"."delete_tag"("p_tag" "text", "p_type" "text") RETURNS integer
     LANGUAGE "plpgsql"
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
 DECLARE
   affected INTEGER;
@@ -363,9 +544,24 @@ $$;
 
 ALTER FUNCTION "public"."detect_reupload"("p_filename" "text", "p_uploaded_by" "uuid", "p_content_hash" "text") OWNER TO "postgres";
 
-SET default_tablespace = '';
 
-SET default_table_access_method = "heap";
+CREATE OR REPLACE FUNCTION "public"."filter_by_keywords"("search_terms" "text"[]) RETURNS SETOF "uuid"
+    LANGUAGE "sql" STABLE
+    SET "search_path" TO 'public', 'extensions'
+    AS $$
+SELECT id FROM content_items
+WHERE (
+  SELECT bool_and(
+    array_to_string(COALESCE(ai_keywords, '{}'), ' ') ILIKE '%' || kw || '%'
+    OR COALESCE(title, '') ILIKE '%' || kw || '%'
+    OR COALESCE(summary, '') ILIKE '%' || kw || '%'
+    OR COALESCE(author_name, '') ILIKE '%' || kw || '%'
+  ) FROM unnest(search_terms) AS kw
+);
+$$;
+
+
+ALTER FUNCTION "public"."filter_by_keywords"("search_terms" "text"[]) OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."content_items" (
@@ -401,7 +597,7 @@ CREATE TABLE IF NOT EXISTS "public"."content_items" (
     "classified_at" timestamp with time zone,
     "classification_reasoning" "text",
     "suggested_title" "text",
-    "ai_summary" "text",
+    "summary" "text",
     "ai_keywords" "text"[],
     "summary_data" "jsonb",
     "user_tags" "text"[],
@@ -430,13 +626,20 @@ CREATE TABLE IF NOT EXISTS "public"."content_items" (
     "citation_count" integer DEFAULT 0 NOT NULL,
     "source_file" "text",
     "layer" character varying(50),
+    "content_text_hash" "text" GENERATED ALWAYS AS ("md5"(TRIM(BOTH FROM "regexp_replace"("regexp_replace"("lower"(TRIM(BOTH FROM "content")), '[^\w\s]'::"text", ''::"text", 'g'::"text"), '\s+'::"text", ' '::"text", 'g'::"text")))) STORED,
+    "classification_model" "text",
+    "classification_tokens_in" integer,
+    "classification_tokens_out" integer,
+    "classification_cache_creation_tokens" integer,
+    "classification_cache_read_tokens" integer,
+    "embedding_model" "text",
+    "embedding_tokens" integer,
     CONSTRAINT "chk_content_items_citation_count_non_negative" CHECK (("citation_count" >= 0)),
-    CONSTRAINT "content_items_content_type_check" CHECK ((("content_type")::"text" = ANY ((ARRAY['article'::character varying, 'note'::character varying, 'document'::character varying, 'bookmark'::character varying, 'q_a_pair'::character varying, 'case_study'::character varying, 'policy'::character varying, 'methodology'::character varying, 'cv'::character varying, 'company_info'::character varying])::"text"[]))),
     CONSTRAINT "content_items_governance_review_status_check" CHECK ((("governance_review_status" IS NULL) OR ("governance_review_status" = ANY (ARRAY['pending'::"text", 'approved'::"text", 'reverted'::"text", 'changes_requested'::"text", 'draft'::"text"])))),
-    CONSTRAINT "content_items_platform_check" CHECK ((("platform")::"text" = ANY ((ARRAY['web'::character varying, 'email'::character varying, 'manual'::character varying, 'upload'::character varying, 'extraction'::character varying, 'other'::character varying])::"text"[]))),
-    CONSTRAINT "content_items_previous_freshness_check" CHECK ((("previous_freshness" IS NULL) OR (("previous_freshness")::"text" = ANY ((ARRAY['fresh'::character varying, 'aging'::character varying, 'stale'::character varying, 'expired'::character varying])::"text"[])))),
+    CONSTRAINT "content_items_platform_check" CHECK ((("platform")::"text" = ANY (ARRAY[('web'::character varying)::"text", ('email'::character varying)::"text", ('manual'::character varying)::"text", ('upload'::character varying)::"text", ('extraction'::character varying)::"text", ('other'::character varying)::"text"]))),
+    CONSTRAINT "content_items_previous_freshness_check" CHECK ((("previous_freshness" IS NULL) OR (("previous_freshness")::"text" = ANY (ARRAY[('fresh'::character varying)::"text", ('aging'::character varying)::"text", ('stale'::character varying)::"text", ('expired'::character varying)::"text"])))),
     CONSTRAINT "content_items_quality_score_range" CHECK ((("quality_score" >= 0) AND ("quality_score" <= 100))),
-    CONSTRAINT "content_items_valid_content_type" CHECK ((("content_type")::"text" = ANY (ARRAY[('article'::character varying)::"text", ('blog'::character varying)::"text", ('pdf'::character varying)::"text", ('note'::character varying)::"text", ('research'::character varying)::"text", ('other'::character varying)::"text", ('q_a_pair'::character varying)::"text", ('case_study'::character varying)::"text", ('policy'::character varying)::"text", ('certification'::character varying)::"text", ('compliance'::character varying)::"text", ('methodology'::character varying)::"text", ('capability'::character varying)::"text", ('product_description'::character varying)::"text", ('document'::character varying)::"text"])))
+    CONSTRAINT "content_items_valid_content_type" CHECK ((("content_type")::"text" = ANY (ARRAY['article'::"text", 'blog'::"text", 'pdf'::"text", 'note'::"text", 'research'::"text", 'other'::"text", 'q_a_pair'::"text", 'case_study'::"text", 'policy'::"text", 'certification'::"text", 'compliance'::"text", 'methodology'::"text", 'capability'::"text", 'product_description'::"text", 'document'::"text"])))
 );
 
 
@@ -452,6 +655,10 @@ COMMENT ON COLUMN "public"."content_items"."content_owner_id" IS 'User responsib
 
 
 COMMENT ON COLUMN "public"."content_items"."source_document_id" IS 'FK to the source_documents row that produced this content item. Used for lineage tracking and re-ingestion diffing.';
+
+
+
+COMMENT ON CONSTRAINT "content_items_valid_content_type" ON "public"."content_items" IS 'Canonical content_type values. Must stay in sync with VALID_CONTENT_TYPES in lib/validation/schemas.ts. See SI-L3 fix.';
 
 
 
@@ -585,6 +792,63 @@ $$;
 ALTER FUNCTION "public"."find_duplicate_tags"("p_type" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."find_exact_duplicates"("p_content_hash" "text", "p_exclude_id" "uuid" DEFAULT NULL::"uuid") RETURNS TABLE("id" "uuid", "title" "text")
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO 'public', 'extensions'
+    AS $$
+  SELECT ci.id, ci.title
+  FROM content_items ci
+  WHERE ci.content_text_hash = p_content_hash
+    AND ci.archived_at IS NULL
+    AND (p_exclude_id IS NULL OR ci.id <> p_exclude_id)
+  LIMIT 10;
+$$;
+
+
+ALTER FUNCTION "public"."find_exact_duplicates"("p_content_hash" "text", "p_exclude_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."find_related_items"("p_item_id" "uuid", "p_similarity_threshold" double precision DEFAULT 0.6, "p_limit_count" integer DEFAULT 6) RETURNS TABLE("id" "uuid", "title" "text", "suggested_title" "text", "summary" "text", "primary_domain" "text", "primary_subtopic" "text", "content_type" character varying, "platform" character varying, "author_name" character varying, "source_domain" character varying, "thumbnail_url" "text", "captured_date" timestamp with time zone, "ai_keywords" "text"[], "classification_confidence" double precision, "priority" character varying, "user_tags" "text"[], "similarity" numeric)
+    LANGUAGE "sql" STABLE
+    SET "search_path" TO 'public', 'extensions'
+    AS $$
+  WITH source AS (
+    SELECT embedding
+    FROM content_items
+    WHERE content_items.id = p_item_id
+  )
+  SELECT
+    ci.id,
+    ci.title,
+    ci.suggested_title,
+    ci.summary,
+    ci.primary_domain,
+    ci.primary_subtopic,
+    ci.content_type,
+    ci.platform,
+    ci.author_name,
+    ci.source_domain,
+    ci.thumbnail_url,
+    ci.captured_date,
+    ci.ai_keywords,
+    ci.classification_confidence,
+    ci.priority,
+    ci.user_tags,
+    ROUND((1 - (ci.embedding <=> source.embedding))::numeric, 4) AS similarity
+  FROM content_items ci, source
+  WHERE ci.id != p_item_id
+    AND ci.archived_at IS NULL
+    AND ci.embedding IS NOT NULL
+    AND source.embedding IS NOT NULL
+    AND (1 - (ci.embedding <=> source.embedding)) >= p_similarity_threshold
+  ORDER BY ci.embedding <=> source.embedding ASC
+  LIMIT p_limit_count;
+$$;
+
+
+ALTER FUNCTION "public"."find_related_items"("p_item_id" "uuid", "p_similarity_threshold" double precision, "p_limit_count" integer) OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."find_similar_content"("query_embedding" "public"."vector", "similarity_threshold" double precision DEFAULT 0.7, "limit_count" integer DEFAULT 10) RETURNS TABLE("id" "uuid", "title" "text", "content" "text", "similarity" numeric, "content_type" character varying, "platform" character varying, "author_name" character varying, "source_domain" character varying)
     LANGUAGE "plpgsql"
     SET "search_path" TO 'public', 'extensions'
@@ -607,9 +871,83 @@ $$;
 ALTER FUNCTION "public"."find_similar_content"("query_embedding" "public"."vector", "similarity_threshold" double precision, "limit_count" integer) OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."get_aggregate_win_rate_stats"() RETURNS TABLE("scope" "text", "total_citations" bigint, "winning_citations" bigint, "losing_citations" bigint, "pending_citations" bigint, "win_rate" numeric, "unique_items_cited" bigint, "unique_bids" bigint)
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public', 'extensions'
+    AS $$
+BEGIN
+  RETURN QUERY
+
+  WITH citation_detail AS (
+    SELECT
+      ci.primary_domain,
+      cc.content_item_id,
+      cc.bid_response_id,
+      bq.project_id,
+      w.domain_metadata->>'outcome' as bid_outcome
+    FROM content_citations cc
+    JOIN content_items ci ON ci.id = cc.content_item_id
+    JOIN bid_responses br ON br.id = cc.bid_response_id
+    JOIN bid_questions bq ON bq.id = br.question_id
+    JOIN workspaces w ON w.id = bq.project_id
+  ),
+  domain_stats AS (
+    SELECT
+      primary_domain as scope,
+      COUNT(*)::bigint as total_citations,
+      COUNT(*) FILTER (WHERE bid_outcome = 'won')::bigint as winning_citations,
+      COUNT(*) FILTER (WHERE bid_outcome = 'lost')::bigint as losing_citations,
+      COUNT(*) FILTER (WHERE bid_outcome IS NULL
+                        OR bid_outcome NOT IN ('won', 'lost', 'withdrawn'))::bigint as pending_citations,
+      CASE
+        WHEN COUNT(*) FILTER (WHERE bid_outcome IN ('won', 'lost')) > 0 THEN
+          ROUND(
+            COUNT(*) FILTER (WHERE bid_outcome = 'won')::numeric /
+            COUNT(*) FILTER (WHERE bid_outcome IN ('won', 'lost'))::numeric,
+            2
+          )
+        ELSE 0
+      END as win_rate,
+      COUNT(DISTINCT content_item_id)::bigint as unique_items_cited,
+      COUNT(DISTINCT project_id)::bigint as unique_bids
+    FROM citation_detail
+    GROUP BY primary_domain
+  ),
+  overall AS (
+    SELECT
+      'overall'::text as scope,
+      COUNT(*)::bigint as total_citations,
+      COUNT(*) FILTER (WHERE bid_outcome = 'won')::bigint as winning_citations,
+      COUNT(*) FILTER (WHERE bid_outcome = 'lost')::bigint as losing_citations,
+      COUNT(*) FILTER (WHERE bid_outcome IS NULL
+                        OR bid_outcome NOT IN ('won', 'lost', 'withdrawn'))::bigint as pending_citations,
+      CASE
+        WHEN COUNT(*) FILTER (WHERE bid_outcome IN ('won', 'lost')) > 0 THEN
+          ROUND(
+            COUNT(*) FILTER (WHERE bid_outcome = 'won')::numeric /
+            COUNT(*) FILTER (WHERE bid_outcome IN ('won', 'lost'))::numeric,
+            2
+          )
+        ELSE 0
+      END as win_rate,
+      COUNT(DISTINCT content_item_id)::bigint as unique_items_cited,
+      COUNT(DISTINCT project_id)::bigint as unique_bids
+    FROM citation_detail
+  )
+  SELECT * FROM overall
+  UNION ALL
+  SELECT * FROM domain_stats
+  ORDER BY scope;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_aggregate_win_rate_stats"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."get_all_tag_counts"() RETURNS TABLE("tag" "text", "count" bigint, "source" "text")
     LANGUAGE "sql" STABLE
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
   SELECT unnest(user_tags) AS tag, COUNT(*) AS count, 'user'::TEXT AS source
   FROM content_items
@@ -627,9 +965,9 @@ $$;
 ALTER FUNCTION "public"."get_all_tag_counts"() OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."get_audit_content_items"("p_domain" "text" DEFAULT NULL::"text", "p_limit" integer DEFAULT 500) RETURNS TABLE("id" "uuid", "title" "text", "suggested_title" "text", "content_type" "text", "primary_domain" "text", "content_length" integer, "ai_summary" "text", "ai_keywords" "text"[], "classification_confidence" double precision, "freshness" "text")
+CREATE OR REPLACE FUNCTION "public"."get_audit_content_items"("p_domain" "text" DEFAULT NULL::"text", "p_limit" integer DEFAULT 500) RETURNS TABLE("id" "uuid", "title" "text", "suggested_title" "text", "content_type" "text", "primary_domain" "text", "content_length" integer, "summary" "text", "ai_keywords" "text"[], "classification_confidence" double precision, "freshness" "text")
     LANGUAGE "sql" STABLE
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
   SELECT
     ci.id,
@@ -638,7 +976,7 @@ CREATE OR REPLACE FUNCTION "public"."get_audit_content_items"("p_domain" "text" 
     ci.content_type,
     ci.primary_domain,
     COALESCE(char_length(ci.content), 0)::int AS content_length,
-    ci.ai_summary,
+    ci.summary,
     ci.ai_keywords,
     ci.classification_confidence,
     ci.freshness
@@ -667,7 +1005,7 @@ ALTER FUNCTION "public"."get_author_analysis"("limit_count" integer) OWNER TO "p
 
 CREATE OR REPLACE FUNCTION "public"."get_bid_question_stats_batch"("p_project_ids" "uuid"[]) RETURNS TABLE("project_id" "uuid", "total_questions" bigint, "strong_match_count" bigint, "partial_match_count" bigint, "needs_sme_count" bigint, "no_content_count" bigint, "unmatched_count" bigint, "drafted_count" bigint, "complete_count" bigint)
     LANGUAGE "sql" STABLE SECURITY DEFINER
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
   SELECT
     bq.project_id,
@@ -690,7 +1028,7 @@ ALTER FUNCTION "public"."get_bid_question_stats_batch"("p_project_ids" "uuid"[])
 
 CREATE OR REPLACE FUNCTION "public"."get_bid_summary"("bid_workspace_id" "uuid") RETURNS json
     LANGUAGE "sql" STABLE SECURITY DEFINER
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
   SELECT json_build_object(
     'workspace_id', bid_workspace_id,
@@ -782,9 +1120,9 @@ $$;
 ALTER FUNCTION "public"."get_content_owner_stats"() OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."get_content_win_rate"("p_content_item_id" "uuid") RETURNS TABLE("total_citations" bigint, "winning_citations" bigint, "win_rate" numeric)
+CREATE OR REPLACE FUNCTION "public"."get_content_win_rate"("p_content_item_id" "uuid") RETURNS TABLE("total_citations" bigint, "winning_citations" bigint, "losing_citations" bigint, "pending_citations" bigint, "win_rate" numeric)
     LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
 BEGIN
   RETURN QUERY
@@ -803,9 +1141,16 @@ BEGIN
   SELECT
     COUNT(*)::bigint as total_citations,
     COUNT(*) FILTER (WHERE bid_outcome = 'won')::bigint as winning_citations,
+    COUNT(*) FILTER (WHERE bid_outcome = 'lost')::bigint as losing_citations,
+    COUNT(*) FILTER (WHERE bid_outcome IS NULL
+                      OR bid_outcome NOT IN ('won', 'lost', 'withdrawn'))::bigint as pending_citations,
     CASE
-      WHEN COUNT(*) > 0 THEN
-        ROUND((COUNT(*) FILTER (WHERE bid_outcome = 'won'))::numeric / COUNT(*)::numeric, 2)
+      WHEN COUNT(*) FILTER (WHERE bid_outcome IN ('won', 'lost')) > 0 THEN
+        ROUND(
+          COUNT(*) FILTER (WHERE bid_outcome = 'won')::numeric /
+          COUNT(*) FILTER (WHERE bid_outcome IN ('won', 'lost'))::numeric,
+          2
+        )
       ELSE 0
     END as win_rate
   FROM citation_outcomes;
@@ -895,6 +1240,106 @@ $$;
 ALTER FUNCTION "public"."get_coverage_summary"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."get_dashboard_attention_counts"("p_user_id" "uuid", "p_role" "text" DEFAULT 'viewer'::"text") RETURNS json
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
+    SET "search_path" TO 'public', 'extensions'
+    AS $$
+DECLARE
+  result json;
+  v_governance_review_count integer := 0;
+  v_unverified_count integer;
+  v_quality_flag_count integer := 0;
+  v_stale_count integer;
+  v_expired_count integer;
+  v_fresh_count integer;
+  v_aging_count integer;
+  v_unread_notification_count integer;
+  v_expiring_content_date_count integer;
+  v_coverage_gap_count integer;
+BEGIN
+  -- Governance review count (editors + admins only)
+  IF p_role IN ('admin', 'editor') THEN
+    SELECT COUNT(*) INTO v_governance_review_count
+    FROM content_items
+    WHERE archived_at IS NULL
+      AND governance_review_status = 'pending';
+
+    -- Quality flag count (editors + admins only)
+    SELECT COUNT(DISTINCT content_item_id) INTO v_quality_flag_count
+    FROM ingestion_quality_log iql
+    JOIN content_items ci ON iql.content_item_id = ci.id
+    WHERE iql.resolved = FALSE
+      AND iql.content_item_id IS NOT NULL
+      AND ci.archived_at IS NULL;
+  END IF;
+
+  -- Unverified count
+  SELECT COUNT(*) INTO v_unverified_count
+  FROM content_items
+  WHERE archived_at IS NULL
+    AND verified_at IS NULL;
+
+  -- Freshness breakdown (single scan)
+  SELECT
+    COUNT(*) FILTER (WHERE freshness = 'fresh'),
+    COUNT(*) FILTER (WHERE freshness = 'aging'),
+    COUNT(*) FILTER (WHERE freshness = 'stale'),
+    COUNT(*) FILTER (WHERE freshness = 'expired')
+  INTO v_fresh_count, v_aging_count, v_stale_count, v_expired_count
+  FROM content_items
+  WHERE archived_at IS NULL
+    AND freshness IS NOT NULL;
+
+  -- Unread notifications
+  SELECT COUNT(*) INTO v_unread_notification_count
+  FROM notifications
+  WHERE user_id = p_user_id
+    AND dismissed_at IS NULL
+    AND read_at IS NULL
+    AND (expires_at IS NULL OR expires_at > NOW());
+
+  -- Expiring content dates (within 30 days)
+  SELECT COUNT(*) INTO v_expiring_content_date_count
+  FROM content_items
+  WHERE archived_at IS NULL
+    AND expiry_date IS NOT NULL
+    AND expiry_date <= NOW() + INTERVAL '30 days';
+
+  -- Coverage gaps: active subtopics with zero content items
+  SELECT COUNT(*) INTO v_coverage_gap_count
+  FROM taxonomy_subtopics ts
+  WHERE ts.is_active = TRUE
+    AND NOT EXISTS (
+      SELECT 1 FROM content_items ci
+      WHERE ci.primary_subtopic = ts.name
+        AND ci.archived_at IS NULL
+    );
+
+  SELECT json_build_object(
+    'governance_review_count', v_governance_review_count,
+    'unverified_count', v_unverified_count,
+    'quality_flag_count', v_quality_flag_count,
+    'stale_content_count', v_stale_count,
+    'expired_content_count', v_expired_count,
+    'expiring_content_date_count', v_expiring_content_date_count,
+    'unread_notification_count', v_unread_notification_count,
+    'coverage_gap_count', v_coverage_gap_count,
+    'freshness_summary', json_build_object(
+      'fresh', v_fresh_count,
+      'aging', v_aging_count,
+      'stale', v_stale_count,
+      'expired', v_expired_count
+    )
+  ) INTO result;
+
+  RETURN result;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_dashboard_attention_counts"("p_user_id" "uuid", "p_role" "text") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."get_document_version_chain"("p_document_id" "uuid") RETURNS TABLE("id" "uuid", "filename" "text", "original_filename" "text", "mime_type" character varying, "file_size" integer, "content_hash" "text", "version" integer, "parent_id" "uuid", "storage_path" "text", "status" character varying, "uploaded_by" "uuid", "created_at" timestamp with time zone, "content_item_count" bigint)
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO 'public', 'extensions'
@@ -961,9 +1406,201 @@ $$;
 ALTER FUNCTION "public"."get_domain_subtopic_counts"() OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."feed_sources" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "workspace_id" "uuid" NOT NULL,
+    "name" "text" NOT NULL,
+    "url" "text" NOT NULL,
+    "source_type" character varying DEFAULT 'rss'::character varying NOT NULL,
+    "polling_interval_minutes" integer DEFAULT 30 NOT NULL,
+    "last_polled_at" timestamp with time zone,
+    "last_polled_status" character varying,
+    "last_polled_error" "text",
+    "etag" "text",
+    "last_modified" "text",
+    "consecutive_failures" integer DEFAULT 0 NOT NULL,
+    "article_count" integer DEFAULT 0 NOT NULL,
+    "is_active" boolean DEFAULT true NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "created_by" "uuid",
+    CONSTRAINT "feed_sources_last_polled_status_check" CHECK ((("last_polled_status")::"text" = ANY ((ARRAY['success'::character varying, 'error'::character varying, 'timeout'::character varying, 'not_modified'::character varying])::"text"[]))),
+    CONSTRAINT "feed_sources_source_type_check" CHECK ((("source_type")::"text" = ANY ((ARRAY['rss'::character varying, 'web'::character varying, 'api'::character varying])::"text"[])))
+);
+
+
+ALTER TABLE "public"."feed_sources" OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_due_feed_sources"("max_sources" integer DEFAULT 5) RETURNS SETOF "public"."feed_sources"
+    LANGUAGE "sql" STABLE
+    SET "search_path" TO 'public', 'extensions'
+    AS $$
+  SELECT *
+  FROM feed_sources
+  WHERE is_active = true
+    AND consecutive_failures < 10
+    AND (
+      last_polled_at IS NULL
+      OR last_polled_at + (
+        polling_interval_minutes * POWER(2, LEAST(consecutive_failures, 6))
+        || ' minutes'
+      )::interval < now()
+    )
+  ORDER BY last_polled_at ASC NULLS FIRST
+  LIMIT max_sources;
+$$;
+
+
+ALTER FUNCTION "public"."get_due_feed_sources"("max_sources" integer) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_entity_co_occurrence"("p_limit" integer DEFAULT 20, "p_min_count" integer DEFAULT 2, "p_entity_type" "text" DEFAULT NULL::"text") RETURNS TABLE("entity_a" "text", "type_a" "text", "entity_b" "text", "type_b" "text", "shared_count" bigint)
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO 'public', 'extensions'
+    AS $$
+  WITH filtered_mentions AS (
+    -- Deduplicate: one row per (canonical_name, content_item_id)
+    SELECT DISTINCT ON (canonical_name, content_item_id)
+      canonical_name,
+      COALESCE(entity_type_override, entity_type) AS effective_type,
+      content_item_id
+    FROM entity_mentions
+    WHERE (p_entity_type IS NULL OR entity_type = p_entity_type
+           OR entity_type_override = p_entity_type)
+  ),
+  pairs AS (
+    SELECT
+      LEAST(a.canonical_name, b.canonical_name) AS entity_a,
+      CASE WHEN a.canonical_name < b.canonical_name THEN a.effective_type
+           ELSE b.effective_type END AS type_a,
+      GREATEST(a.canonical_name, b.canonical_name) AS entity_b,
+      CASE WHEN a.canonical_name < b.canonical_name THEN b.effective_type
+           ELSE a.effective_type END AS type_b,
+      a.content_item_id
+    FROM filtered_mentions a
+    JOIN filtered_mentions b
+      ON a.content_item_id = b.content_item_id
+      AND a.canonical_name < b.canonical_name
+  )
+  SELECT
+    p.entity_a,
+    p.type_a,
+    p.entity_b,
+    p.type_b,
+    COUNT(DISTINCT p.content_item_id) AS shared_count
+  FROM pairs p
+  GROUP BY p.entity_a, p.type_a, p.entity_b, p.type_b
+  HAVING COUNT(DISTINCT p.content_item_id) >= p_min_count
+  ORDER BY shared_count DESC
+  LIMIT LEAST(p_limit, 50);
+$$;
+
+
+ALTER FUNCTION "public"."get_entity_co_occurrence"("p_limit" integer, "p_min_count" integer, "p_entity_type" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_entity_list_aggregated"("p_type" "text" DEFAULT NULL::"text", "p_search" "text" DEFAULT NULL::"text", "p_variants_only" boolean DEFAULT false, "p_type_conflicts" boolean DEFAULT false, "p_limit" integer DEFAULT 50, "p_offset" integer DEFAULT 0) RETURNS json
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
+    SET "search_path" TO 'public', 'extensions'
+    AS $$
+DECLARE
+  result json;
+BEGIN
+  WITH entity_agg AS (
+    SELECT
+      em.canonical_name,
+      COALESCE(
+        MAX(em.entity_type_override),
+        MAX(em.entity_type)
+      ) AS effective_type,
+      COUNT(*) AS mention_count,
+      COUNT(DISTINCT em.entity_name) AS variant_count,
+      array_agg(DISTINCT em.entity_name) AS variant_names,
+      -- types_seen_count: deduplicated count across both entity_type and
+      -- entity_type_override columns. Uses a subquery to UNION the two sources
+      -- and COUNT(DISTINCT), matching the JS code's Set-based deduplication.
+      (SELECT COUNT(DISTINCT t) FROM (
+        SELECT entity_type AS t FROM entity_mentions WHERE canonical_name = em.canonical_name
+        UNION
+        SELECT entity_type_override FROM entity_mentions WHERE canonical_name = em.canonical_name AND entity_type_override IS NOT NULL
+      ) sub) AS types_seen_count,
+      array_agg(DISTINCT em.entity_type) ||
+        array_agg(DISTINCT em.entity_type_override) FILTER (WHERE em.entity_type_override IS NOT NULL) AS types_seen_raw
+    FROM entity_mentions em
+    WHERE
+      (p_type IS NULL OR em.entity_type = p_type
+       OR (em.entity_type_override IS NOT NULL AND em.entity_type_override = p_type)
+       OR (em.entity_type_override IS NULL AND em.entity_type = p_type))
+      AND (p_search IS NULL OR em.canonical_name ILIKE '%' || p_search || '%')
+    GROUP BY em.canonical_name
+  ),
+  filtered AS (
+    SELECT *
+    FROM entity_agg ea
+    WHERE
+      (NOT p_variants_only OR ea.variant_count > 1)
+      AND (NOT p_type_conflicts OR ea.types_seen_count > 1)
+  ),
+  with_rels AS (
+    SELECT
+      f.*,
+      COALESCE(rc.rel_count, 0) AS relationship_count
+    FROM filtered f
+    LEFT JOIN (
+      SELECT entity_name, COUNT(*) AS rel_count
+      FROM (
+        SELECT source_entity AS entity_name FROM entity_relationships
+        WHERE source_entity IN (SELECT canonical_name FROM filtered)
+        UNION ALL
+        SELECT target_entity AS entity_name FROM entity_relationships
+        WHERE target_entity IN (SELECT canonical_name FROM filtered)
+      ) combined
+      GROUP BY entity_name
+    ) rc ON rc.entity_name = f.canonical_name
+  ),
+  total_count AS (
+    SELECT COUNT(*) AS cnt FROM with_rels
+  ),
+  paged AS (
+    SELECT *
+    FROM with_rels
+    ORDER BY mention_count DESC
+    LIMIT p_limit
+    OFFSET p_offset
+  )
+  SELECT json_build_object(
+    'entities', (
+      SELECT COALESCE(json_agg(json_build_object(
+        'canonical_name', p.canonical_name,
+        'entity_type', p.effective_type,
+        'mention_count', p.mention_count,
+        'variant_count', p.variant_count,
+        'variant_names', p.variant_names,
+        'relationship_count', p.relationship_count,
+        'has_type_conflict', (p.types_seen_count > 1),
+        'types_seen', (
+          SELECT array_agg(DISTINCT t)
+          FROM unnest(p.types_seen_raw) AS t
+          WHERE t IS NOT NULL
+        )
+      ) ORDER BY p.mention_count DESC), '[]'::json)
+      FROM paged p
+    ),
+    'total', (SELECT cnt FROM total_count)
+  ) INTO result;
+
+  RETURN result;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_entity_list_aggregated"("p_type" "text", "p_search" "text", "p_variants_only" boolean, "p_type_conflicts" boolean, "p_limit" integer, "p_offset" integer) OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."get_entity_name_counts"() RETURNS TABLE("canonical_name" "text", "mention_count" bigint)
     LANGUAGE "sql" STABLE SECURITY DEFINER
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
   SELECT canonical_name, count(*) as mention_count
   FROM entity_mentions
@@ -978,7 +1615,7 @@ ALTER FUNCTION "public"."get_entity_name_counts"() OWNER TO "postgres";
 
 CREATE OR REPLACE FUNCTION "public"."get_entity_relationships_rpc"("p_entity_name" "text") RETURNS TABLE("source_entity" "text", "relationship_type" "text", "target_entity" "text", "source_item_id" "uuid", "confidence" numeric)
     LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
 BEGIN
   RETURN QUERY
@@ -1005,7 +1642,7 @@ COMMENT ON FUNCTION "public"."get_entity_relationships_rpc"("p_entity_name" "tex
 
 CREATE OR REPLACE FUNCTION "public"."get_entity_summary"("p_entity_name" "text" DEFAULT NULL::"text", "p_entity_type" "text" DEFAULT NULL::"text", "p_limit" integer DEFAULT NULL::integer) RETURNS TABLE("canonical_name" "text", "entity_type" "text", "mention_count" bigint, "content_item_ids" "uuid"[], "related_entities" "jsonb")
     LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
 BEGIN
   RETURN QUERY
@@ -1091,6 +1728,33 @@ $$;
 ALTER FUNCTION "public"."get_filter_counts"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."get_filter_ratio_trend"("p_workspace_id" "uuid", "p_granularity" "text" DEFAULT 'daily'::"text", "p_period_days" integer DEFAULT 90) RETURNS TABLE("date" "text", "total" bigint, "passed" bigint, "filtered" bigint, "ratio" integer)
+    LANGUAGE "sql" STABLE
+    SET "search_path" TO 'public', 'extensions'
+    AS $$
+  SELECT
+    CASE WHEN p_granularity = 'weekly'
+         THEN date_trunc('week', ingested_at)::date::text
+         ELSE date_trunc('day', ingested_at)::date::text
+    END AS date,
+    COUNT(*)::bigint AS total,
+    COUNT(*) FILTER (WHERE passed)::bigint AS passed,
+    COUNT(*) FILTER (WHERE NOT passed)::bigint AS filtered,
+    CASE WHEN COUNT(*) > 0
+         THEN ROUND(COUNT(*) FILTER (WHERE passed)::numeric / COUNT(*) * 100)::int
+         ELSE 0
+    END AS ratio
+  FROM feed_articles
+  WHERE workspace_id = p_workspace_id
+    AND ingested_at >= now() - (p_period_days || ' days')::interval
+  GROUP BY 1
+  ORDER BY 1 ASC;
+$$;
+
+
+ALTER FUNCTION "public"."get_filter_ratio_trend"("p_workspace_id" "uuid", "p_granularity" "text", "p_period_days" integer) OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."get_freshness_breakdown"() RETURNS TABLE("freshness" "text", "count" bigint)
     LANGUAGE "plpgsql"
     SET "search_path" TO 'public', 'extensions'
@@ -1111,7 +1775,7 @@ ALTER FUNCTION "public"."get_freshness_breakdown"() OWNER TO "postgres";
 
 CREATE OR REPLACE FUNCTION "public"."get_grouped_activity_feed"("p_limit" integer DEFAULT 10, "p_is_admin" boolean DEFAULT false, "p_before" timestamp with time zone DEFAULT NULL::timestamp with time zone) RETURNS TABLE("id" "uuid", "type" "text", "entity_type" "text", "entity_id" "uuid", "summary" "text", "user_id" "uuid", "latest_at" timestamp with time zone, "earliest_at" timestamp with time zone, "event_count" integer)
     LANGUAGE "sql" STABLE SECURITY DEFINER
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
   WITH history_events AS (
     -- Each content_history row is an individual event (no grouping).
@@ -1198,7 +1862,7 @@ ALTER FUNCTION "public"."get_grouped_activity_feed"("p_limit" integer, "p_is_adm
 
 CREATE OR REPLACE FUNCTION "public"."get_guide_content"("p_guide_slug" "text") RETURNS TABLE("section_id" "uuid", "section_name" "text", "section_description" "text", "section_order" integer, "expected_layer" "text", "subtopic_filter" "text", "is_required" boolean, "content_id" "uuid", "content_title" "text", "content_type" "text", "content_layer" "text", "content_brief" "text", "content_freshness" "text", "content_verified_at" timestamp with time zone, "content_captured_date" timestamp with time zone)
     LANGUAGE "sql" STABLE SECURITY DEFINER
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
   SELECT
     gs.id AS section_id,
@@ -1211,7 +1875,7 @@ CREATE OR REPLACE FUNCTION "public"."get_guide_content"("p_guide_slug" "text") R
     ci.id AS content_id,
     ci.title AS content_title,
     ci.content_type,
-    ci.metadata->>'layer' AS content_layer,
+    ci.layer AS content_layer,
     ci.brief AS content_brief,
     ci.freshness AS content_freshness,
     ci.verified_at AS content_verified_at,
@@ -1219,16 +1883,17 @@ CREATE OR REPLACE FUNCTION "public"."get_guide_content"("p_guide_slug" "text") R
   FROM guide_sections gs
   JOIN guides g ON g.id = gs.guide_id
   LEFT JOIN content_items ci ON (
-    -- Match by domain (from guide) + subtopic (from section)
-    ci.primary_domain = g.domain_filter
-    AND (gs.subtopic_filter IS NULL OR ci.primary_subtopic = gs.subtopic_filter)
+    -- Match by domain (primary OR secondary) from guide
+    (ci.primary_domain = g.domain_filter OR ci.secondary_domain = g.domain_filter)
+    AND (gs.subtopic_filter IS NULL OR ci.primary_subtopic = gs.subtopic_filter
+         OR ci.secondary_subtopic = gs.subtopic_filter)
     -- Match by layer if section specifies one
-    AND (gs.expected_layer IS NULL OR ci.metadata->>'layer' = gs.expected_layer)
+    AND (gs.expected_layer IS NULL OR ci.layer = gs.expected_layer)
     -- Match by content type if section specifies one
     AND (gs.content_type_filter IS NULL OR ci.content_type = gs.content_type_filter)
-    -- Exclude drafts (correction 4: proper NULL handling)
+    -- Exclude drafts
     AND (ci.governance_review_status IS NULL OR ci.governance_review_status != 'draft')
-    -- Exclude archived items (correction 3)
+    -- Exclude archived items
     AND ci.archived_at IS NULL
   )
   WHERE g.slug = p_guide_slug
@@ -1241,7 +1906,7 @@ ALTER FUNCTION "public"."get_guide_content"("p_guide_slug" "text") OWNER TO "pos
 
 CREATE OR REPLACE FUNCTION "public"."get_guide_coverage"() RETURNS TABLE("guide_id" "uuid", "guide_name" "text", "guide_slug" "text", "guide_type" "text", "domain_filter" "text", "section_id" "uuid", "section_name" "text", "section_order" integer, "expected_layer" "text", "is_required" boolean, "content_count" bigint, "fresh_count" bigint, "stale_count" bigint)
     LANGUAGE "sql" STABLE SECURITY DEFINER
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
   SELECT
     g.id AS guide_id,
@@ -1260,11 +1925,17 @@ CREATE OR REPLACE FUNCTION "public"."get_guide_coverage"() RETURNS TABLE("guide_
   FROM guides g
   JOIN guide_sections gs ON gs.guide_id = g.id
   LEFT JOIN content_items ci ON (
-    ci.primary_domain = g.domain_filter
-    AND (gs.subtopic_filter IS NULL OR ci.primary_subtopic = gs.subtopic_filter)
-    AND (gs.expected_layer IS NULL OR ci.metadata->>'layer' = gs.expected_layer)
+    -- Match by domain (primary OR secondary) from guide
+    (ci.primary_domain = g.domain_filter OR ci.secondary_domain = g.domain_filter)
+    AND (gs.subtopic_filter IS NULL OR ci.primary_subtopic = gs.subtopic_filter
+         OR ci.secondary_subtopic = gs.subtopic_filter)
+    -- Match by layer if section specifies one
+    AND (gs.expected_layer IS NULL OR ci.layer = gs.expected_layer)
+    -- Match by content type if section specifies one
     AND (gs.content_type_filter IS NULL OR ci.content_type = gs.content_type_filter)
+    -- Exclude archived items
     AND ci.archived_at IS NULL
+    -- Exclude drafts
     AND (ci.governance_review_status IS NULL OR ci.governance_review_status != 'draft')
   )
   WHERE g.is_published = true
@@ -1289,8 +1960,10 @@ CREATE TABLE IF NOT EXISTS "public"."workspaces" (
     "domain_metadata" "jsonb" DEFAULT '{}'::"jsonb",
     "is_archived" boolean DEFAULT false,
     "status" character varying(30),
+    "created_by" "uuid",
+    "updated_by" "uuid",
     CONSTRAINT "projects_status_check" CHECK ((("status" IS NULL) OR (("status")::"text" = ANY (ARRAY['draft'::"text", 'questions_extracted'::"text", 'matching'::"text", 'drafting'::"text", 'in_review'::"text", 'ready_for_export'::"text", 'submitted'::"text", 'won'::"text", 'lost'::"text", 'withdrawn'::"text"])))),
-    CONSTRAINT "workspaces_type_check" CHECK (("type" = ANY (ARRAY['bid'::"text", 'kb_section'::"text"])))
+    CONSTRAINT "workspaces_type_check" CHECK (("type" = ANY (ARRAY['bid'::"text", 'kb_section'::"text", 'intelligence'::"text"])))
 );
 
 
@@ -1299,7 +1972,7 @@ ALTER TABLE "public"."workspaces" OWNER TO "postgres";
 
 CREATE OR REPLACE FUNCTION "public"."get_item_workspaces"("p_item_id" "uuid") RETURNS SETOF "public"."workspaces"
     LANGUAGE "sql" STABLE SECURITY DEFINER
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
   SELECT w.* FROM workspaces w
   JOIN content_item_workspaces ciw ON ciw.workspace_id = w.id
@@ -1329,6 +2002,7 @@ ALTER FUNCTION "public"."get_items_with_quality_flags"() OWNER TO "postgres";
 
 CREATE OR REPLACE FUNCTION "public"."get_popular_keywords"("limit_count" integer DEFAULT 20) RETURNS TABLE("keyword" "text", "count" bigint)
     LANGUAGE "sql"
+    SET "search_path" TO 'public', 'extensions'
     AS $$
   SELECT NULL::TEXT, 0::BIGINT WHERE FALSE;
 $$;
@@ -1361,6 +2035,7 @@ ALTER FUNCTION "public"."get_quality_issue_counts"() OWNER TO "postgres";
 
 CREATE OR REPLACE FUNCTION "public"."get_reading_patterns"("days_back" integer DEFAULT 30) RETURNS json
     LANGUAGE "plpgsql"
+    SET "search_path" TO 'public', 'extensions'
     AS $$
 BEGIN
   RETURN '{}'::json;
@@ -1369,6 +2044,134 @@ $$;
 
 
 ALTER FUNCTION "public"."get_reading_patterns"("days_back" integer) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_review_breakdown_stats"() RETURNS json
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO 'public', 'extensions'
+    AS $$
+  SELECT json_build_object(
+    -- Top-level counts
+    'total', (
+      SELECT COUNT(*)
+      FROM content_items
+      WHERE archived_at IS NULL
+        AND (governance_review_status IS NULL OR governance_review_status != 'draft')
+    ),
+    'verified', (
+      SELECT COUNT(*)
+      FROM content_items
+      WHERE archived_at IS NULL
+        AND verified_at IS NOT NULL
+        AND (governance_review_status IS NULL OR governance_review_status != 'draft')
+    ),
+    'flagged', (
+      SELECT COUNT(DISTINCT content_item_id)
+      FROM ingestion_quality_log
+      WHERE flag_type = 'review_needed'
+        AND resolved = FALSE
+        AND content_item_id IS NOT NULL
+    ),
+    'draft', (
+      SELECT COUNT(*)
+      FROM content_items
+      WHERE archived_at IS NULL
+        AND governance_review_status = 'draft'
+    ),
+
+    -- Breakdown by domain
+    'by_domain', (
+      SELECT COALESCE(json_object_agg(domain, json_build_object(
+        'total', total,
+        'verified', verified
+      )), '{}'::json)
+      FROM (
+        SELECT
+          COALESCE(primary_domain, 'Uncategorised') AS domain,
+          COUNT(*) AS total,
+          COUNT(*) FILTER (WHERE verified_at IS NOT NULL) AS verified
+        FROM content_items
+        WHERE archived_at IS NULL
+          AND (governance_review_status IS NULL OR governance_review_status != 'draft')
+        GROUP BY COALESCE(primary_domain, 'Uncategorised')
+      ) d
+    ),
+
+    -- Breakdown by content type
+    'by_content_type', (
+      SELECT COALESCE(json_object_agg(ct, json_build_object(
+        'total', total,
+        'verified', verified
+      )), '{}'::json)
+      FROM (
+        SELECT
+          COALESCE(content_type, 'other') AS ct,
+          COUNT(*) AS total,
+          COUNT(*) FILTER (WHERE verified_at IS NOT NULL) AS verified
+        FROM content_items
+        WHERE archived_at IS NULL
+          AND (governance_review_status IS NULL OR governance_review_status != 'draft')
+        GROUP BY COALESCE(content_type, 'other')
+      ) t
+    ),
+
+    -- Breakdown by source_file
+    'by_source_file', (
+      SELECT COALESCE(json_object_agg(sf, json_build_object(
+        'total', total,
+        'verified', verified
+      )), '{}'::json)
+      FROM (
+        SELECT
+          source_file AS sf,
+          COUNT(*) AS total,
+          COUNT(*) FILTER (WHERE verified_at IS NOT NULL) AS verified
+        FROM content_items
+        WHERE archived_at IS NULL
+          AND source_file IS NOT NULL
+          AND (governance_review_status IS NULL OR governance_review_status != 'draft')
+        GROUP BY source_file
+      ) s
+    ),
+
+    -- Breakdown by source_document (with document name from source_documents)
+    'by_source_document', (
+      SELECT COALESCE(json_object_agg(doc_id, json_build_object(
+        'total', total,
+        'verified', verified,
+        'name', doc_name
+      )), '{}'::json)
+      FROM (
+        SELECT
+          ci.source_document_id::text AS doc_id,
+          COUNT(*) AS total,
+          COUNT(*) FILTER (WHERE ci.verified_at IS NOT NULL) AS verified,
+          COALESCE(sd.filename, LEFT(ci.source_document_id::text, 8)) AS doc_name
+        FROM content_items ci
+        LEFT JOIN source_documents sd ON sd.id = ci.source_document_id
+        WHERE ci.archived_at IS NULL
+          AND ci.source_document_id IS NOT NULL
+          AND (ci.governance_review_status IS NULL OR ci.governance_review_status != 'draft')
+        GROUP BY ci.source_document_id, sd.filename
+      ) sd
+    )
+  );
+$$;
+
+
+ALTER FUNCTION "public"."get_review_breakdown_stats"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_source_documents"() RETURNS TABLE("source_document" "text", "count" bigint)
+    LANGUAGE "sql" STABLE
+    SET "search_path" TO 'public', 'extensions'
+    AS $$
+    SELECT source_document, COUNT(*) as count FROM content_items
+    WHERE source_document IS NOT NULL GROUP BY source_document ORDER BY count DESC;
+$$;
+
+
+ALTER FUNCTION "public"."get_source_documents"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."get_tag_counts_filtered"("p_type" "text", "p_min_count" integer DEFAULT 1, "p_search" "text" DEFAULT NULL::"text", "p_limit" integer DEFAULT 50, "p_offset" integer DEFAULT 0) RETURNS TABLE("tag" "text", "count" bigint, "source" "text", "total_count" bigint)
@@ -1487,7 +2290,7 @@ ALTER FUNCTION "public"."get_tags_by_domain"("p_type" "text") OWNER TO "postgres
 
 CREATE OR REPLACE FUNCTION "public"."get_template_summary"("p_template_id" "uuid") RETURNS TABLE("total_fields" bigint, "confirmed_fields" bigint, "rejected_fields" bigint, "unmapped_fields" bigint, "unreviewed_fields" bigint, "filled_fields" bigint, "pending_fields" bigint, "skipped_fields" bigint, "failed_fields" bigint)
     LANGUAGE "sql" STABLE
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
     SELECT
         COUNT(*)::BIGINT AS total_fields,
@@ -1509,6 +2312,7 @@ ALTER FUNCTION "public"."get_template_summary"("p_template_id" "uuid") OWNER TO 
 
 CREATE OR REPLACE FUNCTION "public"."get_top_authors"("limit_count" integer DEFAULT 10) RETURNS TABLE("author" "text", "count" bigint)
     LANGUAGE "sql"
+    SET "search_path" TO 'public', 'extensions'
     AS $$
   SELECT NULL::TEXT, 0::BIGINT WHERE FALSE;
 $$;
@@ -1519,6 +2323,7 @@ ALTER FUNCTION "public"."get_top_authors"("limit_count" integer) OWNER TO "postg
 
 CREATE OR REPLACE FUNCTION "public"."get_topic_deep_dive"("topic_name" "text") RETURNS json
     LANGUAGE "plpgsql"
+    SET "search_path" TO 'public', 'extensions'
     AS $$
 BEGIN
   RETURN '{}'::json;
@@ -1564,6 +2369,7 @@ ALTER FUNCTION "public"."get_trend_analysis"("days_back" integer, "bucket_size" 
 
 CREATE OR REPLACE FUNCTION "public"."get_unique_authors"() RETURNS TABLE("author" "text", "count" bigint)
     LANGUAGE "sql"
+    SET "search_path" TO 'public', 'extensions'
     AS $$
   SELECT NULL::TEXT, 0::BIGINT WHERE FALSE;
 $$;
@@ -1572,9 +2378,53 @@ $$;
 ALTER FUNCTION "public"."get_unique_authors"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."get_user_display_names"("user_ids" "uuid"[]) RETURNS TABLE("user_id" "uuid", "display_name" "text", "email" "text")
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public', 'extensions', 'auth'
+    AS $$
+BEGIN
+  -- IMPORTANT: project `req.id` (not `u.id`) for the user_id output column
+  -- AND for the CASE branch. With LEFT JOIN, `u.id` is NULL when the
+  -- requested UUID has no row in auth.users — without this discipline:
+  --   1. Unknown UUIDs would return user_id = NULL and silently disappear
+  --      at the TypeScript wrapper layer (`.set(row.user_id, ...)` would
+  --      collide or drop them).
+  --   2. The PIPELINE_SYSTEM_USER_ID branch would fail to fire when the
+  --      pipeline user is missing from auth.users (the exact snapshot-
+  --      cloned-env scenario WP-4 contemplates).
+  -- See verification finding C-1 in docs/audits/s156-spec-verification.md.
+  RETURN QUERY
+  SELECT
+    req.id AS user_id,
+    CASE
+      WHEN req.id = 'a0000000-0000-4000-8000-000000000001'::uuid
+        THEN 'Pipeline (system)'::text
+      ELSE COALESCE(
+        NULLIF(ur.display_name, ''),
+        NULLIF((u.raw_user_meta_data->>'display_name')::text, ''),
+        NULLIF((u.raw_user_meta_data->>'full_name')::text, ''),
+        NULLIF(split_part(u.email, '@', 1), ''),
+        'A team member'
+      )
+    END AS display_name,
+    u.email::text AS email
+  FROM unnest(user_ids) AS req(id)
+  LEFT JOIN auth.users u ON u.id = req.id
+  LEFT JOIN public.user_roles ur ON ur.user_id = req.id;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_user_display_names"("user_ids" "uuid"[]) OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."get_user_display_names"("user_ids" "uuid"[]) IS 'S156 WP-2: batch-resolve user UUIDs to display names. Returns one row per input UUID. Pipeline service account gets the hardcoded label ''Pipeline (system)''. Used by /api/users/display-names, /api/content-owners/stats, and lib/reorient.ts:resolveDisplayNames.';
+
+
+
 CREATE OR REPLACE FUNCTION "public"."get_user_role"() RETURNS "text"
     LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
 DECLARE
     user_role TEXT;
@@ -1593,6 +2443,7 @@ ALTER FUNCTION "public"."get_user_role"() OWNER TO "postgres";
 
 CREATE OR REPLACE FUNCTION "public"."get_user_tag_counts"() RETURNS TABLE("tag" "text", "count" bigint)
     LANGUAGE "sql"
+    SET "search_path" TO 'public', 'extensions'
     AS $$
   SELECT NULL::TEXT, 0::BIGINT WHERE FALSE;
 $$;
@@ -1601,9 +2452,33 @@ $$;
 ALTER FUNCTION "public"."get_user_tag_counts"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."get_verification_stats"() RETURNS json
+    LANGUAGE "plpgsql" STABLE
+    SET "search_path" TO 'public', 'extensions'
+    AS $$
+DECLARE
+    result JSON;
+BEGIN
+    SELECT json_build_object(
+        'total', COUNT(*),
+        'verified', COUNT(*) FILTER (WHERE verified_at IS NOT NULL),
+        'unverified', COUNT(*) FILTER (WHERE verified_at IS NULL),
+        'recent_7d', COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days'),
+        'domains', (SELECT json_agg(json_build_object('domain', primary_domain, 'count', cnt))
+            FROM (SELECT primary_domain, COUNT(*) as cnt FROM content_items
+              WHERE primary_domain IS NOT NULL GROUP BY primary_domain ORDER BY cnt DESC) d)
+    ) INTO result FROM content_items;
+    RETURN result;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_verification_stats"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."get_workspace_counts"() RETURNS "jsonb"
     LANGUAGE "sql" STABLE SECURITY DEFINER
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
   SELECT COALESCE(jsonb_object_agg(name, cnt), '{}'::jsonb)
   FROM (
@@ -1622,7 +2497,7 @@ ALTER FUNCTION "public"."get_workspace_counts"() OWNER TO "postgres";
 
 CREATE OR REPLACE FUNCTION "public"."get_workspace_item_counts"() RETURNS TABLE("workspace_id" "uuid", "item_count" bigint, "last_activity" timestamp with time zone)
     LANGUAGE "sql" STABLE SECURITY DEFINER
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
   SELECT w.id AS workspace_id, COUNT(ciw.id) AS item_count,
     MAX(ciw.assigned_at) AS last_activity
@@ -1637,7 +2512,7 @@ ALTER FUNCTION "public"."get_workspace_item_counts"() OWNER TO "postgres";
 
 CREATE OR REPLACE FUNCTION "public"."handle_new_user_role"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
 BEGIN
   INSERT INTO public.user_roles (user_id, role)
@@ -1651,8 +2526,8 @@ $$;
 ALTER FUNCTION "public"."handle_new_user_role"() OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."hybrid_search"("query_embedding" "public"."vector", "query_text" "text", "similarity_threshold" double precision DEFAULT 0.3, "limit_count" integer DEFAULT 20) RETURNS TABLE("id" "uuid", "title" "text", "suggested_title" "text", "ai_summary" "text", "primary_domain" character varying, "primary_subtopic" character varying, "content_type" character varying, "platform" character varying, "author_name" character varying, "source_domain" character varying, "thumbnail_url" "text", "captured_date" timestamp with time zone, "ai_keywords" "text"[], "classification_confidence" numeric, "priority" character varying, "metadata" "jsonb", "similarity" numeric, "snippet" "text", "created_by" "uuid")
-    LANGUAGE "plpgsql"
+CREATE OR REPLACE FUNCTION "public"."hybrid_search"("query_embedding" "public"."vector", "query_text" "text" DEFAULT ''::"text", "similarity_threshold" numeric DEFAULT 0.3, "limit_count" integer DEFAULT 10) RETURNS TABLE("id" "uuid", "title" "text", "suggested_title" "text", "summary" "text", "primary_domain" "text", "primary_subtopic" "text", "content_type" "text", "platform" "text", "author_name" "text", "source_domain" "text", "thumbnail_url" "text", "captured_date" timestamp with time zone, "ai_keywords" "text"[], "classification_confidence" numeric, "priority" "text", "metadata" "jsonb", "similarity" numeric, "snippet" "text", "created_by" "uuid", "verified_at" timestamp with time zone, "verified_by" "uuid")
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
     SET "search_path" TO 'public', 'extensions'
     AS $$
 DECLARE
@@ -1661,8 +2536,7 @@ DECLARE
 BEGIN
   RETURN QUERY
   WITH win_stats AS (
-    SELECT
-      cc.content_item_id,
+    SELECT cc.content_item_id,
       COUNT(DISTINCT cc.bid_response_id)::integer AS total_citations,
       COUNT(DISTINCT cc.bid_response_id) FILTER (
         WHERE w.domain_metadata->>'outcome' = 'won'
@@ -1674,10 +2548,10 @@ BEGIN
     GROUP BY cc.content_item_id
   )
   SELECT
-    ci.id, ci.title, ci.suggested_title, ci.ai_summary,
-    ci.primary_domain, ci.primary_subtopic, ci.content_type, ci.platform,
-    ci.author_name, ci.source_domain, ci.thumbnail_url, ci.captured_date,
-    ci.ai_keywords, ci.classification_confidence, ci.priority, ci.metadata,
+    ci.id, ci.title, ci.suggested_title, ci.summary,
+    ci.primary_domain::text, ci.primary_subtopic::text, ci.content_type::text, ci.platform::text,
+    ci.author_name::text, ci.source_domain::text, ci.thumbnail_url, ci.captured_date,
+    ci.ai_keywords, ci.classification_confidence, ci.priority::text, ci.metadata,
     LEAST(1.0, (
       (1 - (ci.embedding <=> query_embedding)) * 0.70
       + CASE WHEN ci.suggested_title ILIKE '%' || query_text || '%' THEN 0.15
@@ -1686,7 +2560,7 @@ BEGIN
       + CASE WHEN query_text = ANY(ci.ai_keywords) THEN 0.10
              WHEN EXISTS (SELECT 1 FROM unnest(ci.ai_keywords) AS kw WHERE kw ILIKE '%' || query_text || '%') THEN 0.05
              ELSE 0.0 END
-      + CASE WHEN ci.ai_summary ILIKE '%' || query_text || '%' THEN 0.03 ELSE 0.0 END
+      + CASE WHEN ci.summary ILIKE '%' || query_text || '%' THEN 0.03 ELSE 0.0 END
       + CASE WHEN ci.author_name ILIKE '%' || query_text || '%' THEN 0.02 ELSE 0.0 END
       + CASE WHEN ci.captured_date IS NOT NULL AND ci.captured_date > NOW() - INTERVAL '30 days'
              THEN 0.05 * (1.0 - EXTRACT(EPOCH FROM (NOW() - ci.captured_date)) / (30.0 * 86400.0))
@@ -1701,20 +2575,31 @@ BEGIN
          AND position(lower(query_text) IN lower(ci.content)) > 0
          THEN substring(ci.content FROM greatest(1, position(lower(query_text) IN lower(ci.content)) - 80) FOR 200)
          ELSE NULL END AS snippet,
-    ci.created_by
+    ci.created_by,
+    ci.verified_at,
+    ci.verified_by
   FROM content_items ci
   LEFT JOIN win_stats ws ON ws.content_item_id = ci.id
   WHERE ci.embedding IS NOT NULL
     AND ci.archived_at IS NULL
-    AND (1 - (ci.embedding <=> query_embedding)) > similarity_threshold
     AND (ci.governance_review_status IS NULL OR ci.governance_review_status != 'draft')
+    AND (
+      (1 - (ci.embedding <=> query_embedding)) > similarity_threshold
+      OR (
+        query_text IS NOT NULL AND query_text != '' AND (
+          ci.suggested_title ILIKE '%' || query_text || '%'
+          OR ci.title ILIKE '%' || query_text || '%'
+          OR ci.content ILIKE '%' || query_text || '%'
+        )
+      )
+    )
   ORDER BY similarity DESC
   LIMIT limit_count;
 END;
 $$;
 
 
-ALTER FUNCTION "public"."hybrid_search"("query_embedding" "public"."vector", "query_text" "text", "similarity_threshold" double precision, "limit_count" integer) OWNER TO "postgres";
+ALTER FUNCTION "public"."hybrid_search"("query_embedding" "public"."vector", "query_text" "text", "similarity_threshold" numeric, "limit_count" integer) OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."hybrid_search"("query_text" "text", "query_embedding" "public"."vector", "match_count" integer DEFAULT 20, "full_text_weight" double precision DEFAULT 1.0, "semantic_weight" double precision DEFAULT 1.0, "rrf_k" integer DEFAULT 50) RETURNS TABLE("id" "uuid", "title" "text", "body" "text", "content_type" "text", "domain" "text", "created_by" "uuid", "similarity" double precision, "rank" double precision)
@@ -1731,7 +2616,7 @@ ALTER FUNCTION "public"."hybrid_search"("query_text" "text", "query_embedding" "
 
 CREATE OR REPLACE FUNCTION "public"."merge_entities"("p_source_names" "text"[], "p_target_name" "text", "p_entity_type" "text") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
 DECLARE
   v_mentions_updated integer := 0;
@@ -1809,6 +2694,7 @@ COMMENT ON FUNCTION "public"."merge_entities"("p_source_names" "text"[], "p_targ
 
 CREATE OR REPLACE FUNCTION "public"."merge_item_metadata"("item_id" "uuid", "new_metadata" "jsonb") RETURNS "jsonb"
     LANGUAGE "plpgsql"
+    SET "search_path" TO 'public', 'extensions'
     AS $$
 BEGIN
   RETURN '{}'::jsonb;
@@ -1821,7 +2707,7 @@ ALTER FUNCTION "public"."merge_item_metadata"("item_id" "uuid", "new_metadata" "
 
 CREATE OR REPLACE FUNCTION "public"."merge_tags"("p_source" "text", "p_target" "text", "p_type" "text") RETURNS integer
     LANGUAGE "plpgsql"
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
 DECLARE
   affected INTEGER;
@@ -1942,7 +2828,7 @@ ALTER FUNCTION "public"."recalculate_all_freshness"() OWNER TO "postgres";
 
 CREATE OR REPLACE FUNCTION "public"."rename_tag"("p_old" "text", "p_new" "text", "p_type" "text") RETURNS integer
     LANGUAGE "plpgsql"
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
 DECLARE
   affected INTEGER;
@@ -1972,6 +2858,7 @@ ALTER FUNCTION "public"."rename_tag"("p_old" "text", "p_new" "text", "p_type" "t
 
 CREATE OR REPLACE FUNCTION "public"."run_quality_scan"("p_batch_name" "text" DEFAULT ('quality-scan-'::"text" || "to_char"("now"(), 'YYYYMMDD-HH24MISS'::"text"))) RETURNS TABLE("issue_type" "text", "items_found" bigint, "flags_created" bigint)
     LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public', 'extensions'
     AS $$
 DECLARE
     v_missing_domain BIGINT := 0;
@@ -2095,13 +2982,13 @@ $$;
 ALTER FUNCTION "public"."run_quality_scan"("p_batch_name" "text") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."search_content"("query_embedding" "public"."vector", "similarity_threshold" double precision DEFAULT 0.3, "limit_count" integer DEFAULT 50) RETURNS TABLE("id" "uuid", "title" "text", "suggested_title" "text", "ai_summary" "text", "primary_domain" character varying, "primary_subtopic" character varying, "content_type" character varying, "platform" character varying, "author_name" character varying, "source_domain" character varying, "thumbnail_url" "text", "captured_date" timestamp with time zone, "ai_keywords" "text"[], "classification_confidence" numeric, "similarity" numeric)
+CREATE OR REPLACE FUNCTION "public"."search_content"("query_embedding" "public"."vector", "similarity_threshold" double precision DEFAULT 0.3, "limit_count" integer DEFAULT 50) RETURNS TABLE("id" "uuid", "title" "text", "suggested_title" "text", "summary" "text", "primary_domain" character varying, "primary_subtopic" character varying, "content_type" character varying, "platform" character varying, "author_name" character varying, "source_domain" character varying, "thumbnail_url" "text", "captured_date" timestamp with time zone, "ai_keywords" "text"[], "classification_confidence" numeric, "similarity" numeric)
     LANGUAGE "plpgsql"
     SET "search_path" TO 'public', 'extensions'
     AS $$
 BEGIN
   RETURN QUERY
-  SELECT ci.id, ci.title, ci.suggested_title, ci.ai_summary,
+  SELECT ci.id, ci.title, ci.suggested_title, ci.summary,
     ci.primary_domain, ci.primary_subtopic, ci.content_type, ci.platform,
     ci.author_name, ci.source_domain, ci.thumbnail_url, ci.captured_date,
     ci.ai_keywords, ci.classification_confidence,
@@ -2117,6 +3004,64 @@ $$;
 
 
 ALTER FUNCTION "public"."search_content"("query_embedding" "public"."vector", "similarity_threshold" double precision, "limit_count" integer) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."search_content"("query_embedding" "public"."vector", "similarity_threshold" numeric DEFAULT 0.35, "limit_count" integer DEFAULT 30) RETURNS TABLE("id" "uuid", "title" "text", "suggested_title" "text", "summary" "text", "primary_domain" character varying, "primary_subtopic" character varying, "content_type" character varying, "platform" character varying, "author_name" character varying, "source_domain" character varying, "thumbnail_url" "text", "captured_date" timestamp with time zone, "ai_keywords" "text"[], "classification_confidence" numeric, "similarity" numeric)
+    LANGUAGE "sql" STABLE
+    SET "search_path" TO 'public', 'extensions'
+    AS $$
+SELECT ci.id, ci.title, ci.suggested_title, ci.summary,
+  ci.primary_domain, ci.primary_subtopic, ci.content_type, ci.platform,
+  ci.author_name, ci.source_domain, ci.thumbnail_url, ci.captured_date,
+  ci.ai_keywords, ci.classification_confidence,
+  (1 - (ci.embedding <=> query_embedding))::NUMERIC(4, 3) AS similarity
+FROM content_items ci
+WHERE ci.embedding IS NOT NULL
+  AND (1 - (ci.embedding <=> query_embedding)) > similarity_threshold
+ORDER BY ci.embedding <=> query_embedding
+LIMIT limit_count;
+$$;
+
+
+ALTER FUNCTION "public"."search_content"("query_embedding" "public"."vector", "similarity_threshold" numeric, "limit_count" integer) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."search_content_chunks"("query_embedding" "public"."vector", "similarity_threshold" numeric DEFAULT 0.3, "limit_count" integer DEFAULT 20, "filter_content_item_id" "uuid" DEFAULT NULL::"uuid") RETURNS TABLE("chunk_id" "uuid", "content_item_id" "uuid", "item_title" "text", "item_suggested_title" "text", "item_content_type" "text", "item_primary_domain" "text", "item_primary_subtopic" "text", "heading_text" "text", "heading_level" smallint, "heading_path" "text"[], "content" "text", "position" smallint, "char_count" integer, "word_count" integer, "similarity" numeric)
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
+    SET "search_path" TO 'public', 'extensions'
+    AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    cc.id AS chunk_id,
+    cc.content_item_id,
+    ci.title AS item_title,
+    ci.suggested_title AS item_suggested_title,
+    ci.content_type::text AS item_content_type,
+    ci.primary_domain::text AS item_primary_domain,
+    ci.primary_subtopic::text AS item_primary_subtopic,
+    cc.heading_text,
+    cc.heading_level,
+    cc.heading_path,
+    cc.content,
+    cc.position AS "position",
+    cc.char_count,
+    cc.word_count,
+    (1 - (cc.embedding <=> query_embedding))::NUMERIC(4, 3) AS similarity
+  FROM content_chunks cc
+  JOIN content_items ci ON ci.id = cc.content_item_id
+  WHERE cc.embedding IS NOT NULL
+    AND ci.archived_at IS NULL
+    AND (ci.governance_review_status IS NULL OR ci.governance_review_status != 'draft')
+    AND (1 - (cc.embedding <=> query_embedding)) > similarity_threshold
+    AND (filter_content_item_id IS NULL OR cc.content_item_id = filter_content_item_id)
+  ORDER BY similarity DESC
+  LIMIT limit_count;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."search_content_chunks"("query_embedding" "public"."vector", "similarity_threshold" numeric, "limit_count" integer, "filter_content_item_id" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."search_for_bid_response"("query_embedding" "public"."vector", "query_text" "text" DEFAULT ''::"text", "limit_count" integer DEFAULT 10) RETURNS TABLE("id" "uuid", "title" "text", "content" "text", "brief" "text", "detail" "text", "primary_domain" character varying, "primary_subtopic" character varying, "content_type" character varying, "ai_keywords" "text"[], "similarity" numeric)
@@ -2183,9 +3128,23 @@ $$;
 ALTER FUNCTION "public"."search_for_bid_response"("question_id" "uuid", "query_embedding" "public"."vector", "match_count" integer, "domain_filter" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."set_classification_disputes_updated_at"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    SET "search_path" TO 'public', 'extensions'
+    AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."set_classification_disputes_updated_at"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."set_config"("setting" "text", "value" "text", "is_local" boolean) RETURNS "text"
     LANGUAGE "sql" SECURITY DEFINER
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
   SELECT pg_catalog.set_config(setting, value, is_local);
 $$;
@@ -2196,7 +3155,7 @@ ALTER FUNCTION "public"."set_config"("setting" "text", "value" "text", "is_local
 
 CREATE OR REPLACE FUNCTION "public"."snapshot_bid_response_history"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
 BEGIN
   IF OLD.response_text IS DISTINCT FROM NEW.response_text
@@ -2224,7 +3183,7 @@ ALTER FUNCTION "public"."snapshot_bid_response_history"() OWNER TO "postgres";
 
 CREATE OR REPLACE FUNCTION "public"."suggest_tags"("p_prefix" "text", "p_type" "text") RETURNS TABLE("tag" "text", "count" bigint)
     LANGUAGE "sql" STABLE
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
   SELECT tag, COUNT(*) AS count
   FROM (
@@ -2251,7 +3210,7 @@ ALTER FUNCTION "public"."suggest_tags"("p_prefix" "text", "p_type" "text") OWNER
 
 CREATE OR REPLACE FUNCTION "public"."sync_bid_status_to_jsonb"() RETURNS "trigger"
     LANGUAGE "plpgsql"
-    SET "search_path" TO 'public'
+    SET "search_path" TO 'public', 'extensions'
     AS $$
 BEGIN
   IF NEW.type = 'bid' AND NEW.status IS NOT NULL THEN
@@ -2325,6 +3284,7 @@ ALTER FUNCTION "public"."update_citation_count"() OWNER TO "postgres";
 
 CREATE OR REPLACE FUNCTION "public"."update_updated_at_column"() RETURNS "trigger"
     LANGUAGE "plpgsql"
+    SET "search_path" TO 'public', 'extensions'
     AS $$
 BEGIN
   NEW.updated_at = now();
@@ -2419,6 +3379,95 @@ CREATE TABLE IF NOT EXISTS "public"."bid_responses" (
 ALTER TABLE "public"."bid_responses" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."classification_disputes" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "content_item_id" "uuid" NOT NULL,
+    "disputed_by" "uuid",
+    "disputed_field" "text" NOT NULL,
+    "current_value" "jsonb" DEFAULT 'null'::"jsonb" NOT NULL,
+    "proposed_value" "jsonb",
+    "rationale" "text" NOT NULL,
+    "status" "text" DEFAULT 'open'::"text" NOT NULL,
+    "resolved_by" "uuid",
+    "resolved_at" timestamp with time zone,
+    "resolution_notes" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "classification_disputes_disputed_field_check" CHECK (("disputed_field" = ANY (ARRAY['primary_domain'::"text", 'primary_subtopic'::"text", 'secondary_domain'::"text", 'secondary_subtopic'::"text", 'primary_layer'::"text", 'content_type'::"text", 'entity_type'::"text"]))),
+    CONSTRAINT "classification_disputes_rationale_check" CHECK (("length"(TRIM(BOTH FROM "rationale")) >= 10)),
+    CONSTRAINT "classification_disputes_resolution_complete" CHECK (((("status" = 'open'::"text") AND ("resolved_by" IS NULL) AND ("resolved_at" IS NULL)) OR (("status" = ANY (ARRAY['resolved'::"text", 'rejected'::"text"])) AND ("resolved_by" IS NOT NULL) AND ("resolved_at" IS NOT NULL)))),
+    CONSTRAINT "classification_disputes_status_check" CHECK (("status" = ANY (ARRAY['open'::"text", 'resolved'::"text", 'rejected'::"text"])))
+);
+
+
+ALTER TABLE "public"."classification_disputes" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."classification_disputes" IS 'User/admin disputes of classification decisions. Wave A stub tab; Wave C HITL workflow.';
+
+
+
+COMMENT ON COLUMN "public"."classification_disputes"."disputed_by" IS 'Disputing user. Nullable so auth.users purges succeed; NULL indicates a purged user. INSERT RLS enforces non-null at write time.';
+
+
+
+COMMENT ON COLUMN "public"."classification_disputes"."current_value" IS 'JSONB snapshot of the disputed classification at dispute-creation time; shape depends on disputed_field.';
+
+
+
+COMMENT ON COLUMN "public"."classification_disputes"."proposed_value" IS 'Optional user-proposed correction; JSONB shape mirrors current_value.';
+
+
+
+CREATE TABLE IF NOT EXISTS "public"."company_profiles" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "name" "text" NOT NULL,
+    "slug" character varying NOT NULL,
+    "description" "text",
+    "website_url" "text",
+    "sectors" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
+    "services" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
+    "certifications" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
+    "geographic_scope" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
+    "competitors" "jsonb" DEFAULT '[]'::"jsonb" NOT NULL,
+    "target_customers" "text",
+    "value_proposition" "text",
+    "key_topics" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
+    "is_active" boolean DEFAULT true NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "created_by" "uuid",
+    "company_embedding" "text"
+);
+
+
+ALTER TABLE "public"."company_profiles" OWNER TO "postgres";
+
+
+COMMENT ON COLUMN "public"."company_profiles"."company_embedding" IS 'JSON-serialised embedding vector for relevance pre-filter caching. Set to null when profile is updated to trigger re-generation.';
+
+
+
+CREATE TABLE IF NOT EXISTS "public"."content_chunks" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "content_item_id" "uuid" NOT NULL,
+    "heading_text" "text",
+    "heading_level" smallint,
+    "heading_path" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
+    "content" "text" NOT NULL,
+    "position" smallint NOT NULL,
+    "parent_chunk_id" "uuid",
+    "embedding" "public"."vector"(1024),
+    "char_count" integer DEFAULT 0 NOT NULL,
+    "word_count" integer DEFAULT 0 NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."content_chunks" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."content_citations" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "content_item_id" "uuid" NOT NULL,
@@ -2447,11 +3496,16 @@ CREATE TABLE IF NOT EXISTS "public"."content_history" (
     "change_type" character varying,
     "created_by" "uuid",
     "created_at" timestamp with time zone DEFAULT "now"(),
+    "change_reason" "text",
     CONSTRAINT "content_history_change_type_check" CHECK ((("change_type")::"text" = ANY (ARRAY['create'::"text", 'edit'::"text", 'ai_update'::"text", 'import'::"text", 'merge'::"text", 'rollback'::"text", 'archive'::"text", 'delete'::"text", 'metadata_change'::"text", 'owner_change'::"text"])))
 );
 
 
 ALTER TABLE "public"."content_history" OWNER TO "postgres";
+
+
+COMMENT ON COLUMN "public"."content_history"."change_reason" IS 'Why this version was created (S152B WP3). Free-text convention; see docs/reference/data-entry-points.md for the canonical enum-like values (initial_ingest, reclassify, entity_enrichment, template_coverage_refresh, source_document_accepted, owner_change, rollback_to_v<N>). NULL is acceptable when the caller did not supply a reason (e.g. admin UI edit with empty reason field) — distinct from change_summary which captures WHAT changed, and from change_type which categorises the change.';
+
 
 
 CREATE TABLE IF NOT EXISTS "public"."content_item_workspaces" (
@@ -2521,15 +3575,38 @@ COMMENT ON COLUMN "public"."coverage_targets"."target_value" IS 'Numeric target 
 
 CREATE TABLE IF NOT EXISTS "public"."digests" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "title" "text" NOT NULL,
-    "body" "text",
-    "item_ids" "uuid"[] DEFAULT '{}'::"uuid"[],
+    "digest_type" character varying DEFAULT 'weekly'::character varying NOT NULL,
+    "period_start" timestamp with time zone NOT NULL,
+    "period_end" timestamp with time zone NOT NULL,
+    "item_count" integer DEFAULT 0 NOT NULL,
+    "domain_summaries" "jsonb" DEFAULT '[]'::"jsonb" NOT NULL,
+    "theme_clusters" "jsonb" DEFAULT '[]'::"jsonb" NOT NULL,
+    "narrative_summary" "text",
+    "generated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "generated_by" character varying DEFAULT 'claude-sonnet'::character varying NOT NULL,
+    "tokens_used" integer,
     "metadata" "jsonb" DEFAULT '{}'::"jsonb",
-    "created_at" timestamp with time zone DEFAULT "now"()
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "item_ids" "uuid"[] DEFAULT '{}'::"uuid"[],
+    "created_by" "uuid"
 );
 
 
 ALTER TABLE "public"."digests" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."entity_aliases" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "alias" character varying NOT NULL,
+    "canonical" character varying NOT NULL,
+    "category" character varying DEFAULT 'client'::character varying NOT NULL,
+    "is_active" boolean DEFAULT true NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "entity_aliases_category_check" CHECK ((("category")::"text" = ANY (ARRAY[('client'::character varying)::"text", ('generic'::character varying)::"text"])))
+);
+
+
+ALTER TABLE "public"."entity_aliases" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."entity_mentions" (
@@ -2545,7 +3622,7 @@ CREATE TABLE IF NOT EXISTS "public"."entity_mentions" (
     "normalisation_version" integer DEFAULT 1,
     "metadata" "jsonb" DEFAULT '{}'::"jsonb",
     CONSTRAINT "entity_mentions_confidence_check" CHECK ((("confidence" >= (0)::numeric) AND ("confidence" <= (1)::numeric))),
-    CONSTRAINT "entity_mentions_entity_type_check" CHECK (("entity_type" = ANY (ARRAY['organisation'::"text", 'certification'::"text", 'regulation'::"text", 'framework'::"text", 'capability'::"text", 'person'::"text", 'technology'::"text", 'project'::"text", 'sector'::"text", 'product'::"text"])))
+    CONSTRAINT "entity_mentions_entity_type_check" CHECK (("entity_type" = ANY (ARRAY['organisation'::"text", 'certification'::"text", 'regulation'::"text", 'framework'::"text", 'capability'::"text", 'person'::"text", 'technology'::"text", 'project'::"text", 'sector'::"text", 'product'::"text", 'standard'::"text", 'methodology'::"text"])))
 );
 
 
@@ -2612,6 +3689,73 @@ COMMENT ON COLUMN "public"."entity_relationships"."source_item_id" IS 'Content i
 
 
 
+CREATE TABLE IF NOT EXISTS "public"."feed_articles" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "workspace_id" "uuid" NOT NULL,
+    "feed_source_id" "uuid" NOT NULL,
+    "external_url" "text" NOT NULL,
+    "external_id" "text",
+    "title" "text" NOT NULL,
+    "raw_content" "text",
+    "ai_summary" "text",
+    "relevance_score" numeric(4,3),
+    "relevance_category" character varying,
+    "relevance_reasoning" "text",
+    "matched_categories" "text"[],
+    "passed" boolean DEFAULT false NOT NULL,
+    "prompt_version_id" "uuid",
+    "content_item_id" "uuid",
+    "published_at" timestamp with time zone,
+    "ingested_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "extraction_method" character varying,
+    CONSTRAINT "feed_articles_extraction_method_check" CHECK ((("extraction_method")::"text" = ANY ((ARRAY['rss_content'::character varying, 'fetch'::character varying, 'jina_reader'::character varying, 'firecrawl'::character varying, 'summary_fallback'::character varying])::"text"[]))),
+    CONSTRAINT "feed_articles_relevance_category_check" CHECK ((("relevance_category")::"text" = ANY ((ARRAY['high'::character varying, 'medium'::character varying, 'low'::character varying, 'irrelevant'::character varying])::"text"[]))),
+    CONSTRAINT "feed_articles_relevance_score_check" CHECK ((("relevance_score" >= (0)::numeric) AND ("relevance_score" <= (1)::numeric)))
+);
+
+
+ALTER TABLE "public"."feed_articles" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."feed_flags" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "feed_article_id" "uuid" NOT NULL,
+    "flag_type" character varying NOT NULL,
+    "flagged_by" "uuid" NOT NULL,
+    "notes" "text",
+    "resolved" boolean DEFAULT false NOT NULL,
+    "resolved_at" timestamp with time zone,
+    "resolved_by" "uuid",
+    "resolved_notes" "text",
+    "resolution_type" character varying,
+    "prompt_version_id" "uuid",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "feed_flags_flag_type_check" CHECK ((("flag_type")::"text" = ANY ((ARRAY['false_positive'::character varying, 'false_negative'::character varying])::"text"[]))),
+    CONSTRAINT "feed_flags_resolution_type_check" CHECK ((("resolution_type")::"text" = ANY ((ARRAY['addressed'::character varying, 'dismissed'::character varying])::"text"[])))
+);
+
+
+ALTER TABLE "public"."feed_flags" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."feed_prompts" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "workspace_id" "uuid" NOT NULL,
+    "prompt_text" "text" NOT NULL,
+    "version" integer NOT NULL,
+    "is_active" boolean DEFAULT false NOT NULL,
+    "change_notes" "text",
+    "performance_snapshot" "jsonb",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "created_by" "uuid"
+);
+
+
+ALTER TABLE "public"."feed_prompts" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."governance_config" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "domain" "text" NOT NULL,
@@ -2644,7 +3788,8 @@ CREATE TABLE IF NOT EXISTS "public"."guide_sections" (
     "display_order" integer DEFAULT 0 NOT NULL,
     "is_required" boolean DEFAULT true NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "parent_section_id" "uuid"
 );
 
 
@@ -2749,27 +3894,6 @@ CREATE TABLE IF NOT EXISTS "public"."pipeline_runs" (
 ALTER TABLE "public"."pipeline_runs" OWNER TO "postgres";
 
 
-CREATE TABLE IF NOT EXISTS "public"."processing_queue" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "task_type" "text" NOT NULL,
-    "payload" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
-    "status" "text" DEFAULT 'pending'::"text",
-    "priority" integer DEFAULT 0,
-    "attempts" integer DEFAULT 0,
-    "max_attempts" integer DEFAULT 3,
-    "error_message" "text",
-    "created_at" timestamp with time zone DEFAULT "now"(),
-    "started_at" timestamp with time zone,
-    "completed_at" timestamp with time zone,
-    "result" "jsonb",
-    CONSTRAINT "processing_queue_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'processing'::"text", 'completed'::"text", 'failed'::"text", 'cancelled'::"text"]))),
-    CONSTRAINT "processing_queue_task_type_check" CHECK (("task_type" = ANY (ARRAY['embed'::"text", 'classify'::"text", 'extract_qa'::"text", 'summarise'::"text", 'validate'::"text", 'reprocess'::"text"])))
-);
-
-
-ALTER TABLE "public"."processing_queue" OWNER TO "postgres";
-
-
 CREATE OR REPLACE VIEW "public"."quality_issues_pending" AS
  SELECT "iql"."id",
     "iql"."content_item_id",
@@ -2824,6 +3948,25 @@ CREATE TABLE IF NOT EXISTS "public"."review_assignments" (
 ALTER TABLE "public"."review_assignments" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."si_processing_queue" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "workspace_id" "uuid" NOT NULL,
+    "feed_source_id" "uuid" NOT NULL,
+    "status" character varying DEFAULT 'pending'::character varying NOT NULL,
+    "started_at" timestamp with time zone,
+    "completed_at" timestamp with time zone,
+    "error_message" "text",
+    "articles_found" integer DEFAULT 0 NOT NULL,
+    "articles_new" integer DEFAULT 0 NOT NULL,
+    "articles_passed" integer DEFAULT 0 NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "si_processing_queue_status_check" CHECK ((("status")::"text" = ANY ((ARRAY['pending'::character varying, 'processing'::character varying, 'complete'::character varying, 'failed'::character varying])::"text"[])))
+);
+
+
+ALTER TABLE "public"."si_processing_queue" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."source_document_diffs" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "old_document_id" "uuid" NOT NULL,
@@ -2842,7 +3985,10 @@ CREATE TABLE IF NOT EXISTS "public"."source_document_diffs" (
     "reviewed_by" "uuid",
     "created_by" "uuid",
     "reviewer_note" "text",
+    "diff_mode" "text" DEFAULT 'qa'::"text" NOT NULL,
+    "section_header" "text",
     CONSTRAINT "different_documents" CHECK (("old_document_id" <> "new_document_id")),
+    CONSTRAINT "source_document_diffs_diff_mode_check" CHECK (("diff_mode" = ANY (ARRAY['qa'::"text", 'full_text'::"text"]))),
     CONSTRAINT "source_document_diffs_diff_type_check" CHECK (("diff_type" = ANY (ARRAY['added'::"text", 'removed'::"text", 'modified'::"text", 'unchanged'::"text"]))),
     CONSTRAINT "source_document_diffs_status_check" CHECK (("status" = ANY (ARRAY['pending_review'::"text", 'applied'::"text", 'dismissed'::"text"])))
 );
@@ -2871,6 +4017,14 @@ COMMENT ON COLUMN "public"."source_document_diffs"."reviewer_note" IS 'Free-text
 
 
 
+COMMENT ON COLUMN "public"."source_document_diffs"."diff_mode" IS 'Diff algorithm used: qa for Q&A pair matching, full_text for line-level text diff';
+
+
+
+COMMENT ON COLUMN "public"."source_document_diffs"."section_header" IS 'Section heading context for full-text diff entries';
+
+
+
 CREATE TABLE IF NOT EXISTS "public"."source_documents" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "filename" "text" NOT NULL,
@@ -2886,11 +4040,11 @@ CREATE TABLE IF NOT EXISTS "public"."source_documents" (
     "extraction_metadata" "jsonb" DEFAULT '{}'::"jsonb",
     "workspace_id" "uuid",
     "pipeline_run_id" "uuid",
-    "uploaded_by" "uuid" NOT NULL,
+    "uploaded_by" "uuid",
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "archived_at" timestamp with time zone,
     "archived_by" "uuid",
-    CONSTRAINT "source_documents_status_check" CHECK ((("status")::"text" = ANY ((ARRAY['uploaded'::character varying, 'processing'::character varying, 'processed'::character varying, 'failed'::character varying])::"text"[])))
+    CONSTRAINT "source_documents_status_check" CHECK ((("status")::"text" = ANY (ARRAY[('uploaded'::character varying)::"text", ('processing'::character varying)::"text", ('processed'::character varying)::"text", ('failed'::character varying)::"text"])))
 );
 
 
@@ -2912,7 +4066,9 @@ CREATE TABLE IF NOT EXISTS "public"."taxonomy_domains" (
     "recommended_by" "text",
     "recommended_at" timestamp with time zone,
     "accepted_at" timestamp with time zone,
-    "created_at" timestamp with time zone DEFAULT "now"()
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    "display_name" character varying(100),
+    "key_signal" "text"
 );
 
 
@@ -2930,7 +4086,8 @@ CREATE TABLE IF NOT EXISTS "public"."taxonomy_subtopics" (
     "recommended_by" "text",
     "recommended_at" timestamp with time zone,
     "accepted_at" timestamp with time zone,
-    "created_at" timestamp with time zone DEFAULT "now"()
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    "display_name" character varying(100)
 );
 
 
@@ -3061,7 +4218,7 @@ CREATE TABLE IF NOT EXISTS "public"."verification_history" (
     "note" "text",
     "performed_by" "uuid" NOT NULL,
     "performed_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "verification_history_action_type_check" CHECK ((("action_type")::"text" = ANY ((ARRAY['verify'::character varying, 'unverify'::character varying, 'flag'::character varying])::"text"[])))
+    CONSTRAINT "verification_history_action_type_check" CHECK ((("action_type")::"text" = ANY (ARRAY[('verify'::character varying)::"text", ('unverify'::character varying)::"text", ('flag'::character varying)::"text"])))
 );
 
 
@@ -3114,6 +4271,26 @@ ALTER TABLE ONLY "public"."bid_response_history"
 
 ALTER TABLE ONLY "public"."bid_responses"
     ADD CONSTRAINT "bid_responses_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."classification_disputes"
+    ADD CONSTRAINT "classification_disputes_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."company_profiles"
+    ADD CONSTRAINT "company_profiles_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."company_profiles"
+    ADD CONSTRAINT "company_profiles_slug_key" UNIQUE ("slug");
+
+
+
+ALTER TABLE ONLY "public"."content_chunks"
+    ADD CONSTRAINT "content_chunks_pkey" PRIMARY KEY ("id");
 
 
 
@@ -3172,6 +4349,16 @@ ALTER TABLE ONLY "public"."digests"
 
 
 
+ALTER TABLE ONLY "public"."entity_aliases"
+    ADD CONSTRAINT "entity_aliases_alias_unique" UNIQUE ("alias");
+
+
+
+ALTER TABLE ONLY "public"."entity_aliases"
+    ADD CONSTRAINT "entity_aliases_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."entity_mentions"
     ADD CONSTRAINT "entity_mentions_canonical_name_entity_type_content_item_id_key" UNIQUE ("canonical_name", "entity_type", "content_item_id");
 
@@ -3184,6 +4371,31 @@ ALTER TABLE ONLY "public"."entity_mentions"
 
 ALTER TABLE ONLY "public"."entity_relationships"
     ADD CONSTRAINT "entity_relationships_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."feed_articles"
+    ADD CONSTRAINT "feed_articles_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."feed_flags"
+    ADD CONSTRAINT "feed_flags_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."feed_prompts"
+    ADD CONSTRAINT "feed_prompts_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."feed_prompts"
+    ADD CONSTRAINT "feed_prompts_workspace_id_version_key" UNIQUE ("workspace_id", "version");
+
+
+
+ALTER TABLE ONLY "public"."feed_sources"
+    ADD CONSTRAINT "feed_sources_pkey" PRIMARY KEY ("id");
 
 
 
@@ -3257,6 +4469,11 @@ ALTER TABLE ONLY "public"."review_assignments"
 
 
 
+ALTER TABLE ONLY "public"."si_processing_queue"
+    ADD CONSTRAINT "si_processing_queue_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."source_document_diffs"
     ADD CONSTRAINT "source_document_diffs_pkey" PRIMARY KEY ("id");
 
@@ -3327,11 +4544,23 @@ ALTER TABLE ONLY "public"."verification_history"
 
 
 
+CREATE INDEX "idx_bid_questions_assigned_to" ON "public"."bid_questions" USING "btree" ("assigned_to");
+
+
+
+CREATE INDEX "idx_bid_questions_created_by" ON "public"."bid_questions" USING "btree" ("created_by");
+
+
+
 CREATE INDEX "idx_bid_questions_project" ON "public"."bid_questions" USING "btree" ("project_id");
 
 
 
 CREATE INDEX "idx_bid_questions_status" ON "public"."bid_questions" USING "btree" ("status");
+
+
+
+CREATE INDEX "idx_bid_questions_template_requirement_id" ON "public"."bid_questions" USING "btree" ("template_requirement_id");
 
 
 
@@ -3343,11 +4572,67 @@ CREATE INDEX "idx_bid_response_history_response" ON "public"."bid_response_histo
 
 
 
+CREATE INDEX "idx_bid_responses_approved_by" ON "public"."bid_responses" USING "btree" ("approved_by");
+
+
+
+CREATE INDEX "idx_bid_responses_drafted_by" ON "public"."bid_responses" USING "btree" ("drafted_by");
+
+
+
+CREATE INDEX "idx_bid_responses_last_edited_by" ON "public"."bid_responses" USING "btree" ("last_edited_by");
+
+
+
 CREATE INDEX "idx_bid_responses_overall_score" ON "public"."bid_responses" USING "btree" ("overall_score" DESC NULLS LAST) WHERE ("overall_score" IS NOT NULL);
 
 
 
 CREATE INDEX "idx_bid_responses_question" ON "public"."bid_responses" USING "btree" ("question_id", "version" DESC);
+
+
+
+CREATE INDEX "idx_classification_disputes_disputed_by" ON "public"."classification_disputes" USING "btree" ("disputed_by");
+
+
+
+CREATE INDEX "idx_classification_disputes_item" ON "public"."classification_disputes" USING "btree" ("content_item_id");
+
+
+
+CREATE INDEX "idx_classification_disputes_resolved_by" ON "public"."classification_disputes" USING "btree" ("resolved_by") WHERE ("resolved_by" IS NOT NULL);
+
+
+
+CREATE INDEX "idx_classification_disputes_status_created" ON "public"."classification_disputes" USING "btree" ("status", "created_at" DESC) WHERE ("status" = 'open'::"text");
+
+
+
+CREATE INDEX "idx_company_profiles_created_by" ON "public"."company_profiles" USING "btree" ("created_by");
+
+
+
+CREATE INDEX "idx_company_profiles_sectors" ON "public"."company_profiles" USING "gin" ("sectors");
+
+
+
+CREATE INDEX "idx_content_chunks_embedding" ON "public"."content_chunks" USING "hnsw" ("embedding" "public"."vector_cosine_ops") WITH ("m"='16', "ef_construction"='64');
+
+
+
+CREATE INDEX "idx_content_chunks_heading" ON "public"."content_chunks" USING "btree" ("heading_text") WHERE ("heading_text" IS NOT NULL);
+
+
+
+CREATE INDEX "idx_content_chunks_item" ON "public"."content_chunks" USING "btree" ("content_item_id");
+
+
+
+CREATE INDEX "idx_content_chunks_parent" ON "public"."content_chunks" USING "btree" ("parent_chunk_id") WHERE ("parent_chunk_id" IS NOT NULL);
+
+
+
+CREATE INDEX "idx_content_citations_created_by" ON "public"."content_citations" USING "btree" ("created_by");
 
 
 
@@ -3367,7 +4652,19 @@ CREATE INDEX "idx_content_items_archived" ON "public"."content_items" USING "btr
 
 
 
+CREATE INDEX "idx_content_items_archived_at" ON "public"."content_items" USING "btree" ("archived_at");
+
+
+
+CREATE INDEX "idx_content_items_archived_by" ON "public"."content_items" USING "btree" ("archived_by");
+
+
+
 CREATE INDEX "idx_content_items_content_owner_id" ON "public"."content_items" USING "btree" ("content_owner_id") WHERE ("content_owner_id" IS NOT NULL);
+
+
+
+CREATE INDEX "idx_content_items_content_text_hash" ON "public"."content_items" USING "btree" ("content_text_hash") WHERE ("content_text_hash" IS NOT NULL);
 
 
 
@@ -3376,6 +4673,10 @@ CREATE INDEX "idx_content_items_content_type" ON "public"."content_items" USING 
 
 
 CREATE INDEX "idx_content_items_created_at" ON "public"."content_items" USING "btree" ("created_at" DESC);
+
+
+
+CREATE INDEX "idx_content_items_created_by" ON "public"."content_items" USING "btree" ("created_by");
 
 
 
@@ -3388,6 +4689,14 @@ CREATE INDEX "idx_content_items_freshness" ON "public"."content_items" USING "bt
 
 
 CREATE INDEX "idx_content_items_governance" ON "public"."content_items" USING "btree" ("governance_review_status");
+
+
+
+CREATE INDEX "idx_content_items_governance_review_status" ON "public"."content_items" USING "btree" ("governance_review_status");
+
+
+
+CREATE INDEX "idx_content_items_governance_reviewer_id" ON "public"."content_items" USING "btree" ("governance_reviewer_id");
 
 
 
@@ -3411,7 +4720,7 @@ CREATE INDEX "idx_content_items_metadata_gin" ON "public"."content_items" USING 
 
 
 
-CREATE INDEX "idx_content_items_owner_freshness" ON "public"."content_items" USING "btree" ("content_owner_id", "freshness") WHERE (("content_owner_id" IS NOT NULL) AND (("freshness")::"text" = ANY ((ARRAY['stale'::character varying, 'expired'::character varying])::"text"[])));
+CREATE INDEX "idx_content_items_owner_freshness" ON "public"."content_items" USING "btree" ("content_owner_id", "freshness") WHERE (("content_owner_id" IS NOT NULL) AND (("freshness")::"text" = ANY (ARRAY[('stale'::character varying)::"text", ('expired'::character varying)::"text"])));
 
 
 
@@ -3428,6 +4737,10 @@ CREATE INDEX "idx_content_items_qa_type" ON "public"."content_items" USING "btre
 
 
 CREATE INDEX "idx_content_items_quality_score" ON "public"."content_items" USING "btree" ("quality_score") WHERE ("archived_at" IS NULL);
+
+
+
+CREATE INDEX "idx_content_items_secondary_domain" ON "public"."content_items" USING "btree" ("secondary_domain") WHERE ("secondary_domain" IS NOT NULL);
 
 
 
@@ -3452,6 +4765,34 @@ CREATE INDEX "idx_content_items_topic_id" ON "public"."content_items" USING "btr
 
 
 CREATE INDEX "idx_content_items_unverified" ON "public"."content_items" USING "btree" ("created_at" DESC) WHERE ("verified_at" IS NULL);
+
+
+
+CREATE INDEX "idx_content_items_verified_at" ON "public"."content_items" USING "btree" ("verified_at");
+
+
+
+CREATE INDEX "idx_content_items_verified_by" ON "public"."content_items" USING "btree" ("verified_by");
+
+
+
+CREATE INDEX "idx_content_templates_created_by" ON "public"."content_templates" USING "btree" ("created_by");
+
+
+
+CREATE INDEX "idx_coverage_targets_created_by" ON "public"."coverage_targets" USING "btree" ("created_by");
+
+
+
+CREATE INDEX "idx_coverage_targets_updated_by" ON "public"."coverage_targets" USING "btree" ("updated_by");
+
+
+
+CREATE INDEX "idx_digests_created_by" ON "public"."digests" USING "btree" ("created_by");
+
+
+
+CREATE INDEX "idx_entity_aliases_active" ON "public"."entity_aliases" USING "btree" ("alias") WHERE ("is_active" = true);
 
 
 
@@ -3491,6 +4832,86 @@ CREATE INDEX "idx_entity_relationships_type" ON "public"."entity_relationships" 
 
 
 
+CREATE INDEX "idx_feed_articles_content_item_id" ON "public"."feed_articles" USING "btree" ("content_item_id");
+
+
+
+CREATE UNIQUE INDEX "idx_feed_articles_dedup" ON "public"."feed_articles" USING "btree" ("workspace_id", "external_url");
+
+
+
+CREATE INDEX "idx_feed_articles_external_id" ON "public"."feed_articles" USING "btree" ("external_id") WHERE ("external_id" IS NOT NULL);
+
+
+
+CREATE INDEX "idx_feed_articles_external_url" ON "public"."feed_articles" USING "btree" ("external_url");
+
+
+
+CREATE INDEX "idx_feed_articles_passed" ON "public"."feed_articles" USING "btree" ("workspace_id") WHERE ("passed" = true);
+
+
+
+CREATE INDEX "idx_feed_articles_prompt_version_id" ON "public"."feed_articles" USING "btree" ("prompt_version_id");
+
+
+
+CREATE INDEX "idx_feed_articles_source" ON "public"."feed_articles" USING "btree" ("feed_source_id");
+
+
+
+CREATE INDEX "idx_feed_articles_workspace" ON "public"."feed_articles" USING "btree" ("workspace_id");
+
+
+
+CREATE INDEX "idx_feed_articles_workspace_ingested" ON "public"."feed_articles" USING "btree" ("workspace_id", "ingested_at");
+
+
+
+CREATE INDEX "idx_feed_flags_article" ON "public"."feed_flags" USING "btree" ("feed_article_id");
+
+
+
+CREATE INDEX "idx_feed_flags_flagged_by" ON "public"."feed_flags" USING "btree" ("flagged_by");
+
+
+
+CREATE INDEX "idx_feed_flags_prompt_version_id" ON "public"."feed_flags" USING "btree" ("prompt_version_id");
+
+
+
+CREATE INDEX "idx_feed_flags_resolved_by" ON "public"."feed_flags" USING "btree" ("resolved_by");
+
+
+
+CREATE INDEX "idx_feed_flags_unresolved" ON "public"."feed_flags" USING "btree" ("feed_article_id") WHERE ("resolved" = false);
+
+
+
+CREATE INDEX "idx_feed_prompts_active" ON "public"."feed_prompts" USING "btree" ("workspace_id") WHERE ("is_active" = true);
+
+
+
+CREATE INDEX "idx_feed_prompts_created_by" ON "public"."feed_prompts" USING "btree" ("created_by");
+
+
+
+CREATE INDEX "idx_feed_prompts_workspace" ON "public"."feed_prompts" USING "btree" ("workspace_id");
+
+
+
+CREATE INDEX "idx_feed_sources_active" ON "public"."feed_sources" USING "btree" ("workspace_id") WHERE ("is_active" = true);
+
+
+
+CREATE INDEX "idx_feed_sources_created_by" ON "public"."feed_sources" USING "btree" ("created_by");
+
+
+
+CREATE INDEX "idx_feed_sources_workspace" ON "public"."feed_sources" USING "btree" ("workspace_id");
+
+
+
 CREATE INDEX "idx_governance_config_created_by" ON "public"."governance_config" USING "btree" ("created_by");
 
 
@@ -3511,6 +4932,14 @@ CREATE INDEX "idx_guide_sections_order" ON "public"."guide_sections" USING "btre
 
 
 
+CREATE INDEX "idx_guide_sections_parent_section_id" ON "public"."guide_sections" USING "btree" ("parent_section_id") WHERE ("parent_section_id" IS NOT NULL);
+
+
+
+CREATE INDEX "idx_guides_created_by" ON "public"."guides" USING "btree" ("created_by");
+
+
+
 CREATE INDEX "idx_guides_slug" ON "public"."guides" USING "btree" ("slug");
 
 
@@ -3519,7 +4948,15 @@ CREATE INDEX "idx_guides_type" ON "public"."guides" USING "btree" ("guide_type")
 
 
 
+CREATE INDEX "idx_iql_review_needed_unresolved" ON "public"."ingestion_quality_log" USING "btree" ("content_item_id") WHERE (("flag_type" = 'review_needed'::"text") AND ("resolved" = false));
+
+
+
 CREATE INDEX "idx_layer_vocabulary_active_order" ON "public"."layer_vocabulary" USING "btree" ("display_order") WHERE ("is_active" = true);
+
+
+
+CREATE INDEX "idx_notifications_created_at" ON "public"."notifications" USING "btree" ("created_at");
 
 
 
@@ -3535,7 +4972,19 @@ CREATE INDEX "idx_pipeline_runs_created_by_created_at" ON "public"."pipeline_run
 
 
 
+CREATE INDEX "idx_pipeline_runs_name_started_at" ON "public"."pipeline_runs" USING "btree" ("pipeline_name", "started_at" DESC);
+
+
+
+CREATE INDEX "idx_pipeline_runs_started_at" ON "public"."pipeline_runs" USING "btree" ("started_at" DESC);
+
+
+
 CREATE INDEX "idx_pipeline_runs_workspace_id" ON "public"."pipeline_runs" USING "btree" ("workspace_id") WHERE ("workspace_id" IS NOT NULL);
+
+
+
+CREATE INDEX "idx_processing_queue_created_by" ON "public"."processing_queue" USING "btree" ("created_by");
 
 
 
@@ -3555,6 +5004,10 @@ CREATE INDEX "idx_read_marks_user" ON "public"."read_marks" USING "btree" ("user
 
 
 
+CREATE INDEX "idx_review_assignments_assigned_by" ON "public"."review_assignments" USING "btree" ("assigned_by");
+
+
+
 CREATE INDEX "idx_review_assignments_reviewer" ON "public"."review_assignments" USING "btree" ("reviewer_id") WHERE ("status" = 'active'::"text");
 
 
@@ -3563,7 +5016,23 @@ CREATE INDEX "idx_review_assignments_status" ON "public"."review_assignments" US
 
 
 
+CREATE INDEX "idx_si_processing_queue_source" ON "public"."si_processing_queue" USING "btree" ("feed_source_id");
+
+
+
+CREATE INDEX "idx_si_processing_queue_status" ON "public"."si_processing_queue" USING "btree" ("status") WHERE (("status")::"text" = ANY ((ARRAY['pending'::character varying, 'processing'::character varying])::"text"[]));
+
+
+
+CREATE INDEX "idx_si_processing_queue_workspace" ON "public"."si_processing_queue" USING "btree" ("workspace_id");
+
+
+
 CREATE INDEX "idx_source_document_diffs_affected_item" ON "public"."source_document_diffs" USING "btree" ("affected_content_item_id") WHERE ("affected_content_item_id" IS NOT NULL);
+
+
+
+CREATE INDEX "idx_source_document_diffs_created_by" ON "public"."source_document_diffs" USING "btree" ("created_by");
 
 
 
@@ -3583,6 +5052,10 @@ CREATE INDEX "idx_source_document_diffs_status" ON "public"."source_document_dif
 
 
 
+CREATE INDEX "idx_source_documents_archived_by" ON "public"."source_documents" USING "btree" ("archived_by");
+
+
+
 CREATE INDEX "idx_source_documents_content_hash" ON "public"."source_documents" USING "btree" ("content_hash");
 
 
@@ -3592,6 +5065,18 @@ CREATE INDEX "idx_source_documents_filename_uploaded_by" ON "public"."source_doc
 
 
 CREATE INDEX "idx_source_documents_parent_id" ON "public"."source_documents" USING "btree" ("parent_id") WHERE ("parent_id" IS NOT NULL);
+
+
+
+CREATE INDEX "idx_source_documents_pipeline_run_id" ON "public"."source_documents" USING "btree" ("pipeline_run_id");
+
+
+
+CREATE INDEX "idx_source_documents_uploaded_by" ON "public"."source_documents" USING "btree" ("uploaded_by");
+
+
+
+CREATE INDEX "idx_source_documents_workspace_id" ON "public"."source_documents" USING "btree" ("workspace_id");
 
 
 
@@ -3639,6 +5124,10 @@ CREATE INDEX "idx_template_reqs_template" ON "public"."template_requirements" US
 
 
 
+CREATE INDEX "idx_template_requirements_display_order" ON "public"."template_requirements" USING "btree" ("display_order");
+
+
+
 CREATE INDEX "idx_templates_created_by" ON "public"."templates" USING "btree" ("created_by");
 
 
@@ -3659,6 +5148,10 @@ CREATE INDEX "idx_verification_history_user" ON "public"."verification_history" 
 
 
 
+CREATE INDEX "idx_workspaces_created_by" ON "public"."workspaces" USING "btree" ("created_by");
+
+
+
 CREATE INDEX "idx_workspaces_type" ON "public"."workspaces" USING "btree" ("type");
 
 
@@ -3668,6 +5161,10 @@ CREATE INDEX "idx_workspaces_type_archived" ON "public"."workspaces" USING "btre
 
 
 CREATE INDEX "idx_workspaces_type_status" ON "public"."workspaces" USING "btree" ("type", "status") WHERE ("type" = 'bid'::"text");
+
+
+
+CREATE INDEX "idx_workspaces_updated_by" ON "public"."workspaces" USING "btree" ("updated_by");
 
 
 
@@ -3687,11 +5184,27 @@ CREATE OR REPLACE TRIGGER "set_bid_responses_updated_at" BEFORE UPDATE ON "publi
 
 
 
+CREATE OR REPLACE TRIGGER "set_classification_disputes_updated_at_trigger" BEFORE UPDATE ON "public"."classification_disputes" FOR EACH ROW EXECUTE FUNCTION "public"."set_classification_disputes_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "set_company_profiles_updated_at" BEFORE UPDATE ON "public"."company_profiles" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
+
+
+
 CREATE OR REPLACE TRIGGER "set_content_history_version" BEFORE INSERT ON "public"."content_history" FOR EACH ROW EXECUTE FUNCTION "public"."auto_version_content_history"();
 
 
 
 CREATE OR REPLACE TRIGGER "set_content_items_updated_at" BEFORE UPDATE ON "public"."content_items" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
+
+
+
+CREATE OR REPLACE TRIGGER "set_feed_articles_updated_at" BEFORE UPDATE ON "public"."feed_articles" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
+
+
+
+CREATE OR REPLACE TRIGGER "set_feed_sources_updated_at" BEFORE UPDATE ON "public"."feed_sources" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
 
 
 
@@ -3789,6 +5302,36 @@ ALTER TABLE ONLY "public"."bid_responses"
 
 
 
+ALTER TABLE ONLY "public"."classification_disputes"
+    ADD CONSTRAINT "classification_disputes_content_item_id_fkey" FOREIGN KEY ("content_item_id") REFERENCES "public"."content_items"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."classification_disputes"
+    ADD CONSTRAINT "classification_disputes_disputed_by_fkey" FOREIGN KEY ("disputed_by") REFERENCES "auth"."users"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."classification_disputes"
+    ADD CONSTRAINT "classification_disputes_resolved_by_fkey" FOREIGN KEY ("resolved_by") REFERENCES "auth"."users"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."company_profiles"
+    ADD CONSTRAINT "company_profiles_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "auth"."users"("id");
+
+
+
+ALTER TABLE ONLY "public"."content_chunks"
+    ADD CONSTRAINT "content_chunks_content_item_id_fkey" FOREIGN KEY ("content_item_id") REFERENCES "public"."content_items"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."content_chunks"
+    ADD CONSTRAINT "content_chunks_parent_chunk_id_fkey" FOREIGN KEY ("parent_chunk_id") REFERENCES "public"."content_chunks"("id") ON DELETE CASCADE;
+
+
+
 ALTER TABLE ONLY "public"."content_citations"
     ADD CONSTRAINT "content_citations_bid_response_id_fkey" FOREIGN KEY ("bid_response_id") REFERENCES "public"."bid_responses"("id") ON DELETE CASCADE;
 
@@ -3796,6 +5339,11 @@ ALTER TABLE ONLY "public"."content_citations"
 
 ALTER TABLE ONLY "public"."content_citations"
     ADD CONSTRAINT "content_citations_content_item_id_fkey" FOREIGN KEY ("content_item_id") REFERENCES "public"."content_items"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."content_citations"
+    ADD CONSTRAINT "content_citations_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "auth"."users"("id") ON DELETE SET NULL;
 
 
 
@@ -3810,17 +5358,12 @@ ALTER TABLE ONLY "public"."content_history"
 
 
 ALTER TABLE ONLY "public"."content_item_workspaces"
-    ADD CONSTRAINT "content_item_projects_content_item_id_fkey" FOREIGN KEY ("content_item_id") REFERENCES "public"."content_items"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."content_item_workspaces"
-    ADD CONSTRAINT "content_item_projects_project_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."content_item_workspaces"
     ADD CONSTRAINT "content_item_workspaces_content_item_id_fkey" FOREIGN KEY ("content_item_id") REFERENCES "public"."content_items"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."content_item_workspaces"
+    ADD CONSTRAINT "content_item_workspaces_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE CASCADE;
 
 
 
@@ -3839,8 +5382,23 @@ ALTER TABLE ONLY "public"."content_items"
 
 
 
+ALTER TABLE ONLY "public"."content_templates"
+    ADD CONSTRAINT "content_templates_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "auth"."users"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."coverage_targets"
+    ADD CONSTRAINT "coverage_targets_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "auth"."users"("id") ON DELETE SET NULL;
+
+
+
 ALTER TABLE ONLY "public"."coverage_targets"
     ADD CONSTRAINT "coverage_targets_domain_id_fkey" FOREIGN KEY ("domain_id") REFERENCES "public"."taxonomy_domains"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."coverage_targets"
+    ADD CONSTRAINT "coverage_targets_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "auth"."users"("id") ON DELETE SET NULL;
 
 
 
@@ -3851,6 +5409,66 @@ ALTER TABLE ONLY "public"."entity_mentions"
 
 ALTER TABLE ONLY "public"."entity_relationships"
     ADD CONSTRAINT "entity_relationships_source_item_id_fkey" FOREIGN KEY ("source_item_id") REFERENCES "public"."content_items"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."feed_articles"
+    ADD CONSTRAINT "feed_articles_content_item_id_fkey" FOREIGN KEY ("content_item_id") REFERENCES "public"."content_items"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."feed_articles"
+    ADD CONSTRAINT "feed_articles_feed_source_id_fkey" FOREIGN KEY ("feed_source_id") REFERENCES "public"."feed_sources"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."feed_articles"
+    ADD CONSTRAINT "feed_articles_prompt_version_id_fkey" FOREIGN KEY ("prompt_version_id") REFERENCES "public"."feed_prompts"("id");
+
+
+
+ALTER TABLE ONLY "public"."feed_articles"
+    ADD CONSTRAINT "feed_articles_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."feed_flags"
+    ADD CONSTRAINT "feed_flags_feed_article_id_fkey" FOREIGN KEY ("feed_article_id") REFERENCES "public"."feed_articles"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."feed_flags"
+    ADD CONSTRAINT "feed_flags_flagged_by_fkey" FOREIGN KEY ("flagged_by") REFERENCES "auth"."users"("id");
+
+
+
+ALTER TABLE ONLY "public"."feed_flags"
+    ADD CONSTRAINT "feed_flags_prompt_version_id_fkey" FOREIGN KEY ("prompt_version_id") REFERENCES "public"."feed_prompts"("id");
+
+
+
+ALTER TABLE ONLY "public"."feed_flags"
+    ADD CONSTRAINT "feed_flags_resolved_by_fkey" FOREIGN KEY ("resolved_by") REFERENCES "auth"."users"("id");
+
+
+
+ALTER TABLE ONLY "public"."feed_prompts"
+    ADD CONSTRAINT "feed_prompts_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "auth"."users"("id");
+
+
+
+ALTER TABLE ONLY "public"."feed_prompts"
+    ADD CONSTRAINT "feed_prompts_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."feed_sources"
+    ADD CONSTRAINT "feed_sources_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "auth"."users"("id");
+
+
+
+ALTER TABLE ONLY "public"."feed_sources"
+    ADD CONSTRAINT "feed_sources_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE CASCADE;
 
 
 
@@ -3871,6 +5489,11 @@ ALTER TABLE ONLY "public"."governance_config"
 
 ALTER TABLE ONLY "public"."guide_sections"
     ADD CONSTRAINT "guide_sections_guide_id_fkey" FOREIGN KEY ("guide_id") REFERENCES "public"."guides"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."guide_sections"
+    ADD CONSTRAINT "guide_sections_parent_section_id_fkey" FOREIGN KEY ("parent_section_id") REFERENCES "public"."guide_sections"("id") ON DELETE CASCADE;
 
 
 
@@ -3919,6 +5542,16 @@ ALTER TABLE ONLY "public"."review_assignments"
 
 
 
+ALTER TABLE ONLY "public"."si_processing_queue"
+    ADD CONSTRAINT "si_processing_queue_feed_source_id_fkey" FOREIGN KEY ("feed_source_id") REFERENCES "public"."feed_sources"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."si_processing_queue"
+    ADD CONSTRAINT "si_processing_queue_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE CASCADE;
+
+
+
 ALTER TABLE ONLY "public"."source_document_diffs"
     ADD CONSTRAINT "source_document_diffs_affected_content_item_id_fkey" FOREIGN KEY ("affected_content_item_id") REFERENCES "public"."content_items"("id") ON DELETE SET NULL;
 
@@ -3945,12 +5578,22 @@ ALTER TABLE ONLY "public"."source_document_diffs"
 
 
 ALTER TABLE ONLY "public"."source_documents"
+    ADD CONSTRAINT "source_documents_archived_by_fkey" FOREIGN KEY ("archived_by") REFERENCES "auth"."users"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."source_documents"
     ADD CONSTRAINT "source_documents_parent_id_fkey" FOREIGN KEY ("parent_id") REFERENCES "public"."source_documents"("id") ON DELETE SET NULL;
 
 
 
 ALTER TABLE ONLY "public"."source_documents"
     ADD CONSTRAINT "source_documents_pipeline_run_id_fkey" FOREIGN KEY ("pipeline_run_id") REFERENCES "public"."pipeline_runs"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."source_documents"
+    ADD CONSTRAINT "source_documents_uploaded_by_fkey" FOREIGN KEY ("uploaded_by") REFERENCES "auth"."users"("id") ON DELETE SET NULL;
 
 
 
@@ -4014,7 +5657,84 @@ ALTER TABLE ONLY "public"."verification_history"
 
 
 
+ALTER TABLE ONLY "public"."verification_history"
+    ADD CONSTRAINT "verification_history_performed_by_fkey" FOREIGN KEY ("performed_by") REFERENCES "auth"."users"("id") ON DELETE SET NULL;
+
+
+
+CREATE POLICY "Admin and editor can insert company_profiles" ON "public"."company_profiles" FOR INSERT TO "authenticated" WITH CHECK (("public"."get_user_role"() = ANY (ARRAY['admin'::"text", 'editor'::"text"])));
+
+
+
+CREATE POLICY "Admin and editor can insert feed_articles" ON "public"."feed_articles" FOR INSERT TO "authenticated" WITH CHECK (("public"."get_user_role"() = ANY (ARRAY['admin'::"text", 'editor'::"text"])));
+
+
+
+CREATE POLICY "Admin and editor can insert feed_flags" ON "public"."feed_flags" FOR INSERT TO "authenticated" WITH CHECK (("public"."get_user_role"() = ANY (ARRAY['admin'::"text", 'editor'::"text"])));
+
+
+
+CREATE POLICY "Admin and editor can insert feed_sources" ON "public"."feed_sources" FOR INSERT TO "authenticated" WITH CHECK (("public"."get_user_role"() = ANY (ARRAY['admin'::"text", 'editor'::"text"])));
+
+
+
+CREATE POLICY "Admin and editor can read company_profiles" ON "public"."company_profiles" FOR SELECT TO "authenticated" USING (("public"."get_user_role"() = ANY (ARRAY['admin'::"text", 'editor'::"text"])));
+
+
+
+CREATE POLICY "Admin and editor can update company_profiles" ON "public"."company_profiles" FOR UPDATE TO "authenticated" USING (("public"."get_user_role"() = ANY (ARRAY['admin'::"text", 'editor'::"text"]))) WITH CHECK (("public"."get_user_role"() = ANY (ARRAY['admin'::"text", 'editor'::"text"])));
+
+
+
+CREATE POLICY "Admin and editor can update feed_articles" ON "public"."feed_articles" FOR UPDATE TO "authenticated" USING (("public"."get_user_role"() = ANY (ARRAY['admin'::"text", 'editor'::"text"]))) WITH CHECK (("public"."get_user_role"() = ANY (ARRAY['admin'::"text", 'editor'::"text"])));
+
+
+
+CREATE POLICY "Admin and editor can update feed_flags" ON "public"."feed_flags" FOR UPDATE TO "authenticated" USING (("public"."get_user_role"() = ANY (ARRAY['admin'::"text", 'editor'::"text"]))) WITH CHECK (("public"."get_user_role"() = ANY (ARRAY['admin'::"text", 'editor'::"text"])));
+
+
+
+CREATE POLICY "Admin and editor can update feed_sources" ON "public"."feed_sources" FOR UPDATE TO "authenticated" USING (("public"."get_user_role"() = ANY (ARRAY['admin'::"text", 'editor'::"text"]))) WITH CHECK (("public"."get_user_role"() = ANY (ARRAY['admin'::"text", 'editor'::"text"])));
+
+
+
+CREATE POLICY "Admin can delete company_profiles" ON "public"."company_profiles" FOR DELETE TO "authenticated" USING (("public"."get_user_role"() = 'admin'::"text"));
+
+
+
+CREATE POLICY "Admin can delete feed_articles" ON "public"."feed_articles" FOR DELETE TO "authenticated" USING (("public"."get_user_role"() = 'admin'::"text"));
+
+
+
+CREATE POLICY "Admin can delete feed_flags" ON "public"."feed_flags" FOR DELETE TO "authenticated" USING (("public"."get_user_role"() = 'admin'::"text"));
+
+
+
+CREATE POLICY "Admin can delete feed_prompts" ON "public"."feed_prompts" FOR DELETE TO "authenticated" USING (("public"."get_user_role"() = 'admin'::"text"));
+
+
+
+CREATE POLICY "Admin can delete feed_sources" ON "public"."feed_sources" FOR DELETE TO "authenticated" USING (("public"."get_user_role"() = 'admin'::"text"));
+
+
+
+CREATE POLICY "Admin can manage feed_prompts" ON "public"."feed_prompts" FOR INSERT TO "authenticated" WITH CHECK (("public"."get_user_role"() = 'admin'::"text"));
+
+
+
+CREATE POLICY "Admin can update feed_prompts" ON "public"."feed_prompts" FOR UPDATE TO "authenticated" USING (("public"."get_user_role"() = 'admin'::"text")) WITH CHECK (("public"."get_user_role"() = 'admin'::"text"));
+
+
+
+CREATE POLICY "Admin: DELETE entity_aliases" ON "public"."entity_aliases" FOR DELETE TO "authenticated" USING ((( SELECT "public"."get_user_role"() AS "get_user_role") = 'admin'::"text"));
+
+
+
 CREATE POLICY "Admin: DELETE layer_vocabulary" ON "public"."layer_vocabulary" FOR DELETE TO "authenticated" USING ((( SELECT "public"."get_user_role"() AS "get_user_role") = 'admin'::"text"));
+
+
+
+CREATE POLICY "Admin: INSERT entity_aliases" ON "public"."entity_aliases" FOR INSERT TO "authenticated" WITH CHECK ((( SELECT "public"."get_user_role"() AS "get_user_role") = 'admin'::"text"));
 
 
 
@@ -4022,7 +5742,15 @@ CREATE POLICY "Admin: INSERT layer_vocabulary" ON "public"."layer_vocabulary" FO
 
 
 
+CREATE POLICY "Admin: UPDATE entity_aliases" ON "public"."entity_aliases" FOR UPDATE TO "authenticated" USING ((( SELECT "public"."get_user_role"() AS "get_user_role") = 'admin'::"text")) WITH CHECK ((( SELECT "public"."get_user_role"() AS "get_user_role") = 'admin'::"text"));
+
+
+
 CREATE POLICY "Admin: UPDATE layer_vocabulary" ON "public"."layer_vocabulary" FOR UPDATE TO "authenticated" USING ((( SELECT "public"."get_user_role"() AS "get_user_role") = 'admin'::"text")) WITH CHECK ((( SELECT "public"."get_user_role"() AS "get_user_role") = 'admin'::"text"));
+
+
+
+CREATE POLICY "Admins can delete bid response history" ON "public"."bid_response_history" FOR DELETE TO "authenticated" USING (("public"."get_user_role"() = 'admin'::"text"));
 
 
 
@@ -4046,7 +5774,27 @@ CREATE POLICY "Admins can delete source documents" ON "public"."source_documents
 
 
 
+CREATE POLICY "All authenticated: SELECT entity_aliases" ON "public"."entity_aliases" FOR SELECT TO "authenticated" USING (true);
+
+
+
 CREATE POLICY "All authenticated: SELECT layer_vocabulary" ON "public"."layer_vocabulary" FOR SELECT TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "Authenticated users can read feed_articles" ON "public"."feed_articles" FOR SELECT TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "Authenticated users can read feed_flags" ON "public"."feed_flags" FOR SELECT TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "Authenticated users can read feed_prompts" ON "public"."feed_prompts" FOR SELECT TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "Authenticated users can read feed_sources" ON "public"."feed_sources" FOR SELECT TO "authenticated" USING (true);
 
 
 
@@ -4057,6 +5805,10 @@ CREATE POLICY "Authenticated users can read guide sections" ON "public"."guide_s
 
 
 CREATE POLICY "Authenticated users can read guides" ON "public"."guides" FOR SELECT TO "authenticated" USING ((("is_published" = true) OR (( SELECT "public"."get_user_role"() AS "get_user_role") = 'admin'::"text")));
+
+
+
+CREATE POLICY "Authenticated users can read si_processing_queue" ON "public"."si_processing_queue" FOR SELECT TO "authenticated" USING (true);
 
 
 
@@ -4089,6 +5841,10 @@ CREATE POLICY "Editors and admins can create source documents" ON "public"."sour
 
 
 CREATE POLICY "Editors and admins can delete guide sections" ON "public"."guide_sections" FOR DELETE TO "authenticated" USING ((( SELECT "public"."get_user_role"() AS "get_user_role") = ANY (ARRAY['admin'::"text", 'editor'::"text"])));
+
+
+
+CREATE POLICY "Editors and admins can insert bid response history" ON "public"."bid_response_history" FOR INSERT TO "authenticated" WITH CHECK (("public"."get_user_role"() = ANY (ARRAY['admin'::"text", 'editor'::"text"])));
 
 
 
@@ -4211,6 +5967,51 @@ CREATE POLICY "ciw_update" ON "public"."content_item_workspaces" FOR UPDATE TO "
 
 
 
+ALTER TABLE "public"."classification_disputes" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "classification_disputes_delete_admin_rejected_only" ON "public"."classification_disputes" FOR DELETE TO "authenticated" USING ((("public"."get_user_role"() = 'admin'::"text") AND ("status" = 'rejected'::"text")));
+
+
+
+CREATE POLICY "classification_disputes_insert" ON "public"."classification_disputes" FOR INSERT TO "authenticated" WITH CHECK ((("public"."get_user_role"() = ANY (ARRAY['admin'::"text", 'editor'::"text"])) AND ("disputed_by" = "auth"."uid"()) AND ("status" = 'open'::"text") AND ("resolved_by" IS NULL) AND ("resolved_at" IS NULL) AND ("resolution_notes" IS NULL)));
+
+
+
+CREATE POLICY "classification_disputes_select_admin" ON "public"."classification_disputes" FOR SELECT TO "authenticated" USING (("public"."get_user_role"() = 'admin'::"text"));
+
+
+
+CREATE POLICY "classification_disputes_select_own" ON "public"."classification_disputes" FOR SELECT TO "authenticated" USING ((("public"."get_user_role"() = 'editor'::"text") AND ("disputed_by" = "auth"."uid"())));
+
+
+
+CREATE POLICY "classification_disputes_update_admin" ON "public"."classification_disputes" FOR UPDATE TO "authenticated" USING (("public"."get_user_role"() = 'admin'::"text")) WITH CHECK (("public"."get_user_role"() = 'admin'::"text"));
+
+
+
+ALTER TABLE "public"."company_profiles" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."content_chunks" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "content_chunks_delete" ON "public"."content_chunks" FOR DELETE TO "authenticated" USING (("public"."get_user_role"() = 'admin'::"text"));
+
+
+
+CREATE POLICY "content_chunks_insert" ON "public"."content_chunks" FOR INSERT TO "authenticated" WITH CHECK (("public"."get_user_role"() = ANY (ARRAY['admin'::"text", 'editor'::"text"])));
+
+
+
+CREATE POLICY "content_chunks_select" ON "public"."content_chunks" FOR SELECT TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "content_chunks_update" ON "public"."content_chunks" FOR UPDATE TO "authenticated" USING (("public"."get_user_role"() = ANY (ARRAY['admin'::"text", 'editor'::"text"])));
+
+
+
 ALTER TABLE "public"."content_citations" ENABLE ROW LEVEL SECURITY;
 
 
@@ -4300,10 +6101,25 @@ CREATE POLICY "digests_select" ON "public"."digests" FOR SELECT TO "authenticate
 
 
 
+ALTER TABLE "public"."entity_aliases" ENABLE ROW LEVEL SECURITY;
+
+
 ALTER TABLE "public"."entity_mentions" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."entity_relationships" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."feed_articles" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."feed_flags" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."feed_prompts" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."feed_sources" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."governance_config" ENABLE ROW LEVEL SECURITY;
@@ -4426,6 +6242,9 @@ CREATE POLICY "review_assignments_select" ON "public"."review_assignments" FOR S
 
 CREATE POLICY "review_assignments_update" ON "public"."review_assignments" FOR UPDATE TO "authenticated" USING (("public"."get_user_role"() = ANY (ARRAY['admin'::"text", 'editor'::"text"])));
 
+
+
+ALTER TABLE "public"."si_processing_queue" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."source_document_diffs" ENABLE ROW LEVEL SECURITY;
@@ -4586,8 +6405,6 @@ CREATE POLICY "workspaces_update" ON "public"."workspaces" FOR UPDATE TO "authen
 ALTER PUBLICATION "supabase_realtime" OWNER TO "postgres";
 
 
-SET SESSION AUTHORIZATION "postgres";
-RESET SESSION AUTHORIZATION;
 
 
 
@@ -5058,6 +6875,20 @@ GRANT ALL ON FUNCTION "public"."vector"("public"."vector", integer, boolean) TO 
 
 
 
+REVOKE ALL ON FUNCTION "public"."_test_delete_broken_auth_user"("probe_id" "uuid") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."_test_delete_broken_auth_user"("probe_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."_test_delete_broken_auth_user"("probe_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."_test_delete_broken_auth_user"("probe_id" "uuid") TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."_test_insert_broken_auth_user"("probe_id" "uuid", "probe_email" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."_test_insert_broken_auth_user"("probe_id" "uuid", "probe_email" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."_test_insert_broken_auth_user"("probe_id" "uuid", "probe_email" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."_test_insert_broken_auth_user"("probe_id" "uuid", "probe_email" "text") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."auto_version_content_history"() TO "anon";
 GRANT ALL ON FUNCTION "public"."auto_version_content_history"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."auto_version_content_history"() TO "service_role";
@@ -5108,6 +6939,36 @@ GRANT ALL ON FUNCTION "public"."check_content_exists"("ids" "uuid"[]) TO "servic
 
 
 
+GRANT ALL ON TABLE "public"."processing_queue" TO "anon";
+GRANT ALL ON TABLE "public"."processing_queue" TO "authenticated";
+GRANT ALL ON TABLE "public"."processing_queue" TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."claim_next_job"() TO "anon";
+GRANT ALL ON FUNCTION "public"."claim_next_job"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."claim_next_job"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."cleanup_filtered_articles"() TO "anon";
+GRANT ALL ON FUNCTION "public"."cleanup_filtered_articles"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."cleanup_filtered_articles"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."coerce_null_token_columns"() TO "anon";
+GRANT ALL ON FUNCTION "public"."coerce_null_token_columns"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."coerce_null_token_columns"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."content_history_auto_version"() TO "anon";
+GRANT ALL ON FUNCTION "public"."content_history_auto_version"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."content_history_auto_version"() TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."cosine_distance"("public"."halfvec", "public"."halfvec") TO "postgres";
 GRANT ALL ON FUNCTION "public"."cosine_distance"("public"."halfvec", "public"."halfvec") TO "anon";
 GRANT ALL ON FUNCTION "public"."cosine_distance"("public"."halfvec", "public"."halfvec") TO "authenticated";
@@ -5147,6 +7008,12 @@ GRANT ALL ON FUNCTION "public"."detect_reupload"("p_filename" "text", "p_uploade
 
 
 
+GRANT ALL ON FUNCTION "public"."filter_by_keywords"("search_terms" "text"[]) TO "anon";
+GRANT ALL ON FUNCTION "public"."filter_by_keywords"("search_terms" "text"[]) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."filter_by_keywords"("search_terms" "text"[]) TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."content_items" TO "anon";
 GRANT ALL ON TABLE "public"."content_items" TO "authenticated";
 GRANT ALL ON TABLE "public"."content_items" TO "service_role";
@@ -5171,9 +7038,27 @@ GRANT ALL ON FUNCTION "public"."find_duplicate_tags"("p_type" "text") TO "servic
 
 
 
+GRANT ALL ON FUNCTION "public"."find_exact_duplicates"("p_content_hash" "text", "p_exclude_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."find_exact_duplicates"("p_content_hash" "text", "p_exclude_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."find_exact_duplicates"("p_content_hash" "text", "p_exclude_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."find_related_items"("p_item_id" "uuid", "p_similarity_threshold" double precision, "p_limit_count" integer) TO "anon";
+GRANT ALL ON FUNCTION "public"."find_related_items"("p_item_id" "uuid", "p_similarity_threshold" double precision, "p_limit_count" integer) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."find_related_items"("p_item_id" "uuid", "p_similarity_threshold" double precision, "p_limit_count" integer) TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."find_similar_content"("query_embedding" "public"."vector", "similarity_threshold" double precision, "limit_count" integer) TO "anon";
 GRANT ALL ON FUNCTION "public"."find_similar_content"("query_embedding" "public"."vector", "similarity_threshold" double precision, "limit_count" integer) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."find_similar_content"("query_embedding" "public"."vector", "similarity_threshold" double precision, "limit_count" integer) TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_aggregate_win_rate_stats"() TO "anon";
+GRANT ALL ON FUNCTION "public"."get_aggregate_win_rate_stats"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_aggregate_win_rate_stats"() TO "service_role";
 
 
 
@@ -5243,6 +7128,12 @@ GRANT ALL ON FUNCTION "public"."get_coverage_summary"() TO "service_role";
 
 
 
+GRANT ALL ON FUNCTION "public"."get_dashboard_attention_counts"("p_user_id" "uuid", "p_role" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."get_dashboard_attention_counts"("p_user_id" "uuid", "p_role" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_dashboard_attention_counts"("p_user_id" "uuid", "p_role" "text") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."get_document_version_chain"("p_document_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."get_document_version_chain"("p_document_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_document_version_chain"("p_document_id" "uuid") TO "service_role";
@@ -5252,6 +7143,30 @@ GRANT ALL ON FUNCTION "public"."get_document_version_chain"("p_document_id" "uui
 GRANT ALL ON FUNCTION "public"."get_domain_subtopic_counts"() TO "anon";
 GRANT ALL ON FUNCTION "public"."get_domain_subtopic_counts"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_domain_subtopic_counts"() TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."feed_sources" TO "anon";
+GRANT ALL ON TABLE "public"."feed_sources" TO "authenticated";
+GRANT ALL ON TABLE "public"."feed_sources" TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_due_feed_sources"("max_sources" integer) TO "anon";
+GRANT ALL ON FUNCTION "public"."get_due_feed_sources"("max_sources" integer) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_due_feed_sources"("max_sources" integer) TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_entity_co_occurrence"("p_limit" integer, "p_min_count" integer, "p_entity_type" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."get_entity_co_occurrence"("p_limit" integer, "p_min_count" integer, "p_entity_type" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_entity_co_occurrence"("p_limit" integer, "p_min_count" integer, "p_entity_type" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_entity_list_aggregated"("p_type" "text", "p_search" "text", "p_variants_only" boolean, "p_type_conflicts" boolean, "p_limit" integer, "p_offset" integer) TO "anon";
+GRANT ALL ON FUNCTION "public"."get_entity_list_aggregated"("p_type" "text", "p_search" "text", "p_variants_only" boolean, "p_type_conflicts" boolean, "p_limit" integer, "p_offset" integer) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_entity_list_aggregated"("p_type" "text", "p_search" "text", "p_variants_only" boolean, "p_type_conflicts" boolean, "p_limit" integer, "p_offset" integer) TO "service_role";
 
 
 
@@ -5276,6 +7191,12 @@ GRANT ALL ON FUNCTION "public"."get_entity_summary"("p_entity_name" "text", "p_e
 GRANT ALL ON FUNCTION "public"."get_filter_counts"() TO "anon";
 GRANT ALL ON FUNCTION "public"."get_filter_counts"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_filter_counts"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_filter_ratio_trend"("p_workspace_id" "uuid", "p_granularity" "text", "p_period_days" integer) TO "anon";
+GRANT ALL ON FUNCTION "public"."get_filter_ratio_trend"("p_workspace_id" "uuid", "p_granularity" "text", "p_period_days" integer) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_filter_ratio_trend"("p_workspace_id" "uuid", "p_granularity" "text", "p_period_days" integer) TO "service_role";
 
 
 
@@ -5339,6 +7260,18 @@ GRANT ALL ON FUNCTION "public"."get_reading_patterns"("days_back" integer) TO "s
 
 
 
+GRANT ALL ON FUNCTION "public"."get_review_breakdown_stats"() TO "anon";
+GRANT ALL ON FUNCTION "public"."get_review_breakdown_stats"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_review_breakdown_stats"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_source_documents"() TO "anon";
+GRANT ALL ON FUNCTION "public"."get_source_documents"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_source_documents"() TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."get_tag_counts_filtered"("p_type" "text", "p_min_count" integer, "p_search" "text", "p_limit" integer, "p_offset" integer) TO "anon";
 GRANT ALL ON FUNCTION "public"."get_tag_counts_filtered"("p_type" "text", "p_min_count" integer, "p_search" "text", "p_limit" integer, "p_offset" integer) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_tag_counts_filtered"("p_type" "text", "p_min_count" integer, "p_search" "text", "p_limit" integer, "p_offset" integer) TO "service_role";
@@ -5387,6 +7320,13 @@ GRANT ALL ON FUNCTION "public"."get_unique_authors"() TO "service_role";
 
 
 
+REVOKE ALL ON FUNCTION "public"."get_user_display_names"("user_ids" "uuid"[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."get_user_display_names"("user_ids" "uuid"[]) TO "anon";
+GRANT ALL ON FUNCTION "public"."get_user_display_names"("user_ids" "uuid"[]) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_user_display_names"("user_ids" "uuid"[]) TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."get_user_role"() TO "anon";
 GRANT ALL ON FUNCTION "public"."get_user_role"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_user_role"() TO "service_role";
@@ -5396,6 +7336,12 @@ GRANT ALL ON FUNCTION "public"."get_user_role"() TO "service_role";
 GRANT ALL ON FUNCTION "public"."get_user_tag_counts"() TO "anon";
 GRANT ALL ON FUNCTION "public"."get_user_tag_counts"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_user_tag_counts"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_verification_stats"() TO "anon";
+GRANT ALL ON FUNCTION "public"."get_verification_stats"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_verification_stats"() TO "service_role";
 
 
 
@@ -5662,9 +7608,9 @@ GRANT ALL ON FUNCTION "public"."hnswhandler"("internal") TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."hybrid_search"("query_embedding" "public"."vector", "query_text" "text", "similarity_threshold" double precision, "limit_count" integer) TO "anon";
-GRANT ALL ON FUNCTION "public"."hybrid_search"("query_embedding" "public"."vector", "query_text" "text", "similarity_threshold" double precision, "limit_count" integer) TO "authenticated";
-GRANT ALL ON FUNCTION "public"."hybrid_search"("query_embedding" "public"."vector", "query_text" "text", "similarity_threshold" double precision, "limit_count" integer) TO "service_role";
+GRANT ALL ON FUNCTION "public"."hybrid_search"("query_embedding" "public"."vector", "query_text" "text", "similarity_threshold" numeric, "limit_count" integer) TO "anon";
+GRANT ALL ON FUNCTION "public"."hybrid_search"("query_embedding" "public"."vector", "query_text" "text", "similarity_threshold" numeric, "limit_count" integer) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."hybrid_search"("query_embedding" "public"."vector", "query_text" "text", "similarity_threshold" numeric, "limit_count" integer) TO "service_role";
 
 
 
@@ -5842,6 +7788,18 @@ GRANT ALL ON FUNCTION "public"."search_content"("query_embedding" "public"."vect
 
 
 
+GRANT ALL ON FUNCTION "public"."search_content"("query_embedding" "public"."vector", "similarity_threshold" numeric, "limit_count" integer) TO "anon";
+GRANT ALL ON FUNCTION "public"."search_content"("query_embedding" "public"."vector", "similarity_threshold" numeric, "limit_count" integer) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."search_content"("query_embedding" "public"."vector", "similarity_threshold" numeric, "limit_count" integer) TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."search_content_chunks"("query_embedding" "public"."vector", "similarity_threshold" numeric, "limit_count" integer, "filter_content_item_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."search_content_chunks"("query_embedding" "public"."vector", "similarity_threshold" numeric, "limit_count" integer, "filter_content_item_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."search_content_chunks"("query_embedding" "public"."vector", "similarity_threshold" numeric, "limit_count" integer, "filter_content_item_id" "uuid") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."search_for_bid_response"("query_embedding" "public"."vector", "query_text" "text", "limit_count" integer) TO "anon";
 GRANT ALL ON FUNCTION "public"."search_for_bid_response"("query_embedding" "public"."vector", "query_text" "text", "limit_count" integer) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."search_for_bid_response"("query_embedding" "public"."vector", "query_text" "text", "limit_count" integer) TO "service_role";
@@ -5851,6 +7809,12 @@ GRANT ALL ON FUNCTION "public"."search_for_bid_response"("query_embedding" "publ
 GRANT ALL ON FUNCTION "public"."search_for_bid_response"("question_id" "uuid", "query_embedding" "public"."vector", "match_count" integer, "domain_filter" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."search_for_bid_response"("question_id" "uuid", "query_embedding" "public"."vector", "match_count" integer, "domain_filter" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."search_for_bid_response"("question_id" "uuid", "query_embedding" "public"."vector", "match_count" integer, "domain_filter" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."set_classification_disputes_updated_at"() TO "anon";
+GRANT ALL ON FUNCTION "public"."set_classification_disputes_updated_at"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."set_classification_disputes_updated_at"() TO "service_role";
 
 
 
@@ -6304,6 +8268,24 @@ GRANT ALL ON TABLE "public"."bid_responses" TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."classification_disputes" TO "anon";
+GRANT ALL ON TABLE "public"."classification_disputes" TO "authenticated";
+GRANT ALL ON TABLE "public"."classification_disputes" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."company_profiles" TO "anon";
+GRANT ALL ON TABLE "public"."company_profiles" TO "authenticated";
+GRANT ALL ON TABLE "public"."company_profiles" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."content_chunks" TO "anon";
+GRANT ALL ON TABLE "public"."content_chunks" TO "authenticated";
+GRANT ALL ON TABLE "public"."content_chunks" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."content_citations" TO "anon";
 GRANT ALL ON TABLE "public"."content_citations" TO "authenticated";
 GRANT ALL ON TABLE "public"."content_citations" TO "service_role";
@@ -6340,6 +8322,12 @@ GRANT ALL ON TABLE "public"."digests" TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."entity_aliases" TO "anon";
+GRANT ALL ON TABLE "public"."entity_aliases" TO "authenticated";
+GRANT ALL ON TABLE "public"."entity_aliases" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."entity_mentions" TO "anon";
 GRANT ALL ON TABLE "public"."entity_mentions" TO "authenticated";
 GRANT ALL ON TABLE "public"."entity_mentions" TO "service_role";
@@ -6349,6 +8337,24 @@ GRANT ALL ON TABLE "public"."entity_mentions" TO "service_role";
 GRANT ALL ON TABLE "public"."entity_relationships" TO "anon";
 GRANT ALL ON TABLE "public"."entity_relationships" TO "authenticated";
 GRANT ALL ON TABLE "public"."entity_relationships" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."feed_articles" TO "anon";
+GRANT ALL ON TABLE "public"."feed_articles" TO "authenticated";
+GRANT ALL ON TABLE "public"."feed_articles" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."feed_flags" TO "anon";
+GRANT ALL ON TABLE "public"."feed_flags" TO "authenticated";
+GRANT ALL ON TABLE "public"."feed_flags" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."feed_prompts" TO "anon";
+GRANT ALL ON TABLE "public"."feed_prompts" TO "authenticated";
+GRANT ALL ON TABLE "public"."feed_prompts" TO "service_role";
 
 
 
@@ -6394,12 +8400,6 @@ GRANT ALL ON TABLE "public"."pipeline_runs" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."processing_queue" TO "anon";
-GRANT ALL ON TABLE "public"."processing_queue" TO "authenticated";
-GRANT ALL ON TABLE "public"."processing_queue" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."quality_issues_pending" TO "anon";
 GRANT ALL ON TABLE "public"."quality_issues_pending" TO "authenticated";
 GRANT ALL ON TABLE "public"."quality_issues_pending" TO "service_role";
@@ -6415,6 +8415,12 @@ GRANT ALL ON TABLE "public"."read_marks" TO "service_role";
 GRANT ALL ON TABLE "public"."review_assignments" TO "anon";
 GRANT ALL ON TABLE "public"."review_assignments" TO "authenticated";
 GRANT ALL ON TABLE "public"."review_assignments" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."si_processing_queue" TO "anon";
+GRANT ALL ON TABLE "public"."si_processing_queue" TO "authenticated";
+GRANT ALL ON TABLE "public"."si_processing_queue" TO "service_role";
 
 
 
@@ -6544,7 +8550,15 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TAB
 -- Dumped schema changes for auth and storage
 --
 
+CREATE OR REPLACE TRIGGER "coerce_null_token_columns_before_insupd" BEFORE INSERT OR UPDATE ON "auth"."users" FOR EACH ROW EXECUTE FUNCTION "public"."coerce_null_token_columns"();
+
+
+
 CREATE OR REPLACE TRIGGER "on_auth_user_created" AFTER INSERT ON "auth"."users" FOR EACH ROW EXECUTE FUNCTION "public"."handle_new_user_role"();
+
+
+
+CREATE POLICY "Authenticated users can read documents" ON "storage"."objects" FOR SELECT TO "authenticated" USING (("bucket_id" = 'documents'::"text"));
 
 
 
@@ -6552,11 +8566,31 @@ CREATE POLICY "Authenticated users can read templates" ON "storage"."objects" FO
 
 
 
+CREATE POLICY "Authenticated users can read tender documents" ON "storage"."objects" FOR SELECT TO "authenticated" USING (("bucket_id" = 'tender-documents'::"text"));
+
+
+
+CREATE POLICY "Authenticated users can upload documents" ON "storage"."objects" FOR INSERT TO "authenticated" WITH CHECK (("bucket_id" = 'documents'::"text"));
+
+
+
 CREATE POLICY "Authenticated users can upload templates" ON "storage"."objects" FOR INSERT TO "authenticated" WITH CHECK (("bucket_id" = 'templates'::"text"));
 
 
 
+CREATE POLICY "Authenticated users can upload tender documents" ON "storage"."objects" FOR INSERT TO "authenticated" WITH CHECK (("bucket_id" = 'tender-documents'::"text"));
+
+
+
+CREATE POLICY "Editors and admins can delete documents" ON "storage"."objects" FOR DELETE TO "authenticated" USING ((("bucket_id" = 'documents'::"text") AND (( SELECT "public"."get_user_role"() AS "get_user_role") = ANY (ARRAY['admin'::"text", 'editor'::"text"]))));
+
+
+
 CREATE POLICY "Editors and admins can delete templates" ON "storage"."objects" FOR DELETE TO "authenticated" USING ((("bucket_id" = 'templates'::"text") AND (( SELECT "public"."get_user_role"() AS "get_user_role") = ANY (ARRAY['admin'::"text", 'editor'::"text"]))));
+
+
+
+CREATE POLICY "Editors and admins can delete tender documents" ON "storage"."objects" FOR DELETE TO "authenticated" USING ((("bucket_id" = 'tender-documents'::"text") AND (( SELECT "public"."get_user_role"() AS "get_user_role") = ANY (ARRAY['admin'::"text", 'editor'::"text"]))));
 
 
 

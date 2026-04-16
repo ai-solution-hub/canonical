@@ -1,46 +1,37 @@
 /**
  * WP-A: classification_disputes migration guard
  *
- * File-content test that verifies the classification_disputes migration
- * contains all expected RLS policies, CHECK constraints, indexes, and
- * trigger definitions. Follows the same pattern as the existing
- * pipeline-service-account.test.ts and auth-users-insert-guard.test.ts.
+ * File-content test that verifies the squashed migration file contains all
+ * expected classification_disputes definitions: RLS policies, CHECK
+ * constraints, indexes, trigger, FK constraints, and per-item cost columns.
  *
  * This does NOT run against a live DB — it parses the migration SQL to
  * verify the structural contract survives future refactors.
+ *
+ * Post-squash: all 43 migrations were consolidated into a single pg_dump
+ * schema file. Assertions target the pg_dump output format rather than the
+ * original imperative migration syntax.
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
-import { readFileSync, existsSync, readdirSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 
-const MIGRATIONS_DIR = resolve(__dirname, '../../supabase/migrations');
-
-/**
- * Find the classification_disputes migration file by suffix pattern.
- * The timestamp prefix varies by environment.
- */
-function findMigrationFile(): string | null {
-  const files = readdirSync(MIGRATIONS_DIR);
-  const match = files.find((f) =>
-    f.endsWith(
-      '_create_classification_disputes_and_peritem_cost_columns.sql',
-    ),
-  );
-  return match ? resolve(MIGRATIONS_DIR, match) : null;
-}
+const SQUASHED_MIGRATION = resolve(
+  __dirname,
+  '../../supabase/migrations/20260416102457_pre_squash_reconciliation.sql',
+);
 
 describe('classification_disputes migration', () => {
   let migrationPath: string;
   let content: string;
 
   beforeAll(() => {
-    const found = findMigrationFile();
+    migrationPath = SQUASHED_MIGRATION;
     expect(
-      found,
-      'classification_disputes migration file must exist',
-    ).not.toBeNull();
-    migrationPath = found!;
+      existsSync(migrationPath),
+      'squashed migration file must exist',
+    ).toBe(true);
     content = readFileSync(migrationPath, 'utf-8');
   });
 
@@ -55,26 +46,28 @@ describe('classification_disputes migration', () => {
 
   describe('table structure', () => {
     it('creates the classification_disputes table', () => {
+      // pg_dump format: CREATE TABLE IF NOT EXISTS "public"."classification_disputes"
       expect(content).toMatch(
-        /CREATE TABLE\s+classification_disputes/i,
+        /CREATE TABLE.*classification_disputes/i,
       );
     });
 
     it('has content_item_id FK with CASCADE delete', () => {
+      // pg_dump emits FKs as separate ALTER TABLE ADD CONSTRAINT statements
       expect(content).toMatch(
-        /content_item_id\s+uuid\s+NOT NULL\s+REFERENCES\s+content_items\(id\)\s+ON DELETE CASCADE/i,
+        /classification_disputes_content_item_id_fkey.*FOREIGN KEY.*content_item_id.*REFERENCES.*content_items.*ON DELETE CASCADE/is,
       );
     });
 
     it('has disputed_by FK with SET NULL delete', () => {
       expect(content).toMatch(
-        /disputed_by\s+uuid\s+REFERENCES\s+auth\.users\(id\)\s+ON DELETE SET NULL/i,
+        /classification_disputes_disputed_by_fkey.*FOREIGN KEY.*disputed_by.*REFERENCES.*auth.*users.*ON DELETE SET NULL/is,
       );
     });
 
     it('has resolved_by FK with SET NULL delete', () => {
       expect(content).toMatch(
-        /resolved_by\s+uuid\s+REFERENCES\s+auth\.users\(id\)\s+ON DELETE SET NULL/i,
+        /classification_disputes_resolved_by_fkey.*FOREIGN KEY.*resolved_by.*REFERENCES.*auth.*users.*ON DELETE SET NULL/is,
       );
     });
   });
@@ -100,21 +93,23 @@ describe('classification_disputes migration', () => {
           `disputed_field must allow '${field}'`,
         ).toContain(`'${field}'`);
       }
-      expect(content).toMatch(/disputed_field.*CHECK/is);
+      expect(content).toMatch(/classification_disputes_disputed_field_check/i);
     });
 
     it('status allows exactly open, resolved, rejected', () => {
       expect(content).toContain("'open'");
       expect(content).toContain("'resolved'");
       expect(content).toContain("'rejected'");
+      // pg_dump format: "status" "text" DEFAULT 'open'::"text" NOT NULL
       expect(content).toMatch(
-        /status\s+text\s+NOT NULL\s+DEFAULT\s+'open'/i,
+        /status.*text.*DEFAULT\s+'open'/i,
       );
     });
 
     it('rationale has minimum length check (>= 10)', () => {
+      // pg_dump format: "length"(TRIM(BOTH FROM "rationale")) >= 10
       expect(content).toMatch(
-        /length\(trim\(rationale\)\)\s*>=\s*10/i,
+        /length.*trim.*rationale.*>=\s*10/i,
       );
     });
 
@@ -124,11 +119,11 @@ describe('classification_disputes migration', () => {
       );
       // Open must have NULL resolved_by and resolved_at
       expect(content).toMatch(
-        /status\s*=\s*'open'\s+AND\s+resolved_by\s+IS\s+NULL\s+AND\s+resolved_at\s+IS\s+NULL/i,
+        /status.*=\s*'open'.*AND.*resolved_by.*IS\s+NULL.*AND.*resolved_at.*IS\s+NULL/is,
       );
       // Resolved/rejected must have both set
       expect(content).toMatch(
-        /resolved_by\s+IS\s+NOT\s+NULL\s+AND\s+resolved_at\s+IS\s+NOT\s+NULL/i,
+        /resolved_by.*IS\s+NOT\s+NULL.*AND.*resolved_at.*IS\s+NOT\s+NULL/is,
       );
     });
   });
@@ -140,8 +135,9 @@ describe('classification_disputes migration', () => {
   describe('indexes', () => {
     it('has content_item_id index', () => {
       expect(content).toContain('idx_classification_disputes_item');
+      // pg_dump format: ON "public"."classification_disputes" USING "btree" ("content_item_id")
       expect(content).toMatch(
-        /ON\s+classification_disputes\(content_item_id\)/i,
+        /ON\s+"?public"?\."?classification_disputes"?.*"?content_item_id"?/i,
       );
     });
 
@@ -149,8 +145,9 @@ describe('classification_disputes migration', () => {
       expect(content).toContain(
         'idx_classification_disputes_status_created',
       );
+      // pg_dump format: WHERE ("status" = 'open'::"text")
       expect(content).toMatch(
-        /WHERE\s+status\s*=\s*'open'/i,
+        /WHERE\s+\(?"?status"?\s*=\s*'open'/i,
       );
     });
 
@@ -164,8 +161,9 @@ describe('classification_disputes migration', () => {
       expect(content).toContain(
         'idx_classification_disputes_resolved_by',
       );
+      // pg_dump format: WHERE ("resolved_by" IS NOT NULL)
       expect(content).toMatch(
-        /WHERE\s+resolved_by\s+IS\s+NOT\s+NULL/i,
+        /WHERE\s+\(?"?resolved_by"?\s+IS\s+NOT\s+NULL/i,
       );
     });
   });
@@ -179,14 +177,16 @@ describe('classification_disputes migration', () => {
       expect(content).toContain(
         'set_classification_disputes_updated_at',
       );
+      // pg_dump format uses quoted identifiers: SET "search_path" TO 'public', 'extensions'
       expect(content).toMatch(
-        /SET\s+search_path\s*=\s*public,\s*extensions/i,
+        /search_path.*public.*extensions/i,
       );
     });
 
     it('trigger fires BEFORE UPDATE', () => {
+      // pg_dump format: BEFORE UPDATE ON "public"."classification_disputes"
       expect(content).toMatch(
-        /BEFORE\s+UPDATE\s+ON\s+classification_disputes/i,
+        /BEFORE\s+UPDATE\s+ON\s+"?public"?\."?classification_disputes"?/i,
       );
     });
 
@@ -201,8 +201,9 @@ describe('classification_disputes migration', () => {
 
   describe('RLS policies', () => {
     it('enables RLS on classification_disputes', () => {
+      // pg_dump format: ALTER TABLE "public"."classification_disputes" ENABLE ROW LEVEL SECURITY
       expect(content).toMatch(
-        /ALTER\s+TABLE\s+classification_disputes\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY/i,
+        /ALTER\s+TABLE\s+"?public"?\."?classification_disputes"?\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY/i,
       );
     });
 
@@ -211,8 +212,9 @@ describe('classification_disputes migration', () => {
       expect(content).toContain(
         'classification_disputes_select_admin',
       );
+      // pg_dump format: "public"."get_user_role"() = 'admin'::"text"
       expect(content).toMatch(
-        /FOR\s+SELECT\s+TO\s+authenticated[\s\S]*?get_user_role\(\)\s*=\s*'admin'/i,
+        /FOR\s+SELECT\s+TO\s+"?authenticated"?[\s\S]*?get_user_role"?\(\)\s*=\s*'admin'/i,
       );
     });
 
@@ -221,12 +223,13 @@ describe('classification_disputes migration', () => {
       expect(content).toContain(
         'classification_disputes_select_own',
       );
-      // Policy must check both role=editor AND disputed_by=auth.uid()
+      // pg_dump format: "public"."get_user_role"() = 'editor'::"text"
       expect(content).toMatch(
-        /classification_disputes_select_own[\s\S]*?get_user_role\(\)\s*=\s*'editor'/i,
+        /classification_disputes_select_own[\s\S]*?get_user_role"?\(\)\s*=\s*'editor'/i,
       );
+      // pg_dump format: ("disputed_by" = "auth"."uid"())
       expect(content).toMatch(
-        /classification_disputes_select_own[\s\S]*?disputed_by\s*=\s*auth\.uid\(\)/i,
+        /classification_disputes_select_own[\s\S]*?disputed_by"?\s*=\s*"?auth"?\."?uid"?\(/i,
       );
     });
 
@@ -235,29 +238,29 @@ describe('classification_disputes migration', () => {
       expect(content).toContain(
         'classification_disputes_insert',
       );
-      // Must check role IN ('admin', 'editor')
+      // Must check role IN ('admin', 'editor') — pg_dump uses ARRAY syntax
       expect(content).toMatch(
-        /classification_disputes_insert[\s\S]*?IN\s*\(\s*'admin'\s*,\s*'editor'\s*\)/i,
+        /classification_disputes_insert[\s\S]*?'admin'[\s\S]*?'editor'/i,
       );
-      // Must enforce disputed_by = auth.uid()
+      // pg_dump format: ("disputed_by" = "auth"."uid"())
       expect(content).toMatch(
-        /classification_disputes_insert[\s\S]*?disputed_by\s*=\s*auth\.uid\(\)/i,
+        /classification_disputes_insert[\s\S]*?disputed_by"?\s*=\s*"?auth"?\."?uid"?\(/i,
       );
-      // Must enforce status = 'open'
+      // pg_dump format: ("status" = 'open'::"text")
       expect(content).toMatch(
-        /classification_disputes_insert[\s\S]*?status\s*=\s*'open'/i,
+        /classification_disputes_insert[\s\S]*?status"?\s*=\s*'open'/i,
       );
       // Must enforce resolved_by IS NULL
       expect(content).toMatch(
-        /classification_disputes_insert[\s\S]*?resolved_by\s+IS\s+NULL/i,
+        /classification_disputes_insert[\s\S]*?resolved_by"?\s+IS\s+NULL/i,
       );
       // Must enforce resolved_at IS NULL
       expect(content).toMatch(
-        /classification_disputes_insert[\s\S]*?resolved_at\s+IS\s+NULL/i,
+        /classification_disputes_insert[\s\S]*?resolved_at"?\s+IS\s+NULL/i,
       );
       // Must enforce resolution_notes IS NULL
       expect(content).toMatch(
-        /classification_disputes_insert[\s\S]*?resolution_notes\s+IS\s+NULL/i,
+        /classification_disputes_insert[\s\S]*?resolution_notes"?\s+IS\s+NULL/i,
       );
     });
 
@@ -269,8 +272,9 @@ describe('classification_disputes migration', () => {
       expect(content).toMatch(
         /classification_disputes_update_admin[\s\S]*?FOR\s+UPDATE/i,
       );
+      // pg_dump format: "public"."get_user_role"() = 'admin'::"text"
       expect(content).toMatch(
-        /classification_disputes_update_admin[\s\S]*?get_user_role\(\)\s*=\s*'admin'/i,
+        /classification_disputes_update_admin[\s\S]*?get_user_role"?\(\)\s*=\s*'admin'/i,
       );
     });
 
@@ -282,8 +286,9 @@ describe('classification_disputes migration', () => {
       expect(content).toMatch(
         /classification_disputes_delete_admin_rejected_only[\s\S]*?FOR\s+DELETE/i,
       );
+      // pg_dump format: ("status" = 'rejected'::"text")
       expect(content).toMatch(
-        /classification_disputes_delete_admin_rejected_only[\s\S]*?status\s*=\s*'rejected'/i,
+        /classification_disputes_delete_admin_rejected_only[\s\S]*?status"?\s*=\s*'rejected'/i,
       );
     });
 
@@ -301,12 +306,12 @@ describe('classification_disputes migration', () => {
 
     it('editor cannot impersonate — INSERT enforces disputed_by = auth.uid()', () => {
       // The INSERT policy WITH CHECK clause must enforce disputed_by = auth.uid()
-      // Extract the INSERT policy block
+      // pg_dump format: ("disputed_by" = "auth"."uid"())
       const insertPolicy = content.match(
         /CREATE\s+POLICY\s+"classification_disputes_insert"[\s\S]*?;/i,
       );
       expect(insertPolicy).not.toBeNull();
-      expect(insertPolicy![0]).toMatch(/disputed_by\s*=\s*auth\.uid\(\)/i);
+      expect(insertPolicy![0]).toMatch(/disputed_by"?\s*=\s*"?auth"?\."?uid"?\(/i);
     });
 
     it('editor cannot insert a pre-resolved dispute — INSERT enforces status=open + NULL resolution fields', () => {
@@ -314,9 +319,10 @@ describe('classification_disputes migration', () => {
         /CREATE\s+POLICY\s+"classification_disputes_insert"[\s\S]*?;/i,
       );
       expect(insertPolicy).not.toBeNull();
-      expect(insertPolicy![0]).toContain("status = 'open'");
-      expect(insertPolicy![0]).toMatch(/resolved_by\s+IS\s+NULL/i);
-      expect(insertPolicy![0]).toMatch(/resolved_at\s+IS\s+NULL/i);
+      // pg_dump format: ("status" = 'open'::"text")
+      expect(insertPolicy![0]).toMatch(/status"?\s*=\s*'open'/i);
+      expect(insertPolicy![0]).toMatch(/resolved_by"?\s+IS\s+NULL/i);
+      expect(insertPolicy![0]).toMatch(/resolved_at"?\s+IS\s+NULL/i);
     });
 
     it('no editor UPDATE policy exists (editors cannot update disputes)', () => {
@@ -336,8 +342,8 @@ describe('classification_disputes migration', () => {
         /CREATE\s+POLICY\s+"classification_disputes_delete_admin_rejected_only"[\s\S]*?;/i,
       );
       expect(deletePolicy).not.toBeNull();
-      // USING clause must include status = 'rejected'
-      expect(deletePolicy![0]).toMatch(/status\s*=\s*'rejected'/i);
+      // pg_dump format: ("status" = 'rejected'::"text")
+      expect(deletePolicy![0]).toMatch(/status"?\s*=\s*'rejected'/i);
     });
   });
 
@@ -356,30 +362,29 @@ describe('classification_disputes migration', () => {
       'embedding_tokens',
     ];
 
-    it('adds all 7 cost/token columns to content_items', () => {
+    it('includes all 7 cost/token columns in content_items', () => {
+      // Post-squash: columns appear inline in CREATE TABLE, not as ADD COLUMN
       for (const col of expectedColumns) {
         expect(
           content,
-          `content_items must gain column '${col}'`,
+          `content_items must have column '${col}'`,
         ).toMatch(
-          new RegExp(
-            `ADD\\s+COLUMN\\s+IF\\s+NOT\\s+EXISTS\\s+${col}\\b`,
-            'i',
-          ),
+          new RegExp(`"${col}"`, 'i'),
         );
       }
     });
 
     it('classification_model and embedding_model are text type', () => {
+      // pg_dump format: "classification_model" "text"
       expect(content).toMatch(
-        /classification_model\s+text/i,
+        /"classification_model"\s+"text"/i,
       );
       expect(content).toMatch(
-        /embedding_model\s+text/i,
+        /"embedding_model"\s+"text"/i,
       );
     });
 
-    it('token columns are int type', () => {
+    it('token columns are integer type', () => {
       const intColumns = [
         'classification_tokens_in',
         'classification_tokens_out',
@@ -388,36 +393,37 @@ describe('classification_disputes migration', () => {
         'embedding_tokens',
       ];
       for (const col of intColumns) {
+        // pg_dump format: "column_name" integer
         expect(content).toMatch(
-          new RegExp(`${col}\\s+int`, 'i'),
+          new RegExp(`"${col}"\\s+integer`, 'i'),
         );
       }
     });
   });
 
   // ---------------------------------------------------------------
-  // Rollback comment
+  // Structural completeness (replaces rollback comment checks
+  // from the pre-squash imperative migration format)
   // ---------------------------------------------------------------
 
-  describe('rollback', () => {
-    it('contains rollback comment with DROP TABLE', () => {
-      expect(content).toMatch(/--\s*ROLLBACK:/i);
+  describe('structural completeness', () => {
+    it('table, trigger, and function are all present', () => {
+      // These are the objects a rollback would need to drop —
+      // verifying they exist in the squashed schema confirms the
+      // squash preserved the full structural contract.
       expect(content).toMatch(
-        /DROP\s+TABLE\s+IF\s+EXISTS\s+classification_disputes/i,
+        /CREATE TABLE IF NOT EXISTS "public"\."classification_disputes"/i,
+      );
+      expect(content).toContain(
+        'set_classification_disputes_updated_at_trigger',
+      );
+      expect(content).toContain(
+        'set_classification_disputes_updated_at',
       );
     });
 
-    it('rollback drops the trigger and function', () => {
-      expect(content).toMatch(
-        /DROP\s+TRIGGER\s+IF\s+EXISTS\s+set_classification_disputes_updated_at_trigger/i,
-      );
-      expect(content).toMatch(
-        /DROP\s+FUNCTION\s+IF\s+EXISTS\s+public\.set_classification_disputes_updated_at/i,
-      );
-    });
-
-    it('rollback drops all 7 content_items columns', () => {
-      const expectedDrops = [
+    it('all 7 cost/token columns are present in content_items', () => {
+      const expectedColumns = [
         'classification_model',
         'classification_tokens_in',
         'classification_tokens_out',
@@ -426,13 +432,8 @@ describe('classification_disputes migration', () => {
         'embedding_model',
         'embedding_tokens',
       ];
-      for (const col of expectedDrops) {
-        expect(content).toMatch(
-          new RegExp(
-            `DROP\\s+COLUMN\\s+IF\\s+EXISTS\\s+${col}`,
-            'i',
-          ),
-        );
+      for (const col of expectedColumns) {
+        expect(content).toContain(`"${col}"`);
       }
     });
   });
@@ -443,20 +444,21 @@ describe('classification_disputes migration', () => {
 
   describe('table and column comments', () => {
     it('has a table comment', () => {
+      // pg_dump format: COMMENT ON TABLE "public"."classification_disputes"
       expect(content).toMatch(
-        /COMMENT\s+ON\s+TABLE\s+classification_disputes/i,
+        /COMMENT\s+ON\s+TABLE\s+"?public"?\."?classification_disputes"?/i,
       );
     });
 
     it('has column comments for current_value, proposed_value, and disputed_by', () => {
       expect(content).toMatch(
-        /COMMENT\s+ON\s+COLUMN\s+classification_disputes\.current_value/i,
+        /COMMENT\s+ON\s+COLUMN\s+"?public"?\."?classification_disputes"?\."?current_value"?/i,
       );
       expect(content).toMatch(
-        /COMMENT\s+ON\s+COLUMN\s+classification_disputes\.proposed_value/i,
+        /COMMENT\s+ON\s+COLUMN\s+"?public"?\."?classification_disputes"?\."?proposed_value"?/i,
       );
       expect(content).toMatch(
-        /COMMENT\s+ON\s+COLUMN\s+classification_disputes\.disputed_by/i,
+        /COMMENT\s+ON\s+COLUMN\s+"?public"?\."?classification_disputes"?\."?disputed_by"?/i,
       );
     });
   });

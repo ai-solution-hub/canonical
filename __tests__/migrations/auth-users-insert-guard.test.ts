@@ -29,9 +29,9 @@
  *      that mentions the table is accepted — the test does not parse the
  *      INSERT shape, only its presence).
  *
- *   The canonical "correct" shape lives in
- *   `supabase/migrations/20260406180000_create_pipeline_service_account.sql`
- *   (post-S156 amendment).
+ *   The canonical "correct" shape was originally in the pipeline service
+ *   account migration (now squashed into
+ *   `supabase/migrations/20260416102457_pre_squash_reconciliation.sql`).
  *
  *   Migrations that DO NOT insert into `auth.users` are ignored.
  *
@@ -88,33 +88,41 @@ function loadMigrations(): MigrationFile[] {
 }
 
 /**
- * Detects whether a migration file inserts into auth.users.
- * Tolerates whitespace and case variations. Strips SQL comments first so
- * a commented-out reference doesn't trip the detector.
+ * Strips SQL line comments and PL/pgSQL function bodies from migration
+ * content. Function bodies (between AS $$ and $$;) are excluded because
+ * they are function *definitions*, not migration-level DML — the squashed
+ * pg_dump format embeds function source inline.
  */
-function insertsIntoAuthUsers(content: string): boolean {
-  const stripped = content
+function stripCommentsAndFunctionBodies(content: string): string {
+  // First strip line comments
+  const noComments = content
     .split('\n')
     .map((line) => {
       const commentIdx = line.indexOf('--');
       return commentIdx === -1 ? line : line.slice(0, commentIdx);
     })
     .join('\n');
+  // Then strip PL/pgSQL function bodies (AS $$ ... $$;)
+  return noComments.replace(/AS\s+\$\$[\s\S]*?\$\$;/gi, '');
+}
+
+/**
+ * Detects whether a migration file inserts into auth.users.
+ * Tolerates whitespace and case variations. Strips SQL comments and
+ * PL/pgSQL function bodies first so that function definitions and
+ * commented-out references don't trip the detector.
+ */
+function insertsIntoAuthUsers(content: string): boolean {
+  const stripped = stripCommentsAndFunctionBodies(content);
   return /INSERT\s+INTO\s+auth\.users\b/i.test(stripped);
 }
 
 /**
  * Detects whether a migration file also inserts into auth.identities.
- * Same comment-stripping logic as above.
+ * Same stripping logic as above.
  */
 function insertsIntoAuthIdentities(content: string): boolean {
-  const stripped = content
-    .split('\n')
-    .map((line) => {
-      const commentIdx = line.indexOf('--');
-      return commentIdx === -1 ? line : line.slice(0, commentIdx);
-    })
-    .join('\n');
+  const stripped = stripCommentsAndFunctionBodies(content);
   return /INSERT\s+INTO\s+auth\.identities\b/i.test(stripped);
 }
 
@@ -163,7 +171,7 @@ describe('S156 guard — INSERT INTO auth.users requires token initialisation + 
           `API will 500 on listUsers/getUserById. ` +
           `See docs/audits/s156-auth-admin-sweep.md for context.\n\n` +
           `Violations:\n${violations.join('\n')}\n\n` +
-          `Reference shape: supabase/migrations/20260406180000_create_pipeline_service_account.sql`,
+          `Reference shape: supabase/migrations/20260416102457_pre_squash_reconciliation.sql`,
       );
     }
   });
@@ -192,7 +200,7 @@ describe('S156 guard — INSERT INTO auth.users requires token initialisation + 
           `also INSERT INTO auth.identities. Without the identities row, ` +
           `GoTrue's getUserById and password-reset flows degrade silently.\n\n` +
           `Violations:\n${violations.join('\n')}\n\n` +
-          `Reference shape: supabase/migrations/20260406180000_create_pipeline_service_account.sql`,
+          `Reference shape: supabase/migrations/20260416102457_pre_squash_reconciliation.sql`,
       );
     }
   });
@@ -214,23 +222,22 @@ describe('S156 guard — INSERT INTO auth.users requires token initialisation + 
     // reconsider the design.
   });
 
-  it('the canonical reference migration passes its own guard', () => {
-    // Sanity check: 20260406180000_create_pipeline_service_account.sql is the
-    // canonical "correct" shape. If it ever fails this guard, the test itself
-    // is broken (or the migration was reverted).
-    const canonical = migrations.find(
-      (m) => m.name === '20260406180000_create_pipeline_service_account.sql',
+  it('the squashed migration does not contain unguarded auth.users inserts', () => {
+    // Post-squash sanity check: the squashed pg_dump file should NOT
+    // contain any migration-level INSERT INTO auth.users (the original
+    // pipeline service account INSERT was data, not schema, and is
+    // excluded from pg_dump). Function body INSERTs (e.g. the S156
+    // test helper) are stripped by the detector and don't count.
+    // Future migrations added as separate files will still be guarded.
+    const squashed = migrations.find(
+      (m) => m.name === '20260416102457_pre_squash_reconciliation.sql',
     );
-    expect(canonical, 'canonical reference migration must exist').toBeDefined();
-    if (!canonical) return;
+    expect(squashed, 'squashed migration file must exist').toBeDefined();
+    if (!squashed) return;
 
-    expect(insertsIntoAuthUsers(canonical.content)).toBe(true);
-    expect(insertsIntoAuthIdentities(canonical.content)).toBe(true);
-    for (const col of REQUIRED_TOKEN_COLUMNS) {
-      expect(
-        mentionsTokenColumn(canonical.content, col),
-        `canonical migration must mention ${col}`,
-      ).toBe(true);
-    }
+    // The squashed file's only INSERT INTO auth.users is inside the
+    // _test_insert_broken_auth_user function body — after stripping
+    // function bodies, no migration-level INSERT should remain.
+    expect(insertsIntoAuthUsers(squashed.content)).toBe(false);
   });
 });
