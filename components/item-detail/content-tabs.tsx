@@ -6,7 +6,6 @@ import {
   RefreshCw,
   CheckCircle2,
   Loader2,
-  Pencil,
   Flag,
   Check,
 } from 'lucide-react';
@@ -16,35 +15,22 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { formatDate } from '@/lib/format';
-import {
-  SAVE_SAFETY_BLOCK_MESSAGE,
-  shouldBlockSave,
-} from '@/lib/editor/save-safety';
 import { toast } from 'sonner';
 import { ContentRenderer } from '@/components/item-detail/content-renderer';
+import { EditButton } from '@/components/item-detail/edit-button';
+import { InlineTextEditor } from '@/components/item-detail/inline-text-editor';
+import { InlineContentEditor } from '@/components/item-detail/inline-content-editor';
 import { ExternalLink } from 'lucide-react';
 import { ReaderView } from '@/components/reader/reader-view';
 import { IframeViewer } from '@/components/reader/iframe-viewer';
 import { NewsletterReaderCard } from '@/components/reader-cards/newsletter-reader-card';
 import { TranscriptReaderCard } from '@/components/reader-cards/transcript-reader-card';
-import dynamic from 'next/dynamic';
 import type {
   SummaryData,
   TranscriptChapter,
   TranscriptSegment,
   TranscriptHighlight,
 } from '@/types/content';
-
-const ContentEditor = dynamic(
-  () =>
-    import('@/components/item-detail/content-editor').then(
-      (mod) => mod.ContentEditor,
-    ),
-  {
-    ssr: false,
-    loading: () => <div className="h-48 animate-pulse rounded-lg bg-accent" />,
-  },
-);
 
 // ---------------------------------------------------------------------------
 // Types
@@ -247,172 +233,7 @@ export function ContentTabs({
   };
 
   // Inline edit helpers
-  const isEditing = (field: string) => editConfig?.editingField === field;
-
-  /**
-   * S153 WP3(a): "Why change?" optional text input shown on inline edits.
-   * NULL-acceptable — an empty value is persisted as NULL in
-   * `content_history.change_reason`.
-   */
-  function ChangeReasonInput({
-    editConfig: ec,
-  }: {
-    editConfig: ContentTabsEditConfig;
-  }) {
-    return (
-      <div className="space-y-1">
-        <label
-          htmlFor="content-tabs-change-reason"
-          className="text-xs font-medium text-muted-foreground"
-        >
-          Why change? <span className="font-normal">(optional)</span>
-        </label>
-        <input
-          id="content-tabs-change-reason"
-          type="text"
-          value={ec.changeReason}
-          onChange={(e) => ec.onChangeReasonChange(e.target.value)}
-          placeholder="e.g. Updated to reflect 2026 rebrand"
-          maxLength={500}
-          className="w-full rounded-md border border-input bg-card px-3 py-1.5 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        />
-      </div>
-    );
-  }
-
-  function EditButton({
-    field,
-    label,
-  }: {
-    field: 'brief' | 'detail' | 'reference' | 'content';
-    label?: string;
-  }) {
-    if (!canEdit || !editConfig || isEditing(field)) return null;
-    return (
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => editConfig.onStartEdit(field)}
-        className="gap-1.5 text-xs"
-      >
-        <Pencil className="size-3" aria-hidden="true" />
-        {label ?? 'Edit'}
-      </Button>
-    );
-  }
-
-  function InlineTextEditor({
-    field,
-  }: {
-    field: 'brief' | 'detail' | 'reference';
-  }) {
-    if (!editConfig || !isEditing(field)) return null;
-    return (
-      <div className="space-y-2">
-        <textarea
-          value={editConfig.editValue}
-          onChange={(e) => editConfig.onEditValueChange(e.target.value)}
-          className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          rows={6}
-          autoFocus
-          aria-label={`Edit ${field}`}
-        />
-        <ChangeReasonInput editConfig={editConfig} />
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            onClick={() => editConfig.onSaveEdit(field)}
-            disabled={editConfig.isSaving}
-          >
-            {editConfig.isSaving ? 'Saving…' : 'Save'}
-          </Button>
-          <Button size="sm" variant="ghost" onClick={editConfig.onCancelEdit}>
-            Cancel
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  function InlineContentEditor() {
-    if (!editConfig || !isEditing('content')) return null;
-
-    // Save-safety guard for the Save-button path. Baseline is the
-    // last-persisted canonical markdown (`content` prop on ContentTabs —
-    // captured via closure here). The new length is the in-flight edit
-    // buffer (`editConfig.editValue`), which the editor keeps in sync via
-    // `onChange`. Both sides are measured in canonical markdown units so
-    // the ratio is meaningful. See `lib/editor/save-safety.ts` for the
-    // threshold and rationale. On block, we surface the canonical toast
-    // copy and keep the user in edit mode so they can recover their work.
-    const baselineLength = content?.length ?? 0;
-    const handleSaveClick = () => {
-      const nextLength = editConfig.editValue?.length ?? 0;
-      if (shouldBlockSave(baselineLength, nextLength)) {
-        toast.error(SAVE_SAFETY_BLOCK_MESSAGE);
-        return;
-      }
-      editConfig.onSaveEdit('content');
-    };
-
-    return (
-      <div className="space-y-3">
-        <ContentEditor
-          content={editConfig.editValue}
-          onChange={editConfig.onEditValueChange}
-          // Secondary guard on Cmd+S. Invokes the save-edit callback on
-          // success; identical block behaviour to the Save button.
-          onSave={() => editConfig.onSaveEdit('content')}
-          // Explicit baseline — `content` here is the two-way-bound edit
-          // buffer, so the ContentEditor can't fall back to it safely.
-          baselineLength={baselineLength}
-          placeholder={isQAPair ? 'Write the answer…' : 'Edit content…'}
-          minHeight="200px"
-        />
-        <div className="flex flex-wrap items-center gap-4">
-          {editConfig.onRegenerateEmbeddingChange && (
-            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={editConfig.regenerateEmbedding ?? false}
-                onChange={(e) =>
-                  editConfig.onRegenerateEmbeddingChange!(e.target.checked)
-                }
-                className="accent-primary"
-              />
-              Re-generate embedding
-            </label>
-          )}
-          {editConfig.onReclassifyChange && (
-            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={editConfig.reclassifyAfterSave ?? false}
-                onChange={(e) =>
-                  editConfig.onReclassifyChange!(e.target.checked)
-                }
-                className="accent-primary"
-              />
-              Re-classify after save
-            </label>
-          )}
-        </div>
-        <ChangeReasonInput editConfig={editConfig} />
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            onClick={handleSaveClick}
-            disabled={editConfig.isSaving}
-          >
-            {editConfig.isSaving ? 'Saving…' : 'Save'}
-          </Button>
-          <Button size="sm" variant="ghost" onClick={editConfig.onCancelEdit}>
-            Cancel
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  const isEditingField = (field: string) => editConfig?.editingField === field;
 
   // --- Reader tab rendering (unchanged from SummaryTabs) ---
   const renderReader = () => {
@@ -551,16 +372,25 @@ export function ContentTabs({
         {/* --- Summary tab --- */}
         {(hasBrief || (!hasBrief && !hasFullText && !hasDetail)) && (
           <TabsContent value="brief" className="p-4">
-            {isEditing('brief') ? (
-              <InlineTextEditor field="brief" />
+            {isEditingField('brief') && editConfig ? (
+              <InlineTextEditor
+                field="brief"
+                editConfig={editConfig}
+                isEditing
+              />
             ) : hasBriefHuman ? (
               <>
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-xs text-muted-foreground" />
-                  <EditButton
-                    field="brief"
-                    label={brief ? 'Edit' : 'Write Summary'}
-                  />
+                  {editConfig && (
+                    <EditButton
+                      field="brief"
+                      label={brief ? 'Edit' : 'Write Summary'}
+                      canEdit={!!canEdit}
+                      isEditing={false}
+                      onStartEdit={editConfig.onStartEdit}
+                    />
+                  )}
                 </div>
                 <ContentRenderer content={brief!} />
               </>
@@ -568,7 +398,15 @@ export function ContentTabs({
               <>
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-xs text-muted-foreground" />
-                  <EditButton field="brief" label="Write Summary" />
+                  {editConfig && (
+                    <EditButton
+                      field="brief"
+                      label="Write Summary"
+                      canEdit={!!canEdit}
+                      isEditing={false}
+                      onStartEdit={editConfig.onStartEdit}
+                    />
+                  )}
                 </div>
                 <p className="text-base leading-relaxed text-foreground">
                   {summaryData?.executive ?? aiSummary}
@@ -603,13 +441,24 @@ export function ContentTabs({
         {/* --- Detailed tab --- */}
         {hasDetail && (
           <TabsContent value="detail" className="p-4">
-            {isEditing('detail') ? (
-              <InlineTextEditor field="detail" />
+            {isEditingField('detail') && editConfig ? (
+              <InlineTextEditor
+                field="detail"
+                editConfig={editConfig}
+                isEditing
+              />
             ) : hasDetailHuman ? (
               <>
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-xs text-muted-foreground" />
-                  <EditButton field="detail" />
+                  {editConfig && (
+                    <EditButton
+                      field="detail"
+                      canEdit={!!canEdit}
+                      isEditing={false}
+                      onStartEdit={editConfig.onStartEdit}
+                    />
+                  )}
                 </div>
                 <ContentRenderer content={detail!} />
               </>
@@ -617,7 +466,15 @@ export function ContentTabs({
               <>
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-xs text-muted-foreground" />
-                  <EditButton field="detail" label="Write Detailed" />
+                  {editConfig && (
+                    <EditButton
+                      field="detail"
+                      label="Write Detailed"
+                      canEdit={!!canEdit}
+                      isEditing={false}
+                      onStartEdit={editConfig.onStartEdit}
+                    />
+                  )}
                 </div>
                 <ContentRenderer content={summaryData!.detailed} />
               </>
@@ -645,15 +502,27 @@ export function ContentTabs({
         {/* --- Full Text / Full Answer tab --- */}
         {hasFullText && (
           <TabsContent value="fulltext" className="p-4">
-            {isEditing('content') ? (
-              <InlineContentEditor />
+            {isEditingField('content') && editConfig ? (
+              <InlineContentEditor
+                editConfig={editConfig}
+                isEditing
+                currentContent={content}
+                isQAPair={isQAPair}
+              />
             ) : (
               <>
                 <div className="mb-3 flex items-center justify-between">
                   <p className="text-xs text-muted-foreground">
                     ~{estimateReadingTime(content!)} min read
                   </p>
-                  <EditButton field="content" />
+                  {editConfig && (
+                    <EditButton
+                      field="content"
+                      canEdit={!!canEdit}
+                      isEditing={false}
+                      onStartEdit={editConfig.onStartEdit}
+                    />
+                  )}
                 </div>
                 <div className="max-h-[60vh] overflow-y-auto">
                   <ContentRenderer content={content!} />
@@ -669,13 +538,24 @@ export function ContentTabs({
         {/* --- Reference tab --- */}
         {hasReference && (
           <TabsContent value="reference" className="p-4">
-            {isEditing('reference') ? (
-              <InlineTextEditor field="reference" />
+            {isEditingField('reference') && editConfig ? (
+              <InlineTextEditor
+                field="reference"
+                editConfig={editConfig}
+                isEditing
+              />
             ) : (
               <>
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-xs text-muted-foreground" />
-                  <EditButton field="reference" />
+                  {editConfig && (
+                    <EditButton
+                      field="reference"
+                      canEdit={!!canEdit}
+                      isEditing={false}
+                      onStartEdit={editConfig.onStartEdit}
+                    />
+                  )}
                 </div>
                 <ContentRenderer content={reference!} />
               </>
