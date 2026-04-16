@@ -33,14 +33,9 @@ function createParams(
     readerOpen: false,
     toggleDetached: vi.fn(),
     canEdit: true,
-    title: 'Test Title',
-    answerStandard: 'Standard',
-    answerAdvanced: 'Advanced',
-    setIsEditing: vi.fn(),
-    setEditTitle: vi.fn(),
-    setEditStandard: vi.fn(),
-    setEditAdvanced: vi.fn(),
-    setEditDirty: vi.fn(),
+    startEdit: vi.fn(),
+    cancelEdit: vi.fn(),
+    editingField: null as string | null,
     router: {
       push: vi.fn(),
       replace: vi.fn(),
@@ -65,7 +60,7 @@ describe('useItemDetailShortcuts', () => {
   });
 
   // -------------------------------------------------------------------------
-  // m — toggle read
+  // m -- toggle read
   // -------------------------------------------------------------------------
 
   it('calls toggleRead on "m" keypress', () => {
@@ -90,7 +85,7 @@ describe('useItemDetailShortcuts', () => {
   });
 
   // -------------------------------------------------------------------------
-  // s — star toggle
+  // s -- star toggle
   // -------------------------------------------------------------------------
 
   it('calls handleStarToggle on "s" keypress when canEdit is true', () => {
@@ -121,7 +116,7 @@ describe('useItemDetailShortcuts', () => {
   });
 
   // -------------------------------------------------------------------------
-  // p — priority cycle
+  // p -- priority cycle
   // -------------------------------------------------------------------------
 
   it('calls handlePriorityCycle on "p" keypress when canEdit is true', () => {
@@ -143,29 +138,60 @@ describe('useItemDetailShortcuts', () => {
   });
 
   // -------------------------------------------------------------------------
-  // e — edit mode
+  // e -- start inline edit (suggested_title)
   // -------------------------------------------------------------------------
 
-  it('calls setIsEditing on "e" when canEdit is true', () => {
-    const params = createParams({ canEdit: true });
+  it('calls startEdit("suggested_title") on "e" when canEdit and no active edit', () => {
+    const params = createParams({ canEdit: true, editingField: null });
     renderHook(() => useItemDetailShortcuts(params));
 
     fireEvent.keyDown(window, { key: 'e' });
 
-    expect(params.setIsEditing).toHaveBeenCalledOnce();
+    expect(params.startEdit).toHaveBeenCalledWith('suggested_title');
   });
 
-  it('does not call setIsEditing when canEdit is false', () => {
+  it('does not call startEdit when canEdit is false', () => {
     const params = createParams({ canEdit: false });
     renderHook(() => useItemDetailShortcuts(params));
 
     fireEvent.keyDown(window, { key: 'e' });
 
-    expect(params.setIsEditing).not.toHaveBeenCalled();
+    expect(params.startEdit).not.toHaveBeenCalled();
+  });
+
+  it('does not call startEdit on "e" when an edit is already active', () => {
+    const params = createParams({ canEdit: true, editingField: 'brief' });
+    renderHook(() => useItemDetailShortcuts(params));
+
+    fireEvent.keyDown(window, { key: 'e' });
+
+    expect(params.startEdit).not.toHaveBeenCalled();
   });
 
   // -------------------------------------------------------------------------
-  // r — toggle reader
+  // Escape -- cancel edit
+  // -------------------------------------------------------------------------
+
+  it('calls cancelEdit on Escape when an edit is active', () => {
+    const params = createParams({ editingField: 'suggested_title' });
+    renderHook(() => useItemDetailShortcuts(params));
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(params.cancelEdit).toHaveBeenCalledOnce();
+  });
+
+  it('does not call cancelEdit on Escape when no edit is active', () => {
+    const params = createParams({ editingField: null });
+    renderHook(() => useItemDetailShortcuts(params));
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(params.cancelEdit).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // r -- toggle reader
   // -------------------------------------------------------------------------
 
   it('calls toggleReader on "r" keypress', () => {
@@ -178,7 +204,7 @@ describe('useItemDetailShortcuts', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Shift+R — detach or navigate to /review
+  // Shift+R -- detach or navigate to /review
   // -------------------------------------------------------------------------
 
   it('calls toggleDetached on Shift+R when reader is open', () => {
@@ -202,7 +228,7 @@ describe('useItemDetailShortcuts', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Shift+D — toggle detail mode
+  // Shift+D -- toggle detail mode
   // -------------------------------------------------------------------------
 
   it('calls toggleDetailMode on Shift+D when canEdit is true', () => {
@@ -229,7 +255,7 @@ describe('useItemDetailShortcuts', () => {
 
     fireEvent.keyDown(window, { key: 'D', shiftKey: true });
 
-    // Should not throw — the guard in the hook prevents the call
+    // Should not throw -- the guard in the hook prevents the call
   });
 
   it('does not call toggleDetailMode on plain "d" (no shift)', () => {
@@ -242,7 +268,7 @@ describe('useItemDetailShortcuts', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Reader mode — editing shortcuts disabled
+  // Reader mode -- editing shortcuts disabled
   // -------------------------------------------------------------------------
 
   describe('reader mode (detailMode=reader)', () => {
@@ -264,13 +290,13 @@ describe('useItemDetailShortcuts', () => {
       expect(params.handlePriorityCycle).not.toHaveBeenCalled();
     });
 
-    it('does not call setIsEditing on "e" in reader mode', () => {
+    it('does not call startEdit on "e" in reader mode', () => {
       const params = createParams({ canEdit: true, detailMode: 'reader' });
       renderHook(() => useItemDetailShortcuts(params));
 
       fireEvent.keyDown(window, { key: 'e' });
 
-      expect(params.setIsEditing).not.toHaveBeenCalled();
+      expect(params.startEdit).not.toHaveBeenCalled();
     });
 
     it('still calls toggleRead on "m" in reader mode (reading shortcut)', () => {
@@ -302,7 +328,7 @@ describe('useItemDetailShortcuts', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Editor mode — all shortcuts active
+  // Editor mode -- all shortcuts active
   // -------------------------------------------------------------------------
 
   describe('editor mode (detailMode=editor)', () => {
@@ -324,18 +350,18 @@ describe('useItemDetailShortcuts', () => {
       expect(params.handlePriorityCycle).toHaveBeenCalledOnce();
     });
 
-    it('calls setIsEditing on "e" in editor mode', () => {
+    it('calls startEdit on "e" in editor mode', () => {
       const params = createParams({ canEdit: true, detailMode: 'editor' });
       renderHook(() => useItemDetailShortcuts(params));
 
       fireEvent.keyDown(window, { key: 'e' });
 
-      expect(params.setIsEditing).toHaveBeenCalledOnce();
+      expect(params.startEdit).toHaveBeenCalledWith('suggested_title');
     });
   });
 
   // -------------------------------------------------------------------------
-  // Backwards compatibility — no detailMode provided
+  // Backwards compatibility -- no detailMode provided
   // -------------------------------------------------------------------------
 
   describe('backwards compatibility (no detailMode)', () => {
@@ -349,7 +375,7 @@ describe('useItemDetailShortcuts', () => {
 
       expect(params.handleStarToggle).toHaveBeenCalledOnce();
       expect(params.handlePriorityCycle).toHaveBeenCalledOnce();
-      expect(params.setIsEditing).toHaveBeenCalledOnce();
+      expect(params.startEdit).toHaveBeenCalledWith('suggested_title');
     });
   });
 
@@ -385,7 +411,7 @@ describe('useItemDetailShortcuts', () => {
     textarea.focus();
 
     fireEvent.keyDown(textarea, { key: 'e' });
-    expect(params.setIsEditing).not.toHaveBeenCalled();
+    expect(params.startEdit).not.toHaveBeenCalled();
 
     document.body.removeChild(textarea);
   });

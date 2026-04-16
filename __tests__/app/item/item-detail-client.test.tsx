@@ -215,27 +215,11 @@ function createMockData(overrides: Record<string, unknown> = {}) {
       editValue: '',
       saveSuccess: null,
       saveAnnouncement: '',
+      isSaving: false,
       startEdit: vi.fn(),
       cancelEdit: vi.fn(),
       saveEdit: vi.fn(),
       setEditValue: vi.fn(),
-    },
-    qaEditMode: {
-      isEditing: false,
-      setIsEditing: vi.fn(),
-      editDirty: false,
-      setEditDirty: vi.fn(),
-      editTitle: '',
-      setEditTitle: vi.fn(),
-      editStandard: '',
-      setEditStandard: vi.fn(),
-      editAdvanced: '',
-      setEditAdvanced: vi.fn(),
-      isSavingTab: false,
-      setIsSavingTab: vi.fn(),
-      enterEditMode: vi.fn(),
-      cancelEditMode: vi.fn(),
-      handleSaveAll: vi.fn(),
     },
     isAnalysing: false,
     handleVisionAnalysis: vi.fn(),
@@ -401,27 +385,21 @@ describe('ItemDetailClient (orchestrator)', () => {
   });
 
   describe('unsaved changes guard', () => {
-    it('shows confirm dialog when switching from editor with dirty edits', () => {
+    it('shows confirm dialog when switching from editor with active edit', () => {
       const mockToggle = vi.fn();
-      const mockCancelEditMode = vi.fn();
+      const mockCancelEdit = vi.fn();
       mockUseItemDetailData.mockReturnValue(
         createMockData({
-          qaEditMode: {
-            isEditing: true,
-            setIsEditing: vi.fn(),
-            editDirty: true,
-            setEditDirty: vi.fn(),
-            editTitle: 'Edited',
-            setEditTitle: vi.fn(),
-            editStandard: '',
-            setEditStandard: vi.fn(),
-            editAdvanced: '',
-            setEditAdvanced: vi.fn(),
-            isSavingTab: false,
-            setIsSavingTab: vi.fn(),
-            enterEditMode: vi.fn(),
-            cancelEditMode: mockCancelEditMode,
-            handleSaveAll: vi.fn(),
+          inlineEdit: {
+            editingField: 'suggested_title',
+            editValue: 'Edited',
+            saveSuccess: null,
+            saveAnnouncement: '',
+            isSaving: false,
+            startEdit: vi.fn(),
+            cancelEdit: mockCancelEdit,
+            saveEdit: vi.fn(),
+            setEditValue: vi.fn(),
           },
         }),
       );
@@ -445,7 +423,7 @@ describe('ItemDetailClient (orchestrator)', () => {
       expect(mockConfirm).toHaveBeenCalledWith(
         'You have unsaved changes. Discard and switch to reader mode?',
       );
-      expect(mockCancelEditMode).toHaveBeenCalledOnce();
+      expect(mockCancelEdit).toHaveBeenCalledOnce();
       expect(mockToggle).toHaveBeenCalledOnce();
     });
 
@@ -453,22 +431,16 @@ describe('ItemDetailClient (orchestrator)', () => {
       const mockToggle = vi.fn();
       mockUseItemDetailData.mockReturnValue(
         createMockData({
-          qaEditMode: {
-            isEditing: true,
-            setIsEditing: vi.fn(),
-            editDirty: true,
-            setEditDirty: vi.fn(),
-            editTitle: 'Edited',
-            setEditTitle: vi.fn(),
-            editStandard: '',
-            setEditStandard: vi.fn(),
-            editAdvanced: '',
-            setEditAdvanced: vi.fn(),
-            isSavingTab: false,
-            setIsSavingTab: vi.fn(),
-            enterEditMode: vi.fn(),
-            cancelEditMode: vi.fn(),
-            handleSaveAll: vi.fn(),
+          inlineEdit: {
+            editingField: 'suggested_title',
+            editValue: 'Edited',
+            saveSuccess: null,
+            saveAnnouncement: '',
+            isSaving: false,
+            startEdit: vi.fn(),
+            cancelEdit: vi.fn(),
+            saveEdit: vi.fn(),
+            setEditValue: vi.fn(),
           },
         }),
       );

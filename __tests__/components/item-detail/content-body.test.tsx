@@ -236,13 +236,12 @@ describe('ContentBody', () => {
     ).toBeInTheDocument();
   });
 
-  describe('Draft toggle error handling', () => {
-    it('reports telemetry, rolls back optimistic update, and toasts on failure', async () => {
-      mockUpdateEq.mockResolvedValueOnce({ error: new Error('db fail') });
-      const setItem = vi.fn();
+  describe('Draft toggle through PATCH', () => {
+    it('calls saveEdit with governance_review_status when saveEdit is provided', async () => {
+      const mockSaveEdit = vi.fn().mockResolvedValue(undefined);
       const props = createDefaultProps({
         canEdit: true,
-        setItem,
+        saveEdit: mockSaveEdit,
         item: createMockItem({ governance_review_status: null }),
       });
       render(<ContentBody {...props} />);
@@ -251,21 +250,33 @@ describe('ContentBody', () => {
       await userEvent.click(toggle);
 
       await waitFor(() => {
-        expect(mockCaptureClientException).toHaveBeenCalledTimes(1);
+        expect(mockSaveEdit).toHaveBeenCalledWith(
+          'governance_review_status',
+          'draft',
+          'Marked as draft',
+        );
       });
-      expect(mockCaptureClientException).toHaveBeenCalledWith(
-        expect.any(Error),
-        expect.objectContaining({
-          scope: 'item-detail.content-body.updateGovernanceStatus',
-          extras: expect.objectContaining({
-            itemId: 'item-1',
-            newStatus: 'draft',
-          }),
-        }),
-      );
-      expect(mockToastError).toHaveBeenCalledWith('Failed to update status');
-      // Optimistic update applied once, then rollback called
-      expect(setItem).toHaveBeenCalledTimes(2);
+    });
+
+    it('calls saveEdit to publish when item is draft', async () => {
+      const mockSaveEdit = vi.fn().mockResolvedValue(undefined);
+      const props = createDefaultProps({
+        canEdit: true,
+        saveEdit: mockSaveEdit,
+        item: createMockItem({ governance_review_status: 'draft' }),
+      });
+      render(<ContentBody {...props} />);
+
+      const toggle = screen.getByRole('button', { name: /click to publish/i });
+      await userEvent.click(toggle);
+
+      await waitFor(() => {
+        expect(mockSaveEdit).toHaveBeenCalledWith(
+          'governance_review_status',
+          null,
+          'Published from draft',
+        );
+      });
     });
   });
 });

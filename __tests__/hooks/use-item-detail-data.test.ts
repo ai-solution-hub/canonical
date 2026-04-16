@@ -101,30 +101,11 @@ vi.mock('@/hooks/use-inline-field-edit', () => ({
     editValue: '',
     saveSuccess: null,
     saveAnnouncement: '',
+    isSaving: false,
     startEdit: vi.fn(),
     cancelEdit: vi.fn(),
     saveEdit: vi.fn(),
     setEditValue: vi.fn(),
-  }),
-}));
-
-vi.mock('@/hooks/use-qa-edit-mode', () => ({
-  useQAEditMode: () => ({
-    isEditing: false,
-    setIsEditing: vi.fn(),
-    editDirty: false,
-    setEditDirty: vi.fn(),
-    editTitle: '',
-    setEditTitle: vi.fn(),
-    editStandard: '',
-    setEditStandard: vi.fn(),
-    editAdvanced: '',
-    setEditAdvanced: vi.fn(),
-    isSavingTab: false,
-    setIsSavingTab: vi.fn(),
-    enterEditMode: vi.fn(),
-    cancelEditMode: vi.fn(),
-    handleSaveAll: vi.fn(),
   }),
 }));
 
@@ -331,9 +312,8 @@ describe('useItemDetailData', () => {
       expect(result.current.inlineEdit).toBeDefined();
       expect(result.current.inlineEdit.editingField).toBeNull();
 
-      // Q&A edit mode
-      expect(result.current.qaEditMode).toBeDefined();
-      expect(result.current.qaEditMode.isEditing).toBe(false);
+      // Inline edit (isSaving exposed)
+      expect(result.current.inlineEdit.isSaving).toBe(false);
 
       // Vision analysis
       expect(typeof result.current.isAnalysing).toBe('boolean');

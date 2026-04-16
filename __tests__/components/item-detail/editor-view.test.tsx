@@ -266,28 +266,12 @@ function createMockData(
       editValue: '',
       saveSuccess: null,
       saveAnnouncement: '',
+      isSaving: false,
       startEdit: vi.fn(),
       cancelEdit: vi.fn(),
       saveEdit: vi.fn(),
       setEditValue: vi.fn(),
     } as unknown as ItemDetailData['inlineEdit'],
-    qaEditMode: {
-      isEditing: false,
-      setIsEditing: vi.fn(),
-      editDirty: false,
-      setEditDirty: vi.fn(),
-      editTitle: '',
-      setEditTitle: vi.fn(),
-      editStandard: '',
-      setEditStandard: vi.fn(),
-      editAdvanced: '',
-      setEditAdvanced: vi.fn(),
-      isSavingTab: false,
-      setIsSavingTab: vi.fn(),
-      enterEditMode: vi.fn(),
-      cancelEditMode: vi.fn(),
-      handleSaveAll: vi.fn(),
-    } as unknown as ItemDetailData['qaEditMode'],
     isAnalysing: false,
     handleVisionAnalysis: vi.fn(),
     qaProvenance: {
@@ -382,7 +366,7 @@ describe('EditorView', () => {
       );
       expect(screen.getByTestId('claude-prompt-button')).toBeInTheDocument();
       expect(
-        screen.getByText('Re-ingest source with Claude'),
+        screen.getByText('Replace with fresh copy'),
       ).toBeInTheDocument();
     });
 
@@ -396,7 +380,7 @@ describe('EditorView', () => {
           relatedItems={[]}
         />,
       );
-      expect(screen.getByText('Summarise with Claude')).toBeInTheDocument();
+      expect(screen.getByText('Summarise and add to knowledge base')).toBeInTheDocument();
     });
 
     it('does not render Claude prompts when no source_url and content is short', () => {
