@@ -466,6 +466,18 @@ def process_markdown_file(
         except Exception as e:
             log.error("  [History] ERROR (non-blocking): %s", e)
 
+        # Chunking — mirrors EP1 (scripts/kb_pipeline/pipeline.py) so MCP
+        # retrieval sees new items without a separate backfill step.
+        try:
+            from kb_pipeline.chunk import store_chunks
+            chunk_stored, chunk_errors = store_chunks(id_or_error, cleaned_content)
+            log.info("  [Chunks]  %d chunks stored", chunk_stored)
+            if chunk_errors:
+                for err in chunk_errors:
+                    log.warning("  [Chunks]  WARNING: %s", err)
+        except Exception as e:
+            log.error("  [Chunks]  ERROR (non-blocking): %s", e)
+
         # ── Summarise (optional) ─────────────────────────────────────
         if generate_summary_flag and cls and embedding:
             log.info("  [Summary] Generating AI summary...")

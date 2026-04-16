@@ -560,6 +560,8 @@ def main():
 
         # ── Step 9: Store ────────────────────────────────────────────
         stored_pairs = []
+        chunk_success = 0
+        chunk_skipped = 0
         if pairs_to_import:
             print(f"[9/9] Storing {len(pairs_to_import)} items in Supabase...")
             try:
@@ -567,6 +569,17 @@ def main():
             except ImportError as e:
                 print(f"  ERROR: Could not import store module: {e}")
                 sys.exit(1)
+
+            # Chunk-on-insert mirrors EP1 so MCP retrieval sees new Q&A items
+            # without a separate backfill step. Skipped when --skip-embed
+            # because chunks need embeddings to be retrievable.
+            chunking_enabled = not args.skip_embed
+            if chunking_enabled:
+                try:
+                    from kb_pipeline.chunk import store_chunks
+                except ImportError as e:
+                    print(f"  WARNING: Could not import chunk module: {e}")
+                    chunking_enabled = False
 
             for i, pair in enumerate(pairs_to_import):
                 record = build_content_record(pair, batch_name)
@@ -581,6 +594,17 @@ def main():
                     stored_pairs.append((pair, id_or_error))
                     if (i + 1) % 10 == 0:
                         print(f"  Stored {i + 1}/{len(pairs_to_import)}")
+
+                    if chunking_enabled:
+                        try:
+                            stored, errors = store_chunks(id_or_error, record["content"])
+                            chunk_success += stored
+                            for err in errors:
+                                print(f"  [Chunks]  WARNING: {err}")
+                        except Exception as e:
+                            print(f"  [Chunks]  ERROR for item {id_or_error} (non-blocking): {e}")
+                    else:
+                        chunk_skipped += 1
                 else:
                     store_fail += 1
                     print(f"  Store error for pair #{i}: {id_or_error}")
@@ -588,6 +612,10 @@ def main():
             print(f"  Stored: {store_success}")
             if store_fail:
                 print(f"  Failed: {store_fail}")
+            if chunking_enabled:
+                print(f"  Chunks stored: {chunk_success}")
+            elif chunk_skipped:
+                print(f"  Chunks skipped: {chunk_skipped} (--skip-embed set)")
 
         # ── Step 10: Entity extraction (optional) ────────────────────
         entity_count = 0

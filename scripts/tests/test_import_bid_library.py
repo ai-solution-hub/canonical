@@ -8,6 +8,7 @@ and --batch-tag CLI flags.
 
 import sys
 import os
+from unittest.mock import patch, MagicMock
 
 # Add scripts dir to path so we can import the module
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -333,3 +334,105 @@ class TestClassifiedAtTimestamp:
         record = build_content_record(pair, "test-batch")
         # UTC isoformat includes +00:00
         assert "+00:00" in record["classified_at"]
+
+
+# ── chunk-on-ingest wiring (S177 re-ingestion prep) ─────────────────────
+
+
+def _make_fake_pair():
+    return {
+        "question_text": "Do you encrypt data at rest?",
+        "answer_standard": "Yes — AES-256 via Supabase default storage encryption.",
+        "answer_advanced": "",
+        "section_name": "Security",
+        "source_file": "dummy.docx",
+        "table_index": 0,
+        "row_index": 1,
+        "primary_domain": "security-compliance",
+        "primary_subtopic": "data-protection",
+        "classification_confidence": 0.9,
+        "has_tracked_changes": False,
+    }
+
+
+def _patch_main_env(argv_extra=None):
+    """Return a list of patches that stub out every heavy dep of main()."""
+    argv = ["import_bid_library.py", "/tmp/fake-dir"]
+    if argv_extra:
+        argv.extend(argv_extra)
+
+    fake_pair = _make_fake_pair()
+
+    return [
+        patch("sys.argv", argv),
+        patch("import_bid_library.find_docx_files", return_value=["/tmp/fake-dir/a.docx"]),
+        patch("import_bid_library.has_tracked_changes", return_value=False),
+        patch("import_bid_library.extract_qa_from_docx", return_value=[fake_pair]),
+        patch("import_bid_library.exact_dedup", side_effect=lambda pairs: (pairs, [])),
+        patch("import_bid_library.find_near_duplicates", return_value=[]),
+        patch("import_bid_library.classify_pairs", side_effect=lambda pairs: pairs),
+        patch("import_bid_library.classification_summary", return_value={}),
+        patch("import_bid_library.check_question_exists", return_value=False),
+        patch(
+            "kb_pipeline.embed.build_embedding_text", return_value="embed text"
+        ),
+        patch(
+            "kb_pipeline.embed.generate_embedding",
+            return_value=([0.1] * 1024, 500),
+        ),
+        patch(
+            "kb_pipeline.store.insert_content_item",
+            return_value=(True, "qa-item-1"),
+        ),
+    ]
+
+
+class TestChunkOnIngest:
+    """Verify store_chunks is wired into the EP8 store loop (spec R2/R3)."""
+
+    def test_store_chunks_called_on_insert_success(self):
+        """store_chunks called once per stored pair with (item_id, content)."""
+        patches = _patch_main_env()
+        mocks = [p.start() for p in patches]
+        try:
+            with patch("kb_pipeline.chunk.store_chunks", return_value=(2, [])) as mock_chunks:
+                from import_bid_library import main
+                main()
+                assert mock_chunks.call_count == 1
+                args, _ = mock_chunks.call_args
+                assert args[0] == "qa-item-1"
+                assert "AES-256" in args[1]
+        finally:
+            for p in patches:
+                p.stop()
+
+    def test_skip_embed_skips_chunks(self):
+        """--skip-embed flag prevents store_chunks from being called."""
+        patches = _patch_main_env(argv_extra=["--skip-embed"])
+        for p in patches:
+            p.start()
+        try:
+            with patch("kb_pipeline.chunk.store_chunks") as mock_chunks:
+                from import_bid_library import main
+                main()
+                mock_chunks.assert_not_called()
+        finally:
+            for p in patches:
+                p.stop()
+
+    def test_chunk_error_is_non_blocking(self):
+        """store_chunks raising does not abort the import loop."""
+        patches = _patch_main_env()
+        for p in patches:
+            p.start()
+        try:
+            with patch(
+                "kb_pipeline.chunk.store_chunks",
+                side_effect=RuntimeError("embed offline"),
+            ) as mock_chunks:
+                from import_bid_library import main
+                main()
+                mock_chunks.assert_called_once()
+        finally:
+            for p in patches:
+                p.stop()

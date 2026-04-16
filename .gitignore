@@ -113,7 +113,9 @@ backups/
 test-data/
 
 # Quality protocol snapshots (large JSONL with 1024-dim embeddings)
-data/
+data/*
+# …except the example-client markdown corpus regenerated from production for re-ingestion.
+!data/example-client-markdown-reingest/
 
 # Session output dumps (Claude Code session exports)
 output.jsonl

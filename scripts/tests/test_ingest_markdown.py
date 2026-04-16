@@ -292,6 +292,116 @@ class TestProcessMarkdownFile:
         finally:
             os.unlink(tmp_path)
 
+    @patch("kb_pipeline.chunk.store_chunks", return_value=(3, []))
+    @patch("ingest_markdown.log_quality_issue")
+    @patch("ingest_markdown.insert_content_item", return_value=(True, "new-item-id"))
+    @patch("ingest_markdown.is_duplicate", return_value=(False, None, ""))
+    @patch("ingest_markdown.generate_embedding", return_value=([0.1] * 1024, 500))
+    @patch("ingest_markdown.build_embedding_text", return_value="embed text")
+    @patch("ingest_markdown.classify")
+    @patch("ingest_markdown.generate_summary", return_value=None)
+    def test_chunks_stored_on_insert_success(
+        self, mock_summary, mock_classify, mock_build_embed, mock_gen_embed,
+        mock_dedup, mock_insert, mock_quality, mock_store_chunks,
+    ):
+        """After successful insert, store_chunks is called with (item_id, cleaned_content)."""
+        mock_classify.return_value = MagicMock(
+            primary_domain="Tech", primary_subtopic="Cyber", confidence=0.9,
+            secondary_domain=None, secondary_subtopic=None,
+            suggested_title="Suggested", summary="Summary", ai_keywords=["test"],
+            reasoning="reason", requires_review=False, reason_if_flagged="",
+            input_tokens=100, output_tokens=50,
+            cache_creation_tokens=0, cache_read_tokens=0,
+        )
+        body = "# Test Article\n\nSome content that is long enough to not be empty."
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write(body)
+            f.flush()
+            tmp_path = f.name
+
+        try:
+            with patch("ingest_markdown.classify_cost", return_value=0.01):
+                result = process_markdown_file(
+                    file_path=tmp_path,
+                    base_dir=os.path.dirname(tmp_path),
+                    generate_summary_flag=False,
+                )
+            assert result["status"] == "ok"
+            mock_store_chunks.assert_called_once()
+            call_args = mock_store_chunks.call_args
+            assert call_args[0][0] == "new-item-id"
+            assert "Test Article" in call_args[0][1]
+        finally:
+            os.unlink(tmp_path)
+
+    @patch("kb_pipeline.chunk.store_chunks", side_effect=RuntimeError("embed offline"))
+    @patch("ingest_markdown.log_quality_issue")
+    @patch("ingest_markdown.insert_content_item", return_value=(True, "new-item-id"))
+    @patch("ingest_markdown.is_duplicate", return_value=(False, None, ""))
+    @patch("ingest_markdown.generate_embedding", return_value=([0.1] * 1024, 500))
+    @patch("ingest_markdown.build_embedding_text", return_value="embed text")
+    @patch("ingest_markdown.classify")
+    @patch("ingest_markdown.generate_summary", return_value=None)
+    def test_chunk_error_is_non_blocking(
+        self, mock_summary, mock_classify, mock_build_embed, mock_gen_embed,
+        mock_dedup, mock_insert, mock_quality, mock_store_chunks,
+    ):
+        """store_chunks raising does not fail the ingest — result stays 'ok'."""
+        mock_classify.return_value = MagicMock(
+            primary_domain="Tech", primary_subtopic="Cyber", confidence=0.9,
+            secondary_domain=None, secondary_subtopic=None,
+            suggested_title="Suggested", summary="Summary", ai_keywords=["test"],
+            reasoning="reason", requires_review=False, reason_if_flagged="",
+            input_tokens=100, output_tokens=50,
+            cache_creation_tokens=0, cache_read_tokens=0,
+        )
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write("# T\n\nContent long enough for ingest.")
+            f.flush()
+            tmp_path = f.name
+        try:
+            with patch("ingest_markdown.classify_cost", return_value=0.01):
+                result = process_markdown_file(
+                    file_path=tmp_path,
+                    base_dir=os.path.dirname(tmp_path),
+                    generate_summary_flag=False,
+                )
+            assert result["status"] == "ok"
+            mock_store_chunks.assert_called_once()
+        finally:
+            os.unlink(tmp_path)
+
+    @patch("kb_pipeline.chunk.store_chunks")
+    @patch("ingest_markdown.classify")
+    def test_dry_run_skips_chunking(self, mock_classify, mock_store_chunks):
+        """--dry-run path returns before insert, so store_chunks is never called."""
+        mock_classify.return_value = MagicMock(
+            primary_domain="Tech", primary_subtopic="Cyber", confidence=0.9,
+            secondary_domain=None, secondary_subtopic=None,
+            suggested_title="Suggested", summary="Summary", ai_keywords=["test"],
+            reasoning="reason", requires_review=False, reason_if_flagged="",
+            input_tokens=100, output_tokens=50,
+            cache_creation_tokens=0, cache_read_tokens=0,
+        )
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write("# T\n\nDry run body.")
+            f.flush()
+            tmp_path = f.name
+        try:
+            with patch("ingest_markdown.classify_cost", return_value=0.01), \
+                 patch("ingest_markdown.build_embedding_text", return_value="text"), \
+                 patch("ingest_markdown.generate_embedding", return_value=([0.1] * 1024, 500)), \
+                 patch("ingest_markdown.is_duplicate", return_value=(False, None, "")):
+                result = process_markdown_file(
+                    file_path=tmp_path,
+                    base_dir=os.path.dirname(tmp_path),
+                    dry_run=True,
+                )
+            assert result["status"] == "dry_run"
+            mock_store_chunks.assert_not_called()
+        finally:
+            os.unlink(tmp_path)
+
     @patch("ingest_markdown.get_supabase_secret_key", return_value="test-key")
     @patch("ingest_markdown.get_supabase_url", return_value="https://test.supabase.co")
     @patch("ingest_markdown.urllib.request.urlopen")
