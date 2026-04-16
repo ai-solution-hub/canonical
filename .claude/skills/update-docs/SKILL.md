@@ -9,6 +9,8 @@ allowed-tools: Read, Write, Edit, Bash, Grep, Glob, Skill
 Updates roadmap, state-of-the-product, auto-generated stats, product-functionality, and product backlog docs to reflect the current session's work, then auto-chains to `/handoff` to
 generate the continuation prompt. The user reviews the continuation prompt at the end.
 
+If you are on the `knowledge-hub-ui-ux-simplification` repo, STATUS.md also requires updating.
+
 ## Document Roles (READ FIRST)
 
 The planning documents have distinct, non-overlapping roles. Future agents
