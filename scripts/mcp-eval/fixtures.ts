@@ -509,6 +509,12 @@ export function getMinimalArgs(
     case 'get_certification_status':
       return {};
 
+    // Guide read tools
+    case 'list_guides':
+      return {};
+    case 'get_guide':
+      return { slug: 'test-guide' };
+
     // Write tools — use eval item
     case 'classify_content':
       return { item_id: evalItemId, force: true };
@@ -545,6 +551,19 @@ export function getMinimalArgs(
       return {
         item_ids: [evalItemId],
         owner_id: '00000000-0000-0000-0000-000000000000',
+      };
+
+    // Guide write tools
+    case 'create_guide':
+      return {
+        name: '[MCP-EVAL] Protocol test guide',
+        slug: 'mcp-eval-protocol-test',
+        guide_type: 'custom',
+      };
+    case 'update_guide':
+      return {
+        id: '00000000-0000-0000-0000-000000000000',
+        fields: { description: '[MCP-EVAL] Protocol compliance test' },
       };
 
     default:

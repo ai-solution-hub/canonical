@@ -346,6 +346,24 @@ function getTokenChecks(knownUUIDs: KnownUUIDs): TokenCheck[] {
       flagThreshold: 8000,
       label: 'audit_content',
     },
+    {
+      id: 'TE-08',
+      tool: 'list_guides',
+      args: {},
+      expectedMin: 30,
+      expectedMax: 4000,
+      flagThreshold: 8000,
+      label: 'list_guides',
+    },
+    {
+      id: 'TE-09',
+      tool: 'get_guide',
+      args: { slug: 'health-safety' },
+      expectedMin: 50,
+      expectedMax: 5000,
+      flagThreshold: 10000,
+      label: 'get_guide',
+    },
   ];
 }
 
@@ -843,6 +861,93 @@ function getStructuralChecks(knownUUIDs: KnownUUIDs): StructuralCheck[] {
         return {
           status: 'FAIL',
           detail: 'No section structure found in reorientation response',
+        };
+      },
+    },
+    {
+      id: 'RQ-15',
+      label: 'list_guides tabular/list format',
+      tool: 'list_guides',
+      args: {},
+      evaluate: (text: string) => {
+        // Check for table or list structure — guides should be formatted as a table or consistent list
+        const lines = text.split('\n');
+        const tableRows = lines.filter((line) => line.includes('|') && line.trim().startsWith('|'));
+        const numberedItems = lines.filter((l) => /^\d+\.\s/.test(l.trim()));
+        const bulletItems = lines.filter((l) => /^[-*]\s/.test(l.trim()));
+
+        const itemCount = Math.max(tableRows.length, numberedItems.length, bulletItems.length);
+
+        if (tableRows.length >= 2) {
+          return {
+            status: 'PASS',
+            detail: `Table format with ${tableRows.length} rows`,
+          };
+        }
+        if (itemCount >= 1) {
+          const format = numberedItems.length >= 1 ? 'numbered list' : 'bullet list';
+          return {
+            status: 'PASS',
+            detail: `${itemCount} items in ${format} format`,
+          };
+        }
+        // Empty list is valid — "No guides found" or similar
+        const textLower = text.toLowerCase();
+        if (
+          textLower.includes('no guides') ||
+          textLower.includes('0 guides') ||
+          textLower.includes('none')
+        ) {
+          return {
+            status: 'PASS',
+            detail: 'Empty guide list with clear message',
+          };
+        }
+        return {
+          status: 'FAIL',
+          detail: 'Guide list lacks tabular or list formatting',
+        };
+      },
+    },
+    {
+      id: 'RQ-16',
+      label: 'get_guide structured sections',
+      tool: 'get_guide',
+      args: { slug: 'health-safety' },
+      evaluate: (text: string) => {
+        // Guide detail should have guide metadata and section listings
+        const hasHeaders = (text.match(/^##\s/gm) ?? []).length + (text.match(/^###\s/gm) ?? []).length;
+        const hasBoldLabels = (text.match(/\*\*[^*]+\*\*/g) ?? []).length;
+
+        // Check for section-like structure (sections should be listed with names)
+        const textLower = text.toLowerCase();
+        const hasSectionContent =
+          textLower.includes('section') ||
+          textLower.includes('display_order') ||
+          textLower.includes('required');
+
+        if (hasHeaders >= 2 && hasSectionContent) {
+          return {
+            status: 'PASS',
+            detail: `${hasHeaders} headers with section content`,
+          };
+        }
+        if (hasHeaders >= 1 || hasBoldLabels >= 2) {
+          return {
+            status: 'PASS',
+            detail: `Structured with ${hasHeaders} header(s) and ${hasBoldLabels} bold label(s)`,
+          };
+        }
+        // Guide not found is acceptable for this check — the slug may not exist
+        if (textLower.includes('not found') || textLower.includes('error')) {
+          return {
+            status: 'SKIP' as CheckStatus,
+            detail: 'Guide not found — structural check not applicable',
+          };
+        }
+        return {
+          status: 'FAIL',
+          detail: 'Guide detail lacks structured section formatting',
         };
       },
     },

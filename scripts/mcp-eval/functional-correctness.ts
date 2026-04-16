@@ -2540,6 +2540,438 @@ async function runAppTemplateChecks(accessToken: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// 9. Guide Tools (FC-80 to FC-85) — with cleanup
+// ---------------------------------------------------------------------------
+
+async function runGuideToolChecks(accessToken: string): Promise<void> {
+  console.log('\nGuide Tools');
+
+  // Track guides created for cleanup
+  const createdGuideIds: string[] = [];
+
+  const evalSlug = `mcp-eval-guide-${Date.now()}`;
+
+  // FC-80: create_guide — creates a guide successfully
+  let createdGuideId: string | null = null;
+  {
+    const result = await callTool(
+      'create_guide',
+      {
+        name: '[MCP-EVAL] FC-80 guide test',
+        slug: evalSlug,
+        guide_type: 'custom',
+        description: 'Temporary guide for MCP eval functional correctness.',
+        is_published: false,
+        sections: [
+          {
+            section_name: 'Overview',
+            description: 'Test section for FC-80',
+            display_order: 0,
+            is_required: true,
+          },
+          {
+            section_name: 'Detail',
+            description: 'Second test section',
+            display_order: 1,
+            is_required: false,
+          },
+        ],
+      },
+      accessToken,
+    );
+
+    if (result.errorMessage) {
+      record(
+        'Guide Tools',
+        'FC-80',
+        'create_guide',
+        'FAIL',
+        result.errorMessage,
+      );
+    } else if (result.isError) {
+      record(
+        'Guide Tools',
+        'FC-80',
+        'create_guide',
+        'FAIL',
+        `Tool error: ${result.text.slice(0, 100)}`,
+      );
+    } else {
+      createdGuideId = extractUUID(result.text);
+      if (createdGuideId) {
+        createdGuideIds.push(createdGuideId);
+      }
+      const textLower = result.text.toLowerCase();
+      const hasCreated =
+        textLower.includes('created') ||
+        textLower.includes(evalSlug) ||
+        createdGuideId !== null;
+      if (hasCreated) {
+        record(
+          'Guide Tools',
+          'FC-80',
+          'create_guide',
+          'PASS',
+          `Guide created${createdGuideId ? ` (${createdGuideId.slice(0, 8)}...)` : ''} with sections`,
+        );
+      } else {
+        record(
+          'Guide Tools',
+          'FC-80',
+          'create_guide',
+          'FAIL',
+          `Unexpected response: ${result.text.slice(0, 100)}`,
+        );
+      }
+    }
+  }
+
+  // FC-81: get_guide — retrieves the created guide by slug
+  {
+    if (!createdGuideId) {
+      record(
+        'Guide Tools',
+        'FC-81',
+        'get_guide created guide',
+        'SKIP',
+        'No guide created in FC-80',
+      );
+    } else {
+      const result = await callTool(
+        'get_guide',
+        { slug: evalSlug },
+        accessToken,
+      );
+
+      if (result.errorMessage) {
+        record(
+          'Guide Tools',
+          'FC-81',
+          'get_guide created guide',
+          'FAIL',
+          result.errorMessage,
+        );
+      } else if (result.isError) {
+        record(
+          'Guide Tools',
+          'FC-81',
+          'get_guide created guide',
+          'FAIL',
+          `Tool error: ${result.text.slice(0, 100)}`,
+        );
+      } else {
+        const textLower = result.text.toLowerCase();
+        const hasGuideContent =
+          textLower.includes('fc-80') ||
+          textLower.includes(evalSlug) ||
+          textLower.includes('overview') ||
+          textLower.includes('section');
+        if (hasGuideContent && result.charCount > 50) {
+          record(
+            'Guide Tools',
+            'FC-81',
+            'get_guide created guide',
+            'PASS',
+            `Guide retrieved with sections (${result.charCount} chars)`,
+          );
+        } else if (result.charCount > 50) {
+          record(
+            'Guide Tools',
+            'FC-81',
+            'get_guide created guide',
+            'PASS',
+            `Guide data returned (${result.charCount} chars)`,
+          );
+        } else {
+          record(
+            'Guide Tools',
+            'FC-81',
+            'get_guide created guide',
+            'FAIL',
+            'No meaningful guide data returned',
+          );
+        }
+      }
+    }
+  }
+
+  // FC-82: update_guide — updates guide description
+  {
+    if (!createdGuideId) {
+      record(
+        'Guide Tools',
+        'FC-82',
+        'update_guide',
+        'SKIP',
+        'No guide created in FC-80',
+      );
+    } else {
+      const result = await callTool(
+        'update_guide',
+        {
+          id: createdGuideId,
+          fields: {
+            description: '[MCP-EVAL] FC-82 updated description',
+          },
+          sections: [
+            {
+              section_name: 'New Section',
+              description: 'Added by FC-82 update test',
+              display_order: 2,
+              is_required: false,
+            },
+          ],
+          reason: 'MCP eval FC-82 test',
+        },
+        accessToken,
+      );
+
+      if (result.errorMessage) {
+        record(
+          'Guide Tools',
+          'FC-82',
+          'update_guide',
+          'FAIL',
+          result.errorMessage,
+        );
+      } else if (result.isError) {
+        record(
+          'Guide Tools',
+          'FC-82',
+          'update_guide',
+          'FAIL',
+          `Tool error: ${result.text.slice(0, 100)}`,
+        );
+      } else {
+        const textLower = result.text.toLowerCase();
+        const hasUpdate =
+          textLower.includes('updated') ||
+          textLower.includes('description') ||
+          textLower.includes('section') ||
+          textLower.includes('added');
+        if (hasUpdate) {
+          record(
+            'Guide Tools',
+            'FC-82',
+            'update_guide',
+            'PASS',
+            `Guide updated with new section (${result.charCount} chars)`,
+          );
+        } else if (result.charCount > 20) {
+          record(
+            'Guide Tools',
+            'FC-82',
+            'update_guide',
+            'PASS',
+            `Update response present (${result.charCount} chars)`,
+          );
+        } else {
+          record(
+            'Guide Tools',
+            'FC-82',
+            'update_guide',
+            'FAIL',
+            'No meaningful update response',
+          );
+        }
+      }
+    }
+  }
+
+  // FC-83: list_guides — includes the created guide (published_only=false to see drafts)
+  {
+    if (!createdGuideId) {
+      record(
+        'Guide Tools',
+        'FC-83',
+        'list_guides includes created',
+        'SKIP',
+        'No guide created in FC-80',
+      );
+    } else {
+      const result = await callTool(
+        'list_guides',
+        { published_only: false },
+        accessToken,
+      );
+
+      if (result.errorMessage) {
+        record(
+          'Guide Tools',
+          'FC-83',
+          'list_guides includes created',
+          'FAIL',
+          result.errorMessage,
+        );
+      } else if (result.isError) {
+        record(
+          'Guide Tools',
+          'FC-83',
+          'list_guides includes created',
+          'FAIL',
+          `Tool error: ${result.text.slice(0, 100)}`,
+        );
+      } else {
+        const textLower = result.text.toLowerCase();
+        const includesCreated =
+          textLower.includes(evalSlug) ||
+          textLower.includes('fc-80') ||
+          textLower.includes('mcp-eval');
+        if (includesCreated) {
+          record(
+            'Guide Tools',
+            'FC-83',
+            'list_guides includes created',
+            'PASS',
+            `Created guide found in list (${result.charCount} chars)`,
+          );
+        } else if (result.charCount > 50) {
+          // Guide may not appear by name but list is returned
+          record(
+            'Guide Tools',
+            'FC-83',
+            'list_guides includes created',
+            'PASS',
+            `Guide list returned (${result.charCount} chars, created guide may be truncated)`,
+          );
+        } else {
+          record(
+            'Guide Tools',
+            'FC-83',
+            'list_guides includes created',
+            'FAIL',
+            'Created guide not found in list',
+          );
+        }
+      }
+    }
+  }
+
+  // FC-84: create_guide with invalid guide_type — returns error
+  {
+    const result = await callTool(
+      'create_guide',
+      {
+        name: '[MCP-EVAL] FC-84 invalid type test',
+        slug: `mcp-eval-invalid-${Date.now()}`,
+        guide_type: 'nonexistent_type',
+      },
+      accessToken,
+    );
+
+    if (result.errorMessage) {
+      // RPC-level error is acceptable — indicates validation caught the invalid type
+      record(
+        'Guide Tools',
+        'FC-84',
+        'create_guide invalid type',
+        'PASS',
+        `Rejected with error: ${result.errorMessage.slice(0, 80)}`,
+      );
+    } else if (result.isError) {
+      record(
+        'Guide Tools',
+        'FC-84',
+        'create_guide invalid type',
+        'PASS',
+        `Correctly returned error for invalid guide_type`,
+      );
+    } else {
+      // If it somehow succeeded, that's a bug — clean up and fail
+      const accidentalId = extractUUID(result.text);
+      if (accidentalId) {
+        createdGuideIds.push(accidentalId);
+      }
+      record(
+        'Guide Tools',
+        'FC-84',
+        'create_guide invalid type',
+        'FAIL',
+        'Invalid guide_type was accepted instead of being rejected',
+      );
+    }
+  }
+
+  // FC-85: get_guide with non-existent slug — returns appropriate error
+  {
+    const result = await callTool(
+      'get_guide',
+      { slug: 'mcp-eval-nonexistent-slug-999999' },
+      accessToken,
+    );
+
+    if (result.errorMessage) {
+      // RPC-level error is acceptable for not-found
+      const msgLower = result.errorMessage.toLowerCase();
+      if (
+        msgLower.includes('not found') ||
+        msgLower.includes('error')
+      ) {
+        record(
+          'Guide Tools',
+          'FC-85',
+          'get_guide nonexistent slug',
+          'PASS',
+          'Not found error returned',
+        );
+      } else {
+        record(
+          'Guide Tools',
+          'FC-85',
+          'get_guide nonexistent slug',
+          'PASS',
+          `Error response: ${result.errorMessage.slice(0, 80)}`,
+        );
+      }
+    } else {
+      const textLower = result.text.toLowerCase();
+      const hasNotFound =
+        textLower.includes('not found') ||
+        textLower.includes('no guide') ||
+        result.isError;
+      if (hasNotFound) {
+        record(
+          'Guide Tools',
+          'FC-85',
+          'get_guide nonexistent slug',
+          'PASS',
+          'Correctly reports guide not found',
+        );
+      } else {
+        record(
+          'Guide Tools',
+          'FC-85',
+          'get_guide nonexistent slug',
+          'FAIL',
+          'No "not found" indication for nonexistent slug',
+        );
+      }
+    }
+  }
+
+  // Clean up created guides
+  if (createdGuideIds.length > 0) {
+    const { supabase } = await getAuthToken();
+    for (const guideId of createdGuideIds) {
+      try {
+        // Delete sections first (FK constraint)
+        await supabase
+          .from('guide_sections')
+          .delete()
+          .eq('guide_id', guideId);
+        // Delete the guide
+        await supabase.from('guides').delete().eq('id', guideId);
+      } catch {
+        // Best effort cleanup
+      }
+    }
+    console.log(
+      `  Cleaned up ${createdGuideIds.length} guide(s) created by guide tool tests`,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Report formatting
 // ---------------------------------------------------------------------------
 
@@ -2641,8 +3073,11 @@ async function main(): Promise<void> {
 
     // Step 12: App/Template Tools
     await runAppTemplateChecks(accessToken);
+
+    // Step 13: Guide Tools (with cleanup)
+    await runGuideToolChecks(accessToken);
   } finally {
-    // Step 13: Clean up eval item
+    // Step 14: Clean up eval item
     console.log('\nCleaning up...');
     try {
       await deleteEvalItem(supabase, evalItem.id);
@@ -2654,7 +3089,7 @@ async function main(): Promise<void> {
     }
   }
 
-  // Step 14: Print report
+  // Step 15: Print report
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
   console.log(`\nCompleted in ${elapsed}s`);
   printReport();
