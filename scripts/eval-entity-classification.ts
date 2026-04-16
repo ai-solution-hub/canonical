@@ -225,8 +225,9 @@ async function fetchEntitiesForItems(
 
 /**
  * Estimate cost for running live entity classification on all gold standard items.
- * Uses approximate token counts: ~2000 input tokens per item (prompt + content)
- * and ~500 output tokens per item (tool use response).
+ * Measured S174: ~17,700 input tokens per item (classification prompt ~12,000 +
+ * taxonomy ~2,700 + content up to 5,000 chars ~1,500 + tool schema ~1,500) and
+ * ~700 output tokens per item (tool use response with entities + relationships).
  */
 function estimateLiveCost(itemCount: number): {
   model: string;
@@ -235,10 +236,11 @@ function estimateLiveCost(itemCount: number): {
   estimatedCostUsd: number;
 } {
   const model = process.env.AI_SUMMARY_MODEL || 'claude-sonnet-4-6';
-  // Classification prompt is ~1500 tokens, content up to 5000 chars (~1250 tokens),
-  // taxonomy ~200 tokens. Output is tool use with entities ~500 tokens.
-  const inputTokensPerItem = 3000;
-  const outputTokensPerItem = 600;
+  // Measured S174: classification prompt ~12,000 tokens, taxonomy ~2,700 tokens,
+  // content up to 5,000 chars (~1,500 tokens), tool schema ~1,500 tokens.
+  // Output: tool use response with entities + relationships ~700 tokens.
+  const inputTokensPerItem = 17_700;
+  const outputTokensPerItem = 700;
   const estimatedInputTokens = inputTokensPerItem * itemCount;
   const estimatedOutputTokens = outputTokensPerItem * itemCount;
 
