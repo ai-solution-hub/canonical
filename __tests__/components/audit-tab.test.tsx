@@ -1,7 +1,7 @@
 /**
- * ActivitySection Component Tests
+ * AuditTab Component Tests
  *
- * Tests the activity section wrapper — filter selects and
+ * Tests the audit tab wrapper — filter selects and
  * ActivityFeed component integration.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -19,7 +19,7 @@ const { mockActivityFeedProps } = vi.hoisted(() => ({
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
-  usePathname: () => '/settings',
+  usePathname: () => '/provenance',
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -78,22 +78,22 @@ vi.mock('@/components/dashboard/activity-feed', () => ({
   },
 }));
 
-import { ActivitySection } from '@/components/settings/activity-section';
+import AuditTab from '@/components/provenance/audit-tab';
 
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('ActivitySection', () => {
+describe('AuditTab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockActivityFeedProps.value = null;
   });
 
   it('renders filter selects for event type and date range', () => {
-    render(<ActivitySection />);
+    render(<AuditTab />);
 
-    expect(screen.getByText('Activity Log')).toBeInTheDocument();
+    expect(screen.getByText('Audit')).toBeInTheDocument();
 
     // Event type options present
     expect(screen.getByText('All events')).toBeInTheDocument();
@@ -107,7 +107,7 @@ describe('ActivitySection', () => {
   });
 
   it('renders ActivityFeed component with default props', () => {
-    render(<ActivitySection />);
+    render(<AuditTab />);
 
     const feed = screen.getByTestId('activity-feed');
     expect(feed).toBeInTheDocument();
@@ -118,7 +118,7 @@ describe('ActivitySection', () => {
   it('passes updated filter values to ActivityFeed when changed', async () => {
     const user = userEvent.setup();
 
-    render(<ActivitySection />);
+    render(<AuditTab />);
 
     // Both selects default to 'all'; the first is the event type filter
     const allSelects = screen.getAllByTestId('native-select-all');
@@ -128,5 +128,23 @@ describe('ActivitySection', () => {
     // Verify ActivityFeed received the updated prop
     const feed = screen.getByTestId('activity-feed');
     expect(feed).toHaveAttribute('data-event-filter', 'content');
+  });
+
+  it('renders tooltip with audit description', () => {
+    render(<AuditTab />);
+
+    expect(
+      screen.getByLabelText('More information about audit log'),
+    ).toBeInTheDocument();
+  });
+
+  it('renders subtitle text', () => {
+    render(<AuditTab />);
+
+    expect(
+      screen.getByText(
+        'A log of recent changes — who edited what, when, and why.',
+      ),
+    ).toBeInTheDocument();
   });
 });
