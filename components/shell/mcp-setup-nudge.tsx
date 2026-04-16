@@ -8,17 +8,25 @@ import { useHydrated } from '@/hooks/use-hydrated';
 
 const DISMISS_KEY = 'mcp-setup-nudge-dismissed';
 
+interface McpSetupNudgeProps {
+  /** Whether the KB has at least one content item. When false the nudge is
+   *  hidden — there is nothing to connect to yet. */
+  hasContent: boolean;
+}
+
 /**
  * One-shot nudge that points users at Settings → Connections to configure an
  * MCP connector. Appears once, dismisses permanently on close via
  * `localStorage`. Modelled on `DisplayNameNudge` in `reorient-section.tsx`.
+ *
+ * Gated on `hasContent` — only shown when the KB has ≥1 item (all roles).
  *
  * Rendered from `app/page.tsx` (the dashboard entry). The header no longer
  * contains a direct "Open in Claude" link (removed April 2026); this nudge
  * preserves the discoverability commitment made in the policy note on that
  * removal without re-adding a persistent header link.
  */
-export function McpSetupNudge() {
+export function McpSetupNudge({ hasContent }: McpSetupNudgeProps) {
   const hydrated = useHydrated();
   const [dismissed, setDismissed] = useState<boolean>(() => {
     // Lazy initial state — runs once per mount. On SSR the effect never runs,
@@ -43,7 +51,7 @@ export function McpSetupNudge() {
     }
   }
 
-  if (!hydrated || dismissed) return null;
+  if (!hasContent || !hydrated || dismissed) return null;
 
   return (
     <div

@@ -3,9 +3,11 @@
  * points users at Settings → Connections to configure an MCP connector.
  *
  * Asserts:
- *   1. Visible on first render when localStorage has no dismissal flag.
+ *   1. Visible on first render when hasContent=true and no dismissal flag.
  *   2. Hidden after the dismiss button is clicked.
  *   3. Hidden on remount when localStorage already has the dismissal flag.
+ *   4. Hidden when hasContent=false (KB is empty), regardless of dismiss state.
+ *   5. Still hidden when dismissed even if hasContent=true.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -58,8 +60,8 @@ beforeEach(() => {
 });
 
 describe('McpSetupNudge', () => {
-  it('renders on first load and points at /settings/connections', () => {
-    render(<McpSetupNudge />);
+  it('renders when hasContent=true and points at /settings/connections', () => {
+    render(<McpSetupNudge hasContent={true} />);
     expect(screen.getByRole('status')).toBeInTheDocument();
     const link = screen.getByRole('link', { name: /set up a connection/i });
     expect(link).toHaveAttribute('href', '/settings/connections');
@@ -67,7 +69,7 @@ describe('McpSetupNudge', () => {
 
   it('hides after the dismiss button is clicked and persists the flag', async () => {
     const user = userEvent.setup();
-    render(<McpSetupNudge />);
+    render(<McpSetupNudge hasContent={true} />);
     expect(screen.getByRole('status')).toBeInTheDocument();
     await user.click(
       screen.getByRole('button', { name: /dismiss mcp setup nudge/i }),
@@ -81,7 +83,18 @@ describe('McpSetupNudge', () => {
 
   it('stays hidden on remount when localStorage already has the dismissal flag', () => {
     localStorageMap.set('mcp-setup-nudge-dismissed', '1');
-    render(<McpSetupNudge />);
+    render(<McpSetupNudge hasContent={true} />);
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('is hidden when hasContent=false (KB is empty)', () => {
+    render(<McpSetupNudge hasContent={false} />);
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('remains hidden when dismissed even if hasContent=true', () => {
+    localStorageMap.set('mcp-setup-nudge-dismissed', '1');
+    render(<McpSetupNudge hasContent={true} />);
     expect(screen.queryByRole('status')).toBeNull();
   });
 });
