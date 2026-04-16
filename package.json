@@ -49,6 +49,7 @@
     "@modelcontextprotocol/ext-apps": "^1.2.0",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@mozilla/readability": "^0.6.0",
+    "@react-pdf/renderer": "^4.5.1",
     "@sentry/nextjs": "^10.42.0",
     "@supabase/ssr": "0.8.0",
     "@supabase/supabase-js": "^2.49.4",

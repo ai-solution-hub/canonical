@@ -20,6 +20,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from '@/components/ui/tooltip';
+import ExportAuditPdfButton from '@/components/provenance/export-audit-pdf-button';
 
 export default function AuditTab() {
   const [eventFilter, setEventFilter] = useState<ActivityEventFilter>('all');
@@ -86,6 +87,9 @@ export default function AuditTab() {
           </SelectContent>
         </Select>
       </div>
+
+      {/* PDF export */}
+      <ExportAuditPdfButton />
 
       <ActivityFeed eventFilter={eventFilter} dateRange={dateRange} />
     </div>

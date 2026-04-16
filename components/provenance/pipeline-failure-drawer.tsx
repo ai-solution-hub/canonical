@@ -123,12 +123,12 @@ export default function PipelineFailureDrawer({
           )}
 
           {/* Collapsible result JSON */}
-          {run.result && (
+          {run.result ? (
             <CollapsibleJson label="Result" data={run.result} />
-          )}
-          {run.progress && (
+          ) : null}
+          {run.progress ? (
             <CollapsibleJson label="Progress" data={run.progress} />
-          )}
+          ) : null}
 
           {/* Copy button */}
           <div className="mt-4">

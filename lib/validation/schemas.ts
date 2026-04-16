@@ -1663,3 +1663,38 @@ export const DiffReviewUpdateBodySchema = z.object({
     .min(1, 'entries must be a non-empty array')
     .max(500),
 });
+
+// ──────────────────────────────────────────
+// Verification History Export
+// ──────────────────────────────────────────
+
+/** GET /api/admin/provenance/export/verification-history */
+export const VerificationHistoryExportParamsSchema = z
+  .object({
+    from: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+    to: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+  })
+  .refine(
+    (d) => {
+      if (d.from && d.to) return new Date(d.from) <= new Date(d.to);
+      return true;
+    },
+    { message: 'from must be before or equal to to' },
+  )
+  .refine(
+    (d) => {
+      if (d.from && d.to) {
+        const diffDays =
+          (new Date(d.to).getTime() - new Date(d.from).getTime()) / 86400000;
+        return diffDays <= 365;
+      }
+      return true;
+    },
+    { message: 'Maximum export window is 365 days' },
+  );
