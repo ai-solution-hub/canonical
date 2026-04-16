@@ -198,6 +198,62 @@ export type Database = {
           },
         ]
       }
+      classification_disputes: {
+        Row: {
+          content_item_id: string
+          created_at: string
+          current_value: Json
+          disputed_by: string | null
+          disputed_field: string
+          id: string
+          proposed_value: Json | null
+          rationale: string
+          resolution_notes: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          content_item_id: string
+          created_at?: string
+          current_value?: Json
+          disputed_by?: string | null
+          disputed_field: string
+          id?: string
+          proposed_value?: Json | null
+          rationale: string
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          content_item_id?: string
+          created_at?: string
+          current_value?: Json
+          disputed_by?: string | null
+          disputed_field?: string
+          id?: string
+          proposed_value?: Json | null
+          rationale?: string
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "classification_disputes_content_item_id_fkey"
+            columns: ["content_item_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_profiles: {
         Row: {
           certifications: string[]
@@ -473,8 +529,13 @@ export type Database = {
           brief: string | null
           captured_date: string | null
           citation_count: number
+          classification_cache_creation_tokens: number | null
+          classification_cache_read_tokens: number | null
           classification_confidence: number | null
+          classification_model: string | null
           classification_reasoning: string | null
+          classification_tokens_in: number | null
+          classification_tokens_out: number | null
           classified_at: string | null
           content: string
           content_owner_id: string | null
@@ -484,6 +545,8 @@ export type Database = {
           created_by: string | null
           detail: string | null
           embedding: string | null
+          embedding_model: string | null
+          embedding_tokens: number | null
           expiry_date: string | null
           file_path: string | null
           freshness: string | null
@@ -537,8 +600,13 @@ export type Database = {
           brief?: string | null
           captured_date?: string | null
           citation_count?: number
+          classification_cache_creation_tokens?: number | null
+          classification_cache_read_tokens?: number | null
           classification_confidence?: number | null
+          classification_model?: string | null
           classification_reasoning?: string | null
+          classification_tokens_in?: number | null
+          classification_tokens_out?: number | null
           classified_at?: string | null
           content: string
           content_owner_id?: string | null
@@ -548,6 +616,8 @@ export type Database = {
           created_by?: string | null
           detail?: string | null
           embedding?: string | null
+          embedding_model?: string | null
+          embedding_tokens?: number | null
           expiry_date?: string | null
           file_path?: string | null
           freshness?: string | null
@@ -601,8 +671,13 @@ export type Database = {
           brief?: string | null
           captured_date?: string | null
           citation_count?: number
+          classification_cache_creation_tokens?: number | null
+          classification_cache_read_tokens?: number | null
           classification_confidence?: number | null
+          classification_model?: string | null
           classification_reasoning?: string | null
+          classification_tokens_in?: number | null
+          classification_tokens_out?: number | null
           classified_at?: string | null
           content?: string
           content_owner_id?: string | null
@@ -612,6 +687,8 @@ export type Database = {
           created_by?: string | null
           detail?: string | null
           embedding?: string | null
+          embedding_model?: string | null
+          embedding_tokens?: number | null
           expiry_date?: string | null
           file_path?: string | null
           freshness?: string | null
