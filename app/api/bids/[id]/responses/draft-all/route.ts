@@ -14,6 +14,7 @@ import { canTransition } from '@/lib/bid/bid-state-machine';
 import type { BidState } from '@/lib/bid/bid-state-machine';
 import type { Json } from '@/supabase/types/database.types';
 import { sb } from '@/lib/supabase/safe';
+import { PIPELINE_SYSTEM_USER_ID } from '@/lib/intelligence/types';
 
 export const maxDuration = 120;
 
@@ -223,7 +224,7 @@ export async function POST(
             source_content_ids: draftResult.source_content_ids,
             metadata: draftResult.metadata as unknown as Json,
             review_status: 'ai_drafted',
-            drafted_by: null,
+            drafted_by: PIPELINE_SYSTEM_USER_ID,
             updated_at: new Date().toISOString(),
             overall_score: overallScore,
           },

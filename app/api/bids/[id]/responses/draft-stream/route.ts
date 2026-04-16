@@ -16,6 +16,7 @@ import type { QualityCheckQuestion } from '@/lib/ai/quality-check';
 import type { BidResponseMetadata } from '@/types/bid-metadata';
 import type { BidState } from '@/lib/bid/bid-state-machine';
 import type { Json } from '@/supabase/types/database.types';
+import { PIPELINE_SYSTEM_USER_ID } from '@/lib/intelligence/types';
 
 export const maxDuration = 120;
 
@@ -260,7 +261,7 @@ export async function POST(
                 source_content_ids: matchedContent.map((c) => c.id),
                 metadata: responseMetadata as unknown as Json,
                 review_status: 'ai_drafted',
-                drafted_by: null,
+                drafted_by: PIPELINE_SYSTEM_USER_ID,
                 updated_at: new Date().toISOString(),
                 overall_score: overallScore,
               },

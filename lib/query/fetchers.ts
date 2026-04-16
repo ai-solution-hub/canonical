@@ -40,6 +40,13 @@ export async function fetchJson<T>(
  * Use inside `useMutation({ mutationFn })` to keep mutation handlers DRY.
  * Defaults to POST if no method is specified in `init`.
  */
+/** Fetch per-item provenance data (admin-only). */
+export async function fetchItemProvenance(id: string) {
+  return fetchJson<import('@/lib/provenance/item-provenance').ItemProvenanceResponse>(
+    `/api/provenance/item/${id}`,
+  );
+}
+
 export async function mutationFetchJson<T>(
   url: string,
   body: unknown,

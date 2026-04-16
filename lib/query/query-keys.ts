@@ -282,6 +282,11 @@ export const queryKeys = {
     batch: (idsKey: string) => ['display-names', 'batch', idsKey] as const,
   },
 
+  // Provenance
+  provenance: {
+    item: (id: string) => ['provenance', 'item', id] as const,
+  },
+
   // Admin monitoring (pipeline_runs dashboard tile, S152B WP4)
   admin: {
     all: ['admin'] as const,
