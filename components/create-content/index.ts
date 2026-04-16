@@ -10,4 +10,7 @@ export type { ProvenanceFieldsetProps } from './provenance-fieldset';
 export type { ProgressiveDepthFieldsetProps } from './progressive-depth-fieldset';
 export type { SaveActionsBarProps } from './save-actions-bar';
 export type { MobileStepIndicatorProps } from './mobile-step-indicator';
-export type { TemplateSelectorProps } from './template-selector';
+export type {
+  TemplateSelectorProps,
+  TemplateSelectorLayout,
+} from './template-selector';

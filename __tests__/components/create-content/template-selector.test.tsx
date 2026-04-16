@@ -279,4 +279,73 @@ describe('TemplateSelector', () => {
       expect(radios.length).toBe(1);
     });
   });
+
+  describe('fullwidth layout', () => {
+    it('renders "Choose a starting point" heading in fullwidth mode', () => {
+      render(
+        <TemplateSelector
+          templates={mockTemplates}
+          onSelect={onSelect}
+          layout="fullwidth"
+        />,
+      );
+
+      expect(screen.getByText('Choose a starting point')).toBeInTheDocument();
+      expect(
+        screen.queryByText('Start from a template'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('renders "Start from scratch" instead of "Blank" in fullwidth mode', () => {
+      render(
+        <TemplateSelector
+          templates={mockTemplates}
+          onSelect={onSelect}
+          layout="fullwidth"
+        />,
+      );
+
+      expect(screen.getByText('Start from scratch')).toBeInTheDocument();
+      expect(screen.queryByText('Blank')).not.toBeInTheDocument();
+    });
+
+    it('clicking "Start from scratch" calls onSelect with null', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <TemplateSelector
+          templates={mockTemplates}
+          onSelect={onSelect}
+          layout="fullwidth"
+        />,
+      );
+
+      await user.click(screen.getByText('Start from scratch'));
+
+      expect(onSelect).toHaveBeenCalledTimes(1);
+      expect(onSelect).toHaveBeenCalledWith(null);
+    });
+
+    it('uses compact labels when layout is omitted (default)', () => {
+      render(
+        <TemplateSelector templates={mockTemplates} onSelect={onSelect} />,
+      );
+
+      expect(screen.getByText('Start from a template')).toBeInTheDocument();
+      expect(screen.getByText('Blank')).toBeInTheDocument();
+    });
+
+    it('uses compact labels when layout is explicitly "compact"', () => {
+      render(
+        <TemplateSelector
+          templates={mockTemplates}
+          onSelect={onSelect}
+          layout="compact"
+        />,
+      );
+
+      expect(screen.getByText('Start from a template')).toBeInTheDocument();
+      expect(screen.getByText('Blank')).toBeInTheDocument();
+    });
+  });
 });
