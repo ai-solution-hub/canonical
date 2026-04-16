@@ -34,7 +34,7 @@ If they exist, read the most recent file in full. This provides:
 The project sometimes runs parallel work tracks on separate top-level git
 worktrees (e.g. a UI simplification wave on
 `/Users/liamj/Documents/development/knowledge-hub-ui-ux-simplification`
-alongside main-track work on the primary repo). These are **long-lived
+alongside main-track work on the primary repo `/knowledge-hub`). These are **long-lived
 worktrees** — distinct from the ephemeral `isolation: "worktree"` agent
 worktrees created during sessions under `.claude/worktrees/`.
 
@@ -76,10 +76,10 @@ Git history, file changes, and doc state are already in context from
 
 ```bash
 # Run tests and capture result (use bun run test, NOT bun test)
-cd /Users/liamj/Documents/development/knowledge-hub && bun run test 2>&1 | tail -20
+cd /Users/liamj/Documents/development/{repo-name} && bun run test 2>&1 | tail -20
 
 # Run lint and capture result
-cd /Users/liamj/Documents/development/knowledge-hub && bun lint 2>&1 | tail -10
+cd /Users/liamj/Documents/development/{repo-name} && bun lint 2>&1 | tail -10
 ```
 
 ---
@@ -265,7 +265,7 @@ always include the track suffix (`main-`, `uisimp-`, etc.).
 Commit the file as soon as it is written. Committing first guarantees the work survives a session switch even if Liam cannot review immediately.
 
 ```bash
-git add docs/continuation-prompts/continuation-prompt-kh-{NNN}-*.md
+git add docs/continuation-prompts/continuation-prompt-kh-s{NNN}-{track}*.md
 git commit -m "docs: draft session {NNN} continuation prompt"
 git push
 ```
