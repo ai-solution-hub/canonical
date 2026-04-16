@@ -4,7 +4,6 @@ import {
   User,
   Users,
   ShieldCheck,
-  Activity,
   FolderTree,
   Menu,
   Plug,
@@ -38,7 +37,6 @@ export type SettingsSection =
   | 'guides'
   | 'team'
   | 'governance'
-  | 'activity'
   | 'developer-setup';
 
 interface SectionDef {
@@ -77,7 +75,6 @@ const ALL_SECTIONS: SectionDef[] = [
     icon: ShieldCheck,
     group: 'system',
   },
-  { id: 'activity', label: 'Activity', icon: Activity, group: 'system' },
   {
     id: 'developer-setup',
     label: 'Developer Setup',

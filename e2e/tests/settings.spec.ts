@@ -124,20 +124,6 @@ test.describe('Settings page', () => {
     );
   });
 
-  test('can navigate to Activity section', async ({
-    authenticatedPage: page,
-  }) => {
-    await navigateToSettingsSection(page, 'Activity');
-
-    await expect(page).toHaveURL(/section=activity/);
-
-    const settingsNav = await getSettingsNav(page);
-    await expect(settingsNav.getByText('Activity')).toHaveAttribute(
-      'aria-current',
-      'page',
-    );
-  });
-
   test('settings page loads directly via section query param', async ({
     authenticatedPage: page,
   }) => {

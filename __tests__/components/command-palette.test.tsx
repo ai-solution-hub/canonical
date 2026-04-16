@@ -149,7 +149,7 @@ describe('CommandPalette', () => {
     expect(allText).toContain('Categories');
     expect(allText).toContain('Team');
     expect(allText).toContain('Quality Review');
-    expect(allText).toContain('Activity');
+    expect(allText).toContain('Provenance');
   });
 
   it('toggles closed when Cmd+K is pressed again', async () => {

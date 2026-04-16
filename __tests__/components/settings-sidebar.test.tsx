@@ -56,7 +56,7 @@ describe('SettingsSidebar', () => {
     expect(within(nav).getByText('Content Management')).toBeInTheDocument();
     expect(within(nav).getByText('System')).toBeInTheDocument();
 
-    // All 9 section buttons should be present
+    // All 8 section buttons should be present (Activity moved to /provenance)
     expect(within(nav).getByText('Profile')).toBeInTheDocument();
     expect(within(nav).getByText('Connections')).toBeInTheDocument();
     expect(within(nav).getByText('Content Organisation')).toBeInTheDocument();
@@ -64,7 +64,6 @@ describe('SettingsSidebar', () => {
     expect(within(nav).getByText('Guides')).toBeInTheDocument();
     expect(within(nav).getByText('Team')).toBeInTheDocument();
     expect(within(nav).getByText('Quality Review')).toBeInTheDocument();
-    expect(within(nav).getByText('Activity')).toBeInTheDocument();
     expect(within(nav).getByText('Developer Setup')).toBeInTheDocument();
   });
 

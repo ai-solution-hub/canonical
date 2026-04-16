@@ -1,0 +1,10 @@
+export default function AuditTab() {
+  return (
+    <div className="rounded-lg border bg-card p-6 text-center">
+      <p className="text-muted-foreground">Audit log</p>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Content will be provided by WP-E.
+      </p>
+    </div>
+  );
+}

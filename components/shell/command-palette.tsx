@@ -299,16 +299,16 @@ export function CommandPalette() {
                         Settings &rsaquo; Integrations
                       </Command.Item>
                       <Command.Item
-                        value="Settings activity log"
+                        value="Provenance audit log activity"
                         onSelect={() =>
                           runCommand(() =>
-                            router.push('/settings?section=activity'),
+                            router.push('/provenance?tab=audit'),
                           )
                         }
                         className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
                       >
                         <Settings className="size-4 text-muted-foreground" />
-                        Settings &rsaquo; Activity
+                        Provenance &rsaquo; Audit
                       </Command.Item>
                     </>
                   )}

@@ -30,11 +30,6 @@ const LazyGovernanceSection = lazy(() =>
     default: m.GovernanceSection,
   })),
 );
-const LazyActivitySection = lazy(() =>
-  import('@/components/settings/activity-section').then((m) => ({
-    default: m.ActivitySection,
-  })),
-);
 const LazyContentOrganisationSection = lazy(() =>
   import('@/components/settings/content-organisation-section').then((m) => ({
     default: m.ContentOrganisationSection,
@@ -131,12 +126,6 @@ function SectionContent({ section }: { section: SettingsSection }) {
           <LazyGovernanceSection />
         </Suspense>
       );
-    case 'activity':
-      return (
-        <Suspense fallback={<SectionSkeleton />}>
-          <LazyActivitySection />
-        </Suspense>
-      );
     default:
       return <ProfileSection />;
   }
@@ -154,6 +143,14 @@ function SettingsContent() {
   // Support both ?section= and legacy ?tab= parameters
   const sectionParam = searchParams.get('section') ?? searchParams.get('tab');
   const activeSection = getValidSection(sectionParam, canAdmin);
+
+  // Redirect activity section to the new /provenance route
+  useEffect(() => {
+    if (sectionParam === 'activity') {
+      router.replace('/provenance?tab=audit', { scroll: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sectionParam]);
 
   // Redirect legacy section URLs to content-organisation with the correct tab
   const legacyTabMap: Record<string, string> = {
