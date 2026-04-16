@@ -340,12 +340,6 @@ export function ReaderView({
             {isQAPair ? (
               <QAAnswerDisplay
                 item={item}
-                isEditing={false}
-                editStandard=""
-                editAdvanced=""
-                setEditStandard={() => {}}
-                setEditAdvanced={() => {}}
-                setEditDirty={() => {}}
                 handleCopyAnswer={handleCopyAnswer}
               />
             ) : (

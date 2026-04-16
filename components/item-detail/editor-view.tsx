@@ -23,6 +23,7 @@ import {
 } from '@/components/item-detail/qa-provenance-sections';
 import { ContentEffectivenessPanel } from '@/components/item-detail/content-effectiveness-panel';
 import { ContentBody } from '@/components/item-detail/content-body';
+import { QAAnswerDisplay } from '@/components/qa/qa-answer-display';
 import { LayerSwitcherNav } from '@/components/item-detail/layer-switcher-nav';
 import { ItemTitleSection } from '@/components/item-detail/item-title-section';
 import { ItemCompletenessChecklist } from '@/components/item-detail/item-completeness-checklist';
@@ -104,6 +105,16 @@ export function EditorView({
 
   // Q&A inline editing: the item is being edited when any field is active
   const isEditing = !!inlineEdit.editingField;
+
+  // --- Q&A answer element ---
+  const qaAnswerElement = isQAPair ? (
+    <QAAnswerDisplay
+      item={item}
+      inlineEdit={inlineEdit}
+      canEdit={canEdit}
+      handleCopyAnswer={handleCopyAnswer}
+    />
+  ) : undefined;
 
   // --- Content tabs element ---
   const contentTabsElement = (
@@ -201,17 +212,7 @@ export function EditorView({
           ) : null}
 
           {/* Title + inline badges */}
-          <ItemTitleSection
-            item={item}
-            title={title}
-            isEditing={false}
-            editDirty={false}
-            editTitle=""
-            setEditTitle={() => {}}
-            setEditDirty={() => {}}
-            handleSaveAll={() => {}}
-            cancelEditMode={() => {}}
-          />
+          <ItemTitleSection item={item} title={title} />
 
           {/* Action bar — full editor controls */}
           <div className="sticky top-0 z-10 mb-6 flex flex-wrap items-center gap-2 bg-background py-2 sm:static sm:z-auto">
@@ -245,13 +246,7 @@ export function EditorView({
               isQAPair={isQAPair}
               canEdit={canEdit}
               contentTabsElement={contentTabsElement}
-              isEditing={isEditing}
-              editStandard=""
-              editAdvanced=""
-              setEditStandard={() => {}}
-              setEditAdvanced={() => {}}
-              setEditDirty={() => {}}
-              handleCopyAnswer={handleCopyAnswer}
+              qaAnswerElement={qaAnswerElement}
               visionAnalysis={visionAnalysis}
               transcriptChapters={transcriptChapters}
               segments={segments}

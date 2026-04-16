@@ -75,12 +75,6 @@ vi.mock('@/components/shared/content-type-header', () => ({
   ),
 }));
 
-vi.mock('@/components/qa/qa-answer-display', () => ({
-  QAAnswerDisplay: () => (
-    <div data-testid="qa-answer-display">QAAnswerDisplay</div>
-  ),
-}));
-
 vi.mock('@/components/content/content-layer-selector', () => ({
   ContentLayerSelector: () => (
     <div data-testid="content-layer-selector">ContentLayerSelector</div>
@@ -149,13 +143,6 @@ function createDefaultProps(
     isQAPair: false,
     canEdit: false,
     contentTabsElement: <div data-testid="content-tabs">Content Tabs</div>,
-    isEditing: false,
-    editStandard: '',
-    editAdvanced: '',
-    setEditStandard: vi.fn(),
-    setEditAdvanced: vi.fn(),
-    setEditDirty: vi.fn(),
-    handleCopyAnswer: vi.fn(),
     visionAnalysis: undefined,
     transcriptChapters: undefined,
     segments: null,
@@ -191,8 +178,13 @@ describe('ContentBody', () => {
     expect(header).toHaveAttribute('data-content-type', 'article');
   });
 
-  it('renders QAAnswerDisplay when isQAPair is true', () => {
-    const props = createDefaultProps({ isQAPair: true });
+  it('renders qaAnswerElement when isQAPair is true and qaAnswerElement provided', () => {
+    const props = createDefaultProps({
+      isQAPair: true,
+      qaAnswerElement: (
+        <div data-testid="qa-answer-display">QAAnswerDisplay</div>
+      ),
+    });
     render(<ContentBody {...props} />);
     expect(screen.getByTestId('qa-answer-display')).toBeInTheDocument();
     expect(screen.queryByTestId('content-tabs')).not.toBeInTheDocument();
