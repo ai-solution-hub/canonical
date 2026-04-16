@@ -9,6 +9,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 // ---------------------------------------------------------------------------
 // Mocks — must mock child components to avoid their internal dependencies
@@ -25,11 +26,32 @@ vi.mock('@/app/item/new/create-content-client', () => ({
 }));
 
 vi.mock('@/components/create-content/url-ingest-form', () => ({
-  UrlIngestForm: () => <div data-testid="url-ingest-form" />,
+  UrlIngestForm: ({ onSuggestManual }: { onSuggestManual?: () => void }) => (
+    <div data-testid="url-ingest-form">
+      {onSuggestManual && (
+        <button data-testid="url-suggest-manual" onClick={onSuggestManual}>
+          Suggest manual
+        </button>
+      )}
+    </div>
+  ),
 }));
 
 vi.mock('@/components/create-content/upload-tab-content', () => ({
-  UploadTabContent: () => <div data-testid="upload-tab-content" />,
+  UploadTabContent: ({ onSwitchTab }: { onSwitchTab?: (tab: string) => void }) => (
+    <div data-testid="upload-tab-content">
+      {onSwitchTab && (
+        <>
+          <button data-testid="upload-switch-url" onClick={() => onSwitchTab('url')}>
+            Try URL instead
+          </button>
+          <button data-testid="upload-switch-write" onClick={() => onSwitchTab('write')}>
+            Write manually
+          </button>
+        </>
+      )}
+    </div>
+  ),
 }));
 
 vi.mock('@/app/item/new/batch/batch-create-client', () => ({
@@ -94,5 +116,97 @@ describe('NewItemTabs', () => {
     const writeTab = screen.getByRole('tab', { name: /write content/i });
     expect(writeTab).toHaveAttribute('data-state', 'active');
     expect(screen.getByTestId('create-content-client')).toBeInTheDocument();
+  });
+
+  // ---------------------------------------------------------------------------
+  // Tab switching
+  // ---------------------------------------------------------------------------
+
+  it('clicking a tab switches the active tab', async () => {
+    const user = userEvent.setup();
+    render(<NewItemTabs />);
+
+    // Default is write
+    expect(
+      screen.getByRole('tab', { name: /write content/i }),
+    ).toHaveAttribute('data-state', 'active');
+
+    // Click URL tab
+    await user.click(screen.getByRole('tab', { name: /import from url/i }));
+
+    expect(
+      screen.getByRole('tab', { name: /import from url/i }),
+    ).toHaveAttribute('data-state', 'active');
+    expect(
+      screen.getByRole('tab', { name: /write content/i }),
+    ).toHaveAttribute('data-state', 'inactive');
+    expect(screen.getByTestId('url-ingest-form')).toBeInTheDocument();
+  });
+
+  // ---------------------------------------------------------------------------
+  // Cross-method suggestions
+  // ---------------------------------------------------------------------------
+
+  it('"Have a file instead? Upload it" switches to upload tab', async () => {
+    const user = userEvent.setup();
+    render(<NewItemTabs />);
+
+    // The cross-method suggestion is inside the write tab
+    const uploadSuggestion = screen.getByRole('button', {
+      name: /upload it/i,
+    });
+    await user.click(uploadSuggestion);
+
+    expect(
+      screen.getByRole('tab', { name: /upload file/i }),
+    ).toHaveAttribute('data-state', 'active');
+    expect(screen.getByTestId('upload-tab-content')).toBeInTheDocument();
+  });
+
+  it('UrlIngestForm onSuggestManual switches back to write tab', async () => {
+    const user = userEvent.setup();
+    render(<NewItemTabs defaultTab="url" />);
+
+    // URL tab is active
+    expect(
+      screen.getByRole('tab', { name: /import from url/i }),
+    ).toHaveAttribute('data-state', 'active');
+
+    // Click the mock suggest-manual button
+    await user.click(screen.getByTestId('url-suggest-manual'));
+
+    expect(
+      screen.getByRole('tab', { name: /write content/i }),
+    ).toHaveAttribute('data-state', 'active');
+    expect(screen.getByTestId('create-content-client')).toBeInTheDocument();
+  });
+
+  it('UploadTabContent onSwitchTab("url") switches to URL tab', async () => {
+    const user = userEvent.setup();
+    render(<NewItemTabs defaultTab="upload" />);
+
+    // Upload tab is active
+    expect(
+      screen.getByRole('tab', { name: /upload file/i }),
+    ).toHaveAttribute('data-state', 'active');
+
+    // Click the mock switch-to-url button
+    await user.click(screen.getByTestId('upload-switch-url'));
+
+    expect(
+      screen.getByRole('tab', { name: /import from url/i }),
+    ).toHaveAttribute('data-state', 'active');
+  });
+
+  it('UploadTabContent onSwitchTab("write") switches to write tab', async () => {
+    const user = userEvent.setup();
+    render(<NewItemTabs defaultTab="upload" />);
+
+    // Click the mock switch-to-write button
+    await user.click(screen.getByTestId('upload-switch-write'));
+
+    expect(
+      screen.getByRole('tab', { name: /write content/i }),
+    ).toHaveAttribute('data-state', 'active');
   });
 });
