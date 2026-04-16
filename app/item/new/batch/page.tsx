@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation';
+import { permanentRedirect } from 'next/navigation';
 
 export default function BatchCreatePage() {
-  redirect('/item/new?tab=batch');
+  permanentRedirect('/item/new?tab=batch');
 }

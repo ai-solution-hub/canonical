@@ -1,25 +1,25 @@
 /**
  * Batch route redirect test
  *
- * Verifies that /item/new/batch redirects to /item/new?tab=batch.
+ * Verifies that /item/new/batch permanently redirects to /item/new?tab=batch.
  */
 import { describe, it, expect, vi } from 'vitest';
 
-const { mockRedirect } = vi.hoisted(() => ({
-  mockRedirect: vi.fn(),
+const { mockPermanentRedirect } = vi.hoisted(() => ({
+  mockPermanentRedirect: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
-  redirect: mockRedirect,
+  permanentRedirect: mockPermanentRedirect,
 }));
 
 import BatchCreatePage from '@/app/item/new/batch/page';
 
 describe('/item/new/batch redirect', () => {
-  it('calls redirect with /item/new?tab=batch', () => {
+  it('calls permanentRedirect with /item/new?tab=batch (HTTP 308)', () => {
     BatchCreatePage();
 
-    expect(mockRedirect).toHaveBeenCalledWith('/item/new?tab=batch');
-    expect(mockRedirect).toHaveBeenCalledTimes(1);
+    expect(mockPermanentRedirect).toHaveBeenCalledWith('/item/new?tab=batch');
+    expect(mockPermanentRedirect).toHaveBeenCalledTimes(1);
   });
 });

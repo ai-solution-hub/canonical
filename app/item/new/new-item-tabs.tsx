@@ -8,9 +8,13 @@ import { UrlIngestForm } from '@/components/create-content/url-ingest-form';
 import { UploadTabContent } from '@/components/create-content/upload-tab-content';
 import { BatchCreateContent } from './batch/batch-create-client';
 
+type NewItemTab = 'write' | 'url' | 'upload' | 'batch';
+
+const VALID_TABS: readonly NewItemTab[] = ['write', 'url', 'upload', 'batch'];
+
 interface NewItemTabsProps {
   /** Which tab to show initially. Defaults to 'write'. */
-  defaultTab?: 'write' | 'url' | 'upload' | 'batch';
+  defaultTab?: NewItemTab;
 }
 
 /**
@@ -23,7 +27,10 @@ interface NewItemTabsProps {
  * - "Batch Q&A" — paste multiple Q&A pairs from a spreadsheet
  */
 export function NewItemTabs({ defaultTab = 'write' }: NewItemTabsProps) {
-  const [activeTab, setActiveTab] = useState(defaultTab);
+  const initialTab: NewItemTab = VALID_TABS.includes(defaultTab)
+    ? defaultTab
+    : 'write';
+  const [activeTab, setActiveTab] = useState<string>(initialTab);
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

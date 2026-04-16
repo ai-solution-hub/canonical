@@ -86,4 +86,13 @@ describe('NewItemTabs', () => {
 
     expect(screen.getByTestId('batch-create-content')).toBeInTheDocument();
   });
+
+  it('falls back to write tab when defaultTab is an invalid value', () => {
+    // @ts-expect-error — deliberately passing an invalid prop to test runtime guard
+    render(<NewItemTabs defaultTab="garbage" />);
+
+    const writeTab = screen.getByRole('tab', { name: /write content/i });
+    expect(writeTab).toHaveAttribute('data-state', 'active');
+    expect(screen.getByTestId('create-content-client')).toBeInTheDocument();
+  });
 });
