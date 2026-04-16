@@ -13,12 +13,13 @@ import userEvent from '@testing-library/user-event';
 // vi.hoisted() — mocks referenced in vi.mock() factories
 // ---------------------------------------------------------------------------
 
-const { mockOnSectionChange } = vi.hoisted(() => ({
+const { mockOnSectionChange, mockRouterPush } = vi.hoisted(() => ({
   mockOnSectionChange: vi.fn(),
+  mockRouterPush: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
+  useRouter: () => ({ push: mockRouterPush, replace: vi.fn(), back: vi.fn() }),
   usePathname: () => '/settings',
   useSearchParams: () => new URLSearchParams(),
 }));
@@ -56,14 +57,16 @@ describe('SettingsSidebar', () => {
     expect(within(nav).getByText('Content Management')).toBeInTheDocument();
     expect(within(nav).getByText('System')).toBeInTheDocument();
 
-    // All 8 section buttons should be present (Activity moved to /provenance)
+    // All section buttons should be present
     expect(within(nav).getByText('Profile')).toBeInTheDocument();
     expect(within(nav).getByText('Connections')).toBeInTheDocument();
     expect(within(nav).getByText('Content Organisation')).toBeInTheDocument();
+    expect(within(nav).getByText('Content Owners')).toBeInTheDocument();
     expect(within(nav).getByText('Organisations & People')).toBeInTheDocument();
     expect(within(nav).getByText('Guides')).toBeInTheDocument();
     expect(within(nav).getByText('Team')).toBeInTheDocument();
     expect(within(nav).getByText('Quality Review')).toBeInTheDocument();
+    expect(within(nav).getByText('Provenance')).toBeInTheDocument();
     expect(within(nav).getByText('Developer Setup')).toBeInTheDocument();
   });
 
@@ -118,6 +121,21 @@ describe('SettingsSidebar', () => {
 
     await user.click(screen.getByText('Quality Review'));
     expect(mockOnSectionChange).toHaveBeenCalledWith('governance');
+  });
+
+  it('navigates to /provenance when Provenance is clicked', async () => {
+    const user = userEvent.setup();
+    render(
+      <SettingsSidebar
+        isAdmin={true}
+        activeSection="profile"
+        onSectionChange={mockOnSectionChange}
+      />,
+    );
+
+    await user.click(screen.getByText('Provenance'));
+    expect(mockRouterPush).toHaveBeenCalledWith('/provenance');
+    expect(mockOnSectionChange).not.toHaveBeenCalled();
   });
 
   it('falls back to profile for non-admin accessing admin section', () => {

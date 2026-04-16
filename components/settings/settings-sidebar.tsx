@@ -11,8 +11,10 @@ import {
   Network,
   BookOpen,
   UserCheck,
+  Fingerprint,
 } from 'lucide-react';
 import { useState } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -37,6 +39,7 @@ export type SettingsSection =
   | 'guides'
   | 'team'
   | 'governance'
+  | 'provenance'
   | 'developer-setup';
 
 interface SectionDef {
@@ -44,6 +47,8 @@ interface SectionDef {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   group: 'personal' | 'content' | 'system';
+  /** When set, clicking navigates to this route instead of switching section. */
+  href?: string;
 }
 
 const ALL_SECTIONS: SectionDef[] = [
@@ -74,6 +79,13 @@ const ALL_SECTIONS: SectionDef[] = [
     label: 'Quality Review',
     icon: ShieldCheck,
     group: 'system',
+  },
+  {
+    id: 'provenance',
+    label: 'Provenance',
+    icon: Fingerprint,
+    group: 'system',
+    href: '/provenance',
   },
   {
     id: 'developer-setup',
@@ -133,6 +145,8 @@ function SidebarNav({
   activeSection: SettingsSection;
   onSelect: (section: SettingsSection) => void;
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const groups = GROUP_ORDER.filter((g) => sections.some((s) => s.group === g));
 
   return (
@@ -148,12 +162,18 @@ function SidebarNav({
               </p>
               {groupSections.map((section) => {
                 const Icon = section.icon;
-                const isActive = activeSection === section.id;
+                const isActive = section.href
+                  ? pathname === section.href
+                  : activeSection === section.id;
                 return (
                   <button
                     key={section.id}
                     type="button"
-                    onClick={() => onSelect(section.id)}
+                    onClick={() =>
+                      section.href
+                        ? router.push(section.href)
+                        : onSelect(section.id)
+                    }
                     className={cn(
                       'flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                       isActive
