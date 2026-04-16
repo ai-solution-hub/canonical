@@ -291,5 +291,19 @@ export const queryKeys = {
   admin: {
     all: ['admin'] as const,
     pipelineRunsRecent: ['admin', 'pipeline-runs', 'recent'] as const,
+    provenance: {
+      all: ['admin', 'provenance'] as const,
+      pipelineRuns: (filters: {
+        range: string;
+        kinds?: readonly string[];
+      }) =>
+        [
+          'admin',
+          'provenance',
+          'pipeline-runs',
+          filters.range,
+          (filters.kinds ?? []).slice().sort().join(','),
+        ] as const,
+    },
   },
 } as const;

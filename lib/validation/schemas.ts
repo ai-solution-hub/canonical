@@ -1590,6 +1590,28 @@ export const DisplayNamesBodySchema = z.object({
   ids: z.array(z.string().uuid()).min(1, 'At least one ID required').max(50),
 });
 
+/** GET /api/admin/provenance/pipeline-runs */
+export const AdminProvenancePipelineRunsParamsSchema = z.object({
+  range: z.enum(['1h', '24h', '7d', '30d']).default('24h'),
+  // parseSearchParams pre-splits comma-separated values into arrays,
+  // so accept both string and string[] to be robust.
+  kinds: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((v) => {
+      if (!v) return undefined;
+      const arr = Array.isArray(v) ? v : v.split(',');
+      return arr.filter(Boolean).slice(0, 20);
+    }),
+  limit: z.coerce
+    .number()
+    .int()
+    .default(50)
+    .transform((v) => Math.min(Math.max(v, 1), 200)),
+  cursor_started_at: z.string().datetime().optional(),
+  cursor_id: z.string().uuid().optional(),
+});
+
 /** PATCH /api/entities/[canonical_name]/metadata */
 export const EntityMetadataUpdateSchema = z
   .record(z.string(), z.unknown())
