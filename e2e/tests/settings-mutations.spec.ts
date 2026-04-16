@@ -289,16 +289,18 @@ test.describe('Settings -- Quality Review (Governance)', () => {
       const itemCount = await listItems.count();
       expect(itemCount).toBeGreaterThan(0);
 
-      // Each row has a domain name (text-sm font-medium) and posture badge
+      // Each row has a domain name and a preset badge (Light-touch or Strict)
       const firstItem = listItems.first();
       await expect(firstItem.locator('.text-sm.font-medium')).toBeVisible();
       await expect(
-        firstItem.locator('.text-xs.text-muted-foreground').first(),
+        firstItem.locator('[data-slot="badge"]'),
       ).toBeVisible();
     } else {
       // Empty state is acceptable — verify its content
       await expect(emptyState).toBeVisible();
-      await expect(main.getByText(/Open.*posture by default/)).toBeVisible();
+      await expect(
+        main.getByText('Add a domain and choose a preset to get started.'),
+      ).toBeVisible();
     }
 
     // "Content Freshness" section should also be visible below governance config
