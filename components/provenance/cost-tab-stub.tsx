@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { tryQuery } from '@/lib/supabase/safe';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 
 // ---------------------------------------------------------------------------
@@ -30,23 +31,27 @@ export default function CostTabStub() {
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-        const { data: rows, error: queryError } = await supabase
-          .from('pipeline_runs')
-          .select('cost')
-          .gte('started_at', thirtyDaysAgo.toISOString());
+        const result = await tryQuery<{ cost: number | null }[]>(
+          supabase
+            .from('pipeline_runs')
+            .select('cost')
+            .gte('started_at', thirtyDaysAgo.toISOString()),
+          'provenance.cost_tab.fetch',
+        );
 
-        if (queryError) {
+        if (!result.ok) {
           logBestEffortWarn(
             'provenance.cost_tab.fetch',
             'Failed to fetch pipeline cost aggregate',
-            { err: queryError.message },
+            { err: result.error.message },
           );
           setError(true);
           setLoading(false);
           return;
         }
 
-        const costs = (rows ?? [])
+        const rows = result.data ?? [];
+        const costs = rows
           .map((r) => r.cost)
           .filter((c): c is number => c !== null);
 
@@ -54,7 +59,7 @@ export default function CostTabStub() {
           totalCost: costs.length > 0
             ? costs.reduce((sum, c) => sum + c, 0)
             : null,
-          runCount: (rows ?? []).length,
+          runCount: rows.length,
         });
       } catch (err) {
         logBestEffortWarn(
