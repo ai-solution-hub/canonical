@@ -2,11 +2,10 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Info, Loader2, AlertTriangle } from 'lucide-react';
+import { Info, Loader2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -26,8 +25,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { BreadcrumbNav } from '@/components/shell/breadcrumb-nav';
-import { ErrorBoundary } from '@/components/shared/error-boundary';
 import {
   BatchQAPreviewTable,
   parsePastedQA,
@@ -74,7 +71,6 @@ export function BatchCreateClient() {
   // Shared metadata
   const [domain, setDomain] = useState('');
   const [subtopic, setSubtopic] = useState('');
-  const [sourceDocumentLink, setSourceDocumentLink] = useState('');
 
   // Duplicate warning dialog
   const [duplicateMatches, setDuplicateMatches] = useState<DuplicateMatch[]>(
@@ -139,7 +135,7 @@ export function BatchCreateClient() {
     const result = await submit(validPairs, {
       domain: domain || undefined,
       subtopic: subtopic || undefined,
-      sourceDocumentLink: sourceDocumentLink || undefined,
+      sourceDocumentLink: undefined,
     });
 
     if (result) {
@@ -164,7 +160,7 @@ export function BatchCreateClient() {
         );
       }
     }
-  }, [validPairs, domain, subtopic, sourceDocumentLink, submit]);
+  }, [validPairs, domain, subtopic, submit]);
 
   const handleSubmit = useCallback(async () => {
     if (!canSubmit) return;
@@ -198,26 +194,13 @@ export function BatchCreateClient() {
       : 0;
 
   return (
-    <ErrorBoundary label="Error loading batch create">
       <section
         aria-label="Batch create Q&A pairs"
         className="mx-auto max-w-4xl px-4 py-6 sm:px-6"
       >
-        {/* Breadcrumb + Header */}
-        <BreadcrumbNav title="Batch Create" className="mb-4" />
-        <div className="mb-6 space-y-2">
-          <h1 className="text-xl font-bold">Batch Create Q&A Pairs</h1>
-          <p className="text-sm text-muted-foreground">
-            Create multiple Q&A pairs at once by pasting from a spreadsheet.
-          </p>
-          <Link
-            href="/item/new"
-            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-          >
-            <ArrowLeft className="size-3.5" aria-hidden="true" />
-            Create a single item
-          </Link>
-        </div>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Create multiple Q&A pairs at once by pasting from a spreadsheet.
+        </p>
 
         <div className="space-y-6">
           {/* Informational note about pipeline */}
@@ -341,19 +324,6 @@ export function BatchCreateClient() {
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="batch-source-doc">
-                    Source document ID (optional)
-                  </Label>
-                  <Input
-                    id="batch-source-doc"
-                    value={sourceDocumentLink}
-                    onChange={(e) => setSourceDocumentLink(e.target.value)}
-                    placeholder="UUID of the source document, e.g. 550e8400-e29b-41d4-a716-446655440000"
-                    className="font-mono text-sm"
-                  />
                 </div>
               </fieldset>
 
@@ -495,6 +465,8 @@ export function BatchCreateClient() {
           </AlertDialogContent>
         </AlertDialog>
       </section>
-    </ErrorBoundary>
   );
 }
+
+/** Re-export for tab embedding. */
+export { BatchCreateClient as BatchCreateContent };

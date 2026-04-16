@@ -7,6 +7,7 @@ import { CreateContentClient } from './create-content-client';
 import { UrlIngestForm } from '@/components/create-content/url-ingest-form';
 import { UploadTabContent } from '@/components/create-content/upload-tab-content';
 import { FileUploadDialog } from '@/components/create-content/file-upload-dialog';
+import { BatchCreateContent } from './batch/batch-create-client';
 
 interface NewItemTabsProps {
   /** Which tab to show initially. Defaults to 'write'. */
@@ -94,7 +95,7 @@ export function NewItemTabs({ defaultTab = 'write' }: NewItemTabsProps) {
 
         <TabsContent value="batch">
           <section aria-label="Batch Q&A creation">
-            <div>Batch Q&A placeholder</div>
+            <BatchCreateContent />
           </section>
         </TabsContent>
       </Tabs>

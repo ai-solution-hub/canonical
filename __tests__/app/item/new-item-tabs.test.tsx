@@ -36,6 +36,10 @@ vi.mock('@/components/create-content/file-upload-dialog', () => ({
   FileUploadDialog: () => null,
 }));
 
+vi.mock('@/app/item/new/batch/batch-create-client', () => ({
+  BatchCreateContent: () => <div data-testid="batch-create-content" />,
+}));
+
 import { NewItemTabs } from '@/app/item/new/new-item-tabs';
 
 // ---------------------------------------------------------------------------
@@ -79,5 +83,11 @@ describe('NewItemTabs', () => {
 
     const urlTab = screen.getByRole('tab', { name: /import from url/i });
     expect(urlTab).toHaveAttribute('data-state', 'active');
+  });
+
+  it('renders BatchCreateContent when batch tab is active', () => {
+    render(<NewItemTabs defaultTab="batch" />);
+
+    expect(screen.getByTestId('batch-create-content')).toBeInTheDocument();
   });
 });
