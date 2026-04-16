@@ -9,6 +9,14 @@ import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+// ConceptHelp renders a Radix Tooltip which needs a TooltipProvider.
+// Stub it to avoid wiring one up across every render call.
+vi.mock('@/components/ui/concept-help', () => ({
+  ConceptHelp: ({ concept }: { concept: string }) => (
+    <span data-testid={`concept-help-${concept}`} />
+  ),
+}));
+
 import { ClassificationFieldset } from '@/components/create-content/classification-fieldset';
 import type { ClassificationFieldsetProps } from '@/components/create-content/classification-fieldset';
 

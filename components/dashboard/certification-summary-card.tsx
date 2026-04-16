@@ -502,7 +502,7 @@ export function CertificationSummaryCard({
                 expiringCount,
               ).prompt
             }
-            label="Review"
+            label="Review with Claude"
             size="sm"
           />
           <Button

@@ -14,6 +14,21 @@ import {
 import { cn } from '@/lib/utils';
 
 // ---------------------------------------------------------------------------
+// Copy principle (P0-20 / RF-Q14)
+// ---------------------------------------------------------------------------
+// Labels follow one of two patterns:
+//   • Destination verb — "Open in Claude", "Continue in Claude" — when the
+//     button hands the user off to Claude to continue the same workflow in a
+//     different surface.
+//   • Action verb — "Draft with Claude", "Summarise with Claude",
+//     "Review with Claude" — when Claude performs a specific one-shot task and
+//     returns a result.
+// Callers MUST pass an explicit `label` per this principle. The default
+// ("Open in Claude") is destination-style because the button always opens
+// claude.ai when `openClaude` is true.
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -48,7 +63,7 @@ const CLAUDE_NEW_CHAT_URL = 'https://claude.ai/new';
  */
 export function ClaudePromptButton({
   prompt,
-  label = 'Take action',
+  label = 'Open in Claude',
   size = 'sm',
   className,
   openClaude = true,

@@ -303,12 +303,10 @@ test.describe('Content creation -- form submission', () => {
       });
       await expect(saveButton).toBeEnabled({ timeout: 5000 });
 
-      // Uncheck auto-classify and auto-summarise to avoid slow AI API calls
-      // during the E2E test — we're testing the save flow, not the AI pipeline
-      const autoClassify = page.getByLabel('Classify automatically');
-      if (await autoClassify.isChecked()) {
-        await autoClassify.uncheck();
-      }
+      // Uncheck auto-summarise to avoid slow AI API calls during the E2E
+      // test — we're testing the save flow, not the AI pipeline. Server-side
+      // classification runs unconditionally per the AI-visibility policy
+      // (no user-facing toggle).
       const autoSummarise = page.getByLabel('Generate summary');
       if (await autoSummarise.isChecked()) {
         await autoSummarise.uncheck();

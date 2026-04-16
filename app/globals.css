@@ -160,15 +160,6 @@
   --color-priority-tier-low: oklch(0.55 0.014 48);
   --color-priority-tier-low-bg: oklch(0.95 0.01 48);
 
-  /* Gap summary banner */
-  --color-gap-summary-bg: oklch(0.97 0.018 85);
-  --color-gap-summary-border: oklch(0.87 0.05 85);
-  --color-gap-summary-icon: oklch(0.6 0.11 60);
-  --color-gap-summary-title: oklch(0.42 0.07 60);
-  --color-gap-summary-text: oklch(0.5 0.08 60);
-  --color-gap-summary-link: oklch(0.42 0.07 60);
-  --color-gap-summary-link-hover: oklch(0.35 0.08 60);
-
   /* Bid status */
   --color-bid-draft: oklch(0.55 0.014 48);
   --color-bid-draft-bg: oklch(0.95 0.01 48);
@@ -461,15 +452,6 @@
   --color-priority-tier-low: oklch(0.65 0.012 48);
   --color-priority-tier-low-bg: oklch(0.25 0.016 48);
 
-  /* Gap summary banner (dark) */
-  --color-gap-summary-bg: oklch(0.2 0.016 85);
-  --color-gap-summary-border: oklch(0.3 0.03 85 / 0.5);
-  --color-gap-summary-icon: oklch(0.72 0.08 60);
-  --color-gap-summary-title: oklch(0.85 0.04 60);
-  --color-gap-summary-text: oklch(0.78 0.05 60);
-  --color-gap-summary-link: oklch(0.85 0.04 60);
-  --color-gap-summary-link-hover: oklch(0.92 0.03 60);
-
   /* Bid status (dark) */
   --color-bid-draft: oklch(0.65 0.012 48);
   --color-bid-draft-bg: oklch(0.25 0.016 48);
@@ -688,14 +670,6 @@
   --color-priority-tier-medium-bg: var(--color-priority-tier-medium-bg);
   --color-priority-tier-low: var(--color-priority-tier-low);
   --color-priority-tier-low-bg: var(--color-priority-tier-low-bg);
-
-  --color-gap-summary-bg: var(--color-gap-summary-bg);
-  --color-gap-summary-border: var(--color-gap-summary-border);
-  --color-gap-summary-icon: var(--color-gap-summary-icon);
-  --color-gap-summary-title: var(--color-gap-summary-title);
-  --color-gap-summary-text: var(--color-gap-summary-text);
-  --color-gap-summary-link: var(--color-gap-summary-link);
-  --color-gap-summary-link-hover: var(--color-gap-summary-link-hover);
 
   --color-bid-draft: var(--color-bid-draft);
   --color-bid-draft-bg: var(--color-bid-draft-bg);

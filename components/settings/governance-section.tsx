@@ -33,6 +33,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from '@/components/ui/tooltip';
+import { ConceptHelp } from '@/components/ui/concept-help';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -548,7 +549,10 @@ export function GovernanceSection() {
       <Separator className="my-2" />
 
       <div>
-        <h3 className="text-base font-semibold">Content Freshness</h3>
+        <h3 className="flex items-center gap-1.5 text-base font-semibold">
+          Content Freshness
+          <ConceptHelp concept="freshness" />
+        </h3>
         <p className="text-sm text-muted-foreground">
           Recalculate freshness states for all content items based on their
           lifecycle type and last update date.

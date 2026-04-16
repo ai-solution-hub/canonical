@@ -166,6 +166,7 @@ function AttentionItemCard({
           {item.claude_prompt && (
             <ClaudePromptButton
               prompt={item.claude_prompt}
+              label="Review with Claude"
               size="sm"
               className="h-auto px-1.5 py-0.5"
             />
@@ -210,7 +211,7 @@ function AttentionPromptStrip({ items }: { items: AttentionItem[] }) {
       <p className="text-xs text-muted-foreground">{summaryText}</p>
       <ClaudePromptButton
         prompt={compositePrompt}
-        label="Plan actions"
+        label="Plan with Claude"
         size="sm"
         className="h-auto shrink-0 px-1.5 py-0.5"
       />

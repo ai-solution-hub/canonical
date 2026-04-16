@@ -45,7 +45,7 @@ const REVIEW_STATUS_LABELS: Record<
   { label: string; variant: 'default' | 'secondary' | 'outline' }
 > = {
   draft: { label: 'Draft', variant: 'secondary' },
-  ai_drafted: { label: 'AI Drafted', variant: 'outline' },
+  ai_drafted: { label: 'Drafted', variant: 'outline' },
   edited: { label: 'Edited', variant: 'secondary' },
   approved: { label: 'Approved', variant: 'default' },
   needs_review: { label: 'Needs Review', variant: 'outline' },

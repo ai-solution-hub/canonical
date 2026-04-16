@@ -54,7 +54,7 @@ const STATUS_CONFIG: Record<QuestionStatus, StatusConfig> = {
     className: 'text-confidence-none',
   },
   ai_drafted: {
-    label: 'AI Drafted',
+    label: 'Drafted',
     icon: CircleDot,
     className: 'text-confidence-needs-sme',
   },

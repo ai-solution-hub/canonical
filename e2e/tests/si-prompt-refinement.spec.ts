@@ -38,7 +38,7 @@ test.describe('Prompt refinement page navigation', () => {
     // empty-state copy or the flags-pending summary, depending on whether
     // any flags exist for this workspace.
     const refinementPanel = page.getByRole('region', {
-      name: /prompt refinement/i,
+      name: /refine filter rules/i,
     });
     await expect(refinementPanel).toBeVisible({ timeout: 10000 });
 
@@ -51,7 +51,7 @@ test.describe('Prompt refinement page navigation', () => {
 
     // Version sidebar still present (unchanged from pre-S158).
     await expect(
-      page.getByRole('heading', { name: /version history/i }),
+      page.getByRole('heading', { name: /filter rule history/i }),
     ).toBeVisible({ timeout: 5000 });
   });
 
@@ -100,7 +100,7 @@ test.describe('Prompt refinement page navigation', () => {
     ).toBeVisible({ timeout: 5000 });
 
     await expect(
-      editorPage.getByRole('region', { name: /prompt refinement/i }),
+      editorPage.getByRole('region', { name: /refine filter rules/i }),
     ).toHaveCount(0);
   });
 });
@@ -362,7 +362,7 @@ test.describe('Prompt refinement happy path (mocked API)', () => {
 
     // Wait for the refinement panel header — the page is ready.
     await expect(
-      page.getByRole('region', { name: /prompt refinement/i }),
+      page.getByRole('region', { name: /refine filter rules/i }),
     ).toBeVisible({ timeout: 10000 });
 
     // 3 unresolved flags should be summarised (pluralised UK English).

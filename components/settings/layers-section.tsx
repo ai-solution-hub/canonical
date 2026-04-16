@@ -318,6 +318,13 @@ export function LayersSection() {
         <div>
           <h2 className="flex items-center gap-1.5 text-lg font-semibold text-foreground">
             Depth Levels
+            {/*
+             * Kept the pre-existing rich "Info" tooltip here rather than
+             * layering on a second `<ConceptHelp concept="layer" />`: the
+             * body below (examples + plurality rule) is materially richer
+             * than the one-liner ConceptHelp copy and two tab-discoverable
+             * tooltips in a single heading is confusing (P1-31 follow-up).
+             */}
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>

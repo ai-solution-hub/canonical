@@ -22,28 +22,6 @@ interface TenderMetadataPromptProps {
   className?: string;
 }
 
-function ConfidenceIndicator({ confidence }: { confidence: number }) {
-  let label: string;
-  let colourClass: string;
-
-  if (confidence > 0.7) {
-    label = 'High confidence';
-    colourClass = 'text-confidence-strong';
-  } else if (confidence >= 0.3) {
-    label = 'Medium confidence';
-    colourClass = 'text-confidence-partial';
-  } else {
-    label = 'Low confidence — please verify';
-    colourClass = 'text-destructive';
-  }
-
-  return (
-    <span className={cn('text-xs font-medium', colourClass)}>
-      {label} ({Math.round(confidence * 100)}%)
-    </span>
-  );
-}
-
 /**
  * Dismissable card shown on the bid detail page when tender metadata
  * has been extracted. Displays key fields and allows applying to the bid.
@@ -124,7 +102,6 @@ export function TenderMetadataPrompt({
           <h3 className="text-sm font-semibold text-foreground">
             Tender Metadata Detected
           </h3>
-          <ConfidenceIndicator confidence={metadata.confidence} />
         </div>
 
         <p className="text-xs text-muted-foreground">

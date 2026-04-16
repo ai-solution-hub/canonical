@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ConceptHelp } from '@/components/ui/concept-help';
 
 export interface ClassificationFieldsetProps {
   primaryDomain: string;
@@ -53,7 +54,10 @@ export function ClassificationFieldset({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="domain">Domain</Label>
+          <div className="flex items-center gap-1.5">
+            <Label htmlFor="domain">Domain</Label>
+            <ConceptHelp concept="domain" />
+          </div>
           <Select value={primaryDomain} onValueChange={setPrimaryDomain}>
             <SelectTrigger id="domain">
               <SelectValue placeholder="Select domain..." />

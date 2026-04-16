@@ -86,7 +86,7 @@ describe('QuestionRow', () => {
 
   it.each<[QuestionStatus, string]>([
     ['not_started', 'Not Started'],
-    ['ai_drafted', 'AI Drafted'],
+    ['ai_drafted', 'Drafted'],
     ['in_progress', 'In Progress'],
     ['needs_review', 'Needs Review'],
     ['complete', 'Complete'],

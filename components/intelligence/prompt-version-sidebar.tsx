@@ -46,7 +46,7 @@ export function PromptVersionSidebar({
   return (
     <div>
       <h3 className="mb-3 text-sm font-semibold text-foreground">
-        Version History
+        Filter rule history
       </h3>
       {versions.length === 0 ? (
         <p className="text-xs text-muted-foreground">No versions yet.</p>

@@ -1,17 +1,12 @@
 'use client';
 
 import { forwardRef, useState, useRef, useEffect, type ReactNode } from 'react';
-import {
-  AlertTriangle,
-  ChevronDown,
-  ChevronUp,
-  Clock,
-  FileText,
-} from 'lucide-react';
+import { ChevronDown, ChevronUp, Clock, FileText } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DomainBadge } from '@/components/shared/domain-badge';
+import { GovernanceBadge } from '@/components/shared/governance-badge';
 import { VerificationBadge } from '@/components/shared/verification-badge';
 import { ContentRenderer } from '@/components/item-detail/content-renderer';
 import { cn } from '@/lib/utils';
@@ -180,13 +175,8 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
         <CardHeader className="gap-3">
           {/* Header row: badges + position */}
           <div className="flex flex-wrap items-center gap-2">
-            {item.governance_review_status === 'draft' && (
-              <Badge
-                variant="outline"
-                className="border-draft-badge-border bg-draft-badge-bg text-draft-badge-text text-xs"
-              >
-                Draft
-              </Badge>
+            {item.governance_review_status && (
+              <GovernanceBadge status={item.governance_review_status} />
             )}
             {item.primary_domain && (
               <DomainBadge domain={item.primary_domain} />
@@ -240,12 +230,6 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
         {/* Context summary — at-a-glance info */}
         {(item.summary || sourceFile || item.captured_date) && (
           <div className="mx-6 mb-2 rounded-lg border bg-muted/30 px-4 py-3">
-            {item.governance_review_status === 'pending' && (
-              <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-governance-pending">
-                <AlertTriangle className="size-3.5" aria-hidden="true" />
-                Governance review pending
-              </div>
-            )}
             {item.summary && (
               <p className="line-clamp-2 text-sm text-muted-foreground">
                 {item.summary}
@@ -261,13 +245,6 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
               {item.captured_date && (
                 <span>{formatDateUK(item.captured_date)}</span>
               )}
-              {item.classification_confidence != null &&
-                (() => {
-                  const conf = getConfidenceDisplay(
-                    item.classification_confidence,
-                  );
-                  return <span className={conf.colourClass}>{conf.label}</span>;
-                })()}
             </div>
           </div>
         )}

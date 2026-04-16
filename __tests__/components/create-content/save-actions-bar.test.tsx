@@ -1,7 +1,7 @@
 /**
  * SaveActionsBar Component Tests
  *
- * Tests the bottom bar with AI options (classify, summarise, draft),
+ * Tests the bottom bar with save options (summarise, draft),
  * save button states, split button dropdown, and cancel link.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -31,8 +31,6 @@ function createDefaultProps(
   overrides: Partial<SaveActionsBarProps> = {},
 ): SaveActionsBarProps {
   return {
-    autoClassify: true,
-    setAutoClassify: vi.fn(),
     autoSummarise: true,
     setAutoSummarise: vi.fn(),
     saveAsDraft: false,
@@ -57,10 +55,16 @@ describe('SaveActionsBar', () => {
     vi.unstubAllGlobals();
   });
 
-  it('renders classify and summarise checkboxes', () => {
+  it('renders the summary checkbox', () => {
     render(<SaveActionsBar {...createDefaultProps()} />);
-    expect(screen.getByText('Classify automatically')).toBeInTheDocument();
     expect(screen.getByText('Generate summary')).toBeInTheDocument();
+  });
+
+  it('does not render a classify-automatically checkbox', () => {
+    render(<SaveActionsBar {...createDefaultProps()} />);
+    expect(
+      screen.queryByText('Classify automatically'),
+    ).not.toBeInTheDocument();
   });
 
   it('renders save-as-draft checkbox', () => {

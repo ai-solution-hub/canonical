@@ -179,7 +179,9 @@ vi.mock('@/components/review/review-action-bar', () => ({
       <button onClick={onExit as () => void}>Exit</button>
       <button onClick={onEdit as () => void}>Edit</button>
       <button onClick={onShowHelp as () => void}>Help</button>
-      {isDraft && <button onClick={onPublish as () => void}>Publish</button>}
+      {isDraft && (
+        <button onClick={onPublish as () => void}>Publish draft</button>
+      )}
     </div>
   ),
 }));
@@ -257,6 +259,14 @@ vi.mock('@/components/review/review-session-summary', () => ({
         Summary: {stats.total} reviewed
       </div>
     ) : null,
+}));
+
+// ConceptHelp renders a Radix Tooltip which needs a TooltipProvider.
+// Stub it to avoid wiring one up across every render call.
+vi.mock('@/components/ui/concept-help', () => ({
+  ConceptHelp: ({ concept }: { concept: string }) => (
+    <span data-testid={`concept-help-${concept}`} />
+  ),
 }));
 
 // Import AFTER mocks
@@ -703,7 +713,9 @@ describe('ReviewContent', () => {
     });
     render(<ReviewContent />);
 
-    expect(screen.getByRole('button', { name: 'Publish' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Publish draft' }),
+    ).toBeInTheDocument();
   });
 
   // 20. Review Queue heading visible in main view

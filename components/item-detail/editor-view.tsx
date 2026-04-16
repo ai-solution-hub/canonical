@@ -306,7 +306,7 @@ export function EditorView({
                 {item.source_url && (
                   <ClaudePromptButton
                     prompt={generateIngestUrlPrompt(item.source_url).prompt}
-                    label="Re-ingest source"
+                    label="Re-ingest source with Claude"
                     size="sm"
                   />
                 )}
@@ -318,7 +318,7 @@ export function EditorView({
                         item.content.slice(0, 500),
                       ).prompt
                     }
-                    label="Summarise and add to KB"
+                    label="Summarise with Claude"
                     size="sm"
                   />
                 )}

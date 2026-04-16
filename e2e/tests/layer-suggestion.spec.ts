@@ -62,11 +62,10 @@ test.describe('Layer suggestion banner on create page', () => {
       { delay: 5 },
     );
 
-    // Uncheck AI options to speed up the test (avoid waiting for external API calls)
-    const classifyCheckbox = page.getByLabel('Classify automatically');
-    if (await classifyCheckbox.isChecked()) {
-      await classifyCheckbox.uncheck();
-    }
+    // Uncheck summary generation to speed up the test (avoid waiting for
+    // external API calls). Classification is always-on server-side now
+    // (`auto_classify` defaults to `true` in the validation schema) so there
+    // is no user-facing toggle to uncheck.
     const summariseCheckbox = page.getByLabel('Generate summary');
     if (await summariseCheckbox.isChecked()) {
       await summariseCheckbox.uncheck();
@@ -138,11 +137,7 @@ test.describe('Layer suggestion banner on create page', () => {
       { delay: 5 },
     );
 
-    // Uncheck AI options
-    const classifyCheckbox = page.getByLabel('Classify automatically');
-    if (await classifyCheckbox.isChecked()) {
-      await classifyCheckbox.uncheck();
-    }
+    // Uncheck summary generation (classification is always-on server-side)
     const summariseCheckbox = page.getByLabel('Generate summary');
     if (await summariseCheckbox.isChecked()) {
       await summariseCheckbox.uncheck();
@@ -193,11 +188,7 @@ test.describe('Layer suggestion banner on create page', () => {
       { delay: 5 },
     );
 
-    // Uncheck AI options
-    const classifyCheckbox = page.getByLabel('Classify automatically');
-    if (await classifyCheckbox.isChecked()) {
-      await classifyCheckbox.uncheck();
-    }
+    // Uncheck summary generation (classification is always-on server-side)
     const summariseCheckbox = page.getByLabel('Generate summary');
     if (await summariseCheckbox.isChecked()) {
       await summariseCheckbox.uncheck();

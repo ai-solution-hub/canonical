@@ -170,10 +170,10 @@ export function ReviewActionBar({
               'min-h-[48px] min-w-[120px] gap-2 text-base font-semibold transition-colors bg-action-publish hover:bg-action-publish-hover text-primary-foreground',
               flashAction === 'publish' && flashClass,
             )}
-            aria-label="Publish draft item (keyboard shortcut: Enter)"
+            aria-label="Publish draft (keyboard shortcut: Enter)"
           >
             <Send className="size-5" aria-hidden="true" />
-            Publish
+            Publish draft
             <kbd
               aria-hidden="true"
               className="ml-1.5 rounded border border-primary-foreground/20 bg-primary-foreground/10 px-1 font-mono text-[10px]"

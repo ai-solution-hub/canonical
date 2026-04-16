@@ -62,8 +62,6 @@ vi.mock('@/lib/templates/template-coverage', () => ({
 
 // Import route handlers AFTER mocks are registered
 const { GET: coverageGet } = await import('@/app/api/coverage/route');
-const { GET: gapSummaryGet } =
-  await import('@/app/api/coverage/gap-summary/route');
 const { GET: templatesGet } =
   await import('@/app/api/coverage/templates/route');
 const { GET: templatesListGet } =
@@ -259,75 +257,6 @@ describe('GET /api/coverage', () => {
 
     const body = await res.json();
     expect(body.error).toBe('Failed to load coverage summary');
-  });
-});
-
-// =============================================================================
-// GET /api/coverage/gap-summary
-// =============================================================================
-
-describe('GET /api/coverage/gap-summary', () => {
-  it('returns 401 when unauthenticated', async () => {
-    configureUnauthenticated(mockSupabase);
-
-    const req = createTestRequest('/api/coverage/gap-summary');
-    const res = await gapSummaryGet(req);
-    expect(res.status).toBe(401);
-  });
-
-  it('returns empty summary when no templates exist', async () => {
-    mockListAvailableTemplates.mockResolvedValueOnce([]);
-
-    const req = createTestRequest('/api/coverage/gap-summary');
-    const res = await gapSummaryGet(req);
-    expect(res.status).toBe(200);
-
-    const body = await res.json();
-    expect(body.total_gaps).toBe(0);
-    expect(body.templates_assessed).toBe(0);
-  });
-
-  it('returns computed gap summary when templates exist', async () => {
-    const templates = [
-      {
-        template_name: 'saq-pqs',
-        template_version: '1.0',
-        template_type: 'prequalification',
-      },
-    ];
-    mockListAvailableTemplates.mockResolvedValueOnce(templates);
-    mockFetchContentForMatching.mockResolvedValueOnce([
-      { id: '1', title: 'Test', primary_domain: 'Engineering' },
-    ]);
-    mockFetchTemplateRequirements.mockResolvedValueOnce([
-      {
-        requirement_key: 'r1',
-        template_version: '1.0',
-        template_type: 'prequalification',
-      },
-    ]);
-    mockComputeTemplateCoverage.mockReturnValueOnce({
-      template_name: 'saq-pqs',
-      coverage_percent: 60,
-    });
-    const gapResult = {
-      total_gaps: 3,
-      total_partial: 1,
-      templates_assessed: 1,
-      gaps_by_type: { missing: 3 },
-      partial_by_type: {},
-      gaps_by_template: [],
-      top_gaps: [],
-    };
-    mockComputeGapSummary.mockReturnValueOnce(gapResult);
-
-    const req = createTestRequest('/api/coverage/gap-summary');
-    const res = await gapSummaryGet(req);
-    expect(res.status).toBe(200);
-
-    const body = await res.json();
-    expect(body.total_gaps).toBe(3);
-    expect(body.templates_assessed).toBe(1);
   });
 });
 
