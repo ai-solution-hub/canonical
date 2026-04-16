@@ -1,10 +1,11 @@
 /**
- * Intelligence tool registrations (1 tool):
+ * Intelligence tool registrations (2 tools):
  *   get_intelligence_summary
+ *   trigger_intelligence_poll
  */
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { createMcpClient } from '@/lib/mcp/auth';
+import { createMcpClient, checkMcpRole } from '@/lib/mcp/auth';
 import {
   formatIntelligenceSummary,
   truncateResponse,
@@ -14,6 +15,7 @@ import {
   toStructuredContent,
   defineTool,
   READ_ONLY_ANNOTATIONS,
+  NON_IDEMPOTENT_WRITE_ANNOTATIONS,
 } from './shared';
 
 export async function registerIntelligenceTools(
@@ -74,6 +76,99 @@ export async function registerIntelligenceTools(
             {
               type: 'text' as const,
               text: `Intelligence summary failed: ${message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // trigger_intelligence_poll (admin-only)
+  // -------------------------------------------------------------------------
+  defineTool(
+    server,
+    'trigger_intelligence_poll',
+    {
+      title: 'Trigger Intelligence Poll',
+      description:
+        'Manually trigger the sector intelligence pipeline to poll all due RSS sources, score new articles, and update workspace feeds. Admin-only — returns the pipeline run summary including sources processed, articles found, and filter results. Use when a user wants to refresh intelligence data immediately rather than waiting for the scheduled cron.',
+      inputSchema: {
+        workspace_id: z
+          .string()
+          .uuid()
+          .optional()
+          .describe(
+            'Optional workspace UUID to scope the result context. The pipeline always processes all due sources across all workspaces.',
+          ),
+      },
+      annotations: NON_IDEMPOTENT_WRITE_ANNOTATIONS,
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        // Admin-only gate
+        const role = await checkMcpRole(extra.authInfo, ['admin']);
+        if (!role) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: 'Permission denied: admin role required to trigger intelligence polls.',
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // Lazy import to avoid cold start crashes
+        const { createServiceClient } = await import(
+          '@/lib/supabase/server'
+        );
+        const { runPipeline } = await import('@/lib/intelligence/pipeline');
+
+        const supabase = createServiceClient();
+        const result = await runPipeline(supabase);
+
+        const markdown = [
+          '## Intelligence Poll Triggered',
+          '',
+          `**Run ID:** ${result.runId}`,
+          `**Started:** ${result.startedAt}`,
+          `**Completed:** ${result.completedAt}`,
+          `**Sources processed:** ${result.sourcesProcessed}`,
+          `**Articles found:** ${result.totalArticlesFound}`,
+          `**New articles:** ${result.totalArticlesNew}`,
+          `**Passed filter:** ${result.totalArticlesPassed}`,
+          ...(result.errors.length > 0
+            ? [
+                '',
+                '### Errors',
+                ...result.errors.map((e) => `- ${e}`),
+              ]
+            : []),
+        ].join('\n');
+
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent({
+            run_id: result.runId,
+            started_at: result.startedAt,
+            completed_at: result.completedAt,
+            sources_processed: result.sourcesProcessed,
+            total_articles_found: result.totalArticlesFound,
+            total_articles_new: result.totalArticlesNew,
+            total_articles_passed: result.totalArticlesPassed,
+            errors: result.errors,
+          }),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Intelligence poll failed: ${message}`,
             },
           ],
           isError: true,
