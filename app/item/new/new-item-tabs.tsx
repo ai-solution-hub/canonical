@@ -1,25 +1,31 @@
 'use client';
 
 import { useState } from 'react';
-import { PenLine, Globe, FileUp } from 'lucide-react';
+import { PenLine, Globe, FileUp, TableProperties } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { CreateContentClient } from './create-content-client';
 import { UrlIngestForm } from '@/components/create-content/url-ingest-form';
 import { UploadTabContent } from '@/components/create-content/upload-tab-content';
 import { FileUploadDialog } from '@/components/create-content/file-upload-dialog';
 
+interface NewItemTabsProps {
+  /** Which tab to show initially. Defaults to 'write'. */
+  defaultTab?: 'write' | 'url' | 'upload' | 'batch';
+}
+
 /**
  * Tabbed interface for creating new content items.
  *
- * Three methods available:
+ * Four methods available:
  * - "Write content" — the existing manual create form
  * - "Import from URL" — fetch and extract from a web page
  * - "Upload file" — drag-and-drop file upload with review step
+ * - "Batch Q&A" — paste multiple Q&A pairs from a spreadsheet
  *
  * The FileUploadDialog remains available for quick-upload from the Browse page.
  */
-export function NewItemTabs() {
-  const [activeTab, setActiveTab] = useState('write');
+export function NewItemTabs({ defaultTab = 'write' }: NewItemTabsProps) {
+  const [activeTab, setActiveTab] = useState(defaultTab);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
 
   return (
@@ -37,6 +43,10 @@ export function NewItemTabs() {
           <TabsTrigger value="upload" className="gap-1.5">
             <FileUp className="size-4" aria-hidden="true" />
             Upload file
+          </TabsTrigger>
+          <TabsTrigger value="batch" className="gap-1.5">
+            <TableProperties className="size-4" aria-hidden="true" />
+            Batch Q&A
           </TabsTrigger>
         </TabsList>
 
@@ -79,6 +89,12 @@ export function NewItemTabs() {
         <TabsContent value="upload">
           <section aria-label="Upload documents">
             <UploadTabContent onSwitchTab={setActiveTab} />
+          </section>
+        </TabsContent>
+
+        <TabsContent value="batch">
+          <section aria-label="Batch Q&A creation">
+            <div>Batch Q&A placeholder</div>
           </section>
         </TabsContent>
       </Tabs>
