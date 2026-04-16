@@ -167,6 +167,7 @@ export function formatCreatedGuide(result: CreatedGuideResult): string {
 export interface UpdatedGuideResult {
   id: string;
   name: string;
+  slug: string | null;
   updated_fields: string[];
   sections_added: number;
   sections_updated: number;
@@ -178,6 +179,7 @@ export function formatUpdatedGuide(result: UpdatedGuideResult): string {
     '# Guide Updated',
     '',
     `**Name:** ${result.name}`,
+    `**Slug:** ${result.slug ?? 'unknown'}`,
     `**ID:** ${result.id}`,
     `**Fields updated:** ${result.updated_fields.length > 0 ? result.updated_fields.join(', ') : 'none'}`,
   ];

@@ -20,6 +20,10 @@ import { sb, tryQuery } from '@/lib/supabase/safe';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import {
   VALID_GUIDE_TYPES,
+  guideCreateSchema,
+  guideUpdateSchema,
+  guideSectionSchema,
+  guideSectionUpdateSchema,
 } from '@/lib/validation/guide-schemas';
 import {
   formatGuideList,
@@ -231,9 +235,12 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
           guideQuery = guideQuery.eq('slug', args.slug!);
         }
 
-        const { data: guide, error } = await guideQuery.single();
+        const guideResult = await tryQuery(
+          guideQuery.single(),
+          'mcp.guides.get',
+        );
 
-        if (error || !guide) {
+        if (!guideResult.ok || !guideResult.data) {
           const identifier = args.id ?? args.slug;
           return {
             content: [
@@ -245,6 +252,8 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
             isError: true,
           };
         }
+
+        const guide = guideResult.data;
 
         // Fetch sections ordered by display_order
         const sections = await sb(
@@ -330,79 +339,25 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
       description:
         'Create a new guide with optional sections. Guides organise knowledge base content into structured views by domain, subtopic, and content type. Requires editor or admin role. Set is_published to false (default) to create as draft. Use the kb://taxonomy resource for valid domain values.',
       inputSchema: {
-        name: z.string().min(1).max(200).describe('Guide name'),
-        slug: z
-          .string()
-          .min(1)
-          .max(100)
-          .regex(/^[a-z0-9-]+$/)
-          .describe('URL-safe slug (lowercase, hyphens, numbers only)'),
-        description: z
-          .string()
-          .max(1000)
-          .optional()
-          .describe('Guide description'),
-        guide_type: z
-          .enum(VALID_GUIDE_TYPES)
-          .describe('Guide type: sector, product, company, research, or custom'),
-        domain_filter: z
-          .string()
-          .optional()
-          .describe('Primary domain this guide covers'),
-        icon: z
-          .string()
-          .max(50)
-          .optional()
-          .describe('Icon identifier'),
-        color: z
-          .string()
-          .max(20)
-          .optional()
-          .describe('Colour identifier'),
-        display_order: z
-          .number()
-          .int()
-          .min(0)
-          .default(0)
-          .describe('Display order (lower = first)'),
-        is_published: z
-          .boolean()
-          .default(false)
-          .describe('Publish immediately (default: false)'),
+        name: guideCreateSchema.shape.name.describe('Guide name'),
+        slug: guideCreateSchema.shape.slug.describe('URL-safe slug (lowercase, hyphens, numbers only)'),
+        description: guideCreateSchema.shape.description.describe('Guide description'),
+        guide_type: guideCreateSchema.shape.guide_type.describe('Guide type: sector, product, company, research, or custom'),
+        domain_filter: guideCreateSchema.shape.domain_filter.describe('Primary domain this guide covers'),
+        icon: guideCreateSchema.shape.icon.describe('Icon identifier'),
+        color: guideCreateSchema.shape.color.describe('Colour identifier'),
+        display_order: guideCreateSchema.shape.display_order.describe('Display order (lower = first)'),
+        is_published: guideCreateSchema.shape.is_published.describe('Publish immediately (default: false)'),
         sections: z
           .array(
             z.object({
-              section_name: z.string().min(1).max(200).describe('Section name'),
-              description: z
-                .string()
-                .max(1000)
-                .optional()
-                .nullable()
-                .describe('Section description'),
-              expected_layer: z
-                .string()
-                .optional()
-                .nullable()
-                .describe('Expected content layer'),
-              subtopic_filter: z
-                .string()
-                .optional()
-                .nullable()
-                .describe('Subtopic filter'),
-              content_type_filter: z
-                .string()
-                .optional()
-                .nullable()
-                .describe('Content type filter'),
-              display_order: z
-                .number()
-                .int()
-                .min(0)
-                .describe('Section display order'),
-              is_required: z
-                .boolean()
-                .default(true)
-                .describe('Whether the section is required'),
+              section_name: guideSectionSchema.shape.section_name.describe('Section name'),
+              description: guideSectionSchema.shape.description.describe('Section description'),
+              expected_layer: guideSectionSchema.shape.expected_layer.describe('Expected content layer'),
+              subtopic_filter: guideSectionSchema.shape.subtopic_filter.describe('Subtopic filter'),
+              content_type_filter: guideSectionSchema.shape.content_type_filter.describe('Content type filter'),
+              display_order: guideSectionSchema.shape.display_order.describe('Section display order'),
+              is_required: guideSectionSchema.shape.is_required.describe('Whether the section is required'),
             }),
           )
           .optional()
@@ -428,26 +383,29 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
         const supabase = createMcpClient(extra.authInfo);
         const userId = getMcpUserId(extra.authInfo);
 
-        const { data: guide, error } = await supabase
-          .from('guides')
-          .insert({
-            name: args.name,
-            slug: args.slug,
-            description: args.description ?? null,
-            guide_type: args.guide_type,
-            domain_filter: args.domain_filter ?? null,
-            icon: args.icon ?? null,
-            color: args.color ?? null,
-            display_order: args.display_order,
-            is_published: args.is_published,
-            created_by: userId,
-          })
-          .select('id, name, slug, guide_type, is_published')
-          .single();
+        const insertResult = await tryQuery(
+          supabase
+            .from('guides')
+            .insert({
+              name: args.name,
+              slug: args.slug,
+              description: args.description ?? null,
+              guide_type: args.guide_type,
+              domain_filter: args.domain_filter ?? null,
+              icon: args.icon ?? null,
+              color: args.color ?? null,
+              display_order: args.display_order,
+              is_published: args.is_published,
+              created_by: userId,
+            })
+            .select('id, name, slug, guide_type, is_published')
+            .single(),
+          'mcp.guides.create',
+        );
 
-        if (error) {
+        if (!insertResult.ok) {
           // Slug collision — unique constraint on slug
-          if (error.code === '23505') {
+          if (insertResult.error.code === '23505') {
             return {
               content: [
                 {
@@ -462,12 +420,14 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
             content: [
               {
                 type: 'text' as const,
-                text: `Failed to create guide: ${error.message}`,
+                text: `Failed to create guide: ${insertResult.error.message}`,
               },
             ],
             isError: true,
           };
         }
+
+        const guide = insertResult.data;
 
         // Insert sections if provided
         const warnings: string[] = [];
@@ -551,55 +511,7 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
           .string()
           .uuid()
           .describe('The UUID of the guide to update'),
-        fields: z
-          .object({
-            name: z.string().min(1).max(200).optional().describe('Guide name'),
-            slug: z
-              .string()
-              .min(1)
-              .max(100)
-              .regex(/^[a-z0-9-]+$/)
-              .optional()
-              .describe('URL-safe slug'),
-            description: z
-              .string()
-              .max(1000)
-              .nullable()
-              .optional()
-              .describe('Guide description'),
-            guide_type: z
-              .enum(VALID_GUIDE_TYPES)
-              .optional()
-              .describe('Guide type'),
-            domain_filter: z
-              .string()
-              .nullable()
-              .optional()
-              .describe('Domain filter'),
-            icon: z
-              .string()
-              .max(50)
-              .nullable()
-              .optional()
-              .describe('Icon identifier'),
-            color: z
-              .string()
-              .max(20)
-              .nullable()
-              .optional()
-              .describe('Colour identifier'),
-            display_order: z
-              .number()
-              .int()
-              .min(0)
-              .optional()
-              .describe('Display order'),
-            is_published: z
-              .boolean()
-              .optional()
-              .describe('Published status'),
-          })
-          .describe('Fields to update — only include fields you want to change'),
+        fields: guideUpdateSchema.describe('Fields to update — only include fields you want to change'),
         sections: z
           .array(
             z.object({
@@ -608,38 +520,13 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
                 .uuid()
                 .optional()
                 .describe('Section UUID — include to update existing section, omit to insert new'),
-              section_name: z.string().min(1).max(200).optional().describe('Section name'),
-              description: z
-                .string()
-                .max(1000)
-                .nullable()
-                .optional()
-                .describe('Section description'),
-              expected_layer: z
-                .string()
-                .nullable()
-                .optional()
-                .describe('Expected content layer'),
-              subtopic_filter: z
-                .string()
-                .nullable()
-                .optional()
-                .describe('Subtopic filter'),
-              content_type_filter: z
-                .string()
-                .nullable()
-                .optional()
-                .describe('Content type filter'),
-              display_order: z
-                .number()
-                .int()
-                .min(0)
-                .optional()
-                .describe('Section display order'),
-              is_required: z
-                .boolean()
-                .optional()
-                .describe('Whether the section is required'),
+              section_name: guideSectionUpdateSchema.shape.section_name.describe('Section name'),
+              description: guideSectionUpdateSchema.shape.description.describe('Section description'),
+              expected_layer: guideSectionUpdateSchema.shape.expected_layer.describe('Expected content layer'),
+              subtopic_filter: guideSectionUpdateSchema.shape.subtopic_filter.describe('Subtopic filter'),
+              content_type_filter: guideSectionUpdateSchema.shape.content_type_filter.describe('Content type filter'),
+              display_order: guideSectionUpdateSchema.shape.display_order.describe('Section display order'),
+              is_required: guideSectionUpdateSchema.shape.is_required.describe('Whether the section is required'),
             }),
           )
           .optional()
@@ -693,15 +580,18 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
 
         // Update guide metadata if any fields provided
         if (updatedFields.length > 0) {
-          const { data: updatedRows, error: updateError } = await supabase
-            .from('guides')
-            .update(updateData)
-            .eq('id', args.id)
-            .select('id');
+          const updateResult = await tryQuery(
+            supabase
+              .from('guides')
+              .update(updateData)
+              .eq('id', args.id)
+              .select('id'),
+            'mcp.guides.update',
+          );
 
-          if (updateError) {
+          if (!updateResult.ok) {
             // Slug collision on rename
-            if (updateError.code === '23505') {
+            if (updateResult.error.code === '23505') {
               return {
                 content: [
                   {
@@ -716,7 +606,7 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
               content: [
                 {
                   type: 'text' as const,
-                  text: `Failed to update guide: ${updateError.message}`,
+                  text: `Failed to update guide: ${updateResult.error.message}`,
                 },
               ],
               isError: true,
@@ -724,7 +614,7 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
           }
 
           // Critical: check 0-row update (Supabase PATCH returns 200 OK with 0 rows on wrong UUID)
-          if (!updatedRows || (updatedRows as Array<{ id: string }>).length === 0) {
+          if (!updateResult.data || (updateResult.data as Array<{ id: string }>).length === 0) {
             return {
               content: [
                 {
@@ -737,13 +627,16 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
           }
         } else {
           // No field updates — verify the guide exists before processing sections
-          const { data: existing, error: existError } = await supabase
-            .from('guides')
-            .select('id')
-            .eq('id', args.id)
-            .single();
+          const existResult = await tryQuery(
+            supabase
+              .from('guides')
+              .select('id')
+              .eq('id', args.id)
+              .single(),
+            'mcp.guides.update.exists',
+          );
 
-          if (existError || !existing) {
+          if (!existResult.ok || !existResult.data) {
             return {
               content: [
                 {
@@ -830,16 +723,20 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
           }
         }
 
-        // Fetch updated guide name for the response
-        const { data: updatedGuide } = await supabase
-          .from('guides')
-          .select('name')
-          .eq('id', args.id)
-          .single();
+        // Fetch updated guide name and slug for the response
+        const updatedGuide = await sb(
+          supabase
+            .from('guides')
+            .select('name, slug')
+            .eq('id', args.id)
+            .single(),
+          'mcp.guides.update.refetch',
+        );
 
         const result = {
           id: args.id,
-          name: (updatedGuide as { name: string } | null)?.name ?? args.fields.name ?? 'Unknown',
+          name: (updatedGuide as { name: string; slug: string } | null)?.name ?? args.fields.name ?? 'Unknown',
+          slug: (updatedGuide as { name: string; slug: string } | null)?.slug ?? args.fields.slug ?? null,
           updated_fields: updatedFields,
           sections_added: sectionsAdded,
           sections_updated: sectionsUpdated,
