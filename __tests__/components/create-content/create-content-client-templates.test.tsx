@@ -160,9 +160,27 @@ function patchJsdom() {
   }
 }
 
-function renderForm() {
+/**
+ * Render the form in zero-state (fullwidth template gallery).
+ */
+function renderFormInZeroState() {
   patchJsdom();
   return render(<CreateContentClient />);
+}
+
+/**
+ * Render the form past the zero-state by clicking "Start from scratch".
+ * Returns the form in compact-selector mode.
+ */
+async function renderFormPastZeroState() {
+  patchJsdom();
+  const result = render(<CreateContentClient />);
+  const user = userEvent.setup();
+  const startButton = screen.getByText('Start from scratch').closest('button');
+  if (startButton) {
+    await user.click(startButton);
+  }
+  return result;
 }
 
 /**
@@ -192,20 +210,28 @@ describe('CreateContentClient — template integration', () => {
   });
 
   describe('template selector rendering', () => {
-    it('renders the template selector on the create page', () => {
-      renderForm();
+    it('renders the fullwidth template gallery in zero-state', () => {
+      renderFormInZeroState();
 
-      expect(screen.getByText('Start from a template')).toBeInTheDocument();
+      expect(screen.getByText('Choose a starting point')).toBeInTheDocument();
     });
 
-    it('renders a Blank option', () => {
-      renderForm();
+    it('renders "Start from scratch" in zero-state (not "Blank")', () => {
+      renderFormInZeroState();
 
+      expect(screen.getByText('Start from scratch')).toBeInTheDocument();
+      expect(screen.queryByText('Blank')).not.toBeInTheDocument();
+    });
+
+    it('renders compact selector with "Start from a template" after choosing scratch', async () => {
+      await renderFormPastZeroState();
+
+      expect(screen.getByText('Start from a template')).toBeInTheDocument();
       expect(screen.getByText('Blank')).toBeInTheDocument();
     });
 
-    it('renders all 5 templates from CONTENT_TEMPLATES', () => {
-      renderForm();
+    it('renders all 5 templates from CONTENT_TEMPLATES in zero-state', () => {
+      renderFormInZeroState();
       const selector = getTemplateSelector();
 
       expect(selector.getByText('Policy Document')).toBeInTheDocument();
@@ -215,18 +241,20 @@ describe('CreateContentClient — template integration', () => {
       expect(selector.getByText('Q&A Pair')).toBeInTheDocument();
     });
 
-    it('Blank is selected by default', () => {
-      renderForm();
+    it('"Start from scratch" is selected by default in zero-state', () => {
+      renderFormInZeroState();
 
-      const blankButton = screen.getByText('Blank').closest('button');
-      expect(blankButton).toHaveAttribute('aria-checked', 'true');
+      const scratchButton = screen
+        .getByText('Start from scratch')
+        .closest('button');
+      expect(scratchButton).toHaveAttribute('aria-checked', 'true');
     });
   });
 
   describe('template pre-filling', () => {
     it('selecting Policy Document sets content_type to policy', async () => {
       const user = userEvent.setup();
-      renderForm();
+      renderFormInZeroState();
       const selector = getTemplateSelector();
 
       await user.click(selector.getByText('Policy Document'));
@@ -243,7 +271,7 @@ describe('CreateContentClient — template integration', () => {
 
     it('selecting a template sets content from contentTemplate', async () => {
       const user = userEvent.setup();
-      renderForm();
+      renderFormInZeroState();
       const selector = getTemplateSelector();
 
       await user.click(selector.getByText('Policy Document'));
@@ -258,7 +286,7 @@ describe('CreateContentClient — template integration', () => {
 
     it('selecting Case Study sets content_type to case_study', async () => {
       const user = userEvent.setup();
-      renderForm();
+      renderFormInZeroState();
       const selector = getTemplateSelector();
 
       await user.click(selector.getByText('Case Study'));
@@ -274,7 +302,7 @@ describe('CreateContentClient — template integration', () => {
 
     it('selecting Q&A Pair sets content_type to q_a_pair', async () => {
       const user = userEvent.setup();
-      renderForm();
+      renderFormInZeroState();
       const selector = getTemplateSelector();
 
       await user.click(selector.getByText('Q&A Pair'));
@@ -288,20 +316,24 @@ describe('CreateContentClient — template integration', () => {
       });
     });
 
-    it('template highlights after selection', async () => {
+    it('template highlights after selection in compact mode', async () => {
       const user = userEvent.setup();
-      renderForm();
-      const selector = getTemplateSelector();
+      renderFormInZeroState();
 
-      await user.click(selector.getByText('Policy Document'));
+      // Pick a template from the zero-state — this reveals the form with compact selector
+      await user.click(screen.getByText('Policy Document'));
 
-      const policyButton = selector
+      // After selecting, wait for the compact selector to appear with "Blank" label
+      await waitFor(() => {
+        expect(screen.getByText('Blank')).toBeInTheDocument();
+      });
+
+      const policyButton = screen
         .getByText('Policy Document')
         .closest('button');
       expect(policyButton).toHaveAttribute('aria-checked', 'true');
 
-      // Blank should no longer be selected
-      const blankButton = selector.getByText('Blank').closest('button');
+      const blankButton = screen.getByText('Blank').closest('button');
       expect(blankButton).toHaveAttribute('aria-checked', 'false');
     });
   });
@@ -309,7 +341,7 @@ describe('CreateContentClient — template integration', () => {
   describe('domain suggestion validation against taxonomy', () => {
     it('sets primary_domain when suggestedDomain matches active taxonomy', async () => {
       const user = userEvent.setup();
-      renderForm();
+      renderFormInZeroState();
       const selector = getTemplateSelector();
 
       // Policy template has suggestedDomain: 'Governance & Compliance'
@@ -327,7 +359,7 @@ describe('CreateContentClient — template integration', () => {
 
     it('auto-expands "More details" when template has a valid domain suggestion', async () => {
       const user = userEvent.setup();
-      renderForm();
+      renderFormInZeroState();
       const selector = getTemplateSelector();
 
       // Case Study has suggestedDomain: 'Track Record' — in our mock taxonomy
@@ -345,11 +377,10 @@ describe('CreateContentClient — template integration', () => {
   describe('Blank selection resets', () => {
     it('selecting Blank after a template resets to CREATE_CONTENT_DEFAULTS', async () => {
       const user = userEvent.setup();
-      renderForm();
-      const selector = getTemplateSelector();
+      renderFormInZeroState();
 
-      // First select a template
-      await user.click(selector.getByText('Policy Document'));
+      // First select a template from zero-state — this reveals the form
+      await user.click(screen.getByText('Policy Document'));
 
       await waitFor(() => {
         const editor = screen.getByTestId(
@@ -361,8 +392,11 @@ describe('CreateContentClient — template integration', () => {
       // Reset confirm for the dirty form
       mockConfirm.mockReturnValue(true);
 
-      // Then select Blank
-      await user.click(selector.getByText('Blank'));
+      // Then select Blank from the compact selector
+      await waitFor(() => {
+        expect(screen.getByText('Blank')).toBeInTheDocument();
+      });
+      await user.click(screen.getByText('Blank'));
 
       await waitFor(() => {
         const editor = screen.getByTestId(
@@ -376,13 +410,13 @@ describe('CreateContentClient — template integration', () => {
   describe('dirty form confirmation', () => {
     it('shows confirmation when form is dirty and user selects a template', async () => {
       const user = userEvent.setup();
-      renderForm();
+      await renderFormPastZeroState();
 
       // Make the form dirty by typing in the title
       const titleInput = screen.getByLabelText(/Title/i);
       await user.type(titleInput, 'Some title');
 
-      // Now select a template
+      // Now select a template from the compact selector
       const selector = getTemplateSelector();
       await user.click(selector.getByText('Policy Document'));
 
@@ -393,7 +427,7 @@ describe('CreateContentClient — template integration', () => {
 
     it('does not apply template when user cancels the confirmation', async () => {
       const user = userEvent.setup();
-      renderForm();
+      await renderFormPastZeroState();
       const selector = getTemplateSelector();
 
       // Make the form dirty
@@ -422,7 +456,7 @@ describe('CreateContentClient — template integration', () => {
 
     it('applies template when user confirms', async () => {
       const user = userEvent.setup();
-      renderForm();
+      await renderFormPastZeroState();
       const selector = getTemplateSelector();
 
       // Make the form dirty
@@ -444,10 +478,10 @@ describe('CreateContentClient — template integration', () => {
 
     it('does not show confirmation when form is clean', async () => {
       const user = userEvent.setup();
-      renderForm();
+      renderFormInZeroState();
       const selector = getTemplateSelector();
 
-      // Select a template on clean form
+      // Select a template from the zero-state (clean form)
       await user.click(selector.getByText('Policy Document'));
 
       expect(mockConfirm).not.toHaveBeenCalled();
@@ -455,8 +489,8 @@ describe('CreateContentClient — template integration', () => {
   });
 
   describe('template selector position in form', () => {
-    it('template selector appears before the title field', () => {
-      renderForm();
+    it('compact template selector appears before the title field', async () => {
+      await renderFormPastZeroState();
 
       const templateLabel = screen.getByText('Start from a template');
       const titleLabel = screen.getByText(/Title/);
