@@ -159,13 +159,14 @@ describe('useItemDetailShortcuts', () => {
     expect(params.startEdit).not.toHaveBeenCalled();
   });
 
-  it('does not call startEdit on "e" when an edit is already active', () => {
+  it('calls cancelEdit on "e" when an edit is already active (toggle behaviour)', () => {
     const params = createParams({ canEdit: true, editingField: 'brief' });
     renderHook(() => useItemDetailShortcuts(params));
 
     fireEvent.keyDown(window, { key: 'e' });
 
     expect(params.startEdit).not.toHaveBeenCalled();
+    expect(params.cancelEdit).toHaveBeenCalledOnce();
   });
 
   // -------------------------------------------------------------------------

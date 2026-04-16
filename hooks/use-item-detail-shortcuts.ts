@@ -32,7 +32,7 @@ interface UseItemDetailShortcutsParams {
  *  m — toggle read state (all modes)
  *  s — toggle star (editor mode only)
  *  p — cycle priority (editor mode only)
- *  e — start inline edit on suggested_title (editor mode only)
+ *  e — toggle inline edit: start suggested_title when idle, cancel when editing
  *  Escape — cancel current inline edit
  *  r — toggle reader panel (all modes)
  *  Shift+R — toggle detached reader (if open) or navigate to /review
@@ -100,7 +100,7 @@ export function useItemDetailShortcuts({
         e.preventDefault();
         handlePriorityCycle();
       }
-      // e — start inline edit on suggested_title (editor mode only)
+      // e — toggle inline edit: start suggested_title when idle, cancel when editing
       if (
         e.key === 'e' &&
         !e.metaKey &&
@@ -109,7 +109,9 @@ export function useItemDetailShortcuts({
         editShortcutsEnabled
       ) {
         e.preventDefault();
-        if (!editingField) {
+        if (editingField) {
+          cancelEdit();
+        } else {
           startEdit('suggested_title');
         }
       }
