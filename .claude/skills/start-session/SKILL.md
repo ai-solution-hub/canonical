@@ -74,10 +74,10 @@ Read the MEMORY.md file from the project memory directory.
 ## Step 3: Review Continuation Prompt and Confirm Session Plan
 
 ```bash
-ls -1 docs/continuation-prompts/continuation-prompt-kh-*.md 2>/dev/null | sort -V | tail -1
+ls -1 docs/continuation-prompts/continuation-prompt-kh-*.md 2>/dev/null | sort -V | tail -2
 ```
 
-1. Read the continuation prompt thoroughly
+1. Read the continuation prompt for your repo thoroughly
 2. Read any referenced specs in full before planning implementation
 3. Identify the session objectives and work packages
 4. Present a summary to the user:

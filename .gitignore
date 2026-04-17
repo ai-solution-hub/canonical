@@ -6,6 +6,7 @@ node_modules/
 .env
 .env.local
 .env*.local
+.env*.old-project-backup
 !.env.example
 .mcp.json
 
