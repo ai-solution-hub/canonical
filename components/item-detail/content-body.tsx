@@ -6,7 +6,6 @@ import { isFeatureEnabled } from '@/lib/client-config';
 import { cn } from '@/lib/utils';
 import { ContentTypeHeader } from '@/components/shared/content-type-header';
 
-import { QAAnswerDisplay } from '@/components/qa/qa-answer-display';
 import { ContentLayerSelector } from '@/components/content/content-layer-selector';
 import { TableOfContents } from '@/components/item-detail/table-of-contents';
 import { TranscriptReader } from '@/components/reader/transcript-reader';
@@ -36,14 +35,8 @@ export interface ContentBodyProps {
   canEdit: boolean;
   /** The content tabs element (rendered by parent, varies by Q&A vs regular) */
   contentTabsElement: React.ReactNode;
-  /** Q&A edit mode props */
-  isEditing: boolean;
-  editStandard: string;
-  editAdvanced: string;
-  setEditStandard: React.Dispatch<React.SetStateAction<string>>;
-  setEditAdvanced: React.Dispatch<React.SetStateAction<string>>;
-  setEditDirty: React.Dispatch<React.SetStateAction<boolean>>;
-  handleCopyAnswer: (variant?: 'standard' | 'advanced') => void;
+  /** Q&A answer display element (rendered by parent for Q&A items) */
+  qaAnswerElement?: React.ReactNode;
   /** Vision analysis */
   visionAnalysis: VisionAnalysisResult | undefined;
   /** Transcript data */
@@ -74,13 +67,7 @@ export function ContentBody({
   isQAPair,
   canEdit,
   contentTabsElement,
-  isEditing,
-  editStandard,
-  editAdvanced,
-  setEditStandard,
-  setEditAdvanced,
-  setEditDirty,
-  handleCopyAnswer,
+  qaAnswerElement,
   visionAnalysis,
   transcriptChapters,
   segments,
@@ -102,20 +89,7 @@ export function ContentBody({
 
 
       {/* Content display — Q&A pair gets dedicated layout, others get tabs */}
-      {isQAPair ? (
-        <QAAnswerDisplay
-          item={item}
-          isEditing={isEditing}
-          editStandard={editStandard}
-          editAdvanced={editAdvanced}
-          setEditStandard={setEditStandard}
-          setEditAdvanced={setEditAdvanced}
-          setEditDirty={setEditDirty}
-          handleCopyAnswer={handleCopyAnswer}
-        />
-      ) : (
-        contentTabsElement
-      )}
+      {isQAPair && qaAnswerElement ? qaAnswerElement : contentTabsElement}
 
       {/* Table of Contents (not shown for Q&A pairs) */}
       {!isQAPair && (

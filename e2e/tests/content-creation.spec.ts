@@ -6,11 +6,15 @@ import { createServiceClient } from '../fixtures/supabase';
  * Flow: Content Creation
  *
  * Tests the content creation flow at `/item/new`. The page uses a tabbed
- * interface with three methods: "Write content" (manual form), "Import
- * from URL", and "Upload file". The manual write form uses react-hook-form
- * with Zod validation, includes a rich text editor (TipTap, dynamically
- * imported), classification fields (domain, subtopic), and progressive
- * depth layers.
+ * interface with four methods: "Write content" (manual form), "Import
+ * from URL", "Upload file", and "Batch Q&A". The manual write form uses
+ * react-hook-form with Zod validation, includes a rich text editor (TipTap,
+ * dynamically imported), classification fields (domain, subtopic), and
+ * progressive depth layers.
+ *
+ * P0-2 consolidation: four tabs, deep-linking via ?tab= query param,
+ * template gallery zero-state on Write tab, batch redirect from
+ * /item/new/batch, Browse Upload navigates to /item/new?tab=upload.
  *
  * Worker-scoped data provides standard test fixtures. No additional seeding
  * is needed; tests that create content items clean them up in finally blocks.
@@ -35,11 +39,12 @@ test.describe('Content creation -- page access and tab structure', () => {
     await expect(writeTab).toBeVisible();
     await expect(writeTab).toHaveAttribute('aria-selected', 'true');
 
-    // Other tabs are visible
+    // All four tabs are visible
     await expect(
       page.getByRole('tab', { name: /Import from URL/i }),
     ).toBeVisible();
     await expect(page.getByRole('tab', { name: /Upload file/i })).toBeVisible();
+    await expect(page.getByRole('tab', { name: /Batch Q&A/i })).toBeVisible();
 
     // The write content section is visible
     await expect(
@@ -63,10 +68,13 @@ test.describe('Content creation -- page access and tab structure', () => {
     const tablist = page.getByRole('tablist');
     await expect(tablist).toBeVisible({ timeout: 10000 });
 
-    // The write content section loads
+    // The write content section loads (with template zero-state)
     await expect(
       page.locator('section[aria-label="Write new content"]'),
     ).toBeVisible();
+
+    // Template zero-state should be visible for editor too
+    await expect(page.getByText('Choose a starting point')).toBeVisible();
   });
 });
 
@@ -84,6 +92,9 @@ test.describe('Content creation -- form fields and validation', () => {
     await expect(
       page.locator('section[aria-label="Write new content"]'),
     ).toBeVisible({ timeout: 10000 });
+
+    // Bypass the template zero-state by clicking "Start from scratch"
+    await page.getByText('Start from scratch').click();
 
     // Title input (label is "Title *" or "Question *" for Q&A pairs)
     await expect(page.getByLabel(/title/i)).toBeVisible();
@@ -109,6 +120,9 @@ test.describe('Content creation -- form fields and validation', () => {
     await expect(
       page.locator('section[aria-label="Write new content"]'),
     ).toBeVisible({ timeout: 10000 });
+
+    // Bypass the template zero-state
+    await page.getByText('Start from scratch').click();
 
     // Click the content type select trigger
     const selectTrigger = page.getByLabel(/content type/i);
@@ -141,6 +155,9 @@ test.describe('Content creation -- form fields and validation', () => {
       page.locator('section[aria-label="Write new content"]'),
     ).toBeVisible({ timeout: 10000 });
 
+    // Bypass the template zero-state
+    await page.getByText('Start from scratch').click();
+
     // Focus the title input and then blur (trigger onTouched validation)
     const titleInput = page.getByLabel(/title/i);
     await titleInput.focus();
@@ -160,6 +177,9 @@ test.describe('Content creation -- form fields and validation', () => {
     await expect(
       page.locator('section[aria-label="Write new content"]'),
     ).toBeVisible({ timeout: 10000 });
+
+    // Bypass the template zero-state
+    await page.getByText('Start from scratch').click();
 
     // Fill title
     const titleInput = page.getByLabel(/title/i);
@@ -193,6 +213,9 @@ test.describe('Content creation -- classification fields', () => {
       page.locator('section[aria-label="Write new content"]'),
     ).toBeVisible({ timeout: 10000 });
 
+    // Bypass the template zero-state
+    await page.getByText('Start from scratch').click();
+
     // The ClassificationFieldset includes a domain select
     // For admins, the "More details" section is auto-expanded
     // Look for the domain selector
@@ -220,6 +243,9 @@ test.describe('Content creation -- classification fields', () => {
     await expect(
       page.locator('section[aria-label="Write new content"]'),
     ).toBeVisible({ timeout: 10000 });
+
+    // Bypass the template zero-state
+    await page.getByText('Start from scratch').click();
 
     // Select a domain first
     const domainSelect = page.getByLabel(/domain/i).first();
@@ -268,6 +294,9 @@ test.describe('Content creation -- form submission', () => {
       await expect(
         page.locator('section[aria-label="Write new content"]'),
       ).toBeVisible({ timeout: 10000 });
+
+      // Bypass the template zero-state
+      await page.getByText('Start from scratch').click();
 
       // Fill title
       await page.getByLabel(/title/i).fill(itemTitle);
@@ -334,10 +363,160 @@ test.describe('Content creation -- form submission', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 5. Mobile
+// 5. P0-2 Consolidation: Deep-linking, redirects, template zero-state
 // ---------------------------------------------------------------------------
 
-test.describe('Content creation -- mobile', () => {
+test.describe('Content creation -- P0-2 deep-linking', () => {
+  test('deep link ?tab=upload opens Upload tab', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/item/new?tab=upload');
+
+    const uploadTab = page.getByRole('tab', { name: /Upload file/i });
+    await expect(uploadTab).toBeVisible({ timeout: 10000 });
+    await expect(uploadTab).toHaveAttribute('aria-selected', 'true');
+
+    // Upload section is visible
+    await expect(
+      page.locator('section[aria-label="Upload documents"]'),
+    ).toBeVisible();
+  });
+
+  test('deep link ?tab=batch opens Batch Q&A tab', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/item/new?tab=batch');
+
+    const batchTab = page.getByRole('tab', { name: /Batch Q&A/i });
+    await expect(batchTab).toBeVisible({ timeout: 10000 });
+    await expect(batchTab).toHaveAttribute('aria-selected', 'true');
+
+    // Batch section is visible
+    await expect(
+      page.locator('section[aria-label="Batch Q&A creation"]'),
+    ).toBeVisible();
+  });
+
+  test('legacy /item/new/batch redirects to ?tab=batch', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/item/new/batch');
+
+    // Should redirect to /item/new?tab=batch
+    await expect(page).toHaveURL(/\/item\/new\?tab=batch/, {
+      timeout: 10000,
+    });
+
+    // Batch tab should be active
+    const batchTab = page.getByRole('tab', { name: /Batch Q&A/i });
+    await expect(batchTab).toBeVisible();
+    await expect(batchTab).toHaveAttribute('aria-selected', 'true');
+  });
+});
+
+test.describe('Content creation -- P0-2 template zero-state', () => {
+  test('Write tab shows template gallery zero-state on fresh load', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/item/new');
+
+    // Wait for the write tab section
+    await expect(
+      page.locator('section[aria-label="Write new content"]'),
+    ).toBeVisible({ timeout: 10000 });
+
+    // The fullwidth template gallery should show "Choose a starting point"
+    await expect(page.getByText('Choose a starting point')).toBeVisible({
+      timeout: 5000,
+    });
+
+    // "Start from scratch" button should be visible
+    await expect(page.getByText('Start from scratch')).toBeVisible();
+
+    // The form fields (Title, Content Type) should NOT be visible in zero-state
+    await expect(page.getByLabel(/^title$/i)).not.toBeVisible();
+  });
+
+  test('"Start from scratch" reveals the form and hides the gallery', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/item/new');
+
+    await expect(
+      page.locator('section[aria-label="Write new content"]'),
+    ).toBeVisible({ timeout: 10000 });
+
+    // Click "Start from scratch"
+    const scratchButton = page.getByRole('radio', {
+      name: /start from scratch/i,
+    });
+    await scratchButton.click();
+
+    // The form should now be visible
+    await expect(page.getByLabel(/title/i)).toBeVisible({ timeout: 5000 });
+
+    // The zero-state heading should be gone, replaced by compact heading
+    await expect(page.getByText('Start from a template')).toBeVisible();
+    await expect(page.getByText('Choose a starting point')).not.toBeVisible();
+  });
+
+  test('selecting a template from zero-state reveals the form', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/item/new');
+
+    await expect(page.getByText('Choose a starting point')).toBeVisible({
+      timeout: 10000,
+    });
+
+    // Click a template (Policy Document)
+    const policyCard = page.getByRole('radio', {
+      name: /policy document/i,
+    });
+    await policyCard.click();
+
+    // The form should now be visible with template content prefilled
+    await expect(page.getByLabel(/title/i)).toBeVisible({ timeout: 5000 });
+
+    // The compact template selector should show (with "Start from a template")
+    await expect(page.getByText('Start from a template')).toBeVisible();
+  });
+});
+
+test.describe('Content creation -- P0-2 Browse Upload affordance', () => {
+  test('Browse Upload button navigates to /item/new?tab=upload', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/browse');
+
+    // Wait for the browse page to load
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible({
+      timeout: 10000,
+    });
+
+    // Find the Upload button/link in the header
+    const uploadLink = page.getByRole('link', { name: /upload/i });
+    await expect(uploadLink).toBeVisible({ timeout: 5000 });
+
+    // Click it
+    await uploadLink.click();
+
+    // Should navigate to /item/new?tab=upload
+    await expect(page).toHaveURL(/\/item\/new\?tab=upload/, {
+      timeout: 10000,
+    });
+
+    // Upload tab should be active
+    const uploadTab = page.getByRole('tab', { name: /Upload file/i });
+    await expect(uploadTab).toHaveAttribute('aria-selected', 'true');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6. Mobile
+// ---------------------------------------------------------------------------
+
+test.describe('Content creation -- mobile viewport', () => {
   test('create form is usable on mobile viewport', async ({
     authenticatedPage: page,
   }) => {
@@ -348,6 +527,9 @@ test.describe('Content creation -- mobile', () => {
     // Tab list is visible (may be scrollable)
     const tablist = page.getByRole('tablist');
     await expect(tablist).toBeVisible({ timeout: 10000 });
+
+    // Bypass the template zero-state
+    await page.getByText('Start from scratch').click();
 
     // Title input is visible and within viewport
     const titleInput = page.getByLabel(/title/i);

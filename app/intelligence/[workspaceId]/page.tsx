@@ -19,6 +19,7 @@ import { useIntelligenceMetrics } from '@/hooks/intelligence/use-intelligence-me
 import { useIntelligenceWorkspace } from '@/hooks/intelligence/use-intelligence-workspaces';
 import { useFeedArticles } from '@/hooks/intelligence/use-feed-articles';
 import { useUserRole } from '@/hooks/use-user-role';
+import { useTriggerPoll } from '@/hooks/intelligence/use-trigger-poll';
 import { getRelevanceLabel } from '@/lib/intelligence/relevance-display';
 
 export default function WorkspaceOverviewPage() {
@@ -26,6 +27,7 @@ export default function WorkspaceOverviewPage() {
   const workspaceId = params.workspaceId as string;
   const { role } = useUserRole();
   const isAdmin = role === 'admin';
+  const triggerPoll = useTriggerPoll(workspaceId);
 
   const { data: metrics, isLoading: metricsLoading } = useIntelligenceMetrics(
     workspaceId,
@@ -232,11 +234,12 @@ export default function WorkspaceOverviewPage() {
             <Button
               variant="outline"
               size="sm"
-              disabled
-              title="Manual polling is not yet available — feeds refresh automatically on the scheduled cron."
+              disabled={triggerPoll.isPending}
+              onClick={() => triggerPoll.mutate()}
+              title="Manually trigger the intelligence pipeline to poll all due sources now."
             >
               <Play className="mr-1.5 size-3.5" aria-hidden="true" />
-              Trigger Poll
+              {triggerPoll.isPending ? 'Polling\u2026' : 'Trigger Poll'}
             </Button>
           )}
         </div>

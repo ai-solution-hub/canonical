@@ -18,15 +18,6 @@ import { LoadingSkeleton, EmptyState } from '@/components/browse/browse-states';
 import { PresetBar } from '@/components/browse/preset-bar';
 import { SavePresetDialog } from '@/components/browse/save-preset-dialog';
 import { ManagePresetsDialog } from '@/components/browse/manage-presets-dialog';
-import dynamic from 'next/dynamic';
-
-const FileUploadDialog = dynamic(
-  () =>
-    import('@/components/create-content/file-upload-dialog').then(
-      (mod) => mod.FileUploadDialog,
-    ),
-  { ssr: false },
-);
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useKeyboardShortcuts } from '@/hooks/ui/use-keyboard-shortcuts';
@@ -116,7 +107,6 @@ export function BrowseContent() {
 
   // UI-only state
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
-  const [showUpload, setShowUpload] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -386,14 +376,11 @@ export function BrowseContent() {
                   New Content
                 </Link>
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowUpload(true)}
-                className="gap-1.5"
-              >
-                <Upload className="size-3.5" />
-                Upload
+              <Button variant="outline" size="sm" asChild className="gap-1.5">
+                <Link href="/item/new?tab=upload">
+                  <Upload className="size-3.5" />
+                  Upload
+                </Link>
               </Button>
               <span className="hidden md:inline-flex">
                 <ClaudePromptButton
@@ -584,7 +571,6 @@ export function BrowseContent() {
       )}
 
       <FilterPanel open={filterPanelOpen} onOpenChange={setFilterPanelOpen} />
-      <FileUploadDialog open={showUpload} onOpenChange={setShowUpload} />
       <SavePresetDialog
         open={saveDialogOpen}
         onOpenChange={setSaveDialogOpen}

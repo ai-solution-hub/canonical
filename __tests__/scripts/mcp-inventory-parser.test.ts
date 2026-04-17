@@ -517,7 +517,7 @@ describe('Integration: full codebase extraction', () => {
         }
       }
 
-      expect(allTools.length).toBe(42);
+      expect(allTools.length).toBe(43);
 
       // Every tool should have a non-empty name
       for (const tool of allTools) {

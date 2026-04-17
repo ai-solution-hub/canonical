@@ -2,7 +2,14 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { NewItemTabs } from './new-item-tabs';
 
-export default async function NewItemPage() {
+const VALID_TABS = ['write', 'url', 'upload', 'batch'] as const;
+type ValidTab = (typeof VALID_TABS)[number];
+
+interface Props {
+  searchParams: Promise<{ tab?: string }>;
+}
+
+export default async function NewItemPage({ searchParams }: Props) {
   // Server-side auth check
   const supabase = await createClient();
   const {
@@ -26,5 +33,10 @@ export default async function NewItemPage() {
     redirect('/browse');
   }
 
-  return <NewItemTabs />;
+  const { tab } = await searchParams;
+  const defaultTab: ValidTab = VALID_TABS.includes(tab as ValidTab)
+    ? (tab as ValidTab)
+    : 'write';
+
+  return <NewItemTabs defaultTab={defaultTab} />;
 }

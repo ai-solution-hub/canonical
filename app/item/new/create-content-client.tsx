@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -127,6 +126,11 @@ export function CreateContentClient() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<
     string | undefined
   >();
+  const [hasChosenBlank, setHasChosenBlank] = useState(false);
+
+  // Zero-state gate: show fullwidth template gallery when form is untouched
+  const showTemplateZeroState =
+    !isDirty && !selectedTemplateId && !hasChosenBlank;
 
   const handleTemplateSelect = useCallback(
     (template: ContentTemplate | null) => {
@@ -139,9 +143,10 @@ export function CreateContentClient() {
       }
 
       if (!template) {
-        // "Blank" selected — reset to defaults
+        // "Blank" / "Start from scratch" selected — reset to defaults
         reset(CREATE_CONTENT_DEFAULTS);
         setSelectedTemplateId(undefined);
+        setHasChosenBlank(true);
         return;
       }
 
@@ -325,6 +330,7 @@ export function CreateContentClient() {
         if (continueEditing) {
           reset(CREATE_CONTENT_DEFAULTS);
           setSelectedTemplateId(undefined);
+          setHasChosenBlank(false);
           setLayerSuggestion(null);
           setGuideSections([]);
           setGuideSectionsDismissed(false);
@@ -387,15 +393,6 @@ export function CreateContentClient() {
           <h1 className="text-xl font-bold">
             {isQAPair ? 'New Q&A Pair' : 'Create New Content'}
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Need to create multiple items?{' '}
-            <Link
-              href="/item/new/batch"
-              className="font-medium text-primary underline-offset-2 hover:underline"
-            >
-              Use batch create
-            </Link>
-          </p>
         </div>
 
         {/* Layer suggestion banner (shown after item creation) */}
@@ -430,21 +427,32 @@ export function CreateContentClient() {
           </div>
         )}
 
-        {/* Mobile step indicator */}
-        <MobileStepIndicator activeStep={activeStep} />
+        {/* Template zero-state: fullwidth gallery when form is untouched */}
+        {showTemplateZeroState ? (
+          <TemplateSelector
+            templates={templates}
+            selectedId={selectedTemplateId}
+            onSelect={handleTemplateSelect}
+            layout="fullwidth"
+          />
+        ) : (
+          <>
+            {/* Mobile step indicator */}
+            <MobileStepIndicator activeStep={activeStep} />
 
-        <FormProvider {...methods}>
-          <form
-            onSubmit={handleSubmit((data) => onSubmit(data, false))}
-            noValidate
-            className="space-y-6"
-          >
-            {/* Template selector */}
-            <TemplateSelector
-              templates={templates}
-              selectedId={selectedTemplateId}
-              onSelect={handleTemplateSelect}
-            />
+            <FormProvider {...methods}>
+              <form
+                onSubmit={handleSubmit((data) => onSubmit(data, false))}
+                noValidate
+                className="space-y-6"
+              >
+                {/* Template selector (compact) */}
+                <TemplateSelector
+                  templates={templates}
+                  selectedId={selectedTemplateId}
+                  onSelect={handleTemplateSelect}
+                  layout="compact"
+                />
 
             {/* Title / Question */}
             <div ref={basicsRef} data-step="1" className="space-y-2">
@@ -688,8 +696,10 @@ export function CreateContentClient() {
                 handleSubmit((data) => onSubmit(data, true))()
               }
             />
-          </form>
-        </FormProvider>
+              </form>
+            </FormProvider>
+          </>
+        )}
       </section>
     </ErrorBoundary>
   );

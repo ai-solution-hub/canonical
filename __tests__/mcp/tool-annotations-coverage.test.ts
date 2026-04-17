@@ -85,7 +85,7 @@ async function collectAllTools(): Promise<ToolRegistration[]> {
 
   // Registration order matches `tools/index.ts` for completeness. The
   // `registerAppTool` path in apps.ts delegates internally to
-  // `server.registerTool`, so the single mock catches all 42 tools.
+  // `server.registerTool`, so the single mock catches all 47 tools.
   await registerSearchTools(server);
   await registerDashboardTools(server);
   await registerBidTools(server);
@@ -114,10 +114,10 @@ describe('MCP tool annotation coverage (P0-19 regression guard)', () => {
     tools = await collectAllTools();
   });
 
-  it('registers exactly 46 tools across all 12 modules', () => {
+  it('registers exactly 47 tools across all 12 modules', () => {
     // This guards against accidental duplicate registrations or a module
     // silently no-oping (e.g. a lazy-import failure inside registerAppTools).
-    expect(tools.length).toBe(46);
+    expect(tools.length).toBe(47);
   });
 
   it('every registered tool declares all four ToolAnnotations fields', () => {

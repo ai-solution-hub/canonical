@@ -3,13 +3,18 @@
  *
  * Tests verification border treatment (green/amber), inline VerificationBadge
  * rendering for both Standard and Advanced answer cards, copy button behaviour,
+ * inline editing via inlineEdit (per-field edit/save/cancel with change reason),
  * and empty/fallback states.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QAAnswerDisplay } from '@/components/qa/qa-answer-display';
-import type { QAAnswerDisplayProps } from '@/components/qa/qa-answer-display';
+import type {
+  QAAnswerDisplayProps,
+  QAAnswerInlineEdit,
+} from '@/components/qa/qa-answer-display';
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
 
 // ---------------------------------------------------------------------------
@@ -53,18 +58,28 @@ function makeItem(overrides: Partial<ItemData> = {}): ItemData {
   };
 }
 
+function makeInlineEdit(
+  overrides: Partial<QAAnswerInlineEdit> = {},
+): QAAnswerInlineEdit {
+  return {
+    editingField: null,
+    editValue: '',
+    isSaving: false,
+    startEdit: vi.fn(),
+    cancelEdit: vi.fn(),
+    saveEdit: vi.fn().mockResolvedValue(undefined),
+    setEditValue: vi.fn(),
+    ...overrides,
+  };
+}
+
 function makeProps(
   overrides: Partial<QAAnswerDisplayProps> = {},
 ): QAAnswerDisplayProps {
   return {
     item: makeItem(),
-    isEditing: false,
-    editStandard: '',
-    editAdvanced: '',
-    setEditStandard: vi.fn(),
-    setEditAdvanced: vi.fn(),
-    setEditDirty: vi.fn(),
     handleCopyAnswer: vi.fn(),
+    canEdit: false,
     ...overrides,
   };
 }
@@ -211,16 +226,285 @@ describe('QAAnswerDisplay — copy button', () => {
     expect(handleCopyAnswer).toHaveBeenCalledWith('advanced');
   });
 
-  it('hides copy buttons when editing', () => {
-    render(<QAAnswerDisplay {...makeProps({ isEditing: true })} />);
+  it('hides copy buttons when a field is being edited', () => {
+    const inlineEdit = makeInlineEdit({ editingField: 'answer_standard' });
+    render(
+      <QAAnswerDisplay
+        {...makeProps({ inlineEdit, canEdit: true })}
+      />,
+    );
     const copyButtons = screen.queryAllByRole('button', { name: /copy/i });
     expect(copyButtons).toHaveLength(0);
   });
 
   it('still shows verification badges when editing', () => {
-    render(<QAAnswerDisplay {...makeProps({ isEditing: true })} />);
+    const inlineEdit = makeInlineEdit({
+      editingField: 'answer_standard',
+      editValue: 'Editing...',
+    });
+    render(
+      <QAAnswerDisplay
+        {...makeProps({ inlineEdit, canEdit: true })}
+      />,
+    );
     const badges = screen.getAllByText('Unverified');
     expect(badges).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Edit button rendering (canEdit + inlineEdit)
+// ---------------------------------------------------------------------------
+
+describe('QAAnswerDisplay — edit button', () => {
+  it('does not show edit buttons when canEdit is false', () => {
+    const inlineEdit = makeInlineEdit();
+    render(
+      <QAAnswerDisplay {...makeProps({ canEdit: false, inlineEdit })} />,
+    );
+    expect(screen.queryByRole('button', { name: /^edit$/i })).not.toBeInTheDocument();
+  });
+
+  it('shows edit buttons for both answers when canEdit is true and no field is being edited', () => {
+    const inlineEdit = makeInlineEdit();
+    render(
+      <QAAnswerDisplay {...makeProps({ canEdit: true, inlineEdit })} />,
+    );
+    const editButtons = screen.getAllByRole('button', { name: /^edit$/i });
+    expect(editButtons).toHaveLength(2);
+  });
+
+  it('hides edit buttons when a field is being edited', () => {
+    const inlineEdit = makeInlineEdit({ editingField: 'answer_standard' });
+    render(
+      <QAAnswerDisplay {...makeProps({ canEdit: true, inlineEdit })} />,
+    );
+    expect(screen.queryByRole('button', { name: /^edit$/i })).not.toBeInTheDocument();
+  });
+
+  it('calls startEdit with answer_standard when standard edit button is clicked', async () => {
+    const user = userEvent.setup();
+    const inlineEdit = makeInlineEdit();
+    const item = makeItem();
+    render(
+      <QAAnswerDisplay
+        {...makeProps({ item, canEdit: true, inlineEdit })}
+      />,
+    );
+    const editButtons = screen.getAllByRole('button', { name: /^edit$/i });
+    await user.click(editButtons[0]);
+    expect(inlineEdit.startEdit).toHaveBeenCalledWith(
+      'answer_standard',
+      'This is the standard answer.',
+    );
+  });
+
+  it('calls startEdit with answer_advanced when advanced edit button is clicked', async () => {
+    const user = userEvent.setup();
+    const inlineEdit = makeInlineEdit();
+    const item = makeItem();
+    render(
+      <QAAnswerDisplay
+        {...makeProps({ item, canEdit: true, inlineEdit })}
+      />,
+    );
+    const editButtons = screen.getAllByRole('button', { name: /^edit$/i });
+    await user.click(editButtons[1]);
+    expect(inlineEdit.startEdit).toHaveBeenCalledWith(
+      'answer_advanced',
+      'This is the advanced answer with more detail.',
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Inline editing — full data flow
+// ---------------------------------------------------------------------------
+
+describe('QAAnswerDisplay — inline editing data flow', () => {
+  it('renders textarea when editing answer_standard', () => {
+    const inlineEdit = makeInlineEdit({
+      editingField: 'answer_standard',
+      editValue: 'Edited standard answer',
+    });
+    render(
+      <QAAnswerDisplay
+        {...makeProps({ canEdit: true, inlineEdit })}
+      />,
+    );
+    const textarea = screen.getByLabelText('Edit Standard answer');
+    expect(textarea).toBeInTheDocument();
+    expect(textarea).toHaveValue('Edited standard answer');
+  });
+
+  it('renders textarea when editing answer_advanced', () => {
+    const inlineEdit = makeInlineEdit({
+      editingField: 'answer_advanced',
+      editValue: 'Edited advanced answer',
+    });
+    render(
+      <QAAnswerDisplay
+        {...makeProps({ canEdit: true, inlineEdit })}
+      />,
+    );
+    const textarea = screen.getByLabelText('Edit Advanced answer');
+    expect(textarea).toBeInTheDocument();
+    expect(textarea).toHaveValue('Edited advanced answer');
+  });
+
+  it('calls setEditValue when textarea content changes', async () => {
+    const user = userEvent.setup();
+    const inlineEdit = makeInlineEdit({
+      editingField: 'answer_standard',
+      editValue: '',
+    });
+    render(
+      <QAAnswerDisplay
+        {...makeProps({ canEdit: true, inlineEdit })}
+      />,
+    );
+    const textarea = screen.getByLabelText('Edit Standard answer');
+    await user.type(textarea, 'A');
+    expect(inlineEdit.setEditValue).toHaveBeenCalled();
+  });
+
+  it('shows "Why change?" input in inline editor', () => {
+    const inlineEdit = makeInlineEdit({
+      editingField: 'answer_standard',
+      editValue: 'Some text',
+    });
+    render(
+      <QAAnswerDisplay
+        {...makeProps({ canEdit: true, inlineEdit })}
+      />,
+    );
+    expect(screen.getByLabelText(/why change/i)).toBeInTheDocument();
+  });
+
+  it('shows per-field save hint in inline editor', () => {
+    const inlineEdit = makeInlineEdit({
+      editingField: 'answer_standard',
+      editValue: 'Some text',
+    });
+    render(
+      <QAAnswerDisplay
+        {...makeProps({ canEdit: true, inlineEdit })}
+      />,
+    );
+    expect(
+      screen.getByText(/changes are saved per field/i),
+    ).toBeInTheDocument();
+  });
+
+  it('calls saveEdit with field, value, and change reason on Save click', async () => {
+    const user = userEvent.setup();
+    const inlineEdit = makeInlineEdit({
+      editingField: 'answer_standard',
+      editValue: 'Updated standard answer',
+    });
+    render(
+      <QAAnswerDisplay
+        {...makeProps({ canEdit: true, inlineEdit })}
+      />,
+    );
+
+    // Fill change reason
+    const reasonInput = screen.getByLabelText(/why change/i);
+    await user.type(reasonInput, 'Updated to 2026 policy');
+
+    // Click Save
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+
+    expect(inlineEdit.saveEdit).toHaveBeenCalledWith(
+      'answer_standard',
+      'Updated standard answer',
+      'Updated to 2026 policy',
+    );
+  });
+
+  it('passes null change reason when reason is empty', async () => {
+    const user = userEvent.setup();
+    const inlineEdit = makeInlineEdit({
+      editingField: 'answer_standard',
+      editValue: 'Updated answer',
+    });
+    render(
+      <QAAnswerDisplay
+        {...makeProps({ canEdit: true, inlineEdit })}
+      />,
+    );
+
+    // Click Save without entering a reason
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+
+    expect(inlineEdit.saveEdit).toHaveBeenCalledWith(
+      'answer_standard',
+      'Updated answer',
+      null,
+    );
+  });
+
+  it('calls cancelEdit when Cancel button is clicked', async () => {
+    const user = userEvent.setup();
+    const inlineEdit = makeInlineEdit({
+      editingField: 'answer_standard',
+      editValue: 'Some text',
+    });
+    render(
+      <QAAnswerDisplay
+        {...makeProps({ canEdit: true, inlineEdit })}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /cancel/i }));
+
+    expect(inlineEdit.cancelEdit).toHaveBeenCalledOnce();
+  });
+
+  it('shows Saving state when isSaving is true', () => {
+    const inlineEdit = makeInlineEdit({
+      editingField: 'answer_standard',
+      editValue: 'Some text',
+      isSaving: true,
+    });
+    render(
+      <QAAnswerDisplay
+        {...makeProps({ canEdit: true, inlineEdit })}
+      />,
+    );
+    const saveButton = screen.getByRole('button', { name: /saving/i });
+    expect(saveButton).toBeDisabled();
+  });
+
+  it('does not render standard answer text while editing answer_standard', () => {
+    const inlineEdit = makeInlineEdit({
+      editingField: 'answer_standard',
+      editValue: 'Editing...',
+    });
+    render(
+      <QAAnswerDisplay
+        {...makeProps({ canEdit: true, inlineEdit })}
+      />,
+    );
+    // The original answer text should not be visible — textarea replaces it
+    expect(
+      screen.queryByText('This is the standard answer.'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('still shows advanced answer as read-only while editing standard answer', () => {
+    const inlineEdit = makeInlineEdit({
+      editingField: 'answer_standard',
+      editValue: 'Editing standard...',
+    });
+    render(
+      <QAAnswerDisplay
+        {...makeProps({ canEdit: true, inlineEdit })}
+      />,
+    );
+    expect(
+      screen.getByText('This is the advanced answer with more detail.'),
+    ).toBeInTheDocument();
   });
 });
 
@@ -300,24 +584,6 @@ describe('QAAnswerDisplay — answer card labels', () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText('This is the advanced answer with more detail.'),
-    ).toBeInTheDocument();
-  });
-
-  it('renders textareas in edit mode with correct placeholders', () => {
-    render(
-      <QAAnswerDisplay
-        {...makeProps({
-          isEditing: true,
-          editStandard: 'Editing standard...',
-          editAdvanced: 'Editing advanced...',
-        })}
-      />,
-    );
-    expect(
-      screen.getByPlaceholderText('Standard answer...'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByPlaceholderText('Advanced answer...'),
     ).toBeInTheDocument();
   });
 });

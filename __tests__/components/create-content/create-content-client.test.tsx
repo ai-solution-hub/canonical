@@ -153,7 +153,26 @@ function patchJsdom() {
   }
 }
 
-function renderForm() {
+/**
+ * Render the form and bypass the template zero-state gate by clicking
+ * "Start from scratch". Most tests need the form visible.
+ */
+async function renderFormPastZeroState() {
+  patchJsdom();
+  const result = render(<CreateContentClient />);
+  // The zero-state renders a fullwidth template gallery with "Start from scratch"
+  const startButton = screen.getByText('Start from scratch').closest('button');
+  if (startButton) {
+    const user = userEvent.setup();
+    await user.click(startButton);
+  }
+  return result;
+}
+
+/**
+ * Render the form in zero-state (do NOT bypass the template gallery).
+ */
+function renderFormInZeroState() {
   patchJsdom();
   return render(<CreateContentClient />);
 }
@@ -172,33 +191,70 @@ describe('CreateContentClient', () => {
     vi.unstubAllGlobals();
   });
 
+  describe('template zero-state gate', () => {
+    it('shows fullwidth template gallery when form is untouched', () => {
+      renderFormInZeroState();
+
+      // Fullwidth mode shows "Choose a starting point"
+      expect(screen.getByText('Choose a starting point')).toBeInTheDocument();
+      expect(screen.getByText('Start from scratch')).toBeInTheDocument();
+
+      // Form fields should NOT be visible
+      expect(screen.queryByLabelText(/Title/i)).not.toBeInTheDocument();
+    });
+
+    it('clicking "Start from scratch" reveals the form', async () => {
+      const user = userEvent.setup();
+      renderFormInZeroState();
+
+      await user.click(screen.getByText('Start from scratch'));
+
+      // Form should now be visible
+      await waitFor(() => {
+        expect(screen.getByLabelText(/Title/i)).toBeInTheDocument();
+      });
+
+      // Zero-state heading should be replaced by compact heading
+      expect(screen.getByText('Start from a template')).toBeInTheDocument();
+      expect(
+        screen.queryByText('Choose a starting point'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('does not show "Use batch create" link', () => {
+      renderFormInZeroState();
+
+      expect(screen.queryByText(/Use batch create/i)).not.toBeInTheDocument();
+    });
+  });
+
   describe('rendering', () => {
-    it('renders the form with required field markers', () => {
-      renderForm();
+    it('renders the form with required field markers', async () => {
+      await renderFormPastZeroState();
       // Title, Content Type, and Content should be marked as required
       const requiredMarkers = screen.getAllByText('*');
       expect(requiredMarkers.length).toBeGreaterThanOrEqual(3);
     });
 
-    it('renders breadcrumb with "New Item" title', () => {
-      renderForm();
+    it('renders breadcrumb with "New Item" title', async () => {
+      await renderFormPastZeroState();
       expect(screen.getByTestId('breadcrumb')).toHaveTextContent('New Item');
     });
 
-    it('renders details toggle with descriptive label', () => {
-      renderForm();
+    it('renders details toggle with descriptive label', async () => {
+      await renderFormPastZeroState();
       expect(
         screen.getByText('Classification, tags, and source info'),
       ).toBeInTheDocument();
     });
 
-    it('renders character count on title input', () => {
-      renderForm();
+    it('renders character count on title input', async () => {
+      await renderFormPastZeroState();
       expect(screen.getByText('0 / 500')).toBeInTheDocument();
     });
 
-    it('form has noValidate to use custom validation instead of browser defaults', () => {
-      renderForm();
+    it('form has noValidate to use custom validation instead of browser defaults', async () => {
+      await renderFormPastZeroState();
       const form = document.querySelector('form');
       expect(form).toHaveAttribute('novalidate');
     });
@@ -207,7 +263,7 @@ describe('CreateContentClient', () => {
   describe('inline validation', () => {
     it('shows title error after blur on empty field', async () => {
       const user = userEvent.setup();
-      renderForm();
+      await renderFormPastZeroState();
 
       const titleInput = screen.getByLabelText(/Title/i);
       await user.click(titleInput);
@@ -220,7 +276,7 @@ describe('CreateContentClient', () => {
 
     it('title error has aria-invalid and role="alert"', async () => {
       const user = userEvent.setup();
-      renderForm();
+      await renderFormPastZeroState();
 
       const titleInput = screen.getByLabelText(/Title/i);
       await user.click(titleInput);
@@ -235,7 +291,7 @@ describe('CreateContentClient', () => {
 
     it('title error element has correct id for aria-describedby', async () => {
       const user = userEvent.setup();
-      renderForm();
+      await renderFormPastZeroState();
 
       const titleInput = screen.getByLabelText(/Title/i);
       await user.click(titleInput);
@@ -253,7 +309,7 @@ describe('CreateContentClient', () => {
 
     it('clears title error when user types', async () => {
       const user = userEvent.setup();
-      renderForm();
+      await renderFormPastZeroState();
 
       const titleInput = screen.getByLabelText(/Title/i);
       await user.click(titleInput);
@@ -275,7 +331,7 @@ describe('CreateContentClient', () => {
   describe('form submission', () => {
     it('does not call fetch when required fields are missing', async () => {
       const user = userEvent.setup();
-      renderForm();
+      await renderFormPastZeroState();
 
       // Fill only title (content and content_type still empty)
       const titleInput = screen.getByLabelText(/Title/i);
@@ -296,7 +352,7 @@ describe('CreateContentClient', () => {
         json: () => Promise.resolve({ error: 'Duplicate title' }),
       });
 
-      renderForm();
+      await renderFormPastZeroState();
 
       // Fill title
       const titleInput = screen.getByLabelText(/Title/i);
@@ -313,15 +369,15 @@ describe('CreateContentClient', () => {
   });
 
   describe('save button state', () => {
-    it('save button is disabled when required fields are empty', () => {
-      renderForm();
+    it('save button is disabled when required fields are empty', async () => {
+      await renderFormPastZeroState();
       const saveButton = screen.getByRole('button', { name: /^save$/i });
       expect(saveButton).toBeDisabled();
     });
 
     it('save button is enabled when title and content are filled', async () => {
       const user = userEvent.setup();
-      renderForm();
+      await renderFormPastZeroState();
 
       // Fill title
       const titleInput = screen.getByLabelText(/Title/i);
@@ -340,7 +396,7 @@ describe('CreateContentClient', () => {
   describe('form validation on submit', () => {
     it('shows all required field errors when submitting empty form', async () => {
       const user = userEvent.setup();
-      renderForm();
+      await renderFormPastZeroState();
 
       // Button is disabled, so form submit via enter key
       const titleInput = screen.getByLabelText(/Title/i);
@@ -358,7 +414,7 @@ describe('CreateContentClient', () => {
   describe('more details section', () => {
     it('shows classification, provenance, and progressive depth when expanded', async () => {
       const user = userEvent.setup();
-      renderForm();
+      await renderFormPastZeroState();
 
       const toggle = screen.getByText('Classification, tags, and source info');
       await user.click(toggle);
@@ -371,7 +427,7 @@ describe('CreateContentClient', () => {
 
     it('toggle has aria-expanded attribute', async () => {
       const user = userEvent.setup();
-      renderForm();
+      await renderFormPastZeroState();
 
       const toggle = screen.getByText('Classification, tags, and source info');
       expect(toggle).toHaveAttribute('aria-expanded', 'false');
@@ -382,42 +438,42 @@ describe('CreateContentClient', () => {
   });
 
   describe('save option checkboxes', () => {
-    it('renders the summary checkbox', () => {
-      renderForm();
+    it('renders the summary checkbox', async () => {
+      await renderFormPastZeroState();
       expect(screen.getByText('Generate summary')).toBeInTheDocument();
     });
 
-    it('does not render a classify-automatically checkbox', () => {
-      renderForm();
+    it('does not render a classify-automatically checkbox', async () => {
+      await renderFormPastZeroState();
       expect(
         screen.queryByText('Classify automatically'),
       ).not.toBeInTheDocument();
     });
 
-    it('renders save-as-draft checkbox', () => {
-      renderForm();
+    it('renders save-as-draft checkbox', async () => {
+      await renderFormPastZeroState();
       expect(screen.getByText(/Save as draft/i)).toBeInTheDocument();
     });
   });
 
   describe('dirty state', () => {
-    it('form starts clean', () => {
-      renderForm();
+    it('form starts clean', async () => {
+      await renderFormPastZeroState();
       // The form renders without errors
       expect(screen.getByLabelText(/Title/i)).toBeInTheDocument();
     });
   });
 
   describe('content editor integration', () => {
-    it('content editor stub renders with correct placeholder', () => {
-      renderForm();
+    it('content editor stub renders with correct placeholder', async () => {
+      await renderFormPastZeroState();
       const editor = screen.getByTestId('content-editor');
       expect(editor).toHaveAttribute('placeholder', 'Start writing...');
     });
 
     it('shows content error when blurring empty editor', async () => {
       const user = userEvent.setup();
-      renderForm();
+      await renderFormPastZeroState();
 
       const editor = screen.getByTestId('content-editor');
       // Focus then blur the editor wrapper

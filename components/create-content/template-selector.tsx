@@ -4,11 +4,16 @@ import { FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ContentTemplate } from '@/lib/content/content-templates';
 
+export type TemplateSelectorLayout = 'compact' | 'fullwidth';
+
 export interface TemplateSelectorProps {
   templates: ContentTemplate[];
   selectedId?: string;
   onSelect: (template: ContentTemplate | null) => void;
   className?: string;
+  /** Display layout. 'compact' (default) shows a horizontal scroll / small grid.
+   *  'fullwidth' renders a hero-style grid for the Write tab zero-state. */
+  layout?: TemplateSelectorLayout;
 }
 
 /**
@@ -21,43 +26,61 @@ export function TemplateSelector({
   selectedId,
   onSelect,
   className,
+  layout = 'compact',
 }: TemplateSelectorProps) {
   const isBlankSelected = !selectedId;
+  const isFullwidth = layout === 'fullwidth';
+
+  const blankLabel = isFullwidth ? 'Start from scratch' : 'Blank';
+  const headingText = isFullwidth
+    ? 'Choose a starting point'
+    : 'Start from a template';
+
+  const gridClassName = isFullwidth
+    ? 'grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4'
+    : 'flex gap-3 overflow-x-auto pb-2 sm:grid sm:grid-cols-3 sm:overflow-visible';
+
+  const cardClassName = (isSelected: boolean) =>
+    cn(
+      'flex cursor-pointer flex-col items-start gap-1 rounded-lg border text-left transition-colors',
+      'hover:border-primary/50 hover:bg-accent/50',
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+      isFullwidth ? 'p-4' : 'min-w-[140px] shrink-0 p-3',
+      isSelected ? 'border-primary bg-primary/5' : 'border-border bg-card',
+    );
 
   return (
     <div className={cn('space-y-2', className)}>
       <p
-        className="text-sm font-medium text-foreground"
+        className={cn(
+          'font-medium text-foreground',
+          isFullwidth ? 'text-base' : 'text-sm',
+        )}
         id="template-selector-label"
       >
-        Start from a template
+        {headingText}
       </p>
       <div
         role="radiogroup"
         aria-labelledby="template-selector-label"
-        className="flex gap-3 overflow-x-auto pb-2 sm:grid sm:grid-cols-3 sm:overflow-visible"
+        className={gridClassName}
       >
-        {/* Blank option */}
+        {/* Blank / Start from scratch option */}
         <button
           type="button"
           role="radio"
           aria-checked={isBlankSelected}
           onClick={() => onSelect(null)}
-          className={cn(
-            'flex min-w-[140px] shrink-0 cursor-pointer flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors',
-            'hover:border-primary/50 hover:bg-accent/50',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-            isBlankSelected
-              ? 'border-primary bg-primary/5'
-              : 'border-border bg-card',
-          )}
+          className={cardClassName(isBlankSelected)}
         >
           <div className="flex items-center gap-2">
             <FileText
               className="size-4 text-muted-foreground"
               aria-hidden="true"
             />
-            <span className="text-sm font-medium text-foreground">Blank</span>
+            <span className="text-sm font-medium text-foreground">
+              {blankLabel}
+            </span>
           </div>
           <span className="text-xs text-muted-foreground">
             Start with an empty form
@@ -74,14 +97,7 @@ export function TemplateSelector({
               role="radio"
               aria-checked={isSelected}
               onClick={() => onSelect(template)}
-              className={cn(
-                'flex min-w-[140px] shrink-0 cursor-pointer flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors',
-                'hover:border-primary/50 hover:bg-accent/50',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                isSelected
-                  ? 'border-primary bg-primary/5'
-                  : 'border-border bg-card',
-              )}
+              className={cardClassName(isSelected)}
             >
               <div className="flex items-center gap-2">
                 <FileText

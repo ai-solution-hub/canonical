@@ -256,10 +256,6 @@ vi.mock('@/components/browse/manage-presets-dialog', () => ({
   ManagePresetsDialog: () => null,
 }));
 
-vi.mock('@/components/create-content/file-upload-dialog', () => ({
-  FileUploadDialog: () => null,
-}));
-
 vi.mock('@/components/content/claude-prompt-button', () => ({
   ClaudePromptButton: () => null,
 }));
