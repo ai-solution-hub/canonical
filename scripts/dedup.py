@@ -14,6 +14,7 @@ Usage:
 """
 
 import hashlib
+import os
 import re
 from difflib import SequenceMatcher
 
@@ -88,6 +89,56 @@ def exact_dedup(pairs: list[dict]) -> tuple[list[dict], list[dict]]:
             unique.append(pair)
 
     return unique, removed
+
+
+def dedup_across_files_by_title(
+    files_and_pairs: list[tuple[str, list[dict]]],
+) -> tuple[list[dict], list[dict]]:
+    """Deduplicate Q&A pairs across multiple files by normalised question title.
+
+    Processes files in the given order; first occurrence of any normalised
+    question title wins and later occurrences (in the same or subsequent
+    files) are skipped. Uses the same hashing as `exact_dedup` so results
+    are consistent if both are chained.
+
+    Motivation: when both DRAFT and final .docx variants of the same Q&A
+    library are staged together, overlapping question titles would otherwise
+    reach the store step and create visible body-text duplication across
+    `content_items`. Skipping earlier (with provenance logging) keeps the
+    first-seen body and leaves a clear audit trail.
+
+    Args:
+        files_and_pairs: Ordered list of (source_file, pairs_list) tuples.
+
+    Returns:
+        (kept, skipped) — both lists of Q&A dicts. Each skipped pair is
+        annotated in-place with `_skipped_because` = {
+            "first_seen_file": str,        # basename of the earlier file
+            "first_seen_row": int,         # row_index from the earlier file
+            "first_seen_question": str,    # raw question_text from earlier
+        }.
+    """
+    kept: list[dict] = []
+    skipped: list[dict] = []
+    seen: dict[str, tuple[str, int, str]] = {}
+
+    for source_file, pairs in files_and_pairs:
+        basename = os.path.basename(source_file)
+        for pair in pairs:
+            h = question_hash(pair["question_text"])
+            if h in seen:
+                first_file, first_row, first_q = seen[h]
+                pair["_skipped_because"] = {
+                    "first_seen_file": first_file,
+                    "first_seen_row": first_row,
+                    "first_seen_question": first_q,
+                }
+                skipped.append(pair)
+                continue
+            seen[h] = (basename, pair.get("row_index", -1), pair["question_text"])
+            kept.append(pair)
+
+    return kept, skipped
 
 
 def similarity_score(text_a: str, text_b: str) -> float:

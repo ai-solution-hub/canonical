@@ -6,7 +6,7 @@ import { execFileSync } from 'child_process';
 
 const FIXTURE_PATH = path.resolve(
   __dirname,
-  '../../docs/client-documentation/DRAFT 2026 Tender and Bid Library Template for example-client - Security and Compliance  - Copy.docx',
+  '../../docs/client-documentation/docx/DRAFT 2026 Tender and Bid Library Template for example-client - Security and Compliance  - Copy.docx',
 );
 
 describe('mammoth Track Changes handling', () => {

@@ -38,7 +38,7 @@ if SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, SCRIPTS_DIR)
 
 from extract_docx_tables import extract_qa_from_docx
-from dedup import exact_dedup, find_near_duplicates
+from dedup import exact_dedup, find_near_duplicates, dedup_across_files_by_title
 from keyword_classifier import classify_pairs, classification_summary
 from docx_utils import has_tracked_changes
 
@@ -392,7 +392,8 @@ def main():
 
     # ── Step 2: Extract Q&A pairs ───────────────────────────────────
     print("[2/9] Extracting Q&A pairs...")
-    all_pairs = []
+    per_file_extracts: list[tuple[str, list[dict]]] = []
+    total_extracted = 0
     for filepath in files:
         try:
             pairs = extract_qa_from_docx(filepath)
@@ -401,12 +402,36 @@ def main():
                 pair["has_tracked_changes"] = tc_map.get(filepath, False)
                 if args.batch_tag:
                     pair["_batch_tag"] = args.batch_tag
-            all_pairs.extend(pairs)
+            per_file_extracts.append((filepath, pairs))
+            total_extracted += len(pairs)
             print(f"  {os.path.basename(filepath)}: {len(pairs)} pairs")
         except Exception as e:
             print(f"  {os.path.basename(filepath)}: ERROR — {e}")
 
-    print(f"  Total extracted: {len(all_pairs)}")
+    # Cross-file title dedup (Option B, S180 WP1): skip Q&A pairs whose
+    # normalised question title was already seen in an earlier file. Keeps
+    # first occurrence by file order; prevents DRAFT + final .docx variants
+    # from both landing in the store step.
+    all_pairs, title_skipped = dedup_across_files_by_title(per_file_extracts)
+    if title_skipped:
+        print(
+            f"  Cross-file title skips: {len(title_skipped)}"
+            f" (kept first-seen occurrence of each duplicated title)"
+        )
+        for p in title_skipped[:10]:
+            marker = p.get("_skipped_because", {})
+            print(
+                f"    SKIP [{os.path.basename(p.get('source_file', ''))}"
+                f" row {p.get('row_index', '-')}]"
+                f" Q: {p['question_text'][:80]}"
+                f" (first seen in {marker.get('first_seen_file', '?')}"
+                f" row {marker.get('first_seen_row', '?')})"
+            )
+        if len(title_skipped) > 10:
+            print(f"    ... and {len(title_skipped) - 10} more title skips")
+
+    print(f"  Total extracted: {total_extracted}")
+    print(f"  After cross-file title dedup: {len(all_pairs)}")
     print()
 
     if not all_pairs:
@@ -663,7 +688,8 @@ def main():
     print("IMPORT COMPLETE")
     print("=" * 60)
     print(f"  Files processed:      {len(files)}")
-    print(f"  Total extracted:      {len(all_pairs)}")
+    print(f"  Total extracted:      {total_extracted}")
+    print(f"  Cross-file title skips: {len(title_skipped)}")
     print(f"  Exact dupes removed:  {len(removed_pairs)}")
     print(f"  Near-dupe candidates: {len(near_dupes)}")
     print(f"  Unique classified:    {len(classified_pairs)}")
