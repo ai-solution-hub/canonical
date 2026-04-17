@@ -137,6 +137,7 @@ export interface ContentSnapshot {
   primary_subtopic: string | null;
   classification_confidence: number | null;
   ai_keywords: string[] | null;
+  user_tags: string[] | null;
   embedding: number[] | null;
   canonical_names: string[];
   summary_length: number | null;
@@ -252,7 +253,7 @@ async function main() {
     const { data, error } = await supabase
       .from('content_items')
       .select(
-        `id, title, content, content_type, source_url, primary_domain, primary_subtopic, classification_confidence, ai_keywords, ${embeddingField} summary, created_at, freshness`,
+        `id, title, content, content_type, source_url, primary_domain, primary_subtopic, classification_confidence, ai_keywords, user_tags, ${embeddingField} summary, created_at, freshness`,
       )
       .order('created_at', { ascending: true })
       .range(from, to);
@@ -281,6 +282,7 @@ async function main() {
         primary_subtopic: string | null;
         classification_confidence: number | null;
         ai_keywords: string[] | null;
+        user_tags: string[] | null;
         embedding?: string | null;
         summary: string | null;
         created_at: string;
@@ -298,6 +300,7 @@ async function main() {
         primary_subtopic: r.primary_subtopic,
         classification_confidence: r.classification_confidence,
         ai_keywords: r.ai_keywords,
+        user_tags: r.user_tags,
         embedding: config.includeEmbeddings
           ? parseVectorLiteral(r.embedding ?? null)
           : null,

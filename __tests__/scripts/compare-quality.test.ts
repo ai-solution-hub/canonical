@@ -167,6 +167,7 @@ function mkSnapshot(overrides: Partial<ContentSnapshotLike>): ContentSnapshotLik
     primary_subtopic: null,
     classification_confidence: null,
     ai_keywords: null,
+    user_tags: null,
     embedding: null,
     canonical_names: [],
     summary_length: null,
@@ -189,6 +190,7 @@ interface ContentSnapshotLike {
   primary_subtopic: string | null;
   classification_confidence: number | null;
   ai_keywords: string[] | null;
+  user_tags: string[] | null;
   embedding: number[] | null;
   canonical_names: string[];
   summary_length: number | null;

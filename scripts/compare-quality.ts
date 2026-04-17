@@ -85,6 +85,7 @@ interface ContentSnapshot {
   primary_subtopic: string | null;
   classification_confidence: number | null;
   ai_keywords: string[] | null;
+  user_tags: string[] | null;
   embedding: number[] | null;
   canonical_names: string[];
   summary_length: number | null;
@@ -199,6 +200,8 @@ export interface PairStat {
   similarity: number | null;
   domainMatch: boolean | null;
   entityJaccard: number | null;
+  aiKeywordJaccard: number | null;
+  userTagJaccard: number | null;
   chunkCountNew: number;
   chunkCountOld: number;
 }
@@ -245,6 +248,20 @@ export function computePairStats(
       entityJaccard = jaccardSimilarity(oldNames, newNames);
     }
 
+    let aiKeywordJaccard: number | null = null;
+    const oldAiKw = new Set(oldItem.ai_keywords ?? []);
+    const newAiKw = new Set(newItem.ai_keywords ?? []);
+    if (oldAiKw.size > 0 || newAiKw.size > 0) {
+      aiKeywordJaccard = jaccardSimilarity(oldAiKw, newAiKw);
+    }
+
+    let userTagJaccard: number | null = null;
+    const oldUserTags = new Set(oldItem.user_tags ?? []);
+    const newUserTags = new Set(newItem.user_tags ?? []);
+    if (oldUserTags.size > 0 || newUserTags.size > 0) {
+      userTagJaccard = jaccardSimilarity(oldUserTags, newUserTags);
+    }
+
     out.push({
       id,
       content_type: oldItem.content_type,
@@ -254,6 +271,8 @@ export function computePairStats(
       similarity,
       domainMatch,
       entityJaccard,
+      aiKeywordJaccard,
+      userTagJaccard,
       chunkCountNew: newItem.chunk_count,
       chunkCountOld: oldItem.chunk_count,
     });
@@ -341,6 +360,26 @@ function renderReport(
     .map((p) => p.entityJaccard)
     .filter((v): v is number => v !== null);
   const meanJaccard = mean(jaccards);
+
+  // Dim 9a: AI keyword (tag) stability
+  const aiKwJaccards = pairs
+    .map((p) => p.aiKeywordJaccard)
+    .filter((v): v is number => v !== null);
+  const meanAiKwJaccard = mean(aiKwJaccards);
+
+  // Dim 9b: user_tags preservation
+  const userTagJaccards = pairs
+    .map((p) => p.userTagJaccard)
+    .filter((v): v is number => v !== null);
+  const meanUserTagJaccard = mean(userTagJaccards);
+  const totalOldUserTags = Array.from(oldMap.values()).reduce(
+    (acc, s) => acc + (s.user_tags?.length ?? 0),
+    0,
+  );
+  const totalNewUserTags = Array.from(newMap.values()).reduce(
+    (acc, s) => acc + (s.user_tags?.length ?? 0),
+    0,
+  );
 
   // Dim 6: Coverage equivalence
   const oldDist = domainDistribution(oldMap.values());
@@ -440,6 +479,26 @@ function renderReport(
       threshold: '≥ 90%',
       value: fmtPct(wcPreservedPct),
       status: wcPreservedPct >= 0.9 ? 'PASS' : 'WARN',
+    },
+    {
+      name: 'AI keyword stability',
+      metric: 'Mean Jaccard of ai_keywords sets',
+      threshold: '> 0.60',
+      value: fmtNum(meanAiKwJaccard, 3),
+      status:
+        Number.isFinite(meanAiKwJaccard) && meanAiKwJaccard > 0.6 ? 'PASS' : 'WARN',
+    },
+    {
+      name: 'User tags preserved',
+      metric: `Mean Jaccard / total old:new (${totalOldUserTags}:${totalNewUserTags})`,
+      threshold: 'Jaccard = 1.0 (any loss = FAIL)',
+      value: fmtNum(meanUserTagJaccard, 3),
+      status:
+        userTagJaccards.length === 0
+          ? 'N/A'
+          : Number.isFinite(meanUserTagJaccard) && meanUserTagJaccard >= 1.0
+            ? 'PASS'
+            : 'FAIL',
     },
   ];
 

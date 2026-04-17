@@ -7,6 +7,9 @@ const withBundleAnalyzer = bundleAnalyzer({
 });
 
 const nextConfig: NextConfig = {
+  outputFileTracingIncludes: {
+    '/api/**/*': ['./lib/ai/skills/**/*.md'],
+  },
   images: {
     formats: ['image/avif', 'image/webp'],
     remotePatterns: [
@@ -16,6 +19,11 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'opengraph.githubassets.com' },
       // General CDNs
       { protocol: 'https', hostname: '*.s3.amazonaws.com' },
+      // News / intelligence article thumbnails
+      { protocol: 'https', hostname: 'schoolsweek.co.uk' },
+      { protocol: 'https', hostname: 'cdn.ps.emap.com' },
+      { protocol: 'https', hostname: 'www.gov.uk' },
+      { protocol: 'https', hostname: 'assets.publishing.service.gov.uk' },
     ],
   },
 };
