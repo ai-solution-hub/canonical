@@ -143,9 +143,17 @@ export const DigestListParamsSchema = z.object({
 });
 
 /** GET /api/read-marks?item_ids=uuid1,uuid2,...
- *  item_ids is optional — when absent, the route returns counts-only. */
+ *  item_ids is optional — when absent, the route returns counts-only.
+ *  parseSearchParams returns a string for single comma-less values, so accept
+ *  both single UUID and array shapes. */
 export const ReadMarkCheckParamsSchema = z.object({
-  item_ids: z.array(z.string().uuid()).max(200).optional(),
+  item_ids: z
+    .union([z.string().uuid(), z.array(z.string().uuid()).max(200)])
+    .optional()
+    .transform((v) => {
+      if (v === undefined) return undefined;
+      return Array.isArray(v) ? v : [v];
+    }),
 });
 
 /** POST /api/read-marks */

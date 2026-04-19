@@ -158,6 +158,20 @@ describe('Read Marks API', () => {
       expect(body.error).toBe('Validation failed');
       expect(body.details).toBeDefined();
     });
+
+    it('accepts a single UUID (no comma) as item_ids', async () => {
+      // parseSearchParams returns a string for single comma-less values; schema
+      // must coerce to [uuid]. Regression guard for `?item_ids=<single-uuid>`.
+      const request = createTestRequest('/api/read-marks', {
+        searchParams: { item_ids: '38cee67d-82d9-4b99-9cec-49920df62237' },
+      });
+
+      const response = await getReadMarks(request);
+      expect(response.status).toBe(200);
+
+      const body = await response.json();
+      expect(body).toHaveProperty('read_item_ids');
+    });
   });
 
   // =========================================================================
