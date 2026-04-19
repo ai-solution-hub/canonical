@@ -909,9 +909,9 @@ export function registerPrompts(server: McpServer): void {
   // Loads the governance skill (`lib/ai/skills/governance.md`) and inlines it
   // into the prompt text so external LLM clients (Claude Desktop / Claude.ai)
   // have the freshness lifecycle, quality scoring factors, and review trigger
-  // definitions in context when assessing an item. `loadSkill` caches the file
-  // contents in memory after first load, so re-invocations only pay the file
-  // read on the first cold start.
+  // definitions in context when assessing an item. Skill content is inlined
+  // at build time via `lib/ai/skills/inlined.generated.ts`; loadSkill is a
+  // pure in-memory lookup with no filesystem access.
   server.registerPrompt(
     'review_item',
     {

@@ -351,6 +351,32 @@ interface Dim {
   status: 'PASS' | 'FAIL' | 'WARN' | 'N/A';
 }
 
+/**
+ * Status for the `User tags preserved` dim. Pure helper — exported for
+ * unit testing.
+ *
+ * Net-gain case (old empty, new non-empty): N/A. There is no baseline
+ * to "preserve" against; only additions. Returning FAIL here would
+ * misreport a corpus that simply gained tagging.
+ *
+ * No paired items: N/A — Jaccard mean is undefined.
+ *
+ * Equality case (both populated): strict PASS at Jaccard 1.0, otherwise
+ * FAIL.
+ */
+export function userTagDimStatus(
+  totalOldUserTags: number,
+  totalNewUserTags: number,
+  meanUserTagJaccard: number,
+  pairedJaccardCount: number,
+): 'PASS' | 'FAIL' | 'N/A' {
+  if (totalOldUserTags === 0 && totalNewUserTags > 0) return 'N/A';
+  if (pairedJaccardCount === 0) return 'N/A';
+  if (Number.isFinite(meanUserTagJaccard) && meanUserTagJaccard >= 1.0)
+    return 'PASS';
+  return 'FAIL';
+}
+
 function renderReport(
   oldMap: Map<string, ContentSnapshot>,
   newMap: Map<string, ContentSnapshot>,
@@ -545,12 +571,12 @@ function renderReport(
       metric: `Mean Jaccard / total old:new (${totalOldUserTags}:${totalNewUserTags})`,
       threshold: 'Jaccard = 1.0 (any loss = FAIL)',
       value: fmtNum(meanUserTagJaccard, 3),
-      status:
-        userTagJaccards.length === 0
-          ? 'N/A'
-          : Number.isFinite(meanUserTagJaccard) && meanUserTagJaccard >= 1.0
-            ? 'PASS'
-            : 'FAIL',
+      status: userTagDimStatus(
+        totalOldUserTags,
+        totalNewUserTags,
+        meanUserTagJaccard,
+        userTagJaccards.length,
+      ),
     },
   ];
 

@@ -10,6 +10,7 @@ import {
   computePairStats,
   readSnapshot,
   snapshotPairKey,
+  userTagDimStatus,
 } from '@/scripts/compare-quality';
 
 describe('jaccardSimilarity', () => {
@@ -134,6 +135,30 @@ describe('computePairStats entity Jaccard', () => {
     const newMap = new Map([['same', mkSnapshot({ id: 'same' })]]);
     const stats = computePairStats(oldMap, newMap);
     expect(stats[0].entityJaccard).toBeNull();
+  });
+});
+
+describe('userTagDimStatus', () => {
+  it('returns N/A when old has zero user tags and new has any', () => {
+    // Net-gain case: re-ingestion produced user_tags where the baseline
+    // had none. Not a regression — there is nothing to "preserve".
+    expect(userTagDimStatus(0, 221, NaN, 0)).toBe('N/A');
+  });
+
+  it('returns N/A when no paired items have a Jaccard score', () => {
+    expect(userTagDimStatus(10, 10, NaN, 0)).toBe('N/A');
+  });
+
+  it('returns PASS when both populated and Jaccard equals 1.0', () => {
+    expect(userTagDimStatus(50, 50, 1.0, 25)).toBe('PASS');
+  });
+
+  it('returns FAIL when both populated and Jaccard < 1.0', () => {
+    expect(userTagDimStatus(50, 50, 0.85, 25)).toBe('FAIL');
+  });
+
+  it('returns FAIL on net-loss (old populated, new empty, paired items present)', () => {
+    expect(userTagDimStatus(50, 0, 0, 25)).toBe('FAIL');
   });
 });
 
