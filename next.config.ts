@@ -7,9 +7,12 @@ const withBundleAnalyzer = bundleAnalyzer({
 });
 
 const nextConfig: NextConfig = {
-  outputFileTracingIncludes: {
-    '/api/**/*': ['./lib/ai/skills/**/*.md'],
-  },
+  // Skill markdown is inlined at build time via
+  // scripts/generate-skills-inline.ts (output: lib/ai/skills/inlined.generated.ts)
+  // so no runtime FS access is required. The previous outputFileTracingIncludes
+  // entry did not reliably copy lib/ai/skills/*.md into Vercel serverless
+  // function bundles (App Router source-path glob mismatch + __dirname
+  // resolution drift) and was the root cause of MCP classify_content ENOENT.
   images: {
     formats: ['image/avif', 'image/webp'],
     remotePatterns: [

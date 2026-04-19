@@ -1,18 +1,22 @@
-import { readFile } from 'fs/promises';
-import { join } from 'path';
-
-const skillCache = new Map<string, string>();
+import { SKILLS } from '@/lib/ai/skills/inlined.generated';
 
 /**
- * Load a skill file by name. Skill files are markdown documents in
- * `lib/ai/skills/` that provide domain knowledge context for AI prompts.
+ * Load a skill markdown file by name. Skills are inlined at build time
+ * via scripts/generate-skills-inline.ts; this module performs no
+ * filesystem reads at runtime (the previous fs/promises + __dirname
+ * implementation hit ENOENT on Vercel because the loader chunk is
+ * relocated away from the static lib/ai/skills/*.md files during
+ * deployment bundling).
  *
- * Results are cached in memory after first load.
+ * Async signature preserved for backwards compatibility with existing
+ * callers (lib/ai/classify.ts, lib/ai/draft.ts, lib/mcp/resources.ts).
  */
 export async function loadSkill(name: string): Promise<string> {
-  if (skillCache.has(name)) return skillCache.get(name)!;
-  const path = join(__dirname, `${name}.md`);
-  const content = await readFile(path, 'utf-8');
-  skillCache.set(name, content);
+  const content = SKILLS[name];
+  if (content === undefined) {
+    throw new Error(
+      `Unknown skill "${name}". Known skills: ${Object.keys(SKILLS).join(', ')}.`,
+    );
+  }
   return content;
 }

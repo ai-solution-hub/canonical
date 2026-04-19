@@ -5,6 +5,9 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
+    "predev": "bun run generate:skills",
+    "prebuild": "bun run generate:skills",
+    "generate:skills": "bun run scripts/generate-skills-inline.ts",
     "start": "next start",
     "lint": "eslint .",
     "format": "prettier --write .",
