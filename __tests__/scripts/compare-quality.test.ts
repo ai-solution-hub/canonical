@@ -1,10 +1,15 @@
 import { describe, it, expect } from 'vitest';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import {
   jaccardSimilarity,
   domainDistribution,
   domainDeltas,
   cosineSimilarity,
   computePairStats,
+  readSnapshot,
+  snapshotPairKey,
 } from '@/scripts/compare-quality';
 
 describe('jaccardSimilarity', () => {
@@ -129,6 +134,136 @@ describe('computePairStats entity Jaccard', () => {
     const newMap = new Map([['same', mkSnapshot({ id: 'same' })]]);
     const stats = computePairStats(oldMap, newMap);
     expect(stats[0].entityJaccard).toBeNull();
+  });
+});
+
+describe('snapshotPairKey', () => {
+  it('returns id under the id strategy', () => {
+    expect(
+      snapshotPairKey({ id: 'abc', title: 'X', content_type: 'article' }, 'id'),
+    ).toBe('abc');
+  });
+
+  it('normalises title (trim + lowercase + collapsed ws) for composite key', () => {
+    const key = snapshotPairKey(
+      { id: 'abc', title: '  Hello   World  ', content_type: 'article' },
+      'title+content_type',
+    );
+    expect(key).toBe('hello world|article');
+  });
+
+  it('distinguishes same title across content types', () => {
+    const a = snapshotPairKey(
+      { id: '1', title: 'Overview', content_type: 'article' },
+      'title+content_type',
+    );
+    const b = snapshotPairKey(
+      { id: '2', title: 'Overview', content_type: 'question_answer' },
+      'title+content_type',
+    );
+    expect(a).not.toBe(b);
+  });
+});
+
+describe('readSnapshot with composite pair key', () => {
+  function writeJsonl(rows: Record<string, unknown>[]): string {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'compare-quality-'));
+    const p = path.join(dir, 'snap.jsonl');
+    fs.writeFileSync(p, rows.map((r) => JSON.stringify(r)).join('\n'));
+    return p;
+  }
+
+  it('keys by id by default', () => {
+    const p = writeJsonl([
+      {
+        id: 'a',
+        title: 'T',
+        content_type: 'article',
+        content_length: 10,
+        word_count: 2,
+        heading_count: 0,
+        chunk_count: 1,
+        canonical_names: [],
+        created_at: '2026-01-01',
+        classification_confidence: null,
+        primary_domain: null,
+        primary_subtopic: null,
+        summary_length: null,
+        source_url: null,
+        ai_keywords: null,
+        user_tags: null,
+        embedding: null,
+        freshness: null,
+      },
+    ]);
+    const { map, collisions, total } = readSnapshot(p, 'id');
+    expect(map.has('a')).toBe(true);
+    expect(collisions).toBe(0);
+    expect(total).toBe(1);
+  });
+
+  it('pairs cross-project items sharing title + content_type', () => {
+    const rowA = {
+      id: 'OLD-1',
+      title: 'How do you handle GDPR?',
+      content_type: 'question_answer',
+      content_length: 100,
+      word_count: 20,
+      heading_count: 0,
+      chunk_count: 1,
+      canonical_names: [],
+      created_at: '2026-01-01',
+      classification_confidence: 0.9,
+      primary_domain: 'compliance',
+      primary_subtopic: null,
+      summary_length: null,
+      source_url: null,
+      ai_keywords: null,
+      user_tags: null,
+      embedding: null,
+      freshness: null,
+    };
+    const rowB = { ...rowA, id: 'NEW-1' };
+    const pOld = writeJsonl([rowA]);
+    const pNew = writeJsonl([rowB]);
+    const oldRead = readSnapshot(pOld, 'title+content_type');
+    const newRead = readSnapshot(pNew, 'title+content_type');
+    const pairs = computePairStats(oldRead.map, newRead.map);
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0].oldId).toBe('OLD-1');
+    expect(pairs[0].newId).toBe('NEW-1');
+    expect(pairs[0].pairKey).toBe('how do you handle gdpr?|question_answer');
+  });
+
+  it('reports collisions when multiple rows share the composite key', () => {
+    const base = {
+      title: 'Duplicate',
+      content_type: 'article',
+      content_length: 10,
+      word_count: 2,
+      heading_count: 0,
+      chunk_count: 1,
+      canonical_names: [],
+      created_at: '2026-01-01',
+      classification_confidence: null,
+      primary_domain: null,
+      primary_subtopic: null,
+      summary_length: null,
+      source_url: null,
+      ai_keywords: null,
+      user_tags: null,
+      embedding: null,
+      freshness: null,
+    };
+    const p = writeJsonl([
+      { ...base, id: '1' },
+      { ...base, id: '2' },
+      { ...base, id: '3' },
+    ]);
+    const { map, collisions, total } = readSnapshot(p, 'title+content_type');
+    expect(map.size).toBe(1);
+    expect(collisions).toBe(2);
+    expect(total).toBe(3);
   });
 });
 

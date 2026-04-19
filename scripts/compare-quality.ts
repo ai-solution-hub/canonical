@@ -33,10 +33,13 @@ import fs from 'fs';
 
 // ── Args ───────────────────────────────────────────────────────────────────
 
+export type PairKeyStrategy = 'id' | 'title+content_type';
+
 interface RuntimeConfig {
   oldPath: string;
   newPath: string;
   outputPath: string;
+  pairKey: PairKeyStrategy;
 }
 
 function parseRuntimeArgs(): RuntimeConfig {
@@ -45,6 +48,7 @@ function parseRuntimeArgs(): RuntimeConfig {
       old: { type: 'string', default: '' },
       new: { type: 'string', default: '' },
       output: { type: 'string', default: '' },
+      'pair-key': { type: 'string', default: 'id' },
       help: { type: 'boolean', default: false },
     },
     strict: true,
@@ -52,25 +56,49 @@ function parseRuntimeArgs(): RuntimeConfig {
 
   if (values.help) {
     console.log(`
-Usage: bun run scripts/compare-quality.ts --old <path> --new <path> [--output <path>]
+Usage: bun run scripts/compare-quality.ts --old <path> --new <path> [--output <path>] [--pair-key <strategy>]
 
 Options:
-  --old PATH       Older snapshot JSONL (pre re-ingestion)
-  --new PATH       Newer snapshot JSONL (post re-ingestion)
-  --output PATH    Write markdown report to this path (default stdout)
-  --help           Show this help
+  --old PATH                    Older snapshot JSONL (pre re-ingestion)
+  --new PATH                    Newer snapshot JSONL (post re-ingestion)
+  --output PATH                 Write markdown report to this path (default stdout)
+  --pair-key STRATEGY           Pairing strategy: id (default, in-place re-ingest)
+                                or title+content_type (cross-project re-ingest)
+  --help                        Show this help
 `);
     process.exit(0);
   }
 
   const oldPath = values.old!.trim();
   const newPath = values.new!.trim();
+  const pairKeyRaw = (values['pair-key'] as string | undefined)?.trim() ?? 'id';
+
+  if (pairKeyRaw !== 'id' && pairKeyRaw !== 'title+content_type') {
+    console.error(
+      `Invalid --pair-key '${pairKeyRaw}'. Must be 'id' or 'title+content_type'.`,
+    );
+    process.exit(1);
+  }
 
   if (!oldPath || !newPath) {
     console.error('Both --old and --new are required. See --help.');
     process.exit(1);
   }
-  return { oldPath, newPath, outputPath: values.output!.trim() };
+  return {
+    oldPath,
+    newPath,
+    outputPath: values.output!.trim(),
+    pairKey: pairKeyRaw as PairKeyStrategy,
+  };
+}
+
+export function snapshotPairKey(
+  s: Pick<ContentSnapshot, 'id' | 'title' | 'content_type'>,
+  strategy: PairKeyStrategy,
+): string {
+  if (strategy === 'id') return s.id;
+  const title = s.title.trim().toLowerCase().replace(/\s+/g, ' ');
+  return `${title}|${s.content_type}`;
 }
 
 // ── Snapshot shape ─────────────────────────────────────────────────────────
@@ -96,7 +124,16 @@ interface ContentSnapshot {
   freshness: string | null;
 }
 
-function readSnapshot(p: string): Map<string, ContentSnapshot> {
+export interface SnapshotReadResult {
+  map: Map<string, ContentSnapshot>;
+  collisions: number;
+  total: number;
+}
+
+export function readSnapshot(
+  p: string,
+  pairKey: PairKeyStrategy = 'id',
+): SnapshotReadResult {
   if (!fs.existsSync(p)) {
     console.error(
       `Could not read snapshot at ${p}. Check the path and that the snapshot script completed successfully.`,
@@ -105,12 +142,20 @@ function readSnapshot(p: string): Map<string, ContentSnapshot> {
   }
   const content = fs.readFileSync(p, 'utf-8');
   const map = new Map<string, ContentSnapshot>();
+  let collisions = 0;
+  let total = 0;
   for (const line of content.split('\n')) {
     if (!line.trim()) continue;
     const obj = JSON.parse(line) as ContentSnapshot;
-    map.set(obj.id, obj);
+    total++;
+    const key = snapshotPairKey(obj, pairKey);
+    if (map.has(key)) {
+      collisions++;
+      continue;
+    }
+    map.set(key, obj);
   }
-  return map;
+  return { map, collisions, total };
 }
 
 // ── Pure helpers (unit-tested) ─────────────────────────────────────────────
@@ -193,6 +238,9 @@ function mean(values: number[]): number {
 
 export interface PairStat {
   id: string;
+  oldId: string;
+  newId: string;
+  pairKey: string;
   content_type: string;
   contentRatio: number | null;
   wordCountRatio: number | null;
@@ -211,8 +259,8 @@ export function computePairStats(
   newMap: Map<string, ContentSnapshot>,
 ): PairStat[] {
   const out: PairStat[] = [];
-  for (const [id, oldItem] of oldMap) {
-    const newItem = newMap.get(id);
+  for (const [key, oldItem] of oldMap) {
+    const newItem = newMap.get(key);
     if (!newItem) continue;
 
     const contentRatio =
@@ -263,7 +311,10 @@ export function computePairStats(
     }
 
     out.push({
-      id,
+      id: oldItem.id,
+      oldId: oldItem.id,
+      newId: newItem.id,
+      pairKey: key,
       content_type: oldItem.content_type,
       contentRatio,
       wordCountRatio,
@@ -314,6 +365,7 @@ function renderReport(
   lines.push(`Date: ${today}`);
   lines.push(`Old snapshot: \`${config.oldPath}\``);
   lines.push(`New snapshot: \`${config.newPath}\``);
+  lines.push(`Pair key: \`${config.pairKey}\``);
   lines.push(`Old items: ${oldMap.size}  |  New items: ${newMap.size}  |  Paired: ${pairs.length}`);
   lines.push('');
 
@@ -527,11 +579,11 @@ function renderReport(
   if (belowFloor.length > 0) {
     lines.push('### Embedding similarity < 0.90');
     lines.push('');
-    lines.push('| id | content_type | similarity | content_ratio |');
-    lines.push('|---|---|---|---|');
+    lines.push('| old_id | new_id | content_type | similarity | content_ratio |');
+    lines.push('|---|---|---|---|---|');
     for (const p of belowFloor) {
       lines.push(
-        `| ${p.id} | ${p.content_type} | ${fmtNum(p.similarity ?? NaN, 4)} | ${fmtNum(p.contentRatio ?? NaN, 3)} |`,
+        `| ${p.oldId} | ${p.newId} | ${p.content_type} | ${fmtNum(p.similarity ?? NaN, 4)} | ${fmtNum(p.contentRatio ?? NaN, 3)} |`,
       );
     }
     lines.push('');
@@ -543,12 +595,12 @@ function renderReport(
   if (domainMismatches.length > 0) {
     lines.push('### Primary domain changed');
     lines.push('');
-    lines.push('| id | content_type | old_domain | new_domain |');
-    lines.push('|---|---|---|---|');
+    lines.push('| old_id | new_id | content_type | old_domain | new_domain |');
+    lines.push('|---|---|---|---|---|');
     for (const p of domainMismatches) {
-      const oldD = oldMap.get(p.id)?.primary_domain ?? '(null)';
-      const newD = newMap.get(p.id)?.primary_domain ?? '(null)';
-      lines.push(`| ${p.id} | ${p.content_type} | ${oldD} | ${newD} |`);
+      const oldD = oldMap.get(p.pairKey)?.primary_domain ?? '(null)';
+      const newD = newMap.get(p.pairKey)?.primary_domain ?? '(null)';
+      lines.push(`| ${p.oldId} | ${p.newId} | ${p.content_type} | ${oldD} | ${newD} |`);
     }
     lines.push('');
   }
@@ -611,11 +663,17 @@ function renderReport(
 
 function main() {
   const config = parseRuntimeArgs();
-  const oldMap = readSnapshot(config.oldPath);
-  const newMap = readSnapshot(config.newPath);
-  const pairs = computePairStats(oldMap, newMap);
+  const oldRead = readSnapshot(config.oldPath, config.pairKey);
+  const newRead = readSnapshot(config.newPath, config.pairKey);
+  const pairs = computePairStats(oldRead.map, newRead.map);
 
-  const report = renderReport(oldMap, newMap, pairs, config);
+  if (oldRead.collisions > 0 || newRead.collisions > 0) {
+    console.error(
+      `Pair-key collisions detected (strategy=${config.pairKey}): old=${oldRead.collisions}/${oldRead.total}, new=${newRead.collisions}/${newRead.total}. Duplicate keys kept first-seen.`,
+    );
+  }
+
+  const report = renderReport(oldRead.map, newRead.map, pairs, config);
 
   if (config.outputPath) {
     const outDir = path.dirname(config.outputPath);

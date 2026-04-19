@@ -42,6 +42,7 @@ import {
   SAFE_WRITE_ANNOTATIONS,
   NON_IDEMPOTENT_WRITE_ANNOTATIONS,
 } from './shared';
+import { slugifyDomain } from '@/lib/ai/classify';
 
 // ---------------------------------------------------------------------------
 // Shared helper: fetch content items by ID array and format as batch result.
@@ -354,9 +355,11 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             platform: 'manual',
             captured_date: new Date().toISOString(),
             created_by: userId,
-            ...(args.primary_domain && { primary_domain: args.primary_domain }),
+            ...(args.primary_domain && {
+              primary_domain: slugifyDomain(args.primary_domain),
+            }),
             ...(args.primary_subtopic && {
-              primary_subtopic: args.primary_subtopic,
+              primary_subtopic: slugifyDomain(args.primary_subtopic),
             }),
             ...(args.priority && { priority: args.priority }),
             ...(embedding && { embedding: JSON.stringify(embedding) }),
@@ -697,6 +700,18 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             updateData[field] = args.fields[field];
             updatedFields.push(field);
           }
+        }
+
+        // Normalise taxonomy strings to canonical lowercase kebab-case slugs.
+        // Prevents case-inconsistent domains (e.g. 'CORPORATE' vs 'corporate')
+        // from drifting into the DB via MCP sub-agents.
+        if (typeof updateData.primary_domain === 'string') {
+          updateData.primary_domain = slugifyDomain(updateData.primary_domain);
+        }
+        if (typeof updateData.primary_subtopic === 'string') {
+          updateData.primary_subtopic = slugifyDomain(
+            updateData.primary_subtopic,
+          );
         }
 
         if (updatedFields.length === 0) {

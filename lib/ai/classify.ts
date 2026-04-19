@@ -464,15 +464,25 @@ export function dedupeEntityMentionRows(
 // ──────────────────────────────────────────
 
 /**
+ * Slugify a domain-like string to canonical lowercase kebab-case form,
+ * matching the taxonomy slug convention. Use when validation against a
+ * taxonomy list is not available (e.g. at MCP write sites with no taxonomy
+ * fetch). For full validation with fuzzy fallback use `validateDomain`.
+ */
+export function slugifyDomain(input: string): string {
+  return input
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
+/**
  * Normalise an AI-returned domain string to a valid taxonomy slug.
  * Converts to lowercase kebab-case, strips non-alphanumeric characters,
  * then matches against the list of valid domain slugs.
  */
 export function validateDomain(domain: string, validDomains: string[]): string {
-  const slug = domain
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
+  const slug = slugifyDomain(domain);
   const exact = validDomains.find((d) => d === slug);
   if (exact) return exact;
   // Fuzzy match: find closest valid domain by substring containment
