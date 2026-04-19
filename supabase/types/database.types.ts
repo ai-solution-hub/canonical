@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.1"
   }
   public: {
     Tables: {
@@ -18,18 +18,18 @@ export type Database = {
         Row: {
           assigned_to: string | null
           confidence_posture: string | null
-          created_at: string | null
+          created_at: string
           created_by: string | null
           evaluation_weight: number | null
           has_variants: boolean | null
           id: string
           matched_content_ids: string[] | null
           project_id: string
-          question_sequence: number | null
+          question_sequence: number
           question_text: string
           section_name: string | null
-          section_sequence: number | null
-          status: string | null
+          section_sequence: number
+          status: string
           template_requirement_id: string | null
           updated_at: string | null
           word_limit: number | null
@@ -37,18 +37,18 @@ export type Database = {
         Insert: {
           assigned_to?: string | null
           confidence_posture?: string | null
-          created_at?: string | null
+          created_at?: string
           created_by?: string | null
           evaluation_weight?: number | null
           has_variants?: boolean | null
           id?: string
           matched_content_ids?: string[] | null
           project_id: string
-          question_sequence?: number | null
+          question_sequence?: number
           question_text: string
           section_name?: string | null
-          section_sequence?: number | null
-          status?: string | null
+          section_sequence?: number
+          status?: string
           template_requirement_id?: string | null
           updated_at?: string | null
           word_limit?: number | null
@@ -56,18 +56,18 @@ export type Database = {
         Update: {
           assigned_to?: string | null
           confidence_posture?: string | null
-          created_at?: string | null
+          created_at?: string
           created_by?: string | null
           evaluation_weight?: number | null
           has_variants?: boolean | null
           id?: string
           matched_content_ids?: string[] | null
           project_id?: string
-          question_sequence?: number | null
+          question_sequence?: number
           question_text?: string
           section_name?: string | null
-          section_sequence?: number | null
-          status?: string | null
+          section_sequence?: number
+          status?: string
           template_requirement_id?: string | null
           updated_at?: string | null
           word_limit?: number | null
@@ -427,48 +427,48 @@ export type Database = {
           brief: string | null
           change_reason: string | null
           change_summary: string | null
-          change_type: string | null
-          content: string | null
+          change_type: string
+          content: string
           content_item_id: string | null
-          created_at: string | null
+          created_at: string
           created_by: string | null
           detail: string | null
           id: string
           metadata: Json | null
           reference: string | null
-          title: string | null
+          title: string
           version: number
         }
         Insert: {
           brief?: string | null
           change_reason?: string | null
           change_summary?: string | null
-          change_type?: string | null
-          content?: string | null
+          change_type?: string
+          content: string
           content_item_id?: string | null
-          created_at?: string | null
+          created_at?: string
           created_by?: string | null
           detail?: string | null
           id?: string
           metadata?: Json | null
           reference?: string | null
-          title?: string | null
+          title: string
           version: number
         }
         Update: {
           brief?: string | null
           change_reason?: string | null
           change_summary?: string | null
-          change_type?: string | null
-          content?: string | null
+          change_type?: string
+          content?: string
           content_item_id?: string | null
-          created_at?: string | null
+          created_at?: string
           created_by?: string | null
           detail?: string | null
           id?: string
           metadata?: Json | null
           reference?: string | null
-          title?: string | null
+          title?: string
           version?: number
         }
         Relationships: [
@@ -485,19 +485,19 @@ export type Database = {
         Row: {
           assigned_at: string | null
           content_item_id: string
-          id: string | null
+          id: string
           workspace_id: string
         }
         Insert: {
           assigned_at?: string | null
           content_item_id: string
-          id?: string | null
+          id?: string
           workspace_id: string
         }
         Update: {
           assigned_at?: string | null
           content_item_id?: string
-          id?: string | null
+          id?: string
           workspace_id?: string
         }
         Relationships: [
@@ -541,7 +541,7 @@ export type Database = {
           content_owner_id: string | null
           content_text_hash: string | null
           content_type: string
-          created_at: string | null
+          created_at: string
           created_by: string | null
           detail: string | null
           embedding: string | null
@@ -577,7 +577,7 @@ export type Database = {
           source_domain: string | null
           source_file: string | null
           source_url: string | null
-          starred: boolean | null
+          starred: boolean
           suggested_title: string | null
           summary: string | null
           summary_data: Json | null
@@ -612,7 +612,7 @@ export type Database = {
           content_owner_id?: string | null
           content_text_hash?: string | null
           content_type: string
-          created_at?: string | null
+          created_at?: string
           created_by?: string | null
           detail?: string | null
           embedding?: string | null
@@ -648,7 +648,7 @@ export type Database = {
           source_domain?: string | null
           source_file?: string | null
           source_url?: string | null
-          starred?: boolean | null
+          starred?: boolean
           suggested_title?: string | null
           summary?: string | null
           summary_data?: Json | null
@@ -683,7 +683,7 @@ export type Database = {
           content_owner_id?: string | null
           content_text_hash?: string | null
           content_type?: string
-          created_at?: string | null
+          created_at?: string
           created_by?: string | null
           detail?: string | null
           embedding?: string | null
@@ -719,7 +719,7 @@ export type Database = {
           source_domain?: string | null
           source_file?: string | null
           source_url?: string | null
-          starred?: boolean | null
+          starred?: boolean
           suggested_title?: string | null
           summary?: string | null
           summary_data?: Json | null
@@ -733,10 +733,24 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "content_items_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "content_items_source_bid_fkey"
             columns: ["source_bid"]
             isOneToOne: false
             referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_items_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "source_documents"
             referencedColumns: ["id"]
           },
         ]
@@ -1438,32 +1452,47 @@ export type Database = {
         Row: {
           content_item_id: string | null
           created_at: string | null
+          created_by: string | null
           details: Json | null
           flag_type: string
           id: string
           ingestion_batch: string | null
+          resolution_notes: string | null
           resolved: boolean | null
-          severity: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+          source_url: string | null
         }
         Insert: {
           content_item_id?: string | null
           created_at?: string | null
+          created_by?: string | null
           details?: Json | null
           flag_type: string
           id?: string
           ingestion_batch?: string | null
+          resolution_notes?: string | null
           resolved?: boolean | null
-          severity?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          source_url?: string | null
         }
         Update: {
           content_item_id?: string | null
           created_at?: string | null
+          created_by?: string | null
           details?: Json | null
           flag_type?: string
           id?: string
           ingestion_batch?: string | null
+          resolution_notes?: string | null
           resolved?: boolean | null
-          severity?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          source_url?: string | null
         }
         Relationships: [
           {
@@ -1554,58 +1583,52 @@ export type Database = {
         Row: {
           completed_at: string | null
           cost: number | null
-          created_at: string | null
+          created_at: string
           created_by: string | null
-          error_log: Json | null
+          error_message: string | null
           id: string
-          items_created: number | null
+          items_created: string[] | null
           items_processed: number | null
-          items_skipped: number | null
-          items_updated: number | null
           pipeline_name: string
           progress: Json | null
           result: Json | null
           source_filename: string | null
-          started_at: string | null
-          status: string | null
+          started_at: string
+          status: string
           workspace_id: string | null
         }
         Insert: {
           completed_at?: string | null
           cost?: number | null
-          created_at?: string | null
+          created_at?: string
           created_by?: string | null
-          error_log?: Json | null
+          error_message?: string | null
           id?: string
-          items_created?: number | null
+          items_created?: string[] | null
           items_processed?: number | null
-          items_skipped?: number | null
-          items_updated?: number | null
           pipeline_name: string
           progress?: Json | null
           result?: Json | null
           source_filename?: string | null
-          started_at?: string | null
-          status?: string | null
+          started_at?: string
+          status?: string
           workspace_id?: string | null
         }
         Update: {
           completed_at?: string | null
           cost?: number | null
-          created_at?: string | null
+          created_at?: string
           created_by?: string | null
-          error_log?: Json | null
+          error_message?: string | null
           id?: string
-          items_created?: number | null
+          items_created?: string[] | null
           items_processed?: number | null
-          items_skipped?: number | null
-          items_updated?: number | null
           pipeline_name?: string
           progress?: Json | null
           result?: Json | null
           source_filename?: string | null
-          started_at?: string | null
-          status?: string | null
+          started_at?: string
+          status?: string
           workspace_id?: string | null
         }
         Relationships: [
@@ -1620,70 +1643,76 @@ export type Database = {
       }
       processing_queue: {
         Row: {
-          attempts: number | null
+          attempts: number
           completed_at: string | null
-          created_at: string | null
+          created_at: string
           created_by: string | null
           error_message: string | null
           id: string
-          max_attempts: number | null
+          job_type: string
+          max_attempts: number
           payload: Json
-          priority: number | null
+          priority: number
           result: Json | null
           started_at: string | null
-          status: string | null
-          task_type: string
+          status: string
+          updated_at: string | null
         }
         Insert: {
-          attempts?: number | null
+          attempts?: number
           completed_at?: string | null
-          created_at?: string | null
+          created_at?: string
           created_by?: string | null
           error_message?: string | null
           id?: string
-          max_attempts?: number | null
+          job_type: string
+          max_attempts?: number
           payload?: Json
-          priority?: number | null
+          priority?: number
           result?: Json | null
           started_at?: string | null
-          status?: string | null
-          task_type: string
+          status?: string
+          updated_at?: string | null
         }
         Update: {
-          attempts?: number | null
+          attempts?: number
           completed_at?: string | null
-          created_at?: string | null
+          created_at?: string
           created_by?: string | null
           error_message?: string | null
           id?: string
-          max_attempts?: number | null
+          job_type?: string
+          max_attempts?: number
           payload?: Json
-          priority?: number | null
+          priority?: number
           result?: Json | null
           started_at?: string | null
-          status?: string | null
-          task_type?: string
+          status?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
       read_marks: {
         Row: {
-          content_item_id: string | null
+          content_item_id: string
           id: string
-          read_at: string | null
-          user_id: string | null
+          read_at: string
+          source: string
+          user_id: string
         }
         Insert: {
-          content_item_id?: string | null
+          content_item_id: string
           id?: string
-          read_at?: string | null
-          user_id?: string | null
+          read_at?: string
+          source?: string
+          user_id: string
         }
         Update: {
-          content_item_id?: string | null
+          content_item_id?: string
           id?: string
-          read_at?: string | null
-          user_id?: string | null
+          read_at?: string
+          source?: string
+          user_id?: string
         }
         Relationships: [
           {
@@ -1986,45 +2015,45 @@ export type Database = {
         Row: {
           accepted_at: string | null
           colour: string | null
-          created_at: string | null
+          created_at: string
           description: string | null
           display_name: string | null
-          display_order: number | null
+          display_order: number
           id: string
           is_active: boolean | null
           key_signal: string | null
           name: string
-          provenance: string | null
+          provenance: string
           recommended_at: string | null
           recommended_by: string | null
         }
         Insert: {
           accepted_at?: string | null
           colour?: string | null
-          created_at?: string | null
+          created_at?: string
           description?: string | null
           display_name?: string | null
-          display_order?: number | null
+          display_order?: number
           id?: string
           is_active?: boolean | null
           key_signal?: string | null
           name: string
-          provenance?: string | null
+          provenance?: string
           recommended_at?: string | null
           recommended_by?: string | null
         }
         Update: {
           accepted_at?: string | null
           colour?: string | null
-          created_at?: string | null
+          created_at?: string
           description?: string | null
           display_name?: string | null
-          display_order?: number | null
+          display_order?: number
           id?: string
           is_active?: boolean | null
           key_signal?: string | null
           name?: string
-          provenance?: string | null
+          provenance?: string
           recommended_at?: string | null
           recommended_by?: string | null
         }
@@ -2033,43 +2062,43 @@ export type Database = {
       taxonomy_subtopics: {
         Row: {
           accepted_at: string | null
-          created_at: string | null
+          created_at: string
           description: string | null
           display_name: string | null
-          display_order: number | null
+          display_order: number
           domain_id: string
           id: string
           is_active: boolean | null
           name: string
-          provenance: string | null
+          provenance: string
           recommended_at: string | null
           recommended_by: string | null
         }
         Insert: {
           accepted_at?: string | null
-          created_at?: string | null
+          created_at?: string
           description?: string | null
           display_name?: string | null
-          display_order?: number | null
+          display_order?: number
           domain_id: string
           id?: string
           is_active?: boolean | null
           name: string
-          provenance?: string | null
+          provenance?: string
           recommended_at?: string | null
           recommended_by?: string | null
         }
         Update: {
           accepted_at?: string | null
-          created_at?: string | null
+          created_at?: string
           description?: string | null
           display_name?: string | null
-          display_order?: number | null
+          display_order?: number
           domain_id?: string
           id?: string
           is_active?: boolean | null
           name?: string
-          provenance?: string | null
+          provenance?: string
           recommended_at?: string | null
           recommended_by?: string | null
         }
@@ -2360,27 +2389,24 @@ export type Database = {
       }
       user_roles: {
         Row: {
-          created_at: string | null
+          created_at: string
           display_name: string | null
-          granted_by: string | null
           id: string
           role: string
           updated_at: string | null
           user_id: string
         }
         Insert: {
-          created_at?: string | null
+          created_at?: string
           display_name?: string | null
-          granted_by?: string | null
           id?: string
           role?: string
           updated_at?: string | null
           user_id: string
         }
         Update: {
-          created_at?: string | null
+          created_at?: string
           display_name?: string | null
-          granted_by?: string | null
           id?: string
           role?: string
           updated_at?: string | null
@@ -2430,12 +2456,12 @@ export type Database = {
           created_by: string | null
           description: string | null
           domain_metadata: Json | null
+          icon: string | null
           id: string
-          is_active: boolean | null
           is_archived: boolean | null
           name: string
           status: string | null
-          type: string | null
+          type: string
           updated_at: string | null
           updated_by: string | null
         }
@@ -2445,12 +2471,12 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           domain_metadata?: Json | null
+          icon?: string | null
           id?: string
-          is_active?: boolean | null
           is_archived?: boolean | null
           name: string
           status?: string | null
-          type?: string | null
+          type?: string
           updated_at?: string | null
           updated_by?: string | null
         }
@@ -2460,12 +2486,12 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           domain_metadata?: Json | null
+          icon?: string | null
           id?: string
-          is_active?: boolean | null
           is_archived?: boolean | null
           name?: string
           status?: string | null
-          type?: string | null
+          type?: string
           updated_at?: string | null
           updated_by?: string | null
         }
@@ -2475,25 +2501,18 @@ export type Database = {
     Views: {
       quality_issues_pending: {
         Row: {
-          content_item_id: string | null
+          content_title: string | null
+          content_type: string | null
           created_at: string | null
           details: Json | null
           flag_type: string | null
           id: string | null
           ingestion_batch: string | null
-          item_title: string | null
-          resolved: boolean | null
+          platform: string | null
           severity: string | null
+          source_url: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "ingestion_quality_log_content_item_id_fkey"
-            columns: ["content_item_id"]
-            isOneToOne: false
-            referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Functions: {
@@ -2531,19 +2550,20 @@ export type Database = {
       claim_next_job: {
         Args: never
         Returns: {
-          attempts: number | null
+          attempts: number
           completed_at: string | null
-          created_at: string | null
+          created_at: string
           created_by: string | null
           error_message: string | null
           id: string
-          max_attempts: number | null
+          job_type: string
+          max_attempts: number
           payload: Json
-          priority: number | null
+          priority: number
           result: Json | null
           started_at: string | null
-          status: string | null
-          task_type: string
+          status: string
+          updated_at: string | null
         }[]
         SetofOptions: {
           from: "*"
@@ -2571,88 +2591,10 @@ export type Database = {
           match_type: string
         }[]
       }
-      filter_by_keywords:
-        | {
-            Args: { keyword_list: string[]; match_mode?: string }
-            Returns: {
-              ai_keywords: string[] | null
-              answer_advanced: string | null
-              answer_standard: string | null
-              archive_reason: string | null
-              archived_at: string | null
-              archived_by: string | null
-              author_name: string | null
-              brief: string | null
-              captured_date: string | null
-              citation_count: number
-              classification_cache_creation_tokens: number | null
-              classification_cache_read_tokens: number | null
-              classification_confidence: number | null
-              classification_model: string | null
-              classification_reasoning: string | null
-              classification_tokens_in: number | null
-              classification_tokens_out: number | null
-              classified_at: string | null
-              content: string
-              content_owner_id: string | null
-              content_text_hash: string | null
-              content_type: string
-              created_at: string | null
-              created_by: string | null
-              detail: string | null
-              embedding: string | null
-              embedding_model: string | null
-              embedding_tokens: number | null
-              expiry_date: string | null
-              file_path: string | null
-              freshness: string | null
-              freshness_checked_at: string | null
-              governance_review_due: string | null
-              governance_review_status: string | null
-              governance_reviewer_id: string | null
-              id: string
-              layer: string | null
-              lifecycle_type: string | null
-              metadata: Json | null
-              notes: string | null
-              parent_id: string | null
-              platform: string | null
-              previous_freshness: string | null
-              previous_quality_score: number | null
-              primary_domain: string | null
-              primary_subtopic: string | null
-              priority: string | null
-              quality_score: number | null
-              quality_score_updated_at: string | null
-              reference: string | null
-              secondary_domain: string | null
-              secondary_subtopic: string | null
-              source_bid: string | null
-              source_document: string | null
-              source_document_id: string | null
-              source_domain: string | null
-              source_file: string | null
-              source_url: string | null
-              starred: boolean | null
-              suggested_title: string | null
-              summary: string | null
-              summary_data: Json | null
-              thumbnail_url: string | null
-              title: string
-              updated_at: string | null
-              updated_by: string | null
-              user_tags: string[] | null
-              verified_at: string | null
-              verified_by: string | null
-            }[]
-            SetofOptions: {
-              from: "*"
-              to: "content_items"
-              isOneToOne: false
-              isSetofReturn: true
-            }
-          }
-        | { Args: { search_terms: string[] }; Returns: string[] }
+      filter_by_keywords: {
+        Args: { search_terms: string[] }
+        Returns: string[]
+      }
       find_duplicate_pairs: {
         Args: {
           limit_count?: number
@@ -2713,23 +2655,41 @@ export type Database = {
           user_tags: string[]
         }[]
       }
-      find_similar_content: {
-        Args: {
-          limit_count?: number
-          query_embedding: string
-          similarity_threshold?: number
-        }
-        Returns: {
-          author_name: string
-          content: string
-          content_type: string
-          id: string
-          platform: string
-          similarity: number
-          source_domain: string
-          title: string
-        }[]
-      }
+      find_similar_content:
+        | {
+            Args: {
+              limit_count?: number
+              query_embedding: string
+              similarity_threshold?: number
+            }
+            Returns: {
+              author_name: string
+              content: string
+              content_type: string
+              id: string
+              platform: string
+              similarity: number
+              source_domain: string
+              title: string
+            }[]
+          }
+        | {
+            Args: {
+              limit_count?: number
+              query_embedding: string
+              similarity_threshold?: number
+            }
+            Returns: {
+              author_name: string
+              content: string
+              content_type: string
+              id: string
+              platform: string
+              similarity: number
+              source_domain: string
+              title: string
+            }[]
+          }
       get_aggregate_win_rate_stats: {
         Args: never
         Returns: {
@@ -2766,13 +2726,18 @@ export type Database = {
           title: string
         }[]
       }
-      get_author_analysis: {
-        Args: { limit_count?: number }
+      get_author_analysis: { Args: { p_author_name: string }; Returns: Json }
+      get_bid_question_stats: {
+        Args: { p_project_id: string }
         Returns: {
-          author: string
-          domains: string[]
-          item_count: number
-          latest: string
+          complete_count: number
+          drafted_count: number
+          needs_sme_count: number
+          no_content_count: number
+          partial_match_count: number
+          strong_match_count: number
+          total_questions: number
+          unmatched_count: number
         }[]
       }
       get_bid_question_stats_batch: {
@@ -2791,10 +2756,10 @@ export type Database = {
       }
       get_bid_summary: { Args: { bid_workspace_id: string }; Returns: Json }
       get_capture_activity: {
-        Args: { days_back?: number }
+        Args: never
         Returns: {
           count: number
-          period: string
+          day: string
         }[]
       }
       get_content_gaps: { Args: never; Returns: Json }
@@ -3035,12 +3000,12 @@ export type Database = {
           created_by: string | null
           description: string | null
           domain_metadata: Json | null
+          icon: string | null
           id: string
-          is_active: boolean | null
           is_archived: boolean | null
           name: string
           status: string | null
-          type: string | null
+          type: string
           updated_at: string | null
           updated_by: string | null
         }[]
@@ -3053,9 +3018,9 @@ export type Database = {
       }
       get_items_with_quality_flags: { Args: never; Returns: string[] }
       get_popular_keywords: {
-        Args: { limit_count?: number }
+        Args: { p_limit?: number }
         Returns: {
-          count: number
+          item_count: number
           keyword: string
         }[]
       }
@@ -3067,7 +3032,7 @@ export type Database = {
           severity: string
         }[]
       }
-      get_reading_patterns: { Args: { days_back?: number }; Returns: Json }
+      get_reading_patterns: { Args: { p_days?: number }; Returns: Json }
       get_review_breakdown_stats: { Args: never; Returns: Json }
       get_source_documents: {
         Args: never
@@ -3114,13 +3079,13 @@ export type Database = {
         }[]
       }
       get_top_authors: {
-        Args: { limit_count?: number }
+        Args: { p_limit?: number }
         Returns: {
-          author: string
-          count: number
+          author_name: string
+          item_count: number
         }[]
       }
-      get_topic_deep_dive: { Args: { topic_name: string }; Returns: Json }
+      get_topic_deep_dive: { Args: { p_keyword: string }; Returns: Json }
       get_topic_layers: {
         Args: { p_topic_id: string }
         Returns: {
@@ -3133,17 +3098,19 @@ export type Database = {
         }[]
       }
       get_trend_analysis: {
-        Args: { bucket_size?: string; days_back?: number }
+        Args: { p_days?: number; p_min_count?: number }
         Returns: {
-          content_types: Json
-          count: number
-          period: string
+          current_count: number
+          domains: string[]
+          growth_rate: number
+          keyword: string
+          previous_count: number
         }[]
       }
       get_unique_authors: {
         Args: never
         Returns: {
-          author: string
+          author_name: string
           count: number
         }[]
       }
@@ -3156,13 +3123,7 @@ export type Database = {
         }[]
       }
       get_user_role: { Args: never; Returns: string }
-      get_user_tag_counts: {
-        Args: never
-        Returns: {
-          count: number
-          tag: string
-        }[]
-      }
+      get_user_tag_counts: { Args: never; Returns: Json }
       get_verification_stats: { Args: never; Returns: Json }
       get_workspace_counts: { Args: never; Returns: Json }
       get_workspace_item_counts: {
@@ -3173,58 +3134,37 @@ export type Database = {
           workspace_id: string
         }[]
       }
-      hybrid_search:
-        | {
-            Args: {
-              limit_count?: number
-              query_embedding: string
-              query_text?: string
-              similarity_threshold?: number
-            }
-            Returns: {
-              ai_keywords: string[]
-              author_name: string
-              captured_date: string
-              classification_confidence: number
-              content_type: string
-              created_by: string
-              id: string
-              metadata: Json
-              platform: string
-              primary_domain: string
-              primary_subtopic: string
-              priority: string
-              similarity: number
-              snippet: string
-              source_domain: string
-              suggested_title: string
-              summary: string
-              thumbnail_url: string
-              title: string
-              verified_at: string
-              verified_by: string
-            }[]
-          }
-        | {
-            Args: {
-              full_text_weight?: number
-              match_count?: number
-              query_embedding: string
-              query_text: string
-              rrf_k?: number
-              semantic_weight?: number
-            }
-            Returns: {
-              body: string
-              content_type: string
-              created_by: string
-              domain: string
-              id: string
-              rank: number
-              similarity: number
-              title: string
-            }[]
-          }
+      hybrid_search: {
+        Args: {
+          limit_count?: number
+          query_embedding: string
+          query_text?: string
+          similarity_threshold?: number
+        }
+        Returns: {
+          ai_keywords: string[]
+          author_name: string
+          captured_date: string
+          classification_confidence: number
+          content_type: string
+          created_by: string
+          id: string
+          metadata: Json
+          platform: string
+          primary_domain: string
+          primary_subtopic: string
+          priority: string
+          similarity: number
+          snippet: string
+          source_domain: string
+          suggested_title: string
+          summary: string
+          thumbnail_url: string
+          title: string
+          verified_at: string
+          verified_by: string
+        }[]
+      }
       merge_entities: {
         Args: {
           p_entity_type: string
@@ -3337,51 +3277,29 @@ export type Database = {
           word_count: number
         }[]
       }
-      search_for_bid_response:
-        | {
-            Args: {
-              limit_count?: number
-              query_embedding: string
-              query_text?: string
-            }
-            Returns: {
-              ai_keywords: string[]
-              brief: string
-              content: string
-              content_type: string
-              detail: string
-              id: string
-              primary_domain: string
-              primary_subtopic: string
-              similarity: number
-              title: string
-            }[]
-          }
-        | {
-            Args: {
-              domain_filter?: string
-              match_count?: number
-              query_embedding: string
-              question_id: string
-            }
-            Returns: {
-              body: string
-              brief: string
-              content_type: string
-              detail: string
-              domain: string
-              id: string
-              quality_score: number
-              similarity: number
-              title: string
-            }[]
-          }
+      search_for_bid_response: {
+        Args: {
+          limit_count?: number
+          query_embedding: string
+          query_text?: string
+        }
+        Returns: {
+          ai_keywords: string[]
+          brief: string
+          content: string
+          content_type: string
+          detail: string
+          id: string
+          primary_domain: string
+          primary_subtopic: string
+          similarity: number
+          title: string
+        }[]
+      }
       set_config: {
         Args: { is_local: boolean; setting: string; value: string }
         Returns: string
       }
-      show_limit: { Args: never; Returns: number }
-      show_trgm: { Args: { "": string }; Returns: string[] }
       suggest_tags: {
         Args: { p_prefix: string; p_type: string }
         Returns: {
@@ -3389,12 +3307,10 @@ export type Database = {
           tag: string
         }[]
       }
-      toggle_star:
-        | { Args: { item_id: string }; Returns: boolean }
-        | {
-            Args: { p_item_id: string; p_starred: boolean }
-            Returns: undefined
-          }
+      toggle_star: {
+        Args: { p_item_id: string; p_starred: boolean }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
