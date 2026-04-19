@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.1"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -44,10 +44,10 @@ export type Database = {
           id?: string
           matched_content_ids?: string[] | null
           project_id: string
-          question_sequence?: number
+          question_sequence: number
           question_text: string
           section_name?: string | null
-          section_sequence?: number
+          section_sequence: number
           status?: string
           template_requirement_id?: string | null
           updated_at?: string | null
@@ -443,7 +443,7 @@ export type Database = {
           brief?: string | null
           change_reason?: string | null
           change_summary?: string | null
-          change_type?: string
+          change_type: string
           content: string
           content_item_id?: string | null
           created_at?: string
@@ -733,24 +733,10 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "content_items_parent_id_fkey"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "content_items_source_bid_fkey"
             columns: ["source_bid"]
             isOneToOne: false
             referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_items_source_document_id_fkey"
-            columns: ["source_document_id"]
-            isOneToOne: false
-            referencedRelation: "source_documents"
             referencedColumns: ["id"]
           },
         ]
@@ -1589,6 +1575,8 @@ export type Database = {
           id: string
           items_created: string[] | null
           items_processed: number | null
+          items_skipped: number | null
+          items_updated: number | null
           pipeline_name: string
           progress: Json | null
           result: Json | null
@@ -1606,6 +1594,8 @@ export type Database = {
           id?: string
           items_created?: string[] | null
           items_processed?: number | null
+          items_skipped?: number | null
+          items_updated?: number | null
           pipeline_name: string
           progress?: Json | null
           result?: Json | null
@@ -1623,6 +1613,8 @@ export type Database = {
           id?: string
           items_created?: string[] | null
           items_processed?: number | null
+          items_skipped?: number | null
+          items_updated?: number | null
           pipeline_name?: string
           progress?: Json | null
           result?: Json | null
@@ -1656,7 +1648,7 @@ export type Database = {
           result: Json | null
           started_at: string | null
           status: string
-          updated_at: string | null
+          updated_at: string
         }
         Insert: {
           attempts?: number
@@ -1672,7 +1664,7 @@ export type Database = {
           result?: Json | null
           started_at?: string | null
           status?: string
-          updated_at?: string | null
+          updated_at?: string
         }
         Update: {
           attempts?: number
@@ -1688,7 +1680,7 @@ export type Database = {
           result?: Json | null
           started_at?: string | null
           status?: string
-          updated_at?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -2038,7 +2030,7 @@ export type Database = {
           is_active?: boolean | null
           key_signal?: string | null
           name: string
-          provenance?: string
+          provenance: string
           recommended_at?: string | null
           recommended_by?: string | null
         }
@@ -2084,7 +2076,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name: string
-          provenance?: string
+          provenance: string
           recommended_at?: string | null
           recommended_by?: string | null
         }
@@ -2391,6 +2383,7 @@ export type Database = {
         Row: {
           created_at: string
           display_name: string | null
+          granted_by: string | null
           id: string
           role: string
           updated_at: string | null
@@ -2399,6 +2392,7 @@ export type Database = {
         Insert: {
           created_at?: string
           display_name?: string | null
+          granted_by?: string | null
           id?: string
           role?: string
           updated_at?: string | null
@@ -2407,6 +2401,7 @@ export type Database = {
         Update: {
           created_at?: string
           display_name?: string | null
+          granted_by?: string | null
           id?: string
           role?: string
           updated_at?: string | null
@@ -2501,18 +2496,25 @@ export type Database = {
     Views: {
       quality_issues_pending: {
         Row: {
-          content_title: string | null
-          content_type: string | null
+          content_item_id: string | null
           created_at: string | null
           details: Json | null
           flag_type: string | null
           id: string | null
           ingestion_batch: string | null
-          platform: string | null
+          item_title: string | null
+          resolved: boolean | null
           severity: string | null
-          source_url: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ingestion_quality_log_content_item_id_fkey"
+            columns: ["content_item_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {
@@ -2563,7 +2565,7 @@ export type Database = {
           result: Json | null
           started_at: string | null
           status: string
-          updated_at: string | null
+          updated_at: string
         }[]
         SetofOptions: {
           from: "*"
@@ -2591,10 +2593,88 @@ export type Database = {
           match_type: string
         }[]
       }
-      filter_by_keywords: {
-        Args: { search_terms: string[] }
-        Returns: string[]
-      }
+      filter_by_keywords:
+        | {
+            Args: { keyword_list: string[]; match_mode?: string }
+            Returns: {
+              ai_keywords: string[] | null
+              answer_advanced: string | null
+              answer_standard: string | null
+              archive_reason: string | null
+              archived_at: string | null
+              archived_by: string | null
+              author_name: string | null
+              brief: string | null
+              captured_date: string | null
+              citation_count: number
+              classification_cache_creation_tokens: number | null
+              classification_cache_read_tokens: number | null
+              classification_confidence: number | null
+              classification_model: string | null
+              classification_reasoning: string | null
+              classification_tokens_in: number | null
+              classification_tokens_out: number | null
+              classified_at: string | null
+              content: string
+              content_owner_id: string | null
+              content_text_hash: string | null
+              content_type: string
+              created_at: string
+              created_by: string | null
+              detail: string | null
+              embedding: string | null
+              embedding_model: string | null
+              embedding_tokens: number | null
+              expiry_date: string | null
+              file_path: string | null
+              freshness: string | null
+              freshness_checked_at: string | null
+              governance_review_due: string | null
+              governance_review_status: string | null
+              governance_reviewer_id: string | null
+              id: string
+              layer: string | null
+              lifecycle_type: string | null
+              metadata: Json | null
+              notes: string | null
+              parent_id: string | null
+              platform: string | null
+              previous_freshness: string | null
+              previous_quality_score: number | null
+              primary_domain: string | null
+              primary_subtopic: string | null
+              priority: string | null
+              quality_score: number | null
+              quality_score_updated_at: string | null
+              reference: string | null
+              secondary_domain: string | null
+              secondary_subtopic: string | null
+              source_bid: string | null
+              source_document: string | null
+              source_document_id: string | null
+              source_domain: string | null
+              source_file: string | null
+              source_url: string | null
+              starred: boolean
+              suggested_title: string | null
+              summary: string | null
+              summary_data: Json | null
+              thumbnail_url: string | null
+              title: string
+              updated_at: string | null
+              updated_by: string | null
+              user_tags: string[] | null
+              verified_at: string | null
+              verified_by: string | null
+            }[]
+            SetofOptions: {
+              from: "*"
+              to: "content_items"
+              isOneToOne: false
+              isSetofReturn: true
+            }
+          }
+        | { Args: { search_terms: string[] }; Returns: string[] }
       find_duplicate_pairs: {
         Args: {
           limit_count?: number
@@ -2756,10 +2836,10 @@ export type Database = {
       }
       get_bid_summary: { Args: { bid_workspace_id: string }; Returns: Json }
       get_capture_activity: {
-        Args: never
+        Args: { days_back?: number }
         Returns: {
           count: number
-          day: string
+          period: string
         }[]
       }
       get_content_gaps: { Args: never; Returns: Json }
@@ -3307,10 +3387,12 @@ export type Database = {
           tag: string
         }[]
       }
-      toggle_star: {
-        Args: { p_item_id: string; p_starred: boolean }
-        Returns: undefined
-      }
+      toggle_star:
+        | { Args: { item_id: string }; Returns: boolean }
+        | {
+            Args: { p_item_id: string; p_starred: boolean }
+            Returns: undefined
+          }
     }
     Enums: {
       [_ in never]: never

@@ -10,6 +10,7 @@ import { parseBody } from '@/lib/validation';
 import { ItemCreateBodySchema } from '@/lib/validation/schemas';
 import { generateEmbedding } from '@/lib/ai/embed';
 import { stripMarkdown } from '@/lib/content/strip-markdown';
+import { recordPipelineRun } from '@/lib/pipeline/record-run';
 import type { Database } from '@/supabase/types/database.types';
 
 export const maxDuration = 30;
@@ -407,17 +408,13 @@ async function classifyInBackground(
     caughtError = err;
   }
 
-  try {
-    await supabase.from('pipeline_runs').insert({
-      pipeline_name: 'background_classify',
-      status,
-      items_processed: 1,
-      error_message: errorMessage,
-      completed_at: new Date().toISOString(),
-    });
-  } catch (logErr) {
-    console.error('Failed to log classification pipeline run:', logErr);
-  }
+  await recordPipelineRun({
+    supabase,
+    pipelineName: 'background_classify',
+    status,
+    itemsProcessed: 1,
+    errorMessage,
+  });
 
   if (caughtError) throw caughtError;
 }
@@ -447,17 +444,13 @@ async function summariseInBackground(
     caughtError = err;
   }
 
-  try {
-    await supabase.from('pipeline_runs').insert({
-      pipeline_name: 'background_summarise',
-      status,
-      items_processed: 1,
-      error_message: errorMessage,
-      completed_at: new Date().toISOString(),
-    });
-  } catch (logErr) {
-    console.error('Failed to log summary pipeline run:', logErr);
-  }
+  await recordPipelineRun({
+    supabase,
+    pipelineName: 'background_summarise',
+    status,
+    itemsProcessed: 1,
+    errorMessage,
+  });
 
   if (caughtError) throw caughtError;
 }
