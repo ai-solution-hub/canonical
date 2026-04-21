@@ -46,6 +46,12 @@ vi.mock('@/components/settings/layers-section', () => ({
   LayersSection: () => <div data-testid="layers-section">LayersSection</div>,
 }));
 
+vi.mock('@/components/settings/taxonomy-drift-banner', () => ({
+  TaxonomyDriftBanner: () => (
+    <div data-testid="taxonomy-drift-banner">TaxonomyDriftBanner</div>
+  ),
+}));
+
 import { ContentOrganisationSection } from '@/components/settings/content-organisation-section';
 import { getValidSection } from '@/components/settings/settings-sidebar';
 
