@@ -111,13 +111,20 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     // Non-RSS sources (web, api) — skip feed validation
+    // Web sources default to 360-min polling (6h) unless explicitly overridden
+    const insertData = {
+      ...parsed.data,
+      workspace_id: id,
+      created_by: user.id,
+      ...(parsed.data.source_type === 'web' &&
+        !raw.polling_interval_minutes && {
+          polling_interval_minutes: 360,
+        }),
+    };
+
     const { data, error } = await supabase
       .from('feed_sources')
-      .insert({
-        ...parsed.data,
-        workspace_id: id,
-        created_by: user.id,
-      })
+      .insert(insertData)
       .select()
       .single();
 

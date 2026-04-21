@@ -50,9 +50,27 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const parsed = parseBody(FeedSourceUpdateSchema, raw);
     if (!parsed.success) return parsed.response;
 
+    // F-3 / D-4: Reset consecutive_failures when re-enabling a source.
+    // Check raw body (not parsed) — Zod .default(true) fires even when is_active
+    // is absent, so parsed.data.is_active is always true. We only want to reset
+    // failures when the caller explicitly sends is_active: true.
+    let updatePayload = { ...parsed.data };
+    if (raw.is_active === true) {
+      const { data: current, error: lookupError } = await supabase
+        .from('feed_sources')
+        .select('is_active')
+        .eq('id', sourceId)
+        .eq('workspace_id', id)
+        .single();
+
+      if (!lookupError && current && current.is_active === false) {
+        updatePayload = { ...updatePayload, consecutive_failures: 0 };
+      }
+    }
+
     const { data, error } = await supabase
       .from('feed_sources')
-      .update(parsed.data)
+      .update(updatePayload)
       .eq('id', sourceId)
       .eq('workspace_id', id)
       .select()
