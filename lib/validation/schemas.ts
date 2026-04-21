@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { FALLBACK_LAYERS } from '@/lib/client-config';
 import { getValidTypeValues } from '@/lib/workspace-types';
 
 // ──────────────────────────────────────────
@@ -1350,20 +1349,26 @@ export const CoverageTargetPutBodySchema = z.object({
   targets: z.array(coverageTargetEntrySchema).min(1).max(200),
 });
 
-/** PATCH /api/items/[id]/metadata — update metadata (layer, topic_id) */
-const layerValues = FALLBACK_LAYERS.map((l) => l.key);
-
-export const ItemMetadataUpdateSchema = z
-  .object({
-    layer: z
-      .enum(layerValues as [string, ...string[]])
-      .nullable()
-      .optional(),
-    topic_id: z.string().max(200).nullable().optional(),
-  })
-  .refine((data) => Object.keys(data).length > 0, {
-    message: 'At least one metadata field required',
-  });
+/**
+ * Build a metadata update schema with DB-driven layer keys.
+ *
+ * PATCH /api/items/[id]/metadata — update metadata (layer, topic_id).
+ * The `layer` field is constrained to the provided `layerKeys` list
+ * (fetched from `layer_vocabulary` at request time via `fetchActiveLayerKeys`).
+ */
+export function buildItemMetadataUpdateSchema(layerKeys: string[]) {
+  return z
+    .object({
+      layer: z
+        .enum(layerKeys as [string, ...string[]])
+        .nullable()
+        .optional(),
+      topic_id: z.string().max(200).nullable().optional(),
+    })
+    .refine((data) => Object.keys(data).length > 0, {
+      message: 'At least one metadata field required',
+    });
+}
 
 // ──────────────────────────────────────────
 // Category B: GET handler schemas
