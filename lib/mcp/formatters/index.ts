@@ -88,7 +88,23 @@ export {
   type GovernanceStatusItemResult,
   type GovernanceStatusUpdateResult,
   formatGovernanceStatusUpdate,
+  type GovernanceQueueItem,
+  type GovernanceQueueData,
+  formatGovernanceQueue,
+  type GovernanceReviewAction,
+  type GovernanceReviewActionResult,
+  formatGovernanceReviewAction,
 } from './governance';
+export {
+  type ReviewQueueToolItem,
+  type ReviewQueueToolData,
+  formatReviewQueue,
+  type ReviewAssignmentSummary,
+  type ReviewAssignmentsData,
+  formatReviewAssignments,
+  type CreateReviewAssignmentResult,
+  formatCreateReviewAssignment,
+} from './review';
 export {
   type TemplateCoverageRequirement,
   type TemplateCoverageSection,

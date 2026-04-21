@@ -53,6 +53,7 @@ const CATEGORY_ORDER = [
   'templates.ts',
   'apps.ts',
   'governance.ts',
+  'review.ts',
   'intelligence.ts',
 ];
 const SKIP_FILES = new Set(['index.ts', 'shared.ts']);
@@ -517,7 +518,12 @@ describe('Integration: full codebase extraction', () => {
         }
       }
 
-      expect(allTools.length).toBe(43);
+      // 48 = 43 pre-S180 + 2 governance additions + 3 review tools.
+      // NB: CATEGORY_ORDER does not include `guides.ts` (pre-S180 oversight),
+      // so the 4 guide tools are not counted by this test — the tool count is
+      // 52 end-to-end via tool-annotations-coverage.test.ts. Adding guides.ts
+      // to CATEGORY_ORDER is out of scope for S180 WP3.
+      expect(allTools.length).toBe(48);
 
       // Every tool should have a non-empty name
       for (const tool of allTools) {
