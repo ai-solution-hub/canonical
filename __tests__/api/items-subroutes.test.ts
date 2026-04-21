@@ -37,6 +37,18 @@ vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: mockCheckRateLimit,
 }));
 
+vi.mock('@/lib/validation/layer-schemas', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/validation/layer-schemas')>(
+    '@/lib/validation/layer-schemas',
+  );
+  return {
+    ...actual,
+    fetchActiveLayerKeys: vi.fn(() =>
+      Promise.resolve(['sales_brief', 'bid_detail', 'company_reference', 'research']),
+    ),
+  };
+});
+
 // Import routes AFTER mocks are registered
 const { POST: classifyPost } =
   await import('@/app/api/items/[id]/classify/route');
@@ -818,6 +830,26 @@ describe('PATCH /api/items/[id]/metadata', () => {
 
     const res = await metadataPatch(req, { params });
     expect(res.status).toBe(403);
+  });
+
+  it('returns 503 when layer vocabulary is unavailable', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const { fetchActiveLayerKeys } = await import('@/lib/validation/layer-schemas');
+    vi.mocked(fetchActiveLayerKeys).mockRejectedValueOnce(
+      new Error('Layer vocabulary fetch failed: connection refused'),
+    );
+
+    const req = createTestRequest(`/api/items/${VALID_UUID}/metadata`, {
+      method: 'PATCH',
+      body: { layer: 'sales_brief' },
+    });
+
+    const res = await metadataPatch(req, { params });
+    expect(res.status).toBe(503);
+
+    const body = await res.json();
+    expect(body.error).toBe('Layer vocabulary unavailable');
   });
 
   it('returns 400 for empty body', async () => {
