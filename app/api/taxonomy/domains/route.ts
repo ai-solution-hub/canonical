@@ -4,6 +4,7 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { TaxonomyDomainCreateSchema } from '@/lib/validation/schemas';
 import { sb } from '@/lib/supabase/safe';
+import { enqueueTaxonomySync } from '@/lib/taxonomy/sync-trigger';
 
 export const maxDuration = 30;
 
@@ -113,6 +114,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    enqueueTaxonomySync();
     return NextResponse.json(data, { status: 201 });
   } catch (err) {
     return NextResponse.json(

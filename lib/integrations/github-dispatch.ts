@@ -22,7 +22,10 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function attemptDispatch(token: string): Promise<DispatchResult> {
+async function attemptDispatch(
+  token: string,
+  runId?: string,
+): Promise<DispatchResult> {
   const res = await fetch(GITHUB_DISPATCH_URL, {
     method: 'POST',
     headers: {
@@ -31,7 +34,10 @@ async function attemptDispatch(token: string): Promise<DispatchResult> {
       'X-GitHub-Api-Version': '2022-11-28',
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ event_type: 'taxonomy-sync' }),
+    body: JSON.stringify({
+      event_type: 'taxonomy-sync',
+      client_payload: { run_id: runId ?? '' },
+    }),
   });
 
   if (res.status === 204) {
@@ -57,15 +63,20 @@ async function attemptDispatch(token: string): Promise<DispatchResult> {
  * Reads `GITHUB_SYNC_TOKEN` from `process.env`. Throws if the token is
  * not configured. Retries once on 5xx / network errors after a 2 s delay.
  * Never retries 4xx (configuration errors that require human intervention).
+ *
+ * @param runId - The `pipeline_runs.id` UUID to forward in `client_payload`
+ *   so the workflow callback can update the correct row.
  */
-export async function dispatchTaxonomySync(): Promise<DispatchResult> {
+export async function dispatchTaxonomySync(
+  runId?: string,
+): Promise<DispatchResult> {
   const token = process.env.GITHUB_SYNC_TOKEN;
   if (!token) {
     throw new Error('GITHUB_SYNC_TOKEN not configured');
   }
 
   try {
-    const first = await attemptDispatch(token);
+    const first = await attemptDispatch(token, runId);
 
     // 4xx — do not retry; actionable configuration error
     if (!first.ok && first.status < 500) {
@@ -79,12 +90,12 @@ export async function dispatchTaxonomySync(): Promise<DispatchResult> {
 
     // 5xx — retry once after 2 s
     await delay(2_000);
-    return await attemptDispatch(token);
+    return await attemptDispatch(token, runId);
   } catch (_err) {
     // Network error on first attempt — retry once after 2 s
     await delay(2_000);
     try {
-      return await attemptDispatch(token);
+      return await attemptDispatch(token, runId);
     } catch (retryErr) {
       return {
         ok: false,

@@ -83,6 +83,7 @@ describe('dispatchTaxonomySync', () => {
     });
     expect(JSON.parse(opts.body as string)).toEqual({
       event_type: 'taxonomy-sync',
+      client_payload: { run_id: '' },
     });
   });
 

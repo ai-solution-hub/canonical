@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { enqueueTaxonomySync } from '@/lib/taxonomy/sync-trigger';
 import { parseBody } from '@/lib/validation';
 import { TaxonomyReorderSchema } from '@/lib/validation/schemas';
 
@@ -64,6 +65,7 @@ export async function POST(request: NextRequest) {
       if (!error) updated++;
     }
 
+    enqueueTaxonomySync();
     return NextResponse.json({ success: true, updated });
   } catch (err) {
     return NextResponse.json(

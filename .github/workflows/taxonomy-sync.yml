@@ -1,0 +1,110 @@
+# Taxonomy sync workflow — triggered by repository_dispatch from the
+# /api/admin/taxonomy-sync endpoint after taxonomy/layer mutations.
+#
+# Runs `bun run sync:taxonomy` to regenerate:
+#   1. Classification prompt (docs/reference/classification-prompt.md)
+#   2. Taxonomy snapshot (scripts/tests/fixtures/taxonomy_snapshot.json)
+#   3. Plugin vocabulary (.claude/plugins/knowledge-hub/1.0.0/ files)
+#   4. Plugin bundle (lib/mcp/plugin-bundle.ts)
+#
+# Commits changes to main and POSTs an HMAC-signed callback on completion.
+#
+# Spec: docs/specs/p0-tx-taxonomy-sync-spec.md §3.1.2, §5.5
+# Plan: docs/plans/p0-tx-taxonomy-sync-plan.md WP5
+
+name: Taxonomy Sync
+
+on:
+  repository_dispatch:
+    types: [taxonomy-sync]
+
+concurrency:
+  group: taxonomy-sync
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    env:
+      # Extract client_payload fields into env vars for safe shell usage
+      DISPATCH_RUN_ID: ${{ github.event.client_payload.run_id }}
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run taxonomy sync
+        id: sync
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          AI_EMBEDDING_MODEL: ${{ secrets.AI_EMBEDDING_MODEL }}
+          AI_EMBEDDING_DIMS: ${{ secrets.AI_EMBEDDING_DIMS }}
+        run: bun run sync:taxonomy
+
+      - name: Check for changes and commit
+        id: commit
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "chore(taxonomy): automated sync [skip ci]"
+            git push origin main
+            echo "changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changes=false" >> "$GITHUB_OUTPUT"
+            echo "No taxonomy changes detected — nothing to commit."
+          fi
+
+      - name: Send success callback
+        if: success()
+        env:
+          TAXONOMY_SYNC_CALLBACK_SECRET: ${{ secrets.TAXONOMY_SYNC_CALLBACK_SECRET }}
+        run: |
+          TIMESTAMP=$(date +%s%3N)
+          BODY="{\"run_id\":\"${DISPATCH_RUN_ID}\",\"status\":\"success\",\"timestamp\":${TIMESTAMP},\"new_hash\":\"\"}"
+
+          SIGNATURE=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$TAXONOMY_SYNC_CALLBACK_SECRET" -hex | sed 's/^.* //')
+
+          curl -sf -X POST \
+            "https://knowledge-hub-seven-kappa.vercel.app/api/admin/taxonomy-sync/callback" \
+            -H "Content-Type: application/json" \
+            -H "x-taxonomy-sync-signature: ${SIGNATURE}" \
+            -d "$BODY"
+
+      - name: Send failure callback
+        if: failure()
+        env:
+          TAXONOMY_SYNC_CALLBACK_SECRET: ${{ secrets.TAXONOMY_SYNC_CALLBACK_SECRET }}
+          GH_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          TIMESTAMP=$(date +%s%3N)
+          ERROR_MSG="Workflow failed — check ${GH_RUN_URL}"
+          BODY="{\"run_id\":\"${DISPATCH_RUN_ID}\",\"status\":\"failed\",\"timestamp\":${TIMESTAMP},\"error_message\":\"${ERROR_MSG}\"}"
+
+          SIGNATURE=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$TAXONOMY_SYNC_CALLBACK_SECRET" -hex | sed 's/^.* //')
+
+          curl -sf -X POST \
+            "https://knowledge-hub-seven-kappa.vercel.app/api/admin/taxonomy-sync/callback" \
+            -H "Content-Type: application/json" \
+            -H "x-taxonomy-sync-signature: ${SIGNATURE}" \
+            -d "$BODY"

@@ -97,8 +97,9 @@ export async function POST() {
     );
     const runId = runRow.id;
 
-    // 6b. Call dispatchTaxonomySync
-    const dispatch = await dispatchTaxonomySync();
+    // 6b. Call dispatchTaxonomySync — forward run_id so the workflow
+    //     callback can update the correct pipeline_runs row
+    const dispatch = await dispatchTaxonomySync(runId);
 
     // 6c. If dispatch succeeded — pipeline_runs.started_at already
     //     records when dispatch occurred; no separate state update needed.
