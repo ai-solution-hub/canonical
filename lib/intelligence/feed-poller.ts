@@ -3,6 +3,7 @@ import Parser from 'rss-parser';
 import type { ParsedFeedItem, PollResult } from './types';
 import { FEED_FETCH_TIMEOUT_MS } from './types';
 import { RateLimitError, getGlobalRateLimiter } from './rate-limiter';
+import { turndown } from '@/lib/extraction/turndown';
 
 const USER_AGENT =
   'KnowledgeHub/1.0 (+https://knowledge-hub-seven-kappa.vercel.app)';
@@ -243,6 +244,131 @@ export async function pollFeed(source: FeedSourceRef): Promise<PollResult> {
         lastModified: null,
       };
     }
+    return {
+      feedSourceId: source.id,
+      status: 'error',
+      error: err instanceof Error ? err.message : String(err),
+      items: [],
+      etag: null,
+      lastModified: null,
+    };
+  }
+}
+
+// ── Web source polling (P0-WEB) ──
+
+/** Accepted HTML content types for web source validation */
+const HTML_CONTENT_TYPES = ['text/html', 'application/xhtml+xml'];
+
+/**
+ * Validate that a URL returns an HTML page suitable for web source scraping.
+ * Prefers HEAD for cheapness; falls back to ranged GET when the server rejects HEAD.
+ * Throws a descriptive error on any failure (non-200, non-HTML, empty body).
+ */
+export async function validateWebUrl(url: string): Promise<void> {
+  let response: Response;
+
+  try {
+    response = await fetch(url, {
+      method: 'HEAD',
+      headers: { 'User-Agent': USER_AGENT },
+      signal: AbortSignal.timeout(FEED_FETCH_TIMEOUT_MS),
+      redirect: 'follow',
+    });
+
+    // Some servers reject HEAD with 405 — fall back to ranged GET
+    if (response.status === 405) {
+      response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'User-Agent': USER_AGENT,
+          Range: 'bytes=0-1023',
+        },
+        signal: AbortSignal.timeout(FEED_FETCH_TIMEOUT_MS),
+        redirect: 'follow',
+      });
+    }
+  } catch (err) {
+    throw new Error(
+      `Web URL validation failed for ${url}: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  // Accept 200 and 206 (partial content from Range header)
+  if (!response.ok && response.status !== 206) {
+    throw new Error(
+      `Web URL validation failed for ${url}: HTTP ${response.status}`,
+    );
+  }
+
+  const contentType = (response.headers.get('content-type') ?? '').toLowerCase();
+  const isHtml = HTML_CONTENT_TYPES.some((ct) => contentType.startsWith(ct));
+  if (!isHtml) {
+    throw new Error(
+      `Web URL validation failed for ${url}: expected HTML content-type but got '${contentType}'`,
+    );
+  }
+}
+
+/**
+ * Web source reference — subset of FeedSource from pipeline.ts.
+ * Kept minimal to avoid importing the full pipeline module.
+ */
+interface WebSourceRef {
+  id: string;
+  url: string;
+  name?: string;
+}
+
+/**
+ * Poll a single web source by scraping with Firecrawl (HTML mode + Turndown).
+ * Returns a PollResult in the same shape as pollFeed() so downstream
+ * processing (dedup, classify, store) is identical.
+ *
+ * Unlike RSS polling, web sources produce exactly one item per poll
+ * (the page itself). The item's guid is set to the source URL so
+ * dedup treats each URL as a unique entity.
+ */
+export async function pollWebSource(source: WebSourceRef): Promise<PollResult> {
+  try {
+    // 1. Validate the URL is reachable and returns HTML
+    await validateWebUrl(source.url);
+
+    // 2. Scrape with Firecrawl using HTML format (F-1 fix: avoids double-escape)
+    const { default: Firecrawl } = await import('@mendable/firecrawl-js');
+    const firecrawl = new Firecrawl({ apiKey: process.env.FIRECRAWL_API_KEY });
+    const doc = await firecrawl.scrape(source.url, {
+      formats: ['html'] as const,
+    });
+
+    if (!doc.html) {
+      throw new Error('Firecrawl returned no HTML body');
+    }
+
+    // 3. Convert HTML to markdown via Turndown (same service used by content-extractor)
+    const markdown = turndown.turndown(doc.html).trim();
+
+    const metadata = (doc.metadata ?? {}) as Record<string, string | undefined>;
+
+    // 4. Synthesise a single ParsedFeedItem
+    const item: ParsedFeedItem = {
+      title: normaliseFeedTitle(metadata.title) || source.name || source.url,
+      url: source.url,
+      guid: source.url, // guid === url for web sources (one page per source)
+      publishedAt: metadata.publishedTime ?? new Date().toISOString(),
+      summary: metadata.description ?? null,
+      contentEncoded: markdown, // pre-converted markdown in contentEncoded slot
+      categories: [],
+    };
+
+    return {
+      feedSourceId: source.id,
+      status: 'success',
+      items: [item],
+      etag: null,
+      lastModified: null,
+    };
+  } catch (err) {
     return {
       feedSourceId: source.id,
       status: 'error',

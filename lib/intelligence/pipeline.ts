@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 import { sb } from '@/lib/supabase/safe';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
-import { pollFeed } from './feed-poller';
+import { pollFeed, pollWebSource } from './feed-poller';
 import {
   extractContent,
   normaliseUrl,
@@ -39,6 +39,7 @@ interface FeedSource {
   polling_interval_minutes: number;
   consecutive_failures: number;
   article_count: number;
+  source_type?: 'rss' | 'web' | 'api';
 }
 
 /** Query feed sources that are due for polling (respects polling_interval_minutes with exponential backoff) */
@@ -298,10 +299,12 @@ export async function processFeedSource(
     durationMs: 0,
   };
 
-  // 1. Poll the feed
+  // 1. Poll the feed (branch on source_type for web vs RSS)
   let pollResult: PollResult;
   try {
-    pollResult = await pollFeed(source);
+    pollResult = source.source_type === 'web'
+      ? await pollWebSource(source)
+      : await pollFeed(source);
   } catch (err) {
     // Record rate-limit errors with a distinct status for monitoring
     if (err instanceof RateLimitError) {
