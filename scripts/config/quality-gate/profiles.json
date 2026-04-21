@@ -1,0 +1,69 @@
+{
+  "$schema": "./profiles.schema.json",
+  "profiles": {
+    "re-ingest": {
+      "description": "After any bulk re-ingestion or restore-matrix run. Strict enough to catch drift, loose enough to tolerate known Q&A extraction-yield variance.",
+      "check_severities": {
+        "corpus_counts": "must-pass",
+        "embedding_coverage": "must-pass",
+        "chunk_coverage": "must-pass",
+        "entity_mention_coverage": "should-pass",
+        "entity_relationship_coverage": "should-pass",
+        "classified_domains_not_empty": "must-pass",
+        "guide_domain_filter_resolves": "must-pass",
+        "dedup_status_reconciled": "should-pass",
+        "suspected_duplicate_backlog": "should-pass",
+        "history_v1_present": "should-pass",
+        "classified_but_no_confidence": "should-pass",
+        "summary_coverage": "should-pass"
+      }
+    },
+    "batch": {
+      "description": "After a single-file or small-batch ingest via CLI. Looser — individual runs can have odd shape without it indicating a systemic issue.",
+      "check_severities": {
+        "corpus_counts": "should-pass",
+        "embedding_coverage": "must-pass",
+        "chunk_coverage": "should-pass",
+        "entity_mention_coverage": "should-pass",
+        "entity_relationship_coverage": "should-pass",
+        "classified_domains_not_empty": "must-pass",
+        "guide_domain_filter_resolves": "should-pass",
+        "dedup_status_reconciled": "should-pass",
+        "suspected_duplicate_backlog": "should-pass",
+        "history_v1_present": "should-pass",
+        "classified_but_no_confidence": "should-pass",
+        "summary_coverage": "should-pass"
+      }
+    },
+    "onboarding": {
+      "description": "For new-client first-cut. Strictest — a pristine state for a new client should have zero warnings.",
+      "check_severities": {
+        "corpus_counts": "must-pass",
+        "embedding_coverage": "must-pass",
+        "chunk_coverage": "must-pass",
+        "entity_mention_coverage": "should-pass",
+        "entity_relationship_coverage": "should-pass",
+        "classified_domains_not_empty": "must-pass",
+        "guide_domain_filter_resolves": "must-pass",
+        "dedup_status_reconciled": "must-pass",
+        "suspected_duplicate_backlog": "must-pass",
+        "history_v1_present": "should-pass",
+        "classified_but_no_confidence": "should-pass",
+        "summary_coverage": "should-pass"
+      }
+    },
+    "audit-content": {
+      "description": "Corpus-specific gate for the second re-ingestion (S185/S186). Invokes re-ingest generic gate first, short-circuits on MUST-PASS failure, then runs audit-content criteria.",
+      "invokes_profile": "re-ingest",
+      "audit_content_checks": {
+        "audit_per_file_qa_count": "must-pass",
+        "audit_classification_confidence": "must-pass",
+        "audit_required_entities": "must-pass",
+        "audit_required_relationships": "must-pass",
+        "audit_chunk_count_per_doc": "should-pass",
+        "audit_cross_doc_dedup_ratio": "should-pass",
+        "audit_unresolved_dedup_24h": "should-pass"
+      }
+    }
+  }
+}

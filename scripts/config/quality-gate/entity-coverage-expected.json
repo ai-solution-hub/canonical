@@ -1,0 +1,36 @@
+{
+  "description": "Per content_type minimum ratio of items with at least one entity_mention (check 3.4 entity_mention_coverage). Thresholds from spec §3.4 re-ingest profile.",
+  "baseline_date": "2026-04-21",
+  "profile_thresholds": {
+    "re-ingest": {
+      "q_a_pair": 0.65,
+      "article": 0.75,
+      "pdf": 0.9,
+      "capability": 0.85,
+      "case_study": 0.85,
+      "certification": 0.85,
+      "policy": 0.85,
+      "compliance": 0.85
+    },
+    "batch": {
+      "q_a_pair": 0.5,
+      "article": 0.6,
+      "pdf": 0.8,
+      "capability": 0.7,
+      "case_study": 0.7,
+      "certification": 0.7,
+      "policy": 0.7,
+      "compliance": 0.7
+    },
+    "onboarding": {
+      "q_a_pair": 0.7,
+      "article": 0.8,
+      "pdf": 0.95,
+      "capability": 0.9,
+      "case_study": 0.9,
+      "certification": 0.9,
+      "policy": 0.9,
+      "compliance": 0.9
+    }
+  }
+}

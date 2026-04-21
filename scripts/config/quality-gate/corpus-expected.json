@@ -1,0 +1,25 @@
+{
+  "description": "Per content_type corpus count ranges for check 3.1 corpus_counts. Calibrated against NEW project (mgrmucazfiibsomdmndh) 21/04/2026 post-S184 state (post-cutover + post-S183 dedup + post-S184 WP1 TS dedup). Ranges allow current live state to pass while still catching regressions. NOTE: capability/case_study/certification are draft-only on current NEW state and will grow after S186 re-ingest — min=0 permits the current zero count, max covers expected post-re-ingest growth.",
+  "baseline_date": "2026-04-21",
+  "baseline_project": "mgrmucazfiibsomdmndh",
+  "baseline_counts_non_draft": {
+    "q_a_pair": 381,
+    "article": 160,
+    "pdf": 1,
+    "policy": 2,
+    "compliance": 1,
+    "capability": 0,
+    "case_study": 0,
+    "certification": 0
+  },
+  "types": {
+    "q_a_pair": { "min": 300, "max": 500, "target": 381 },
+    "article": { "min": 120, "max": 350 },
+    "pdf": { "min": 0, "max": 15 },
+    "capability": { "min": 0, "max": 30 },
+    "case_study": { "min": 0, "max": 30 },
+    "certification": { "min": 0, "max": 15 },
+    "policy": { "min": 0, "max": 20 },
+    "compliance": { "min": 0, "max": 20 }
+  }
+}
