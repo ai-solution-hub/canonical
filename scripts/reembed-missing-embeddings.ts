@@ -1,29 +1,18 @@
 /**
- * Re-embed content_items that have classification but no embedding.
+ * Re-embed content_items with `embedding IS NULL`.
  *
- * Context: S158 WP2 ESM classification backfill surfaced two items
- * (819b285f... "State-funded school inspections..." at 138k chars and
- * c1042ca4... "Cyber security: core standard" at 55k chars) that were
- * classified with high confidence but have `embedding IS NULL`. Root
- * cause: the items exceeded OpenAI `text-embedding-3-large`'s 8,192-token
- * input cap, the SDK threw a 400 BadRequestError, and the classify.ts
- * embedding path swallowed the error via console.error without surfacing
- * it to Sentry or telemetry.
- *
- * S159 WP4b fixed the silent-failure surface by (a) adding
- * MAX_EMBEDDING_CHARS to `lib/ai/embed.ts`, (b) truncating the input
- * before calling generateEmbedding and emitting a best-effort warning
- * on truncation, and (c) replacing the console.error swallow with
- * logBestEffortWarn. This script is the one-off backfill that re-embeds
- * the rows already affected.
- *
- * The query uses `embedding IS NULL AND classification_confidence IS NOT NULL`
- * rather than hard-coded item ids so any other orphans (from future
- * transient errors) are also picked up.
+ * Two modes:
+ *   - default: classified orphans only (`classification_confidence IS NOT NULL`)
+ *     — the S158/S159 silent-failure profile this script was first written for.
+ *   - `--include-unclassified`: every row with `embedding IS NULL`, regardless
+ *     of classification state. Added for the S182 cutover backfill where the
+ *     34 missing-embedding rows (articles + policy + capability + ...) all came
+ *     from the MCP `create_content_item` path, which does not auto-classify and
+ *     does not auto-embed. See `docs/operations/cutover-report-s182.md` §8.1.
  *
  * Usage:
  *   SUPABASE_SECRET_KEY=... OPENAI_API_KEY=... \
- *     bun run scripts/reembed-missing-embeddings.ts
+ *     bun run scripts/reembed-missing-embeddings.ts [--include-unclassified]
  *
  * Runs with `dangerouslyDisableSandbox: true` per the Bun fetch 204
  * sandbox gotcha in CLAUDE.md (supabase.from().update() without .select()
@@ -32,7 +21,7 @@
  * References:
  *   docs/specs/esm-embedding-silent-failure-spec.md
  *   docs/audits/si-classification-verification-s156.md § Run 2
- *   docs/reference/post-mvp-roadmap.md §2.1.12
+ *   docs/operations/cutover-report-s182.md § 8.1
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -60,16 +49,25 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  const includeUnclassified = process.argv.includes('--include-unclassified');
+
   const supabase = createClient(supabaseUrl, supabaseKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  console.log('Scanning for classified content_items without embeddings...');
-  const { data: orphans, error: queryError } = await supabase
+  console.log(
+    includeUnclassified
+      ? 'Scanning for content_items without embeddings (including unclassified)...'
+      : 'Scanning for classified content_items without embeddings...',
+  );
+  let query = supabase
     .from('content_items')
     .select('id, title, suggested_title, content')
-    .is('embedding', null)
-    .not('classification_confidence', 'is', null);
+    .is('embedding', null);
+  if (!includeUnclassified) {
+    query = query.not('classification_confidence', 'is', null);
+  }
+  const { data: orphans, error: queryError } = await query;
 
   if (queryError) {
     console.error('Query failed:', queryError.message);

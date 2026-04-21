@@ -65,7 +65,14 @@ class TestClassifyPair:
             "source_file": "Unknown.docx",
         }
         result = classify_pair(pair)
-        assert result["primary_domain"] == ""
+        # S182 cutover fix: unclassified pairs get None (SQL NULL) not "".
+        # Empty strings previously bypassed domain-filter queries and left
+        # 18 invisible Q&A rows on the rebuilt project — see cutover report
+        # §8.2.
+        assert result["primary_domain"] is None
+        assert result["primary_subtopic"] is None
+        assert result["secondary_domain"] is None
+        assert result["secondary_subtopic"] is None
         assert result["classification_confidence"] == 0.0
 
     def test_classification_returns_all_fields(self):

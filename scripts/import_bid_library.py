@@ -154,8 +154,8 @@ _STOP_WORDS = frozenset({
 def extract_keywords(
     question_text: str,
     answer_text: str,
-    primary_domain: str,
-    primary_subtopic: str,
+    primary_domain: str | None,
+    primary_subtopic: str | None,
 ) -> list[str]:
     """Extract 3-5 descriptive keywords from Q&A content.
 
@@ -236,8 +236,8 @@ def build_content_record(pair: dict, batch_name: str) -> dict:
     keywords = extract_keywords(
         pair.get("question_text", ""),
         answer_text,
-        pair.get("primary_domain", ""),
-        pair.get("primary_subtopic", ""),
+        pair.get("primary_domain") or None,
+        pair.get("primary_subtopic") or None,
     )
 
     record = {
@@ -249,10 +249,12 @@ def build_content_record(pair: dict, batch_name: str) -> dict:
         "platform": "extraction",
         "source_url": "",
         "source_domain": "",
-        "primary_domain": pair.get("primary_domain", ""),
-        "primary_subtopic": pair.get("primary_subtopic", ""),
-        "secondary_domain": pair.get("secondary_domain", ""),
-        "secondary_subtopic": pair.get("secondary_subtopic", ""),
+        # Coerce empty-string to NULL — see keyword_classifier.py §S182 fix
+        # and cutover report §8.2.
+        "primary_domain": pair.get("primary_domain") or None,
+        "primary_subtopic": pair.get("primary_subtopic") or None,
+        "secondary_domain": pair.get("secondary_domain") or None,
+        "secondary_subtopic": pair.get("secondary_subtopic") or None,
         "classification_confidence": pair.get("classification_confidence", 0.0),
         "classified_at": datetime.now(timezone.utc).isoformat(),
         "summary": summary,

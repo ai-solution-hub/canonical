@@ -254,8 +254,8 @@ def build_record(pair: dict) -> dict:
     keywords = extract_keywords(
         title_raw,
         answer_text,
-        pair.get("primary_domain", ""),
-        pair.get("primary_subtopic", ""),
+        pair.get("primary_domain") or None,
+        pair.get("primary_subtopic") or None,
     )
 
     record = {
@@ -265,10 +265,12 @@ def build_record(pair: dict) -> dict:
         "platform": "extraction",
         "source_url": "",
         "source_domain": "",
-        "primary_domain": pair.get("primary_domain", ""),
-        "primary_subtopic": pair.get("primary_subtopic", ""),
-        "secondary_domain": pair.get("secondary_domain", ""),
-        "secondary_subtopic": pair.get("secondary_subtopic", ""),
+        # Coerce empty-string to NULL — see keyword_classifier.py §S182 fix
+        # and cutover report §8.2.
+        "primary_domain": pair.get("primary_domain") or None,
+        "primary_subtopic": pair.get("primary_subtopic") or None,
+        "secondary_domain": pair.get("secondary_domain") or None,
+        "secondary_subtopic": pair.get("secondary_subtopic") or None,
         "classification_confidence": pair.get("classification_confidence", 0.0),
         "classified_at": datetime.now(timezone.utc).isoformat(),
         "summary": summary,

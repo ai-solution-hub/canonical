@@ -270,16 +270,19 @@ def classify_pair(pair: dict) -> dict:
     # Sort by score descending
     ranked = sorted(scores.items(), key=lambda x: x[1][0], reverse=True)
 
-    # Primary classification
-    primary_domain = ""
-    primary_subtopic = ""
-    secondary_domain = ""
-    secondary_subtopic = ""
+    # Primary classification. Default to None (not "") so downstream write
+    # paths insert SQL NULL when the keyword classifier can't assign a domain.
+    # Empty-string defaults produced 18 invisible-to-domain-filter rows during
+    # the S175→S181 re-ingestion arc — see cutover report §8.2.
+    primary_domain: str | None = None
+    primary_subtopic: str | None = None
+    secondary_domain: str | None = None
+    secondary_subtopic: str | None = None
     confidence = 0.0
 
     if ranked and ranked[0][1][0] > 0:
         primary_domain = ranked[0][0]
-        primary_subtopic = ranked[0][1][1]
+        primary_subtopic = ranked[0][1][1] or None
 
         total_score = sum(s[0] for _, s in ranked)
         if total_score > 0:
@@ -288,7 +291,7 @@ def classify_pair(pair: dict) -> dict:
         # Secondary: must have a non-zero score and be different from primary
         if len(ranked) > 1 and ranked[1][1][0] > 0:
             secondary_domain = ranked[1][0]
-            secondary_subtopic = ranked[1][1][1]
+            secondary_subtopic = ranked[1][1][1] or None
 
     # Enrich the pair
     enriched = dict(pair)
@@ -314,7 +317,7 @@ def classify_pair(pair: dict) -> dict:
         if pf_score > 0:
             # Reclassify as product-feature
             enriched["primary_domain"] = "product-feature"
-            enriched["primary_subtopic"] = scores["product-feature"][1]
+            enriched["primary_subtopic"] = scores["product-feature"][1] or None
             enriched["secondary_domain"] = "compliance"
             enriched["secondary_subtopic"] = "audit"
 
