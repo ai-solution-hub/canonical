@@ -19,8 +19,9 @@ import {
 // variables they reference must also be hoisted via vi.hoisted().
 // ---------------------------------------------------------------------------
 
-const { mockCaptureMessage } = vi.hoisted(() => ({
+const { mockCaptureMessage, mockCaptureException } = vi.hoisted(() => ({
   mockCaptureMessage: vi.fn(),
+  mockCaptureException: vi.fn(),
 }));
 
 // Module-level mock client — NOT referenced inside vi.mock() factories
@@ -49,6 +50,7 @@ vi.mock('next/headers', () => ({
 
 vi.mock('@sentry/nextjs', () => ({
   captureMessage: mockCaptureMessage,
+  captureException: mockCaptureException,
 }));
 
 // ---------------------------------------------------------------------------
@@ -142,7 +144,11 @@ describe('POST /api/admin/taxonomy-sync/callback', () => {
       resolve({ data: [], error: null, count: 0 }),
     );
     mockCaptureMessage.mockClear();
-    mockSupabase.from.mockClear();
+    mockCaptureException.mockClear();
+    // Reset from() to return the default chain (not a stale mockImplementation
+    // from a previous test that creates per-table chains)
+    mockSupabase.from.mockReset();
+    mockSupabase.from.mockReturnValue(mockSupabase._chain);
     mockSupabase._chain.update.mockClear();
     mockSupabase._chain.eq.mockClear();
     mockSupabase._chain.not.mockClear();
@@ -216,8 +222,24 @@ describe('POST /api/admin/taxonomy-sync/callback', () => {
   // -------------------------------------------------------------------------
 
   describe('server misconfiguration', () => {
-    it('returns 500 server_misconfigured when secret env var is missing', async () => {
+    it('returns 500 server_misconfigured when secret env var is empty string', async () => {
       vi.stubEnv('TAXONOMY_SYNC_CALLBACK_SECRET', '');
+
+      const req = makeRequest(makeSuccessPayload());
+      const res = await POST(req);
+
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body.error).toBe('server_misconfigured');
+      expect(mockCaptureMessage).toHaveBeenCalledWith(
+        'TAXONOMY_SYNC_CALLBACK_SECRET not configured',
+        'error',
+      );
+    });
+
+    it('returns 500 server_misconfigured when secret env var is undefined', async () => {
+      // Explicitly remove the env var (not just empty string)
+      delete process.env.TAXONOMY_SYNC_CALLBACK_SECRET;
 
       const req = makeRequest(makeSuccessPayload());
       const res = await POST(req);
@@ -275,7 +297,34 @@ describe('POST /api/admin/taxonomy-sync/callback', () => {
   // -------------------------------------------------------------------------
 
   describe('success payload', () => {
-    it('updates taxonomy_sync_state with new hash and timestamp', async () => {
+    it('updates taxonomy_sync_state then pipeline_runs in sequence', async () => {
+      // Track per-table update payloads in call order to verify:
+      // 1. taxonomy_sync_state is updated first with hash/timestamp
+      // 2. pipeline_runs is updated second with completed status
+      const updateLog: Array<{ table: string; payload: Record<string, unknown> }> = [];
+
+      mockSupabase.from.mockImplementation((table: string) => {
+        const chain: Record<string, ReturnType<typeof vi.fn>> = {};
+        const chainable = [
+          'select', 'insert', 'upsert', 'delete',
+          'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
+          'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+        ];
+        for (const m of chainable) {
+          chain[m] = vi.fn().mockReturnValue(chain);
+        }
+        chain.update = vi.fn((payload: Record<string, unknown>) => {
+          updateLog.push({ table, payload });
+          return chain;
+        });
+        chain.single = vi.fn().mockResolvedValue({ data: null, error: null });
+        chain.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+        chain.then = vi.fn((resolve: (v: unknown) => void) =>
+          resolve({ data: null, error: null }),
+        );
+        return chain;
+      });
+
       const payload = makeSuccessPayload({ new_hash: 'newhash456' });
       const req = makeRequest(payload);
 
@@ -285,37 +334,21 @@ describe('POST /api/admin/taxonomy-sync/callback', () => {
       const body = await res.json();
       expect(body.ok).toBe(true);
 
-      // Verify taxonomy_sync_state update
-      const fromCalls = mockSupabase.from.mock.calls;
-      const syncStateCalls = fromCalls.filter(
-        (call: string[]) => call[0] === 'taxonomy_sync_state',
-      );
-      expect(syncStateCalls.length).toBeGreaterThanOrEqual(1);
+      // Verify exactly 2 updates in the correct order
+      expect(updateLog).toHaveLength(2);
 
-      // Verify update was called with the right data
-      expect(mockSupabase._chain.update).toHaveBeenCalledWith(
+      // First update: taxonomy_sync_state with new hash
+      expect(updateLog[0].table).toBe('taxonomy_sync_state');
+      expect(updateLog[0].payload).toEqual(
         expect.objectContaining({
           last_sync_hash: 'newhash456',
           synced_by: 'workflow',
         }),
       );
-    });
 
-    it('updates pipeline_runs to completed status', async () => {
-      const req = makeRequest(makeSuccessPayload());
-
-      const res = await POST(req);
-
-      expect(res.status).toBe(200);
-
-      // Verify pipeline_runs update
-      const fromCalls = mockSupabase.from.mock.calls;
-      const pipelineCalls = fromCalls.filter(
-        (call: string[]) => call[0] === 'pipeline_runs',
-      );
-      expect(pipelineCalls.length).toBeGreaterThanOrEqual(1);
-
-      expect(mockSupabase._chain.update).toHaveBeenCalledWith(
+      // Second update: pipeline_runs to completed
+      expect(updateLog[1].table).toBe('pipeline_runs');
+      expect(updateLog[1].payload).toEqual(
         expect.objectContaining({
           status: 'completed',
         }),
@@ -398,6 +431,30 @@ describe('POST /api/admin/taxonomy-sync/callback', () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body).toEqual({ ok: true });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Error handling (MEDIUM-3: outer try/catch)
+  // -------------------------------------------------------------------------
+
+  describe('error handling', () => {
+    it('returns 500 with Sentry capture when DB update throws', async () => {
+      // Make createServiceClient return a client whose from() throws
+      const throwingSupabase = {
+        from: vi.fn(() => {
+          throw new Error('DB connection refused');
+        }),
+      };
+      vi.mocked(createServiceClient).mockReturnValue(throwingSupabase as never);
+
+      const req = makeRequest(makeSuccessPayload());
+      const res = await POST(req);
+
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body.error).toBeDefined();
+      expect(mockCaptureException).toHaveBeenCalledTimes(1);
     });
   });
 });

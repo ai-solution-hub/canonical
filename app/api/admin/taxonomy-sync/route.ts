@@ -59,8 +59,8 @@ export async function POST() {
     const syncState = await sb(
       supabase
         .from('taxonomy_sync_state')
-        .select('last_sync_hash, last_dispatched_at')
-        .limit(1)
+        .select('last_sync_hash')
+        .not('id', 'is', null)
         .single(),
       'taxonomy_sync.state',
     );
@@ -100,17 +100,9 @@ export async function POST() {
     // 6b. Call dispatchTaxonomySync
     const dispatch = await dispatchTaxonomySync();
 
-    // 6c. If dispatch succeeded
+    // 6c. If dispatch succeeded — pipeline_runs.started_at already
+    //     records when dispatch occurred; no separate state update needed.
     if (dispatch.ok) {
-      // Update last_dispatched_at on taxonomy_sync_state
-      await sb(
-        supabase
-          .from('taxonomy_sync_state')
-          .update({ last_dispatched_at: new Date().toISOString() })
-          .limit(1),
-        'taxonomy_sync.state.update_dispatched',
-      );
-
       return NextResponse.json({
         dispatched: true,
         run_id: runId,

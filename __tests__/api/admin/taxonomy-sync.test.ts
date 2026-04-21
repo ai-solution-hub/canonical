@@ -152,7 +152,7 @@ function configureTaxonomyFetch(syncHash: string) {
       return makeChain(MOCK_SUBTOPICS);
     }
     if (table === 'taxonomy_sync_state') {
-      return makeChain({ last_sync_hash: syncHash, last_dispatched_at: null });
+      return makeChain({ last_sync_hash: syncHash });
     }
     if (table === 'pipeline_runs') {
       return makeChain({ id: RUN_ID });
@@ -270,13 +270,43 @@ describe('POST /api/admin/taxonomy-sync', () => {
 
     it('inserts pipeline_runs row with pipeline_name = taxonomy_sync', async () => {
       configureAdminAuth();
-      configureTaxonomyFetch('stale_hash');
+
+      // Track the insert payload for the pipeline_runs table specifically
+      let capturedInsertPayload: Record<string, unknown> | null = null;
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'taxonomy_domains') {
+          return makeChain(MOCK_DOMAINS);
+        }
+        if (table === 'taxonomy_subtopics') {
+          return makeChain(MOCK_SUBTOPICS);
+        }
+        if (table === 'taxonomy_sync_state') {
+          return makeChain({ last_sync_hash: 'stale_hash' });
+        }
+        if (table === 'pipeline_runs') {
+          const chain = makeChain({ id: RUN_ID });
+          const originalInsert = chain.insert;
+          chain.insert = vi.fn((payload: Record<string, unknown>) => {
+            capturedInsertPayload = payload;
+            return originalInsert(payload);
+          });
+          return chain;
+        }
+        return mockSupabase._chain;
+      });
       mockDispatchResult.current = { ok: true, status: 204 };
 
       await POST();
 
       // Verify from('pipeline_runs') was called
       expect(mockSupabase.from).toHaveBeenCalledWith('pipeline_runs');
+      // Verify INSERT payload contains pipeline_name = 'taxonomy_sync'
+      expect(capturedInsertPayload).toEqual(
+        expect.objectContaining({
+          pipeline_name: 'taxonomy_sync',
+          status: 'running',
+        }),
+      );
     });
   });
 

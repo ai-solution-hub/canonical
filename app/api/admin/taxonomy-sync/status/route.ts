@@ -37,6 +37,8 @@ export async function GET() {
       Date.now() - STALE_THRESHOLD_MINUTES * 60 * 1000,
     ).toISOString();
 
+    // Note: multi-row UPDATE without .select() returns HTTP 204; may hang
+    // local tests under sandbox proxy. Production path unaffected.
     await sb(
       supabase
         .from('pipeline_runs')

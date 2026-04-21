@@ -11,6 +11,8 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { sb } from '@/lib/supabase/safe';
+import { safeErrorMessage } from '@/lib/error';
 import * as Sentry from '@sentry/nextjs';
 
 /** Replay window: reject payloads older than 5 minutes */
@@ -60,48 +62,71 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'stale_timestamp' }, { status: 401 });
   }
 
-  // 8. Process the callback — use service client (no user session; bypasses RLS)
-  const supabase = createServiceClient();
-  const now = new Date().toISOString();
+  try {
+    // 8. Process the callback — use service client (no user session; bypasses RLS)
+    const supabase = createServiceClient();
+    const now = new Date().toISOString();
 
-  if (payload.status === 'success') {
-    // Update taxonomy_sync_state singleton with new hash + timestamp.
-    // The ((true)) unique index guarantees exactly one row exists.
-    // Filter by not-null id to satisfy Supabase REST's filter requirement.
-    await supabase
-      .from('taxonomy_sync_state')
-      .update({
-        last_sync_hash: payload.new_hash,
-        last_sync_at: now,
-        synced_by: 'workflow',
-        updated_at: now,
-      })
-      .not('id', 'is', null);
+    if (payload.status === 'success') {
+      // Update taxonomy_sync_state singleton with new hash + timestamp.
+      // The ((true)) unique index guarantees exactly one row exists.
+      // Filter by not-null id to satisfy Supabase REST's filter requirement.
+      await sb(
+        supabase
+          .from('taxonomy_sync_state')
+          .update({
+            last_sync_hash: payload.new_hash,
+            last_sync_at: now,
+            synced_by: 'workflow',
+            updated_at: now,
+          })
+          .not('id', 'is', null),
+        'taxonomy_sync.callback.state_update',
+      );
 
-    // Update pipeline_runs row to completed
-    await supabase
-      .from('pipeline_runs')
-      .update({
-        status: 'completed',
-        completed_at: now,
-      })
-      .eq('id', payload.run_id);
-  } else {
-    // status === 'failed'
-    await supabase
-      .from('pipeline_runs')
-      .update({
-        status: 'failed',
-        completed_at: now,
-        error_message: payload.error_message,
-      })
-      .eq('id', payload.run_id);
+      // Update pipeline_runs row to completed
+      await sb(
+        supabase
+          .from('pipeline_runs')
+          .update({
+            status: 'completed',
+            completed_at: now,
+          })
+          .eq('id', payload.run_id),
+        'taxonomy_sync.callback.pipeline_runs.complete',
+      );
+    } else {
+      // status === 'failed'
+      await sb(
+        supabase
+          .from('pipeline_runs')
+          .update({
+            status: 'failed',
+            completed_at: now,
+            error_message: payload.error_message,
+          })
+          .eq('id', payload.run_id),
+        'taxonomy_sync.callback.pipeline_runs.fail',
+      );
 
-    Sentry.captureMessage(
-      `Taxonomy sync workflow failed: ${payload.error_message}`,
-      'error',
+      Sentry.captureMessage(
+        `Taxonomy sync workflow failed: ${payload.error_message}`,
+        'error',
+      );
+    }
+
+    return NextResponse.json({ ok: true }, { status: 200 });
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { pipeline: 'taxonomy_sync', phase: 'callback' },
+      extra: { run_id: payload.run_id, status: payload.status },
+    });
+
+    return NextResponse.json(
+      {
+        error: safeErrorMessage(err, 'Failed to process taxonomy sync callback'),
+      },
+      { status: 500 },
     );
   }
-
-  return NextResponse.json({ ok: true }, { status: 200 });
 }
