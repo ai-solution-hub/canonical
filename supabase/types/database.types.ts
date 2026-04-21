@@ -2107,6 +2107,33 @@ export type Database = {
           },
         ]
       }
+      taxonomy_sync_state: {
+        Row: {
+          created_at: string
+          id: string
+          last_sync_at: string | null
+          last_sync_hash: string
+          synced_by: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_sync_at?: string | null
+          last_sync_hash?: string
+          synced_by?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_sync_at?: string | null
+          last_sync_hash?: string
+          synced_by?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       template_completions: {
         Row: {
           created_at: string | null

@@ -14,12 +14,15 @@ import { mockTaxonomyContext } from '../helpers/mock-contexts';
 // vi.hoisted() — mock values referenced in vi.mock() factories
 // ---------------------------------------------------------------------------
 
-const { mockFetch, mockTaxonomy } = vi.hoisted(() => ({
+const { mockFetch, mockTaxonomy, mockUserRole } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
   mockTaxonomy: {
     value: null as ReturnType<
       typeof import('../helpers/mock-contexts').mockTaxonomyContext
     > | null,
+  },
+  mockUserRole: {
+    value: { role: 'admin' as string, canAdmin: true, canEdit: true, loading: false },
   },
 }));
 
@@ -92,12 +95,7 @@ vi.mock('@/hooks/use-coverage-targets', () => ({
 }));
 
 vi.mock('@/hooks/use-user-role', () => ({
-  useUserRole: () => ({
-    role: 'admin',
-    canAdmin: true,
-    canEdit: true,
-    loading: false,
-  }),
+  useUserRole: () => mockUserRole.value,
 }));
 
 vi.mock('@/components/coverage/coverage-target-progress', () => ({
@@ -177,6 +175,7 @@ describe('CoverageContent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockTaxonomy.value = mockTaxonomyContext();
+    mockUserRole.value = { role: 'admin', canAdmin: true, canEdit: true, loading: false };
     vi.stubGlobal('fetch', mockFetch);
 
     // Clear localStorage store between tests
@@ -224,7 +223,7 @@ describe('CoverageContent', () => {
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
   });
 
-  it('shows empty-content state with Browse link when taxonomy exists but no content is catalogued', async () => {
+  it('shows empty-content state with "Add content" CTA for editors when taxonomy exists but no content', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve({ matrix: [], summary: [] }),
@@ -238,8 +237,30 @@ describe('CoverageContent', () => {
       ).toBeInTheDocument();
     });
     expect(
-      screen.getByRole('link', { name: /browse content/i }),
-    ).toHaveAttribute('href', '/browse');
+      screen.getByText('Add some content to see coverage broken down by domain.'),
+    ).toBeInTheDocument();
+    const ctaLink = screen.getByRole('link', { name: 'Add content' });
+    expect(ctaLink).toHaveAttribute('href', '/item/new');
+  });
+
+  it('hides CTA in empty-content state for viewers (canEdit=false)', async () => {
+    mockUserRole.value = { role: 'viewer', canAdmin: false, canEdit: false, loading: false };
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ matrix: [], summary: [] }),
+    });
+
+    render(<CoverageContent />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Your knowledge base is empty'),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByText('Add some content to see coverage broken down by domain.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Add content' })).not.toBeInTheDocument();
   });
 
   it('shows no-taxonomy empty state with Settings link when no domains exist', async () => {

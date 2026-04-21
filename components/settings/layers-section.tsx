@@ -413,10 +413,10 @@ export function LayersSection() {
       />
 
       <p className="mt-6 rounded-md border bg-muted/50 p-3 text-xs text-muted-foreground">
-        New layers added here will appear in the UI immediately. However, API
-        validation for metadata updates uses a static fallback list. After
-        adding a new layer, update the <code>FALLBACK_LAYERS</code> array in{' '}
-        <code>lib/client-config.ts</code> and redeploy for full API support.
+        Layer changes save immediately and are live in the UI. API metadata
+        validation currently uses a static fallback in{' '}
+        <code>lib/client-config.ts</code>; this will become DB-driven in a
+        future release.
       </p>
     </div>
   );

@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { RefreshCw, LayoutGrid, Download, Grid3x3, Target } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/empty-state/empty-state';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -78,7 +79,13 @@ function CoverageError({
 // Empty state
 // ---------------------------------------------------------------------------
 
-function CoverageEmpty({ reason }: { reason: 'no-taxonomy' | 'no-content' }) {
+function CoverageEmpty({
+  reason,
+  canEdit,
+}: {
+  reason: 'no-taxonomy' | 'no-content';
+  canEdit: boolean;
+}) {
   if (reason === 'no-taxonomy') {
     return (
       <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border px-6 py-16 text-center">
@@ -99,21 +106,13 @@ function CoverageEmpty({ reason }: { reason: 'no-taxonomy' | 'no-content' }) {
     );
   }
   return (
-    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border px-6 py-16 text-center">
-      <LayoutGrid
-        className="size-10 text-muted-foreground/50"
-        aria-hidden="true"
-      />
-      <h3 className="mt-4 text-base font-medium text-foreground">
-        Your knowledge base is empty
-      </h3>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Add some content to see coverage broken down by domain.
-      </p>
-      <Button asChild variant="outline" size="sm" className="mt-4">
-        <Link href="/browse">Browse content</Link>
-      </Button>
-    </div>
+    <EmptyState
+      icon={<LayoutGrid className="size-10" />}
+      title="Your knowledge base is empty"
+      description="Add some content to see coverage broken down by domain."
+      primaryCta={canEdit ? { label: 'Add content', href: '/item/new' } : undefined}
+      headingLevel="h3"
+    />
   );
 }
 
@@ -217,7 +216,7 @@ export function CoverageContent() {
     getDomainNames,
   } = useTaxonomy();
   const { targets, saveTargets } = useCoverageTargets();
-  const { canAdmin } = useUserRole();
+  const { canAdmin, canEdit } = useUserRole();
 
   const [data, setData] = useState<CoverageResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -380,6 +379,7 @@ export function CoverageContent() {
             reason={
               getDomainNames().length === 0 ? 'no-taxonomy' : 'no-content'
             }
+            canEdit={canEdit}
           />
         ) : (
           <>
