@@ -122,20 +122,34 @@ describe('content_history.change_reason guard (S153)', () => {
     );
   });
 
-  it('Python pipeline entry points call insert_content_history_entry', () => {
+  it('Python pipeline entry points call insert_content_history_entry (via shared helper)', () => {
+    // S185 WP-D centralised the insert_content_history_entry call inside
+    // scripts/kb_pipeline/post_insert.py::run_post_insert. Prior to S185
+    // each entry point (pipeline.py, ingest_markdown.py) called it inline;
+    // now they call run_post_insert which calls insert_content_history_entry
+    // with the canonical change_reason="initial_ingest". Guard updated to
+    // check the shared helper rather than every caller inline.
+    const helperPath = 'scripts/kb_pipeline/post_insert.py';
+    const content = readFileSync(path.join(REPO_ROOT, helperPath), 'utf-8');
+    expect(
+      content,
+      `${helperPath} should call insert_content_history_entry`,
+    ).toMatch(/insert_content_history_entry\(/);
+    expect(
+      content,
+      `${helperPath} should pass change_reason="initial_ingest"`,
+    ).toMatch(/change_reason\s*=\s*["']initial_ingest["']/);
+
+    // Callers must call run_post_insert (which routes through the helper).
     for (const rel of [
       'scripts/kb_pipeline/pipeline.py',
       'scripts/ingest_markdown.py',
     ]) {
-      const content = readFileSync(path.join(REPO_ROOT, rel), 'utf-8');
+      const callerContent = readFileSync(path.join(REPO_ROOT, rel), 'utf-8');
       expect(
-        content,
-        `${rel} should call insert_content_history_entry`,
-      ).toMatch(/insert_content_history_entry\(/);
-      expect(
-        content,
-        `${rel} should pass change_reason="initial_ingest"`,
-      ).toMatch(/change_reason\s*=\s*["']initial_ingest["']/);
+        callerContent,
+        `${rel} should call run_post_insert (S185 WP-D shared helper)`,
+      ).toMatch(/run_post_insert\(/);
     }
   });
 });

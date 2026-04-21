@@ -418,8 +418,16 @@ describe('Pipeline Parity', () => {
   // 10. Pipeline step presence in main entry point
   // ────────────────────────────────────────────────────────────────
 
-  describe('pipeline step presence in pipeline.py', () => {
+  describe('pipeline step presence (pipeline.py + shared post_insert helper)', () => {
+    // S185 WP-D refactored pipeline.py to delegate post-insert steps
+    // (history, chunks, entities, relationships, temporal refs, bridge,
+    // layer) to the shared `scripts/kb_pipeline/post_insert.py::run_post_insert`
+    // helper. The guard now checks BOTH files — each required call must
+    // appear in either pipeline.py OR post_insert.py (logically part of
+    // the canonical Python pipeline).
     const pipelineContent = readSource('scripts/kb_pipeline/pipeline.py');
+    const postInsertContent = readSource('scripts/kb_pipeline/post_insert.py');
+    const combined = pipelineContent + '\n' + postInsertContent;
 
     const requiredCalls = [
       'store_entities',
@@ -430,10 +438,11 @@ describe('Pipeline Parity', () => {
     ];
 
     for (const fnName of requiredCalls) {
-      it(`pipeline.py contains ${fnName}`, () => {
+      it(`pipeline.py + post_insert.py contain ${fnName}`, () => {
         expect(
-          pipelineContent.includes(fnName),
-          `scripts/kb_pipeline/pipeline.py does not contain "${fnName}". ` +
+          combined.includes(fnName),
+          `Neither scripts/kb_pipeline/pipeline.py nor ` +
+            `scripts/kb_pipeline/post_insert.py contains "${fnName}". ` +
             'The Python pipeline is missing a required processing step.',
         ).toBe(true);
       });
