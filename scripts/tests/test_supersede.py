@@ -120,6 +120,55 @@ def test_success_updates_old_row_and_returns_both_snapshots():
     assert body == {"superseded_by": NEW_ID, "dedup_status": "superseded"}
     assert req.get_method() == "PATCH"
 
+    # M2 verifier fix — PATCH URL now selects only the four result columns
+    # instead of returning the full row via Prefer: return=representation.
+    assert "select=id,title,superseded_by,dedup_status" in req.full_url
+
+
+def test_success_logs_audit_line_with_actor_and_titles(caplog):
+    """L4 verifier fix — assert the [supersession.set] audit line."""
+    with patch("kb_pipeline.supersede.urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.side_effect = _urlopen_sequence(
+            _mock_response([OLD_ROW]),
+            _mock_response([NEW_ROW]),
+            _mock_response([UPDATED_OLD_ROW]),
+        )
+
+        with caplog.at_level("INFO", logger="kb_pipeline.supersede"):
+            set_supersession(OLD_ID, NEW_ID, ACTOR_ID)
+
+    matching = [
+        rec
+        for rec in caplog.records
+        if rec.name == "kb_pipeline.supersede"
+        and "[supersession.set]" in rec.getMessage()
+    ]
+    assert len(matching) == 1, matching
+    msg = matching[0].getMessage()
+    assert OLD_ID in msg
+    assert NEW_ID in msg
+    assert ACTOR_ID in msg
+    assert OLD_ROW["title"] in msg
+    assert NEW_ROW["title"] in msg
+
+
+def test_no_audit_line_when_validation_fails(caplog):
+    with patch("kb_pipeline.supersede.urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.side_effect = _urlopen_sequence(
+            _mock_response([]),
+        )
+
+        with caplog.at_level("INFO", logger="kb_pipeline.supersede"):
+            with pytest.raises(SupersessionError):
+                set_supersession(OLD_ID, NEW_ID, ACTOR_ID)
+
+    matching = [
+        rec
+        for rec in caplog.records
+        if "[supersession.set]" in rec.getMessage()
+    ]
+    assert matching == []
+
 
 def test_rejects_same_id_without_any_db_call():
     with patch("kb_pipeline.supersede.urllib.request.urlopen") as mock_urlopen:
@@ -201,6 +250,20 @@ def test_raises_runtime_error_on_http_failure_during_fetch():
 
         with pytest.raises(RuntimeError):
             set_supersession(OLD_ID, NEW_ID, ACTOR_ID)
+
+
+def test_raises_runtime_error_on_urlerror_during_fetch():
+    """M3 verifier fix — URLError (network down) must NOT be treated as OLD_NOT_FOUND."""
+    with patch("kb_pipeline.supersede.urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.side_effect = _urlopen_sequence(
+            URLError("Network unreachable"),
+        )
+
+        with pytest.raises(RuntimeError) as ei:
+            set_supersession(OLD_ID, NEW_ID, ACTOR_ID)
+
+    # Confirm it's not a misrouted SupersessionError.
+    assert not isinstance(ei.value, SupersessionError)
 
 
 def test_raises_runtime_error_on_http_failure_during_update():

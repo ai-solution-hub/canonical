@@ -11,6 +11,29 @@
  * flip its `dedup_status` to `'superseded'`, and emit a Sentry breadcrumb
  * for observability. Callers handle auth + downstream reads.
  *
+ * TS ⇄ Python parity notes (B.2 verifier M1/L3/L5):
+ *   - This helper emits `SupersessionError.context` keys in camelCase
+ *     (`oldId`, `existingSupersededBy`); the Python equivalent emits the
+ *     same semantic fields in snake_case (`old_id`,
+ *     `existing_superseded_by`). Each language follows its own idiom —
+ *     callers are language-local so there is no cross-boundary inspection.
+ *   - TS loads old + new rows via `Promise.all`; Python does it
+ *     sequentially. Observable error codes are identical (OLD_NOT_FOUND
+ *     wins when both are missing) so the divergence is latency-only.
+ *   - Error messages include raw UUIDs. This is safe because all routes
+ *     that surface these errors are admin-only per spec §6; if a
+ *     non-admin route ever calls this helper, it MUST NOT leak the
+ *     SupersessionError message directly — treat it as internal-only.
+ *
+ * Concurrency note (B.2 verifier L2 — TOCTOU):
+ *   Two concurrent callers can both pass the OLD_ALREADY_SUPERSEDED
+ *   validation, then both issue the UPDATE. The second UPDATE wins and
+ *   silently overwrites `superseded_by` with a different `newId`. The
+ *   DB CHECK only prevents self-ref, not conflicting-pointer races.
+ *   Worst case: old row points to the wrong successor — not corruption.
+ *   Acceptable pre-launch because supersession is admin-only + low
+ *   volume; revisit post-launch if audit evidence shows the race.
+ *
  * Spec: docs/specs/supersession-model-spec.md §5.4
  * Plan: docs/plans/supersession-model-plan.md §B.2
  */

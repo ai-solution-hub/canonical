@@ -3,6 +3,26 @@
 Mirror of `lib/supersession/set.ts`. Same validation + write semantics so
 TS and Python callers agree.
 
+TS ⇄ Python parity notes (B.2 verifier M1/L3/L5):
+  * `SupersessionError.context` keys are snake_case here (`old_id`,
+    `existing_superseded_by`); the TS equivalent uses camelCase. Each
+    language follows its own idiom — callers are language-local so no
+    cross-boundary inspection happens.
+  * TS loads old + new rows concurrently via `Promise.all`; Python does
+    it sequentially. Observable error codes are identical (OLD_NOT_FOUND
+    wins when both are missing), so the divergence is latency-only.
+  * Error messages include raw UUIDs. This is safe because supersession
+    is admin-only per spec §6; callers that might surface the message
+    to non-admins MUST strip IDs.
+
+Concurrency note (B.2 verifier L2 — TOCTOU):
+  Two concurrent callers can both pass the OLD_ALREADY_SUPERSEDED
+  validation, then both issue the PATCH. The second PATCH wins and
+  silently overwrites `superseded_by` with a different `new_id`. The
+  DB CHECK only prevents self-ref, not conflicting-pointer races.
+  Acceptable pre-launch because supersession is admin-only + low
+  volume; revisit post-launch if audit evidence shows the race.
+
 Spec:  docs/specs/supersession-model-spec.md §5.4
 Plan:  docs/plans/supersession-model-plan.md §B.2
 """
@@ -63,6 +83,16 @@ def _headers() -> Dict[str, str]:
     }
 
 
+# Sentinel status codes returned alongside data=None:
+#   200/206 + data=None  => row genuinely does not exist
+#   -1                    => network / URLError (opaque)
+#   4xx/5xx               => HTTP error from PostgREST
+# Only 200/206 should be interpreted as "not found" by the caller; anything
+# else must surface as RuntimeError (M3 verifier fix — previously returned 0
+# for URLError which collided with the not-found branch).
+_URLERROR_STATUS: int = -1
+
+
 def _fetch_row(item_id: str) -> Tuple[int, Optional[Dict[str, Any]]]:
     """GET the minimal fields needed for supersession validation + response."""
     path = (
@@ -90,14 +120,22 @@ def _fetch_row(item_id: str) -> Tuple[int, Optional[Dict[str, Any]]]:
         return e.code, None
     except urllib.error.URLError as e:
         logger.warning("set_supersession: fetch network error for %s: %s", item_id, e)
-        return 0, None
+        return _URLERROR_STATUS, None
 
 
 def _update_old_row(
     old_id: str, new_id: str
 ) -> Tuple[int, Optional[Dict[str, Any]]]:
-    """PATCH old row — superseded_by + dedup_status in one call."""
-    path = f"content_items?id=eq.{urllib.parse.quote(old_id, safe='')}"
+    """PATCH old row — superseded_by + dedup_status in one call.
+
+    Selects only the four columns the caller serialises back to the result
+    shape, matching `lib/supersession/set.ts` (M2 verifier fix — previous
+    revision returned the full row via `Prefer: return=representation`).
+    """
+    path = (
+        f"content_items?id=eq.{urllib.parse.quote(old_id, safe='')}"
+        f"&select=id,title,superseded_by,dedup_status"
+    )
     url = f"{get_supabase_url()}/rest/v1/{path}"
     body = json.dumps(
         {
@@ -123,7 +161,7 @@ def _update_old_row(
         return e.code, None
     except urllib.error.URLError as e:
         logger.warning("set_supersession: PATCH network error for %s: %s", old_id, e)
-        return 0, None
+        return _URLERROR_STATUS, None
 
 
 def set_supersession(
@@ -156,9 +194,12 @@ def set_supersession(
             {"old_id": old_id, "new_id": new_id},
         )
 
+    # Only treat 200/206 + empty list as "not found". Any other status (HTTP
+    # error, URLError sentinel) must surface as RuntimeError — a network
+    # outage is not the same outcome as "row does not exist" (M3 fix).
     old_status, old_row = _fetch_row(old_id)
     if old_row is None:
-        if old_status in (0, 200, 206):
+        if old_status in (200, 206):
             raise SupersessionError(
                 "OLD_NOT_FOUND",
                 f"Old item not found: {old_id}",
@@ -170,7 +211,7 @@ def set_supersession(
 
     new_status, new_row = _fetch_row(new_id)
     if new_row is None:
-        if new_status in (0, 200, 206):
+        if new_status in (200, 206):
             raise SupersessionError(
                 "NEW_NOT_FOUND",
                 f"New item not found: {new_id}",

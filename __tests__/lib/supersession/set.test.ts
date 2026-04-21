@@ -1,6 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
+
+// Mock @sentry/nextjs BEFORE importing the helper so the spy captures
+// every addBreadcrumb call (L4 verifier fix — previously untested).
+vi.mock('@sentry/nextjs', () => ({
+  addBreadcrumb: vi.fn(),
+}));
+import * as Sentry from '@sentry/nextjs';
+
 import { setSupersession, SupersessionError } from '@/lib/supersession/set';
 
 // ---------------------------------------------------------------------------
@@ -118,6 +126,50 @@ describe('setSupersession', () => {
       dedup_status: 'superseded',
     });
     expect(updateChain.eq).toHaveBeenCalledWith('id', OLD_ID);
+  });
+
+  it('emits a Sentry breadcrumb with actor + both titles on success', async () => {
+    const { client } = makeMockClient(
+      { data: oldRow, error: null },
+      { data: newRow, error: null },
+      { data: updatedOldRow, error: null },
+    );
+
+    await setSupersession(
+      { oldId: OLD_ID, newId: NEW_ID, actorUserId: ACTOR_ID },
+      client,
+    );
+
+    expect(Sentry.addBreadcrumb).toHaveBeenCalledTimes(1);
+    expect(Sentry.addBreadcrumb).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: 'supersession.set',
+        level: 'info',
+        message: expect.stringContaining(OLD_ID),
+        data: expect.objectContaining({
+          oldId: OLD_ID,
+          newId: NEW_ID,
+          actorUserId: ACTOR_ID,
+          oldTitle: oldRow.title,
+          newTitle: newRow.title,
+        }),
+      }),
+    );
+  });
+
+  it('does not emit a breadcrumb when validation fails', async () => {
+    const { client } = makeMockClient(
+      { data: null, error: null },
+      { data: newRow, error: null },
+      { data: null, error: null },
+    );
+
+    await setSupersession(
+      { oldId: OLD_ID, newId: NEW_ID, actorUserId: ACTOR_ID },
+      client,
+    ).catch(() => undefined);
+
+    expect(Sentry.addBreadcrumb).not.toHaveBeenCalled();
   });
 
   it('rejects self-supersession with SAME_ID without hitting the DB', async () => {
