@@ -250,6 +250,10 @@ export const ItemUpdateBodySchema = z
       'governance_review_status',
       'expiry_date',
       'lifecycle_type',
+      // S186 WP-B.5 — supersession. Admin-only; the route branches
+      // before the generic update and calls setSupersession() instead.
+      // Value is the NEW item's UUID (successor), or null to un-supersede.
+      'superseded_by',
     ]),
     value: z.union([
       z.string().max(500_000),
@@ -294,6 +298,27 @@ export const ItemUpdateBodySchema = z
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: `Value for field '${data.field}' must be at most 5,000 characters`,
+          path: ['value'],
+        });
+      }
+    }
+    // superseded_by must be a UUID string, a valid stringified null, or null.
+    if (data.field === 'superseded_by') {
+      const UUID_RE =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (data.value !== null && typeof data.value !== 'string') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'superseded_by value must be a UUID string or null',
+          path: ['value'],
+        });
+      } else if (
+        typeof data.value === 'string' &&
+        !UUID_RE.test(data.value)
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'superseded_by value must be a valid UUID',
           path: ['value'],
         });
       }

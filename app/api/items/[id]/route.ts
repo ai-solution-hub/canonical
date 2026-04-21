@@ -15,6 +15,11 @@ import {
   warningsEnvelope,
 } from '@/lib/supabase/warnings';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
+import {
+  setSupersession,
+  SupersessionError,
+} from '@/lib/supersession/set';
+import { SupabaseError } from '@/lib/supabase/safe';
 
 export const maxDuration = 60;
 
@@ -47,6 +52,93 @@ export async function PATCH(
 
     const { field, value, regenerate_embedding, reclassify, change_reason } =
       parsed.data;
+
+    // --------------------------------------------------------------------
+    // Supersession branch (S186 WP-B.5). Admin-only. Detours around the
+    // generic update flow because the shared `setSupersession` helper
+    // handles validation (exists + not-self + not-chain) and the audit
+    // log. Spec: docs/specs/supersession-model-spec.md §5.1.
+    // --------------------------------------------------------------------
+    if (field === 'superseded_by') {
+      // Re-check role — supersession is admin-only even though the route
+      // otherwise accepts admin + editor (spec §5 Q1 lock).
+      const { data: userRole } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .single();
+      if (userRole?.role !== 'admin') {
+        return NextResponse.json(
+          { error: 'Supersession is admin-only.' },
+          { status: 403 },
+        );
+      }
+
+      // null clears the pointer (un-supersede) — revert dedup_status to
+      // suspected_duplicate so the row re-enters the soft-block review
+      // queue rather than being silently "clean". Admins needing 'clean'
+      // can set that via the existing update path if we ever expose it.
+      if (value === null) {
+        const { error: clearErr } = await supabase
+          .from('content_items')
+          .update({
+            superseded_by: null,
+            dedup_status: 'suspected_duplicate',
+            updated_by: user.id,
+          } as never)
+          .eq('id', id);
+        if (clearErr) {
+          return NextResponse.json(
+            { error: `Un-supersede failed: ${clearErr.message}` },
+            { status: 500 },
+          );
+        }
+        return NextResponse.json({
+          success: true,
+          superseded_by: null,
+          dedup_status: 'suspected_duplicate',
+        });
+      }
+
+      try {
+        const result = await setSupersession(
+          {
+            oldId: id,
+            newId: value as string,
+            actorUserId: user.id,
+          },
+          supabase,
+        );
+        return NextResponse.json({
+          success: true,
+          old_item: result.oldItem,
+          new_item: result.newItem,
+        });
+      } catch (err) {
+        if (err instanceof SupersessionError) {
+          const status =
+            err.code === 'OLD_NOT_FOUND' || err.code === 'NEW_NOT_FOUND'
+              ? 404
+              : 409;
+          return NextResponse.json(
+            { error: err.message, error_code: err.code },
+            { status },
+          );
+        }
+        if (err instanceof SupabaseError) {
+          return NextResponse.json(
+            { error: `Supersession failed: ${err.message}` },
+            { status: 500 },
+          );
+        }
+        return NextResponse.json(
+          {
+            error: `Unexpected error: ${safeErrorMessage(err, 'unknown error')}`,
+          },
+          { status: 500 },
+        );
+      }
+    }
 
     // Additional field-specific validation
     if (field === 'content_type' && typeof value === 'string') {

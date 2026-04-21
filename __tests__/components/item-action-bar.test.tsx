@@ -55,6 +55,12 @@ vi.mock('@/components/content/delete-content-dialog', () => ({
   ),
 }));
 
+vi.mock('@/components/content/supersede-content-dialog', () => ({
+  SupersedeContentDialog: ({ itemId }: { itemId: string }) => (
+    <div data-testid="supersede-dialog" data-item-id={itemId} />
+  ),
+}));
+
 vi.mock('next/dynamic', () => ({
   default: () => {
     const Stub = () => <div data-testid="pdf-viewer" />;

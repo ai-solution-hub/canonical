@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Archive,
   ExternalLink,
   FileText,
   BookOpen,
@@ -26,6 +27,7 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { DeleteContentDialog } from '@/components/content/delete-content-dialog';
+import { SupersedeContentDialog } from '@/components/content/supersede-content-dialog';
 import dynamic from 'next/dynamic';
 
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
@@ -214,6 +216,17 @@ export function ItemActionBar({
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem
+                onClick={() => {
+                  const btn = document.querySelector<HTMLButtonElement>(
+                    '[data-supersede-trigger]',
+                  );
+                  btn?.click();
+                }}
+              >
+                <Archive className="size-4" />
+                Mark as superseded…
+              </DropdownMenuItem>
+              <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
                 onClick={() => {
                   const btn = document.querySelector<HTMLButtonElement>(
@@ -243,6 +256,7 @@ export function ItemActionBar({
       {showAdminActions && (
         <div className="hidden">
           <DeleteContentDialog itemId={item.id} itemTitle={title} />
+          <SupersedeContentDialog itemId={item.id} itemTitle={title} />
         </div>
       )}
     </div>
