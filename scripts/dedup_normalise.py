@@ -17,9 +17,14 @@ import re
 # to the same form. Reference S183 acceptance in the continuation prompt
 # ("Are access levels granted according to [the] principle..." should
 # dedup with the "the"-less variant).
-_STANDALONE_ARTICLES = re.compile(r"\b(?:the|a|an)\b", re.IGNORECASE)
-_TRAILING_PUNCTUATION = re.compile(r"[?.!,;:\s]+$")
-_INTERNAL_WHITESPACE = re.compile(r"\s+")
+#
+# re.ASCII holds \b and \s to ASCII semantics, matching the JS regex
+# equivalent in lib/dedup-normalise.ts. Without it Python's \b treats
+# Unicode letters as word characters, causing divergent behaviour on
+# titles with accented characters. Reference: S183 WP2a verification M1.
+_STANDALONE_ARTICLES = re.compile(r"\b(?:the|a|an)\b", re.IGNORECASE | re.ASCII)
+_TRAILING_PUNCTUATION = re.compile(r"[?.!,;:\s]+$", re.ASCII)
+_INTERNAL_WHITESPACE = re.compile(r"\s+", re.ASCII)
 
 
 def normalise_title_for_dedup(title: str) -> str:

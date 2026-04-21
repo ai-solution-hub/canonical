@@ -23,8 +23,14 @@ logger = logging.getLogger(__name__)
 # docs/specs/cross-system-dedup-spec.md §6 Risks.
 DEDUP_MIN_CONTENT_LENGTH = 50
 
-_NON_WORD = re.compile(r"[^\w\s]")
-_WHITESPACE = re.compile(r"\s+")
+# re.ASCII is critical for cross-language parity. Python 3's default \w
+# matches Unicode word characters (accented letters etc.), while
+# JavaScript's \w and PostgreSQL's regex \w are ASCII-only. Without the
+# flag, Python normalises "cafe" (acute-e) differently from JS/PG, so
+# the md5 hashes disagree and find_exact_duplicates RPC misses real
+# duplicates. Reference: S183 WP2a verification finding M1.
+_NON_WORD = re.compile(r"[^\w\s]", re.ASCII)
+_WHITESPACE = re.compile(r"\s+", re.ASCII)
 
 
 def normalise_content_for_hash(text: str) -> str:
@@ -35,7 +41,7 @@ def normalise_content_for_hash(text: str) -> str:
     server-side hash. Matches `lib/dedup.ts::normaliseTextForHash`.
 
     Pipeline: lowercase -> trim -> strip non-word/non-space -> collapse
-    whitespace -> trim.
+    whitespace -> trim. ASCII-only \\w semantics (see _NON_WORD comment).
     """
     if not text:
         return ""
