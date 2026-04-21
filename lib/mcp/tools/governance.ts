@@ -410,33 +410,57 @@ export async function registerGovernanceTools(
               // has no entity_mentions, entity_relationships, summary, or
               // content_chunks. Running now fixes that so the item is fully
               // searchable + richly linked the moment it becomes live.
-              // Non-fatal: we surface as warnings but do not un-publish.
+              // Non-fatal: failures log but do not un-publish.
+              //
+              // Uses the service client (not the RLS-scoped MCP client) for
+              // parity with the API publish path and because classifyContent
+              // performs a delete-before-insert on entity_mentions which
+              // requires admin RLS — editor-role callers would silently
+              // no-op the delete otherwise.
               if (!row.classified_at && row.content) {
+                const { createServiceClient } = await import(
+                  '@/lib/supabase/server'
+                );
+                const { recordPipelineRun } = await import(
+                  '@/lib/pipeline/record-run'
+                );
+                const publishServiceClient = createServiceClient();
+
+                let classifyStatus: 'completed' | 'failed' = 'completed';
+                let classifyError: string | null = null;
                 try {
                   const classifyContent = await getClassifyContent();
                   await classifyContent({
-                    supabase,
+                    supabase: publishServiceClient,
                     itemId,
                     force: true,
                     userId,
                   });
                 } catch (classifyErr) {
+                  classifyStatus = 'failed';
+                  classifyError =
+                    classifyErr instanceof Error
+                      ? classifyErr.message
+                      : 'Unknown classification error';
                   console.error(
                     `MCP publish classify failed for ${itemId}:`,
                     classifyErr,
                   );
                 }
+                await recordPipelineRun({
+                  supabase: publishServiceClient,
+                  pipelineName: 'publish_classify',
+                  status: classifyStatus,
+                  itemsProcessed: 1,
+                  errorMessage: classifyError,
+                });
 
                 try {
                   const { regenerateChunks } = await import(
                     '@/lib/content/chunk-store'
                   );
-                  const { createServiceClient } = await import(
-                    '@/lib/supabase/server'
-                  );
-                  const chunkServiceClient = createServiceClient();
                   await regenerateChunks(
-                    chunkServiceClient,
+                    publishServiceClient,
                     itemId,
                     row.content,
                   );

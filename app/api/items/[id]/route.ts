@@ -238,26 +238,40 @@ export async function PATCH(
       !currentItem.classified_at &&
       currentItem.content
     ) {
+      const { createServiceClient } = await import('@/lib/supabase/server');
+      const { recordPipelineRun } = await import('@/lib/pipeline/record-run');
+      const publishServiceClient = createServiceClient();
+
+      let classifyStatus: 'completed' | 'failed' = 'completed';
+      let classifyError: string | null = null;
       try {
         const { classifyContent } = await import('@/lib/ai/classify');
-        const { createServiceClient } = await import('@/lib/supabase/server');
-        const serviceClient = createServiceClient();
         await classifyContent({
-          supabase: serviceClient,
+          supabase: publishServiceClient,
           itemId: id,
           force: true,
           userId: user.id,
         });
       } catch (classifyErr) {
+        classifyStatus = 'failed';
+        classifyError =
+          classifyErr instanceof Error
+            ? classifyErr.message
+            : 'Unknown classification error';
         console.error(`Publish classify failed for ${id}:`, classifyErr);
         warnings.add('Classification failed on publish');
       }
+      await recordPipelineRun({
+        supabase: publishServiceClient,
+        pipelineName: 'publish_classify',
+        status: classifyStatus,
+        itemsProcessed: 1,
+        errorMessage: classifyError,
+      });
 
       try {
         const { regenerateChunks } = await import('@/lib/content/chunk-store');
-        const { createServiceClient } = await import('@/lib/supabase/server');
-        const chunkServiceClient = createServiceClient();
-        await regenerateChunks(chunkServiceClient, id, currentItem.content);
+        await regenerateChunks(publishServiceClient, id, currentItem.content);
       } catch (chunkErr) {
         console.error(`Publish chunking failed for ${id}:`, chunkErr);
         warnings.add('Chunk generation failed on publish');
