@@ -204,10 +204,11 @@ describe('extractContent', () => {
       text: () => Promise.resolve('Too short'),
     });
 
-    // Firecrawl mock returns content
+    // Firecrawl mock returns HTML content (F-1 fix: html format, not markdown)
     const { default: Firecrawl } = await import('@mendable/firecrawl-js');
+    const htmlContent = '<p>' + 'Firecrawl content. '.repeat(100) + '</p>';
     const mockScrape = vi.fn().mockResolvedValue({
-      markdown: 'Firecrawl content '.repeat(100),
+      html: htmlContent,
       metadata: { title: 'FC Title' },
     });
     vi.mocked(Firecrawl).mockImplementation(function () {

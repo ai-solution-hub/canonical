@@ -278,11 +278,11 @@ export async function extractContent(
     const { default: Firecrawl } = await import('@mendable/firecrawl-js');
     const firecrawl = new Firecrawl({ apiKey: process.env.FIRECRAWL_API_KEY });
     const doc = await firecrawl.scrape(item.url, {
-      formats: ['markdown'] as const,
+      formats: ['html'] as const,
     });
 
-    if (doc.markdown) {
-      const text = doc.markdown;
+    if (doc.html) {
+      const text = turndown.turndown(doc.html).trim();
       console.log(
         `[Extraction] ${item.url} — Tier 3 (firecrawl), ${wordCount(text)} words`,
       );
