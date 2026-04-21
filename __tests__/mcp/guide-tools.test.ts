@@ -51,6 +51,19 @@ vi.mock('@/lib/mcp/auth', () => ({
   checkMcpRole: mocks.checkMcpRole,
 }));
 
+vi.mock('@/lib/validation/layer-schemas', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/validation/layer-schemas')>();
+  return {
+    ...actual,
+    fetchActiveLayerKeys: vi.fn().mockResolvedValue([
+      'sales_brief',
+      'bid_detail',
+      'company_reference',
+      'research',
+    ]),
+  };
+});
+
 // ---------------------------------------------------------------------------
 // Import after mocks
 // ---------------------------------------------------------------------------

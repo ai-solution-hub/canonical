@@ -22,9 +22,10 @@ import {
   VALID_GUIDE_TYPES,
   guideCreateSchema,
   guideUpdateSchema,
-  guideSectionSchema,
-  guideSectionUpdateSchema,
+  buildGuideSectionSchema,
+  buildGuideSectionUpdateSchema,
 } from '@/lib/validation/guide-schemas';
+import { fetchActiveLayerKeys } from '@/lib/validation/layer-schemas';
 import {
   formatGuideList,
   formatGuideDetail,
@@ -351,13 +352,13 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
         sections: z
           .array(
             z.object({
-              section_name: guideSectionSchema.shape.section_name.describe('Section name'),
-              description: guideSectionSchema.shape.description.describe('Section description'),
-              expected_layer: guideSectionSchema.shape.expected_layer.describe('Expected content layer'),
-              subtopic_filter: guideSectionSchema.shape.subtopic_filter.describe('Subtopic filter'),
-              content_type_filter: guideSectionSchema.shape.content_type_filter.describe('Content type filter'),
-              display_order: guideSectionSchema.shape.display_order.describe('Section display order'),
-              is_required: guideSectionSchema.shape.is_required.describe('Whether the section is required'),
+              section_name: z.string().min(1).max(200).describe('Section name'),
+              description: z.string().max(1000).optional().nullable().describe('Section description'),
+              expected_layer: z.string().optional().nullable().describe('Valid layer key — see kb://taxonomy resource for current values'),
+              subtopic_filter: z.string().optional().nullable().describe('Subtopic filter'),
+              content_type_filter: z.string().optional().nullable().describe('Content type filter'),
+              display_order: z.number().int().min(0).describe('Section display order'),
+              is_required: z.boolean().default(true).describe('Whether the section is required'),
             }),
           )
           .optional()
@@ -434,6 +435,40 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
         let sectionCount = 0;
 
         if (args.sections && args.sections.length > 0) {
+          // Validate section fields against live layer vocabulary
+          let layerKeys: string[];
+          try {
+            layerKeys = await fetchActiveLayerKeys(supabase);
+          } catch (err) {
+            const message =
+              err instanceof Error ? err.message : 'Unknown error';
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: `Layer vocabulary unavailable: ${message}. Guide was created but sections could not be validated.`,
+                },
+              ],
+              isError: true,
+            };
+          }
+
+          const sectionSchema = buildGuideSectionSchema(layerKeys);
+          for (const section of args.sections) {
+            const result = sectionSchema.safeParse(section);
+            if (!result.success) {
+              return {
+                content: [
+                  {
+                    type: 'text' as const,
+                    text: `Section validation failed: ${result.error.issues.map((i) => i.message).join('; ')}`,
+                  },
+                ],
+                isError: true,
+              };
+            }
+          }
+
           const sectionInserts = args.sections.map((s) => ({
             guide_id: guide.id,
             section_name: s.section_name,
@@ -520,13 +555,13 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
                 .uuid()
                 .optional()
                 .describe('Section UUID — include to update existing section, omit to insert new'),
-              section_name: guideSectionUpdateSchema.shape.section_name.describe('Section name'),
-              description: guideSectionUpdateSchema.shape.description.describe('Section description'),
-              expected_layer: guideSectionUpdateSchema.shape.expected_layer.describe('Expected content layer'),
-              subtopic_filter: guideSectionUpdateSchema.shape.subtopic_filter.describe('Subtopic filter'),
-              content_type_filter: guideSectionUpdateSchema.shape.content_type_filter.describe('Content type filter'),
-              display_order: guideSectionUpdateSchema.shape.display_order.describe('Section display order'),
-              is_required: guideSectionUpdateSchema.shape.is_required.describe('Whether the section is required'),
+              section_name: z.string().min(1).max(200).optional().describe('Section name'),
+              description: z.string().max(1000).nullable().optional().describe('Section description'),
+              expected_layer: z.string().optional().nullable().describe('Valid layer key — see kb://taxonomy resource for current values'),
+              subtopic_filter: z.string().nullable().optional().describe('Subtopic filter'),
+              content_type_filter: z.string().nullable().optional().describe('Content type filter'),
+              display_order: z.number().int().min(0).optional().describe('Section display order'),
+              is_required: z.boolean().optional().describe('Whether the section is required'),
             }),
           )
           .optional()
@@ -655,6 +690,40 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
         let sectionsUpdated = 0;
 
         if (args.sections && args.sections.length > 0) {
+          // Validate section fields against live layer vocabulary
+          let layerKeys: string[];
+          try {
+            layerKeys = await fetchActiveLayerKeys(supabase);
+          } catch (err) {
+            const message =
+              err instanceof Error ? err.message : 'Unknown error';
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: `Layer vocabulary unavailable: ${message}. Guide metadata was updated but sections could not be validated.`,
+                },
+              ],
+              isError: true,
+            };
+          }
+
+          const updateSectionSchema = buildGuideSectionUpdateSchema(layerKeys);
+          for (const section of args.sections) {
+            const result = updateSectionSchema.safeParse(section);
+            if (!result.success) {
+              return {
+                content: [
+                  {
+                    type: 'text' as const,
+                    text: `Section validation failed: ${result.error.issues.map((i) => i.message).join('; ')}`,
+                  },
+                ],
+                isError: true,
+              };
+            }
+          }
+
           const toUpdate = args.sections.filter((s) => s.id);
           const toInsert = args.sections.filter((s) => !s.id);
 
