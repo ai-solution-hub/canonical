@@ -642,9 +642,14 @@ def main():
                     if (i + 1) % 10 == 0:
                         print(f"  Stored {i + 1}/{len(pairs_to_import)}")
 
-                    # S185 WP-D — shared post_insert helper. Covers history,
-                    # chunks (gated by chunking_enabled), and layer inference.
-                    # Entity extraction is deferred to the pass below.
+                    # S185 WP-D — shared post_insert helper. Covers history
+                    # + chunks (gated by chunking_enabled). Entity extraction
+                    # is deferred to the pass below. Layer inference is
+                    # SKIPPED here because build_content_record() already
+                    # sets record["layer"] pre-insert via a bid_library-
+                    # specific infer_layer call — re-running post-insert
+                    # with ingestion_source="bid_library_import" would
+                    # clobber that value for short Q&As (verification H-1).
                     from kb_pipeline.post_insert import run_post_insert
 
                     pi = run_post_insert(
@@ -655,12 +660,13 @@ def main():
                         ingestion_source="bid_library_import",
                         classification=None,
                         history_change_summary=(
-                            f"Imported from bid library: {pair.get('_source_file', '?')}"
+                            f"Imported from bid library: {pair.get('source_file', '?')}"
                         ),
                         write_chunks=chunking_enabled,
                         store_entities_flag=False,
                         bridge_temporal=False,
                         write_temporal=False,
+                        infer_layer_flag=False,
                     )
                     chunk_success += pi.chunks_stored
                     if not chunking_enabled:
