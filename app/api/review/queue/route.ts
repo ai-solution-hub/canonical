@@ -284,8 +284,8 @@ async function handleFlaggedQuery(
   supabase: any,
   limit: number,
   offset: number,
-  domainParams: string[],
-  contentTypeParams: string[],
+  effectiveDomainParams: string[],
+  effectiveContentTypeParams: string[],
   sourceFileParam: string | null,
   sourceDocumentIdParam: string | null,
   sort?: string,
@@ -331,12 +331,12 @@ async function handleFlaggedQuery(
     .select(REVIEW_COLUMNS, { count: 'exact' })
     .in('id', itemIds);
 
-  if (domainParams.length > 0) {
-    query = query.in('primary_domain', domainParams);
+  if (effectiveDomainParams.length > 0) {
+    query = query.in('primary_domain', effectiveDomainParams);
   }
 
-  if (contentTypeParams.length > 0) {
-    query = query.in('content_type', contentTypeParams);
+  if (effectiveContentTypeParams.length > 0) {
+    query = query.in('content_type', effectiveContentTypeParams);
   }
 
   if (sourceFileParam) {
