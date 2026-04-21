@@ -93,10 +93,15 @@ vi.mock('@/lib/quality/quality-score', () => ({
   calculateAndRoundQualityScore: mockCalculateAndRoundQualityScore,
 }));
 
-vi.mock('@/lib/dedup', () => ({
-  checkForDuplicates: mockCheckForDuplicates,
-  formatDedupWarning: mockFormatDedupWarning,
-}));
+vi.mock('@/lib/dedup', async () => {
+  const actual =
+    await vi.importActual<typeof import('@/lib/dedup')>('@/lib/dedup');
+  return {
+    ...actual,
+    checkForDuplicates: mockCheckForDuplicates,
+    formatDedupWarning: mockFormatDedupWarning,
+  };
+});
 
 vi.mock('@/lib/change-summary', () => ({
   generateSingleFieldChangeSummary: vi.fn().mockReturnValue('Field updated'),

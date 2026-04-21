@@ -143,7 +143,7 @@ export async function PATCH(
     const { data: currentItem, error: fetchError } = await supabase
       .from('content_items')
       .select(
-        'title, content, brief, detail, reference, suggested_title, ai_keywords, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, priority, summary, content_type, platform, author_name, user_tags, answer_standard, answer_advanced, governance_review_status, expiry_date, lifecycle_type',
+        'title, content, brief, detail, reference, suggested_title, ai_keywords, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, priority, summary, content_type, platform, author_name, user_tags, answer_standard, answer_advanced, governance_review_status, expiry_date, lifecycle_type, classified_at',
       )
       .eq('id', id)
       .single();
@@ -224,6 +224,59 @@ export async function PATCH(
 
     // Collect non-fatal warnings to surface in the response
     const warnings = createWarningsCollector();
+
+    // S183 WP1 G2 — first-time publish for draft-created items needs
+    // classification + chunks. Drafts bypass the AI pipeline in POST
+    // /api/items, so items with classified_at = NULL have no
+    // entity_mentions, entity_relationships, summary, or content_chunks.
+    // Running now fixes that so the item is fully searchable + richly
+    // linked the moment it becomes live. Non-fatal: any failure becomes
+    // a warning rather than un-publishing the item.
+    if (
+      field === 'governance_review_status' &&
+      value === null &&
+      !currentItem.classified_at &&
+      currentItem.content
+    ) {
+      const { createServiceClient } = await import('@/lib/supabase/server');
+      const { recordPipelineRun } = await import('@/lib/pipeline/record-run');
+      const publishServiceClient = createServiceClient();
+
+      let classifyStatus: 'completed' | 'failed' = 'completed';
+      let classifyError: string | null = null;
+      try {
+        const { classifyContent } = await import('@/lib/ai/classify');
+        await classifyContent({
+          supabase: publishServiceClient,
+          itemId: id,
+          force: true,
+          userId: user.id,
+        });
+      } catch (classifyErr) {
+        classifyStatus = 'failed';
+        classifyError =
+          classifyErr instanceof Error
+            ? classifyErr.message
+            : 'Unknown classification error';
+        console.error(`Publish classify failed for ${id}:`, classifyErr);
+        warnings.add('Classification failed on publish');
+      }
+      await recordPipelineRun({
+        supabase: publishServiceClient,
+        pipelineName: 'publish_classify',
+        status: classifyStatus,
+        itemsProcessed: 1,
+        errorMessage: classifyError,
+      });
+
+      try {
+        const { regenerateChunks } = await import('@/lib/content/chunk-store');
+        await regenerateChunks(publishServiceClient, id, currentItem.content);
+      } catch (chunkErr) {
+        console.error(`Publish chunking failed for ${id}:`, chunkErr);
+        warnings.add('Chunk generation failed on publish');
+      }
+    }
 
     // Check if domain has review-on-change governance posture
     // If the edited field is a significant content field, trigger governance review

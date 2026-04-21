@@ -742,4 +742,133 @@ describe('POST /api/items/batch', () => {
       }
     });
   });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Dedup soft-block per item (WP1 / spec §6 D1, D2)
+  // ─────────────────────────────────────────────────────────────────────
+
+  describe('dedup soft-block stamping', () => {
+    const EXISTING_ID = 'c3d4e5f6-a7b8-4901-9cde-f23456789012';
+
+    function stubDedupResults(
+      results: Array<Array<{ id: string; title: string }>>,
+    ) {
+      // Each batch item calls rpc('find_exact_duplicates') once. Queue
+      // responses so each per-item check returns the expected match
+      // (or empty).
+      for (const result of results) {
+        mockServiceClient.rpc.mockResolvedValueOnce({
+          data: result,
+          error: null,
+        });
+      }
+    }
+
+    /** Content must exceed `DEDUP_MIN_CONTENT_LENGTH` (50 chars) to trigger the hash check. */
+    function makeDedupSampleItems(count: number = 2) {
+      return Array.from({ length: count }, (_, i) => ({
+        title: `Question ${i + 1}?`,
+        content: `Q: Question number ${i + 1} about our organisation's approach to safeguarding?\n\nA: We implement comprehensive safeguarding policies aligned with statutory guidance for item ${i + 1}.`,
+        contentType: 'q_a_pair' as const,
+        sectionName: 'Test Section',
+        answerAdvanced: '',
+        source: 'table' as const,
+        confidence: 'high' as const,
+      }));
+    }
+
+    beforeEach(() => {
+      configureSuccessFlow();
+    });
+
+    it('stamps dedup_status=suspected_duplicate per item on exact match', async () => {
+      configureRole(mockSupabase, 'editor');
+
+      // Both items have duplicates
+      stubDedupResults([
+        [{ id: EXISTING_ID, title: 'Existing Q1' }],
+        [{ id: EXISTING_ID, title: 'Existing Q2' }],
+      ]);
+
+      const res = await POST(makeRequest({ items: makeDedupSampleItems(2) }));
+      expect(res.status).toBe(201);
+
+      const body = await res.json();
+      expect(body.suspected_duplicates).toBe(2);
+      for (const item of body.items) {
+        if (item.status === 'created') {
+          expect(item.dedup_status).toBe('suspected_duplicate');
+          expect(item.suspected_duplicate_of).toBe(EXISTING_ID);
+        }
+      }
+
+      // Insert payload carried the stamp for each item
+      const insertCalls = mockContentChain.insert.mock.calls;
+      for (const call of insertCalls) {
+        const insertData = call[0];
+        if (insertData.content_type === 'q_a_pair') {
+          expect(insertData.dedup_status).toBe('suspected_duplicate');
+          expect(insertData.metadata.suspected_duplicate_of).toBe(EXISTING_ID);
+        }
+      }
+    });
+
+    it('stamps dedup_status=clean when no matches', async () => {
+      configureRole(mockSupabase, 'editor');
+
+      // No duplicates for either item
+      stubDedupResults([[], []]);
+
+      const res = await POST(makeRequest({ items: makeDedupSampleItems(2) }));
+      expect(res.status).toBe(201);
+
+      const body = await res.json();
+      expect(body.suspected_duplicates).toBe(0);
+      for (const item of body.items) {
+        if (item.status === 'created') {
+          expect(item.dedup_status).toBe('clean');
+          expect(item.suspected_duplicate_of).toBeUndefined();
+        }
+      }
+    });
+
+    it('admin skip_dedup=true bypasses stamp for all items', async () => {
+      configureRole(mockSupabase, 'admin');
+
+      // Even with matches, skip_dedup true + admin = clean stamp
+      stubDedupResults([
+        [{ id: EXISTING_ID, title: 'Existing Q1' }],
+        [{ id: EXISTING_ID, title: 'Existing Q2' }],
+      ]);
+
+      const res = await POST(
+        makeRequest({ items: makeDedupSampleItems(2), skip_dedup: true }),
+      );
+      expect(res.status).toBe(201);
+
+      const body = await res.json();
+      expect(body.suspected_duplicates).toBe(0);
+      for (const item of body.items) {
+        if (item.status === 'created') {
+          expect(item.dedup_status).toBe('clean');
+          expect(item.suspected_duplicate_of).toBeUndefined();
+        }
+      }
+    });
+
+    it('non-admin skip_dedup=true is silently ignored — stamps still applied', async () => {
+      configureRole(mockSupabase, 'editor');
+
+      stubDedupResults([[{ id: EXISTING_ID, title: 'Existing Q1' }], []]);
+
+      const res = await POST(
+        makeRequest({ items: makeDedupSampleItems(2), skip_dedup: true }),
+      );
+      expect(res.status).toBe(201);
+
+      const body = await res.json();
+      // Editor cannot bypass — exact match on item 1 still stamped
+      expect(body.suspected_duplicates).toBe(1);
+    });
+  });
 });

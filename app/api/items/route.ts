@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     // Auth + role check
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth.success) return authFailureResponse(auth);
-    const { user, supabase } = auth;
+    const { user, supabase, role } = auth;
 
     // Rate limit: 20 requests per minute
     const { allowed } = checkRateLimit(
@@ -57,7 +57,12 @@ export async function POST(request: NextRequest) {
       governance_review_status,
       ingestion_source,
       source_document_id,
+      skip_dedup,
     } = parsed.data;
+
+    // Admin-only dedup override (spec §6 D2). Silent-ignore for
+    // non-admin — do not 403 a legitimate write.
+    const skipDedup = skip_dedup === true && role === 'admin';
 
     // Generate embedding synchronously before INSERT (fast, ~200ms)
     let embeddingValue: string | undefined;
@@ -74,7 +79,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Deduplication check (informational — does not block creation)
+    // Deduplication — soft-block per spec §6 D1. Exact-hash match
+    // stamps `dedup_status='suspected_duplicate'` and records the
+    // existing id in `metadata.suspected_duplicate_of`. Near-duplicate
+    // matches remain informational warnings. Admin override via
+    // `skip_dedup=true` bypasses the stamp (silent-ignore for non-admin).
     const warnings: string[] = [];
     let dedupMatches: Array<{
       id: string;
@@ -82,8 +91,12 @@ export async function POST(request: NextRequest) {
       similarity: number;
       match_type: string;
     }> = [];
+    let dedupStamp: {
+      dedup_status: 'clean' | 'suspected_duplicate';
+      suspected_duplicate_of?: string;
+    } = { dedup_status: 'clean' };
     try {
-      const { checkForDuplicates, formatDedupWarning } =
+      const { checkForDuplicates, formatDedupWarning, resolveDedupStamp } =
         await import('@/lib/dedup');
       const plainText = stripMarkdown(content);
       const dedupResult = await checkForDuplicates(
@@ -96,6 +109,10 @@ export async function POST(request: NextRequest) {
         const warning = formatDedupWarning(dedupResult);
         if (warning) warnings.push(warning);
       }
+      const exactMatch = dedupResult.matches.find(
+        (m) => m.match_type === 'exact',
+      );
+      dedupStamp = resolveDedupStamp(exactMatch?.id, { skipDedup });
     } catch (dedupErr) {
       console.error('Dedup check failed:', dedupErr);
       // Non-fatal — continue with creation
@@ -111,7 +128,13 @@ export async function POST(request: NextRequest) {
         platform: 'manual',
         captured_date: new Date().toISOString(),
         created_by: user.id,
-        metadata: { ingestion_source: ingestion_source ?? 'manual' },
+        metadata: {
+          ingestion_source: ingestion_source ?? 'manual',
+          ...(dedupStamp.suspected_duplicate_of && {
+            suspected_duplicate_of: dedupStamp.suspected_duplicate_of,
+          }),
+        },
+        dedup_status: dedupStamp.dedup_status,
         ...(primary_domain && { primary_domain }),
         ...(primary_subtopic && { primary_subtopic }),
         ...(secondary_domain && { secondary_domain }),
@@ -365,6 +388,10 @@ export async function POST(request: NextRequest) {
         content_type: newItem.content_type,
         created_at: newItem.created_at,
         warnings,
+        dedup_status: dedupStamp.dedup_status,
+        ...(dedupStamp.suspected_duplicate_of && {
+          suspected_duplicate_of: dedupStamp.suspected_duplicate_of,
+        }),
         ...(dedupMatches.length > 0 && { duplicate_matches: dedupMatches }),
         ...(suggestedLayer && { suggested_layer: suggestedLayer }),
         ...(topicSuggestion && { topic_suggestion: topicSuggestion }),

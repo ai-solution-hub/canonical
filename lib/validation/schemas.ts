@@ -214,6 +214,10 @@ export const ItemCreateBodySchema = z.object({
     .string()
     .uuid('source_document_id must be a valid UUID')
     .optional(),
+
+  // Admin-only dedup override (spec §6 D2). Non-admins passing this
+  // flag are silently ignored — the dedup stamp proceeds as normal.
+  skip_dedup: z.boolean().optional(),
 });
 
 /** POST /api/items/:id/classify -- on-demand classification */
@@ -661,6 +665,12 @@ export const KBIntegrationBodySchema = z.object({
         .optional(),
     }),
   ),
+  /**
+   * Admin-only dedup override (spec §6 D2). When true and caller is
+   * admin, skip the exact-hash pre-insert check and allow duplicates
+   * through. Non-admins are silently ignored.
+   */
+  skip_dedup: z.boolean().optional(),
 });
 
 /** Runtime validation for workspaces.domain_metadata when type='bid' */

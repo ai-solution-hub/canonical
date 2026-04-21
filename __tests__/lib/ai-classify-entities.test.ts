@@ -474,9 +474,10 @@ describe('classifyContent — entity extraction', () => {
         userId: USER_ID,
       });
 
-      // Verify entity_relationships insert was called
+      // Verify entity_relationships upsert was called (S183 WP1 G1
+      // switched from insert to upsert with ignoreDuplicates: true).
       expect(mockSupabase.from).toHaveBeenCalledWith('entity_relationships');
-      expect(mockSupabase._chain.insert).toHaveBeenCalledWith(
+      expect(mockSupabase._chain.upsert).toHaveBeenCalledWith(
         expect.arrayContaining([
           expect.objectContaining({
             source_entity: 'acme limited', // canonicalised + lowercased
@@ -486,6 +487,11 @@ describe('classifyContent — entity extraction', () => {
             confidence: 1.0,
           }),
         ]),
+        expect.objectContaining({
+          onConflict:
+            'source_entity,relationship_type,target_entity,source_item_id',
+          ignoreDuplicates: true,
+        }),
       );
     });
 
@@ -534,9 +540,24 @@ describe('classifyContent — entity extraction', () => {
     });
 
     it('does not break classification when relationship storage throws', async () => {
-      // Configure insert to throw an exception
-      mockSupabase._chain.insert.mockImplementationOnce(() => {
-        throw new Error('Database connection lost');
+      // Configure upsert to throw an exception — entity_mentions and
+      // entity_relationships share the same chain mock, so we restore
+      // the entity_mentions-friendly behaviour (no-throw) after the
+      // first call. The upsert call order in classifyContent is
+      // entity_mentions first, entity_relationships second, so we need
+      // to throw on the SECOND upsert invocation, not the first.
+      let upsertCallCount = 0;
+      mockSupabase._chain.upsert.mockImplementation(() => {
+        upsertCallCount += 1;
+        if (upsertCallCount === 2) {
+          throw new Error('Database connection lost');
+        }
+        return {
+          ...mockSupabase._chain,
+          then: vi.fn((resolve: (v: unknown) => void) =>
+            resolve({ data: null, error: null }),
+          ),
+        };
       });
 
       mockCreate.mockResolvedValueOnce(
@@ -659,13 +680,19 @@ describe('classifyContent — entity extraction', () => {
         userId: USER_ID,
       });
 
-      expect(mockSupabase._chain.insert).toHaveBeenCalledWith(
+      // S183 WP1 G1 — insert switched to upsert with ignoreDuplicates.
+      expect(mockSupabase._chain.upsert).toHaveBeenCalledWith(
         expect.arrayContaining([
           expect.objectContaining({
             source_entity: 'acme limited', // canonicalised + lowercased
             target_entity: 'iso 27001', // canonicalised + lowercased
           }),
         ]),
+        expect.objectContaining({
+          onConflict:
+            'source_entity,relationship_type,target_entity,source_item_id',
+          ignoreDuplicates: true,
+        }),
       );
     });
 

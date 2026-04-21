@@ -593,6 +593,7 @@ def main():
             print(f"[9/9] Storing {len(pairs_to_import)} items in Supabase...")
             try:
                 from kb_pipeline.store import insert_content_item
+                from kb_pipeline.dedup import check_content_hash_duplicate
             except ImportError as e:
                 print(f"  ERROR: Could not import store module: {e}")
                 sys.exit(1)
@@ -614,6 +615,25 @@ def main():
                 # Attach embedding if present
                 if pair.get("_embedding"):
                     record["embedding"] = pair["_embedding"]
+
+                # Dedup (content-hash soft block, S183 WP2). Operates on
+                # the full Q&A body — title-level dedup already ran in
+                # dedup_across_files_by_title; this catches Q&As from
+                # separate runs/files that share the same body.
+                is_dup_hash, hash_existing_id = check_content_hash_duplicate(
+                    record.get("content") or ""
+                )
+                if is_dup_hash:
+                    record["dedup_status"] = "suspected_duplicate"
+                    record["metadata"] = {
+                        **(record.get("metadata") or {}),
+                        "suspected_duplicate_of": hash_existing_id,
+                    }
+                    print(
+                        f"  DEDUP pair #{i}: CONTENT-HASH match -> "
+                        f"existing ID {hash_existing_id} — flagging "
+                        "(soft block)"
+                    )
 
                 success, id_or_error = insert_content_item(record)
                 if success:

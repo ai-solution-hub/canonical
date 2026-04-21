@@ -51,6 +51,12 @@ const BatchCreateBodySchema = z.object({
     .optional(),
   /** Single-use batch token to prevent duplicate submissions. */
   batch_token: z.string().min(1).max(500).optional(),
+  /**
+   * Admin-only dedup override (spec §6 D2). Non-admins passing this
+   * flag are silently ignored — the dedup stamp proceeds as normal.
+   * Applied to every item in the batch.
+   */
+  skip_dedup: z.boolean().optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -76,14 +82,20 @@ export async function POST(request: NextRequest) {
     // Auth + role check
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth.success) return authFailureResponse(auth);
-    const { user } = auth;
+    const { user, role } = auth;
 
     // Parse and validate request body
     const raw = await request.json();
     const parsed = parseBody(BatchCreateBodySchema, raw);
     if (!parsed.success) return parsed.response;
 
-    const { items, source_document_id, batch_token } = parsed.data;
+    const { items, source_document_id, batch_token, skip_dedup } = parsed.data;
+
+    // Admin-only dedup override (spec §6 D2). Silent-ignore for
+    // non-admin — do not 403 a legitimate batch write.
+    const skipDedup = skip_dedup === true && role === 'admin';
+    const { checkExactDuplicate, resolveDedupStamp } =
+      await import('@/lib/dedup');
 
     // Service client for pipeline_runs and item creation (bypasses RLS)
     const { createServiceClient } = await import('@/lib/supabase/server');
@@ -149,14 +161,40 @@ export async function POST(request: NextRequest) {
       title: string;
       status: 'created' | 'failed';
       error?: string;
+      dedup_status?: 'clean' | 'suspected_duplicate';
+      suspected_duplicate_of?: string;
     }> = [];
     const createdIds: string[] = [];
     let failedCount = 0;
+    let suspectedDuplicateCount = 0;
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
 
       try {
+        // Dedup — soft-block per spec §6 D1. Per-item exact-hash check
+        // before the insert; failures are non-fatal (insert proceeds as
+        // `clean` if the helper throws).
+        let dedupStamp: {
+          dedup_status: 'clean' | 'suspected_duplicate';
+          suspected_duplicate_of?: string;
+        } = { dedup_status: 'clean' };
+        try {
+          const dedupCheck = await checkExactDuplicate(
+            serviceClient,
+            item.content,
+          );
+          dedupStamp = resolveDedupStamp(
+            dedupCheck.isDuplicate ? dedupCheck.existingId : undefined,
+            { skipDedup },
+          );
+        } catch (dedupErr) {
+          console.error(`Dedup check failed for batch item ${i}:`, dedupErr);
+        }
+        if (dedupStamp.dedup_status === 'suspected_duplicate') {
+          suspectedDuplicateCount++;
+        }
+
         // Build the insert payload
         const metadata: Record<string, Json> = {
           ingestion_source: 'upload_autosplit',
@@ -171,6 +209,9 @@ export async function POST(request: NextRequest) {
         if (item.confidence) {
           metadata.detection_confidence = item.confidence;
         }
+        if (dedupStamp.suspected_duplicate_of) {
+          metadata.suspected_duplicate_of = dedupStamp.suspected_duplicate_of;
+        }
 
         const insertData: Database['public']['Tables']['content_items']['Insert'] =
           {
@@ -182,6 +223,7 @@ export async function POST(request: NextRequest) {
             captured_date: new Date().toISOString(),
             created_by: user.id,
             metadata,
+            dedup_status: dedupStamp.dedup_status,
             ...(source_document_id ? { source_document_id } : {}),
             ...(item.answerAdvanced
               ? { answer_advanced: item.answerAdvanced }
@@ -374,6 +416,10 @@ export async function POST(request: NextRequest) {
           id: newItem.id,
           title: newItem.title,
           status: 'created',
+          dedup_status: dedupStamp.dedup_status,
+          ...(dedupStamp.suspected_duplicate_of && {
+            suspected_duplicate_of: dedupStamp.suspected_duplicate_of,
+          }),
         });
       } catch (itemErr) {
         failedCount++;
@@ -449,6 +495,7 @@ export async function POST(request: NextRequest) {
       {
         created: createdIds.length,
         failed: failedCount,
+        suspected_duplicates: suspectedDuplicateCount,
         items: createdItems,
         pipeline_run_id: pipelineRunId,
         batch_id: autosplitBatchId,

@@ -1563,9 +1563,16 @@ ${contentForClassification}`,
         confidence: 1.0,
       }));
 
+      // Upsert with NULLS NOT DISTINCT unique index
+      // (entity_relationships_unique_tuple, S183 WP1 G1).
+      // ignoreDuplicates keeps repeated classifier runs idempotent —
+      // duplicate tuples silently no-op instead of failing the batch.
       const { error: relError } = await supabase
         .from('entity_relationships')
-        .insert(relRows);
+        .upsert(relRows, {
+          onConflict: 'source_entity,relationship_type,target_entity,source_item_id',
+          ignoreDuplicates: true,
+        });
 
       if (relError) {
         console.error('Failed to store entity relationships:', relError);

@@ -32,6 +32,12 @@ vi.mock('@/lib/ai/embed', () => ({
   generateEmbedding: (...args: unknown[]) => mockGenerateEmbedding(...args),
 }));
 
+// Bypass rate-limit — the in-memory counter leaks across tests and
+// tripping the 10/min gate masks real assertion failures.
+vi.mock('@/lib/rate-limit', () => ({
+  checkRateLimit: vi.fn(() => ({ allowed: true, remaining: 10 })),
+}));
+
 vi.spyOn(console, 'error').mockImplementation(() => {});
 
 // ---------------------------------------------------------------------------
@@ -814,5 +820,145 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
 
     // Embedding should NOT have been generated for empty content
     expect(mockGenerateEmbedding).not.toHaveBeenCalled();
+  });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Dedup soft-block: new_entry path = skip-and-log on exact match
+  // (WP1 / spec §6 D1, D2 — bid-outcome variant)
+  // ─────────────────────────────────────────────────────────────────────
+
+  const EXISTING_ITEM_ID = '00000000-0000-4000-8000-000000000099';
+  const LONG_RESPONSE =
+    '<p>We implement a comprehensive information-security management system aligned with ISO 27001:2022 across all operational areas.</p>';
+
+  function primeBidAndQuestions(
+    responseText: string = LONG_RESPONSE,
+  ): void {
+    // Bid in won state
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        id: BID_ID,
+        name: 'Won Bid',
+        status: 'won',
+        domain_metadata: { domain: 'Technology' },
+      },
+      error: null,
+    });
+
+    // Questions + responses via .then
+    let thenCallCount = 0;
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) {
+          return resolve({
+            data: [
+              {
+                id: QUESTION_ID,
+                question_text: 'Describe your security posture',
+              },
+            ],
+            error: null,
+          });
+        }
+        if (thenCallCount === 2) {
+          return resolve({
+            data: [{ question_id: QUESTION_ID, response_text: responseText }],
+            error: null,
+          });
+        }
+        return resolve({ data: [], error: null });
+      },
+    );
+  }
+
+  it('skips new_entry when exact hash matches existing KB item', async () => {
+    configureRole(mockSupabase, 'editor');
+    primeBidAndQuestions();
+
+    // find_exact_duplicates returns an existing match
+    mockSupabase.rpc.mockResolvedValueOnce({
+      data: [{ id: EXISTING_ITEM_ID, title: 'Existing ISO Entry' }],
+      error: null,
+    });
+
+    const req = createTestRequest(`/api/bids/${BID_ID}/outcome/integrate`, {
+      method: 'POST',
+      body: {
+        integrations: [{ question_id: QUESTION_ID, action: 'new_entry' }],
+      },
+    });
+    const params = createTestParams({ id: BID_ID });
+    const res = await postIntegrate(req, { params });
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.created).toBe(0);
+    expect(json.skipped).toBe(1);
+    expect(json.items[0].action).toBe('skipped');
+    expect(json.items[0].content_item_id).toBe(EXISTING_ITEM_ID);
+    expect(json.warnings.length).toBeGreaterThan(0);
+    expect(json.warnings[0]).toContain(EXISTING_ITEM_ID);
+
+    // Insert should NOT have been called for the skipped item
+    expect(mockGenerateEmbedding).not.toHaveBeenCalled();
+  });
+
+  it('admin skip_dedup=true forces insert even on exact match', async () => {
+    configureRole(mockSupabase, 'admin');
+    primeBidAndQuestions();
+
+    // Insert returns new item id
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: '00000000-0000-4000-8000-000000000051' },
+      error: null,
+    });
+
+    // find_exact_duplicates should NOT be queried when skip_dedup=true
+    // and role=admin. We don't queue a dedup response; any RPC call
+    // would consume the unqueued default ({ data: null, error: null }).
+
+    const req = createTestRequest(`/api/bids/${BID_ID}/outcome/integrate`, {
+      method: 'POST',
+      body: {
+        integrations: [{ question_id: QUESTION_ID, action: 'new_entry' }],
+        skip_dedup: true,
+      },
+    });
+    const params = createTestParams({ id: BID_ID });
+    const res = await postIntegrate(req, { params });
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.created).toBe(1);
+    expect(json.skipped).toBe(0);
+    expect(json.items[0].action).toBe('created');
+    expect(mockGenerateEmbedding).toHaveBeenCalled();
+  });
+
+  it('non-admin skip_dedup=true is silently ignored — dedup still skips', async () => {
+    configureRole(mockSupabase, 'editor');
+    primeBidAndQuestions();
+
+    // Editor cannot bypass — dedup check runs, match causes skip
+    mockSupabase.rpc.mockResolvedValueOnce({
+      data: [{ id: EXISTING_ITEM_ID, title: 'Existing' }],
+      error: null,
+    });
+
+    const req = createTestRequest(`/api/bids/${BID_ID}/outcome/integrate`, {
+      method: 'POST',
+      body: {
+        integrations: [{ question_id: QUESTION_ID, action: 'new_entry' }],
+        skip_dedup: true,
+      },
+    });
+    const params = createTestParams({ id: BID_ID });
+    const res = await postIntegrate(req, { params });
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.skipped).toBe(1);
+    expect(json.created).toBe(0);
   });
 });

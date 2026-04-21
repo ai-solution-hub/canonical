@@ -38,16 +38,25 @@ or deleted.
 **Parallel track worktrees vs agent worktrees:** The project may have two
 types of worktrees:
 
-- **Top-level track worktrees** (e.g.
-  `/Users/liamj/Documents/development/knowledge-hub-ui-ux-simplification`)
-  — long-lived worktrees for parallel development tracks. These have their
-  own continuation prompts and are NOT cleaned up between sessions. Do not
-  delete or prune these.
+- **Top-level track worktrees** — long-lived worktrees for parallel
+  development tracks. These have their own continuation prompts and are
+  NOT cleaned up between sessions. Do not delete or prune these. Currently:
+  - `/Users/liamj/Documents/development/knowledge-hub-ui-ux-simplification`
+    (branch `knowledge-hub-ui-ux-simplification`) — UI simplification WP
+    series; merges back to main.
+  - `/Users/liamj/Documents/development/knowledge-hub-knowledge-platform`
+    (branch `kh-knowledge-platform`) — engineering-docs dogfood +
+    productisation validation; track-local session counter `kh-kpf-sN`;
+    does NOT merge back to main (one-way references only). Primer:
+    `docs/tracks/kh-knowledge-platform.md`.
 - **Agent worktrees** under `.claude/worktrees/` — ephemeral worktrees
   created by `isolation: "worktree"` during sessions. These SHOULD be
   cleaned up (prune + delete merged branches).
 
-When reporting worktree state, distinguish between the two types.
+When reporting worktree state, distinguish between the two types, and
+confirm which track the session is on before reading continuation prompts
+(filename conventions differ per track — see
+`docs/continuation-prompts/README.md`).
 
 ---
 

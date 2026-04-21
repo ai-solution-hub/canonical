@@ -7,7 +7,7 @@ from typing import Optional, List
 
 from .classify import classify, estimate_cost as classify_cost, store_entities, store_relationships, load_entity_aliases
 from .config import SHORT_CONTENT_THRESHOLD, LOW_CONFIDENCE_THRESHOLD
-from .dedup import is_duplicate
+from .dedup import is_duplicate, check_content_hash_duplicate
 from .embed import build_embedding_text, generate_embedding, estimate_cost as embed_cost
 from .extract import ExtractedContent, extract_url, extract_pdf
 from .store import (
@@ -93,6 +93,10 @@ def process_url(
     print(f"           Content: {len(extracted.content)} chars, type={extracted.content_type}, platform={extracted.platform}")
 
     # ── Step 2: Dedup ────────────────────────────────────────────────
+    # URL match = hard skip (same URL = same content by identity).
+    # Content-hash match = soft block (proceed + stamp
+    # dedup_status='suspected_duplicate'). Per S183 WP2 Q1 decision.
+    content_hash_duplicate_id: Optional[str] = None
     if not skip_dedup:
         dup, existing_id, method = is_duplicate(source_url=url)
         if dup:
@@ -101,6 +105,17 @@ def process_url(
             result.elapsed_seconds = time.time() - start
             print(f"  [Dedup]   DUPLICATE via {method} — skipping")
             return result
+
+        # Content-hash soft-block (S183 WP2). Different URL but identical
+        # content means a repeat ingest with a different source; flag and
+        # continue so reviewers can reconcile in the UI.
+        is_dup_hash, hash_existing_id = check_content_hash_duplicate(extracted.content)
+        if is_dup_hash:
+            content_hash_duplicate_id = hash_existing_id
+            print(
+                f"  [Dedup]   CONTENT-HASH match → existing ID {hash_existing_id}"
+                f" — flagging as suspected_duplicate (soft block)"
+            )
 
     # ── Step 3: Classify ─────────────────────────────────────────────
     if not skip_classify:
@@ -203,6 +218,15 @@ def process_url(
         "captured_date": extracted.captured_date or None,
         "metadata": extracted.metadata or {},
     }
+
+    # S183 WP2 — stamp dedup_status on the insert when content-hash
+    # matched an existing item.
+    if content_hash_duplicate_id:
+        record["dedup_status"] = "suspected_duplicate"
+        record["metadata"] = {
+            **(record.get("metadata") or {}),
+            "suspected_duplicate_of": content_hash_duplicate_id,
+        }
 
     # Add classification fields
     if cls:

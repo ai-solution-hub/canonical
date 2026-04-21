@@ -30,6 +30,22 @@ export interface DedupResult {
 }
 
 /**
+ * Minimum content length (post-normalisation, pre-hash) before we apply
+ * content-hash dedup. Short strings (e.g. a 20-word Q&A) collide too
+ * easily after punctuation/whitespace stripping. Below the threshold
+ * callers should fall through to title-norm or skip dedup entirely.
+ * Reference: cross-system-dedup-spec.md §6 Risks.
+ */
+export const DEDUP_MIN_CONTENT_LENGTH = 50;
+
+/** Outcome of the shared dedup gate used by every TS entry point. */
+export interface ExactDuplicateCheck {
+  isDuplicate: boolean;
+  existingId?: string;
+  existingTitle?: string;
+}
+
+/**
  * Normalise text for MD5 hashing — mirrors the Python pipeline approach.
  * Lowercases, strips punctuation, collapses whitespace.
  */
@@ -179,6 +195,72 @@ export async function checkForDuplicates(
   return {
     has_duplicates: allMatches.length > 0,
     matches: allMatches,
+  };
+}
+
+/**
+ * Shared dedup gate — returns the first exact-hash match (if any).
+ *
+ * Used by every TS entry point that inserts into `content_items` so
+ * duplicate content is caught consistently. Soft-block contract:
+ * callers should proceed with the insert and stamp
+ * `dedup_status = 'suspected_duplicate'` when `isDuplicate` is true.
+ * Admins can override via `skip_dedup=true` at the caller.
+ *
+ * Reference: docs/specs/cross-system-dedup-spec.md §3.1
+ */
+export async function checkExactDuplicate(
+  supabase: SupabaseClient<Database>,
+  contentText: string,
+  options: { excludeId?: string } = {},
+): Promise<ExactDuplicateCheck> {
+  const normalised = normaliseTextForHash(contentText);
+  if (!normalised || normalised.length < DEDUP_MIN_CONTENT_LENGTH) {
+    return { isDuplicate: false };
+  }
+  const matches = await findExactDuplicates(
+    supabase,
+    contentText,
+    options.excludeId,
+  );
+  const first = matches[0];
+  if (!first) return { isDuplicate: false };
+  return {
+    isDuplicate: true,
+    existingId: first.id,
+    existingTitle: first.title,
+  };
+}
+
+/**
+ * Resolve dedup stamp fields for an insert/update payload.
+ *
+ * Soft-block contract (spec §6 D1): callers proceed with the write and
+ * stamp `dedup_status='suspected_duplicate'` + record the existing item
+ * id in `metadata.suspected_duplicate_of` when an exact-hash match is
+ * found. Admin-only `skipDedup=true` silently bypasses the stamp.
+ *
+ * Usage:
+ *   const exact = dedupResult.matches.find(m => m.match_type === 'exact');
+ *   const { dedup_status, suspected_duplicate_of } =
+ *     resolveDedupStamp(exact?.id, { skipDedup });
+ *   // set insertData.dedup_status + merge suspected_duplicate_of into metadata
+ *
+ * Reference: docs/specs/cross-system-dedup-spec.md §6 D1, D2
+ */
+export function resolveDedupStamp(
+  existingId: string | undefined,
+  options: { skipDedup?: boolean } = {},
+): {
+  dedup_status: 'clean' | 'suspected_duplicate';
+  suspected_duplicate_of?: string;
+} {
+  if (options.skipDedup || !existingId) {
+    return { dedup_status: 'clean' };
+  }
+  return {
+    dedup_status: 'suspected_duplicate',
+    suspected_duplicate_of: existingId,
   };
 }
 

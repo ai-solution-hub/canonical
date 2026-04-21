@@ -34,6 +34,7 @@ import {
   type ToolExtra,
   toStructuredContent,
   getGenerateEmbedding,
+  getClassifyContent,
   defineTool,
   DESTRUCTIVE_WRITE_ANNOTATIONS,
   NON_IDEMPOTENT_WRITE_ANNOTATIONS,
@@ -322,7 +323,7 @@ export async function registerGovernanceTools(
         const { data: rows, error: fetchError } = await supabase
           .from('content_items')
           .select(
-            'id, title, suggested_title, content, governance_review_status',
+            'id, title, suggested_title, content, governance_review_status, classified_at',
           )
           .in('id', args.item_ids);
 
@@ -346,6 +347,7 @@ export async function registerGovernanceTools(
               suggested_title: string | null;
               content: string | null;
               governance_review_status: string | null;
+              classified_at: string | null;
             }>
           ).map((r) => [r.id, r]),
         );
@@ -410,6 +412,74 @@ export async function registerGovernanceTools(
                   error: updateError.message,
                 });
                 continue;
+              }
+
+              // S183 WP1 G2 — first-time publish for draft-created items
+              // needs classification + chunks. Drafts bypass the AI pipeline
+              // in create_content_item, so an item with classified_at = NULL
+              // has no entity_mentions, entity_relationships, summary, or
+              // content_chunks. Running now fixes that so the item is fully
+              // searchable + richly linked the moment it becomes live.
+              // Non-fatal: failures log but do not un-publish.
+              //
+              // Uses the service client (not the RLS-scoped MCP client) for
+              // parity with the API publish path and because classifyContent
+              // performs a delete-before-insert on entity_mentions which
+              // requires admin RLS — editor-role callers would silently
+              // no-op the delete otherwise.
+              if (!row.classified_at && row.content) {
+                const { createServiceClient } = await import(
+                  '@/lib/supabase/server'
+                );
+                const { recordPipelineRun } = await import(
+                  '@/lib/pipeline/record-run'
+                );
+                const publishServiceClient = createServiceClient();
+
+                let classifyStatus: 'completed' | 'failed' = 'completed';
+                let classifyError: string | null = null;
+                try {
+                  const classifyContent = await getClassifyContent();
+                  await classifyContent({
+                    supabase: publishServiceClient,
+                    itemId,
+                    force: true,
+                    userId,
+                  });
+                } catch (classifyErr) {
+                  classifyStatus = 'failed';
+                  classifyError =
+                    classifyErr instanceof Error
+                      ? classifyErr.message
+                      : 'Unknown classification error';
+                  console.error(
+                    `MCP publish classify failed for ${itemId}:`,
+                    classifyErr,
+                  );
+                }
+                await recordPipelineRun({
+                  supabase: publishServiceClient,
+                  pipelineName: 'publish_classify',
+                  status: classifyStatus,
+                  itemsProcessed: 1,
+                  errorMessage: classifyError,
+                });
+
+                try {
+                  const { regenerateChunks } = await import(
+                    '@/lib/content/chunk-store'
+                  );
+                  await regenerateChunks(
+                    publishServiceClient,
+                    itemId,
+                    row.content,
+                  );
+                } catch (chunkErr) {
+                  console.error(
+                    `MCP publish chunking failed for ${itemId}:`,
+                    chunkErr,
+                  );
+                }
               }
             } else {
               // Draft: set governance_review_status to 'draft'

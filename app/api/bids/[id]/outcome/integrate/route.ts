@@ -26,7 +26,7 @@ export async function POST(
   try {
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth.success) return authFailureResponse(auth);
-    const { user, supabase } = auth;
+    const { user, supabase, role } = auth;
 
     const { allowed } = checkRateLimit(`bid-integrate:${user.id}`, 10, 60_000);
     if (!allowed) return rateLimitResponse();
@@ -43,7 +43,11 @@ export async function POST(
     const parsed = parseBody(KBIntegrationBodySchema, raw);
     if (!parsed.success) return parsed.response;
 
-    const { integrations } = parsed.data;
+    const { integrations, skip_dedup } = parsed.data;
+
+    // Admin-only dedup override (spec §6 D2). Silent-ignore for non-admin.
+    const skipDedup = skip_dedup === true && role === 'admin';
+    const { checkExactDuplicate } = await import('@/lib/dedup');
 
     // Verify bid exists and is in won state
     const { data: bid, error: bidError } = await supabase
@@ -154,6 +158,36 @@ export async function POST(
       }
 
       if (integration.action === 'new_entry') {
+        // Dedup — spec §6 D1 variant for bid-outcome: exact-hash match
+        // is skip-and-log (not stamp). Bid-outcome is a post-won admin
+        // workflow where duplicate content is almost certainly the
+        // response already present in the KB. Skipping prevents double
+        // entry; admin can review the log. Admins may `skip_dedup=true`
+        // to force-insert anyway.
+        if (!skipDedup) {
+          try {
+            const dedupCheck = await checkExactDuplicate(supabase, plainText);
+            if (dedupCheck.isDuplicate) {
+              skipped++;
+              warnings.push(
+                `Skipped bid integration for question ${integration.question_id} — response matches existing KB item ${dedupCheck.existingId}${dedupCheck.existingTitle ? ` ("${dedupCheck.existingTitle}")` : ''}`,
+              );
+              items.push({
+                question_id: integration.question_id,
+                content_item_id: dedupCheck.existingId ?? '',
+                action: 'skipped',
+              });
+              continue;
+            }
+          } catch (dedupErr) {
+            console.error(
+              `Bid-outcome dedup check failed for question ${integration.question_id}:`,
+              dedupErr,
+            );
+            // Non-fatal — proceed with insert as clean
+          }
+        }
+
         // Generate embedding for the new entry
         const embeddingText = `${questionText}\n\n${plainText}`;
         const embedding = await generateEmbedding(embeddingText);

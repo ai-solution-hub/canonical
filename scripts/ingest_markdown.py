@@ -38,7 +38,7 @@ from kb_pipeline.config import (
     SHORT_CONTENT_THRESHOLD,
     LOW_CONFIDENCE_THRESHOLD,
 )
-from kb_pipeline.dedup import is_duplicate
+from kb_pipeline.dedup import is_duplicate, check_content_hash_duplicate
 from kb_pipeline.embed import (
     build_embedding_text,
     generate_embedding,
@@ -315,6 +315,19 @@ def process_markdown_file(
             log.info("  [Skip]    Already in DB (source_file: %s)", relative_path)
             return result
 
+    # ── Dedup (content-hash soft block, S183 WP2) ────────────────────────
+    # Repeat ingest with identical content but different source_file
+    # (or a file that was renamed) proceeds but is flagged for review.
+    content_hash_duplicate_id = None
+    is_dup_hash, hash_existing_id = check_content_hash_duplicate(cleaned_content)
+    if is_dup_hash:
+        content_hash_duplicate_id = hash_existing_id
+        log.info(
+            "  [Dedup]   CONTENT-HASH match -> existing ID %s — "
+            "flagging as suspected_duplicate (soft block)",
+            hash_existing_id,
+        )
+
     # ── File modification time ───────────────────────────────────────────
     try:
         mtime = os.path.getmtime(file_path)
@@ -423,6 +436,14 @@ def process_markdown_file(
             "original_format": "markdown",
         },
     }
+
+    # S183 WP2 — stamp dedup_status when content-hash matched.
+    if content_hash_duplicate_id:
+        record["dedup_status"] = "suspected_duplicate"
+        record["metadata"] = {
+            **record["metadata"],
+            "suspected_duplicate_of": content_hash_duplicate_id,
+        }
 
     # Add classification fields
     if cls:
