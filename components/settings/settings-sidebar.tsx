@@ -12,6 +12,7 @@ import {
   BookOpen,
   UserCheck,
   Fingerprint,
+  ClipboardCheck,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
@@ -39,6 +40,7 @@ export type SettingsSection =
   | 'guides'
   | 'team'
   | 'governance'
+  | 'reviewer-assignments'
   | 'provenance'
   | 'developer-setup';
 
@@ -78,6 +80,12 @@ const ALL_SECTIONS: SectionDef[] = [
     id: 'governance',
     label: 'Quality Review',
     icon: ShieldCheck,
+    group: 'system',
+  },
+  {
+    id: 'reviewer-assignments',
+    label: 'Reviewer Assignments',
+    icon: ClipboardCheck,
     group: 'system',
   },
   {
