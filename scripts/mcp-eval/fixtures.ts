@@ -196,7 +196,7 @@ export const AI_TOOLS = new Set([
   'generate_summary', // calls Claude API
 ]);
 
-/** All 6 prompt names. */
+/** All 7 prompt names. */
 export const CANONICAL_PROMPT_NAMES = [
   'reorient',
   'bid_briefing',
@@ -204,9 +204,10 @@ export const CANONICAL_PROMPT_NAMES = [
   'draft_response',
   'review_item',
   'sector_briefing',
+  'bid_pipeline_review',
 ] as const;
 
-export const PROMPT_COUNT = CANONICAL_PROMPT_NAMES.length; // 6
+export const PROMPT_COUNT = CANONICAL_PROMPT_NAMES.length; // 7
 
 /** Resource template URIs (3 templates). */
 export const RESOURCE_TEMPLATE_URIS = [

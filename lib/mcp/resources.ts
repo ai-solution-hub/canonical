@@ -15,13 +15,14 @@
  *   - ui://intelligence-feed/app.html — Intelligence Feed MCP App (interactive UI)
  *   - kb://quality-briefing           — Aggregated quality intelligence briefing
  *
- * Prompts (6):
- *   - reorient           — "What has changed since I was last active?"
- *   - bid_briefing       — "Give me a briefing on {bid_name}"
- *   - coverage_analysis  — "Analyse coverage gaps and suggest content to create"
- *   - draft_response     — "Draft a response to this bid question"
- *   - review_item        — "Review this content item for quality"
- *   - sector_briefing    — "Domain-scoped briefing: KB content + SI + change reports"
+ * Prompts (7):
+ *   - reorient              — "What has changed since I was last active?"
+ *   - bid_briefing          — "Give me a briefing on {bid_name}"
+ *   - coverage_analysis     — "Analyse coverage gaps and suggest content to create"
+ *   - draft_response        — "Draft a response to this bid question"
+ *   - review_item           — "Review this content item for quality"
+ *   - sector_briefing       — "Domain-scoped briefing: KB content + SI + change reports"
+ *   - bid_pipeline_review   — "Pipeline-wide action review: blockers + stalled drafts"
  */
 import { z } from 'zod';
 import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -1013,6 +1014,66 @@ export function registerPrompts(server: McpServer): void {
                 '### Recommendations\n' +
                 '[Prioritised 2-4 actions]\n\n' +
                 'Use UK English. DD/MM/YYYY dates. If any tool returns empty, note the gap explicitly (e.g. "No SI feeds currently cover this domain — consider seeding a starter pack.").',
+            },
+          },
+        ],
+      };
+    },
+  );
+
+  // 7. bid_pipeline_review
+  //
+  // Pipeline-wide workflow review — blockers across bids, stalled drafts,
+  // recent activity, and a flat prioritised action list. Complements
+  // `/kb:bid-status` (per-bid read) with a cross-bid action framing.
+  server.registerPrompt(
+    'bid_pipeline_review',
+    {
+      title: 'Bid Pipeline Review',
+      description:
+        'Workflow-oriented review of the active bid pipeline: blockers, stalled drafts, and prioritised next actions.',
+      argsSchema: {
+        stale_threshold_days: z
+          .string()
+          .optional()
+          .describe(
+            'Optional: days since last edit to consider a draft "stale". Default 5.',
+          ),
+      },
+    },
+    async (args) => {
+      const staleDays = args.stale_threshold_days ?? '5';
+      return {
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text:
+                KB_SYSTEM_CONTEXT +
+                'Produce a pipeline-wide action review for all active bids. Focus on blockers, stalled drafts, and recent activity — NOT per-bid status (that lives in `/kb:bid-status`).\n\n' +
+                'Tool sequence:\n\n' +
+                '1. **Pipeline overview.** `list_active_bids(limit: 50)` — full list with deadlines and completion %.\n' +
+                '2. **Per-bid detail.** For each active bid, `get_bid_detail(id: <bid_id>)` — extract:\n' +
+                '   - Unanswered questions (status: unanswered)\n' +
+                '   - Questions with confidence = "no_content" (hard blockers — need new KB material)\n' +
+                '   - Questions with confidence = "needs_sme" (soft blockers — need expert input)\n' +
+                `   - Questions with draft responses updated more than ${staleDays} days ago (stalled drafts)\n` +
+                '3. **Recent activity.** From the per-bid detail, pull response `updated_at` timestamps and identify which bids have seen edits in the last 7 days vs which have gone silent.\n\n' +
+                'Structure the output as:\n\n' +
+                '## Bid pipeline review — [DD/MM/YYYY]\n\n' +
+                '### Critical blockers (action today)\n' +
+                '[Bulleted list: "BidName — Question N: no_content on topic X. Need KB item on X."]\n\n' +
+                '### Stalled drafts (action this week)\n' +
+                `[Bulleted list: "BidName — Question N: last edit DD/MM/YYYY (N days ago, threshold ${staleDays}). Was in draft state."]\n\n` +
+                '### SME input needed\n' +
+                '[Bulleted list: "BidName — Question N: needs_sme on topic X."]\n\n' +
+                '### Recent activity\n' +
+                '- Active (edited in last 7 days): [BidA, BidB]\n' +
+                '- Silent (no edits in 7+ days): [BidC, BidD]\n\n' +
+                '### Prioritised next actions\n' +
+                '[Numbered 3-5 actions cutting across bids, ordered by deadline proximity × blocker severity.]\n\n' +
+                'Use UK English. DD/MM/YYYY. If the pipeline is empty, say so and suggest `/kb:bid-status` for historical context. If a bid has zero blockers, omit it from the blocker sections (still include in Recent activity).',
             },
           },
         ],
