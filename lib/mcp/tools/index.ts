@@ -1,13 +1,14 @@
 /**
  * MCP tool registrations for the Knowledge Hub server.
  *
- * Registers 53 tools across 14 category files:
+ * Registers 54 tools across 15 category files:
  *   - search.ts     (4): search_knowledge_base, search_qa_library, find_similar_items, search_content_chunks
  *   - content.ts    (8): get_content_item, create_content_item, update_content_item, get_content_items, get_workspace_items, assign_content_owner, get_document_versions, get_document_diff
  *   - bids.ts       (5): list_active_bids, get_bid_detail, get_bid_question, cite_content, get_content_effectiveness
  *   - dashboard.ts  (4): get_dashboard_summary, get_reorientation, get_freshness_report, get_expiring_content
  *   - quality.ts    (7): get_quality_summary, get_coverage_gaps, audit_content, find_all_duplicates, suggest_content_creation, get_quality_briefing, get_quality_actions
  *   - governance.ts (4): delete_content_item, update_governance_status, get_governance_queue, review_governance_item
+ *   - supersession.ts (1): supersede_content_item
  *   - review.ts     (3): get_review_queue, get_assignments_for_user, create_review_assignment
  *   - ai.ts         (2): classify_content, generate_summary
  *   - entities.ts   (2): get_entity_relationships, get_certification_status
@@ -36,6 +37,7 @@ import { registerEntityTools } from './entities';
 import { registerTemplateTools } from './templates';
 import { registerAppTools } from './apps';
 import { registerGovernanceTools } from './governance';
+import { registerSupersessionTools } from './supersession';
 import { registerReviewTools } from './review';
 import { registerIntelligenceTools } from './intelligence';
 import { registerGuideTools } from './guides';
@@ -61,6 +63,7 @@ export async function registerTools(server: McpServer): Promise<void> {
   await registerTemplateTools(server);
   await registerAppTools(server);
   await registerGovernanceTools(server);
+  await registerSupersessionTools(server);
   await registerReviewTools(server);
   await registerIntelligenceTools(server);
   await registerGuideTools(server);

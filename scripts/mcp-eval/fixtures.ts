@@ -75,10 +75,10 @@ export function loadEnv(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Canonical lists — updated to 53 tools (current as of S180 P0-23 + P1-35)
+// Canonical lists — updated to 54 tools (S186 WP-B.4 adds supersede_content_item)
 // ---------------------------------------------------------------------------
 
-/** Canonical set of all 53 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
+/** Canonical set of all 54 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
 export const CANONICAL_TOOL_NAMES = [
   'search_knowledge_base', // 1
   'search_qa_library', // 2
@@ -135,9 +135,11 @@ export const CANONICAL_TOOL_NAMES = [
   'create_review_assignment', // 52
   // S180 P1-35 — change-report tool (WP6, 52 → 53).
   'get_change_report', // 53
+  // S186 WP-B.4 — supersession model (53 → 54).
+  'supersede_content_item', // 54
 ] as const;
 
-export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 53
+export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 54
 
 /** Read-only tools (no side effects). */
 export const READ_ONLY_TOOLS = new Set([
@@ -201,6 +203,8 @@ export const WRITE_TOOLS = new Set([
   // S180 P0-23 additions
   'review_governance_item',
   'create_review_assignment',
+  // S186 WP-B.4
+  'supersede_content_item',
 ]);
 
 /**
@@ -623,6 +627,14 @@ export function getMinimalArgs(
     // S180 P1-35 change-report read tool
     case 'get_change_report':
       return { period_days: 7 };
+
+    // S186 WP-B.4 supersession write tool. Both IDs point at the eval
+    // item so the tool's SAME_ID guard fires — the test exercises the
+    // validation path without mutating production data. Layer 1 checks
+    // that the tool returns a valid structured response; isError=true is
+    // the intended outcome here.
+    case 'supersede_content_item':
+      return { old_id: evalItemId, new_id: evalItemId };
 
     default:
       return {};
