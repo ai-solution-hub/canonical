@@ -1,7 +1,7 @@
 /**
  * MCP tool registrations for the Knowledge Hub server.
  *
- * Registers 52 tools across 13 category files:
+ * Registers 53 tools across 14 category files:
  *   - search.ts     (4): search_knowledge_base, search_qa_library, find_similar_items, search_content_chunks
  *   - content.ts    (8): get_content_item, create_content_item, update_content_item, get_content_items, get_workspace_items, assign_content_owner, get_document_versions, get_document_diff
  *   - bids.ts       (5): list_active_bids, get_bid_detail, get_bid_question, cite_content, get_content_effectiveness
@@ -15,6 +15,7 @@
  *   - apps.ts       (4): show_coverage_matrix, show_bid_dashboard, show_reorient_me, show_intelligence_feed
  *   - intelligence.ts (2): get_intelligence_summary, trigger_intelligence_poll
  *   - guides.ts     (4): list_guides, get_guide, create_guide, update_guide
+ *   - change-report.ts (1): get_change_report
  *
  * All tools use per-user Supabase clients via extra.authInfo so that
  * RLS policies are applied based on the authenticated user.
@@ -38,6 +39,7 @@ import { registerGovernanceTools } from './governance';
 import { registerReviewTools } from './review';
 import { registerIntelligenceTools } from './intelligence';
 import { registerGuideTools } from './guides';
+import { registerChangeReportTools } from './change-report';
 
 export async function registerTools(server: McpServer): Promise<void> {
   // Registration order determines tool discovery order in MCP clients.
@@ -62,4 +64,5 @@ export async function registerTools(server: McpServer): Promise<void> {
   await registerReviewTools(server);
   await registerIntelligenceTools(server);
   await registerGuideTools(server);
+  await registerChangeReportTools(server);
 }

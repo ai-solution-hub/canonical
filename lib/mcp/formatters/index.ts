@@ -139,3 +139,8 @@ export {
   type QualityBriefingData,
   formatQualityBriefing,
 } from './briefing';
+export {
+  type ChangeReportItem,
+  type ChangeReportData,
+  formatChangeReport,
+} from './change-report';
