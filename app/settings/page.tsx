@@ -55,6 +55,11 @@ const LazyContentOwnerManagement = lazy(() =>
     default: m.ContentOwnerManagement,
   })),
 );
+const LazyReviewerAssignments = lazy(() =>
+  import('@/components/review/assignment-manager').then((m) => ({
+    default: m.AssignmentManager,
+  })),
+);
 
 // ---------------------------------------------------------------------------
 // Section loading skeleton — shown briefly while a lazy section chunk loads
@@ -124,6 +129,12 @@ function SectionContent({ section }: { section: SettingsSection }) {
       return (
         <Suspense fallback={<SectionSkeleton />}>
           <LazyGovernanceSection />
+        </Suspense>
+      );
+    case 'reviewer-assignments':
+      return (
+        <Suspense fallback={<SectionSkeleton />}>
+          <LazyReviewerAssignments />
         </Suspense>
       );
     default:
