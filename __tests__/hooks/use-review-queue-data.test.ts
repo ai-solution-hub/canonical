@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook } from '@testing-library/react';
+import { renderHook, waitFor } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { buildQueueParams } from '@/hooks/review/use-review-queue-data';
@@ -197,13 +197,12 @@ describe('useReviewQueueData', () => {
         { wrapper: Wrapper },
       );
 
-      // Wait for query to resolve
-      await vi.waitFor(() => {
+      // Wait for query to resolve — use RTL waitFor to wrap state updates in act()
+      await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
+        expect(result.current.queue).toHaveLength(1);
+        expect(result.current.queue[0].id).toBe('a');
       });
-
-      expect(result.current.queue).toHaveLength(1);
-      expect(result.current.queue[0].id).toBe('a');
     });
 
     it('stats defaults to null when API has not responded', () => {
@@ -249,11 +248,10 @@ describe('useReviewQueueData', () => {
         { wrapper: Wrapper },
       );
 
-      await vi.waitFor(() => {
+      await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
+        expect(result.current.activeAssignment).toBeNull();
       });
-
-      expect(result.current.activeAssignment).toBeNull();
     });
 
     it('assignment select coerces null filter arrays to empty arrays', async () => {
@@ -298,14 +296,13 @@ describe('useReviewQueueData', () => {
         { wrapper: Wrapper },
       );
 
-      await vi.waitFor(() => {
+      await waitFor(() => {
         expect(result.current.activeAssignment).not.toBeNull();
+        expect(result.current.activeAssignment!.filter_domains).toEqual([]);
+        expect(result.current.activeAssignment!.filter_content_types).toEqual([]);
+        expect(result.current.activeAssignment!.filter_freshness).toEqual([]);
+        expect(result.current.activeAssignment!.id).toBe('assign-1');
       });
-
-      expect(result.current.activeAssignment!.filter_domains).toEqual([]);
-      expect(result.current.activeAssignment!.filter_content_types).toEqual([]);
-      expect(result.current.activeAssignment!.filter_freshness).toEqual([]);
-      expect(result.current.activeAssignment!.id).toBe('assign-1');
     });
 
     it('hasMore is true when API returns has_more: true', async () => {
@@ -325,11 +322,10 @@ describe('useReviewQueueData', () => {
         { wrapper: Wrapper },
       );
 
-      await vi.waitFor(() => {
+      await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
+        expect(result.current.hasMore).toBe(true);
       });
-
-      expect(result.current.hasMore).toBe(true);
     });
 
     it('hasMore is false when API returns has_more: false', async () => {
@@ -347,11 +343,10 @@ describe('useReviewQueueData', () => {
         { wrapper: Wrapper },
       );
 
-      await vi.waitFor(() => {
+      await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
+        expect(result.current.hasMore).toBe(false);
       });
-
-      expect(result.current.hasMore).toBe(false);
     });
 
     it('exposes queryClient from provider', () => {
@@ -422,7 +417,7 @@ describe('useReviewQueueData', () => {
         { wrapper: Wrapper },
       );
 
-      await vi.waitFor(() => {
+      await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
       });
 
@@ -452,7 +447,7 @@ describe('useReviewQueueData', () => {
         { wrapper: Wrapper },
       );
 
-      await vi.waitFor(() => {
+      await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
       });
 
