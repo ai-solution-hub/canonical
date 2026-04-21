@@ -2556,7 +2556,6 @@ export type Database = {
         Args: { probe_email: string; probe_id: string }
         Returns: undefined
       }
-      acquire_taxonomy_sync_lock: { Args: never; Returns: undefined }
       bulk_assign_content_owner: {
         Args: {
           p_assigned_by: string
