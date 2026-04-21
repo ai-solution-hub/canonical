@@ -543,6 +543,7 @@ export type Database = {
           content_type: string
           created_at: string
           created_by: string | null
+          dedup_status: string
           detail: string | null
           embedding: string | null
           embedding_model: string | null
@@ -614,6 +615,7 @@ export type Database = {
           content_type: string
           created_at?: string
           created_by?: string | null
+          dedup_status?: string
           detail?: string | null
           embedding?: string | null
           embedding_model?: string | null
@@ -685,6 +687,7 @@ export type Database = {
           content_type?: string
           created_at?: string
           created_by?: string | null
+          dedup_status?: string
           detail?: string | null
           embedding?: string | null
           embedding_model?: string | null
@@ -2621,6 +2624,7 @@ export type Database = {
               content_type: string
               created_at: string
               created_by: string | null
+              dedup_status: string
               detail: string | null
               embedding: string | null
               embedding_model: string | null

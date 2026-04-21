@@ -30,6 +30,22 @@ export interface DedupResult {
 }
 
 /**
+ * Minimum content length (post-normalisation, pre-hash) before we apply
+ * content-hash dedup. Short strings (e.g. a 20-word Q&A) collide too
+ * easily after punctuation/whitespace stripping. Below the threshold
+ * callers should fall through to title-norm or skip dedup entirely.
+ * Reference: cross-system-dedup-spec.md §6 Risks.
+ */
+export const DEDUP_MIN_CONTENT_LENGTH = 50;
+
+/** Outcome of the shared dedup gate used by every TS entry point. */
+export interface ExactDuplicateCheck {
+  isDuplicate: boolean;
+  existingId?: string;
+  existingTitle?: string;
+}
+
+/**
  * Normalise text for MD5 hashing — mirrors the Python pipeline approach.
  * Lowercases, strips punctuation, collapses whitespace.
  */
@@ -179,6 +195,40 @@ export async function checkForDuplicates(
   return {
     has_duplicates: allMatches.length > 0,
     matches: allMatches,
+  };
+}
+
+/**
+ * Shared dedup gate — returns the first exact-hash match (if any).
+ *
+ * Used by every TS entry point that inserts into `content_items` so
+ * duplicate content is caught consistently. Soft-block contract:
+ * callers should proceed with the insert and stamp
+ * `dedup_status = 'suspected_duplicate'` when `isDuplicate` is true.
+ * Admins can override via `skip_dedup=true` at the caller.
+ *
+ * Reference: docs/specs/cross-system-dedup-spec.md §3.1
+ */
+export async function checkExactDuplicate(
+  supabase: SupabaseClient<Database>,
+  contentText: string,
+  options: { excludeId?: string } = {},
+): Promise<ExactDuplicateCheck> {
+  const normalised = normaliseTextForHash(contentText);
+  if (!normalised || normalised.length < DEDUP_MIN_CONTENT_LENGTH) {
+    return { isDuplicate: false };
+  }
+  const matches = await findExactDuplicates(
+    supabase,
+    contentText,
+    options.excludeId,
+  );
+  const first = matches[0];
+  if (!first) return { isDuplicate: false };
+  return {
+    isDuplicate: true,
+    existingId: first.id,
+    existingTitle: first.title,
   };
 }
 

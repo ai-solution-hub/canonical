@@ -18,6 +18,8 @@ import os
 import re
 from difflib import SequenceMatcher
 
+from dedup_normalise import normalise_title_for_dedup
+
 
 def normalize_question(text: str) -> str:
     """Normalise question text for comparison.
@@ -64,6 +66,23 @@ def extract_core_question(text: str) -> str:
 def question_hash(text: str) -> str:
     """Generate MD5 hash of normalised question text for exact dedup."""
     normalised = normalize_question(extract_core_question(text))
+    return hashlib.md5(normalised.encode('utf-8')).hexdigest()
+
+
+def title_dedup_hash(text: str) -> str:
+    """Generate MD5 hash of title-normalised question text.
+
+    Applies leading-article stripping + punctuation/whitespace
+    normalisation via `normalise_title_for_dedup` so near-identical
+    titles ("Are access levels granted according to the principle..."
+    vs "...according to principle...") hash to the same key.
+
+    Used by `dedup_across_files_by_title` to catch cross-file title
+    overlaps that `question_hash` would miss. Reference:
+    docs/specs/cross-system-dedup-spec.md §3 scope-add 4a.
+    """
+    cored = extract_core_question(text)
+    normalised = normalise_title_for_dedup(cored)
     return hashlib.md5(normalised.encode('utf-8')).hexdigest()
 
 
@@ -125,7 +144,12 @@ def dedup_across_files_by_title(
     for source_file, pairs in files_and_pairs:
         basename = os.path.basename(source_file)
         for pair in pairs:
-            h = question_hash(pair["question_text"])
+            # S183 WP2 — title_dedup_hash strips leading articles and
+            # trailing punctuation so "Are access levels granted
+            # according to the principle of least privilege?" collides
+            # with "...according to principle of least privilege?".
+            # question_hash alone missed this during S182 re-ingestion.
+            h = title_dedup_hash(pair["question_text"])
             if h in seen:
                 first_file, first_row, first_q = seen[h]
                 pair["_skipped_because"] = {
