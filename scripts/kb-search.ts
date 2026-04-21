@@ -123,6 +123,7 @@ interface CliArgs {
   full: boolean;
   json: boolean;
   threshold: number;
+  includeSuperseded: boolean;
 }
 
 // ── CLI arg parsing ──
@@ -135,6 +136,10 @@ function parseArgs(): CliArgs {
   let full = false;
   let json = false;
   let threshold = 0.25;
+  // Diagnostic CLI default: TRUE per docs/specs/supersession-model-spec.md §4.2.
+  // Operators running this tool are typically debugging — they want to see
+  // everything including superseded rows. Pass --exclude-superseded to flip.
+  let includeSuperseded = true;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -151,6 +156,10 @@ function parseArgs(): CliArgs {
     } else if (arg === '--threshold' && args[i + 1]) {
       threshold = parseFloat(args[i + 1]);
       i++;
+    } else if (arg === '--include-superseded') {
+      includeSuperseded = true;
+    } else if (arg === '--exclude-superseded') {
+      includeSuperseded = false;
     } else if (arg === '--help' || arg === '-h') {
       printUsage();
       process.exit(0);
@@ -169,25 +178,28 @@ function parseArgs(): CliArgs {
   if (isNaN(limit) || limit < 1) limit = 10;
   if (isNaN(threshold) || threshold < 0 || threshold > 1) threshold = 0.25;
 
-  return { query, limit, domain, full, json, threshold };
+  return { query, limit, domain, full, json, threshold, includeSuperseded };
 }
 
 function printUsage(): void {
   console.log(`Usage: bun run scripts/kb-search.ts <query> [options]
 
 Options:
-  --limit N          Max results to return (default: 10)
-  --domain "NAME"    Filter by primary_domain (case-insensitive)
-  --full             Include executive summary for each result
-  --json             Output raw JSON instead of formatted text
-  --threshold N      Similarity threshold 0-1 (default: 0.25)
-  --help, -h         Show this help message
+  --limit N                Max results to return (default: 10)
+  --domain "NAME"          Filter by primary_domain (case-insensitive)
+  --full                   Include executive summary for each result
+  --json                   Output raw JSON instead of formatted text
+  --threshold N            Similarity threshold 0-1 (default: 0.25)
+  --include-superseded     Include superseded rows (default — diagnostic CLI)
+  --exclude-superseded     Hide superseded rows (match app default)
+  --help, -h               Show this help message
 
 Examples:
   bun run scripts/kb-search.ts "memory solutions for LLM agents"
   bun run scripts/kb-search.ts "MCP server patterns" --limit 5
   bun run scripts/kb-search.ts "startup metrics" --domain "BUSINESS & STRATEGY"
-  bun run scripts/kb-search.ts "RAG vs fine-tuning" --full --json`);
+  bun run scripts/kb-search.ts "RAG vs fine-tuning" --full --json
+  bun run scripts/kb-search.ts "ISO certification" --exclude-superseded`);
 }
 
 // ── Formatting helpers ──
@@ -210,7 +222,8 @@ function formatDate(dateStr: string | null): string {
 // ── Main ──
 
 async function main(): Promise<void> {
-  const { query, limit, domain, full, json, threshold } = parseArgs();
+  const { query, limit, domain, full, json, threshold, includeSuperseded } =
+    parseArgs();
 
   // Validate env
   const supabaseUrl =
@@ -262,6 +275,7 @@ async function main(): Promise<void> {
       query_text: query.trim(),
       similarity_threshold: threshold,
       limit_count: limit,
+      include_superseded: includeSuperseded,
     },
   );
 
@@ -320,8 +334,11 @@ async function main(): Promise<void> {
 
   // Formatted text output
   const domainNote = domain ? ` | domain: "${domain}"` : '';
+  const supersededNote = includeSuperseded
+    ? ''
+    : ' | excluding superseded';
   console.log(
-    `Found ${filtered.length} results (threshold: ${threshold}${domainNote})\n`,
+    `Found ${filtered.length} results (threshold: ${threshold}${domainNote}${supersededNote})\n`,
   );
 
   if (filtered.length === 0) {
