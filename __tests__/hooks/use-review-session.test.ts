@@ -147,6 +147,30 @@ describe('useReviewSession', () => {
 
       expect(result.current.filters.source_document_id).toBe('abc-123');
     });
+
+    it('reads assigned_to_me=true from URL search params', () => {
+      const searchParams = makeSearchParams('assigned_to_me=true');
+
+      const { result } = renderHook(() => useReviewSession(searchParams));
+
+      expect(result.current.filters.assigned_to_me).toBe(true);
+    });
+
+    it('does not set assigned_to_me when URL param is absent', () => {
+      const searchParams = makeSearchParams();
+
+      const { result } = renderHook(() => useReviewSession(searchParams));
+
+      expect(result.current.filters.assigned_to_me).toBeUndefined();
+    });
+
+    it('does not set assigned_to_me when URL param is not "true"', () => {
+      const searchParams = makeSearchParams('assigned_to_me=false');
+
+      const { result } = renderHook(() => useReviewSession(searchParams));
+
+      expect(result.current.filters.assigned_to_me).toBeUndefined();
+    });
   });
 
   // =========================================================================
@@ -283,6 +307,66 @@ describe('useReviewSession', () => {
       const urlArg = lastCall[2] as string;
       expect(urlArg).toContain('status=verified');
       expect(urlArg).toContain('domain=Technical');
+    });
+
+    it('syncs assigned_to_me=true to URL', () => {
+      const searchParams = makeSearchParams();
+
+      const { result } = renderHook(() => useReviewSession(searchParams));
+
+      act(() => {
+        result.current.setFilters({
+          status: 'unverified',
+          assigned_to_me: true,
+        });
+      });
+
+      expect(mockReplaceState).toHaveBeenCalled();
+      const lastCall =
+        mockReplaceState.mock.calls[mockReplaceState.mock.calls.length - 1];
+      const urlArg = lastCall[2] as string;
+      expect(urlArg).toContain('assigned_to_me=true');
+    });
+
+    it('omits assigned_to_me from URL when filter is cleared', () => {
+      const searchParams = makeSearchParams('assigned_to_me=true');
+
+      const { result } = renderHook(() => useReviewSession(searchParams));
+
+      act(() => {
+        result.current.setFilters({
+          status: 'unverified',
+          assigned_to_me: undefined,
+        });
+      });
+
+      expect(mockReplaceState).toHaveBeenCalled();
+      const lastCall =
+        mockReplaceState.mock.calls[mockReplaceState.mock.calls.length - 1];
+      const urlArg = lastCall[2] as string;
+      expect(urlArg).not.toContain('assigned_to_me');
+    });
+
+    it('round-trips assigned_to_me with other filters', () => {
+      const searchParams = makeSearchParams();
+
+      const { result } = renderHook(() => useReviewSession(searchParams));
+
+      act(() => {
+        result.current.setFilters({
+          status: 'flagged',
+          domain: ['Technical'],
+          assigned_to_me: true,
+        });
+      });
+
+      expect(mockReplaceState).toHaveBeenCalled();
+      const lastCall =
+        mockReplaceState.mock.calls[mockReplaceState.mock.calls.length - 1];
+      const urlArg = lastCall[2] as string;
+      expect(urlArg).toContain('status=flagged');
+      expect(urlArg).toContain('domain=Technical');
+      expect(urlArg).toContain('assigned_to_me=true');
     });
   });
 
