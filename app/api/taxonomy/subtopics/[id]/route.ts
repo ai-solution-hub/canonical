@@ -45,6 +45,8 @@ export async function PATCH(
       updates.is_active = parsed.data.is_active;
     if (parsed.data.accepted_at !== undefined)
       updates.accepted_at = parsed.data.accepted_at;
+    if (parsed.data.description !== undefined)
+      updates.description = parsed.data.description;
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json(
@@ -57,7 +59,7 @@ export async function PATCH(
       .from('taxonomy_subtopics')
       .update(updates)
       .eq('id', id)
-      .select('id, domain_id, name, display_order, is_active')
+      .select('id, domain_id, name, display_order, is_active, description')
       .single();
 
     if (error) {

@@ -65,6 +65,8 @@ export interface UseTaxonomyAdminReturn {
   editingSubtopic: AdminSubtopic | null;
   subtopicName: string;
   setSubtopicName: (value: string) => void;
+  subtopicDescription: string;
+  setSubtopicDescription: (value: string) => void;
   subtopicOrder: string;
   setSubtopicOrder: (value: string) => void;
   subtopicSaving: boolean;
@@ -250,6 +252,7 @@ export function useTaxonomyAdmin({
   );
   const [subtopicDomainId, setSubtopicDomainId] = useState('');
   const [subtopicName, setSubtopicName] = useState('');
+  const [subtopicDescription, setSubtopicDescription] = useState('');
   const [subtopicOrder, setSubtopicOrder] = useState('');
 
   // -----------------------------------------------------------------------
@@ -590,6 +593,7 @@ export function useTaxonomyAdmin({
     setEditingSubtopic(null);
     setSubtopicDomainId(domainId);
     setSubtopicName('');
+    setSubtopicDescription('');
     setSubtopicOrder('');
     setSubtopicDialogOpen(true);
   }
@@ -598,6 +602,7 @@ export function useTaxonomyAdmin({
     setEditingSubtopic(subtopic);
     setSubtopicDomainId(subtopic.domain_id);
     setSubtopicName(subtopic.name);
+    setSubtopicDescription(subtopic.description ?? '');
     setSubtopicOrder(String(subtopic.display_order));
     setSubtopicDialogOpen(true);
   }
@@ -610,6 +615,11 @@ export function useTaxonomyAdmin({
       const body: Record<string, unknown> = {};
       if (subtopicName.trim() !== editingSubtopic.name)
         body.name = subtopicName.trim();
+      if (
+        (subtopicDescription.trim() || null) !== editingSubtopic.description
+      ) {
+        body.description = subtopicDescription.trim() || null;
+      }
       const orderVal = parseInt(subtopicOrder, 10);
       if (!isNaN(orderVal) && orderVal !== editingSubtopic.display_order) {
         body.display_order = orderVal;
@@ -631,6 +641,8 @@ export function useTaxonomyAdmin({
         domain_id: subtopicDomainId,
         name: subtopicName.trim(),
       };
+      if (subtopicDescription.trim())
+        body.description = subtopicDescription.trim();
       const orderVal = parseInt(subtopicOrder, 10);
       if (!isNaN(orderVal)) body.display_order = orderVal;
 
@@ -802,6 +814,8 @@ export function useTaxonomyAdmin({
     editingSubtopic,
     subtopicName,
     setSubtopicName,
+    subtopicDescription,
+    setSubtopicDescription,
     subtopicOrder,
     setSubtopicOrder,
     subtopicSaving,

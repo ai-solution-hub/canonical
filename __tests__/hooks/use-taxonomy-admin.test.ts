@@ -521,6 +521,94 @@ describe('useTaxonomyAdmin', () => {
     expect(toast.success).toHaveBeenCalledWith('Subtopic updated');
   });
 
+  it('openEditSubtopic loads description from subtopic and includes it in PATCH', async () => {
+    const subtopicWithDesc: AdminSubtopic = {
+      ...sampleSubtopics[0],
+      description: 'Covers cloud infrastructure and services',
+    };
+
+    const { result } = await renderWithDomains();
+
+    act(() => {
+      result.current.openEditSubtopic(subtopicWithDesc);
+    });
+
+    // Description should be loaded from the subtopic
+    expect(result.current.subtopicDescription).toBe(
+      'Covers cloud infrastructure and services',
+    );
+
+    // Change the description
+    act(() => {
+      result.current.setSubtopicDescription('Updated scope description');
+    });
+
+    // Mock PATCH + refetches
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue({}) })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue(sampleDomains),
+      });
+
+    const fakeEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
+    await act(async () => {
+      await result.current.handleSubtopicSubmit(fakeEvent);
+    });
+
+    const patchCall = mockFetch.mock.calls.find(
+      (c) =>
+        c[1]?.method === 'PATCH' && c[0]?.includes('/api/taxonomy/subtopics/'),
+    );
+    expect(patchCall).toBeDefined();
+    const body = JSON.parse(patchCall![1].body);
+    expect(body.description).toBe('Updated scope description');
+  });
+
+  it('openAddSubtopic resets description to empty', async () => {
+    const { result } = await renderWithDomains();
+
+    act(() => {
+      result.current.openAddSubtopic('d1');
+    });
+
+    expect(result.current.subtopicDescription).toBe('');
+  });
+
+  it('handleSubtopicSubmit includes description in POST when creating', async () => {
+    const { result } = await renderWithDomains();
+
+    act(() => {
+      result.current.openAddSubtopic('d1');
+    });
+    act(() => {
+      result.current.setSubtopicName('New Subtopic');
+    });
+    act(() => {
+      result.current.setSubtopicDescription('A new subtopic scope');
+    });
+
+    // Mock POST + refetch
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue({}) })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue(sampleDomains),
+      });
+
+    const fakeEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
+    await act(async () => {
+      await result.current.handleSubtopicSubmit(fakeEvent);
+    });
+
+    const postCall = mockFetch.mock.calls.find(
+      (c) => c[1]?.method === 'POST' && c[0] === '/api/taxonomy/subtopics',
+    );
+    expect(postCall).toBeDefined();
+    const body = JSON.parse(postCall![1].body);
+    expect(body.description).toBe('A new subtopic scope');
+  });
+
   // -------------------------------------------------------------------------
   // Deactivation / reactivation
   // -------------------------------------------------------------------------

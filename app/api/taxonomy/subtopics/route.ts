@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     const parsed = parseBody(TaxonomySubtopicCreateSchema, raw);
     if (!parsed.success) return parsed.response;
 
-    const { domain_id, name, display_order } = parsed.data;
+    const { domain_id, name, display_order, description } = parsed.data;
 
     // Verify domain exists
     const { data: domain, error: domainError } = await supabase
@@ -58,10 +58,11 @@ export async function POST(request: NextRequest) {
         domain_id,
         name,
         display_order: order,
+        description: description ?? null,
         is_active: true,
         provenance: 'client',
       })
-      .select('id, domain_id, name, display_order, is_active, provenance')
+      .select('id, domain_id, name, display_order, is_active, provenance, description')
       .single();
 
     if (error) {

@@ -52,6 +52,8 @@ export interface TaxonomyDialogsProps {
   editingSubtopic: AdminSubtopic | null;
   subtopicName: string;
   setSubtopicName: (value: string) => void;
+  subtopicDescription: string;
+  setSubtopicDescription: (value: string) => void;
   subtopicOrder: string;
   setSubtopicOrder: (value: string) => void;
   subtopicSaving: boolean;
@@ -91,6 +93,8 @@ export function TaxonomyDialogs({
   editingSubtopic,
   subtopicName,
   setSubtopicName,
+  subtopicDescription,
+  setSubtopicDescription,
   subtopicOrder,
   setSubtopicOrder,
   subtopicSaving,
@@ -215,6 +219,20 @@ export function TaxonomyDialogs({
               />
               <p className="text-xs text-muted-foreground">
                 Use kebab-case (e.g. &quot;data-protection&quot;).
+              </p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="subtopic-description">Description</Label>
+              <Textarea
+                id="subtopic-description"
+                value={subtopicDescription}
+                onChange={(e) => setSubtopicDescription(e.target.value)}
+                placeholder="e.g. Covers policies and practices for reducing carbon emissions..."
+                rows={3}
+              />
+              <p className="text-xs text-muted-foreground">
+                Describes the subtopic&apos;s scope. Used by the classification
+                prompt generator.
               </p>
             </div>
             <div className="flex flex-col gap-1.5">

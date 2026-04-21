@@ -1006,6 +1006,7 @@ export const TaxonomySubtopicCreateSchema = z.object({
   domain_id: z.string().uuid('domain_id must be a valid UUID'),
   name: z.string().trim().min(1, 'Subtopic name is required').max(100),
   display_order: z.number().int().min(0).max(999).optional(),
+  description: z.string().trim().max(1000).nullable().optional(),
 });
 
 /** PATCH /api/taxonomy/subtopics/:id */
@@ -1014,6 +1015,7 @@ export const TaxonomySubtopicUpdateSchema = z.object({
   display_order: z.number().int().min(0).max(999).optional(),
   is_active: z.boolean().optional(),
   accepted_at: z.string().datetime().nullable().optional(),
+  description: z.string().trim().max(1000).nullable().optional(),
 });
 
 /** POST /api/taxonomy/reorder */
