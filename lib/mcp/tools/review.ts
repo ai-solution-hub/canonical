@@ -22,6 +22,7 @@ import {
   getMcpUserId,
   getMcpUserRole,
 } from '@/lib/mcp/auth';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import {
   formatReviewQueue,
   formatReviewAssignments,
@@ -192,8 +193,9 @@ export async function registerReviewTools(server: McpServer): Promise<void> {
 
         // Batch-fetch last-reviewed dates from verification_history. This is
         // a display nicety — a query failure degrades the output (items show
-        // no last-reviewed date) but must not fail the whole tool, so we use
-        // `logBestEffortWarn` to surface it in telemetry without throwing.
+        // no last-reviewed date) but must not fail the whole tool, so we
+        // surface the failure via `logBestEffortWarn` (Sentry breadcrumb +
+        // console.warn) rather than aborting the response.
         const itemIds = rows.map((r) => r.id);
         const reviewDates = new Map<string, string>();
         if (itemIds.length > 0) {
@@ -203,9 +205,10 @@ export async function registerReviewTools(server: McpServer): Promise<void> {
             .in('content_item_id', itemIds)
             .order('performed_at', { ascending: false });
           if (vhError) {
-            console.warn(
-              'mcp.review.get_review_queue.verification_history_lookup failed',
-              vhError,
+            logBestEffortWarn(
+              'mcp.review.last_reviewed_lookup',
+              'verification_history lookup failed in get_review_queue',
+              { error: vhError.message, item_count: itemIds.length },
             );
           }
           for (const row of (vhData ?? []) as Array<{

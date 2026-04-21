@@ -115,17 +115,17 @@ export function ConnectionsSection() {
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right" className="max-w-xs">
-                Claude can search your knowledge base, check bid status, and
-                draft responses when connected via MCP. Copy the server URL and
-                paste it into Claude.ai Settings &gt; Connectors. Connected apps
-                show which Claude instances have access — you can revoke any
-                connection.
+                Connect {BRANDING.productName} to Claude so you can search, draft, and
+                get briefings from any conversation. Copy the server URL below and
+                paste it into Claude.ai Settings &gt; Connectors. The &ldquo;Connected
+                apps&rdquo; list below shows which Claude instances have access — you
+                can revoke any connection at any time.
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </h3>
         <p className="text-sm text-muted-foreground">
-          Connect your {BRANDING.productName} to Claude so you can search, draft, and get
+          Connect {BRANDING.productName} to Claude so you can search, draft, and get
           briefings from any conversation.
         </p>
       </div>
@@ -141,13 +141,8 @@ export function ConnectionsSection() {
           <CardTitle>Connect to Claude</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <p className="text-sm text-muted-foreground">
-            Connect your {BRANDING.productName} to Claude to search your knowledge base,
-            check bid status, and get briefings directly from Claude.
-          </p>
-
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="mcp-url">MCP Server URL</Label>
+            <Label htmlFor="mcp-url">MCP server endpoint</Label>
             <div className="flex items-center gap-2">
               <Input
                 id="mcp-url"
@@ -157,10 +152,18 @@ export function ConnectionsSection() {
                 aria-readonly="true"
                 className="bg-muted font-mono text-sm"
               />
-              <CopyButton value={mcpUrl} label="Copy MCP server URL" />
+              <CopyButton value={mcpUrl} label="Copy MCP server endpoint URL" />
             </div>
             <p className="text-xs text-muted-foreground">
-              Use this URL to connect Claude to your {BRANDING.productName} via MCP.
+              Paste into{' '}
+              <span className="font-medium text-foreground">
+                Claude.ai &rarr; Settings &rarr; Connectors &rarr; Add connector
+              </span>
+              . The URL ends with{' '}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono">
+                /mcp
+              </code>{' '}
+              — that&rsquo;s the streamable-HTTP transport identifier, not a typo.
             </p>
           </div>
         </CardContent>

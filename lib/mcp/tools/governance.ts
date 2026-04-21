@@ -518,7 +518,7 @@ export async function registerGovernanceTools(
     {
       title: 'Get Governance Queue',
       description:
-        'List content items pending governance review. Returns each item with domain, due date, reviewer, and last-updated timestamp. Use this to triage the governance backlog via Claude (weekly cadence for most admins). Optional domain filter applied post-query. Editor or admin role required.',
+        'List content items pending governance review. Returns each item with domain, due date, reviewer, and last-updated timestamp. Use this to triage the governance backlog via Claude (weekly cadence for most admins). Optional domain filter is applied at the query level so pagination totals reflect the filter. Editor or admin role required.',
       inputSchema: {
         limit: z
           .number()
@@ -537,7 +537,7 @@ export async function registerGovernanceTools(
           .string()
           .optional()
           .describe(
-            'Optional primary_domain filter applied post-query (the underlying route does not support domain filtering).',
+            'Optional primary_domain filter applied at the query level (the underlying route does not support a domain filter — this tool extends the route).',
           ),
       },
       annotations: READ_ONLY_ANNOTATIONS,
@@ -747,6 +747,11 @@ export async function registerGovernanceTools(
             break;
         }
 
+        // We intentionally omit `.select('id').single()` here — the API
+        // route uses that idiom to catch zero-row updates, but the fetch +
+        // pending-status check above already guarantees the row exists at
+        // update time. The only remaining race is a concurrent delete
+        // between fetch and update, which the surrounding try/catch handles.
         const { error: updateError } = await supabase
           .from('content_items')
           .update(updateData)

@@ -587,6 +587,35 @@ export function getMinimalArgs(
     case 'trigger_intelligence_poll':
       return {};
 
+    // S180 P0-23 review + governance read tools
+    case 'get_governance_queue':
+      return { limit: 20, offset: 0 };
+    case 'get_review_queue':
+      return { status: 'unverified', limit: 20, offset: 0 };
+    case 'get_assignments_for_user':
+      return { status: 'active' };
+
+    // S180 P0-23 review + governance write tools. The review-verdict tool
+    // requires an item currently in `pending` state — the eval item typically
+    // is not, so Layer 1 will exercise the precondition error path rather
+    // than a successful update. This is the intended eval behaviour for
+    // protocol compliance (the tool still has to return a valid structured
+    // response, just with `isError: true`).
+    case 'review_governance_item':
+      return { item_id: evalItemId, action: 'approve' };
+    case 'create_review_assignment':
+      // Use a deterministic v4-compliant UUID for reviewer_id (Zod enforces
+      // RFC 4122). The reviewer does not need to exist — the FK will fail
+      // gracefully and the tool returns isError with a structured message,
+      // which is what Layer 1 protocol compliance is checking for. Avoids
+      // creating an eval orphan row that needs cleanup.
+      return {
+        reviewer_id: '11111111-1111-4111-8111-111111111111',
+        filter_domains: [],
+        filter_content_types: [],
+        filter_freshness: [],
+      };
+
     default:
       return {};
   }
