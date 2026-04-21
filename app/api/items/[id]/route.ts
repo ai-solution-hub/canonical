@@ -75,9 +75,17 @@ export async function PATCH(
       }
 
       // null clears the pointer (un-supersede) — revert dedup_status to
-      // suspected_duplicate so the row re-enters the soft-block review
-      // queue rather than being silently "clean". Admins needing 'clean'
-      // can set that via the existing update path if we ever expose it.
+      // 'suspected_duplicate' so the row re-enters the soft-block review
+      // queue rather than being silently "clean".
+      //
+      // Design choice (verifier M2, S186 WP-B.5): this is intentionally
+      // conservative — an admin un-superseding a row that was NEVER a
+      // hash-duplicate still lands in the review queue. That's a minor
+      // false-positive in the queue but guarantees no "clean" row silently
+      // dropped out of search review. Acceptable because un-supersession
+      // is admin-only + rare. If audit evidence post-launch shows a real
+      // volume of non-dedup supersessions, revisit by branching on the
+      // pre-supersede dedup_status.
       if (value === null) {
         const { error: clearErr } = await supabase
           .from('content_items')

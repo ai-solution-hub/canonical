@@ -17,6 +17,20 @@
 --   * search_by_domain / content_items_for_guide / search_by_entities
 --                            — not present on the live schema
 --
+-- Legacy overload note (S186 WP-B.3 verifier M1):
+--   The pre-squash history at
+--   supabase/migrations/20260416102457_pre_squash_reconciliation.sql:3119
+--   defines a stub 4-arg overload of search_for_bid_response
+--   (question_id uuid, query_embedding vector, match_count integer,
+--   domain_filter text) with `RETURN;` as its body. That stub is
+--   DROPPED unconditionally by the later
+--   20260419095345_restore_stub_functions_from_production.sql (lines
+--   22-23) before this migration runs, so it does not exist on the
+--   live DB. If anyone re-introduces a stub or non-stub overload of
+--   search_for_bid_response in a future migration, it MUST include
+--   `include_superseded boolean DEFAULT false` + the matching WHERE
+--   clause so the supersession default filter stays uniform.
+--
 -- Drop-then-CREATE is used because Postgres CREATE OR REPLACE FUNCTION
 -- cannot add a new parameter; adding one without dropping creates an
 -- overload and call sites become ambiguous. Drop the existing
@@ -24,6 +38,9 @@
 --
 -- search_path + SECURITY DEFINER preserved verbatim from
 -- supabase/migrations/20260419095345_restore_stub_functions_from_production.sql.
+-- search_for_bid_response was NEVER SECURITY DEFINER in the original —
+-- only hybrid_search carries that attribute; preserved in this
+-- migration (verifier L1 confirmed no regression).
 -- ============================================================
 
 SET search_path = public, extensions;

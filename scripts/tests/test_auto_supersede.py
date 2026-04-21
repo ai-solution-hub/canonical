@@ -98,6 +98,18 @@ def _run_help(script: str, extra: list[str]) -> subprocess.CompletedProcess:
         ("Final.docx", "", False, "empty existing"),
         ("Final.docx", None, False, "None existing"),
         (None, "DRAFT_any.docx", False, "None incoming"),  # type: ignore[arg-type]
+        # Known-behaviour false positive (verifier L3) — documented
+        # limitation of the substring heuristic. The content-hash dedup
+        # gate + `--auto-supersede` flag + `--auto-supersede-dry-run`
+        # preview together bound the blast radius; revisit if audit
+        # evidence shows real regressions post-launch.
+        (
+            "My-Final-Notes_DRAFT_v2.docx",
+            "DRAFT-My-Final-Notes_v1.docx",
+            True,
+            "L3: filename containing BOTH tokens — substring heuristic "
+            "fires, documented as known behaviour",
+        ),
     ],
 )
 def test_should_auto_supersede_truth_table(incoming, existing, expected, reason):

@@ -78,6 +78,11 @@ export function SupersedeContentDialog({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        // error_code is a technical enum (SAME_ID, OLD_NOT_FOUND,
+        // NEW_ALREADY_SUPERSEDED, etc.) surfaced alongside the human
+        // message so admin operators can cite it in bug reports or
+        // correlate with server logs. This surface is admin-only per
+        // spec §5 Q1 (verifier L2 — intentional exposure).
         const codeSuffix = data.error_code ? ` [${data.error_code}]` : '';
         throw new Error(`${data.error ?? 'Supersession failed'}${codeSuffix}`);
       }
