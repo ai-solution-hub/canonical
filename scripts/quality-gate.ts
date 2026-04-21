@@ -33,7 +33,6 @@ import { parseArgs } from 'util';
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { dirname, resolve } from 'path';
 import { execFileSync } from 'child_process';
-import { randomUUID } from 'crypto';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -421,17 +420,79 @@ function makeFail(
   };
 }
 
+/** Paginated select — supabase-js caps rows at the project's Max Rows setting
+ *  (default 1000). Verification finding M-3: full-table selects must paginate
+ *  or risk silently truncating as the corpus grows past 1000 items. This
+ *  helper fetches in PAGE_SIZE chunks via `.range()` until a short page lands. */
+const PAGE_SIZE = 1000;
+
+async function fetchAll<T = Record<string, unknown>>(
+  sb: SupabaseClient,
+  table: string,
+  buildQuery: (q: ReturnType<SupabaseClient['from']>) => any,
+): Promise<T[]> {
+  const out: T[] = [];
+  let page = 0;
+  while (true) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+    const q = buildQuery(sb.from(table)).range(from, to);
+    const { data, error } = await q;
+    if (error) throw error;
+    const rows = (data as T[] | null) ?? [];
+    out.push(...rows);
+    if (rows.length < PAGE_SIZE) break;
+    page += 1;
+  }
+  return out;
+}
+
+/** Paginated variant of the "chunk IDs then query" pattern. Child-table
+ *  queries like `SELECT * FROM entity_mentions WHERE content_item_id IN (...)`
+ *  can return many rows per parent ID. Default 1000-row cap would silently
+ *  truncate. This helper chunks input IDs and paginates each chunk's result
+ *  set until exhausted. */
+async function fetchAllInBatches<T = Record<string, unknown>>(
+  sb: SupabaseClient,
+  table: string,
+  ids: string[],
+  idColumn: string,
+  buildQuery: (q: ReturnType<SupabaseClient['from']>) => any,
+  idBatchSize = 500,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let i = 0; i < ids.length; i += idBatchSize) {
+    const slice = ids.slice(i, i + idBatchSize);
+    let page = 0;
+    while (true) {
+      const from = page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      const q = buildQuery(sb.from(table)).in(idColumn, slice).range(from, to);
+      const { data, error } = await q;
+      if (error) throw error;
+      const rows = (data as T[] | null) ?? [];
+      out.push(...rows);
+      if (rows.length < PAGE_SIZE) break;
+      page += 1;
+    }
+  }
+  return out;
+}
+
 async function countNonDraftByType(
   sb: SupabaseClient,
 ): Promise<Record<string, number>> {
-  const { data, error } = await sb
-    .from('content_items')
-    .select('content_type, governance_review_status')
-    .or('governance_review_status.is.null,governance_review_status.neq.draft');
-  if (error) throw error;
+  const rows = await fetchAll<{ content_type: string }>(
+    sb,
+    'content_items',
+    (q) =>
+      q
+        .select('content_type, governance_review_status')
+        .or('governance_review_status.is.null,governance_review_status.neq.draft'),
+  );
   const counts: Record<string, number> = {};
-  for (const row of data ?? []) {
-    const t = row.content_type as string;
+  for (const row of rows) {
+    const t = row.content_type;
     counts[t] = (counts[t] ?? 0) + 1;
   }
   return counts;
@@ -490,26 +551,39 @@ export async function embedding_coverage(
   const t0 = now();
   const severity = severityFor(ctx.profileDef, 'embedding_coverage');
   try {
-    const { data, error } = await ctx.sb
+    // Verification finding L-1: use exact count for observed (not row-length
+    // capped at .limit(20)) so the operator sees the full scale of the gap,
+    // then fetch a small sample separately for the diagnostic list.
+    const { count, error: countErr } = await ctx.sb
       .from('content_items')
-      .select('id, title')
+      .select('id', { count: 'exact', head: true })
       .is('embedding', null)
-      .or('governance_review_status.is.null,governance_review_status.neq.draft')
-      .limit(20);
-    if (error) throw error;
-    const rows = data ?? [];
-    const affected = rows
-      .slice(0, 5)
-      .map((r) => `${r.id}: ${(r.title as string).slice(0, 60)}`)
-      .join('; ');
+      .or('governance_review_status.is.null,governance_review_status.neq.draft');
+    if (countErr) throw countErr;
+    const missing = count ?? 0;
+    let affected = '';
+    if (missing > 0) {
+      const { data, error } = await ctx.sb
+        .from('content_items')
+        .select('id, title')
+        .is('embedding', null)
+        .or(
+          'governance_review_status.is.null,governance_review_status.neq.draft',
+        )
+        .limit(5);
+      if (error) throw error;
+      affected = (data ?? [])
+        .map((r) => `${r.id}: ${(r.title as string).slice(0, 60)}`)
+        .join('; ');
+    }
     return {
       name: 'embedding_coverage',
       severity,
-      status: rows.length ? 'fail' : 'pass',
+      status: missing > 0 ? 'fail' : 'pass',
       threshold: 'missing = 0',
-      observed: `missing=${rows.length}`,
-      diagnostic: rows.length
-        ? `Published items without embedding: ${affected}`
+      observed: `missing=${missing}`,
+      diagnostic: missing > 0
+        ? `Published items without embedding (sample): ${affected}`
         : '',
       duration_ms: now() - t0,
     };
@@ -525,12 +599,15 @@ export async function chunk_coverage(
   const t0 = now();
   const severity = severityFor(ctx.profileDef, 'chunk_coverage');
   try {
-    const { data: itemsData, error: itemsErr } = await ctx.sb
-      .from('content_items')
-      .select('id, title, content_type')
-      .or('governance_review_status.is.null,governance_review_status.neq.draft');
-    if (itemsErr) throw itemsErr;
-    const items = itemsData ?? [];
+    const items = await fetchAll<{
+      id: string;
+      title: string;
+      content_type: string;
+    }>(ctx.sb, 'content_items', (q) =>
+      q
+        .select('id, title, content_type')
+        .or('governance_review_status.is.null,governance_review_status.neq.draft'),
+    );
     if (items.length === 0) {
       return {
         name: 'chunk_coverage',
@@ -543,19 +620,15 @@ export async function chunk_coverage(
       };
     }
     const ids = items.map((r) => r.id as string);
+    const chunkRows = await fetchAllInBatches<{ content_item_id: string }>(
+      ctx.sb,
+      'content_chunks',
+      ids,
+      'content_item_id',
+      (q) => q.select('content_item_id'),
+    );
     const chunkSet = new Set<string>();
-    const BATCH = 500;
-    for (let i = 0; i < ids.length; i += BATCH) {
-      const slice = ids.slice(i, i + BATCH);
-      const { data: cdata, error: cerr } = await ctx.sb
-        .from('content_chunks')
-        .select('content_item_id')
-        .in('content_item_id', slice);
-      if (cerr) throw cerr;
-      for (const row of cdata ?? []) {
-        chunkSet.add(row.content_item_id as string);
-      }
-    }
+    for (const row of chunkRows) chunkSet.add(row.content_item_id);
     const missing = items.filter((r) => !chunkSet.has(r.id as string));
     const sample = missing
       .slice(0, 10)
@@ -593,28 +666,26 @@ export async function entity_mention_coverage(
         `No thresholds for profile '${ctx.profileName}'`,
       );
     }
-    const { data: itemsData, error: itemsErr } = await ctx.sb
-      .from('content_items')
-      .select('id, content_type')
-      .or('governance_review_status.is.null,governance_review_status.neq.draft')
-      .not('classified_at', 'is', null);
-    if (itemsErr) throw itemsErr;
-    const items = itemsData ?? [];
+    const items = await fetchAll<{ id: string; content_type: string }>(
+      ctx.sb,
+      'content_items',
+      (q) =>
+        q
+          .select('id, content_type')
+          .or('governance_review_status.is.null,governance_review_status.neq.draft')
+          .not('classified_at', 'is', null),
+    );
 
-    const withMentions = new Set<string>();
     const ids = items.map((r) => r.id as string);
-    const BATCH = 500;
-    for (let i = 0; i < ids.length; i += BATCH) {
-      const slice = ids.slice(i, i + BATCH);
-      const { data: mdata, error: merr } = await ctx.sb
-        .from('entity_mentions')
-        .select('content_item_id')
-        .in('content_item_id', slice);
-      if (merr) throw merr;
-      for (const row of mdata ?? []) {
-        withMentions.add(row.content_item_id as string);
-      }
-    }
+    const mentionRows = await fetchAllInBatches<{ content_item_id: string }>(
+      ctx.sb,
+      'entity_mentions',
+      ids,
+      'content_item_id',
+      (q) => q.select('content_item_id'),
+    );
+    const withMentions = new Set<string>();
+    for (const row of mentionRows) withMentions.add(row.content_item_id);
 
     const byType: Record<string, { total: number; withM: number }> = {};
     for (const r of items) {
@@ -665,28 +736,26 @@ export async function entity_relationship_coverage(
         `No thresholds for profile '${ctx.profileName}'`,
       );
     }
-    const { data: itemsData, error: itemsErr } = await ctx.sb
-      .from('content_items')
-      .select('id, content_type')
-      .or('governance_review_status.is.null,governance_review_status.neq.draft')
-      .not('classified_at', 'is', null);
-    if (itemsErr) throw itemsErr;
-    const items = itemsData ?? [];
+    const items = await fetchAll<{ id: string; content_type: string }>(
+      ctx.sb,
+      'content_items',
+      (q) =>
+        q
+          .select('id, content_type')
+          .or('governance_review_status.is.null,governance_review_status.neq.draft')
+          .not('classified_at', 'is', null),
+    );
 
-    const withRels = new Set<string>();
     const ids = items.map((r) => r.id as string);
-    const BATCH = 500;
-    for (let i = 0; i < ids.length; i += BATCH) {
-      const slice = ids.slice(i, i + BATCH);
-      const { data: rdata, error: rerr } = await ctx.sb
-        .from('entity_relationships')
-        .select('source_item_id')
-        .in('source_item_id', slice);
-      if (rerr) throw rerr;
-      for (const row of rdata ?? []) {
-        withRels.add(row.source_item_id as string);
-      }
-    }
+    const relRows = await fetchAllInBatches<{ source_item_id: string }>(
+      ctx.sb,
+      'entity_relationships',
+      ids,
+      'source_item_id',
+      (q) => q.select('source_item_id'),
+    );
+    const withRels = new Set<string>();
+    for (const row of relRows) withRels.add(row.source_item_id);
 
     const byType: Record<string, { total: number; withR: number }> = {};
     for (const r of items) {
@@ -932,28 +1001,25 @@ export async function history_v1_present(
   const t0 = now();
   const severity = severityFor(ctx.profileDef, 'history_v1_present');
   try {
-    const { data: itemsData, error: itemsErr } = await ctx.sb
-      .from('content_items')
-      .select('id, title')
-      .or('governance_review_status.is.null,governance_review_status.neq.draft');
-    if (itemsErr) throw itemsErr;
-    const items = itemsData ?? [];
+    const items = await fetchAll<{ id: string; title: string }>(
+      ctx.sb,
+      'content_items',
+      (q) =>
+        q
+          .select('id, title')
+          .or('governance_review_status.is.null,governance_review_status.neq.draft'),
+    );
 
-    const hasV1 = new Set<string>();
     const ids = items.map((r) => r.id as string);
-    const BATCH = 500;
-    for (let i = 0; i < ids.length; i += BATCH) {
-      const slice = ids.slice(i, i + BATCH);
-      const { data: hdata, error: herr } = await ctx.sb
-        .from('content_history')
-        .select('content_item_id')
-        .eq('version', 1)
-        .in('content_item_id', slice);
-      if (herr) throw herr;
-      for (const row of hdata ?? []) {
-        hasV1.add(row.content_item_id as string);
-      }
-    }
+    const historyRows = await fetchAllInBatches<{ content_item_id: string }>(
+      ctx.sb,
+      'content_history',
+      ids,
+      'content_item_id',
+      (q) => q.select('content_item_id').eq('version', 1),
+    );
+    const hasV1 = new Set<string>();
+    for (const row of historyRows) hasV1.add(row.content_item_id);
     const missing = items.filter((r) => !hasV1.has(r.id as string));
     const sample = missing
       .slice(0, 20)
@@ -1078,6 +1144,7 @@ export function matchFileGroup(
 
 async function loadAuditCorpusItems(
   sb: SupabaseClient,
+  auditContent: AuditContentExpected,
 ): Promise<
   Array<{
     id: string;
@@ -1090,16 +1157,22 @@ async function loadAuditCorpusItems(
     user_tags: string[] | null;
   }>
 > {
-  const { data, error } = await sb
-    .from('content_items')
-    .select(
+  // Spec §2.1+§2.2 scope: q_a_pair rows whose source_file matches one of the
+  // configured file_groups (not any q_a_pair with a source_file — that would
+  // include other clients' imports) PLUS Stage 2 markdown items tagged
+  // 'client-new-markdown-2026'. Verification finding M-1: tighten the
+  // isexample-clientDocx gate to use matchFileGroup so cross-client corpus leakage
+  // cannot dilute audit-content metrics.
+  const rows = await fetchAll(sb, 'content_items', (q) =>
+    q.select(
       'id, title, content_type, source_file, classification_confidence, dedup_status, updated_at, user_tags',
-    );
-  if (error) throw error;
-  const rows = data ?? [];
-  return rows.filter((r) => {
+    ),
+  );
+  return (rows as any[]).filter((r) => {
     const isexample-clientDocx =
-      (r.source_file as string | null) && (r.content_type as string) === 'q_a_pair';
+      (r.content_type as string) === 'q_a_pair' &&
+      typeof r.source_file === 'string' &&
+      matchFileGroup(r.source_file, auditContent.file_groups) !== null;
     const isStage2 =
       Array.isArray(r.user_tags) &&
       (r.user_tags as string[]).includes('client-new-markdown-2026');
@@ -1125,17 +1198,20 @@ export async function audit_per_file_qa_count(
         'audit-content config missing',
       );
     }
-    const { data, error } = await ctx.sb
-      .from('content_items')
-      .select('id, source_file, content_type')
-      .eq('content_type', 'q_a_pair')
-      .not('source_file', 'is', null);
-    if (error) throw error;
-    const rows = data ?? [];
+    const rows = await fetchAll<{
+      id: string;
+      source_file: string;
+      content_type: string;
+    }>(ctx.sb, 'content_items', (q) =>
+      q
+        .select('id, source_file, content_type')
+        .eq('content_type', 'q_a_pair')
+        .not('source_file', 'is', null),
+    );
     const counts: Record<string, number> = {};
     for (const r of rows) {
       const group = matchFileGroup(
-        r.source_file as string,
+        r.source_file,
         ctx.auditContent.file_groups,
       );
       if (group) counts[group] = (counts[group] ?? 0) + 1;
@@ -1183,17 +1259,21 @@ export async function audit_classification_confidence(
         'audit-content config missing',
       );
     }
-    const { data, error } = await ctx.sb
-      .from('content_items')
-      .select('id, source_file, classification_confidence, content_type')
-      .eq('content_type', 'q_a_pair')
-      .not('source_file', 'is', null);
-    if (error) throw error;
-    const rows = data ?? [];
+    const rows = await fetchAll<{
+      id: string;
+      source_file: string;
+      classification_confidence: number | null;
+      content_type: string;
+    }>(ctx.sb, 'content_items', (q) =>
+      q
+        .select('id, source_file, classification_confidence, content_type')
+        .eq('content_type', 'q_a_pair')
+        .not('source_file', 'is', null),
+    );
     const byGroup: Record<string, { hi: number; total: number }> = {};
     for (const r of rows) {
       const group = matchFileGroup(
-        r.source_file as string,
+        r.source_file,
         ctx.auditContent.file_groups,
       );
       if (!group) continue;
@@ -1248,22 +1328,22 @@ export async function audit_required_entities(
         'audit-content config missing',
       );
     }
-    const corpusItems = await loadAuditCorpusItems(ctx.sb);
+    const corpusItems = await loadAuditCorpusItems(
+      ctx.sb,
+      ctx.auditContent,
+    );
     const itemIds = corpusItems.map((r) => r.id);
+    const mentionRows = await fetchAllInBatches<{
+      canonical_name: string;
+      entity_type: string;
+    }>(ctx.sb, 'entity_mentions', itemIds, 'content_item_id', (q) =>
+      q.select('canonical_name, entity_type'),
+    );
     const foundByType = new Set<string>();
-    const BATCH = 500;
-    for (let i = 0; i < itemIds.length; i += BATCH) {
-      const slice = itemIds.slice(i, i + BATCH);
-      const { data, error } = await ctx.sb
-        .from('entity_mentions')
-        .select('canonical_name, entity_type')
-        .in('content_item_id', slice);
-      if (error) throw error;
-      for (const row of data ?? []) {
-        const name = (row.canonical_name as string)?.toLowerCase();
-        const type = (row.entity_type as string)?.toLowerCase();
-        if (name) foundByType.add(`${name}|${type}`);
-      }
+    for (const row of mentionRows) {
+      const name = row.canonical_name?.toLowerCase();
+      const type = row.entity_type?.toLowerCase();
+      if (name) foundByType.add(`${name}|${type}`);
     }
     const missingRequired: string[] = [];
     for (const req of ctx.auditContent.required_entities) {
@@ -1333,21 +1413,22 @@ export async function audit_required_relationships(
         'audit-content config missing',
       );
     }
-    const corpusItems = await loadAuditCorpusItems(ctx.sb);
+    const corpusItems = await loadAuditCorpusItems(
+      ctx.sb,
+      ctx.auditContent,
+    );
     const itemIds = corpusItems.map((r) => r.id);
+    const relRows = await fetchAllInBatches<{ relationship_type: string }>(
+      ctx.sb,
+      'entity_relationships',
+      itemIds,
+      'source_item_id',
+      (q) => q.select('relationship_type'),
+    );
     const foundTypes = new Set<string>();
-    const BATCH = 500;
-    for (let i = 0; i < itemIds.length; i += BATCH) {
-      const slice = itemIds.slice(i, i + BATCH);
-      const { data, error } = await ctx.sb
-        .from('entity_relationships')
-        .select('relationship_type')
-        .in('source_item_id', slice);
-      if (error) throw error;
-      for (const row of data ?? []) {
-        const t = (row.relationship_type as string)?.toLowerCase();
-        if (t) foundTypes.add(t);
-      }
+    for (const row of relRows) {
+      const t = row.relationship_type?.toLowerCase();
+      if (t) foundTypes.add(t);
     }
     const missingRequired = ctx.auditContent.required_relationship_types.filter(
       (t) => !foundTypes.has(t.toLowerCase()),
@@ -1398,21 +1479,24 @@ export async function audit_chunk_count_per_doc(
         'audit-content config missing',
       );
     }
-    const { data: items, error: ierr } = await ctx.sb
-      .from('content_items')
-      .select('id, source_file, content_type')
-      .eq('content_type', 'q_a_pair')
-      .not('source_file', 'is', null);
-    if (ierr) throw ierr;
-    const itemsRows = items ?? [];
+    const itemsRows = await fetchAll<{
+      id: string;
+      source_file: string;
+      content_type: string;
+    }>(ctx.sb, 'content_items', (q) =>
+      q
+        .select('id, source_file, content_type')
+        .eq('content_type', 'q_a_pair')
+        .not('source_file', 'is', null),
+    );
     const groupToIds: Record<string, string[]> = {};
     for (const r of itemsRows) {
       const group = matchFileGroup(
-        r.source_file as string,
+        r.source_file,
         ctx.auditContent.file_groups,
       );
       if (!group) continue;
-      (groupToIds[group] ??= []).push(r.id as string);
+      (groupToIds[group] ??= []).push(r.id);
     }
     const failures: string[] = [];
     const lines: string[] = [];
@@ -1472,7 +1556,10 @@ export async function audit_cross_doc_dedup_ratio(
         'audit-content config missing',
       );
     }
-    const corpusItems = await loadAuditCorpusItems(ctx.sb);
+    const corpusItems = await loadAuditCorpusItems(
+      ctx.sb,
+      ctx.auditContent,
+    );
     const total = corpusItems.length;
     if (total === 0) {
       return {
@@ -1491,10 +1578,15 @@ export async function audit_cross_doc_dedup_ratio(
     const ratio = flagged / total;
     const { min, max } = ctx.auditContent.cross_doc_dedup_ratio_range;
     const ok = ratio >= min && ratio <= max;
+    // Verification finding M-2: return 'fail' on violation like every other
+    // check; overallVerdict() + renderer demote SHOULD-PASS fails to warn
+    // via severity, so the report semantics are unchanged but tooling that
+    // queries `status === 'fail'` now sees this violation (was silently
+    // hidden as 'warn' before).
     return {
       name: 'audit_cross_doc_dedup_ratio',
       severity,
-      status: ok ? 'pass' : 'warn',
+      status: ok ? 'pass' : 'fail',
       threshold: `ratio ∈ [${min}, ${max}]`,
       observed: `ratio=${fmtRatio(ratio)} (${flagged}/${total})`,
       diagnostic: ok
@@ -1526,7 +1618,10 @@ export async function audit_unresolved_dedup_24h(
     const cutoff = new Date(
       Date.now() - ctx.auditContent.unresolved_dedup_age_hours * 60 * 60 * 1000,
     ).toISOString();
-    const corpusItems = await loadAuditCorpusItems(ctx.sb);
+    const corpusItems = await loadAuditCorpusItems(
+      ctx.sb,
+      ctx.auditContent,
+    );
     const stale = corpusItems.filter(
       (r) =>
         r.dedup_status === 'suspected_duplicate' &&
@@ -1536,10 +1631,13 @@ export async function audit_unresolved_dedup_24h(
       .slice(0, 10)
       .map((r) => `${r.id}: ${r.title.slice(0, 40)}`)
       .join('; ');
+    // Verification finding M-2: return 'fail' on violation; SHOULD-PASS
+    // severity demotes to warn via overallVerdict — see sibling comment on
+    // audit_cross_doc_dedup_ratio.
     return {
       name: 'audit_unresolved_dedup_24h',
       severity,
-      status: stale.length ? 'warn' : 'pass',
+      status: stale.length ? 'fail' : 'pass',
       threshold: '0 corpus items in suspected_duplicate state > 24h old',
       observed: `stale=${stale.length}`,
       diagnostic: stale.length
@@ -1767,7 +1865,10 @@ export async function runGate(
     auditContent = loadAuditContentExpected();
   }
 
-  const runId = randomUUID();
+  // UUIDv7 per spec §4.2 — time-ordered so reports correlate chronologically.
+  // Bun.randomUUIDv7 available since Bun 1.1. Prefix 'qg_' dropped to keep
+  // JSON.parseable as a plain UUID string.
+  const runId = Bun.randomUUIDv7();
   const gitSha = tryGitSha();
   const timestamp = new Date().toISOString();
 
