@@ -543,6 +543,7 @@ export type Database = {
           content_type: string
           created_at: string
           created_by: string | null
+          dedup_status: string
           detail: string | null
           embedding: string | null
           embedding_model: string | null
@@ -614,6 +615,7 @@ export type Database = {
           content_type: string
           created_at?: string
           created_by?: string | null
+          dedup_status?: string
           detail?: string | null
           embedding?: string | null
           embedding_model?: string | null
@@ -685,6 +687,7 @@ export type Database = {
           content_type?: string
           created_at?: string
           created_by?: string | null
+          dedup_status?: string
           detail?: string | null
           embedding?: string | null
           embedding_model?: string | null
@@ -2104,6 +2107,33 @@ export type Database = {
           },
         ]
       }
+      taxonomy_sync_state: {
+        Row: {
+          created_at: string
+          id: string
+          last_sync_at: string | null
+          last_sync_hash: string
+          synced_by: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_sync_at?: string | null
+          last_sync_hash?: string
+          synced_by?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_sync_at?: string | null
+          last_sync_hash?: string
+          synced_by?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       template_completions: {
         Row: {
           created_at: string | null
@@ -2526,6 +2556,7 @@ export type Database = {
         Args: { probe_email: string; probe_id: string }
         Returns: undefined
       }
+      acquire_taxonomy_sync_lock: { Args: never; Returns: undefined }
       bulk_assign_content_owner: {
         Args: {
           p_assigned_by: string
@@ -2621,6 +2652,7 @@ export type Database = {
               content_type: string
               created_at: string
               created_by: string | null
+              dedup_status: string
               detail: string | null
               embedding: string | null
               embedding_model: string | null
