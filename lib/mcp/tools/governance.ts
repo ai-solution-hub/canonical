@@ -26,6 +26,7 @@ import {
   type ToolExtra,
   toStructuredContent,
   getGenerateEmbedding,
+  getClassifyContent,
   defineTool,
   DESTRUCTIVE_WRITE_ANNOTATIONS,
   SAFE_WRITE_ANNOTATIONS,
@@ -312,7 +313,7 @@ export async function registerGovernanceTools(
         const { data: rows, error: fetchError } = await supabase
           .from('content_items')
           .select(
-            'id, title, suggested_title, content, governance_review_status',
+            'id, title, suggested_title, content, governance_review_status, classified_at',
           )
           .in('id', args.item_ids);
 
@@ -336,6 +337,7 @@ export async function registerGovernanceTools(
               suggested_title: string | null;
               content: string | null;
               governance_review_status: string | null;
+              classified_at: string | null;
             }>
           ).map((r) => [r.id, r]),
         );
@@ -400,6 +402,50 @@ export async function registerGovernanceTools(
                   error: updateError.message,
                 });
                 continue;
+              }
+
+              // S183 WP1 G2 — first-time publish for draft-created items
+              // needs classification + chunks. Drafts bypass the AI pipeline
+              // in create_content_item, so an item with classified_at = NULL
+              // has no entity_mentions, entity_relationships, summary, or
+              // content_chunks. Running now fixes that so the item is fully
+              // searchable + richly linked the moment it becomes live.
+              // Non-fatal: we surface as warnings but do not un-publish.
+              if (!row.classified_at && row.content) {
+                try {
+                  const classifyContent = await getClassifyContent();
+                  await classifyContent({
+                    supabase,
+                    itemId,
+                    force: true,
+                    userId,
+                  });
+                } catch (classifyErr) {
+                  console.error(
+                    `MCP publish classify failed for ${itemId}:`,
+                    classifyErr,
+                  );
+                }
+
+                try {
+                  const { regenerateChunks } = await import(
+                    '@/lib/content/chunk-store'
+                  );
+                  const { createServiceClient } = await import(
+                    '@/lib/supabase/server'
+                  );
+                  const chunkServiceClient = createServiceClient();
+                  await regenerateChunks(
+                    chunkServiceClient,
+                    itemId,
+                    row.content,
+                  );
+                } catch (chunkErr) {
+                  console.error(
+                    `MCP publish chunking failed for ${itemId}:`,
+                    chunkErr,
+                  );
+                }
               }
             } else {
               // Draft: set governance_review_status to 'draft'
