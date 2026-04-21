@@ -319,4 +319,105 @@ describe('get_change_report MCP tool', () => {
     expect(result.structuredContent.start_date).toBeDefined();
     expect(result.structuredContent.end_date).toBeDefined();
   });
+
+  // -------------------------------------------------------------------------
+  // WP6 verify F-1: surface Supabase errors rather than masking them as "no changes"
+  // -------------------------------------------------------------------------
+
+  it('returns isError when any of the three queries fails', async () => {
+    const handler = tools.get('get_change_report')!.handler;
+
+    // Override `then` on the primary chain to simulate a DB failure.
+    mocks.chain.then = vi.fn((resolve: (v: unknown) => void) =>
+      resolve({ data: null, error: { message: 'connection refused' } }),
+    );
+
+    const result = await handler(
+      { period_days: 7 },
+      { authInfo: MOCK_AUTH_INFO },
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('connection refused');
+    // Confirms the user sees the DB error rather than a misleading "no changes"
+    expect(result.content[0].text).not.toContain('No additions in this period');
+  });
+
+  // -------------------------------------------------------------------------
+  // WP6 verify F-4: PostgREST metacharacter escaping in keywords
+  // -------------------------------------------------------------------------
+
+  it('strips PostgREST metacharacters (comma, parens, backslash) from keywords before interpolation', async () => {
+    const handler = tools.get('get_change_report')!.handler;
+    await handler(
+      {
+        period_days: 7,
+        // Pathological keywords that would break the .or() filter syntax
+        // if interpolated verbatim.
+        keywords: ['Cyber,Security', 'Policy(v2)', 'rule\\1'],
+      },
+      { authInfo: MOCK_AUTH_INFO },
+    );
+
+    const orCalls = mocks.chain.or.mock.calls;
+    expect(orCalls.length).toBe(3);
+    for (const call of orCalls) {
+      const filter = call[0] as string;
+      // Comma, parens, backslash must all be stripped from the interpolated
+      // ILIKE patterns — otherwise they break PostgREST .or() syntax.
+      expect(filter).toContain('title.ilike.%CyberSecurity%');
+      expect(filter).toContain('title.ilike.%Policyv2%');
+      expect(filter).toContain('title.ilike.%rule1%');
+      // And the raw pathological strings must NOT leak into the filter.
+      expect(filter).not.toMatch(/Cyber,Security/);
+      expect(filter).not.toMatch(/Policy\(v2\)/);
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // WP6 verify F-2: Zod constraints on period_days (caught before the handler)
+  // -------------------------------------------------------------------------
+
+  it('rejects period_days > 90 at the Zod schema layer', () => {
+    // Walk the registration to grab the inputSchema. Zod is the MCP SDK's
+    // layer of defence; the handler never runs for out-of-range values.
+    const config = tools.get('get_change_report')!.config as {
+      inputSchema: {
+        period_days: {
+          safeParse: (
+            v: unknown,
+          ) => { success: boolean; error?: { issues: Array<{ code: string }> } };
+        };
+      };
+    };
+    const result = config.inputSchema.period_days.safeParse(91);
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.code).toBeDefined();
+  });
+
+  it('rejects period_days < 1 at the Zod schema layer', () => {
+    const config = tools.get('get_change_report')!.config as {
+      inputSchema: {
+        period_days: {
+          safeParse: (
+            v: unknown,
+          ) => { success: boolean };
+        };
+      };
+    };
+    const result = config.inputSchema.period_days.safeParse(0);
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts period_days at the boundaries (1 and 90)', () => {
+    const config = tools.get('get_change_report')!.config as {
+      inputSchema: {
+        period_days: {
+          safeParse: (v: unknown) => { success: boolean };
+        };
+      };
+    };
+    expect(config.inputSchema.period_days.safeParse(1).success).toBe(true);
+    expect(config.inputSchema.period_days.safeParse(90).success).toBe(true);
+  });
 });

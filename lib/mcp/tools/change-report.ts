@@ -78,12 +78,19 @@ export async function registerChangeReportTools(
         cutoff.setDate(cutoff.getDate() - periodDays);
         const cutoffISO = cutoff.toISOString();
 
-        // Build keyword ILIKE filter for PostgREST .or() syntax
+        // Build keyword ILIKE filter for PostgREST .or() syntax. Strip
+        // comma + parenthesis + backslash from each keyword — they are
+        // PostgREST metacharacters and would break the .or() filter string.
+        // (Real-world keywords rarely contain these, but defend in depth.)
+        const sanitiseKeyword = (kw: string) =>
+          kw.replace(/[,()\\]/g, '').trim();
         const keywordOrFilter =
           args.keywords && args.keywords.length > 0
             ? args.keywords
+                .map(sanitiseKeyword)
+                .filter((kw) => kw.length > 0)
                 .map((kw) => `title.ilike.%${kw}%`)
-                .join(',')
+                .join(',') || null
             : null;
 
         // ----- Additions: created within window, not archived -----
@@ -137,6 +144,25 @@ export async function registerChangeReportTools(
         // Execute all three queries in parallel
         const [additionsResult, updatesResult, removalsResult] =
           await Promise.all([additionsQuery, updatesQuery, removalsQuery]);
+
+        // Surface DB errors explicitly — the `?? []` fallback below would
+        // otherwise mask a DB failure as "no changes in this period".
+        const queryErrors = [
+          additionsResult.error && `additions: ${additionsResult.error.message}`,
+          updatesResult.error && `updates: ${updatesResult.error.message}`,
+          removalsResult.error && `removals: ${removalsResult.error.message}`,
+        ].filter(Boolean);
+        if (queryErrors.length > 0) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Change report query failed — ${queryErrors.join('; ')}`,
+              },
+            ],
+            isError: true,
+          };
+        }
 
         // Map results to ChangeReportItem arrays
         const additions: ChangeReportItem[] = (
