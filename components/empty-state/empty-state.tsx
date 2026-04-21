@@ -1,10 +1,14 @@
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 export interface EmptyStateCta {
   label: string;
-  href: string;
+  /** Navigation target. If provided, CTA renders as a link. */
+  href?: string;
+  /** Action handler. If provided (without href), CTA renders as a button. */
+  onClick?: () => void;
 }
 
 export interface EmptyStateProps {
@@ -18,13 +22,39 @@ export interface EmptyStateProps {
   className?: string;
 }
 
+/**
+ * Render a CTA as either a link or button depending on props.
+ * href takes precedence when both href and onClick are provided.
+ */
+function CtaButton({
+  cta,
+  variant,
+}: {
+  cta: EmptyStateCta;
+  variant: 'outline' | 'ghost';
+}) {
+  if (cta.href) {
+    return (
+      <Button variant={variant} size="sm" asChild>
+        <Link href={cta.href}>{cta.label}</Link>
+      </Button>
+    );
+  }
+
+  return (
+    <Button variant={variant} size="sm" onClick={cta.onClick}>
+      {cta.label}
+    </Button>
+  );
+}
+
 export function EmptyState({
   icon,
   title,
   description,
   primaryCta,
   secondaryCta,
-  headingLevel = 'h3',
+  headingLevel = 'h2',
   variant = 'first-run',
   className,
 }: EmptyStateProps) {
@@ -38,7 +68,7 @@ export function EmptyState({
     <div
       {...ariaProps}
       className={cn(
-        'flex flex-col items-center justify-center gap-4 py-12 text-center',
+        'flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed border-border py-12 text-center',
         className,
       )}
     >
@@ -56,20 +86,10 @@ export function EmptyState({
       {(primaryCta || secondaryCta) && (
         <div className="flex flex-wrap items-center justify-center gap-2">
           {primaryCta ? (
-            <Link
-              href={primaryCta.href}
-              className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {primaryCta.label}
-            </Link>
+            <CtaButton cta={primaryCta} variant="outline" />
           ) : null}
           {secondaryCta ? (
-            <Link
-              href={secondaryCta.href}
-              className="inline-flex items-center justify-center rounded-md border border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {secondaryCta.label}
-            </Link>
+            <CtaButton cta={secondaryCta} variant="ghost" />
           ) : null}
         </div>
       )}

@@ -81,7 +81,9 @@ jobs:
           TAXONOMY_SYNC_CALLBACK_SECRET: ${{ secrets.TAXONOMY_SYNC_CALLBACK_SECRET }}
         run: |
           TIMESTAMP=$(date +%s%3N)
-          BODY="{\"run_id\":\"${DISPATCH_RUN_ID}\",\"status\":\"success\",\"timestamp\":${TIMESTAMP},\"new_hash\":\"\"}"
+          # new_hash intentionally omitted — the callback route computes the
+          # authoritative hash from DB state (single source of truth).
+          BODY="{\"run_id\":\"${DISPATCH_RUN_ID}\",\"status\":\"success\",\"timestamp\":${TIMESTAMP}}"
 
           SIGNATURE=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$TAXONOMY_SYNC_CALLBACK_SECRET" -hex | sed 's/^.* //')
 

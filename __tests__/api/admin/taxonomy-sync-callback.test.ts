@@ -19,9 +19,10 @@ import {
 // variables they reference must also be hoisted via vi.hoisted().
 // ---------------------------------------------------------------------------
 
-const { mockCaptureMessage, mockCaptureException } = vi.hoisted(() => ({
+const { mockCaptureMessage, mockCaptureException, mockComputeTaxonomyHash } = vi.hoisted(() => ({
   mockCaptureMessage: vi.fn(),
   mockCaptureException: vi.fn(),
+  mockComputeTaxonomyHash: vi.fn(),
 }));
 
 // Module-level mock client — NOT referenced inside vi.mock() factories
@@ -51,6 +52,10 @@ vi.mock('next/headers', () => ({
 vi.mock('@sentry/nextjs', () => ({
   captureMessage: mockCaptureMessage,
   captureException: mockCaptureException,
+}));
+
+vi.mock('@/lib/taxonomy/sync-trigger', () => ({
+  computeTaxonomyHash: mockComputeTaxonomyHash,
 }));
 
 // ---------------------------------------------------------------------------
@@ -145,6 +150,9 @@ describe('POST /api/admin/taxonomy-sync/callback', () => {
     );
     mockCaptureMessage.mockClear();
     mockCaptureException.mockClear();
+    mockComputeTaxonomyHash.mockClear();
+    // Default: return a deterministic hash from DB-derived computation
+    mockComputeTaxonomyHash.mockReturnValue('db-computed-hash-abc123');
     // Reset from() to return the default chain (not a stale mockImplementation
     // from a previous test that creates per-table chains)
     mockSupabase.from.mockReset();
@@ -297,35 +305,45 @@ describe('POST /api/admin/taxonomy-sync/callback', () => {
   // -------------------------------------------------------------------------
 
   describe('success payload', () => {
-    it('updates taxonomy_sync_state then pipeline_runs in sequence', async () => {
-      // Track per-table update payloads in call order to verify:
-      // 1. taxonomy_sync_state is updated first with hash/timestamp
-      // 2. pipeline_runs is updated second with completed status
-      const updateLog: Array<{ table: string; payload: Record<string, unknown> }> = [];
+    it('computes hash from DB and updates taxonomy_sync_state then pipeline_runs in sequence', async () => {
+      // Track per-table operations in call order to verify:
+      // 1. taxonomy_domains SELECT (for hash computation)
+      // 2. taxonomy_subtopics SELECT (for hash computation)
+      // 3. taxonomy_sync_state UPDATE with DB-derived hash
+      // 4. pipeline_runs UPDATE with completed status
+      const opLog: Array<{ table: string; op: string; payload?: Record<string, unknown> }> = [];
+
+      mockComputeTaxonomyHash.mockReturnValue('db-derived-hash-xyz');
 
       mockSupabase.from.mockImplementation((table: string) => {
         const chain: Record<string, ReturnType<typeof vi.fn>> = {};
         const chainable = [
-          'select', 'insert', 'upsert', 'delete',
-          'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
+          'insert', 'upsert', 'delete',
+          'neq', 'in', 'is', 'not', 'ilike', 'contains',
           'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
         ];
         for (const m of chainable) {
           chain[m] = vi.fn().mockReturnValue(chain);
         }
+        chain.select = vi.fn(() => {
+          opLog.push({ table, op: 'select' });
+          return chain;
+        });
+        chain.eq = vi.fn().mockReturnValue(chain);
         chain.update = vi.fn((payload: Record<string, unknown>) => {
-          updateLog.push({ table, payload });
+          opLog.push({ table, op: 'update', payload });
           return chain;
         });
         chain.single = vi.fn().mockResolvedValue({ data: null, error: null });
         chain.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
         chain.then = vi.fn((resolve: (v: unknown) => void) =>
-          resolve({ data: null, error: null }),
+          resolve({ data: [], error: null }),
         );
         return chain;
       });
 
-      const payload = makeSuccessPayload({ new_hash: 'newhash456' });
+      // Payload new_hash is advisory — callback should ignore it and use DB-derived hash
+      const payload = makeSuccessPayload({ new_hash: 'payload-hash-should-be-ignored' });
       const req = makeRequest(payload);
 
       const res = await POST(req);
@@ -334,21 +352,31 @@ describe('POST /api/admin/taxonomy-sync/callback', () => {
       const body = await res.json();
       expect(body.ok).toBe(true);
 
-      // Verify exactly 2 updates in the correct order
-      expect(updateLog).toHaveLength(2);
+      // Verify computeTaxonomyHash was called with the DB query results
+      expect(mockComputeTaxonomyHash).toHaveBeenCalledOnce();
 
-      // First update: taxonomy_sync_state with new hash
-      expect(updateLog[0].table).toBe('taxonomy_sync_state');
-      expect(updateLog[0].payload).toEqual(
+      // Find the taxonomy_sync_state update
+      const syncStateUpdate = opLog.find(
+        (op) => op.table === 'taxonomy_sync_state' && op.op === 'update',
+      );
+      expect(syncStateUpdate).toBeDefined();
+      expect(syncStateUpdate!.payload).toEqual(
         expect.objectContaining({
-          last_sync_hash: 'newhash456',
+          last_sync_hash: 'db-derived-hash-xyz',
           synced_by: 'workflow',
         }),
       );
+      // Confirm it did NOT use the payload's new_hash
+      expect(syncStateUpdate!.payload!.last_sync_hash).not.toBe(
+        'payload-hash-should-be-ignored',
+      );
 
-      // Second update: pipeline_runs to completed
-      expect(updateLog[1].table).toBe('pipeline_runs');
-      expect(updateLog[1].payload).toEqual(
+      // Verify pipeline_runs update to completed
+      const pipelineUpdate = opLog.find(
+        (op) => op.table === 'pipeline_runs' && op.op === 'update',
+      );
+      expect(pipelineUpdate).toBeDefined();
+      expect(pipelineUpdate!.payload).toEqual(
         expect.objectContaining({
           status: 'completed',
         }),

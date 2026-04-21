@@ -12,6 +12,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { sb } from '@/lib/supabase/safe';
+import { computeTaxonomyHash } from '@/lib/taxonomy/sync-trigger';
 import { safeErrorMessage } from '@/lib/error';
 import * as Sentry from '@sentry/nextjs';
 
@@ -22,6 +23,7 @@ interface CallbackPayload {
   run_id: string;
   status: 'success' | 'failed';
   timestamp: number;
+  /** Advisory only — callback computes authoritative hash from DB. */
   new_hash?: string;
   error_message?: string;
 }
@@ -68,14 +70,30 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString();
 
     if (payload.status === 'success') {
-      // Update taxonomy_sync_state singleton with new hash + timestamp.
+      // Compute the authoritative hash from DB state rather than trusting
+      // the workflow payload's advisory new_hash field. This is the single
+      // source of truth — the workflow does not need computeTaxonomyHash.
+      const { data: domains } = await sb(
+        supabase.from('taxonomy_domains').select('*').eq('is_active', true),
+        'taxonomy_sync.callback.domains_fetch',
+      );
+      const { data: subtopics } = await sb(
+        supabase.from('taxonomy_subtopics').select('*').eq('is_active', true),
+        'taxonomy_sync.callback.subtopics_fetch',
+      );
+      const newHash = computeTaxonomyHash({
+        domains: domains ?? [],
+        subtopics: subtopics ?? [],
+      });
+
+      // Update taxonomy_sync_state singleton with DB-derived hash + timestamp.
       // The ((true)) unique index guarantees exactly one row exists.
       // Filter by not-null id to satisfy Supabase REST's filter requirement.
       await sb(
         supabase
           .from('taxonomy_sync_state')
           .update({
-            last_sync_hash: payload.new_hash,
+            last_sync_hash: newHash,
             last_sync_at: now,
             synced_by: 'workflow',
             updated_at: now,

@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/link', () => ({
@@ -20,7 +21,7 @@ describe('EmptyState', () => {
     expect(screen.getByText('Add your first item.')).toBeInTheDocument();
   });
 
-  it('renders primary CTA as a link when provided', () => {
+  it('renders primary CTA as a link when href provided', () => {
     render(
       <EmptyState
         title="Empty"
@@ -53,28 +54,29 @@ describe('EmptyState', () => {
       <EmptyState title="Empty" description="Nothing here." />,
     );
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
     // The flex CTA wrapper div should not be in the DOM
     const ctaWrapper = container.querySelector('.flex.flex-wrap');
     expect(ctaWrapper).not.toBeInTheDocument();
   });
 
-  it('renders h3 heading by default', () => {
+  it('renders h2 heading by default (L-1)', () => {
     render(<EmptyState title="Default heading" description="Desc." />);
     expect(
-      screen.getByRole('heading', { level: 3, name: 'Default heading' }),
+      screen.getByRole('heading', { level: 2, name: 'Default heading' }),
     ).toBeInTheDocument();
   });
 
-  it('renders h2 heading when headingLevel="h2"', () => {
+  it('renders h3 heading when headingLevel="h3"', () => {
     render(
       <EmptyState
         title="Section heading"
         description="Desc."
-        headingLevel="h2"
+        headingLevel="h3"
       />,
     );
     expect(
-      screen.getByRole('heading', { level: 2, name: 'Section heading' }),
+      screen.getByRole('heading', { level: 3, name: 'Section heading' }),
     ).toBeInTheDocument();
   });
 
@@ -141,5 +143,74 @@ describe('EmptyState', () => {
     expect(container.firstElementChild).toBeInTheDocument();
     expect(screen.getByText('Minimal')).toBeInTheDocument();
     expect(screen.getByText('Only required props.')).toBeInTheDocument();
+  });
+
+  // M-3: dashed border container per spec §5.2
+  it('renders container with dashed border (M-3)', () => {
+    const { container } = render(
+      <EmptyState title="Bordered" description="Has dashed border." />,
+    );
+    const wrapper = container.firstElementChild as HTMLElement;
+    expect(wrapper.className).toContain('border-dashed');
+    expect(wrapper.className).toContain('rounded-lg');
+    expect(wrapper.className).toContain('border-border');
+  });
+
+  // M-3: onClick CTA support
+  it('renders primary CTA as button when onClick provided (no href)', async () => {
+    const handleClick = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <EmptyState
+        title="Action"
+        description="Desc."
+        primaryCta={{ label: 'Do something', onClick: handleClick }}
+      />,
+    );
+
+    const btn = screen.getByRole('button', { name: 'Do something' });
+    expect(btn).toBeInTheDocument();
+    await user.click(btn);
+    expect(handleClick).toHaveBeenCalledOnce();
+  });
+
+  it('renders CTA as link (not button) when both href and onClick provided', () => {
+    const handleClick = vi.fn();
+
+    render(
+      <EmptyState
+        title="Combined"
+        description="Desc."
+        primaryCta={{
+          label: 'Go there',
+          href: '/somewhere',
+          onClick: handleClick,
+        }}
+      />,
+    );
+
+    // href takes precedence — renders as link
+    const link = screen.getByRole('link', { name: 'Go there' });
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute('href', '/somewhere');
+  });
+
+  it('renders secondary CTA with onClick as button', async () => {
+    const handleClick = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <EmptyState
+        title="Secondary action"
+        description="Desc."
+        secondaryCta={{ label: 'Cancel', onClick: handleClick }}
+      />,
+    );
+
+    const btn = screen.getByRole('button', { name: 'Cancel' });
+    expect(btn).toBeInTheDocument();
+    await user.click(btn);
+    expect(handleClick).toHaveBeenCalledOnce();
   });
 });
