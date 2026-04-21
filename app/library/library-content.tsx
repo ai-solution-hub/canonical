@@ -53,6 +53,7 @@ import {
   CollapsibleGroup,
   groupItems,
 } from '@/components/shell/collapsible-group';
+import { EmptyState } from '@/components/empty-state/empty-state';
 
 // ---------------------------------------------------------------------------
 // VirtualisedQAList — renders the flat Q&A list with window-based virtualisation
@@ -132,7 +133,7 @@ export function LibraryContent() {
     setGroupBy,
   } = useLibraryFilters();
   const { domains } = useTaxonomy();
-  const { canAdmin } = useUserRole();
+  const { canAdmin, canEdit } = useUserRole();
 
   // Data fetching via TanStack Query
   const { items, isLoading, sourceFiles } = useLibraryData(filters);
@@ -545,44 +546,41 @@ export function LibraryContent() {
               </div>
             ))}
           </div>
-        ) : items.length === 0 ? (
+        ) : items.length === 0 && activeCount > 0 ? (
           <div className="flex flex-col items-center gap-3 py-16 text-center">
-            {activeCount > 0 ? (
-              <Filter
-                className="size-8 text-muted-foreground/50"
-                aria-hidden="true"
-              />
-            ) : (
-              <BookOpen
-                className="size-8 text-muted-foreground/50"
-                aria-hidden="true"
-              />
-            )}
+            <Filter
+              className="size-8 text-muted-foreground/50"
+              aria-hidden="true"
+            />
             <h3 className="text-base font-medium text-foreground">
-              {activeCount > 0 ? 'No matching Q&A pairs' : 'No Q&A pairs yet'}
+              No matching Q&A pairs
             </h3>
             <p className="text-sm text-muted-foreground">
-              {activeCount > 0
-                ? 'Try adjusting your filters to see more results.'
-                : 'Import Q&A pairs from client documents to build your library.'}
+              Try adjusting your filters to see more results.
             </p>
-            {activeCount > 0 && (
-              <div className="flex flex-col items-center gap-2">
-                <Button variant="outline" size="sm" onClick={clearFilters}>
-                  Clear filters
-                </Button>
-                {filters.search && (
-                  <Link
-                    href={`/browse?q=${encodeURIComponent(filters.search)}`}
-                    className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    Try searching the full knowledge base
-                    <ArrowRight className="size-3.5" aria-hidden="true" />
-                  </Link>
-                )}
-              </div>
-            )}
+            <div className="flex flex-col items-center gap-2">
+              <Button variant="outline" size="sm" onClick={clearFilters}>
+                Clear filters
+              </Button>
+              {filters.search && (
+                <Link
+                  href={`/browse?q=${encodeURIComponent(filters.search)}`}
+                  className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Try searching the full knowledge base
+                  <ArrowRight className="size-3.5" aria-hidden="true" />
+                </Link>
+              )}
+            </div>
           </div>
+        ) : items.length === 0 ? (
+          <EmptyState
+            icon={<BookOpen className="size-8" aria-hidden />}
+            title="Your Q&A library is empty"
+            description="Import Q&A pairs to build your bid response library."
+            primaryCta={canEdit ? { label: 'Import Q&A pack', href: '/item/new?tab=batch' } : undefined}
+            headingLevel="h3"
+          />
         ) : groupedItems ? (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground" aria-live="polite">

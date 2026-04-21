@@ -163,6 +163,34 @@ vi.mock('@/components/shell/collapsible-group', () => ({
   groupItems: vi.fn(),
 }));
 
+vi.mock('@/components/empty-state/empty-state', () => ({
+  EmptyState: ({
+    title,
+    description,
+    primaryCta,
+    headingLevel,
+  }: {
+    icon?: React.ReactNode;
+    title: string;
+    description: string;
+    primaryCta?: { label: string; href: string };
+    headingLevel?: string;
+  }) => {
+    const Heading = (headingLevel ?? 'h3') as 'h2' | 'h3';
+    return (
+      <div data-testid="empty-state">
+        <Heading>{title}</Heading>
+        <p>{description}</p>
+        {primaryCta && (
+          <a href={primaryCta.href} role="link">
+            {primaryCta.label}
+          </a>
+        )}
+      </div>
+    );
+  },
+}));
+
 import { LibraryContent } from '@/app/library/library-content';
 
 // ---------------------------------------------------------------------------
@@ -238,6 +266,9 @@ describe('LibraryContent', () => {
     mockLibraryData.items = [];
     mockLibraryData.isLoading = false;
     mockLibraryData.sourceFiles = [];
+    mockUserRole.role = 'editor';
+    mockUserRole.canEdit = true;
+    mockUserRole.canAdmin = false;
   });
 
   afterEach(() => {
@@ -262,11 +293,11 @@ describe('LibraryContent', () => {
     expect(skeletons.length).toBeGreaterThan(0);
   });
 
-  it('shows empty state when no items returned', async () => {
+  it('shows first-run empty state when no items returned', async () => {
     mockLibraryData.items = [];
     renderLibraryContent();
     await waitFor(() => {
-      expect(screen.getByText('No Q&A pairs yet')).toBeInTheDocument();
+      expect(screen.getByText('Your Q&A library is empty')).toBeInTheDocument();
     });
   });
 
@@ -440,5 +471,66 @@ describe('LibraryContent', () => {
       const verifiedSelect = screen.getByLabelText('Filter by verified status');
       expect(verifiedSelect).toBeInTheDocument();
     });
+  });
+
+  // -------------------------------------------------------------------------
+  // P0-5 WP3: /library first-run empty state retrofit
+  // -------------------------------------------------------------------------
+
+  it('first-run empty state shows "Import Q&A pack" CTA for editor', async () => {
+    mockLibraryData.items = [];
+    mockActiveCount.value = 0;
+    mockUserRole.canEdit = true;
+    mockUserRole.role = 'editor';
+
+    renderLibraryContent();
+    await waitFor(() => {
+      const cta = screen.getByRole('link', { name: 'Import Q&A pack' });
+      expect(cta).toBeInTheDocument();
+      expect(cta).toHaveAttribute('href', '/item/new?tab=batch');
+    });
+  });
+
+  it('first-run empty state hides CTA for viewer (canEdit=false)', async () => {
+    mockLibraryData.items = [];
+    mockActiveCount.value = 0;
+    mockUserRole.canEdit = false;
+    mockUserRole.role = 'viewer';
+
+    renderLibraryContent();
+    await waitFor(() => {
+      expect(screen.getByText('Your Q&A library is empty')).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole('link', { name: 'Import Q&A pack' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('first-run empty state has no secondary CTA (AC-9)', async () => {
+    mockLibraryData.items = [];
+    mockActiveCount.value = 0;
+    mockUserRole.canEdit = true;
+
+    renderLibraryContent();
+    await waitFor(() => {
+      expect(screen.getByText('Your Q&A library is empty')).toBeInTheDocument();
+    });
+    // No "Write a Q&A pair" or similar secondary CTA
+    expect(
+      screen.queryByRole('link', { name: /write a Q&A/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('filter-empty state still renders "No matching Q&A pairs" unchanged', async () => {
+    mockActiveCount.value = 2;
+    mockLibraryData.items = [];
+
+    renderLibraryContent();
+    await waitFor(() => {
+      expect(screen.getByText('No matching Q&A pairs')).toBeInTheDocument();
+      expect(screen.getByText('Clear filters')).toBeInTheDocument();
+    });
+    // Should NOT render the first-run EmptyState component
+    expect(screen.queryByTestId('empty-state')).not.toBeInTheDocument();
   });
 });
