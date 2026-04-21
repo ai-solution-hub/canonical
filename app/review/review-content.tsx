@@ -230,7 +230,8 @@ export function ReviewContent() {
       filters.domain?.length ||
       filters.content_type?.length ||
       filters.source_file ||
-      filters.source_document_id;
+      filters.source_document_id ||
+      filters.assigned_to_me;
 
     const allVerified =
       !hasFilters && progress.total > 0 && progress.verified >= progress.total;
@@ -286,6 +287,21 @@ export function ReviewContent() {
               </p>
               <Button asChild variant="outline" className="mt-4">
                 <Link href="/browse">Back to Browse</Link>
+              </Button>
+            </>
+          ) : filters.assigned_to_me ? (
+            <>
+              <h2 className="text-lg font-semibold">No assigned items</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                You have no items assigned to you. An admin can assign reviewers
+                in Settings.
+              </p>
+              <Button
+                variant="outline"
+                className="mt-4"
+                onClick={() => setFilters({ status: 'unverified' })}
+              >
+                Clear filters
               </Button>
             </>
           ) : (
@@ -443,15 +459,31 @@ export function ReviewContent() {
                 </span>
               )}
             </p>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="shrink-0 gap-1.5 text-xs"
-              onClick={() => setFilters({ status: 'unverified' })}
-            >
-              <X className="size-3.5" aria-hidden="true" />
-              Clear filters
-            </Button>
+            {filters.assigned_to_me ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="shrink-0 gap-1.5 text-xs"
+                onClick={() =>
+                  setFilters({ ...filters, assigned_to_me: undefined })
+                }
+              >
+                <X className="size-3.5" aria-hidden="true" />
+                Clear assignment filter
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="shrink-0 gap-1.5 text-xs"
+                onClick={() =>
+                  setFilters({ ...filters, assigned_to_me: true })
+                }
+              >
+                <ClipboardCheck className="size-3.5" aria-hidden="true" />
+                Show my assigned items
+              </Button>
+            )}
           </div>
         )}
       </div>

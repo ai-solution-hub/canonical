@@ -82,6 +82,7 @@ export function buildQueueParams(
       params.append('content_type', ct);
     }
   }
+  if (filters.assigned_to_me) params.set('assigned_to_me', 'true');
   if (serverSort) params.set('sort', serverSort);
   return params;
 }

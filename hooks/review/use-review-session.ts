@@ -62,6 +62,7 @@ export function useReviewSession(
     const content_type = searchParams.getAll('content_type').filter(Boolean);
     const source_file = searchParams.get('source_file');
     const source_document_id = searchParams.get('source_document_id');
+    const assigned_to_me = searchParams.get('assigned_to_me') === 'true';
 
     return {
       status: ['unverified', 'verified', 'flagged', 'draft', 'all'].includes(
@@ -73,6 +74,7 @@ export function useReviewSession(
       content_type: content_type.length > 0 ? content_type : undefined,
       source_file: source_file ?? undefined,
       source_document_id: source_document_id ?? undefined,
+      assigned_to_me: assigned_to_me || undefined,
     };
     // Only compute once on mount — searchParams changes are handled by setFilters
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -105,6 +107,9 @@ export function useReviewSession(
     }
     if (filters.source_document_id) {
       params.set('source_document_id', filters.source_document_id);
+    }
+    if (filters.assigned_to_me) {
+      params.set('assigned_to_me', 'true');
     }
 
     const search = params.toString();
