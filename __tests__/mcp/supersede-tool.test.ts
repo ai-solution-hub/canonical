@@ -249,7 +249,8 @@ describe('MCP supersede_content_item', () => {
           code: '42501',
           details: '',
           hint: '',
-        },
+          name: 'PostgrestError',
+        } as unknown as import('@supabase/supabase-js').PostgrestError,
         'supersession.update_old',
       ),
     );

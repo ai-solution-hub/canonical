@@ -62,11 +62,26 @@ export async function PATCH(
     if (field === 'superseded_by') {
       // Re-check role — supersession is admin-only even though the route
       // otherwise accepts admin + editor (spec §5 Q1 lock).
-      const { data: userRole } = await supabase
+      const { data: userRole, error: roleError } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
+      if (roleError) {
+        logBestEffortWarn(
+          'items.patch.supersession.role_lookup',
+          'Failed to look up user_roles for supersession admin check',
+          {
+            userId: user.id,
+            code: roleError.code,
+            message: roleError.message,
+          },
+        );
+        return NextResponse.json(
+          { error: 'Could not verify permissions; try again.' },
+          { status: 500 },
+        );
+      }
       if (userRole?.role !== 'admin') {
         return NextResponse.json(
           { error: 'Supersession is admin-only.' },
@@ -93,7 +108,7 @@ export async function PATCH(
             superseded_by: null,
             dedup_status: 'suspected_duplicate',
             updated_by: user.id,
-          } as never)
+          })
           .eq('id', id);
         if (clearErr) {
           return NextResponse.json(

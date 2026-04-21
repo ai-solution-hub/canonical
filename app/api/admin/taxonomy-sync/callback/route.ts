@@ -73,11 +73,14 @@ export async function POST(request: NextRequest) {
       // Compute the authoritative hash from DB state rather than trusting
       // the workflow payload's advisory new_hash field. This is the single
       // source of truth — the workflow does not need computeTaxonomyHash.
-      const { data: domains } = await sb(
+      // sb() returns the data array directly — destructuring `{ data }` was
+      // a latent bug masked by the pre-S186-WP-B.7 types. Surfaced by the
+      // types regen; trivial fix here.
+      const domains = await sb(
         supabase.from('taxonomy_domains').select('*').eq('is_active', true),
         'taxonomy_sync.callback.domains_fetch',
       );
-      const { data: subtopics } = await sb(
+      const subtopics = await sb(
         supabase.from('taxonomy_subtopics').select('*').eq('is_active', true),
         'taxonomy_sync.callback.subtopics_fetch',
       );

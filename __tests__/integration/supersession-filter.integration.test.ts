@@ -147,7 +147,7 @@ describe('Supersession filter — hybrid_search', () => {
       .update({
         superseded_by: newItem!.id,
         dedup_status: 'superseded',
-      } as never)
+      })
       .eq('id', oldItem!.id);
     expect(updateErr).toBeNull();
 
@@ -165,16 +165,13 @@ describe('Supersession filter — hybrid_search', () => {
   }, 30_000);
 
   it('include_superseded=true surfaces the superseded row again', async () => {
-    const { data, error } = await serviceClient.rpc(
-      'hybrid_search',
-      {
-        query_embedding: JSON.stringify(embedding),
-        query_text: UNIQUE_KEYWORD,
-        similarity_threshold: 0.0,
-        limit_count: 100,
-        include_superseded: true,
-      } as never,
-    );
+    const { data, error } = await serviceClient.rpc('hybrid_search', {
+      query_embedding: JSON.stringify(embedding),
+      query_text: UNIQUE_KEYWORD,
+      similarity_threshold: 0.0,
+      limit_count: 100,
+      include_superseded: true,
+    });
 
     expect(error).toBeNull();
     const ids = (data as Array<{ id: string }>).map((r) => r.id);
@@ -209,7 +206,7 @@ describe('Supersession filter — search_for_bid_response', () => {
         query_text: UNIQUE_KEYWORD,
         limit_count: 100,
         include_superseded: true,
-      } as never,
+      },
     );
 
     expect(error).toBeNull();

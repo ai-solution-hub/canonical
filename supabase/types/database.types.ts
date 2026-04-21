@@ -582,6 +582,7 @@ export type Database = {
           suggested_title: string | null
           summary: string | null
           summary_data: Json | null
+          superseded_by: string | null
           thumbnail_url: string | null
           title: string
           updated_at: string | null
@@ -654,6 +655,7 @@ export type Database = {
           suggested_title?: string | null
           summary?: string | null
           summary_data?: Json | null
+          superseded_by?: string | null
           thumbnail_url?: string | null
           title: string
           updated_at?: string | null
@@ -726,6 +728,7 @@ export type Database = {
           suggested_title?: string | null
           summary?: string | null
           summary_data?: Json | null
+          superseded_by?: string | null
           thumbnail_url?: string | null
           title?: string
           updated_at?: string | null
@@ -740,6 +743,13 @@ export type Database = {
             columns: ["source_bid"]
             isOneToOne: false
             referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_items_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "content_items"
             referencedColumns: ["id"]
           },
         ]
@@ -2690,6 +2700,7 @@ export type Database = {
               suggested_title: string | null
               summary: string | null
               summary_data: Json | null
+              superseded_by: string | null
               thumbnail_url: string | null
               title: string
               updated_at: string | null
@@ -3247,6 +3258,7 @@ export type Database = {
       }
       hybrid_search: {
         Args: {
+          include_superseded?: boolean
           limit_count?: number
           query_embedding: string
           query_text?: string
@@ -3390,6 +3402,7 @@ export type Database = {
       }
       search_for_bid_response: {
         Args: {
+          include_superseded?: boolean
           limit_count?: number
           query_embedding: string
           query_text?: string

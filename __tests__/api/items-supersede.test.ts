@@ -110,7 +110,7 @@ describe('PATCH /api/items/[id] — superseded_by branch (S186 WP-B.5)', () => {
     // First the route auth check succeeds (editor is in ['admin','editor']).
     configureRole(mockSupabase, 'editor');
     // Then the branch's additional role fetch finds role='editor'.
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { role: 'editor' },
       error: null,
     });
@@ -138,7 +138,7 @@ describe('PATCH /api/items/[id] — superseded_by branch (S186 WP-B.5)', () => {
 
   it('returns 400 for an invalid UUID in value', async () => {
     configureRole(mockSupabase, 'admin');
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { role: 'admin' },
       error: null,
     });
@@ -154,7 +154,7 @@ describe('PATCH /api/items/[id] — superseded_by branch (S186 WP-B.5)', () => {
 
   it('admin + valid UUID → calls setSupersession and returns 200 with snapshots', async () => {
     configureRole(mockSupabase, 'admin');
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { role: 'admin' },
       error: null,
     });
@@ -182,7 +182,7 @@ describe('PATCH /api/items/[id] — superseded_by branch (S186 WP-B.5)', () => {
 
   it('admin + value=null → clears pointer, resets dedup_status=suspected_duplicate', async () => {
     configureRole(mockSupabase, 'admin');
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { role: 'admin' },
       error: null,
     });
@@ -204,7 +204,7 @@ describe('PATCH /api/items/[id] — superseded_by branch (S186 WP-B.5)', () => {
 
   it('admin + SupersessionError(OLD_NOT_FOUND) → 404', async () => {
     configureRole(mockSupabase, 'admin');
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { role: 'admin' },
       error: null,
     });
@@ -225,7 +225,7 @@ describe('PATCH /api/items/[id] — superseded_by branch (S186 WP-B.5)', () => {
 
   it('admin + SupersessionError(NEW_ALREADY_SUPERSEDED) → 409 conflict', async () => {
     configureRole(mockSupabase, 'admin');
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { role: 'admin' },
       error: null,
     });
@@ -248,7 +248,7 @@ describe('PATCH /api/items/[id] — superseded_by branch (S186 WP-B.5)', () => {
 
   it('admin + SupersessionError(SAME_ID) → 409 conflict', async () => {
     configureRole(mockSupabase, 'admin');
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { role: 'admin' },
       error: null,
     });
@@ -271,7 +271,7 @@ describe('PATCH /api/items/[id] — superseded_by branch (S186 WP-B.5)', () => {
 
   it('admin + SupabaseError → 500', async () => {
     configureRole(mockSupabase, 'admin');
-    mockSupabase._chain.single.mockResolvedValueOnce({
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
       data: { role: 'admin' },
       error: null,
     });

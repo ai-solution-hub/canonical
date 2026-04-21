@@ -167,57 +167,38 @@ export async function registerChangeReportTools(
         // Map results to ChangeReportItem arrays
         const additions: ChangeReportItem[] = (
           additionsResult.data ?? []
-        ).map(
-          (row: {
-            id: string;
-            title: string | null;
-            primary_domain: string | null;
-            content_type: string | null;
-            created_at: string;
-          }) => ({
-            id: row.id,
-            title: row.title,
-            primary_domain: row.primary_domain,
-            content_type: row.content_type,
-            date: row.created_at,
-          }),
-        );
+        // Post-types-regen (S186 WP-B.7): explicit row annotations here
+        // drifted from the generated query types. Drop them and let TS
+        // infer from the Supabase query builder — the mapper body only
+        // reads id/title/primary_domain/content_type/<date> which all
+        // exist.
+        ).map((row) => ({
+          id: row.id,
+          title: row.title,
+          primary_domain: row.primary_domain,
+          content_type: row.content_type,
+          date: row.created_at,
+        }));
 
         const updates: ChangeReportItem[] = (
           updatesResult.data ?? []
-        ).map(
-          (row: {
-            id: string;
-            title: string | null;
-            primary_domain: string | null;
-            content_type: string | null;
-            updated_at: string;
-          }) => ({
-            id: row.id,
-            title: row.title,
-            primary_domain: row.primary_domain,
-            content_type: row.content_type,
-            date: row.updated_at,
-          }),
-        );
+        ).map((row) => ({
+          id: row.id,
+          title: row.title,
+          primary_domain: row.primary_domain,
+          content_type: row.content_type,
+          date: row.updated_at ?? '',
+        }));
 
         const removals: ChangeReportItem[] = (
           removalsResult.data ?? []
-        ).map(
-          (row: {
-            id: string;
-            title: string | null;
-            primary_domain: string | null;
-            content_type: string | null;
-            archived_at: string;
-          }) => ({
-            id: row.id,
-            title: row.title,
-            primary_domain: row.primary_domain,
-            content_type: row.content_type,
-            date: row.archived_at,
-          }),
-        );
+        ).map((row) => ({
+          id: row.id,
+          title: row.title,
+          primary_domain: row.primary_domain,
+          content_type: row.content_type,
+          date: row.archived_at ?? '',
+        }));
 
         const reportData: ChangeReportData = {
           period_days: periodDays,

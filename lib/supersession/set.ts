@@ -43,21 +43,13 @@ import * as Sentry from '@sentry/nextjs';
 import type { Database } from '@/supabase/types/database.types';
 import { sb } from '@/lib/supabase/safe';
 
-// Local types bridging the gap until WP-B.7 regenerates
-// `supabase/types/database.types.ts` with the superseded_by column added
-// in WP-B.1. The generated Row/Update shapes don't know about the column
-// yet; intersecting here keeps the helper strongly typed at call sites
-// without forcing a mid-session types regen
-// (feedback_no_midsession_type_regen).
-type ContentItemUpdate =
-  Database['public']['Tables']['content_items']['Update'] & {
-    superseded_by?: string | null;
-  };
-
+// Narrow projection of content_items that the helper touches. The
+// generated types now include superseded_by (WP-B.7 regen picked up the
+// WP-B.1 migration), so no intersection is needed any more.
 type ContentItemSupersessionRow = Pick<
   Database['public']['Tables']['content_items']['Row'],
-  'id' | 'title' | 'dedup_status'
-> & { superseded_by: string | null };
+  'id' | 'title' | 'superseded_by' | 'dedup_status'
+>;
 
 export type SupersessionErrorCode =
   | 'SAME_ID'
@@ -136,8 +128,8 @@ export async function setSupersession(
 
   // Load both rows. Using maybeSingle so "not found" is data=null, not an
   // error — lets us map to a specific error code instead of a generic PGRST116.
-  const [oldRow, newRow] = (await Promise.all([
-    sb(
+  const [oldRow, newRow] = await Promise.all([
+    sb<ContentItemSupersessionRow | null>(
       client
         .from('content_items')
         .select('id, title, superseded_by, dedup_status')
@@ -145,7 +137,7 @@ export async function setSupersession(
         .maybeSingle(),
       'supersession.load_old',
     ),
-    sb(
+    sb<ContentItemSupersessionRow | null>(
       client
         .from('content_items')
         .select('id, title, superseded_by, dedup_status')
@@ -153,10 +145,7 @@ export async function setSupersession(
         .maybeSingle(),
       'supersession.load_new',
     ),
-  ])) as unknown as [
-    ContentItemSupersessionRow | null,
-    ContentItemSupersessionRow | null,
-  ];
+  ]);
 
   if (!oldRow) {
     throw new SupersessionError(
@@ -188,19 +177,18 @@ export async function setSupersession(
     );
   }
 
-  const updatePayload: ContentItemUpdate = {
-    superseded_by: newId,
-    dedup_status: 'superseded',
-  };
-  const updated = (await sb(
+  const updated = await sb<ContentItemSupersessionRow>(
     client
       .from('content_items')
-      .update(updatePayload as ContentItemUpdate)
+      .update({
+        superseded_by: newId,
+        dedup_status: 'superseded',
+      })
       .eq('id', oldId)
       .select('id, title, superseded_by, dedup_status')
       .single(),
     'supersession.update_old',
-  )) as unknown as ContentItemSupersessionRow;
+  );
 
   // Operational audit breadcrumb — Sentry.addBreadcrumb is a no-op when the
   // SDK is unconfigured (tests, CLI), so no try/catch needed.
