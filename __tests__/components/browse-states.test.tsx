@@ -60,21 +60,72 @@ describe('EmptyState', () => {
     vi.unstubAllGlobals();
   });
 
-  it('shows "No items match your filters" when hasFilters is true', () => {
-    render(<EmptyState hasFilters={true} />);
-    expect(screen.getByText('No items match your filters')).toBeInTheDocument();
-  });
+  // --- Filter-empty branch (unchanged) ---
 
-  it('shows "No content yet" when hasFilters is false', () => {
-    render(<EmptyState hasFilters={false} />);
-    expect(screen.getByText('No content yet')).toBeInTheDocument();
+  it('shows "No items match your filters" when hasFilters is true', () => {
+    render(<EmptyState hasFilters={true} canEdit={false} />);
+    expect(screen.getByText('No items match your filters')).toBeInTheDocument();
   });
 
   it('shows clear filters button that calls clearFilters when hasFilters is true', async () => {
     const user = userEvent.setup();
-    render(<EmptyState hasFilters={true} />);
+    render(<EmptyState hasFilters={true} canEdit={false} />);
     const clearBtn = screen.getByRole('button', { name: /clear all filters/i });
     await user.click(clearBtn);
     expect(mockClearFilters).toHaveBeenCalledOnce();
+  });
+
+  // --- First-run branch (retrofitted to shared EmptyState) ---
+
+  it('shows "No content yet" heading when no items and no filters', () => {
+    render(<EmptyState hasFilters={false} canEdit={false} />);
+    expect(
+      screen.getByRole('heading', { name: 'No content yet' }),
+    ).toBeInTheDocument();
+  });
+
+  it('shows description text when no items and no filters', () => {
+    render(<EmptyState hasFilters={false} canEdit={false} />);
+    expect(
+      screen.getByText(
+        'Content added to the knowledge base will appear here.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('shows "Add content" CTA linking to /item/new when canEdit is true', () => {
+    render(<EmptyState hasFilters={false} canEdit={true} />);
+    const cta = screen.getByRole('link', { name: 'Add content' });
+    expect(cta).toBeInTheDocument();
+    expect(cta).toHaveAttribute('href', '/item/new');
+  });
+
+  it('shows "Import from URL" secondary CTA when canEdit is true', () => {
+    render(<EmptyState hasFilters={false} canEdit={true} />);
+    const cta = screen.getByRole('link', { name: 'Import from URL' });
+    expect(cta).toBeInTheDocument();
+    expect(cta).toHaveAttribute('href', '/item/new?tab=url');
+  });
+
+  it('hides both CTAs when canEdit is false (viewer)', () => {
+    render(<EmptyState hasFilters={false} canEdit={false} />);
+    expect(screen.queryByRole('link', { name: 'Add content' })).toBeNull();
+    expect(
+      screen.queryByRole('link', { name: 'Import from URL' }),
+    ).toBeNull();
+  });
+
+  it('does NOT show Q&A Library cross-link (AC-10 regression)', () => {
+    render(<EmptyState hasFilters={false} canEdit={true} />);
+    expect(screen.queryByText(/Q&A Library/)).toBeNull();
+    expect(screen.queryByRole('link', { name: /Q&A Library/i })).toBeNull();
+  });
+
+  it('does NOT link to /library anywhere in first-run state', () => {
+    const { container } = render(
+      <EmptyState hasFilters={false} canEdit={true} />,
+    );
+    const links = container.querySelectorAll('a[href="/library"]');
+    expect(links).toHaveLength(0);
   });
 });

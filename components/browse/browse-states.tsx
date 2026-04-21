@@ -3,6 +3,7 @@
 import { Archive, SearchX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState as SharedEmptyState } from '@/components/empty-state/empty-state';
 import { useBrowseFilters } from '@/hooks/browse/use-browse-filters';
 import type { ViewMode } from '@/components/browse/filter-bar';
 
@@ -81,49 +82,58 @@ export function LoadingSkeleton({ viewMode }: { viewMode: ViewMode }) {
   );
 }
 
-export function EmptyState({ hasFilters }: { hasFilters: boolean }) {
+export function EmptyState({
+  hasFilters,
+  canEdit,
+}: {
+  hasFilters: boolean;
+  canEdit: boolean;
+}) {
   const { clearFilters } = useBrowseFilters();
+
+  if (!hasFilters) {
+    return (
+      <SharedEmptyState
+        icon={
+          <Archive className="size-10 text-muted-foreground/50" />
+        }
+        title="No content yet"
+        description="Content added to the knowledge base will appear here."
+        primaryCta={
+          canEdit
+            ? { label: 'Add content', href: '/item/new' }
+            : undefined
+        }
+        secondaryCta={
+          canEdit
+            ? { label: 'Import from URL', href: '/item/new?tab=url' }
+            : undefined
+        }
+        headingLevel="h3"
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center">
-      {hasFilters ? (
-        <SearchX
-          className="size-10 text-muted-foreground/50"
-          aria-hidden="true"
-        />
-      ) : (
-        <Archive
-          className="size-10 text-muted-foreground/50"
-          aria-hidden="true"
-        />
-      )}
+      <SearchX
+        className="size-10 text-muted-foreground/50"
+        aria-hidden="true"
+      />
       <h3 className="mt-4 text-base font-medium text-foreground">
-        {hasFilters ? 'No items match your filters' : 'No content yet'}
+        No items match your filters
       </h3>
       <p className="mt-1 text-sm text-muted-foreground">
-        {hasFilters
-          ? 'Try adjusting or clearing your filters to see more results.'
-          : 'Content added to the knowledge base will appear here.'}
+        Try adjusting or clearing your filters to see more results.
       </p>
-      {!hasFilters && (
-        <p className="mt-1 text-xs text-muted-foreground">
-          Q&A pairs are shown in the{' '}
-          <a href="/library" className="underline hover:text-foreground">
-            Q&A Library
-          </a>
-          .
-        </p>
-      )}
-      {hasFilters && (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={clearFilters}
-          className="mt-4"
-        >
-          Clear all filters
-        </Button>
-      )}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={clearFilters}
+        className="mt-4"
+      >
+        Clear all filters
+      </Button>
     </div>
   );
 }
