@@ -304,6 +304,12 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           .describe(
             'Source document name or path for provenance tracking. Stored in metadata.source_document.',
           ),
+        skip_dedup: z
+          .boolean()
+          .optional()
+          .describe(
+            'Admin-only dedup override (spec §6 D2). When true and the caller is admin, exact-hash match is not stamped. Non-admin requests silently ignore the flag.',
+          ),
       },
       annotations: NON_IDEMPOTENT_WRITE_ANNOTATIONS,
     },
@@ -326,6 +332,35 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         const userId = getMcpUserId(extra.authInfo);
         const isDraft = args.governance_review_status === 'draft';
 
+        // Admin-only dedup override (spec §6 D2). Silent-ignore for
+        // editors even though the flag is exposed on the input schema.
+        const skipDedup = args.skip_dedup === true && role === 'admin';
+
+        // Dedup — soft-block per spec §6 D1. Exact-hash match stamps
+        // `dedup_status='suspected_duplicate'` + records the existing
+        // id in `metadata.suspected_duplicate_of`. `find_exact_duplicates`
+        // is SECURITY DEFINER so the RLS-scoped client sees cross-user
+        // matches.
+        const { checkExactDuplicate, resolveDedupStamp } =
+          await import('@/lib/dedup');
+        let dedupStamp: {
+          dedup_status: 'clean' | 'suspected_duplicate';
+          suspected_duplicate_of?: string;
+        } = { dedup_status: 'clean' };
+        let dedupExistingTitle: string | undefined;
+        try {
+          const dedupCheck = await checkExactDuplicate(supabase, args.content);
+          dedupStamp = resolveDedupStamp(
+            dedupCheck.isDuplicate ? dedupCheck.existingId : undefined,
+            { skipDedup },
+          );
+          if (dedupCheck.isDuplicate) {
+            dedupExistingTitle = dedupCheck.existingTitle;
+          }
+        } catch (dedupErr) {
+          console.error('MCP create_content_item dedup check failed:', dedupErr);
+        }
+
         // Skip embedding for drafts — generated on publish to save API cost
         let embedding: number[] | null = null;
         if (!isDraft) {
@@ -340,11 +375,14 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           }
         }
 
-        // Build metadata with optional batch_tag and source_document
+        // Build metadata with optional batch_tag, source_document, dedup ref
         const metadata: Record<string, string> = {};
         if (args.batch_tag) metadata.batch_tag = args.batch_tag;
         if (args.source_document)
           metadata.source_document = args.source_document;
+        if (dedupStamp.suspected_duplicate_of) {
+          metadata.suspected_duplicate_of = dedupStamp.suspected_duplicate_of;
+        }
 
         const insertData: Database['public']['Tables']['content_items']['Insert'] =
           {
@@ -355,6 +393,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             platform: 'manual',
             captured_date: new Date().toISOString(),
             created_by: userId,
+            dedup_status: dedupStamp.dedup_status,
             ...(args.primary_domain && {
               primary_domain: slugifyDomain(args.primary_domain),
             }),
@@ -547,6 +586,10 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           guideSectionSuggestions.length > 0
             ? `\n\n**Guide sections:** ${guideSectionSuggestions.map((gs) => `${gs.guideName} > ${gs.sectionName}`).join(', ')}`
             : '';
+        const dedupNote =
+          dedupStamp.dedup_status === 'suspected_duplicate'
+            ? `\n\n**Dedup:** Flagged as \`suspected_duplicate\` — matches existing item ${dedupStamp.suspected_duplicate_of}${dedupExistingTitle ? ` ("${dedupExistingTitle}")` : ''}. Admin may resolve via the dedup review workflow.`
+            : '';
         const warningNote =
           warnings.length > 0
             ? `\n\n**Warnings:**\n${warnings.map((w) => `- ${w}`).join('\n')}`
@@ -556,6 +599,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           draftNote +
           layerNote +
           guideNote +
+          dedupNote +
           warningNote;
         return {
           content: [{ type: 'text' as const, text: markdown }],
@@ -570,6 +614,8 @@ export async function registerContentTools(server: McpServer): Promise<void> {
                 ? guideSectionSuggestions
                 : undefined,
             warnings: warnings.length > 0 ? warnings : undefined,
+            dedup_status: dedupStamp.dedup_status,
+            suspected_duplicate_of: dedupStamp.suspected_duplicate_of ?? null,
           }),
         };
       } catch (err) {

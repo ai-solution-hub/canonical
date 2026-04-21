@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     // 1. Auth check: editor or admin
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth.success) return authFailureResponse(auth);
-    const { user, supabase } = auth;
+    const { user, supabase, role } = auth;
 
     // 2. Rate limit: 10 req/min
     const rl = checkRateLimit(`ingest:url:${user.id}`, 10, 60_000);
@@ -30,7 +30,16 @@ export async function POST(request: NextRequest) {
     const raw = await request.json();
     const parsed = parseBody(IngestUrlBodySchema, raw);
     if (!parsed.success) return parsed.response;
-    const { url, content_type: requestedContentType, user_tags } = parsed.data;
+    const {
+      url,
+      content_type: requestedContentType,
+      user_tags,
+      skip_dedup,
+    } = parsed.data;
+
+    // Admin-only dedup override (spec §6 D2). Silent-ignore for
+    // non-admin — do not 403 a legitimate write.
+    const skipDedup = skip_dedup === true && role === 'admin';
 
     // 4. SSRF validation
     const urlCheck = validateUrl(url);
@@ -102,15 +111,24 @@ export async function POST(request: NextRequest) {
       warnings.push('Embedding generation failed');
     }
 
-    // 11. Dedup check (informational only)
+    // 11. Dedup — soft-block per spec §6 D1. Exact-hash match stamps
+    // `dedup_status='suspected_duplicate'` + records the existing id in
+    // `metadata.suspected_duplicate_of`. Near-duplicate remains
+    // informational. Admin override via `skip_dedup=true` (silent-ignore
+    // for non-admin). URL identity check above is a separate hard-skip
+    // path and is unchanged.
     let dedupMatches: Array<{
       id: string;
       title: string;
       similarity: number;
       match_type: string;
     }> = [];
+    let dedupStamp: {
+      dedup_status: 'clean' | 'suspected_duplicate';
+      suspected_duplicate_of?: string;
+    } = { dedup_status: 'clean' };
     try {
-      const { checkForDuplicates, formatDedupWarning } =
+      const { checkForDuplicates, formatDedupWarning, resolveDedupStamp } =
         await import('@/lib/dedup');
       const dedupResult = await checkForDuplicates(
         supabase,
@@ -122,6 +140,10 @@ export async function POST(request: NextRequest) {
         const warning = formatDedupWarning(dedupResult);
         if (warning) warnings.push(warning);
       }
+      const exactMatch = dedupResult.matches.find(
+        (m) => m.match_type === 'exact',
+      );
+      dedupStamp = resolveDedupStamp(exactMatch?.id, { skipDedup });
     } catch {
       /* non-fatal */
     }
@@ -138,6 +160,7 @@ export async function POST(request: NextRequest) {
       thumbnail_url: extracted.ogImage || undefined,
       captured_date: new Date().toISOString(),
       created_by: user.id,
+      dedup_status: dedupStamp.dedup_status,
       ...(user_tags?.length && { user_tags }),
       ...(embeddingValue && { embedding: embeddingValue }),
       metadata: {
@@ -146,6 +169,9 @@ export async function POST(request: NextRequest) {
         ...(extracted.pageCount && { page_count: extracted.pageCount }),
         ...(extracted.ogDescription && {
           og_description: extracted.ogDescription,
+        }),
+        ...(dedupStamp.suspected_duplicate_of && {
+          suspected_duplicate_of: dedupStamp.suspected_duplicate_of,
         }),
       },
     };
@@ -435,6 +461,10 @@ export async function POST(request: NextRequest) {
       summary: finalItem?.summary,
       content_length: extracted.contentLength,
       warnings,
+      dedup_status: dedupStamp.dedup_status,
+      ...(dedupStamp.suspected_duplicate_of && {
+        suspected_duplicate_of: dedupStamp.suspected_duplicate_of,
+      }),
       duplicate_matches: dedupMatches,
       ...(suggestedLayer && { suggested_layer: suggestedLayer }),
       ...(topicSuggestion && { topic_suggestion: topicSuggestion }),

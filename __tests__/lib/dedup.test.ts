@@ -3,6 +3,7 @@ import {
   normaliseTextForHash,
   checkForDuplicates,
   formatDedupWarning,
+  resolveDedupStamp,
   DEFAULT_NEAR_DUPLICATE_THRESHOLD,
 } from '@/lib/dedup';
 import type { DedupResult } from '@/lib/dedup';
@@ -453,5 +454,54 @@ describe('formatDedupWarning', () => {
     expect(warning).toContain('Article B');
     expect(warning).toContain('Article C');
     expect(warning).not.toContain('Article D');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveDedupStamp — shared insert/update stamp helper (spec §6 D1, D2)
+// ---------------------------------------------------------------------------
+
+describe('resolveDedupStamp', () => {
+  it('returns clean when no existing id is provided', () => {
+    const stamp = resolveDedupStamp(undefined);
+    expect(stamp.dedup_status).toBe('clean');
+    expect(stamp.suspected_duplicate_of).toBeUndefined();
+  });
+
+  it('returns suspected_duplicate + existing id on match', () => {
+    const stamp = resolveDedupStamp('11111111-2222-4333-8444-555555555555');
+    expect(stamp.dedup_status).toBe('suspected_duplicate');
+    expect(stamp.suspected_duplicate_of).toBe(
+      '11111111-2222-4333-8444-555555555555',
+    );
+  });
+
+  it('returns clean when skipDedup is true even with a match', () => {
+    const stamp = resolveDedupStamp(
+      '11111111-2222-4333-8444-555555555555',
+      { skipDedup: true },
+    );
+    expect(stamp.dedup_status).toBe('clean');
+    expect(stamp.suspected_duplicate_of).toBeUndefined();
+  });
+
+  it('returns clean when skipDedup is true and no match', () => {
+    const stamp = resolveDedupStamp(undefined, { skipDedup: true });
+    expect(stamp.dedup_status).toBe('clean');
+    expect(stamp.suspected_duplicate_of).toBeUndefined();
+  });
+
+  it('returns snake_case keys suitable for insert payloads + metadata merge', () => {
+    const stamp = resolveDedupStamp('11111111-2222-4333-8444-555555555555');
+    expect(Object.keys(stamp).sort()).toEqual([
+      'dedup_status',
+      'suspected_duplicate_of',
+    ]);
+  });
+
+  it('returns clean for empty-string existingId (falsy)', () => {
+    const stamp = resolveDedupStamp('');
+    expect(stamp.dedup_status).toBe('clean');
+    expect(stamp.suspected_duplicate_of).toBeUndefined();
   });
 });

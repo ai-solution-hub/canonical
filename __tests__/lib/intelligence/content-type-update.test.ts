@@ -207,7 +207,15 @@ describe('SI-L3: pipeline content_type update logs errors on DB rejection', () =
         return chain;
       });
       chain.eq = vi.fn(() => chain);
-      chain.limit = vi.fn(() => Promise.resolve({ data: [], error: null }));
+      chain.is = vi.fn(() => chain);
+      chain.limit = vi.fn(() => chain);
+      chain.then = (resolve: any) => resolve({ data: [], error: null });
+      // S184 WP1: `storeAsContentItem` now queries by `source_url`
+      // (existence check for D3 M2M) and `content_item_workspaces`
+      // (junction pre-check) via `.maybeSingle()`. Default = no match.
+      chain.maybeSingle = vi.fn(() =>
+        Promise.resolve({ data: null, error: null }),
+      );
       chain.single = vi.fn(() => {
         // The post-classification re-read selects content_type, primary_domain,
         // primary_subtopic. Return a classified row to trigger inferContentType.

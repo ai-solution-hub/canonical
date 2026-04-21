@@ -517,6 +517,38 @@ export async function processFeedSource(
   return result;
 }
 
+/**
+ * Insert the `(workspace_id, content_item_id)` pair into the junction
+ * table if it does not already exist.
+ *
+ * The table has a composite PK on `(content_item_id, workspace_id)`
+ * (constraint name `content_item_projects_pkey`, legacy — pre-rename).
+ * The pre-check makes the common case — re-polling the same feed — a
+ * clean no-op rather than a PK-violation error. RSS polling is serial
+ * per source so a race is unlikely.
+ */
+async function ensureWorkspaceLink(
+  supabase: Supabase,
+  workspaceId: string,
+  contentItemId: string,
+): Promise<void> {
+  const existingLink = await sb(
+    supabase
+      .from('content_item_workspaces')
+      .select('content_item_id')
+      .eq('workspace_id', workspaceId)
+      .eq('content_item_id', contentItemId)
+      .limit(1)
+      .maybeSingle(),
+    'intelligence.pipeline.junction.existing-link',
+  );
+  if (existingLink) return;
+  await supabase.from('content_item_workspaces').insert({
+    workspace_id: workspaceId,
+    content_item_id: contentItemId,
+  });
+}
+
 /** Store a passed article as a content_item in the KB */
 async function storeAsContentItem(
   supabase: Supabase,
@@ -529,6 +561,58 @@ async function storeAsContentItem(
     thumbnailUrl: string | null;
   },
 ): Promise<void> {
+  // D3 (spec §6): one content_items row per unique source_url, linked
+  // to many workspaces via `content_item_workspaces`. If the URL is
+  // already in the KB, attach the existing row to this workspace and
+  // skip creating a duplicate. Cross-workspace re-promotes of the same
+  // article therefore share a single item + classification.
+  const existingByUrl = await sb(
+    supabase
+      .from('content_items')
+      .select('id')
+      .eq('source_url', item.url)
+      .is('archived_at', null)
+      .limit(1)
+      .maybeSingle(),
+    'intelligence.pipeline.content-items.existing-by-url',
+  );
+
+  if (existingByUrl) {
+    const normalisedItemUrl = normaliseUrl(item.url);
+    await supabase
+      .from('feed_articles')
+      .update({ content_item_id: existingByUrl.id })
+      .eq('workspace_id', source.workspace_id)
+      .eq('external_url', normalisedItemUrl);
+    await ensureWorkspaceLink(
+      supabase,
+      source.workspace_id,
+      existingByUrl.id,
+    );
+    return;
+  }
+
+  // D1 (spec §6): exact-hash content match on a DIFFERENT source_url
+  // stamps `dedup_status='suspected_duplicate'` + records the existing
+  // id in `metadata.suspected_duplicate_of`. Insert still proceeds
+  // (soft block). Admin override does not apply — RSS is automated.
+  const { checkExactDuplicate, resolveDedupStamp } = await import('@/lib/dedup');
+  let dedupStamp: {
+    dedup_status: 'clean' | 'suspected_duplicate';
+    suspected_duplicate_of?: string;
+  } = { dedup_status: 'clean' };
+  try {
+    const dedupCheck = await checkExactDuplicate(supabase, extraction.content);
+    dedupStamp = resolveDedupStamp(
+      dedupCheck.isDuplicate ? dedupCheck.existingId : undefined,
+    );
+  } catch (err) {
+    console.error(
+      `[Pipeline] Dedup check failed for ${item.url}:`,
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+
   // Create content item — no `status` column on content_items
   const { data: contentItem, error } = await supabase
     .from('content_items')
@@ -537,12 +621,16 @@ async function storeAsContentItem(
       content: extraction.content,
       content_type: 'article',
       source_url: item.url,
+      dedup_status: dedupStamp.dedup_status,
       metadata: {
         source: 'intelligence_pipeline',
         feed_source_id: source.id,
         feed_source_name: source.name,
         published_at: item.publishedAt,
         thumbnail_url: extraction.thumbnailUrl,
+        ...(dedupStamp.suspected_duplicate_of && {
+          suspected_duplicate_of: dedupStamp.suspected_duplicate_of,
+        }),
       },
     })
     .select('id')
@@ -612,11 +700,7 @@ async function storeAsContentItem(
     );
   }
 
-  // Assign to workspace via content_item_workspaces (NOT workspace_content)
-  await supabase.from('content_item_workspaces').insert({
-    workspace_id: source.workspace_id,
-    content_item_id: contentItem.id,
-  });
+  await ensureWorkspaceLink(supabase, source.workspace_id, contentItem.id);
 }
 
 /** Update feed_sources after a poll attempt (including etag/lastModified for conditional requests) */

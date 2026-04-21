@@ -233,6 +233,38 @@ export async function checkExactDuplicate(
 }
 
 /**
+ * Resolve dedup stamp fields for an insert/update payload.
+ *
+ * Soft-block contract (spec §6 D1): callers proceed with the write and
+ * stamp `dedup_status='suspected_duplicate'` + record the existing item
+ * id in `metadata.suspected_duplicate_of` when an exact-hash match is
+ * found. Admin-only `skipDedup=true` silently bypasses the stamp.
+ *
+ * Usage:
+ *   const exact = dedupResult.matches.find(m => m.match_type === 'exact');
+ *   const { dedup_status, suspected_duplicate_of } =
+ *     resolveDedupStamp(exact?.id, { skipDedup });
+ *   // set insertData.dedup_status + merge suspected_duplicate_of into metadata
+ *
+ * Reference: docs/specs/cross-system-dedup-spec.md §6 D1, D2
+ */
+export function resolveDedupStamp(
+  existingId: string | undefined,
+  options: { skipDedup?: boolean } = {},
+): {
+  dedup_status: 'clean' | 'suspected_duplicate';
+  suspected_duplicate_of?: string;
+} {
+  if (options.skipDedup || !existingId) {
+    return { dedup_status: 'clean' };
+  }
+  return {
+    dedup_status: 'suspected_duplicate',
+    suspected_duplicate_of: existingId,
+  };
+}
+
+/**
  * Format dedup matches into a human-readable warning string.
  */
 export function formatDedupWarning(result: DedupResult): string | null {

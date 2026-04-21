@@ -89,10 +89,15 @@ vi.mock('@/lib/ai/summarise', () => ({
   generateSummary: mockGenerateSummary,
 }));
 
-vi.mock('@/lib/dedup', () => ({
-  checkForDuplicates: mockCheckForDuplicates,
-  formatDedupWarning: mockFormatDedupWarning,
-}));
+vi.mock('@/lib/dedup', async () => {
+  const actual =
+    await vi.importActual<typeof import('@/lib/dedup')>('@/lib/dedup');
+  return {
+    ...actual,
+    checkForDuplicates: mockCheckForDuplicates,
+    formatDedupWarning: mockFormatDedupWarning,
+  };
+});
 
 vi.mock('@/lib/topic-inference', () => ({
   suggestTopic: mockSuggestTopic,
@@ -1078,5 +1083,170 @@ describe('POST /api/ingest/url — Quality Score', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.id).toBe('new-item-id');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Dedup soft-block + admin override (WP1 / spec §6 D1, D2)
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('POST /api/ingest/url — Dedup soft-block', () => {
+  const EXISTING_ID = 'b2c3d4e5-f6a7-4890-8bcd-ef1234567891';
+
+  function primeCommonMocks() {
+    setupSuccessPath();
+
+    // maybeSingle for URL pre-check — no URL match (so content-hash path runs)
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+
+    // single for insert — returns new item
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        id: 'new-item-id',
+        title: 'Test Article',
+        content_type: 'article',
+        created_at: '2026-04-21T00:00:00Z',
+      },
+      error: null,
+    });
+
+    // single for quality score fetch
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        freshness: 'fresh',
+        classification_confidence: 0.9,
+        brief: null,
+        detail: null,
+        reference: null,
+        summary: null,
+        citation_count: 0,
+      },
+      error: null,
+    });
+
+    // maybeSingle for domain re-fetch
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: { primary_domain: 'General Business', primary_subtopic: 'Strategy' },
+      error: null,
+    });
+
+    // maybeSingle for final item fetch
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: {
+        primary_domain: 'General Business',
+        primary_subtopic: 'Strategy',
+        summary: 'A test summary',
+      },
+      error: null,
+    });
+  }
+
+  it('stamps dedup_status=suspected_duplicate on exact-hash match', async () => {
+    configureRole(mockSupabase, 'editor');
+    primeCommonMocks();
+    mockCheckForDuplicates.mockResolvedValueOnce({
+      has_duplicates: true,
+      matches: [
+        {
+          id: EXISTING_ID,
+          title: 'Existing Article',
+          similarity: 1.0,
+          match_type: 'exact',
+        },
+      ],
+    });
+
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.dedup_status).toBe('suspected_duplicate');
+    expect(body.suspected_duplicate_of).toBe(EXISTING_ID);
+
+    const insertCall = mockSupabase._chain.insert.mock.calls[0][0];
+    expect(insertCall.dedup_status).toBe('suspected_duplicate');
+    expect(insertCall.metadata.suspected_duplicate_of).toBe(EXISTING_ID);
+  });
+
+  it('stamps dedup_status=clean when no exact match', async () => {
+    configureRole(mockSupabase, 'editor');
+    primeCommonMocks();
+    // Default: no duplicates
+
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.dedup_status).toBe('clean');
+    expect(body.suspected_duplicate_of).toBeUndefined();
+
+    const insertCall = mockSupabase._chain.insert.mock.calls[0][0];
+    expect(insertCall.dedup_status).toBe('clean');
+  });
+
+  it('admin skip_dedup=true bypasses stamp even on exact match', async () => {
+    configureRole(mockSupabase, 'admin');
+    primeCommonMocks();
+    mockCheckForDuplicates.mockResolvedValueOnce({
+      has_duplicates: true,
+      matches: [
+        {
+          id: EXISTING_ID,
+          title: 'Existing Article',
+          similarity: 1.0,
+          match_type: 'exact',
+        },
+      ],
+    });
+
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL, skip_dedup: true },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.dedup_status).toBe('clean');
+    expect(body.suspected_duplicate_of).toBeUndefined();
+  });
+
+  it('non-admin skip_dedup=true is silently ignored', async () => {
+    configureRole(mockSupabase, 'editor');
+    primeCommonMocks();
+    mockCheckForDuplicates.mockResolvedValueOnce({
+      has_duplicates: true,
+      matches: [
+        {
+          id: EXISTING_ID,
+          title: 'Existing Article',
+          similarity: 1.0,
+          match_type: 'exact',
+        },
+      ],
+    });
+
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL, skip_dedup: true },
+    });
+    // Should NOT 403 — silent-ignore per spec §6 D2
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.dedup_status).toBe('suspected_duplicate');
+    expect(body.suspected_duplicate_of).toBe(EXISTING_ID);
   });
 });

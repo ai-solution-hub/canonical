@@ -167,7 +167,7 @@ export async function POST(request: NextRequest) {
     // Auth + role check
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth.success) return authFailureResponse(auth);
-    const { user, supabase } = auth;
+    const { user, supabase, role } = auth;
 
     // Parse multipart form data
     const formData = await request.formData();
@@ -213,6 +213,10 @@ export async function POST(request: NextRequest) {
     const workspaceId = formData.get('workspace_id') as string | null;
     const draftMode = formData.get('draft') as string | null;
     const createAsDraft = draftMode === 'true';
+    // Admin-only dedup override (spec §6 D2). Form-data string "true"
+    // from the client; silent-ignore when role !== 'admin'.
+    const skipDedupField = formData.get('skip_dedup') as string | null;
+    const skipDedup = skipDedupField === 'true' && role === 'admin';
 
     const filename = file.name;
     const title = titleOverride || titleFromFilename(filename);
@@ -488,10 +492,58 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 3c. Dedup — soft-block per spec §6 D1. Runs before the row UPDATE
+    // so the stamp is written in a single pass. Exact-hash match stamps
+    // `dedup_status='suspected_duplicate'` + records the existing id in
+    // `metadata.suspected_duplicate_of`. `excludeId` avoids self-match
+    // (the row exists from the initial insert at step 1 but still has
+    // empty content at this point). Admin override via `skip_dedup=true`
+    // form field — silent-ignore for non-admin.
+    const dedupWarnings: string[] = [];
+    let duplicateMatches: Array<{
+      id: string;
+      title: string;
+      similarity: number;
+      match_type: string;
+    }> = [];
+    let dedupStamp: {
+      dedup_status: 'clean' | 'suspected_duplicate';
+      suspected_duplicate_of?: string;
+    } = { dedup_status: 'clean' };
+    if (extractedText) {
+      try {
+        const { checkForDuplicates, formatDedupWarning, resolveDedupStamp } =
+          await import('@/lib/dedup');
+        const dedupResult = await checkForDuplicates(
+          serviceClient,
+          extractedText,
+          undefined,
+          { excludeId: itemId },
+        );
+        if (dedupResult.has_duplicates) {
+          const warning = formatDedupWarning(dedupResult);
+          if (warning) dedupWarnings.push(warning);
+          duplicateMatches = dedupResult.matches.map((m) => ({
+            id: m.id,
+            title: m.title,
+            similarity: m.similarity,
+            match_type: m.match_type,
+          }));
+        }
+        const exactMatch = dedupResult.matches.find(
+          (m) => m.match_type === 'exact',
+        );
+        dedupStamp = resolveDedupStamp(exactMatch?.id, { skipDedup });
+      } catch (dedupErr) {
+        console.error('Dedup check failed:', dedupErr);
+      }
+    }
+
     // 4. Update the content_item with extracted content, file_path, and metadata
     const updateData: Record<string, unknown> = {
       content: extractedText || '',
       file_path: storagePath,
+      dedup_status: dedupStamp.dedup_status,
     };
 
     // Merge additional metadata (page_count, tables, extraction status)
@@ -515,6 +567,10 @@ export async function POST(request: NextRequest) {
     if (temporalReferences.length > 0) {
       metadataUpdate.temporal_references =
         temporalReferences as unknown as Json;
+    }
+    // Record the flagged duplicate reference (spec §6 D1)
+    if (dedupStamp.suspected_duplicate_of) {
+      metadataUpdate.suspected_duplicate_of = dedupStamp.suspected_duplicate_of;
     }
     updateData.metadata = metadataUpdate;
 
@@ -590,13 +646,9 @@ export async function POST(request: NextRequest) {
     }
 
     // 5. AI processing — awaited before response to avoid serverless truncation
-    const warnings: string[] = [];
-    let duplicate_matches: {
-      id: string;
-      title: string;
-      similarity: number;
-      match_type: string;
-    }[] = [];
+    // Seed with dedup output captured in step 3c.
+    const warnings: string[] = [...dedupWarnings];
+    const duplicate_matches = duplicateMatches;
 
     // Warn if an expiry date was auto-detected and applied
     if (expiryDate) {
@@ -659,30 +711,9 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Dedup check (non-blocking — warn only)
-      try {
-        const { checkForDuplicates, formatDedupWarning } =
-          await import('@/lib/dedup');
-        const dedupResult = await checkForDuplicates(
-          serviceClient,
-          extractedText,
-          undefined,
-          { excludeId: itemId },
-        );
-        if (dedupResult.has_duplicates) {
-          const warning = formatDedupWarning(dedupResult);
-          if (warning) warnings.push(warning);
-          // Provide structured matches for DedupWarning component
-          duplicate_matches = dedupResult.matches.map((m) => ({
-            id: m.id,
-            title: m.title,
-            similarity: m.similarity,
-            match_type: m.match_type,
-          }));
-        }
-      } catch (dedupErr) {
-        console.error('Dedup check failed:', dedupErr);
-      }
+      // Dedup check already ran in step 3c (before the content UPDATE)
+      // so the stamp is persisted in a single pass. Removed duplicate
+      // call here.
 
       // Classification (also regenerates embedding with suggested title)
       try {
@@ -1006,6 +1037,10 @@ export async function POST(request: NextRequest) {
       content_length: extractedText.length,
       warnings,
       duplicate_matches,
+      dedup_status: dedupStamp.dedup_status,
+      ...(dedupStamp.suspected_duplicate_of && {
+        suspected_duplicate_of: dedupStamp.suspected_duplicate_of,
+      }),
       pipeline_run_id: pipelineRunId,
       governance_review_status: createAsDraft ? 'draft' : null,
       ...(classificationData && { classification: classificationData }),
