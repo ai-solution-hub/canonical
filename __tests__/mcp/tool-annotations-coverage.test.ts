@@ -48,9 +48,11 @@ import { registerAITools } from '@/lib/mcp/tools/ai';
 import { registerEntityTools } from '@/lib/mcp/tools/entities';
 import { registerTemplateTools } from '@/lib/mcp/tools/templates';
 import { registerGovernanceTools } from '@/lib/mcp/tools/governance';
+import { registerReviewTools } from '@/lib/mcp/tools/review';
 import { registerIntelligenceTools } from '@/lib/mcp/tools/intelligence';
 import { registerAppTools } from '@/lib/mcp/tools/apps';
 import { registerGuideTools } from '@/lib/mcp/tools/guides';
+import { registerChangeReportTools } from '@/lib/mcp/tools/change-report';
 
 // ---------------------------------------------------------------------------
 // Mock server — captures (name, config) from every registerTool call
@@ -96,8 +98,10 @@ async function collectAllTools(): Promise<ToolRegistration[]> {
   await registerTemplateTools(server);
   await registerAppTools(server);
   await registerGovernanceTools(server);
+  await registerReviewTools(server);
   await registerIntelligenceTools(server);
   await registerGuideTools(server);
+  await registerChangeReportTools(server);
 
   return registered;
 }
@@ -114,10 +118,10 @@ describe('MCP tool annotation coverage (P0-19 regression guard)', () => {
     tools = await collectAllTools();
   });
 
-  it('registers exactly 47 tools across all 12 modules', () => {
+  it('registers exactly 53 tools across all 14 modules', () => {
     // This guards against accidental duplicate registrations or a module
     // silently no-oping (e.g. a lazy-import failure inside registerAppTools).
-    expect(tools.length).toBe(47);
+    expect(tools.length).toBe(53);
   });
 
   it('every registered tool declares all four ToolAnnotations fields', () => {

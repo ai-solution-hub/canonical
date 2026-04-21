@@ -53,7 +53,10 @@ const CATEGORY_ORDER = [
   'templates.ts',
   'apps.ts',
   'governance.ts',
+  'review.ts',
   'intelligence.ts',
+  'guides.ts',
+  'change-report.ts',
 ];
 const SKIP_FILES = new Set(['index.ts', 'shared.ts']);
 
@@ -517,7 +520,10 @@ describe('Integration: full codebase extraction', () => {
         }
       }
 
-      expect(allTools.length).toBe(43);
+      // 53 = 43 pre-S180 + 2 governance additions + 3 review tools +
+      // 4 guides (added to CATEGORY_ORDER in WP6 — was a pre-S180 oversight)
+      // + 1 change-report tool.
+      expect(allTools.length).toBe(53);
 
       // Every tool should have a non-empty name
       for (const tool of allTools) {
@@ -593,7 +599,7 @@ describe('Integration: full codebase extraction', () => {
       const source = readFileSync(RESOURCES_FILE, 'utf-8');
       const prompts = parsePromptFile(source);
 
-      expect(prompts.length).toBe(5);
+      expect(prompts.length).toBe(7);
 
       const names = prompts.map((p) => p.name);
       expect(names).toContain('reorient');
@@ -601,10 +607,12 @@ describe('Integration: full codebase extraction', () => {
       expect(names).toContain('coverage_analysis');
       expect(names).toContain('draft_response');
       expect(names).toContain('review_item');
+      expect(names).toContain('sector_briefing');
+      expect(names).toContain('bid_pipeline_review');
 
       // Prompts with argsSchema should have args
       const withArgs = prompts.filter((p) => p.args.length > 0);
-      expect(withArgs.length).toBe(3); // bid_briefing, draft_response, review_item
+      expect(withArgs.length).toBe(5); // bid_briefing, draft_response, review_item, sector_briefing, bid_pipeline_review
 
       // Prompts without argsSchema should have empty args
       const reorient = prompts.find((p) => p.name === 'reorient')!;

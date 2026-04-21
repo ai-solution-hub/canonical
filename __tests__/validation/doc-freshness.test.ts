@@ -159,6 +159,7 @@ describe('Doc Freshness: data-entry-points.md', () => {
       'app/api/cron/classification-quality/route.ts', // classification quality cron
       'app/api/bids/[id]/responses/draft-stream/route.ts', // bid draft stream
       'lib/mcp/tools/governance.ts', // governance tools
+      'lib/mcp/tools/review.ts', // review tools (S180 P0-23) — head-count queries only; no content_items INSERTs
     ];
 
     const trueUnreferenced = unreferenced.filter(

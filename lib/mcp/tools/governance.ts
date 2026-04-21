@@ -1,7 +1,9 @@
 /**
- * Governance and lifecycle tool registrations (2 tools):
+ * Governance and lifecycle tool registrations (4 tools):
  *  25. delete_content_item
  *  30. update_governance_status
+ *  get_governance_queue (S180 WP3 / P0-23 A1)
+ *  review_governance_item (S180 WP3 / P0-23 B2)
  */
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -11,14 +13,20 @@ import {
   getMcpUserRole,
   checkMcpRole,
 } from '@/lib/mcp/auth';
-import { sb } from '@/lib/supabase/safe';
+import { sb, tryQuery, isOk } from '@/lib/supabase/safe';
 import type { Database } from '@/supabase/types/database.types';
 import {
   formatDeleteContent,
+  formatGovernanceQueue,
+  formatGovernanceReviewAction,
   formatGovernanceStatusUpdate,
 } from '@/lib/mcp/formatters';
 import type {
   DeleteContentResult,
+  GovernanceQueueData,
+  GovernanceQueueItem,
+  GovernanceReviewAction,
+  GovernanceReviewActionResult,
   GovernanceStatusItemResult,
   GovernanceStatusUpdateResult,
 } from '@/lib/mcp/formatters';
@@ -29,6 +37,8 @@ import {
   getClassifyContent,
   defineTool,
   DESTRUCTIVE_WRITE_ANNOTATIONS,
+  NON_IDEMPOTENT_WRITE_ANNOTATIONS,
+  READ_ONLY_ANNOTATIONS,
   SAFE_WRITE_ANNOTATIONS,
 } from './shared';
 
@@ -558,6 +568,338 @@ export async function registerGovernanceTools(
             {
               type: 'text' as const,
               text: `Governance status update failed: ${message}. Ensure you have editor or admin permissions.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // get_governance_queue (read-only — editor+)
+  //
+  // Wraps GET /api/governance/review. Returns items pending governance
+  // review ordered by due date ascending. Optional post-query domain filter.
+  // -------------------------------------------------------------------------
+  defineTool(
+    server,
+    'get_governance_queue',
+    {
+      title: 'Get Governance Queue',
+      description:
+        'List content items pending governance review. Returns each item with domain, due date, reviewer, and last-updated timestamp. Use this to triage the governance backlog via Claude (weekly cadence for most admins). Optional domain filter is applied at the query level so pagination totals reflect the filter. Editor or admin role required.',
+      inputSchema: {
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(100)
+          .default(20)
+          .describe('Maximum items to return (default 20, max 100)'),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .default(0)
+          .describe('Offset for pagination (default 0)'),
+        domain: z
+          .string()
+          .optional()
+          .describe(
+            'Optional primary_domain filter applied at the query level (the underlying route does not support a domain filter — this tool extends the route).',
+          ),
+      },
+      annotations: READ_ONLY_ANNOTATIONS,
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const role = await checkMcpRole(extra.authInfo, ['admin', 'editor']);
+        if (!role) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: 'Permission denied: editor or admin role required to read the governance queue.',
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const supabase = createMcpClient(extra.authInfo);
+
+        let query = supabase
+          .from('content_items')
+          .select(
+            'id, title, suggested_title, primary_domain, governance_review_status, governance_review_due, governance_reviewer_id, updated_by, updated_at',
+            { count: 'exact' },
+          )
+          .eq('governance_review_status', 'pending')
+          .order('governance_review_due', {
+            ascending: true,
+            nullsFirst: false,
+          })
+          .range(args.offset, args.offset + args.limit - 1);
+
+        if (args.domain) {
+          query = query.eq('primary_domain', args.domain);
+        }
+
+        const { data, error, count } = await query;
+
+        if (error) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Failed to fetch governance queue: ${error.message}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const items = (data ?? []) as GovernanceQueueItem[];
+        const result: GovernanceQueueData = {
+          items,
+          total: count ?? items.length,
+          offset: args.offset,
+          limit: args.limit,
+          domain_filter: args.domain ?? null,
+        };
+
+        const markdown = formatGovernanceQueue(result);
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(result),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Governance queue read failed: ${message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // review_governance_item (write — editor+)
+  //
+  // Wraps POST /api/governance/review. Processes a governance review action
+  // (approve / request_changes / revert) on an item currently in the
+  // `pending` review state. Distinct from `update_governance_status` which
+  // handles publish/draft transitions — this tool handles the review verdict
+  // workflow used by the P1-33 change-management skill.
+  // -------------------------------------------------------------------------
+  defineTool(
+    server,
+    'review_governance_item',
+    {
+      title: 'Process Governance Review Action',
+      description:
+        'Process a governance review action on an item currently pending review. Actions: "approve" moves to approved, "request_changes" flags it back for editing, "revert" reverts the pending change. Does NOT handle publish/draft transitions — those live in `update_governance_status`. Editor or admin role required. Item must currently have `governance_review_status = "pending"`.',
+      inputSchema: {
+        item_id: z
+          .string()
+          .uuid()
+          .describe(
+            'UUID of the content item to review (must currently have governance_review_status = "pending")',
+          ),
+        action: z
+          .enum(['approve', 'request_changes', 'revert'])
+          .describe('Review action to take'),
+        notes: z
+          .string()
+          .max(1000)
+          .optional()
+          .describe(
+            'Optional reviewer notes — included in the reviewer notification and available to downstream audit tools.',
+          ),
+      },
+      annotations: NON_IDEMPOTENT_WRITE_ANNOTATIONS,
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const role = await checkMcpRole(extra.authInfo, ['admin', 'editor']);
+        if (!role) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: 'Permission denied: editor or admin role required to process governance reviews.',
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const supabase = createMcpClient(extra.authInfo);
+        const userId = getMcpUserId(extra.authInfo);
+
+        const { data: item, error: fetchError } = await supabase
+          .from('content_items')
+          .select(
+            'id, title, suggested_title, governance_review_status, content_owner_id, updated_by',
+          )
+          .eq('id', args.item_id)
+          .maybeSingle();
+
+        if (fetchError) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Item lookup failed: ${fetchError.message}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        if (!item) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Item ${args.item_id} not found.`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        if (item.governance_review_status !== 'pending') {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Item is not pending governance review (current status: \`${item.governance_review_status ?? 'null'}\`). The review action can only be processed on items with \`governance_review_status = "pending"\`.`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const action = args.action as GovernanceReviewAction;
+        let newStatus: string;
+        let updateData: Database['public']['Tables']['content_items']['Update'];
+
+        switch (action) {
+          case 'approve':
+            newStatus = 'approved';
+            updateData = {
+              governance_review_status: 'approved',
+              governance_reviewer_id: userId,
+              governance_review_due: null,
+            };
+            break;
+          case 'request_changes':
+            newStatus = 'changes_requested';
+            updateData = {
+              governance_review_status: 'changes_requested',
+              governance_reviewer_id: userId,
+            };
+            break;
+          case 'revert':
+            newStatus = 'reverted';
+            updateData = {
+              governance_review_status: 'reverted',
+              governance_reviewer_id: userId,
+              governance_review_due: null,
+            };
+            break;
+        }
+
+        // We intentionally omit `.select('id').single()` here — the API
+        // route uses that idiom to catch zero-row updates, but the fetch +
+        // pending-status check above already guarantees the row exists at
+        // update time. The only remaining race is a concurrent delete
+        // between fetch and update, which the surrounding try/catch handles.
+        const { error: updateError } = await supabase
+          .from('content_items')
+          .update(updateData)
+          .eq('id', args.item_id);
+
+        if (updateError) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Governance review action failed: ${updateError.message}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // Best-effort notification dispatch — mirrors the API route's
+        // behaviour. Failures here MUST NOT roll back the review action.
+        try {
+          const detailResult = await tryQuery(
+            supabase
+              .from('content_items')
+              .select('updated_by, content_owner_id' as 'updated_by')
+              .eq('id', args.item_id)
+              .maybeSingle(),
+            'mcp.governance.review_governance_item.detail',
+          );
+          const detail = isOk(detailResult)
+            ? (detailResult.data as Record<string, unknown> | null)
+            : null;
+          const targets = new Set<string>();
+          if (detail?.content_owner_id && detail.content_owner_id !== userId) {
+            targets.add(detail.content_owner_id as string);
+          }
+          if (detail?.updated_by && detail.updated_by !== userId) {
+            targets.add(detail.updated_by as string);
+          }
+          for (const target of targets) {
+            await supabase.from('notifications').insert({
+              user_id: target,
+              type: `governance_${action}`,
+              entity_type: 'content_item',
+              entity_id: args.item_id,
+              title: `Governance review: ${action.replace('_', ' ')}`,
+              message: args.notes ?? null,
+            });
+          }
+        } catch (notifErr) {
+          console.warn(
+            'review_governance_item: notification dispatch failed',
+            notifErr,
+          );
+        }
+
+        const displayTitle =
+          item.title ?? item.suggested_title ?? '(untitled)';
+        const result: GovernanceReviewActionResult = {
+          item_id: args.item_id,
+          title: displayTitle,
+          action,
+          new_status: newStatus,
+          reviewer_id: userId ?? '(unknown)',
+          notes: args.notes ?? null,
+        };
+
+        const markdown = formatGovernanceReviewAction(result);
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(result),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Governance review action failed: ${message}.`,
             },
           ],
           isError: true,

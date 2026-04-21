@@ -206,3 +206,4 @@ Did you mean one of these?
 - Sort sections by completion (least complete first) to surface gaps quickly
 - Truncate question text in tables to keep output scannable
 - Always end with actionable recommendations
+- For a workflow-oriented cross-bid review (blockers, stalled drafts, next actions rather than per-bid status), use `/kb:bid-pipeline-review`

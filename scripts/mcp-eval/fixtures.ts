@@ -75,10 +75,10 @@ export function loadEnv(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Canonical lists — updated to 47 tools (current as of S178 P0-10)
+// Canonical lists — updated to 53 tools (current as of S180 P0-23 + P1-35)
 // ---------------------------------------------------------------------------
 
-/** Canonical set of all 47 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
+/** Canonical set of all 53 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
 export const CANONICAL_TOOL_NAMES = [
   'search_knowledge_base', // 1
   'search_qa_library', // 2
@@ -127,9 +127,17 @@ export const CANONICAL_TOOL_NAMES = [
   'create_guide', // 45
   'update_guide', // 46
   'trigger_intelligence_poll', // 47
+  // S180 P0-23 — review + governance additions (5 new tools, 47 → 52).
+  'get_governance_queue', // 48
+  'review_governance_item', // 49
+  'get_review_queue', // 50
+  'get_assignments_for_user', // 51
+  'create_review_assignment', // 52
+  // S180 P1-35 — change-report tool (WP6, 52 → 53).
+  'get_change_report', // 53
 ] as const;
 
-export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 47
+export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 53
 
 /** Read-only tools (no side effects). */
 export const READ_ONLY_TOOLS = new Set([
@@ -169,6 +177,12 @@ export const READ_ONLY_TOOLS = new Set([
   'get_intelligence_summary',
   'get_guide',
   'list_guides',
+  // S180 P0-23
+  'get_governance_queue',
+  'get_review_queue',
+  'get_assignments_for_user',
+  // S180 P1-35
+  'get_change_report',
 ]);
 
 /** Write tools that modify data. */
@@ -184,6 +198,9 @@ export const WRITE_TOOLS = new Set([
   'create_guide',
   'update_guide',
   'trigger_intelligence_poll',
+  // S180 P0-23 additions
+  'review_governance_item',
+  'create_review_assignment',
 ]);
 
 /**
@@ -196,16 +213,18 @@ export const AI_TOOLS = new Set([
   'generate_summary', // calls Claude API
 ]);
 
-/** All 5 prompt names. */
+/** All 7 prompt names. */
 export const CANONICAL_PROMPT_NAMES = [
   'reorient',
   'bid_briefing',
   'coverage_analysis',
   'draft_response',
   'review_item',
+  'sector_briefing',
+  'bid_pipeline_review',
 ] as const;
 
-export const PROMPT_COUNT = CANONICAL_PROMPT_NAMES.length; // 5
+export const PROMPT_COUNT = CANONICAL_PROMPT_NAMES.length; // 7
 
 /** Resource template URIs (3 templates). */
 export const RESOURCE_TEMPLATE_URIS = [
@@ -571,6 +590,39 @@ export function getMinimalArgs(
     // Intelligence write tools
     case 'trigger_intelligence_poll':
       return {};
+
+    // S180 P0-23 review + governance read tools
+    case 'get_governance_queue':
+      return { limit: 20, offset: 0 };
+    case 'get_review_queue':
+      return { status: 'unverified', limit: 20, offset: 0 };
+    case 'get_assignments_for_user':
+      return { status: 'active' };
+
+    // S180 P0-23 review + governance write tools. The review-verdict tool
+    // requires an item currently in `pending` state — the eval item typically
+    // is not, so Layer 1 will exercise the precondition error path rather
+    // than a successful update. This is the intended eval behaviour for
+    // protocol compliance (the tool still has to return a valid structured
+    // response, just with `isError: true`).
+    case 'review_governance_item':
+      return { item_id: evalItemId, action: 'approve' };
+    case 'create_review_assignment':
+      // Use a deterministic v4-compliant UUID for reviewer_id (Zod enforces
+      // RFC 4122). The reviewer does not need to exist — the FK will fail
+      // gracefully and the tool returns isError with a structured message,
+      // which is what Layer 1 protocol compliance is checking for. Avoids
+      // creating an eval orphan row that needs cleanup.
+      return {
+        reviewer_id: '11111111-1111-4111-8111-111111111111',
+        filter_domains: [],
+        filter_content_types: [],
+        filter_freshness: [],
+      };
+
+    // S180 P1-35 change-report read tool
+    case 'get_change_report':
+      return { period_days: 7 };
 
     default:
       return {};

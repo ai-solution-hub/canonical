@@ -15,12 +15,14 @@
  *   - ui://intelligence-feed/app.html — Intelligence Feed MCP App (interactive UI)
  *   - kb://quality-briefing           — Aggregated quality intelligence briefing
  *
- * Prompts (5):
- *   - reorient           — "What has changed since I was last active?"
- *   - bid_briefing       — "Give me a briefing on {bid_name}"
- *   - coverage_analysis  — "Analyse coverage gaps and suggest content to create"
- *   - draft_response     — "Draft a response to this bid question"
- *   - review_item        — "Review this content item for quality"
+ * Prompts (7):
+ *   - reorient              — "What has changed since I was last active?"
+ *   - bid_briefing          — "Give me a briefing on {bid_name}"
+ *   - coverage_analysis     — "Analyse coverage gaps and suggest content to create"
+ *   - draft_response        — "Draft a response to this bid question"
+ *   - review_item           — "Review this content item for quality"
+ *   - sector_briefing       — "Domain-scoped briefing: KB content + SI + change reports"
+ *   - bid_pipeline_review   — "Pipeline-wide action review: blockers + stalled drafts"
  */
 import { z } from 'zod';
 import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -937,6 +939,141 @@ export function registerPrompts(server: McpServer): void {
                 governanceSkill +
                 '\n\n---\n\n' +
                 `Review the content item with ID "${args.item_id}" for quality, accuracy, and completeness. Apply the governance reference above when judging freshness state, quality score factors, and review-trigger conditions. Check: Is the classification correct? Is the summary accurate? Is the content up to date for its lifecycle type? Are there any quality issues or review triggers active? Use the get_content_item tool to fetch the item, then provide a detailed assessment with recommendations grounded in the governance model above.`,
+            },
+          },
+        ],
+      };
+    },
+  );
+
+  // 6. sector_briefing
+  //
+  // Domain-scoped briefing combining KB content (guides, items, Q&A) + SI
+  // intelligence highlights + change report + outstanding governance items.
+  // Parallel to `reorient` (account-wide) but scoped to a single domain.
+  //
+  // References `get_change_report` which ships in the same session via WP6
+  // (P1-35). If the tool is not yet registered at invocation time, Claude
+  // will skip that step; the other three data sources still produce useful
+  // output.
+  server.registerPrompt(
+    'sector_briefing',
+    {
+      title: 'Sector Briefing',
+      description:
+        'Get a domain-scoped briefing covering KB content, sector intelligence, and recent change reports.',
+      argsSchema: {
+        domain: z
+          .string()
+          .describe(
+            'Domain key (e.g. "audit-content", "social-housing-compliance") to scope the briefing',
+          ),
+        period_days: z
+          .string()
+          .optional()
+          .describe(
+            'Optional look-back window in days for change reports and SI highlights. Default 7.',
+          ),
+      },
+    },
+    async (args) => {
+      const period = args.period_days ?? '7';
+      return {
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text:
+                KB_SYSTEM_CONTEXT +
+                `Assemble a sector briefing for the domain "${args.domain}" covering the last ${period} days.\n\n` +
+                'Use these tools in sequence and compose a single structured briefing:\n\n' +
+                `1. **Domain content inventory.**\n` +
+                `   - \`list_guides(guide_type: undefined, domain_filter: "${args.domain}", published_only: true)\` — guide catalogue for the domain.\n` +
+                `   - \`search_knowledge_base(query: "${args.domain}", domain: "${args.domain}", limit: 10)\` — recent / high-relevance items.\n` +
+                `   - \`search_qa_library(query: "${args.domain}", limit: 5)\` — Q&A pairs.\n` +
+                `2. **Sector intelligence.**\n` +
+                `   - \`get_intelligence_summary(period: "${period}d", limit: 15)\` — recent SI feed highlights. Filter results to entries touching the domain (by matching the domain key or its synonyms against article tags / summary text). If the tool requires a workspace_id, call it for each active workspace and merge results.\n` +
+                `3. **Change report.**\n` +
+                `   - \`get_change_report(period_days: ${period}, domain: "${args.domain}")\` — structured additions / updates / removals for the domain. If the tool is unavailable, note "Change report tool not yet available" and continue.\n` +
+                `4. **Outstanding governance items.**\n` +
+                `   - \`get_governance_queue(limit: 10, domain: "${args.domain}")\` — pending governance reviews, domain-scoped. If the tool is unavailable, note "Governance queue tool not yet available" and continue.\n\n` +
+                'Structure the briefing as:\n\n' +
+                `## Sector briefing — ${args.domain} — [DD/MM/YYYY]\n\n` +
+                '### At a glance\n' +
+                '- Content count: [N] guides, [M] items, [K] Q&A pairs\n' +
+                `- Change activity (${period} days): [N added / N updated / N removed]\n` +
+                '- Pending governance review: [N items]\n' +
+                '- SI signals: [N relevant feed articles]\n\n' +
+                '### What changed\n' +
+                '[Narrative summary of change report, grouped by content_type]\n\n' +
+                '### Sector intelligence\n' +
+                '[Top 3-5 SI highlights relevant to the domain with source links]\n\n' +
+                '### Governance queue\n' +
+                '[Pending items with due dates]\n\n' +
+                '### Recommendations\n' +
+                '[Prioritised 2-4 actions]\n\n' +
+                'Use UK English. DD/MM/YYYY dates. If any tool returns empty, note the gap explicitly (e.g. "No SI feeds currently cover this domain — consider seeding a starter pack.").',
+            },
+          },
+        ],
+      };
+    },
+  );
+
+  // 7. bid_pipeline_review
+  //
+  // Pipeline-wide workflow review — blockers across bids, stalled drafts,
+  // recent activity, and a flat prioritised action list. Complements
+  // `/kb:bid-status` (per-bid read) with a cross-bid action framing.
+  server.registerPrompt(
+    'bid_pipeline_review',
+    {
+      title: 'Bid Pipeline Review',
+      description:
+        'Workflow-oriented review of the active bid pipeline: blockers, stalled drafts, and prioritised next actions.',
+      argsSchema: {
+        stale_threshold_days: z
+          .string()
+          .optional()
+          .describe(
+            'Optional: days since last edit to consider a draft "stale". Default 5.',
+          ),
+      },
+    },
+    async (args) => {
+      const staleDays = args.stale_threshold_days ?? '5';
+      return {
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text:
+                KB_SYSTEM_CONTEXT +
+                'Produce a pipeline-wide action review for all active bids. Focus on blockers, stalled drafts, and recent activity — NOT per-bid status (that lives in `/kb:bid-status`).\n\n' +
+                'Tool sequence:\n\n' +
+                '1. **Pipeline overview.** `list_active_bids(limit: 50)` — full list with deadlines and completion %.\n' +
+                '2. **Per-bid detail.** For each active bid, `get_bid_detail(id: <bid_id>)` — extract:\n' +
+                '   - Unanswered questions (status: unanswered)\n' +
+                '   - Questions with confidence = "no_content" (hard blockers — need new KB material)\n' +
+                '   - Questions with confidence = "needs_sme" (soft blockers — need expert input)\n' +
+                `   - Questions with draft responses updated more than ${staleDays} days ago (stalled drafts)\n` +
+                '3. **Recent activity.** From the per-bid detail, pull response `updated_at` timestamps and identify which bids have seen edits in the last 7 days vs which have gone silent.\n\n' +
+                'Structure the output as:\n\n' +
+                '## Bid pipeline review — [DD/MM/YYYY]\n\n' +
+                '### Critical blockers (action today)\n' +
+                '[Bulleted list: "BidName — Question N: no_content on topic X. Need KB item on X."]\n\n' +
+                '### Stalled drafts (action this week)\n' +
+                `[Bulleted list: "BidName — Question N: last edit DD/MM/YYYY (N days ago, threshold ${staleDays}). Was in draft state."]\n\n` +
+                '### SME input needed\n' +
+                '[Bulleted list: "BidName — Question N: needs_sme on topic X."]\n\n' +
+                '### Recent activity\n' +
+                '- Active (edited in last 7 days): [BidA, BidB]\n' +
+                '- Silent (no edits in 7+ days): [BidC, BidD]\n\n' +
+                '### Prioritised next actions\n' +
+                '[Numbered 3-5 actions cutting across bids, ordered by deadline proximity × blocker severity.]\n\n' +
+                'Use UK English. DD/MM/YYYY. If the pipeline is empty, say so and suggest `/kb:bid-status` for historical context. If a bid has zero blockers, omit it from the blocker sections (still include in Recent activity).',
             },
           },
         ],
