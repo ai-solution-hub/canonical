@@ -46,6 +46,7 @@ from kb_pipeline.classify import (
     store_relationships,
     load_entity_aliases,
 )
+from kb_pipeline.dedup import check_content_hash_duplicate
 from import_bid_library import extract_keywords, truncate_at_word_boundary
 
 BATCH_TAG = "client-new-markdown-2026"
@@ -362,6 +363,22 @@ def main() -> int:
     t0 = time.time()
     for i, pair in enumerate(classified):
         record = build_record(pair)
+
+        # Dedup (content-hash soft block, S183 WP2). S182 surfaced the
+        # Stage 1 ↔ Stage 2 cross-batch "elevated access rights" Q&A
+        # collision — this gate catches that pattern on any future run.
+        is_dup_hash, hash_existing_id = check_content_hash_duplicate(record["content"])
+        if is_dup_hash:
+            record["dedup_status"] = "suspected_duplicate"
+            record["metadata"] = {
+                **record.get("metadata", {}),
+                "suspected_duplicate_of": hash_existing_id,
+            }
+            print(
+                f"  DEDUP entry #{i}: CONTENT-HASH match -> existing ID "
+                f"{hash_existing_id} — flagging (soft block)",
+                flush=True,
+            )
 
         # Embedding.
         try:
