@@ -7,6 +7,7 @@
  * coexists with the prior 6 prompts.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
+import type { z } from 'zod';
 import { registerPrompts } from '@/lib/mcp/resources';
 
 type PromptHandler = (
@@ -56,9 +57,14 @@ describe('MCP bid_pipeline_review prompt', () => {
 
   it('declares an optional stale_threshold_days arg', () => {
     const prompt = server.getPrompt('bid_pipeline_review');
-    const argsSchema = prompt!.config.argsSchema as Record<string, unknown>;
+    const argsSchema = prompt!.config.argsSchema as Record<
+      string,
+      z.ZodTypeAny
+    >;
     expect(argsSchema).toBeDefined();
     expect(argsSchema.stale_threshold_days).toBeDefined();
+    // Enforce optionality so a future breaking change is caught.
+    expect(argsSchema.stale_threshold_days.isOptional()).toBe(true);
   });
 
   it('includes the KB system context', async () => {

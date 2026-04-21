@@ -98,7 +98,10 @@ Alternatively, paste the following and I'll compose the briefing manually:
 
 ### 3. Handle Tool Unavailability
 
-If `get_change_report` is not yet registered (WP6 launch dependency), note "Change report tool not yet available — skipping the period change summary" and proceed with the remaining three data sources.
+Two of the referenced tools ship later in the same release train:
+
+- `get_change_report` — registered by WP6 (P1-35). If not yet available, note "Change report tool not yet available — skipping the period change summary" and proceed with the remaining data sources.
+- `get_governance_queue` — registered by WP3 (P0-23). If not yet available, note "Governance queue tool not yet available — skipping governance review section" and proceed.
 
 If `get_intelligence_summary` requires a `workspace_id` parameter and none is provided, call it once per active workspace and merge results, or prompt the user for the relevant workspace.
 

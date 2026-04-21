@@ -8,6 +8,7 @@
  * (7) applies when the arg is omitted.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
+import type { z } from 'zod';
 import { registerPrompts } from '@/lib/mcp/resources';
 
 type PromptHandler = (
@@ -57,10 +58,17 @@ describe('MCP sector_briefing prompt', () => {
 
   it('declares domain (required) + period_days (optional) args', () => {
     const prompt = server.getPrompt('sector_briefing');
-    const argsSchema = prompt!.config.argsSchema as Record<string, unknown>;
+    const argsSchema = prompt!.config.argsSchema as Record<
+      string,
+      z.ZodTypeAny
+    >;
     expect(argsSchema).toBeDefined();
     expect(argsSchema.domain).toBeDefined();
     expect(argsSchema.period_days).toBeDefined();
+    // Enforce optionality semantics so a future `.optional()` change on
+    // `domain` (or removal of `.optional()` from `period_days`) is caught.
+    expect(argsSchema.domain.isOptional()).toBe(false);
+    expect(argsSchema.period_days.isOptional()).toBe(true);
   });
 
   it('includes the KB system context prelude', async () => {
@@ -85,6 +93,20 @@ describe('MCP sector_briefing prompt', () => {
     expect(text).toContain('get_intelligence_summary');
     expect(text).toContain('get_change_report');
     expect(text).toContain('get_governance_queue');
+  });
+
+  it('instructs graceful fallback when a later-shipping tool is unavailable', async () => {
+    // Two tool dependencies ship later in the same release train:
+    //   - get_change_report (WP6 / P1-35)
+    //   - get_governance_queue (WP3 / P0-23)
+    // If either is missing at invocation time, the prompt must instruct
+    // Claude to skip that step and continue with the remaining data sources.
+    const prompt = server.getPrompt('sector_briefing');
+    const result = await prompt!.handler({ domain: 'audit-content' });
+    const text = result.messages[0]?.content.text ?? '';
+
+    expect(text).toContain('Change report tool not yet available');
+    expect(text).toContain('Governance queue tool not yet available');
   });
 
   it('interpolates the domain argument into the prompt body', async () => {

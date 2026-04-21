@@ -997,7 +997,7 @@ export function registerPrompts(server: McpServer): void {
                 `3. **Change report.**\n` +
                 `   - \`get_change_report(period_days: ${period}, domain: "${args.domain}")\` — structured additions / updates / removals for the domain. If the tool is unavailable, note "Change report tool not yet available" and continue.\n` +
                 `4. **Outstanding governance items.**\n` +
-                `   - \`get_governance_queue(limit: 10)\` — filter returned items to those with \`primary_domain = "${args.domain}"\`.\n\n` +
+                `   - \`get_governance_queue(limit: 10, domain: "${args.domain}")\` — pending governance reviews, domain-scoped. If the tool is unavailable, note "Governance queue tool not yet available" and continue.\n\n` +
                 'Structure the briefing as:\n\n' +
                 `## Sector briefing — ${args.domain} — [DD/MM/YYYY]\n\n` +
                 '### At a glance\n' +
