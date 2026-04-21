@@ -403,6 +403,26 @@ def main() -> int:
             print(f"  INSERT ERROR entry #{i} ({pair.get('_source_id')}): {e}", flush=True)
             continue
 
+        # S185 WP-D — shared post_insert helper. Fixes the S181 regression
+        # where this script forked pre-S177 and silently missed store_chunks.
+        # Entities/relationships are deferred to Loop 2 (ai_classify pass).
+        from kb_pipeline.post_insert import run_post_insert
+
+        run_post_insert(
+            item_id=item_id,
+            title=record["title"],
+            content=record["content"],
+            content_type=record["content_type"],
+            ingestion_source="stage2_markdown",
+            classification=None,
+            history_change_summary=(
+                f"Imported via stage2_markdown: {pair.get('_source_id', '?')}"
+            ),
+            store_entities_flag=False,
+            bridge_temporal=False,
+            write_temporal=False,
+        )
+
         if (i + 1) % 10 == 0:
             rate = (i + 1) / (time.time() - t0)
             eta = (len(classified) - i - 1) / rate if rate > 0 else 0
@@ -413,10 +433,14 @@ def main() -> int:
 
     print(f"\nStored {len(stored_ids)}/{len(classified)} items, {insert_errors} insert errors.")
 
-    # Entity extraction pass.
+    # Entity extraction pass (second-pass so AI classify cost scales with
+    # actual insert success rather than pre-insert dedup rejection rate).
+    # S185 WP-D — delegates entity+temporal+bridge work to the shared
+    # post_insert helper. History/chunks/layer already ran in Loop 1.
     if not args.skip_entities and stored_ids:
         print("\nRunning entity extraction...", flush=True)
-        load_entity_aliases()
+        from kb_pipeline.post_insert import run_post_insert
+
         entity_count = 0
         rel_count = 0
         ent_errors = 0
@@ -428,12 +452,22 @@ def main() -> int:
                     content_type=pair.get("_content_type", "q_a_pair"),
                     platform="extraction",
                 )
-                if cls_result.entities:
-                    n, _ = store_entities(item_id, cls_result.entities)
-                    entity_count += n
-                if cls_result.relationships:
-                    n, _ = store_relationships(item_id, cls_result.relationships)
-                    rel_count += n
+                pi = run_post_insert(
+                    item_id=item_id,
+                    title=pair["question_text"] or "",
+                    content=pair.get("answer_standard") or "",
+                    content_type=pair.get("_content_type", "q_a_pair"),
+                    ingestion_source="stage2_markdown",
+                    classification=cls_result,
+                    write_history=False,
+                    write_chunks=False,
+                    infer_layer_flag=False,
+                    store_entities_flag=True,
+                    write_temporal=True,
+                    bridge_temporal=True,
+                )
+                entity_count += pi.entities_stored
+                rel_count += pi.relationships_stored
             except Exception as e:  # noqa: BLE001
                 ent_errors += 1
                 print(f"  ENTITY ERROR {item_id}: {e}", flush=True)

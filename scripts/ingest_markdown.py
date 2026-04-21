@@ -473,32 +473,6 @@ def process_markdown_file(
         result["item_id"] = id_or_error
         log.info("             ID: %s", id_or_error)
 
-        # ── Content history v1 (S153 — Python/TS parity) ────────────
-        # Matches TS ingest path (app/api/upload/route.ts) which writes a
-        # version-1 content_history row on initial ingest. Best-effort.
-        try:
-            insert_content_history_entry(
-                content_item_id=id_or_error,
-                title=record.get("title") or title,
-                content=cleaned_content,
-                change_summary=f"Imported from markdown: {os.path.basename(file_path)}",
-                change_reason="initial_ingest",
-            )
-        except Exception as e:
-            log.error("  [History] ERROR (non-blocking): %s", e)
-
-        # Chunking — mirrors EP1 (scripts/kb_pipeline/pipeline.py) so MCP
-        # retrieval sees new items without a separate backfill step.
-        try:
-            from kb_pipeline.chunk import store_chunks
-            chunk_stored, chunk_errors = store_chunks(id_or_error, cleaned_content)
-            log.info("  [Chunks]  %d chunks stored", chunk_stored)
-            if chunk_errors:
-                for err in chunk_errors:
-                    log.warning("  [Chunks]  WARNING: %s", err)
-        except Exception as e:
-            log.error("  [Chunks]  ERROR (non-blocking): %s", e)
-
         # ── Summarise (optional) ─────────────────────────────────────
         if generate_summary_flag and cls and embedding:
             log.info("  [Summary] Generating AI summary...")
@@ -531,20 +505,6 @@ def process_markdown_file(
         elif generate_summary_flag and not embedding:
             log.info("  [Summary] Skipped — no embedding available")
 
-        # Layer inference (non-blocking)
-        try:
-            from kb_pipeline.layer_inference import infer_layer
-            suggestion = infer_layer(
-                content_type="article",
-                content_length=len(cleaned_content),
-                ingestion_source="manual",
-                title=title,
-            )
-            update_content_item(id_or_error, {"layer": suggestion.suggested_layer})
-            log.info("  [Layer]   %s (%s)", suggestion.suggested_layer, suggestion.confidence)
-        except Exception as e:
-            log.error("  [Layer]   ERROR (non-blocking): %s", e)
-
         # Quality logging
         if len(cleaned_content) < SHORT_CONTENT_THRESHOLD:
             log_quality_issue(
@@ -574,48 +534,25 @@ def process_markdown_file(
                 BATCH_NAME,
             )
 
-        # ── Entity storage (non-blocking) ──────────────────────────────
-        if cls and (cls.entities or cls.relationships):
-            try:
-                load_entity_aliases()
-            except Exception as e:
-                log.warning("  [Aliases] Failed to load aliases: %s", e)
+        # ── Shared post-insert helper (S185 WP-D) ──────────────────────
+        # Consolidates history + chunks + entity aliases + entity storage
+        # + relationship storage + temporal refs + temporal bridge + layer
+        # inference into a single call. Summary + quality logging stay
+        # inline above because they're specific to this script's flow.
+        from kb_pipeline.post_insert import run_post_insert
 
-        if cls and cls.entities:
-            try:
-                stored, skipped = store_entities(id_or_error, cls.entities)
-                log.info("  [Entities] Stored %d, skipped %d", stored, skipped)
-            except Exception as e:
-                log.error("  [Entities] ERROR (non-blocking): %s", e)
-
-        if cls and cls.relationships:
-            try:
-                rel_stored, rel_skipped = store_relationships(id_or_error, cls.relationships)
-                log.info("  [Relationships] Stored %d, skipped %d", rel_stored, rel_skipped)
-            except Exception as e:
-                log.error("  [Relationships] ERROR (non-blocking): %s", e)
-
-        if cls and cls.temporal_references:
-            try:
-                from kb_pipeline.store import merge_item_metadata
-                meta_ok = merge_item_metadata(id_or_error, {
-                    "ai_temporal_references": cls.temporal_references,
-                })
-                if meta_ok:
-                    log.info("  [Temporal] %d references stored", len(cls.temporal_references))
-                else:
-                    log.info("  [Temporal] Storage failed")
-            except Exception as e:
-                log.error("  [Temporal] ERROR (non-blocking): %s", e)
-
-        # ── Temporal-to-entity bridge (non-blocking) ───────────────────
-        try:
-            from kb_pipeline.temporal_bridge import bridge_temporal_to_entities
-            bridged = bridge_temporal_to_entities(id_or_error)
-            if bridged:
-                log.info("  [Bridge]  %d entity mentions updated", bridged)
-        except Exception as e:
-            log.error("  [Bridge]  ERROR (non-blocking): %s", e)
+        run_post_insert(
+            item_id=id_or_error,
+            title=record.get("title") or title,
+            content=cleaned_content,
+            content_type=record.get("content_type") or "article",
+            ingestion_source="markdown_import",
+            classification=cls,
+            history_change_summary=(
+                f"Imported from markdown: {os.path.basename(file_path)}"
+            ),
+            logger=log.info,
+        )
 
     else:
         result["status"] = "error"

@@ -266,91 +266,25 @@ def process_url(
         result.item_id = id_or_error
         print(f"             ID: {id_or_error}")
 
-        # ── Step 6a: Content history v1 (S153 — Python/TS parity) ─────
-        # Matches TS ingest path (app/api/ingest/url/route.ts) which writes
-        # a version-1 content_history row on initial ingest. Best-effort.
-        try:
-            insert_content_history_entry(
-                content_item_id=id_or_error,
-                title=record.get("title") or extracted.title,
-                content=extracted.content,
-                change_summary=f"Imported from {extracted.source_url or record.get('source_url', '')}",
-                change_reason="initial_ingest",
-            )
-        except Exception as e:
-            print(f"  [History] ERROR (non-blocking): {e}")
+        # ── Steps 6a–7e: Shared post-insert helper (S185 WP-D) ────────
+        # Consolidates history + chunks + entity aliases + entity storage +
+        # relationship storage + temporal refs + temporal bridge + layer
+        # inference into a single call with a canonical ordering. Prior to
+        # S185 each script had its own copy; the S181 Stage 2 chunk-backfill
+        # regression was caused by one such copy drifting out of sync.
+        from .post_insert import run_post_insert
 
-        # ── Step 6b: Content chunking (heading-based) ────────────────
-        # Mirrors TS chunking pipeline in app/api/upload + app/api/ingest/url.
-        try:
-            from .chunk import store_chunks
-            chunk_stored, chunk_errors = store_chunks(id_or_error, extracted.content)
-            print(f"  [Chunks]  {chunk_stored} chunks stored")
-            if chunk_errors:
-                for err in chunk_errors:
-                    print(f"  [Chunks]  WARNING: {err}")
-        except Exception as e:
-            print(f"  [Chunks]  ERROR (non-blocking): {e}")
-
-        # ── Step 7: Load entity aliases (needed for both entities and relationships)
-        if cls and (cls.entities or cls.relationships):
-            try:
-                load_entity_aliases()
-            except Exception as e:
-                print(f"  [Aliases] WARNING: Failed to load aliases: {e}")
-
-        # ── Step 7a: Entity storage ──────────────────────────────────
-        if cls and cls.entities:
-            try:
-                stored, skipped = store_entities(id_or_error, cls.entities)
-                print(f"  [Entities] Stored {stored}, skipped {skipped}")
-            except Exception as e:
-                print(f"  [Entities] ERROR (non-blocking): {e}")
-
-        # ── Step 7b: Relationship storage (non-blocking) ────────────
-        if cls and cls.relationships:
-            try:
-                rel_stored, rel_skipped = store_relationships(id_or_error, cls.relationships)
-                print(f"  [Relationships] Stored {rel_stored}, skipped {rel_skipped}")
-            except Exception as e:
-                print(f"  [Relationships] ERROR (non-blocking): {e}")
-
-        # ── Step 7c: Temporal reference storage (non-blocking) ──────
-        if cls and cls.temporal_references:
-            try:
-                from .store import merge_item_metadata
-                meta_ok = merge_item_metadata(id_or_error, {
-                    "ai_temporal_references": cls.temporal_references,
-                })
-                if meta_ok:
-                    print(f"  [Temporal] {len(cls.temporal_references)} references stored")
-                else:
-                    print(f"  [Temporal] Storage failed")
-            except Exception as e:
-                print(f"  [Temporal] ERROR (non-blocking): {e}")
-
-        # ── Step 7d: Temporal-to-entity bridge (non-blocking) ─────
-        try:
-            from .temporal_bridge import bridge_temporal_to_entities
-            bridged = bridge_temporal_to_entities(id_or_error)
-            if bridged:
-                print(f"  [Bridge]  {bridged} entity mentions updated")
-        except Exception as e:
-            print(f"  [Bridge]  ERROR (non-blocking): {e}")
-
-        # ── Step 7e: Layer inference (non-blocking) ────────────────
-        try:
-            from .layer_inference import infer_layer
-            suggestion = infer_layer(
-                content_type=extracted.content_type,
-                content_length=len(extracted.content),
-                ingestion_source="url_import",
-                title=extracted.title,
-            )
-            update_content_item(id_or_error, {"layer": suggestion.suggested_layer})
-            print(f"  [Layer]   {suggestion.suggested_layer} ({suggestion.confidence})")
-        except Exception as e:
-            print(f"  [Layer]   ERROR (non-blocking): {e}")
+        run_post_insert(
+            item_id=id_or_error,
+            title=record.get("title") or extracted.title,
+            content=extracted.content,
+            content_type=extracted.content_type,
+            ingestion_source="url_import",
+            classification=cls,
+            history_change_summary=(
+                f"Imported from {extracted.source_url or record.get('source_url', '')}"
+            ),
+        )
 
         # ── Step 8: Quality logging ──────────────────────────────────
         _log_quality_flags(id_or_error, extracted, cls, batch_name, result)

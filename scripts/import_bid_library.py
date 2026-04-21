@@ -642,15 +642,28 @@ def main():
                     if (i + 1) % 10 == 0:
                         print(f"  Stored {i + 1}/{len(pairs_to_import)}")
 
-                    if chunking_enabled:
-                        try:
-                            stored, errors = store_chunks(id_or_error, record["content"])
-                            chunk_success += stored
-                            for err in errors:
-                                print(f"  [Chunks]  WARNING: {err}")
-                        except Exception as e:
-                            print(f"  [Chunks]  ERROR for item {id_or_error} (non-blocking): {e}")
-                    else:
+                    # S185 WP-D — shared post_insert helper. Covers history,
+                    # chunks (gated by chunking_enabled), and layer inference.
+                    # Entity extraction is deferred to the pass below.
+                    from kb_pipeline.post_insert import run_post_insert
+
+                    pi = run_post_insert(
+                        item_id=id_or_error,
+                        title=record["title"],
+                        content=record["content"],
+                        content_type=record.get("content_type") or "q_a_pair",
+                        ingestion_source="bid_library_import",
+                        classification=None,
+                        history_change_summary=(
+                            f"Imported from bid library: {pair.get('_source_file', '?')}"
+                        ),
+                        write_chunks=chunking_enabled,
+                        store_entities_flag=False,
+                        bridge_temporal=False,
+                        write_temporal=False,
+                    )
+                    chunk_success += pi.chunks_stored
+                    if not chunking_enabled:
                         chunk_skipped += 1
                 else:
                     store_fail += 1
@@ -665,18 +678,17 @@ def main():
                 print(f"  Chunks skipped: {chunk_skipped} (--skip-embed set)")
 
         # ── Step 10: Entity extraction (optional) ────────────────────
+        # S185 WP-D — routes ai_classify result through run_post_insert so
+        # entities + relationships + temporal refs + bridge all land
+        # consistently. History/chunks/layer already ran in the insert loop
+        # above; this pass only handles the AI-driven side-effects.
         entity_count = 0
         rel_count = 0
         if args.entities and stored_pairs:
             print(f"\n[10/10] Running entity extraction on {len(stored_pairs)} items...")
             try:
-                from kb_pipeline.classify import (
-                    classify as ai_classify,
-                    store_entities,
-                    store_relationships,
-                    load_entity_aliases,
-                )
-                load_entity_aliases()
+                from kb_pipeline.classify import classify as ai_classify
+                from kb_pipeline.post_insert import run_post_insert
             except ImportError as e:
                 print(f"  ERROR: Could not import entity extraction module: {e}")
                 stored_pairs = []
@@ -690,12 +702,22 @@ def main():
                         content_type="q_a_pair",
                         platform="extraction",
                     )
-                    if cls_result.entities:
-                        stored, _skipped = store_entities(item_id, cls_result.entities)
-                        entity_count += stored
-                    if cls_result.relationships:
-                        rel_stored, _skipped = store_relationships(item_id, cls_result.relationships)
-                        rel_count += rel_stored
+                    pi = run_post_insert(
+                        item_id=item_id,
+                        title=record["title"],
+                        content=record["content"],
+                        content_type="q_a_pair",
+                        ingestion_source="bid_library_import",
+                        classification=cls_result,
+                        write_history=False,
+                        write_chunks=False,
+                        infer_layer_flag=False,
+                        store_entities_flag=True,
+                        write_temporal=True,
+                        bridge_temporal=True,
+                    )
+                    entity_count += pi.entities_stored
+                    rel_count += pi.relationships_stored
                     if (i + 1) % 10 == 0:
                         print(f"  Processed {i + 1}/{len(stored_pairs)}...")
                 except Exception as e:
