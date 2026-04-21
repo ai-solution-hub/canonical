@@ -264,6 +264,140 @@ describe('Intelligence Feed Sources API', () => {
     });
   });
 
+  // ─── POST web source 360-min default (P0-WEB / WP3C) ───
+
+  describe('POST web source polling interval default (WP3C)', () => {
+    it('applies 360-min default for web source when no polling_interval_minutes provided (T15)', async () => {
+      configureRole(mockSupabase, 'admin');
+      // Workspace verification
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: MOCK_WORKSPACE,
+        error: null,
+      });
+      // Source insert
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: { ...MOCK_SOURCE, source_type: 'web', polling_interval_minutes: 360 },
+        error: null,
+      });
+
+      const request = createTestRequest(
+        `/api/intelligence/workspaces/${WORKSPACE_UUID}/sources`,
+        {
+          method: 'POST',
+          body: {
+            name: 'Company Website',
+            url: 'https://example.com/page',
+            source_type: 'web',
+            // polling_interval_minutes intentionally omitted
+          },
+        },
+      );
+      const params = createTestParams({ id: WORKSPACE_UUID });
+      const response = await listPOST(request, { params });
+
+      expect(response.status).toBe(201);
+
+      // Verify the insert call included polling_interval_minutes: 360
+      const insertCall = mockSupabase._chain.insert.mock.calls.find(
+        (call: unknown[]) => {
+          const arg = call[0] as Record<string, unknown>;
+          return arg.source_type === 'web';
+        },
+      );
+      expect(insertCall).toBeDefined();
+      expect((insertCall![0] as Record<string, unknown>).polling_interval_minutes).toBe(360);
+    });
+
+    it('respects explicit polling_interval_minutes for web source (T16)', async () => {
+      configureRole(mockSupabase, 'admin');
+      // Workspace verification
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: MOCK_WORKSPACE,
+        error: null,
+      });
+      // Source insert
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: { ...MOCK_SOURCE, source_type: 'web', polling_interval_minutes: 120 },
+        error: null,
+      });
+
+      const request = createTestRequest(
+        `/api/intelligence/workspaces/${WORKSPACE_UUID}/sources`,
+        {
+          method: 'POST',
+          body: {
+            name: 'Company Website',
+            url: 'https://example.com/page',
+            source_type: 'web',
+            polling_interval_minutes: 120,
+          },
+        },
+      );
+      const params = createTestParams({ id: WORKSPACE_UUID });
+      const response = await listPOST(request, { params });
+
+      expect(response.status).toBe(201);
+
+      // Verify the insert call used the explicit 120, NOT the 360 default
+      const insertCall = mockSupabase._chain.insert.mock.calls.find(
+        (call: unknown[]) => {
+          const arg = call[0] as Record<string, unknown>;
+          return arg.source_type === 'web';
+        },
+      );
+      expect(insertCall).toBeDefined();
+      // The 360 default only applies when raw body omits polling_interval_minutes
+      // With explicit 120, it should pass through (Zod schema default + spread)
+      expect(
+        (insertCall![0] as Record<string, unknown>).polling_interval_minutes,
+      ).not.toBe(360);
+    });
+
+    it('does NOT apply 360-min default for RSS source (T17)', async () => {
+      configureRole(mockSupabase, 'admin');
+      // Workspace verification
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: MOCK_WORKSPACE,
+        error: null,
+      });
+      // Source insert
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: MOCK_SOURCE,
+        error: null,
+      });
+
+      const request = createTestRequest(
+        `/api/intelligence/workspaces/${WORKSPACE_UUID}/sources`,
+        {
+          method: 'POST',
+          body: {
+            name: 'Gov.uk Education Feed',
+            url: 'https://www.gov.uk/search/news-and-communications.atom',
+            source_type: 'rss',
+            // No polling_interval_minutes — RSS uses Zod default (30)
+          },
+        },
+      );
+      const params = createTestParams({ id: WORKSPACE_UUID });
+      const response = await listPOST(request, { params });
+
+      expect(response.status).toBe(201);
+
+      // For RSS, the insert should NOT contain polling_interval_minutes: 360
+      // It takes the RSS code path (validateFeedUrl) which passes parsed.data through
+      const insertCall = mockSupabase._chain.insert.mock.calls.find(
+        (call: unknown[]) => {
+          const arg = call[0] as Record<string, unknown>;
+          return arg.source_type === 'rss' || !arg.source_type;
+        },
+      );
+      expect(insertCall).toBeDefined();
+      const insertPayload = insertCall![0] as Record<string, unknown>;
+      // RSS path uses parsed.data.polling_interval_minutes (Zod default: 30)
+      expect(insertPayload.polling_interval_minutes).not.toBe(360);
+    });
+  });
+
   // ─── GET /api/intelligence/workspaces/:id/sources/:sourceId ───
 
   describe('GET /api/intelligence/workspaces/:id/sources/:sourceId', () => {
@@ -351,6 +485,106 @@ describe('Intelligence Feed Sources API', () => {
       const response = await detailPATCH(request, { params });
 
       expect(response.status).toBe(404);
+    });
+  });
+
+  // ─── PATCH consecutive_failures reset (P0-WEB / WP3C) ───
+
+  describe('PATCH consecutive_failures reset on re-enable (WP3C)', () => {
+    it('resets consecutive_failures to 0 when re-enabling a disabled source (T18)', async () => {
+      configureRole(mockSupabase, 'admin');
+      // Lookup: source is currently inactive
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: { is_active: false },
+        error: null,
+      });
+      // Update result
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: { ...MOCK_SOURCE, is_active: true, consecutive_failures: 0 },
+        error: null,
+      });
+
+      const request = createTestRequest(
+        `/api/intelligence/workspaces/${WORKSPACE_UUID}/sources/${SOURCE_UUID}`,
+        { method: 'PATCH', body: { is_active: true } },
+      );
+      const params = createTestParams({
+        id: WORKSPACE_UUID,
+        sourceId: SOURCE_UUID,
+      });
+      const response = await detailPATCH(request, { params });
+      expect(response.status).toBe(200);
+
+      // Verify the update payload included consecutive_failures: 0
+      const updateCall = mockSupabase._chain.update.mock.calls;
+      expect(updateCall.length).toBeGreaterThan(0);
+      const lastUpdatePayload = updateCall[updateCall.length - 1][0] as Record<
+        string,
+        unknown
+      >;
+      expect(lastUpdatePayload.consecutive_failures).toBe(0);
+    });
+
+    it('does NOT reset consecutive_failures when source is already active (T19)', async () => {
+      configureRole(mockSupabase, 'admin');
+      // Lookup: source is currently ACTIVE (no transition)
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: { is_active: true },
+        error: null,
+      });
+      // Update result
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: { ...MOCK_SOURCE, is_active: true },
+        error: null,
+      });
+
+      const request = createTestRequest(
+        `/api/intelligence/workspaces/${WORKSPACE_UUID}/sources/${SOURCE_UUID}`,
+        { method: 'PATCH', body: { is_active: true } },
+      );
+      const params = createTestParams({
+        id: WORKSPACE_UUID,
+        sourceId: SOURCE_UUID,
+      });
+      const response = await detailPATCH(request, { params });
+      expect(response.status).toBe(200);
+
+      // The update payload should NOT include consecutive_failures
+      const updateCall = mockSupabase._chain.update.mock.calls;
+      const lastUpdatePayload = updateCall[updateCall.length - 1][0] as Record<
+        string,
+        unknown
+      >;
+      expect(lastUpdatePayload).not.toHaveProperty('consecutive_failures');
+    });
+
+    it('does NOT reset consecutive_failures when deactivating a source (T20)', async () => {
+      configureRole(mockSupabase, 'admin');
+      // No lookup happens because raw.is_active is false, not true
+      // Update result
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: { ...MOCK_SOURCE, is_active: false },
+        error: null,
+      });
+
+      const request = createTestRequest(
+        `/api/intelligence/workspaces/${WORKSPACE_UUID}/sources/${SOURCE_UUID}`,
+        { method: 'PATCH', body: { is_active: false } },
+      );
+      const params = createTestParams({
+        id: WORKSPACE_UUID,
+        sourceId: SOURCE_UUID,
+      });
+      const response = await detailPATCH(request, { params });
+      expect(response.status).toBe(200);
+
+      // The update payload should NOT include consecutive_failures
+      const updateCall = mockSupabase._chain.update.mock.calls;
+      const lastUpdatePayload = updateCall[updateCall.length - 1][0] as Record<
+        string,
+        unknown
+      >;
+      expect(lastUpdatePayload).not.toHaveProperty('consecutive_failures');
     });
   });
 
