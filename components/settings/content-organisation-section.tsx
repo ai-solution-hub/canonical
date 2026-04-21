@@ -5,6 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { TaxonomySection } from '@/components/settings/taxonomy-section';
 import { TagsSection } from '@/components/settings/tags-section';
 import { LayersSection } from '@/components/settings/layers-section';
+import { TaxonomyDriftBanner } from '@/components/settings/taxonomy-drift-banner';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -49,6 +50,8 @@ export function ContentOrganisationSection({
 
   return (
     <div className="space-y-6">
+      <TaxonomyDriftBanner />
+
       <div>
         <h2 className="text-lg font-semibold text-foreground">
           Content Organisation

@@ -47,6 +47,19 @@ export async function fetchItemProvenance(id: string) {
   );
 }
 
+/** Response shape for GET /api/admin/taxonomy-sync/status */
+export interface TaxonomySyncStatus {
+  in_sync: boolean;
+  last_sync_at: string | null;
+  current_hash: string;
+  synced_hash: string | null;
+}
+
+/** Fetch taxonomy sync drift-detection status (admin-only). */
+export async function fetchTaxonomySyncStatus(): Promise<TaxonomySyncStatus> {
+  return fetchJson<TaxonomySyncStatus>('/api/admin/taxonomy-sync/status');
+}
+
 export async function mutationFetchJson<T>(
   url: string,
   body: unknown,
