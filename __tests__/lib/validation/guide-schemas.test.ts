@@ -2,10 +2,12 @@ import { describe, it, expect } from 'vitest';
 import {
   guideCreateSchema,
   guideUpdateSchema,
-  guideSectionSchema,
-  guideSectionUpdateSchema,
+  buildGuideSectionSchema,
+  buildGuideSectionUpdateSchema,
   guideSectionsReorderSchema,
 } from '@/lib/validation/guide-schemas';
+
+const TEST_LAYER_KEYS = ['sales_brief', 'bid_detail', 'company_reference', 'research'];
 
 describe('guideCreateSchema', () => {
   it('accepts valid guide input', () => {
@@ -137,9 +139,10 @@ describe('guideUpdateSchema', () => {
   });
 });
 
-describe('guideSectionSchema', () => {
-  it('accepts valid section input', () => {
-    const result = guideSectionSchema.safeParse({
+describe('buildGuideSectionSchema', () => {
+  it('accepts valid section input with layer key in list', () => {
+    const schema = buildGuideSectionSchema(TEST_LAYER_KEYS);
+    const result = schema.safeParse({
       section_name: 'Sector Overview',
       expected_layer: 'sales_brief',
       display_order: 1,
@@ -147,8 +150,19 @@ describe('guideSectionSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('allows null layer and subtopic', () => {
-    const result = guideSectionSchema.safeParse({
+  it('rejects layer key not in list', () => {
+    const schema = buildGuideSectionSchema(TEST_LAYER_KEYS);
+    const result = schema.safeParse({
+      section_name: 'Test',
+      expected_layer: 'nonexistent_layer',
+      display_order: 0,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts null expected_layer', () => {
+    const schema = buildGuideSectionSchema(TEST_LAYER_KEYS);
+    const result = schema.safeParse({
       section_name: 'Research Feed',
       expected_layer: null,
       subtopic_filter: null,
@@ -157,14 +171,19 @@ describe('guideSectionSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('accepts omitted expected_layer', () => {
+    const schema = buildGuideSectionSchema(TEST_LAYER_KEYS);
+    const result = schema.safeParse({
+      section_name: 'No Layer',
+      display_order: 0,
+    });
+    expect(result.success).toBe(true);
+  });
+
   it('accepts all valid layer values', () => {
-    for (const layer of [
-      'sales_brief',
-      'bid_detail',
-      'company_reference',
-      'research',
-    ]) {
-      const result = guideSectionSchema.safeParse({
+    const schema = buildGuideSectionSchema(TEST_LAYER_KEYS);
+    for (const layer of TEST_LAYER_KEYS) {
+      const result = schema.safeParse({
         section_name: 'Test',
         expected_layer: layer,
         display_order: 0,
@@ -173,17 +192,19 @@ describe('guideSectionSchema', () => {
     }
   });
 
-  it('rejects invalid layer', () => {
-    const result = guideSectionSchema.safeParse({
-      section_name: 'Test',
-      expected_layer: 'invalid_layer',
+  it('accepts a custom layer key added by admin', () => {
+    const schema = buildGuideSectionSchema([...TEST_LAYER_KEYS, 'custom_new_layer']);
+    const result = schema.safeParse({
+      section_name: 'Custom Section',
+      expected_layer: 'custom_new_layer',
       display_order: 0,
     });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
   });
 
   it('rejects negative display_order', () => {
-    const result = guideSectionSchema.safeParse({
+    const schema = buildGuideSectionSchema(TEST_LAYER_KEYS);
+    const result = schema.safeParse({
       section_name: 'Test',
       display_order: -1,
     });
@@ -191,7 +212,8 @@ describe('guideSectionSchema', () => {
   });
 
   it('rejects empty section_name', () => {
-    const result = guideSectionSchema.safeParse({
+    const schema = buildGuideSectionSchema(TEST_LAYER_KEYS);
+    const result = schema.safeParse({
       section_name: '',
       display_order: 0,
     });
@@ -199,7 +221,8 @@ describe('guideSectionSchema', () => {
   });
 
   it('defaults is_required to true', () => {
-    const result = guideSectionSchema.safeParse({
+    const schema = buildGuideSectionSchema(TEST_LAYER_KEYS);
+    const result = schema.safeParse({
       section_name: 'Test',
       display_order: 0,
     });
@@ -210,20 +233,46 @@ describe('guideSectionSchema', () => {
   });
 });
 
-describe('guideSectionUpdateSchema', () => {
-  it('accepts partial section updates', () => {
-    const result = guideSectionUpdateSchema.safeParse({
+describe('buildGuideSectionUpdateSchema', () => {
+  it('accepts partial section updates with layer key in list', () => {
+    const schema = buildGuideSectionUpdateSchema(TEST_LAYER_KEYS);
+    const result = schema.safeParse({
+      expected_layer: 'bid_detail',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects layer key not in list', () => {
+    const schema = buildGuideSectionUpdateSchema(TEST_LAYER_KEYS);
+    const result = schema.safeParse({
+      expected_layer: 'nonexistent_layer',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts null expected_layer', () => {
+    const schema = buildGuideSectionUpdateSchema(TEST_LAYER_KEYS);
+    const result = schema.safeParse({
+      description: null,
+      expected_layer: null,
+      subtopic_filter: null,
+      content_type_filter: null,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts partial update with section_name only', () => {
+    const schema = buildGuideSectionUpdateSchema(TEST_LAYER_KEYS);
+    const result = schema.safeParse({
       section_name: 'Updated Section',
     });
     expect(result.success).toBe(true);
   });
 
-  it('accepts nullable fields', () => {
-    const result = guideSectionUpdateSchema.safeParse({
-      description: null,
-      expected_layer: null,
-      subtopic_filter: null,
-      content_type_filter: null,
+  it('accepts a custom layer key added by admin', () => {
+    const schema = buildGuideSectionUpdateSchema([...TEST_LAYER_KEYS, 'admin_added']);
+    const result = schema.safeParse({
+      expected_layer: 'admin_added',
     });
     expect(result.success).toBe(true);
   });

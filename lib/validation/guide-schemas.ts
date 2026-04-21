@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { getLayerSchema } from './layer-schemas';
 
 export const VALID_GUIDE_TYPES = [
   'sector',
@@ -42,25 +41,46 @@ export const guideUpdateSchema = z.object({
   is_published: z.boolean().optional(),
 });
 
-export const guideSectionSchema = z.object({
-  section_name: z.string().min(1).max(200),
-  description: z.string().max(1000).optional().nullable(),
-  expected_layer: getLayerSchema().optional().nullable(),
-  subtopic_filter: z.string().optional().nullable(),
-  content_type_filter: z.string().optional().nullable(),
-  display_order: z.number().int().min(0),
-  is_required: z.boolean().default(true),
-});
+/**
+ * Build a guide section creation schema with DB-driven layer keys.
+ *
+ * The `expected_layer` field is constrained to the provided `layerKeys` list
+ * (fetched from `layer_vocabulary` at request time via `fetchActiveLayerKeys`).
+ */
+export function buildGuideSectionSchema(layerKeys: string[]) {
+  return z.object({
+    section_name: z.string().min(1).max(200),
+    description: z.string().max(1000).optional().nullable(),
+    expected_layer: z
+      .enum(layerKeys as [string, ...string[]])
+      .optional()
+      .nullable(),
+    subtopic_filter: z.string().optional().nullable(),
+    content_type_filter: z.string().optional().nullable(),
+    display_order: z.number().int().min(0),
+    is_required: z.boolean().default(true),
+  });
+}
 
-export const guideSectionUpdateSchema = z.object({
-  section_name: z.string().min(1).max(200).optional(),
-  description: z.string().max(1000).nullable().optional(),
-  expected_layer: getLayerSchema().nullable().optional(),
-  subtopic_filter: z.string().nullable().optional(),
-  content_type_filter: z.string().nullable().optional(),
-  display_order: z.number().int().min(0).optional(),
-  is_required: z.boolean().optional(),
-});
+/**
+ * Build a guide section update schema with DB-driven layer keys.
+ *
+ * Same as `buildGuideSectionSchema` but all fields are optional (partial update).
+ */
+export function buildGuideSectionUpdateSchema(layerKeys: string[]) {
+  return z.object({
+    section_name: z.string().min(1).max(200).optional(),
+    description: z.string().max(1000).nullable().optional(),
+    expected_layer: z
+      .enum(layerKeys as [string, ...string[]])
+      .nullable()
+      .optional(),
+    subtopic_filter: z.string().nullable().optional(),
+    content_type_filter: z.string().nullable().optional(),
+    display_order: z.number().int().min(0).optional(),
+    is_required: z.boolean().optional(),
+  });
+}
 
 export const guideSectionsReorderSchema = z.object({
   sections: z.array(
