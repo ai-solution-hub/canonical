@@ -384,6 +384,43 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
         const supabase = createMcpClient(extra.authInfo);
         const userId = getMcpUserId(extra.authInfo);
 
+        // Validate sections BEFORE inserting the guide to avoid orphan rows
+        // (H-1 fix: layer fetch / section validation must precede guide insert)
+        if (args.sections && args.sections.length > 0) {
+          let layerKeys: string[];
+          try {
+            layerKeys = await fetchActiveLayerKeys(supabase);
+          } catch (err) {
+            const message =
+              err instanceof Error ? err.message : 'Unknown error';
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: `Layer vocabulary unavailable: ${message}. No guide was created.`,
+                },
+              ],
+              isError: true,
+            };
+          }
+
+          const sectionSchema = buildGuideSectionSchema(layerKeys);
+          for (const section of args.sections) {
+            const result = sectionSchema.safeParse(section);
+            if (!result.success) {
+              return {
+                content: [
+                  {
+                    type: 'text' as const,
+                    text: `Section validation failed: ${result.error.issues.map((i) => i.message).join('; ')}. No guide was created.`,
+                  },
+                ],
+                isError: true,
+              };
+            }
+          }
+        }
+
         const insertResult = await tryQuery(
           supabase
             .from('guides')
@@ -430,45 +467,11 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
 
         const guide = insertResult.data;
 
-        // Insert sections if provided
+        // Insert sections if provided (already validated above)
         const warnings: string[] = [];
         let sectionCount = 0;
 
         if (args.sections && args.sections.length > 0) {
-          // Validate section fields against live layer vocabulary
-          let layerKeys: string[];
-          try {
-            layerKeys = await fetchActiveLayerKeys(supabase);
-          } catch (err) {
-            const message =
-              err instanceof Error ? err.message : 'Unknown error';
-            return {
-              content: [
-                {
-                  type: 'text' as const,
-                  text: `Layer vocabulary unavailable: ${message}. Guide was created but sections could not be validated.`,
-                },
-              ],
-              isError: true,
-            };
-          }
-
-          const sectionSchema = buildGuideSectionSchema(layerKeys);
-          for (const section of args.sections) {
-            const result = sectionSchema.safeParse(section);
-            if (!result.success) {
-              return {
-                content: [
-                  {
-                    type: 'text' as const,
-                    text: `Section validation failed: ${result.error.issues.map((i) => i.message).join('; ')}`,
-                  },
-                ],
-                isError: true,
-              };
-            }
-          }
-
           const sectionInserts = args.sections.map((s) => ({
             guide_id: guide.id,
             section_name: s.section_name,
