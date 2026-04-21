@@ -305,6 +305,30 @@ def main() -> int:
         choices=["aud", "lms", "website", "example-client"],
         help="Process only one file (debug)",
     )
+
+    # S186 WP-B.6 — mutually exclusive supersession flags. Off by default.
+    # Stage 2 batch source_files (Advanced_Audits_v5, LMS_v2.2 etc.) do not
+    # carry DRAFT/final semantics so these flags are unlikely to fire on
+    # current inputs; wired for parity + future Stage 2 DRAFT/final batches.
+    supersede_group = parser.add_mutually_exclusive_group()
+    supersede_group.add_argument(
+        "--auto-supersede",
+        action="store_true",
+        help=(
+            "When content-hash dedup fires AND filename heuristic matches "
+            "(incoming 'final' + existing 'DRAFT'), flip the existing row's "
+            "superseded_by to the new insert."
+        ),
+    )
+    supersede_group.add_argument(
+        "--auto-supersede-dry-run",
+        action="store_true",
+        help=(
+            "Preview mode for --auto-supersede. Emits [Supersede-dry-run] "
+            "log lines but does NOT call set_supersession."
+        ),
+    )
+
     args = parser.parse_args()
 
     files = {
@@ -422,6 +446,69 @@ def main() -> int:
             bridge_temporal=False,
             write_temporal=False,
         )
+
+        # ── Auto-supersession (S186 WP-B.6) ──────────────────────────
+        # No-op for current Stage 2 inputs (batch source_files don't
+        # carry DRAFT/final semantics) but wired in case a future batch
+        # does. Helper fails closed on mismatched inputs.
+        if is_dup_hash and (
+            args.auto_supersede or args.auto_supersede_dry_run
+        ):
+            from kb_pipeline.dedup import (
+                fetch_existing_source_file,
+                should_auto_supersede,
+            )
+
+            incoming_source_file = record.get("source_file") or ""
+            existing_source_file = fetch_existing_source_file(
+                hash_existing_id
+            )
+            if should_auto_supersede(
+                incoming_source_file, existing_source_file
+            ):
+                if args.auto_supersede_dry_run:
+                    print(
+                        f"  [Supersede-dry-run] entry #{i}: would supersede "
+                        f"{hash_existing_id} (existing="
+                        f"{existing_source_file!r}) with {item_id} (new="
+                        f"{incoming_source_file!r})",
+                        flush=True,
+                    )
+                else:
+                    from kb_pipeline.supersede import (
+                        set_supersession,
+                        SupersessionError,
+                    )
+                    from kb_pipeline.store import (
+                        PIPELINE_SERVICE_ACCOUNT_USER_ID,
+                    )
+
+                    try:
+                        set_supersession(
+                            old_id=hash_existing_id,
+                            new_id=item_id,
+                            actor_user_id=(
+                                PIPELINE_SERVICE_ACCOUNT_USER_ID
+                            ),
+                        )
+                        print(
+                            f"  [Supersede] entry #{i}: {hash_existing_id} "
+                            f"superseded by {item_id} "
+                            f"(existing={existing_source_file!r}, new="
+                            f"{incoming_source_file!r})",
+                            flush=True,
+                        )
+                    except SupersessionError as se:
+                        print(
+                            f"  [Supersede] entry #{i} rejected "
+                            f"({se.code}): {se}",
+                            flush=True,
+                        )
+                    except Exception as e:  # noqa: BLE001
+                        print(
+                            f"  [Supersede] entry #{i} unexpected: {e}",
+                            flush=True,
+                        )
 
         if (i + 1) % 10 == 0:
             rate = (i + 1) / (time.time() - t0)

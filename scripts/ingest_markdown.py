@@ -260,6 +260,8 @@ def process_markdown_file(
     skip_existing: bool = False,
     dry_run: bool = False,
     generate_summary_flag: bool = True,
+    auto_supersede: bool = False,
+    auto_supersede_dry_run: bool = False,
 ) -> dict:
     """Process a single markdown file through the Knowledge Hub pipeline.
 
@@ -554,6 +556,62 @@ def process_markdown_file(
             logger=log.info,
         )
 
+        # ── Auto-supersession (S186 WP-B.6) ───────────────────────────
+        # Runs only when content-hash dedup already fired AND one of the
+        # two supersession flags is set. The heuristic looks at filenames
+        # (incoming "final" + existing "DRAFT") per spec §5.2. Dry-run
+        # logs the same line with a distinct prefix so operators can
+        # preview before committing.
+        if content_hash_duplicate_id and (
+            auto_supersede or auto_supersede_dry_run
+        ):
+            from kb_pipeline.dedup import (
+                fetch_existing_source_file,
+                should_auto_supersede,
+            )
+
+            existing_source_file = fetch_existing_source_file(
+                content_hash_duplicate_id
+            )
+            if should_auto_supersede(filename, existing_source_file):
+                if auto_supersede_dry_run:
+                    log.info(
+                        "  [Supersede-dry-run] Would supersede %s (existing "
+                        "DRAFT %r) with %s (new %r)",
+                        content_hash_duplicate_id,
+                        existing_source_file,
+                        id_or_error,
+                        filename,
+                    )
+                else:
+                    from kb_pipeline.supersede import (
+                        set_supersession,
+                        SupersessionError,
+                    )
+                    from kb_pipeline.store import PIPELINE_SERVICE_ACCOUNT_USER_ID
+
+                    try:
+                        set_supersession(
+                            old_id=content_hash_duplicate_id,
+                            new_id=id_or_error,
+                            actor_user_id=PIPELINE_SERVICE_ACCOUNT_USER_ID,
+                        )
+                        log.info(
+                            "  [Supersede] %s superseded by %s (existing=%r, new=%r)",
+                            content_hash_duplicate_id,
+                            id_or_error,
+                            existing_source_file,
+                            filename,
+                        )
+                    except SupersessionError as e:
+                        log.warning(
+                            "  [Supersede] rejected by helper (%s): %s",
+                            e.code,
+                            e,
+                        )
+                    except Exception as e:
+                        log.warning("  [Supersede] unexpected error: %s", e)
+
     else:
         result["status"] = "error"
         result["error"] = f"Insert failed: {id_or_error}"
@@ -620,6 +678,27 @@ def main():
         action="store_true",
         help="Use static taxonomy from prompt file instead of fetching from DB",
     )
+
+    # S186 WP-B.6 — mutually exclusive supersession flags. Off by default.
+    supersede_group = parser.add_mutually_exclusive_group()
+    supersede_group.add_argument(
+        "--auto-supersede",
+        action="store_true",
+        help=(
+            "When content-hash dedup fires AND the filename heuristic matches "
+            "(incoming looks 'final' + existing is 'DRAFT'), flip the existing "
+            "row's superseded_by to the new insert."
+        ),
+    )
+    supersede_group.add_argument(
+        "--auto-supersede-dry-run",
+        action="store_true",
+        help=(
+            "Preview mode for --auto-supersede. Emits [Supersede-dry-run] log "
+            "lines but does NOT call set_supersession. Use before a big batch."
+        ),
+    )
+
     args = parser.parse_args()
 
     if args.static_taxonomy:
@@ -660,6 +739,12 @@ def main():
         log.info("  Extra tag:  %s", args.tag)
     log.info("  Summaries:  %s", "enabled" if args.generate_summary else "disabled")
     log.info("  Rate limit: %.1fs", args.rate_limit)
+    if args.auto_supersede:
+        log.info("  Auto-supersede: ENABLED (live)")
+    elif args.auto_supersede_dry_run:
+        log.info("  Auto-supersede: dry-run (no DB writes)")
+    else:
+        log.info("  Auto-supersede: disabled")
 
     # ── Process files ────────────────────────────────────────────────────
     start = time.time()
@@ -680,6 +765,8 @@ def main():
             skip_existing=args.skip_existing,
             dry_run=args.dry_run,
             generate_summary_flag=args.generate_summary,
+            auto_supersede=args.auto_supersede,
+            auto_supersede_dry_run=args.auto_supersede_dry_run,
         )
         results.append(result)
 

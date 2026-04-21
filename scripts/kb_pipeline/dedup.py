@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Optional, List, Tuple
 
@@ -168,3 +169,73 @@ def is_duplicate(
             return True, matches[0]["id"], "embedding"
 
     return False, None, ""
+
+
+# ---------------------------------------------------------------------------
+# Auto-supersession filename heuristic (S186 WP-B.6)
+# ---------------------------------------------------------------------------
+
+
+def should_auto_supersede(
+    incoming_filename: str,
+    existing_source_file: Optional[str],
+) -> bool:
+    """Decide whether to auto-supersede an existing row with a new upload.
+
+    All three conditions must hold (spec §5.2):
+      1. Content-hash soft-block fired (caller has already verified this).
+      2. Incoming filename contains "final" (case-insensitive) OR does
+         NOT contain "draft" (case-insensitive).
+      3. Existing matched item's `source_file` contains "draft"
+         (case-insensitive).
+
+    `str.lower()` is ASCII-safe for these filenames (feedback_python_regex
+    _ascii_parity flags regex crossings only — we don't use regex here).
+    Returns False on any missing input to fail closed.
+    """
+    if not incoming_filename:
+        return False
+    if not existing_source_file:
+        return False
+
+    inc = incoming_filename.lower()
+    exi = existing_source_file.lower()
+
+    # Condition 2 — incoming looks like a final revision (or not a draft).
+    is_final = "final" in inc or "draft" not in inc
+    # Condition 3 — existing looks like a draft.
+    existing_is_draft = "draft" in exi
+
+    return is_final and existing_is_draft
+
+
+def fetch_existing_source_file(item_id: str) -> Optional[str]:
+    """Fetch `source_file` for a content_items row. Best-effort; None on failure."""
+    if not item_id:
+        return None
+
+    key = get_supabase_secret_key()
+    path = (
+        f"content_items?id=eq.{urllib.parse.quote(item_id, safe='')}"
+        "&select=source_file"
+    )
+    url = f"{get_supabase_url()}/rest/v1/{path}"
+
+    req = urllib.request.Request(url, method="GET")
+    req.add_header("apikey", key)
+    req.add_header("Authorization", f"Bearer {key}")
+
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            if isinstance(data, list) and data:
+                return data[0].get("source_file")
+            return None
+    except (urllib.error.URLError, urllib.error.HTTPError, OSError) as e:
+        logger.warning("fetch_existing_source_file failed for %s: %s", item_id, e)
+        return None
+    except (json.JSONDecodeError, KeyError, ValueError) as e:
+        logger.warning(
+            "fetch_existing_source_file parse failed for %s: %s", item_id, e
+        )
+        return None

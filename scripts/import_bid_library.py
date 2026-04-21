@@ -346,6 +346,27 @@ def main():
         help="Run entity extraction on imported items (separate AI pass, slower)",
     )
 
+    # S186 WP-B.6 — mutually exclusive supersession flags. Off by default.
+    supersede_group = parser.add_mutually_exclusive_group()
+    supersede_group.add_argument(
+        "--auto-supersede",
+        action="store_true",
+        help=(
+            "When content-hash dedup fires AND filename heuristic matches "
+            "(incoming 'final' + existing 'DRAFT'), flip the existing row's "
+            "superseded_by to the new insert. Primary use case: collapsing "
+            "example-client DRAFT+final pairs during ingest."
+        ),
+    )
+    supersede_group.add_argument(
+        "--auto-supersede-dry-run",
+        action="store_true",
+        help=(
+            "Preview mode for --auto-supersede. Emits [Supersede-dry-run] "
+            "log lines but does NOT call set_supersession."
+        ),
+    )
+
     args = parser.parse_args()
     start_time = time.time()
 
@@ -671,6 +692,70 @@ def main():
                     chunk_success += pi.chunks_stored
                     if not chunking_enabled:
                         chunk_skipped += 1
+
+                    # ── Auto-supersession (S186 WP-B.6) ──────────────────
+                    # Primary use case: example-client DRAFT+final pairs. When
+                    # content-hash dedup fires AND the incoming filename
+                    # heuristic matches the existing row's source_file,
+                    # flip the older row's superseded_by to the new ID.
+                    # Dry-run logs the same line without writing.
+                    if is_dup_hash and (
+                        args.auto_supersede or args.auto_supersede_dry_run
+                    ):
+                        from kb_pipeline.dedup import (
+                            fetch_existing_source_file,
+                            should_auto_supersede,
+                        )
+
+                        incoming_source_file = pair.get("source_file") or ""
+                        existing_source_file = fetch_existing_source_file(
+                            hash_existing_id
+                        )
+                        if should_auto_supersede(
+                            incoming_source_file, existing_source_file
+                        ):
+                            if args.auto_supersede_dry_run:
+                                print(
+                                    f"  [Supersede-dry-run] pair #{i}: would "
+                                    f"supersede {hash_existing_id} (existing="
+                                    f"{existing_source_file!r}) with "
+                                    f"{id_or_error} (new="
+                                    f"{incoming_source_file!r})"
+                                )
+                            else:
+                                from kb_pipeline.supersede import (
+                                    set_supersession,
+                                    SupersessionError,
+                                )
+                                from kb_pipeline.store import (
+                                    PIPELINE_SERVICE_ACCOUNT_USER_ID,
+                                )
+
+                                try:
+                                    set_supersession(
+                                        old_id=hash_existing_id,
+                                        new_id=id_or_error,
+                                        actor_user_id=(
+                                            PIPELINE_SERVICE_ACCOUNT_USER_ID
+                                        ),
+                                    )
+                                    print(
+                                        f"  [Supersede] pair #{i}: "
+                                        f"{hash_existing_id} superseded by "
+                                        f"{id_or_error} (existing="
+                                        f"{existing_source_file!r}, new="
+                                        f"{incoming_source_file!r})"
+                                    )
+                                except SupersessionError as se:
+                                    print(
+                                        f"  [Supersede] pair #{i} rejected "
+                                        f"({se.code}): {se}"
+                                    )
+                                except Exception as e:  # noqa: BLE001
+                                    print(
+                                        f"  [Supersede] pair #{i} "
+                                        f"unexpected: {e}"
+                                    )
                 else:
                     store_fail += 1
                     print(f"  Store error for pair #{i}: {id_or_error}")
