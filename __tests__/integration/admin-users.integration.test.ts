@@ -80,6 +80,7 @@ import { serviceClient } from './helpers/service-client';
 import {
   cacheAllTestUserSessions,
   restoreSession,
+  getTestUserId,
   type AuthCookieStore,
   type AuthCookieEntry,
   type CachedSessions,
@@ -135,7 +136,9 @@ import { NextRequest } from 'next/server';
 // ---------------------------------------------------------------------------
 
 const PIPELINE_UUID = 'a0000000-0000-4000-8000-000000000001';
-const TEST_USER_1_ID = 'e21179e9-1946-43be-94a9-d566046da279';
+// Resolved at beforeAll from email via auth admin API (S186 WP-C — no
+// more hardcoded OLD-project UUIDs).
+let TEST_USER_1_ID: string = '';
 
 /** Fixed probe UUID in the `_test_insert_broken_auth_user`-allowed range. */
 const PROBE_USER_ID = '00000000-0000-4000-8000-000000000999';
@@ -152,6 +155,9 @@ const createdThrowawayUserIds = new Set<string>();
 // ---------------------------------------------------------------------------
 
 beforeAll(async () => {
+  // Resolve admin UUID by email so the tests keep working on any DB
+  // where test users are seeded (S186 WP-C).
+  TEST_USER_1_ID = await getTestUserId('admin');
   // Sign in as all 3 roles ONCE and cache each cookie set. Each test
   // then `restoreSession`s into `authCookies` — no per-test sign-ins,
   // so Supabase's ~30-per-5-minutes rate limit is never approached.

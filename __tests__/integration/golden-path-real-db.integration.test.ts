@@ -18,9 +18,10 @@
  * @vitest-environment node
  */
 
-import { describe, it, expect, afterAll } from 'vitest';
+import { describe, it, expect, afterAll, beforeAll } from 'vitest';
 // service-client MUST be imported first — it loads dotenv for all env vars
 import { serviceClient } from './helpers/service-client';
+import { getTestUserId } from './helpers/auth-session';
 import { classifyContent } from '@/lib/ai/classify';
 import { generateEmbedding } from '@/lib/ai/embed';
 
@@ -41,8 +42,9 @@ Our ICO registration (reference ZA123456) expires on 30 September 2027.`;
 
 const TEST_TITLE = `${TEST_PREFIX} ISO 27001 Security Certification`;
 
-// Test user 1 (admin) — must exist in auth.users and user_roles tables
-const TEST_USER_ID = 'e21179e9-1946-43be-94a9-d566046da279';
+// Test user 1 (admin) — resolved at beforeAll from email via auth admin API
+// (S186 WP-C — no more hardcoded OLD-project UUIDs).
+let TEST_USER_ID: string = '';
 
 // ---------------------------------------------------------------------------
 // Shared state across sequential tests
@@ -52,6 +54,10 @@ let itemId: string | null = null;
 let classifiedDomain: string | null = null;
 let testGuideId: string | null = null;
 let testGuideSectionId: string | null = null;
+
+beforeAll(async () => {
+  TEST_USER_ID = await getTestUserId('admin');
+});
 
 // ---------------------------------------------------------------------------
 // Cleanup

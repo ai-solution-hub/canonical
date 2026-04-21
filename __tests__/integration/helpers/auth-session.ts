@@ -174,6 +174,90 @@ export async function signOutTestUser(
 }
 
 // ---------------------------------------------------------------------------
+// Test-user UUID resolution (S186 WP-C triage)
+//
+// The integration suite historically hard-coded admin/editor/viewer UUIDs
+// pinned to the OLD Supabase project. After the S182 cutover to
+// `mgrmucazfiibsomdmndh` those UUIDs no longer exist, breaking every
+// integration test that used them as FK values. Resolve the UUIDs at
+// `beforeAll` time via `auth.admin.listUsers()` so tests keep working
+// whenever test users are re-seeded on a fresh project.
+// ---------------------------------------------------------------------------
+
+let cachedTestUserIds: Record<TestUserRole, string> | null = null;
+
+/**
+ * Look up the UUIDs for all three seeded test users via the service-
+ * role auth admin API, keyed by role. Caches the result for the
+ * remainder of the process — every call after the first returns
+ * the same object in memory, so `beforeAll` callers pay the lookup
+ * cost once per file.
+ *
+ * Throws if any expected user is missing. Callers should let that
+ * propagate: a missing seed is an operator error, not a test failure.
+ */
+export async function getTestUserIds(): Promise<
+  Record<TestUserRole, string>
+> {
+  if (cachedTestUserIds) {
+    return cachedTestUserIds;
+  }
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SECRET_KEY;
+  if (!url || !serviceKey) {
+    throw new Error(
+      'getTestUserIds: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY ' +
+        'must be set in .env.',
+    );
+  }
+
+  // Service-role client is the only way to list auth.users rows.
+  const { createClient } = await import('@supabase/supabase-js');
+  const admin = createClient(url, serviceKey);
+
+  const { data, error } = await admin.auth.admin.listUsers({
+    page: 1,
+    perPage: 1000,
+  });
+  if (error) {
+    throw new Error(`getTestUserIds: listUsers failed: ${error.message}`);
+  }
+
+  const emailToId = new Map<string, string>();
+  for (const u of data.users) {
+    if (u.email) emailToId.set(u.email, u.id);
+  }
+
+  const resolved: Partial<Record<TestUserRole, string>> = {};
+  for (const [role, creds] of Object.entries(TEST_USER_CREDENTIALS) as [
+    TestUserRole,
+    TestUserCredentials,
+  ][]) {
+    const id = emailToId.get(creds.email);
+    if (!id) {
+      throw new Error(
+        `getTestUserIds: could not find ${role} user (${creds.email}) — ` +
+          'run `bun run seed:e2e-users` against the target DB.',
+      );
+    }
+    resolved[role] = id;
+  }
+
+  cachedTestUserIds = resolved as Record<TestUserRole, string>;
+  return cachedTestUserIds;
+}
+
+/**
+ * Convenience wrapper — returns the UUID for a single role. Uses the
+ * same cache as `getTestUserIds`.
+ */
+export async function getTestUserId(role: TestUserRole): Promise<string> {
+  const ids = await getTestUserIds();
+  return ids[role];
+}
+
+// ---------------------------------------------------------------------------
 // Cached-sessions pattern — sign in once per role per file, restore on
 // each test, to stay under the Supabase sign-in rate limit.
 // ---------------------------------------------------------------------------

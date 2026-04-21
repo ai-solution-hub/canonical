@@ -27,9 +27,10 @@
  * @vitest-environment node
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 // service-client MUST be imported first — it loads dotenv for all env vars
 import { serviceClient } from './helpers/service-client';
+import { getTestUserId } from './helpers/auth-session';
 
 // ---------------------------------------------------------------------------
 // Known UUIDs (see __tests__/integration/helpers/service-client.ts for
@@ -38,9 +39,15 @@ import { serviceClient } from './helpers/service-client';
 // ---------------------------------------------------------------------------
 
 const PIPELINE_UUID = 'a0000000-0000-4000-8000-000000000001';
-const TEST_USER_1 = 'e21179e9-1946-43be-94a9-d566046da279';
+// Resolved at beforeAll from email via auth admin API (S186 WP-C — no
+// more hardcoded OLD-project UUIDs).
+let TEST_USER_1: string = '';
 /** UUID in the test range that is GUARANTEED to not exist in auth.users. */
 const UNKNOWN_UUID = '00000000-4000-4000-8000-000000000999';
+
+beforeAll(async () => {
+  TEST_USER_1 = await getTestUserId('admin');
+});
 
 describe('get_user_display_names — live SQL function', () => {
   it('returns one row per input UUID, preserving unknowns (C-1 fix)', async () => {

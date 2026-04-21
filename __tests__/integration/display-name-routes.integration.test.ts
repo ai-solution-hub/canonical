@@ -38,6 +38,7 @@ import './helpers/service-client';
 import {
   cacheAllTestUserSessions,
   restoreSession,
+  getTestUserId,
   type AuthCookieStore,
   type AuthCookieEntry,
   type CachedSessions,
@@ -94,7 +95,9 @@ import { NextRequest } from 'next/server';
 // ---------------------------------------------------------------------------
 
 const PIPELINE_UUID = 'a0000000-0000-4000-8000-000000000001';
-const TEST_USER_1 = 'e21179e9-1946-43be-94a9-d566046da279';
+// Resolved at beforeAll from email via auth admin API (S186 WP-C — no
+// more hardcoded OLD-project UUIDs).
+let TEST_USER_1: string = '';
 /** UUID guaranteed not to exist in auth.users (test range). */
 const UNKNOWN_UUID = '00000000-4000-4000-8000-000000000999';
 
@@ -103,6 +106,9 @@ const UNKNOWN_UUID = '00000000-4000-4000-8000-000000000999';
 // ---------------------------------------------------------------------------
 
 beforeAll(async () => {
+  // Resolve admin UUID by email so the tests keep working on any DB
+  // where test users are seeded (S186 WP-C).
+  TEST_USER_1 = await getTestUserId('admin');
   // Sign in as all 3 roles ONCE per file. All individual tests
   // restore from the cache rather than signing in afresh.
   await cacheAllTestUserSessions(cachedSessions);
