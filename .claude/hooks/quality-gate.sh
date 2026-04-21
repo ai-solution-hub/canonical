@@ -15,7 +15,11 @@ if [ "$STOP_ACTIVE" = "true" ]; then
   exit 0
 fi
 
-PROJECT_DIR="/Users/liamj/Documents/development/knowledge-hub"
+# Resolve to the current worktree's top-level so parallel-track worktrees
+# (e.g. knowledge-hub-ui-ux-simplification, knowledge-hub-knowledge-platform)
+# inspect their own tree, not main's. Falls back to main if git rev-parse
+# fails (e.g. outside a repo).
+PROJECT_DIR=$(git rev-parse --show-toplevel 2>/dev/null || echo "/Users/liamj/Documents/development/knowledge-hub")
 export PATH="/Users/liamj/.bun/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:$PATH"
 
 # Check for code changes (unstaged + staged)

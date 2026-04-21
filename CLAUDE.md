@@ -171,6 +171,27 @@ agent there, and returns changes on a branch. Merge sequentially on main — che
 `git status` for leaked files before each merge. Reserve manual worktree
 management only for merge-conflict-prone work requiring interactive resolution.
 
+## Parallel Tracks
+
+Three concurrent long-lived worktrees on this project (shared filesystem via
+`git worktree`):
+
+- **main** (`/Users/liamj/Documents/development/knowledge-hub`, branch `main`)
+  — client bid/SI product + second re-ingestion. Global session counter `kh-sN`.
+- **UI simp** (`/Users/liamj/Documents/development/knowledge-hub-ui-ux-simplification`,
+  branch `knowledge-hub-ui-ux-simplification`) — UI simplification WP3-series;
+  merges back to main.
+- **kh-knowledge-platform** (`/Users/liamj/Documents/development/knowledge-hub-knowledge-platform`,
+  branch `kh-knowledge-platform`) — engineering-docs dogfood + productisation
+  validation. Track-local counter `kh-kpf-sN`. One-way references only (does
+  NOT merge back to main). Supabase project: `ztiztwqlyqcsuyhtjoya`
+  (shared dev-KB `kb-aish-product-dev`, hosts multiple future dev projects).
+  Primer: `docs/tracks/kh-knowledge-platform.md`.
+
+Memory reference: `reference_parallel_tracks_overview.md` — naming conventions,
+hook isolation, cross-track hygiene rules. Continuation-prompt filename
+conventions: `docs/continuation-prompts/README.md`.
+
 ## Gotchas
 
 ### Supabase
