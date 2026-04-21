@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
-import { ItemMetadataUpdateSchema } from '@/lib/validation/schemas';
+import { buildItemMetadataUpdateSchema } from '@/lib/validation/schemas';
+import { fetchActiveLayerKeys } from '@/lib/validation/layer-schemas';
 import type { Json } from '@/supabase/types/database.types';
 
 export const maxDuration = 30;
@@ -17,8 +18,22 @@ export async function PATCH(
     const { supabase } = auth;
     const { id } = await params;
 
+    let layerKeys: string[];
+    try {
+      layerKeys = await fetchActiveLayerKeys(supabase);
+    } catch (err) {
+      return NextResponse.json(
+        {
+          error: 'Layer vocabulary unavailable',
+          detail: safeErrorMessage(err, 'Layer vocabulary unavailable'),
+        },
+        { status: 503 },
+      );
+    }
+    const schema = buildItemMetadataUpdateSchema(layerKeys);
+
     const body = await request.json();
-    const parsed = parseBody(ItemMetadataUpdateSchema, body);
+    const parsed = parseBody(schema, body);
     if (!parsed.success) return parsed.response;
 
     // Build metadata to merge — strip undefined values, keep nulls for deletion

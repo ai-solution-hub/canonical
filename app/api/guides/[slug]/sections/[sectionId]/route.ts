@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
-import { guideSectionUpdateSchema } from '@/lib/validation/guide-schemas';
+import { buildGuideSectionUpdateSchema } from '@/lib/validation/guide-schemas';
+import { fetchActiveLayerKeys } from '@/lib/validation/layer-schemas';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { rateLimitResponse } from '@/lib/auth';
 
@@ -39,8 +40,22 @@ export async function PATCH(
     const rl = checkRateLimit(`guide-section-update:${user.id}`, 30, 60_000);
     if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
+    let layerKeys: string[];
+    try {
+      layerKeys = await fetchActiveLayerKeys(supabase);
+    } catch (err) {
+      return NextResponse.json(
+        {
+          error: 'Layer vocabulary unavailable',
+          detail: safeErrorMessage(err, 'Layer vocabulary unavailable'),
+        },
+        { status: 503 },
+      );
+    }
+    const schema = buildGuideSectionUpdateSchema(layerKeys);
+
     const raw = await request.json();
-    const parsed = parseBody(guideSectionUpdateSchema, raw);
+    const parsed = parseBody(schema, raw);
     if (!parsed.success) return parsed.response;
 
     // Verify section belongs to the correct guide
