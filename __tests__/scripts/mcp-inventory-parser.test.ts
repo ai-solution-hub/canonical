@@ -593,7 +593,7 @@ describe('Integration: full codebase extraction', () => {
       const source = readFileSync(RESOURCES_FILE, 'utf-8');
       const prompts = parsePromptFile(source);
 
-      expect(prompts.length).toBe(5);
+      expect(prompts.length).toBe(6);
 
       const names = prompts.map((p) => p.name);
       expect(names).toContain('reorient');
@@ -601,10 +601,11 @@ describe('Integration: full codebase extraction', () => {
       expect(names).toContain('coverage_analysis');
       expect(names).toContain('draft_response');
       expect(names).toContain('review_item');
+      expect(names).toContain('sector_briefing');
 
       // Prompts with argsSchema should have args
       const withArgs = prompts.filter((p) => p.args.length > 0);
-      expect(withArgs.length).toBe(3); // bid_briefing, draft_response, review_item
+      expect(withArgs.length).toBe(4); // bid_briefing, draft_response, review_item, sector_briefing
 
       // Prompts without argsSchema should have empty args
       const reorient = prompts.find((p) => p.name === 'reorient')!;
