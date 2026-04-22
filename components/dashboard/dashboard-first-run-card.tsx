@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useHydrated } from '@/hooks/use-hydrated';
 import { createClient } from '@/lib/supabase/client';
+import { cn } from '@/lib/utils';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -136,11 +137,12 @@ export function DashboardFirstRunCard({ role }: DashboardFirstRunCardProps) {
               key={hint.value}
               type="button"
               disabled={savingFocus}
-              className={`rounded-md px-3 py-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              className={cn(
+                'rounded-md px-3 py-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 selectedFocus === hint.value
                   ? 'font-medium text-primary'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
               onClick={() => handlePersonaClick(hint.value)}
               aria-pressed={selectedFocus === hint.value}
             >
