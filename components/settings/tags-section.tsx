@@ -1,21 +1,7 @@
 'use client';
 
-import { useState, useRef, useMemo } from 'react';
-import {
-  Loader2,
-  Tags,
-  Pencil,
-  Merge,
-  Trash2,
-  Search,
-  AlertTriangle,
-  Scissors,
-  BarChart3,
-  Info,
-} from 'lucide-react';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { useState, useMemo, useCallback } from 'react';
+import { Loader2, Tags, Info } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
@@ -26,118 +12,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useUserRole } from '@/hooks/use-user-role';
-import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import {
   TooltipProvider,
   Tooltip,
   TooltipTrigger,
   TooltipContent,
 } from '@/components/ui/tooltip';
-import { DuplicateReview } from './duplicate-review';
-import { TagDomainView } from './tag-domain-view';
-import { TagBulkActions } from './tag-bulk-actions';
+import { useUserRole } from '@/hooks/use-user-role';
 import { useTagsData } from '@/hooks/use-tags-data';
-import type { TagCount } from '@/hooks/use-tags-data';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-type SortField = 'count' | 'tag';
-type SortOrder = 'asc' | 'desc';
-
-// ---------------------------------------------------------------------------
-// Frequency tier helpers
-// ---------------------------------------------------------------------------
-
-function getFrequencyTier(
-  count: number,
-): 'core' | 'common' | 'occasional' | 'rare' {
-  if (count >= 10) return 'core';
-  if (count >= 4) return 'common';
-  if (count >= 2) return 'occasional';
-  return 'rare';
-}
-
-function getFrequencyClass(tier: string): string {
-  switch (tier) {
-    case 'core':
-      return 'text-tag-core';
-    case 'rare':
-      return 'text-tag-rare';
-    default:
-      return 'text-foreground';
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Virtual Tag Row
-// ---------------------------------------------------------------------------
-
-function VirtualTagRow({
-  tag,
-  isAdmin,
-  onRename,
-  onMerge,
-  onDelete,
-}: {
-  tag: TagCount;
-  isAdmin: boolean;
-  onRename: (t: TagCount) => void;
-  onMerge: (t: TagCount) => void;
-  onDelete: (t: TagCount) => void;
-}) {
-  const tier = getFrequencyTier(tag.count);
-
-  return (
-    <div className="flex items-center gap-3 border-b border-border px-4 py-2.5">
-      <div className={cn('min-w-0 flex-1', getFrequencyClass(tier))}>
-        <span className="text-sm font-medium">{tag.tag}</span>
-      </div>
-      <Badge variant="outline" className="shrink-0 text-xs">
-        {tag.source === 'user' ? 'User' : 'AI'}
-      </Badge>
-      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-        {tag.count} item{tag.count !== 1 ? 's' : ''}
-      </span>
-      {isAdmin && (
-        <div className="flex shrink-0 items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="size-7 p-0"
-            title="Rename tag"
-            aria-label={`Rename tag: ${tag.tag}`}
-            onClick={() => onRename(tag)}
-          >
-            <Pencil className="size-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="size-7 p-0"
-            title="Merge into another tag"
-            aria-label={`Merge tag: ${tag.tag}`}
-            onClick={() => onMerge(tag)}
-          >
-            <Merge className="size-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="size-7 p-0 text-destructive hover:text-destructive"
-            title="Delete tag"
-            aria-label={`Delete tag: ${tag.tag}`}
-            onClick={() => onDelete(tag)}
-          >
-            <Trash2 className="size-3.5" />
-          </Button>
-        </div>
-      )}
-    </div>
-  );
-}
+import { mutationFetchJson } from '@/lib/query/fetchers';
+import { toast } from 'sonner';
+import { TagsCleanup } from './tags-cleanup';
+import { TagsBrowse } from './tags-browse';
 
 // ---------------------------------------------------------------------------
 // Component
@@ -145,13 +32,12 @@ function VirtualTagRow({
 
 /**
  * Tag management section for the Settings page (Taxonomy tab).
- * Redesigned with summary dashboard, tabbed view (Duplicates, By Domain,
- * All Tags, Bulk Actions), virtual scrolling, and frequency tiers.
+ * Two-tab layout: "Clean up" (duplicates + domain view + bulk actions)
+ * and "Browse all" (virtual-scrolled tag list with per-tag CRUD).
  */
 export function TagsSection() {
   const { canAdmin, loading: roleLoading } = useUserRole();
 
-  // Data from TanStack Query hook
   const {
     tags,
     duplicates,
@@ -163,152 +49,67 @@ export function TagsSection() {
     invalidateAllTags,
   } = useTagsData();
 
-  // UI state
   const [activeTab, setActiveTab] = useState<string | undefined>(undefined);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortField, setSortField] = useState<SortField>('count');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
-  const [showSingletons, setShowSingletons] = useState(false);
+  const [singletonDeleteDialog, setSingletonDeleteDialog] = useState(false);
+  const [deletingSingletons, setDeletingSingletons] = useState(false);
 
-  // Dialog state
-  const [renameDialog, setRenameDialog] = useState<{
-    open: boolean;
-    tag: TagCount | null;
-    newName: string;
-  }>({ open: false, tag: null, newName: '' });
-
-  const [mergeDialog, setMergeDialog] = useState<{
-    open: boolean;
-    tag: TagCount | null;
-    targetName: string;
-  }>({ open: false, tag: null, targetName: '' });
-
-  const [deleteDialog, setDeleteDialog] = useState<{
-    open: boolean;
-    tag: TagCount | null;
-  }>({ open: false, tag: null });
-
-  // Virtual scroll ref
-  const parentRef = useRef<HTMLDivElement>(null);
-
-  // ─────────────────────────────────────────
-  // Set default active tab based on data
-  // ─────────────────────────────────────────
-
-  // Compute the effective tab: if user hasn't picked one yet, default based on data
+  // Default tab: Clean up when duplicates exist, Browse all otherwise
   const effectiveTab =
-    activeTab ?? (duplicates.length > 0 ? 'duplicates' : 'all');
+    activeTab ?? (duplicates.length > 0 ? 'cleanup' : 'browse');
 
-  // ─────────────────────────────────────────
-  // Summary stats
-  // ─────────────────────────────────────────
+  // ─── Summary stats ───
 
   const stats = useMemo(() => {
     const singletons = tags.filter((t) => t.count === 1).length;
-    return {
-      total: tags.length,
-      duplicateGroups: duplicates.length,
-      singletons,
-    };
-  }, [tags, duplicates]);
+    const domainCount = domainGroups.length;
+    return { total: tags.length, singletons, domainCount };
+  }, [tags, domainGroups]);
 
-  // ─────────────────────────────────────────
-  // Filtered and sorted tags for All Tags tab
-  // ─────────────────────────────────────────
+  // ─── Singleton bulk-delete handler ───
 
-  const filteredTags = useMemo(() => {
-    let result = tags;
+  const handleDeleteSingletons = useCallback(async () => {
+    setDeletingSingletons(true);
+    setSingletonDeleteDialog(false);
 
-    // Hide singletons by default
-    if (!showSingletons) {
-      result = result.filter((t) => t.count > 1);
-    }
+    const singletonTags = tags.filter((t) => t.count === 1);
+    const aiSingletons = singletonTags.filter((t) => t.source === 'ai').map((t) => t.tag);
+    const userSingletons = singletonTags.filter((t) => t.source === 'user').map((t) => t.tag);
 
-    // Search filter
-    if (searchQuery) {
-      const lower = searchQuery.toLowerCase();
-      result = result.filter((t) => t.tag.toLowerCase().includes(lower));
-    }
+    const errors: string[] = [];
+    let totalAffected = 0;
 
-    // Sort
-    result = [...result].sort((a, b) => {
-      if (sortField === 'count') {
-        return sortOrder === 'desc' ? b.count - a.count : a.count - b.count;
+    for (const [tagNames, type] of [
+      [aiSingletons, 'ai'],
+      [userSingletons, 'user'],
+    ] as const) {
+      if (tagNames.length === 0) continue;
+      try {
+        const data = await mutationFetchJson<{ affected?: number }>(
+          '/api/tags/bulk-delete',
+          { tags: tagNames, type },
+        );
+        totalAffected += data.affected ?? 0;
+      } catch (err) {
+        errors.push(
+          `${type} tags: ${err instanceof Error ? err.message : 'Failed'}`,
+        );
       }
-      const cmp = a.tag.localeCompare(b.tag);
-      return sortOrder === 'desc' ? -cmp : cmp;
-    });
+    }
 
-    return result;
-  }, [tags, searchQuery, sortField, sortOrder, showSingletons]);
+    setDeletingSingletons(false);
 
-  // Virtual scrolling
-  const virtualizer = useVirtualizer({
-    count: filteredTags.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 44, // ~44px per row
-    overscan: 15,
-  });
+    if (errors.length > 0) {
+      toast.error(`Some deletions failed: ${errors.join(', ')}`);
+    } else {
+      toast.success(
+        `Deleted ${stats.singletons} singleton tag${stats.singletons !== 1 ? 's' : ''} (${totalAffected} items updated)`,
+      );
+    }
 
-  // ─────────────────────────────────────────
-  // Tag actions (delegate to mutations)
-  // ─────────────────────────────────────────
+    invalidateAllTags();
+  }, [tags, stats.singletons, invalidateAllTags]);
 
-  const actionLoading =
-    renameMutation.isPending ||
-    mergeMutation.isPending ||
-    deleteMutation.isPending;
-
-  const handleRename = () => {
-    if (!renameDialog.tag || !renameDialog.newName.trim()) return;
-    renameMutation.mutate(
-      {
-        old: renameDialog.tag.tag,
-        new: renameDialog.newName.trim(),
-        type: renameDialog.tag.source,
-      },
-      {
-        onSuccess: () => {
-          setRenameDialog({ open: false, tag: null, newName: '' });
-        },
-      },
-    );
-  };
-
-  const handleMerge = () => {
-    if (!mergeDialog.tag || !mergeDialog.targetName.trim()) return;
-    mergeMutation.mutate(
-      {
-        source: mergeDialog.tag.tag,
-        target: mergeDialog.targetName.trim(),
-        type: mergeDialog.tag.source,
-      },
-      {
-        onSuccess: () => {
-          setMergeDialog({ open: false, tag: null, targetName: '' });
-        },
-      },
-    );
-  };
-
-  const handleDelete = () => {
-    if (!deleteDialog.tag) return;
-    deleteMutation.mutate(
-      {
-        tag: deleteDialog.tag.tag,
-        type: deleteDialog.tag.source,
-      },
-      {
-        onSuccess: () => {
-          setDeleteDialog({ open: false, tag: null });
-        },
-      },
-    );
-  };
-
-  // ─────────────────────────────────────────
-  // Render
-  // ─────────────────────────────────────────
+  // ─── Render ───
 
   if (loading || roleLoading) {
     return (
@@ -320,409 +121,118 @@ export function TagsSection() {
 
   return (
     <div className="space-y-6">
-      {/* ─── Summary Header ─── */}
-      <div className="space-y-3">
-        <div>
-          <div className="flex items-center gap-3">
-            <Tags className="size-5 text-muted-foreground" aria-hidden="true" />
-            <h3 className="flex items-center gap-1.5 text-lg font-semibold">
-              Tag Health
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      className="inline-flex items-center text-muted-foreground hover:text-foreground"
-                      aria-label="More information about tags"
-                    >
-                      <Info className="size-4" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right" className="max-w-xs">
-                    Tags are generated automatically when content is ingested.
-                    The Duplicates tab flags similar tags that could be merged.
-                    The By Domain tab shows which tags appear in which knowledge
-                    areas. Use Bulk Actions to clean up large numbers of tags at
-                    once.
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </h3>
-          </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Tags are keywords attached to individual items, created
-            automatically during ingestion or added manually.
-          </p>
+      {/* ─── Header with inline summary ─── */}
+      <div>
+        <div className="flex items-center gap-3">
+          <Tags className="size-5 text-muted-foreground" aria-hidden="true" />
+          <h3 className="flex items-center gap-1.5 text-lg font-semibold">
+            Tag Health
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex items-center text-muted-foreground hover:text-foreground"
+                    aria-label="More information about tags"
+                  >
+                    <Info className="size-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="max-w-xs">
+                  Tags are generated automatically when content is ingested.
+                  Use Clean up to merge duplicates and tidy domain-grouped
+                  tags. Browse all shows the full tag list with search and
+                  sort.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </h3>
         </div>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {/* Total tags */}
-          <div className="rounded-md border bg-muted/30 px-4 py-3">
-            <div className="text-2xl font-semibold tabular-nums">
-              {stats.total.toLocaleString()}
-            </div>
-            <div className="text-xs text-muted-foreground">Total tags</div>
-          </div>
-
-          {/* Duplicate groups */}
-          <div className="rounded-md border bg-muted/30 px-4 py-3">
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-semibold tabular-nums">
-                {stats.duplicateGroups}
+        <p className="mt-1 text-sm text-muted-foreground">
+          {stats.total.toLocaleString()} tags across{' '}
+          {stats.domainCount} domain{stats.domainCount !== 1 ? 's' : ''}
+          {duplicates.length > 0 && (
+            <>
+              {' '}
+              &middot;{' '}
+              <span className="text-freshness-aging">
+                {duplicates.length} duplicate group{duplicates.length !== 1 ? 's' : ''}
               </span>
-              {stats.duplicateGroups > 0 && (
-                <AlertTriangle
-                  className="size-4 text-freshness-aging"
-                  aria-label="Duplicates need attention"
-                />
-              )}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Duplicate groups
-            </div>
-          </div>
-
-          {/* Singletons */}
-          <div className="rounded-md border bg-muted/30 px-4 py-3">
-            <div className="text-2xl font-semibold tabular-nums text-tag-rare">
-              {stats.singletons.toLocaleString()}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Singleton tags (hidden by default)
-            </div>
-          </div>
-        </div>
+            </>
+          )}
+        </p>
       </div>
 
-      {/* ─── Tabbed View ─── */}
+      {/* ─── Two-tab layout ─── */}
       <Tabs value={effectiveTab} onValueChange={setActiveTab}>
         <TabsList className="w-full sm:w-auto">
-          <TabsTrigger value="duplicates">
-            Duplicates
-            {stats.duplicateGroups > 0 && (
+          <TabsTrigger value="cleanup">
+            Clean up
+            {duplicates.length > 0 && (
               <Badge
                 variant="secondary"
                 className="ml-1.5 size-5 items-center justify-center rounded-full p-0 text-[10px]"
               >
-                {stats.duplicateGroups}
+                {duplicates.length}
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="domains">By Domain</TabsTrigger>
-          <TabsTrigger value="all">All Tags</TabsTrigger>
-          {canAdmin && <TabsTrigger value="bulk">Bulk Actions</TabsTrigger>}
+          <TabsTrigger value="browse">Browse all</TabsTrigger>
         </TabsList>
 
-        {/* ─── Duplicates Tab ─── */}
-        <TabsContent value="duplicates">
-          <DuplicateReview
+        <TabsContent value="cleanup">
+          <TagsCleanup
             duplicates={duplicates}
+            domainGroups={domainGroups}
+            tags={tags}
             isAdmin={canAdmin}
-            onMergeComplete={invalidateAllTags}
+            onActionComplete={invalidateAllTags}
           />
         </TabsContent>
 
-        {/* ─── By Domain Tab ─── */}
-        <TabsContent value="domains">
-          <TagDomainView groups={domainGroups} />
+        <TabsContent value="browse">
+          <TagsBrowse
+            tags={tags}
+            isAdmin={canAdmin}
+            singletonCount={stats.singletons}
+            renameMutation={renameMutation}
+            mergeMutation={mergeMutation}
+            deleteMutation={deleteMutation}
+            onDeleteSingletons={() => setSingletonDeleteDialog(true)}
+          />
         </TabsContent>
-
-        {/* ─── All Tags Tab ─── */}
-        <TabsContent value="all">
-          <div className="space-y-3">
-            {/* Toolbar */}
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search tags..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="border bg-white pl-9 shadow-sm dark:bg-input/30"
-                  aria-label="Search tags"
-                />
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  if (sortField === 'count') {
-                    setSortOrder((o) => (o === 'desc' ? 'asc' : 'desc'));
-                  } else {
-                    setSortField('count');
-                    setSortOrder('desc');
-                  }
-                }}
-                className={cn(sortField === 'count' && 'border-foreground/30')}
-              >
-                <BarChart3 className="mr-1.5 size-3.5" />
-                Count{' '}
-                {sortField === 'count'
-                  ? sortOrder === 'desc'
-                    ? '\u2193'
-                    : '\u2191'
-                  : ''}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  if (sortField === 'tag') {
-                    setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'));
-                  } else {
-                    setSortField('tag');
-                    setSortOrder('asc');
-                  }
-                }}
-                className={cn(sortField === 'tag' && 'border-foreground/30')}
-              >
-                A-Z{' '}
-                {sortField === 'tag'
-                  ? sortOrder === 'asc'
-                    ? '\u2191'
-                    : '\u2193'
-                  : ''}
-              </Button>
-            </div>
-
-            {/* Singleton toggle */}
-            <div className="flex items-center gap-2">
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={showSingletons}
-                  onChange={(e) => setShowSingletons(e.target.checked)}
-                  className="accent-primary"
-                />
-                Show singletons
-                <span className="tabular-nums">({stats.singletons})</span>
-              </label>
-              <span className="text-xs text-muted-foreground">
-                {filteredTags.length.toLocaleString()} tag
-                {filteredTags.length !== 1 ? 's' : ''} shown
-              </span>
-            </div>
-
-            {/* Virtual scrolled tag list */}
-            {filteredTags.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-                <Scissors
-                  className="size-8 text-muted-foreground/50"
-                  aria-hidden="true"
-                />
-                <p className="text-sm text-muted-foreground">
-                  {searchQuery
-                    ? 'No tags matching your search.'
-                    : 'No tags to display. Enable "Show singletons" to see all tags.'}
-                </p>
-              </div>
-            ) : (
-              <div
-                ref={parentRef}
-                className="max-h-[500px] overflow-auto rounded-md border"
-                role="list"
-                aria-label="Tag list"
-              >
-                <div
-                  style={{
-                    height: `${virtualizer.getTotalSize()}px`,
-                    width: '100%',
-                    position: 'relative',
-                  }}
-                >
-                  {virtualizer.getVirtualItems().map((virtualRow) => {
-                    const tag = filteredTags[virtualRow.index];
-                    return (
-                      <div
-                        key={`${tag.source}-${tag.tag}`}
-                        role="listitem"
-                        style={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          width: '100%',
-                          height: `${virtualRow.size}px`,
-                          transform: `translateY(${virtualRow.start}px)`,
-                        }}
-                      >
-                        <VirtualTagRow
-                          tag={tag}
-                          isAdmin={canAdmin}
-                          onRename={(t) =>
-                            setRenameDialog({
-                              open: true,
-                              tag: t,
-                              newName: t.tag,
-                            })
-                          }
-                          onMerge={(t) =>
-                            setMergeDialog({
-                              open: true,
-                              tag: t,
-                              targetName: '',
-                            })
-                          }
-                          onDelete={(t) =>
-                            setDeleteDialog({ open: true, tag: t })
-                          }
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        </TabsContent>
-
-        {/* ─── Bulk Actions Tab ─── */}
-        {canAdmin && (
-          <TabsContent value="bulk">
-            <TagBulkActions
-              tags={tags}
-              isAdmin={canAdmin}
-              onActionComplete={invalidateAllTags}
-            />
-          </TabsContent>
-        )}
       </Tabs>
 
-      {/* ─── Dialogs ─── */}
-
-      {/* Rename Dialog */}
+      {/* ─── Singleton delete confirmation ─── */}
       <Dialog
-        open={renameDialog.open}
-        onOpenChange={(open) => {
-          if (!open) setRenameDialog({ open: false, tag: null, newName: '' });
-        }}
+        open={singletonDeleteDialog}
+        onOpenChange={setSingletonDeleteDialog}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rename Tag</DialogTitle>
+            <DialogTitle>Delete Singleton Tags</DialogTitle>
             <DialogDescription>
-              Rename &ldquo;{renameDialog.tag?.tag}&rdquo; across all items.
-            </DialogDescription>
-          </DialogHeader>
-          <Input
-            value={renameDialog.newName}
-            onChange={(e) =>
-              setRenameDialog((prev) => ({ ...prev, newName: e.target.value }))
-            }
-            placeholder="New tag name..."
-            autoFocus
-          />
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() =>
-                setRenameDialog({ open: false, tag: null, newName: '' })
-              }
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleRename}
-              disabled={
-                actionLoading ||
-                !renameDialog.newName.trim() ||
-                renameDialog.newName.trim() === renameDialog.tag?.tag
-              }
-            >
-              {actionLoading ? (
-                <Loader2 className="mr-2 size-4 animate-spin" />
-              ) : null}
-              Rename
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Merge Dialog */}
-      <Dialog
-        open={mergeDialog.open}
-        onOpenChange={(open) => {
-          if (!open) setMergeDialog({ open: false, tag: null, targetName: '' });
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Merge Tag</DialogTitle>
-            <DialogDescription>
-              Merge &ldquo;{mergeDialog.tag?.tag}&rdquo; into another tag. Items
-              with the source tag will receive the target tag, then the source
-              tag will be removed.
-            </DialogDescription>
-          </DialogHeader>
-          <Input
-            value={mergeDialog.targetName}
-            onChange={(e) =>
-              setMergeDialog((prev) => ({
-                ...prev,
-                targetName: e.target.value,
-              }))
-            }
-            placeholder="Target tag name..."
-            autoFocus
-          />
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() =>
-                setMergeDialog({ open: false, tag: null, targetName: '' })
-              }
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleMerge}
-              disabled={
-                actionLoading ||
-                !mergeDialog.targetName.trim() ||
-                mergeDialog.targetName.trim() === mergeDialog.tag?.tag
-              }
-            >
-              {actionLoading ? (
-                <Loader2 className="mr-2 size-4 animate-spin" />
-              ) : null}
-              Merge
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Dialog */}
-      <Dialog
-        open={deleteDialog.open}
-        onOpenChange={(open) => {
-          if (!open) setDeleteDialog({ open: false, tag: null });
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Tag</DialogTitle>
-            <DialogDescription>
-              Remove &ldquo;{deleteDialog.tag?.tag}&rdquo; from all{' '}
-              {deleteDialog.tag?.count} item
-              {deleteDialog.tag?.count !== 1 ? 's' : ''}? This action cannot be
-              undone.
+              This will remove {stats.singletons} tag
+              {stats.singletons !== 1 ? 's' : ''} that appear on only one item
+              each. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setDeleteDialog({ open: false, tag: null })}
+              onClick={() => setSingletonDeleteDialog(false)}
             >
               Cancel
             </Button>
             <Button
               variant="destructive"
-              onClick={handleDelete}
-              disabled={actionLoading}
+              onClick={handleDeleteSingletons}
+              disabled={deletingSingletons}
             >
-              {actionLoading ? (
+              {deletingSingletons ? (
                 <Loader2 className="mr-2 size-4 animate-spin" />
               ) : null}
-              Delete
+              Delete {stats.singletons} singleton{stats.singletons !== 1 ? 's' : ''}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -67,7 +67,9 @@ describe('SettingsSidebar', () => {
     expect(within(nav).getByText('Team')).toBeInTheDocument();
     expect(within(nav).getByText('Quality Review')).toBeInTheDocument();
     expect(within(nav).getByText('Provenance')).toBeInTheDocument();
-    expect(within(nav).getByText('Developer Setup')).toBeInTheDocument();
+    // Developer Setup entry removed in P1-20 — content folded into
+    // admin-only "For developers" accordion inside Connections.
+    expect(within(nav).queryByText('Developer Setup')).not.toBeInTheDocument();
   });
 
   it('shows only Personal group for non-admin users', () => {
@@ -153,14 +155,14 @@ describe('SettingsSidebar', () => {
     expect(result).toBe('content-organisation');
   });
 
-  it('resolves "developer-setup" for admin users', () => {
+  it('redirects legacy "developer-setup" param to "connections" for admin users', () => {
     const result = getValidSection('developer-setup', true);
-    expect(result).toBe('developer-setup');
+    expect(result).toBe('connections');
   });
 
-  it('falls back to profile for "developer-setup" when non-admin', () => {
+  it('redirects legacy "developer-setup" param to "connections" for non-admin users', () => {
     const result = getValidSection('developer-setup', false);
-    expect(result).toBe('profile');
+    expect(result).toBe('connections');
   });
 });
 

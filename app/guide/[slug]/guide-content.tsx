@@ -246,7 +246,7 @@ export function GuideContent({ slug }: { slug: string }) {
         className="mx-auto max-w-6xl px-4 py-8 sm:px-6"
       >
         <Link
-          href="/guide"
+          href="/coverage?tab=guides"
           className="inline-flex items-center gap-1 rounded-sm text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
         >
           <ArrowLeft className="size-3.5" aria-hidden="true" />
@@ -282,7 +282,7 @@ export function GuideContent({ slug }: { slug: string }) {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
-          href="/guide"
+          href="/coverage?tab=guides"
           className="inline-flex items-center gap-1 rounded-sm text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
         >
           <ArrowLeft className="size-3.5" aria-hidden="true" />

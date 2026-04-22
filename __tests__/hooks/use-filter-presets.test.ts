@@ -61,12 +61,13 @@ describe('useFilterPresets', () => {
   // 1. Returns system presets when localStorage is empty
   it('returns system presets when localStorage is empty', () => {
     const { result } = renderHook(() => useFilterPresets());
-    expect(result.current.presets).toHaveLength(4);
+    expect(result.current.presets).toHaveLength(5);
     expect(result.current.presets.every((p) => p.isSystem)).toBe(true);
     expect(result.current.presets[0].name).toBe('Stale content');
     expect(result.current.presets[1].name).toBe('Unreviewed items');
     expect(result.current.presets[2].name).toBe('Flagged items');
     expect(result.current.presets[3].name).toBe('My content');
+    expect(result.current.presets[4].name).toBe('Sector intelligence');
   });
 
   // 2. Returns system presets + user presets from localStorage
@@ -81,8 +82,8 @@ describe('useFilterPresets', () => {
       },
     ]);
     const { result } = renderHook(() => useFilterPresets());
-    expect(result.current.presets).toHaveLength(5);
-    expect(result.current.presets[4].name).toBe('My custom preset');
+    expect(result.current.presets).toHaveLength(6);
+    expect(result.current.presets[5].name).toBe('My custom preset');
   });
 
   // 3. System presets appear before user presets
@@ -98,12 +99,12 @@ describe('useFilterPresets', () => {
     ]);
     const { result } = renderHook(() => useFilterPresets());
     const systemCount = result.current.presets.filter((p) => p.isSystem).length;
-    expect(systemCount).toBe(4);
+    expect(systemCount).toBe(5);
     // All system presets come first
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 5; i++) {
       expect(result.current.presets[i].isSystem).toBe(true);
     }
-    expect(result.current.presets[4].isSystem).toBe(false);
+    expect(result.current.presets[5].isSystem).toBe(false);
   });
 
   // 4. applyPreset calls router.push with correct URL
@@ -134,8 +135,8 @@ describe('useFilterPresets', () => {
     act(() => {
       result.current.savePreset('My filter');
     });
-    expect(result.current.presets).toHaveLength(5);
-    expect(result.current.presets[4].name).toBe('My filter');
+    expect(result.current.presets).toHaveLength(6);
+    expect(result.current.presets[5].name).toBe('My filter');
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]');
     expect(stored).toHaveLength(1);
     expect(stored[0].name).toBe('My filter');
@@ -175,7 +176,7 @@ describe('useFilterPresets', () => {
     act(() => {
       result.current.renamePreset('u_abc123', 'New name');
     });
-    expect(result.current.presets[4].name).toBe('New name');
+    expect(result.current.presets[5].name).toBe('New name');
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]');
     expect(stored[0].name).toBe('New name');
   });
@@ -202,11 +203,11 @@ describe('useFilterPresets', () => {
       },
     ]);
     const { result } = renderHook(() => useFilterPresets());
-    expect(result.current.presets).toHaveLength(5);
+    expect(result.current.presets).toHaveLength(6);
     act(() => {
       result.current.deletePreset('u_abc123');
     });
-    expect(result.current.presets).toHaveLength(4);
+    expect(result.current.presets).toHaveLength(5);
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]');
     expect(stored).toHaveLength(0);
   });
@@ -217,7 +218,7 @@ describe('useFilterPresets', () => {
     act(() => {
       result.current.deletePreset('system-stale');
     });
-    expect(result.current.presets).toHaveLength(4);
+    expect(result.current.presets).toHaveLength(5);
   });
 
   // 12. activePreset returns matching system preset
@@ -288,17 +289,46 @@ describe('useFilterPresets', () => {
   it('handles corrupted localStorage gracefully', () => {
     localStorage.setItem(STORAGE_KEY, 'not valid json!!!');
     const { result } = renderHook(() => useFilterPresets());
-    expect(result.current.presets).toHaveLength(4); // Only system presets
+    expect(result.current.presets).toHaveLength(5); // Only system presets
   });
 
   // 19. Handles corrupted localStorage gracefully
   it('handles localStorage with non-array value gracefully', () => {
     localStorage.setItem(STORAGE_KEY, '"just a string"');
     const { result } = renderHook(() => useFilterPresets());
-    expect(result.current.presets).toHaveLength(4); // Only system presets
+    expect(result.current.presets).toHaveLength(5); // Only system presets
   });
 
-  // 20. normaliseParams strips sort, order, cursor, q
+  // ── D-61: SI filter preset ──
+
+  // 20. SI filter preset is present and loadable
+  it('SI filter preset is present as a system preset', () => {
+    const { result } = renderHook(() => useFilterPresets());
+    const siPreset = result.current.presets.find((p) => p.id === 'system-si');
+    expect(siPreset).toBeDefined();
+    expect(siPreset?.name).toBe('Sector intelligence');
+    expect(siPreset?.params).toBe('source=intelligence_pipeline');
+    expect(siPreset?.isSystem).toBe(true);
+  });
+
+  it('applyPreset navigates to correct URL for SI preset', () => {
+    const { result } = renderHook(() => useFilterPresets());
+    act(() => {
+      result.current.applyPreset('system-si');
+    });
+    expect(mockPush).toHaveBeenCalledWith(
+      '/browse?source=intelligence_pipeline',
+    );
+  });
+
+  it('activePreset matches SI preset when source=intelligence_pipeline is in URL', () => {
+    currentSearchParams = new URLSearchParams('source=intelligence_pipeline');
+    const { result } = renderHook(() => useFilterPresets());
+    expect(result.current.activePreset).not.toBeNull();
+    expect(result.current.activePreset?.id).toBe('system-si');
+  });
+
+  // 23. normaliseParams strips sort, order, cursor, q
   it('normaliseParams strips sort, order, cursor, q', () => {
     const result = normaliseParams(
       'domain=Corporate&sort=captured_date&order=desc&cursor=abc&q=test',

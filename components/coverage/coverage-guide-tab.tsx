@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { BookOpen, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -111,6 +112,8 @@ export function CoverageGuideTab() {
   const [data, setData] = useState<GuideCoverageResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const searchParams = useSearchParams();
+  const focusSlug = searchParams.get('id');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -130,6 +133,12 @@ export function CoverageGuideTab() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    if (!focusSlug || loading) return;
+    const el = document.getElementById(`guide-${focusSlug}`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [focusSlug, loading]);
 
   if (loading) return <GuideCoverageSkeleton />;
   if (error) return <GuideError onRetry={fetchData} />;
@@ -156,7 +165,11 @@ export function CoverageGuideTab() {
       {/* Guide cards */}
       <div className="space-y-4">
         {guides.map((guide) => (
-          <CoverageGuideCard key={guide.id} guide={guide} />
+          <CoverageGuideCard
+            key={guide.id}
+            guide={guide}
+            highlighted={guide.slug === focusSlug}
+          />
         ))}
       </div>
     </div>

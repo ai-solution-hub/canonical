@@ -192,6 +192,7 @@ export interface BrowseFilters {
   include_qa?: boolean; // include Q&A pairs (excluded by default — they live in /library)
   owner?: string; // 'me' | 'unowned' | UUID — filter by content owner
   review_status?: string; // verified | unverified | flagged — governance review status filter
+  source?: string; // metadata->>source JSONB path filter (e.g. 'intelligence_pipeline')
   sort?:
     | 'captured_date'
     | 'classification_confidence'

@@ -27,7 +27,6 @@ const {
   mockContentOrganisationSection,
   mockEntitiesSection,
   mockGuidesSection,
-  mockDeveloperSetupSection,
 } = vi.hoisted(() => ({
   mockRouter: {
     push: vi.fn(),
@@ -54,7 +53,6 @@ const {
   mockContentOrganisationSection: vi.fn(),
   mockEntitiesSection: vi.fn(),
   mockGuidesSection: vi.fn(),
-  mockDeveloperSetupSection: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -128,6 +126,7 @@ vi.mock('@/components/settings/settings-sidebar', () => ({
       tags: 'content-organisation',
       layers: 'content-organisation',
       integrations: 'connections',
+      'developer-setup': 'connections',
     };
     const resolved = param && legacyMap[param] ? legacyMap[param] : param;
     const allSections = [
@@ -139,7 +138,6 @@ vi.mock('@/components/settings/settings-sidebar', () => ({
       'team',
       'governance',
       'activity',
-      'developer-setup',
     ];
     const personalSections = ['profile', 'connections'];
     const visible = isAdmin ? allSections : personalSections;
@@ -191,15 +189,6 @@ vi.mock('@/components/settings/guides-section', () => ({
   GuidesSection: () => {
     mockGuidesSection();
     return <div data-testid="guides-section">GuidesSection</div>;
-  },
-}));
-
-vi.mock('@/components/settings/developer-setup-section', () => ({
-  DeveloperSetupSection: () => {
-    mockDeveloperSetupSection();
-    return (
-      <div data-testid="developer-setup-section">DeveloperSetupSection</div>
-    );
   },
 }));
 

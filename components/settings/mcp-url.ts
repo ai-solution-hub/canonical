@@ -1,5 +1,5 @@
 /**
- * Shared MCP URL derivation used by both ConnectionsSection and DeveloperSetupSection.
+ * Shared MCP URL derivation used by ConnectionsSection.
  */
 export function getMcpUrl(): string {
   return process.env.NEXT_PUBLIC_APP_URL

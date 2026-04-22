@@ -285,7 +285,7 @@ export default function WorkspaceOverviewPage() {
           )}
           {guideId && (
             <Button variant="outline" size="sm" asChild>
-              <Link href="/guide">
+              <Link href="/coverage?tab=guides">
                 <BookOpen className="mr-1.5 size-3.5" aria-hidden="true" />
                 View Intelligence Guide
               </Link>

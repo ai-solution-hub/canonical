@@ -42,6 +42,8 @@ export function useBrowseFilters() {
 
     const reviewStatusRaw = searchParams.get('review_status') ?? undefined;
 
+    const sourceRaw = searchParams.get('source') ?? undefined;
+
     const qualityIssues =
       searchParams.get('quality_issues') === 'true' || undefined;
     const includeQaExplicit =
@@ -77,6 +79,7 @@ export function useBrowseFilters() {
       include_qa: includeQa,
       owner: ownerRaw,
       review_status: reviewStatusRaw,
+      source: sourceRaw,
       sort:
         (searchParams.get('sort') as BrowseFilters['sort']) ?? 'captured_date',
       order: (searchParams.get('order') as BrowseFilters['order']) ?? 'desc',
@@ -106,6 +109,7 @@ export function useBrowseFilters() {
     if (filters.include_qa) count++;
     if (filters.owner) count++;
     if (filters.review_status) count++;
+    if (filters.source) count++;
     return count;
   }, [filters, searchQuery]);
 
@@ -221,6 +225,10 @@ export function useBrowseFilters() {
         if (newFilters.review_status)
           params.set('review_status', newFilters.review_status);
         else params.delete('review_status');
+      }
+      if ('source' in newFilters) {
+        if (newFilters.source) params.set('source', newFilters.source);
+        else params.delete('source');
       }
       if ('sort' in newFilters) {
         if (newFilters.sort && newFilters.sort !== 'captured_date')

@@ -134,33 +134,44 @@ describe('BidCreationWizard', () => {
     expect(screen.getByText('Review Questions')).toBeInTheDocument();
   });
 
-  it('shows "Next: Upload Tender" as the primary action', () => {
+  it('shows both creation paths as equal-weight choices on wizard entry', () => {
     renderWizard();
-    expect(
-      screen.getByRole('button', { name: /Next: Upload Tender/ }),
-    ).toBeInTheDocument();
+    const uploadBtn = screen.getByRole('button', {
+      name: /Create & Upload Tender/,
+    });
+    const blankBtn = screen.getByRole('button', {
+      name: /Start Blank Bid/,
+    });
+
+    expect(uploadBtn).toBeInTheDocument();
+    expect(blankBtn).toBeInTheDocument();
   });
 
-  it('shows "Create Without Document" link', () => {
+  it('shows "Start Blank Bid" visibly on step 1 — not nested behind another option', () => {
     renderWizard();
-    expect(
-      screen.getByRole('button', { name: /Create Without Document/ }),
-    ).toBeInTheDocument();
+    const blankBtn = screen.getByRole('button', {
+      name: /Start Blank Bid/,
+    });
+    expect(blankBtn).toBeVisible();
   });
 
   // ----------------------------------------------------------
   // Step 1: Validation
   // ----------------------------------------------------------
 
-  it('disables submit when required fields are empty', () => {
+  it('disables both creation paths when required fields are empty', () => {
     renderWizard();
-    const submitBtn = screen.getByRole('button', {
-      name: /Next: Upload Tender/,
+    const uploadBtn = screen.getByRole('button', {
+      name: /Create & Upload Tender/,
     });
-    expect(submitBtn).toBeDisabled();
+    const blankBtn = screen.getByRole('button', {
+      name: /Start Blank Bid/,
+    });
+    expect(uploadBtn).toBeDisabled();
+    expect(blankBtn).toBeDisabled();
   });
 
-  it('enables submit when name and buyer are filled', async () => {
+  it('enables both creation paths when name and buyer are filled', async () => {
     const user = userEvent.setup();
     renderWizard();
 
@@ -168,7 +179,10 @@ describe('BidCreationWizard', () => {
     await user.type(screen.getByLabelText(/Buyer/), 'NHS Digital');
 
     expect(
-      screen.getByRole('button', { name: /Next: Upload Tender/ }),
+      screen.getByRole('button', { name: /Create & Upload Tender/ }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole('button', { name: /Start Blank Bid/ }),
     ).toBeEnabled();
   });
 
@@ -188,7 +202,7 @@ describe('BidCreationWizard', () => {
     await user.type(screen.getByLabelText(/Bid Name/), 'NHS Trust ITT');
     await user.type(screen.getByLabelText(/Buyer/), 'NHS Digital');
     await user.click(
-      screen.getByRole('button', { name: /Next: Upload Tender/ }),
+      screen.getByRole('button', { name: /Create & Upload Tender/ }),
     );
 
     await waitFor(() => {
@@ -203,10 +217,10 @@ describe('BidCreationWizard', () => {
   });
 
   // ----------------------------------------------------------
-  // Step 1: Create Without Document
+  // Step 1: Start Blank Bid
   // ----------------------------------------------------------
 
-  it('calls onCreated and closes when "Create Without Document" is clicked', async () => {
+  it('calls onCreated and closes when "Start Blank Bid" is clicked', async () => {
     const user = userEvent.setup();
     const created = { id: 'bid-456', name: 'Quick Bid' };
     mockFetch.mockResolvedValueOnce({
@@ -219,13 +233,38 @@ describe('BidCreationWizard', () => {
     await user.type(screen.getByLabelText(/Bid Name/), 'Quick Bid');
     await user.type(screen.getByLabelText(/Buyer/), 'HMRC');
     await user.click(
-      screen.getByRole('button', { name: /Create Without Document/ }),
+      screen.getByRole('button', { name: /Start Blank Bid/ }),
     );
 
     await waitFor(() => {
       expect(onCreated).toHaveBeenCalledWith(created);
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('sends the same API request body regardless of which creation path is chosen', async () => {
+    const user = userEvent.setup();
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: 'bid-blank', name: 'Blank Path' }),
+    });
+
+    renderWizard();
+
+    await user.type(screen.getByLabelText(/Bid Name/), 'Blank Path');
+    await user.type(screen.getByLabelText(/Buyer/), 'MOD');
+
+    await user.click(
+      screen.getByRole('button', { name: /Start Blank Bid/ }),
+    );
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledOnce();
+    });
+
+    const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body as string);
+    expect(requestBody.name).toBe('Blank Path');
+    expect(requestBody.buyer).toBe('MOD');
   });
 
   // ----------------------------------------------------------
@@ -245,7 +284,7 @@ describe('BidCreationWizard', () => {
     await user.type(screen.getByLabelText(/Bid Name/), 'Test Bid');
     await user.type(screen.getByLabelText(/Buyer/), 'Test Org');
     await user.click(
-      screen.getByRole('button', { name: /Next: Upload Tender/ }),
+      screen.getByRole('button', { name: /Create & Upload Tender/ }),
     );
 
     await waitFor(() => {
@@ -272,7 +311,7 @@ describe('BidCreationWizard', () => {
     await user.type(screen.getByLabelText(/Bid Name/), 'Skip Test');
     await user.type(screen.getByLabelText(/Buyer/), 'Test Org');
     await user.click(
-      screen.getByRole('button', { name: /Next: Upload Tender/ }),
+      screen.getByRole('button', { name: /Create & Upload Tender/ }),
     );
 
     await waitFor(() => {
@@ -301,7 +340,7 @@ describe('BidCreationWizard', () => {
     await user.type(screen.getByLabelText(/Bid Name/), 'Upload Test');
     await user.type(screen.getByLabelText(/Buyer/), 'Test Org');
     await user.click(
-      screen.getByRole('button', { name: /Next: Upload Tender/ }),
+      screen.getByRole('button', { name: /Create & Upload Tender/ }),
     );
 
     await waitFor(() => {
@@ -341,7 +380,7 @@ describe('BidCreationWizard', () => {
     await user.type(screen.getByLabelText(/Bid Name/), 'Empty Upload');
     await user.type(screen.getByLabelText(/Buyer/), 'Test Org');
     await user.click(
-      screen.getByRole('button', { name: /Next: Upload Tender/ }),
+      screen.getByRole('button', { name: /Create & Upload Tender/ }),
     );
 
     await waitFor(() => {
@@ -371,7 +410,7 @@ describe('BidCreationWizard', () => {
     await user.type(screen.getByLabelText(/Bid Name/), 'Confirm Test');
     await user.type(screen.getByLabelText(/Buyer/), 'Test Org');
     await user.click(
-      screen.getByRole('button', { name: /Next: Upload Tender/ }),
+      screen.getByRole('button', { name: /Create & Upload Tender/ }),
     );
 
     // Step 2
@@ -407,7 +446,7 @@ describe('BidCreationWizard', () => {
     await user.type(screen.getByLabelText(/Bid Name/), 'Cancel Test');
     await user.type(screen.getByLabelText(/Buyer/), 'Test Org');
     await user.click(
-      screen.getByRole('button', { name: /Next: Upload Tender/ }),
+      screen.getByRole('button', { name: /Create & Upload Tender/ }),
     );
 
     await waitFor(() => {
@@ -455,7 +494,7 @@ describe('BidCreationWizard', () => {
     await user.type(screen.getByLabelText(/Estimated Value/), '£50,000');
 
     await user.click(
-      screen.getByRole('button', { name: /Next: Upload Tender/ }),
+      screen.getByRole('button', { name: /Create & Upload Tender/ }),
     );
 
     await waitFor(() => {

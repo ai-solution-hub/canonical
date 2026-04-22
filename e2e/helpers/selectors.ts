@@ -105,7 +105,6 @@ export const selectors = {
     teamSection: '[data-testid="team-section"]',
     governanceSection: '[data-testid="governance-section"]',
     activitySection: '[data-testid="activity-section"]',
-    developerSetupSection: '[data-testid="developer-setup-section"]',
   },
 
   /** Theme/appearance settings (site header dialog) */

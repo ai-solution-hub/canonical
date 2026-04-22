@@ -45,11 +45,6 @@ const LazyGuidesSection = lazy(() =>
     default: m.GuidesSection,
   })),
 );
-const LazyDeveloperSetupSection = lazy(() =>
-  import('@/components/settings/developer-setup-section').then((m) => ({
-    default: m.DeveloperSetupSection,
-  })),
-);
 const LazyContentOwnerManagement = lazy(() =>
   import('@/components/settings/content-owner-management').then((m) => ({
     default: m.ContentOwnerManagement,
@@ -99,12 +94,6 @@ function SectionContent({ section }: { section: SettingsSection }) {
       return (
         <Suspense fallback={<SectionSkeleton />}>
           <LazyContentOwnerManagement />
-        </Suspense>
-      );
-    case 'developer-setup':
-      return (
-        <Suspense fallback={<SectionSkeleton />}>
-          <LazyDeveloperSetupSection />
         </Suspense>
       );
     case 'entities':

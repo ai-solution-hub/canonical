@@ -1,6 +1,7 @@
 'use client';
 
-import { SlidersHorizontal } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronDown, SlidersHorizontal } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -82,6 +83,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
   const { layers: layerVocabulary } = useLayerVocabulary();
   const { getDomainNames, getSubtopics } = useTaxonomy();
   const domainNames = getDomainNames();
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   // Derive available subtopics: only when exactly ONE domain is selected
   const singleDomain = draft.domains.length === 1 ? draft.domains[0] : null;
@@ -107,7 +109,8 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-4 pb-4 -mx-0">
-          {/* Domain — open by default (commonly used) */}
+          {/* ── Primary filters (high-signal, always visible) ── */}
+
           <DomainFilter
             selectedDomains={draft.domains}
             counts={counts.domain}
@@ -117,7 +120,6 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
 
           <Separator className="my-3" />
 
-          {/* Subtopic (conditional — exactly one domain selected) */}
           {singleDomain && availableSubtopics.length > 0 && (
             <>
               <SubtopicFilter
@@ -132,7 +134,6 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
             </>
           )}
 
-          {/* Content Type — open by default (commonly used) */}
           <ContentTypeFilter
             selectedTypes={draft.content_types}
             counts={counts.content_type}
@@ -142,259 +143,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
 
           <Separator className="my-3" />
 
-          {/* Platform — collapsed by default */}
-          <PlatformFilter
-            selectedPlatforms={draft.platforms}
-            counts={counts.platform}
-            onToggle={handlePlatformToggle}
-            defaultOpen={false}
-          />
-
-          <Separator className="my-3" />
-
-          {/* Author — collapsed by default */}
-          <AuthorFilter
-            selectedAuthors={draft.authors}
-            authorSearch={authorSearch}
-            allAuthors={allAuthors}
-            onAuthorSearchChange={setAuthorSearch}
-            onAddAuthor={handleAddAuthor}
-            onRemoveAuthor={handleRemoveAuthor}
-            defaultOpen={false}
-          />
-
-          <Separator className="my-3" />
-
-          {/* Date Range — collapsed by default */}
-          <FilterSection title="Date Range" defaultOpen={false}>
-            <div className="flex flex-col gap-2">
-              <div className="flex flex-col gap-1">
-                <label
-                  htmlFor="filter-date-from"
-                  className="text-xs text-muted-foreground"
-                >
-                  From
-                </label>
-                <Input
-                  id="filter-date-from"
-                  type="date"
-                  value={draft.date_from}
-                  onChange={(e) =>
-                    setDraft((prev) => ({ ...prev, date_from: e.target.value }))
-                  }
-                  className="h-8 text-sm"
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label
-                  htmlFor="filter-date-to"
-                  className="text-xs text-muted-foreground"
-                >
-                  To
-                </label>
-                <Input
-                  id="filter-date-to"
-                  type="date"
-                  value={draft.date_to}
-                  onChange={(e) =>
-                    setDraft((prev) => ({ ...prev, date_to: e.target.value }))
-                  }
-                  className="h-8 text-sm"
-                />
-              </div>
-            </div>
-          </FilterSection>
-
-          <Separator className="my-3" />
-
-          {/* Priority — collapsed by default */}
-          <FilterSection title="Priority" defaultOpen={false}>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { value: 'high', label: 'High', colour: 'bg-priority-high' },
-                {
-                  value: 'medium',
-                  label: 'Medium',
-                  colour: 'bg-priority-medium',
-                },
-                { value: 'low', label: 'Low', colour: 'bg-priority-low' },
-              ].map((opt) => {
-                const isActive = draft.priorities.includes(opt.value);
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => handlePriorityToggle(opt.value)}
-                    aria-pressed={isActive}
-                    className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                      isActive
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-border bg-muted text-foreground hover:bg-accent'
-                    }`}
-                  >
-                    <span className={`size-2 rounded-full ${opt.colour}`} />
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
-          </FilterSection>
-
-          <Separator className="my-3" />
-
-          {/* Workspaces — collapsed by default */}
-          {allWorkspaces.length > 0 && (
-            <>
-              <FilterSection title="Collections" defaultOpen={false}>
-                <div className="flex flex-wrap gap-2">
-                  {allWorkspaces.map((workspace) => {
-                    const isActive = draft.workspace === workspace.id;
-                    return (
-                      <button
-                        key={workspace.id}
-                        type="button"
-                        onClick={() => handleWorkspaceChange(workspace.id)}
-                        aria-pressed={isActive}
-                        className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                          isActive
-                            ? 'border-primary bg-primary/10 text-primary'
-                            : 'border-border bg-muted text-foreground hover:bg-accent'
-                        }`}
-                      >
-                        <span
-                          className="size-2 rounded-full"
-                          style={{ backgroundColor: workspace.color }}
-                        />
-                        {workspace.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </FilterSection>
-
-              <Separator className="my-3" />
-            </>
-          )}
-
-          {/* User Tags — collapsed by default */}
-          {allUserTags.length > 0 && (
-            <>
-              <FilterSection title="User Tags" defaultOpen={false}>
-                <div className="flex flex-wrap gap-2">
-                  {allUserTags.map(({ tag, count }) => {
-                    const isActive = draft.user_tags.includes(tag);
-                    return (
-                      <button
-                        key={tag}
-                        type="button"
-                        onClick={() => handleUserTagToggle(tag)}
-                        aria-pressed={isActive}
-                        className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                          isActive
-                            ? 'border-primary bg-primary/10 text-primary'
-                            : 'border-border bg-muted text-foreground hover:bg-accent'
-                        }`}
-                      >
-                        {tag}
-                        <span className="text-muted-foreground">{count}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </FilterSection>
-
-              <Separator className="my-3" />
-            </>
-          )}
-
-          {/* Entity Type — collapsed by default */}
-          {entityTypeCounts.length > 0 && (
-            <>
-              <FilterSection title="Entity Type" defaultOpen={false}>
-                <div className="flex flex-wrap gap-2">
-                  {entityTypeCounts.map(({ type, count }) => {
-                    const isActive = draft.entity_type === type;
-                    return (
-                      <button
-                        key={type}
-                        type="button"
-                        onClick={() => handleEntityTypeChange(type)}
-                        aria-pressed={isActive}
-                        className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs capitalize transition-colors ${
-                          isActive
-                            ? 'border-primary bg-primary/10 text-primary'
-                            : 'border-border bg-muted text-foreground hover:bg-accent'
-                        }`}
-                      >
-                        {type}
-                        <span className="text-muted-foreground">{count}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Filter content by entity type
-                </p>
-              </FilterSection>
-
-              <Separator className="my-3" />
-            </>
-          )}
-
-          {/* Entity Name — collapsed by default, filtered by selected type */}
-          {allEntities.length > 0 && (
-            <>
-              <FilterSection title="Entities" defaultOpen={false}>
-                <div className="flex flex-wrap gap-2">
-                  {allEntities
-                    .filter(
-                      (e) => !draft.entity_type || e.type === draft.entity_type,
-                    )
-                    .map(({ name, type, count }) => {
-                      const isActive = draft.entity === name;
-                      return (
-                        <button
-                          key={`${name}-${type}`}
-                          type="button"
-                          onClick={() => handleEntityChange(name)}
-                          aria-pressed={isActive}
-                          className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                            isActive
-                              ? 'border-primary bg-primary/10 text-primary'
-                              : 'border-border bg-muted text-foreground hover:bg-accent'
-                          }`}
-                        >
-                          {name}
-                          <span className="text-muted-foreground">{count}</span>
-                        </button>
-                      );
-                    })}
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {draft.entity_type
-                    ? `Showing ${draft.entity_type} entities — clear type filter to see all`
-                    : 'Filter by entity mentioned in content'}
-                </p>
-              </FilterSection>
-
-              <Separator className="my-3" />
-            </>
-          )}
-
-          {/* Entity Co-occurrence — collapsed by default */}
-          {allEntities.length > 0 && (
-            <>
-              <EntityCoOccurrence
-                show={open}
-                defaultOpen={false}
-                onEntityClick={(name) => handleEntityChange(name)}
-              />
-              <Separator className="my-3" />
-            </>
-          )}
-
-          {/* Freshness — collapsed by default */}
-          <FilterSection title="Freshness" defaultOpen={false}>
+          <FilterSection title="Freshness" defaultOpen>
             <div className="flex flex-wrap gap-2">
               {(['fresh', 'aging', 'stale', 'expired'] as const).map(
                 (state) => {
@@ -420,85 +169,363 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
             </div>
           </FilterSection>
 
-          {/* Review Status — collapsed by default */}
-          <FilterSection title="Review Status" defaultOpen={false}>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { value: 'verified', label: 'Verified' },
-                { value: 'unverified', label: 'Unverified' },
-                { value: 'flagged', label: 'Flagged' },
-              ].map((opt) => {
-                const isActive = draft.review_status === opt.value;
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => handleReviewStatusChange(opt.value)}
-                    aria-pressed={isActive}
-                    className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                      isActive
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-border bg-muted text-foreground hover:bg-accent'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Filter by verification status
-            </p>
-          </FilterSection>
+          <Separator className="my-3" />
+
+          {/* ── Secondary filters (visible by default, collapsed sections) ── */}
+
+          <AuthorFilter
+            selectedAuthors={draft.authors}
+            authorSearch={authorSearch}
+            allAuthors={allAuthors}
+            onAuthorSearchChange={setAuthorSearch}
+            onAddAuthor={handleAddAuthor}
+            onRemoveAuthor={handleRemoveAuthor}
+            defaultOpen={false}
+          />
 
           <Separator className="my-3" />
 
-          {/* Content Owner — collapsed by default */}
-          <FilterSection title="Owner" defaultOpen={false}>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { value: 'me', label: 'My content' },
-                { value: 'unowned', label: 'Unowned' },
-              ].map((opt) => {
-                const isActive = draft.owner === opt.value;
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => handleOwnerChange(opt.value)}
-                    aria-pressed={isActive}
-                    className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                      isActive
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-border bg-muted text-foreground hover:bg-accent'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Filter by content ownership
-            </p>
-          </FilterSection>
+          {/* ── Advanced filters (progressive disclosure) ── */}
 
-          <Separator className="my-3" />
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen((prev) => !prev)}
+            aria-expanded={advancedOpen}
+            className="mb-2 flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Advanced
+            <ChevronDown
+              className={`size-3.5 motion-safe:transition-transform ${advancedOpen ? '' : '-rotate-90'}`}
+              aria-hidden="true"
+            />
+          </button>
 
-          {isFeatureEnabled('content_layers') && (
-            <>
+          {advancedOpen && (
+            <div>
+              <PlatformFilter
+                selectedPlatforms={draft.platforms}
+                counts={counts.platform}
+                onToggle={handlePlatformToggle}
+                defaultOpen={false}
+              />
+
+              <Separator className="my-3" />
+              {entityTypeCounts.length > 0 && (
+                <>
+                  <FilterSection title="Entity Type" defaultOpen={false}>
+                    <div className="flex flex-wrap gap-2">
+                      {entityTypeCounts.map(({ type, count }) => {
+                        const isActive = draft.entity_type === type;
+                        return (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => handleEntityTypeChange(type)}
+                            aria-pressed={isActive}
+                            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs capitalize transition-colors ${
+                              isActive
+                                ? 'border-primary bg-primary/10 text-primary'
+                                : 'border-border bg-muted text-foreground hover:bg-accent'
+                            }`}
+                          >
+                            {type}
+                            <span className="text-muted-foreground">
+                              {count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Filter content by entity type
+                    </p>
+                  </FilterSection>
+
+                  <Separator className="my-3" />
+                </>
+              )}
+
+              {allEntities.length > 0 && (
+                <>
+                  <FilterSection title="Entities" defaultOpen={false}>
+                    <div className="flex flex-wrap gap-2">
+                      {allEntities
+                        .filter(
+                          (e) =>
+                            !draft.entity_type || e.type === draft.entity_type,
+                        )
+                        .map(({ name, type, count }) => {
+                          const isActive = draft.entity === name;
+                          return (
+                            <button
+                              key={`${name}-${type}`}
+                              type="button"
+                              onClick={() => handleEntityChange(name)}
+                              aria-pressed={isActive}
+                              className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                                isActive
+                                  ? 'border-primary bg-primary/10 text-primary'
+                                  : 'border-border bg-muted text-foreground hover:bg-accent'
+                              }`}
+                            >
+                              {name}
+                              <span className="text-muted-foreground">
+                                {count}
+                              </span>
+                            </button>
+                          );
+                        })}
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {draft.entity_type
+                        ? `Showing ${draft.entity_type} entities — clear type filter to see all`
+                        : 'Filter by entity mentioned in content'}
+                    </p>
+                  </FilterSection>
+
+                  <Separator className="my-3" />
+                </>
+              )}
+
+              {allEntities.length > 0 && (
+                <>
+                  <EntityCoOccurrence
+                    show={open}
+                    defaultOpen={false}
+                    onEntityClick={(name) => handleEntityChange(name)}
+                  />
+                  <Separator className="my-3" />
+                </>
+              )}
+
+              <FilterSection title="Keywords" defaultOpen={false}>
+                <Input
+                  placeholder="e.g. ISO 27001, security, SLA"
+                  value={draft.keywords}
+                  onChange={(e) =>
+                    setDraft((prev) => ({ ...prev, keywords: e.target.value }))
+                  }
+                  className="h-8 text-sm"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Comma-separated keywords to search in ai_keywords
+                </p>
+                {popularKeywords.length > 0 && (
+                  <div className="mt-2">
+                    <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+                      Popular
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {popularKeywords.map((kw) => {
+                        const currentKeywords = draft.keywords
+                          .split(',')
+                          .map((k) => k.trim().toLowerCase())
+                          .filter(Boolean);
+                        const isActive = currentKeywords.includes(
+                          kw.toLowerCase(),
+                        );
+                        return (
+                          <button
+                            key={kw}
+                            type="button"
+                            onClick={() => {
+                              if (isActive) return;
+                              const updated = draft.keywords
+                                ? `${draft.keywords}, ${kw}`
+                                : kw;
+                              setDraft((prev) => ({
+                                ...prev,
+                                keywords: updated,
+                              }));
+                            }}
+                            aria-pressed={isActive}
+                            className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
+                              isActive
+                                ? 'border-primary bg-primary/10 text-primary'
+                                : 'border-border bg-muted text-foreground hover:bg-accent'
+                            }`}
+                            disabled={isActive}
+                          >
+                            {kw}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </FilterSection>
+
               <Separator className="my-3" />
 
-              {/* Content Layer — collapsed by default */}
-              <FilterSection title="Content Layer" defaultOpen={false}>
+              <FilterSection title="Date Range" defaultOpen={false}>
+                <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-1">
+                    <label
+                      htmlFor="filter-date-from"
+                      className="text-xs text-muted-foreground"
+                    >
+                      From
+                    </label>
+                    <Input
+                      id="filter-date-from"
+                      type="date"
+                      value={draft.date_from}
+                      onChange={(e) =>
+                        setDraft((prev) => ({
+                          ...prev,
+                          date_from: e.target.value,
+                        }))
+                      }
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label
+                      htmlFor="filter-date-to"
+                      className="text-xs text-muted-foreground"
+                    >
+                      To
+                    </label>
+                    <Input
+                      id="filter-date-to"
+                      type="date"
+                      value={draft.date_to}
+                      onChange={(e) =>
+                        setDraft((prev) => ({
+                          ...prev,
+                          date_to: e.target.value,
+                        }))
+                      }
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                </div>
+              </FilterSection>
+
+              <Separator className="my-3" />
+
+              <FilterSection title="Drafts" defaultOpen={false}>
+                <label
+                  htmlFor="filter-drafts"
+                  className="flex cursor-pointer items-center gap-2"
+                >
+                  <Checkbox
+                    id="filter-drafts"
+                    checked={draft.include_drafts}
+                    onCheckedChange={(checked) =>
+                      setDraft((prev) => ({
+                        ...prev,
+                        include_drafts: checked === true,
+                      }))
+                    }
+                  />
+                  <span className="text-sm">Include draft items</span>
+                </label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Draft items are hidden from search and matching by default
+                </p>
+              </FilterSection>
+
+              <Separator className="my-3" />
+
+              <FilterSection title="Q&A Pairs" defaultOpen={false}>
+                <label
+                  htmlFor="filter-qa"
+                  className="flex cursor-pointer items-center gap-2"
+                >
+                  <Checkbox
+                    id="filter-qa"
+                    checked={draft.include_qa}
+                    onCheckedChange={(checked) =>
+                      setDraft((prev) => ({
+                        ...prev,
+                        include_qa: checked === true,
+                      }))
+                    }
+                  />
+                  <span className="text-sm">Include Q&A pairs</span>
+                </label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Q&A pairs are shown in the Q&A Library by default
+                </p>
+              </FilterSection>
+
+              <Separator className="my-3" />
+
+              {isFeatureEnabled('content_layers') && (
+                <>
+                  <FilterSection title="Content Layer" defaultOpen={false}>
+                    <div className="flex flex-wrap gap-2">
+                      {layerVocabulary.map((layer) => {
+                        const isActive = draft.layer === layer.key;
+                        return (
+                          <button
+                            key={layer.key}
+                            type="button"
+                            onClick={() => handleLayerToggle(layer.key)}
+                            aria-pressed={isActive}
+                            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                              isActive
+                                ? 'border-primary bg-primary/10 text-primary'
+                                : 'border-border bg-muted text-foreground hover:bg-accent'
+                            }`}
+                          >
+                            {layer.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Filter by content depth layer
+                    </p>
+                  </FilterSection>
+
+                  <Separator className="my-3" />
+                </>
+              )}
+
+              <FilterSection title="Quality" defaultOpen={false}>
+                <label
+                  htmlFor="filter-quality"
+                  className="flex cursor-pointer items-center gap-2"
+                >
+                  <Checkbox
+                    id="filter-quality"
+                    checked={draft.quality_issues}
+                    onCheckedChange={(checked) =>
+                      setDraft((prev) => ({
+                        ...prev,
+                        quality_issues: checked === true,
+                      }))
+                    }
+                  />
+                  <span className="text-sm">Has quality issues</span>
+                </label>
+              </FilterSection>
+
+              <Separator className="my-3" />
+
+              <FilterSection title="Priority" defaultOpen={false}>
                 <div className="flex flex-wrap gap-2">
-                  {layerVocabulary.map((layer) => {
-                    const isActive = draft.layer === layer.key;
+                  {[
+                    {
+                      value: 'high',
+                      label: 'High',
+                      colour: 'bg-priority-high',
+                    },
+                    {
+                      value: 'medium',
+                      label: 'Medium',
+                      colour: 'bg-priority-medium',
+                    },
+                    { value: 'low', label: 'Low', colour: 'bg-priority-low' },
+                  ].map((opt) => {
+                    const isActive = draft.priorities.includes(opt.value);
                     return (
                       <button
-                        key={layer.key}
+                        key={opt.value}
                         type="button"
-                        onClick={() => handleLayerToggle(layer.key)}
+                        onClick={() => handlePriorityToggle(opt.value)}
                         aria-pressed={isActive}
                         className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
                           isActive
@@ -506,163 +533,168 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
                             : 'border-border bg-muted text-foreground hover:bg-accent'
                         }`}
                       >
-                        {layer.label}
+                        <span
+                          className={`size-2 rounded-full ${opt.colour}`}
+                        />
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </FilterSection>
+
+              <Separator className="my-3" />
+
+              {allWorkspaces.length > 0 && (
+                <>
+                  <FilterSection title="Collections" defaultOpen={false}>
+                    <div className="flex flex-wrap gap-2">
+                      {allWorkspaces.map((workspace) => {
+                        const isActive = draft.workspace === workspace.id;
+                        return (
+                          <button
+                            key={workspace.id}
+                            type="button"
+                            onClick={() =>
+                              handleWorkspaceChange(workspace.id)
+                            }
+                            aria-pressed={isActive}
+                            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                              isActive
+                                ? 'border-primary bg-primary/10 text-primary'
+                                : 'border-border bg-muted text-foreground hover:bg-accent'
+                            }`}
+                          >
+                            <span
+                              className="size-2 rounded-full"
+                              style={{ backgroundColor: workspace.color }}
+                            />
+                            {workspace.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </FilterSection>
+
+                  <Separator className="my-3" />
+                </>
+              )}
+
+              {allUserTags.length > 0 && (
+                <>
+                  <FilterSection title="User Tags" defaultOpen={false}>
+                    <div className="flex flex-wrap gap-2">
+                      {allUserTags.map(({ tag, count }) => {
+                        const isActive = draft.user_tags.includes(tag);
+                        return (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() => handleUserTagToggle(tag)}
+                            aria-pressed={isActive}
+                            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                              isActive
+                                ? 'border-primary bg-primary/10 text-primary'
+                                : 'border-border bg-muted text-foreground hover:bg-accent'
+                            }`}
+                          >
+                            {tag}
+                            <span className="text-muted-foreground">
+                              {count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </FilterSection>
+
+                  <Separator className="my-3" />
+                </>
+              )}
+
+              <FilterSection title="Starred" defaultOpen={false}>
+                <label
+                  htmlFor="filter-starred"
+                  className="flex cursor-pointer items-center gap-2"
+                >
+                  <Checkbox
+                    id="filter-starred"
+                    checked={draft.starred}
+                    onCheckedChange={(checked) =>
+                      setDraft((prev) => ({
+                        ...prev,
+                        starred: checked === true,
+                      }))
+                    }
+                  />
+                  <span className="text-sm">Show starred items only</span>
+                </label>
+              </FilterSection>
+
+              <Separator className="my-3" />
+
+              <FilterSection title="Owner" defaultOpen={false}>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { value: 'me', label: 'My content' },
+                    { value: 'unowned', label: 'Unowned' },
+                  ].map((opt) => {
+                    const isActive = draft.owner === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => handleOwnerChange(opt.value)}
+                        aria-pressed={isActive}
+                        className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                          isActive
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-border bg-muted text-foreground hover:bg-accent'
+                        }`}
+                      >
+                        {opt.label}
                       </button>
                     );
                   })}
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Filter by content depth layer
+                  Filter by content ownership
                 </p>
               </FilterSection>
-            </>
-          )}
 
-          <Separator className="my-3" />
+              <Separator className="my-3" />
 
-          {/* Quality Issues — collapsed by default */}
-          <FilterSection title="Quality" defaultOpen={false}>
-            <label
-              htmlFor="filter-quality"
-              className="flex cursor-pointer items-center gap-2"
-            >
-              <Checkbox
-                id="filter-quality"
-                checked={draft.quality_issues}
-                onCheckedChange={(checked) =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    quality_issues: checked === true,
-                  }))
-                }
-              />
-              <span className="text-sm">Has quality issues</span>
-            </label>
-          </FilterSection>
-
-          <Separator className="my-3" />
-
-          {/* Include Drafts — collapsed by default */}
-          <FilterSection title="Drafts" defaultOpen={false}>
-            <label
-              htmlFor="filter-drafts"
-              className="flex cursor-pointer items-center gap-2"
-            >
-              <Checkbox
-                id="filter-drafts"
-                checked={draft.include_drafts}
-                onCheckedChange={(checked) =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    include_drafts: checked === true,
-                  }))
-                }
-              />
-              <span className="text-sm">Include draft items</span>
-            </label>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Draft items are hidden from search and matching by default
-            </p>
-          </FilterSection>
-
-          <Separator className="my-3" />
-
-          {/* Include Q&A pairs — collapsed by default */}
-          <FilterSection title="Q&A Pairs" defaultOpen={false}>
-            <label
-              htmlFor="filter-qa"
-              className="flex cursor-pointer items-center gap-2"
-            >
-              <Checkbox
-                id="filter-qa"
-                checked={draft.include_qa}
-                onCheckedChange={(checked) =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    include_qa: checked === true,
-                  }))
-                }
-              />
-              <span className="text-sm">Include Q&A pairs</span>
-            </label>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Q&A pairs are shown in the Q&A Library by default
-            </p>
-          </FilterSection>
-
-          <Separator className="my-3" />
-
-          {/* Starred — collapsed by default */}
-          <FilterSection title="Starred" defaultOpen={false}>
-            <label
-              htmlFor="filter-starred"
-              className="flex cursor-pointer items-center gap-2"
-            >
-              <Checkbox
-                id="filter-starred"
-                checked={draft.starred}
-                onCheckedChange={(checked) =>
-                  setDraft((prev) => ({ ...prev, starred: checked === true }))
-                }
-              />
-              <span className="text-sm">Show starred items only</span>
-            </label>
-          </FilterSection>
-
-          <Separator className="my-3" />
-
-          {/* Keywords — collapsed by default */}
-          <FilterSection title="Keywords" defaultOpen={false}>
-            <Input
-              placeholder="e.g. ISO 27001, security, SLA"
-              value={draft.keywords}
-              onChange={(e) =>
-                setDraft((prev) => ({ ...prev, keywords: e.target.value }))
-              }
-              className="h-8 text-sm"
-            />
-            <p className="mt-1 text-xs text-muted-foreground">
-              Comma-separated keywords to search in ai_keywords
-            </p>
-            {popularKeywords.length > 0 && (
-              <div className="mt-2">
-                <p className="mb-1.5 text-xs font-medium text-muted-foreground">
-                  Popular
-                </p>
-                <div className="flex flex-wrap gap-1">
-                  {popularKeywords.map((kw) => {
-                    const currentKeywords = draft.keywords
-                      .split(',')
-                      .map((k) => k.trim().toLowerCase())
-                      .filter(Boolean);
-                    const isActive = currentKeywords.includes(kw.toLowerCase());
+              <FilterSection title="Review Status" defaultOpen={false}>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { value: 'verified', label: 'Verified' },
+                    { value: 'unverified', label: 'Unverified' },
+                    { value: 'flagged', label: 'Flagged' },
+                  ].map((opt) => {
+                    const isActive = draft.review_status === opt.value;
                     return (
                       <button
-                        key={kw}
+                        key={opt.value}
                         type="button"
-                        onClick={() => {
-                          if (isActive) return;
-                          const updated = draft.keywords
-                            ? `${draft.keywords}, ${kw}`
-                            : kw;
-                          setDraft((prev) => ({ ...prev, keywords: updated }));
-                        }}
+                        onClick={() => handleReviewStatusChange(opt.value)}
                         aria-pressed={isActive}
-                        className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
+                        className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
                           isActive
                             ? 'border-primary bg-primary/10 text-primary'
                             : 'border-border bg-muted text-foreground hover:bg-accent'
                         }`}
-                        disabled={isActive}
                       >
-                        {kw}
+                        {opt.label}
                       </button>
                     );
                   })}
                 </div>
-              </div>
-            )}
-          </FilterSection>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Filter by verification status
+                </p>
+              </FilterSection>
+            </div>
+          )}
         </div>
 
         <SheetFooter className="border-t border-border">

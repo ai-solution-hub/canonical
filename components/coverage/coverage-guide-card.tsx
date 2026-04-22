@@ -132,14 +132,27 @@ function SectionRow({ section }: { section: GuideSection }) {
 // Guide card
 // ---------------------------------------------------------------------------
 
-export function CoverageGuideCard({ guide }: { guide: GuideCoverageData }) {
+export function CoverageGuideCard({
+  guide,
+  highlighted,
+}: {
+  guide: GuideCoverageData;
+  highlighted?: boolean;
+}) {
   const progressPercent =
     guide.total_sections > 0
       ? Math.round((guide.populated_sections / guide.total_sections) * 100)
       : 0;
 
   return (
-    <div className="rounded-xl border bg-card p-5 shadow-sm">
+    <div
+      id={`guide-${guide.slug}`}
+      className={
+        highlighted
+          ? 'rounded-xl border-2 border-primary bg-card p-5 shadow-sm'
+          : 'rounded-xl border bg-card p-5 shadow-sm'
+      }
+    >
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">

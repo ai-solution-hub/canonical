@@ -1,14 +1,12 @@
 /**
  * TagsSection Component Tests
  *
- * Tests the tag management section — loading state, summary stats,
- * tab switching, tag list rendering, and merge dialog.
- *
- * Uses TanStack Query wrapper for data fetching via useTagsData hook.
+ * Tests the tag management section — 2-tab layout (Clean up / Browse all),
+ * inline summary, singleton action, tab switching, and CRUD regressions.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createQueryWrapper } from '../helpers/query-wrapper';
 
@@ -48,8 +46,10 @@ vi.mock('@/hooks/use-user-role', () => ({
 
 // Stub sub-components to isolate TagsSection
 vi.mock('@/components/settings/duplicate-review', () => ({
-  DuplicateReview: () => (
-    <div data-testid="duplicate-review">DuplicateReview</div>
+  DuplicateReview: (props: { duplicates: unknown[] }) => (
+    <div data-testid="duplicate-review">
+      DuplicateReview ({(props.duplicates as unknown[]).length} groups)
+    </div>
   ),
 }));
 
@@ -91,6 +91,22 @@ function createTagData(
     count: 10 - i * 2,
     source: (i % 2 === 0 ? 'user' : 'ai') as 'user' | 'ai',
   }));
+}
+
+function createDomainGroups() {
+  return [
+    {
+      domain: 'Technology',
+      tags: [
+        { tag: 'javascript', count: 5 },
+        { tag: 'react', count: 3 },
+      ],
+    },
+    {
+      domain: 'Science',
+      tags: [{ tag: 'physics', count: 2 }],
+    },
+  ];
 }
 
 function setupFetchResponses(
@@ -143,49 +159,106 @@ describe('TagsSection', () => {
     const { Wrapper } = createQueryWrapper();
     render(<TagsSection />, { wrapper: Wrapper });
 
-    // The component returns a spinner when loading or roleLoading
     const spinners = document.querySelectorAll('.animate-spin');
     expect(spinners.length).toBeGreaterThan(0);
   });
 
-  it('displays summary stats after loading', async () => {
+  // ─── AC5: Inline summary replaces separate stats tiles ───
+
+  it('displays inline summary instead of separate stats tiles', async () => {
     const tags = createTagData(5);
-    setupFetchResponses(tags);
+    const domains = createDomainGroups();
+    setupFetchResponses(tags, [], domains);
 
     const { Wrapper } = createQueryWrapper();
     render(<TagsSection />, { wrapper: Wrapper });
 
     await waitFor(() => {
-      expect(screen.getByText('Tag Health')).toBeInTheDocument();
+      expect(screen.getByText(/5 tags across 2 domains/)).toBeInTheDocument();
     });
 
-    // Total tags count
-    expect(screen.getByText('5')).toBeInTheDocument();
-    expect(screen.getByText('Total tags')).toBeInTheDocument();
+    // Old stats tiles should NOT exist
+    expect(screen.queryByText('Total tags')).not.toBeInTheDocument();
+    expect(screen.queryByText('Duplicate groups')).not.toBeInTheDocument();
+    expect(screen.queryByText('Singleton tags (hidden by default)')).not.toBeInTheDocument();
   });
 
-  it('renders tab triggers for navigation between views', async () => {
+  // ─── AC1: Two tabs — "Clean up" and "Browse all" ───
+
+  it('renders exactly two tabs: "Clean up" and "Browse all"', async () => {
     setupFetchResponses();
 
     const { Wrapper } = createQueryWrapper();
     render(<TagsSection />, { wrapper: Wrapper });
 
     await waitFor(() => {
-      expect(screen.getByText('Tag Health')).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: /clean up/i })).toBeInTheDocument();
     });
 
-    expect(
-      screen.getByRole('tab', { name: /duplicates/i }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /by domain/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /all tags/i })).toBeInTheDocument();
-    // Admin sees bulk actions tab
-    expect(
-      screen.getByRole('tab', { name: /bulk actions/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /browse all/i })).toBeInTheDocument();
+
+    // Old tabs should NOT exist
+    expect(screen.queryByRole('tab', { name: /^duplicates$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /by domain/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /all tags/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /bulk actions/i })).not.toBeInTheDocument();
   });
 
-  it('shows tag list with tag names and counts in All Tags tab', async () => {
+  // ─── AC1: Clean up tab merges duplicates + domain view + bulk actions ───
+
+  it('shows duplicates, domain view, and bulk actions within Clean up tab', async () => {
+    const tags = createTagData(3);
+    const dupes = [{ canonical: 'test', variants: ['Test'], variant_count: 1, total_usage: 5 }];
+    setupFetchResponses(tags, dupes, createDomainGroups());
+
+    const { Wrapper } = createQueryWrapper();
+    render(<TagsSection />, { wrapper: Wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /clean up/i })).toBeInTheDocument();
+    });
+
+    // Clean up tab should be active by default when duplicates exist
+    expect(screen.getByTestId('duplicate-review')).toBeInTheDocument();
+    expect(screen.getByTestId('tag-domain-view')).toBeInTheDocument();
+    expect(screen.getByTestId('tag-bulk-actions')).toBeInTheDocument();
+  });
+
+  // ─── AC2: Tab switching preserves bulk-action scope ───
+
+  it('switching to Browse all and back preserves Clean up content', async () => {
+    const user = userEvent.setup();
+    const tags = createTagData(3);
+    const dupes = [{ canonical: 'test', variants: ['Test'], variant_count: 1, total_usage: 5 }];
+    setupFetchResponses(tags, dupes, createDomainGroups());
+
+    const { Wrapper } = createQueryWrapper();
+    render(<TagsSection />, { wrapper: Wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /clean up/i })).toBeInTheDocument();
+    });
+
+    // Switch to Browse all
+    await user.click(screen.getByRole('tab', { name: /browse all/i }));
+
+    await waitFor(() => {
+      // Browse all content should show tag list
+      expect(screen.getByLabelText('Search tags')).toBeInTheDocument();
+    });
+
+    // Switch back to Clean up
+    await user.click(screen.getByRole('tab', { name: /clean up/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('duplicate-review')).toBeInTheDocument();
+      expect(screen.getByTestId('tag-bulk-actions')).toBeInTheDocument();
+    });
+  });
+
+  // ─── AC1: Browse all shows virtual-scrolled tag list ───
+
+  it('shows tag list with virtual scroll in Browse all tab', async () => {
     const user = userEvent.setup();
     const tags = createTagData(3);
     setupFetchResponses(tags);
@@ -194,21 +267,50 @@ describe('TagsSection', () => {
     render(<TagsSection />, { wrapper: Wrapper });
 
     await waitFor(() => {
-      expect(screen.getByText('Tag Health')).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: /browse all/i })).toBeInTheDocument();
     });
 
-    // Switch to All Tags tab
-    await user.click(screen.getByRole('tab', { name: /all tags/i }));
+    await user.click(screen.getByRole('tab', { name: /browse all/i }));
 
     await waitFor(() => {
-      // Tags with count > 1 should be visible (singletons hidden by default)
-      // tag-1 has count 10, tag-2 has count 8, tag-3 has count 6
+      // Tags with count > 1 visible (singletons hidden by default)
       expect(screen.getByText('tag-1')).toBeInTheDocument();
       expect(screen.getByText('tag-2')).toBeInTheDocument();
     });
   });
 
-  it('opens merge dialog when merge button is clicked', async () => {
+  // ─── AC6: Singletons counter wired to action ───
+
+  it('provides a delete singletons action from the Browse all tab', async () => {
+    const user = userEvent.setup();
+    // Include a tag with count=1 (singleton)
+    const tags = [
+      { tag: 'common-tag', count: 5, source: 'ai' as const },
+      { tag: 'singleton-tag', count: 1, source: 'ai' as const },
+    ];
+    setupFetchResponses(tags);
+
+    const { Wrapper } = createQueryWrapper();
+    render(<TagsSection />, { wrapper: Wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /browse all/i })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('tab', { name: /browse all/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('common-tag')).toBeInTheDocument();
+    });
+
+    // Should have a button to delete singletons (not just informational)
+    const deleteBtn = screen.getByRole('button', { name: /delete.*singleton/i });
+    expect(deleteBtn).toBeInTheDocument();
+  });
+
+  // ─── AC8c: CRUD regression — rename ───
+
+  it('opens rename dialog when rename button is clicked in Browse all', async () => {
     const user = userEvent.setup();
     const tags = createTagData(3);
     setupFetchResponses(tags);
@@ -217,26 +319,119 @@ describe('TagsSection', () => {
     render(<TagsSection />, { wrapper: Wrapper });
 
     await waitFor(() => {
-      expect(screen.getByText('Tag Health')).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: /browse all/i })).toBeInTheDocument();
     });
 
-    // Switch to All Tags tab
-    await user.click(screen.getByRole('tab', { name: /all tags/i }));
+    await user.click(screen.getByRole('tab', { name: /browse all/i }));
 
     await waitFor(() => {
       expect(screen.getByText('tag-1')).toBeInTheDocument();
     });
 
-    // Click merge button for first tag
+    const renameButton = screen.getByLabelText('Rename tag: tag-1');
+    await user.click(renameButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('Rename Tag')).toBeInTheDocument();
+    });
+  });
+
+  // ─── AC8c: CRUD regression — merge ───
+
+  it('opens merge dialog when merge button is clicked in Browse all', async () => {
+    const user = userEvent.setup();
+    const tags = createTagData(3);
+    setupFetchResponses(tags);
+
+    const { Wrapper } = createQueryWrapper();
+    render(<TagsSection />, { wrapper: Wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /browse all/i })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('tab', { name: /browse all/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('tag-1')).toBeInTheDocument();
+    });
+
     const mergeButton = screen.getByLabelText('Merge tag: tag-1');
     await user.click(mergeButton);
 
-    // Merge dialog should appear
     await waitFor(() => {
       expect(screen.getByText('Merge Tag')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Target tag name...')).toBeInTheDocument();
     });
-    expect(
-      screen.getByPlaceholderText('Target tag name...'),
-    ).toBeInTheDocument();
+  });
+
+  // ─── AC8c: CRUD regression — delete ───
+
+  it('opens delete dialog when delete button is clicked in Browse all', async () => {
+    const user = userEvent.setup();
+    const tags = createTagData(3);
+    setupFetchResponses(tags);
+
+    const { Wrapper } = createQueryWrapper();
+    render(<TagsSection />, { wrapper: Wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /browse all/i })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('tab', { name: /browse all/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('tag-1')).toBeInTheDocument();
+    });
+
+    const deleteButton = screen.getByLabelText('Delete tag: tag-1');
+    await user.click(deleteButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('Delete Tag')).toBeInTheDocument();
+    });
+  });
+
+  // ─── AC4: No overlap with entity-management ───
+
+  it('does not render any entity-management components', async () => {
+    setupFetchResponses();
+
+    const { Wrapper } = createQueryWrapper();
+    const { container } = render(<TagsSection />, { wrapper: Wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /clean up/i })).toBeInTheDocument();
+    });
+
+    // No entity-management data-testids or content
+    expect(container.querySelector('[data-testid*="entity"]')).not.toBeInTheDocument();
+  });
+
+  // ─── Default tab selection ───
+
+  it('defaults to Clean up tab when duplicates exist', async () => {
+    const dupes = [{ canonical: 'test', variants: ['Test'], variant_count: 1, total_usage: 5 }];
+    setupFetchResponses(createTagData(), dupes);
+
+    const { Wrapper } = createQueryWrapper();
+    render(<TagsSection />, { wrapper: Wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('duplicate-review')).toBeInTheDocument();
+    });
+  });
+
+  it('defaults to Browse all tab when no duplicates exist', async () => {
+    setupFetchResponses(createTagData(3), []);
+
+    const { Wrapper } = createQueryWrapper();
+    render(<TagsSection />, { wrapper: Wrapper });
+
+    await waitFor(() => {
+      // Should show tag list (Browse all content)
+      expect(screen.getByLabelText('Search tags')).toBeInTheDocument();
+    });
   });
 });

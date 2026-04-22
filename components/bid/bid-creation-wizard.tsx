@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Check, Loader2 } from 'lucide-react';
+import { Check, FileUp, Loader2, PenLine } from 'lucide-react';
 import { TenderUpload } from '@/components/bid/tender-upload';
 import { TenderMetadataPrompt } from '@/components/bid/tender-metadata-prompt';
 import { QuestionReview } from '@/components/bid/question-review';
@@ -75,6 +75,7 @@ export function BidCreationWizard({
   const [estimatedValue, setEstimatedValue] = useState('');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [savingPath, setSavingPath] = useState<'upload' | 'blank' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Created bid reference
@@ -100,6 +101,7 @@ export function BidCreationWizard({
     setEstimatedValue('');
     setNotes('');
     setSaving(false);
+    setSavingPath(null);
     setError(null);
     setCreatedBid(null);
     setExtractionResult(null);
@@ -119,6 +121,7 @@ export function BidCreationWizard({
   async function handleCreateBid(e: FormEvent, advanceToUpload: boolean) {
     e.preventDefault();
     setSaving(true);
+    setSavingPath(advanceToUpload ? 'upload' : 'blank');
     setError(null);
 
     try {
@@ -160,6 +163,7 @@ export function BidCreationWizard({
       setError(err instanceof Error ? err.message : 'Failed to create bid');
     } finally {
       setSaving(false);
+      setSavingPath(null);
     }
   }
 
@@ -326,36 +330,15 @@ export function BidCreationWizard({
               </p>
             )}
 
-            <div className="flex items-center justify-between pt-2">
-              <Button
-                type="button"
-                variant="link"
-                size="sm"
-                className="text-muted-foreground"
-                disabled={saving || !name.trim() || !buyer.trim()}
-                onClick={(e) =>
-                  handleCreateBid(e as unknown as FormEvent, false)
-                }
-              >
-                Create Without Document
-              </Button>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    resetWizard();
-                    onOpenChange(false);
-                  }}
-                  disabled={saving}
-                >
-                  Cancel
-                </Button>
+            <div className="space-y-3 pt-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Button
                   type="submit"
+                  size="lg"
                   disabled={saving || !name.trim() || !buyer.trim()}
+                  className="w-full"
                 >
-                  {saving ? (
+                  {savingPath === 'upload' ? (
                     <>
                       <Loader2
                         className="size-4 animate-spin"
@@ -364,8 +347,50 @@ export function BidCreationWizard({
                       Creating...
                     </>
                   ) : (
-                    'Next: Upload Tender'
+                    <>
+                      <FileUp className="size-4" aria-hidden="true" />
+                      Create & Upload Tender
+                    </>
                   )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  disabled={saving || !name.trim() || !buyer.trim()}
+                  className="w-full"
+                  onClick={(e) =>
+                    handleCreateBid(e as unknown as FormEvent, false)
+                  }
+                >
+                  {savingPath === 'blank' ? (
+                    <>
+                      <Loader2
+                        className="size-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <PenLine className="size-4" aria-hidden="true" />
+                      Start Blank Bid
+                    </>
+                  )}
+                </Button>
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    resetWizard();
+                    onOpenChange(false);
+                  }}
+                  disabled={saving}
+                >
+                  Cancel
                 </Button>
               </div>
             </div>

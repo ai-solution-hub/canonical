@@ -300,4 +300,54 @@ describe('ContentCard', () => {
     const qualityBadge = container.querySelector('[title^="Freshness:"]');
     expect(qualityBadge).toBeInTheDocument();
   });
+
+  // ── D-61: SI badge ──
+
+  it('renders SI badge when metadata.source is intelligence_pipeline', () => {
+    render(
+      <ContentCard
+        item={makeContentItem({
+          metadata: { source: 'intelligence_pipeline' },
+        })}
+      />,
+    );
+    expect(screen.getByText('SI')).toBeInTheDocument();
+    expect(screen.getByTitle('From sector intelligence pipeline')).toBeInTheDocument();
+  });
+
+  it('does not render SI badge when metadata.source is not intelligence_pipeline', () => {
+    render(
+      <ContentCard
+        item={makeContentItem({
+          metadata: { source: 'manual' },
+        })}
+      />,
+    );
+    expect(screen.queryByText('SI')).not.toBeInTheDocument();
+  });
+
+  it('does not render SI badge when metadata is null', () => {
+    render(
+      <ContentCard
+        item={makeContentItem({
+          metadata: null,
+        })}
+      />,
+    );
+    expect(screen.queryByText('SI')).not.toBeInTheDocument();
+  });
+
+  it('renders SI badge on Q&A pair cards from intelligence pipeline', () => {
+    render(
+      <ContentCard
+        item={makeContentItem({
+          content_type: 'q_a_pair',
+          title: 'SI question?',
+          content: 'SI answer',
+          metadata: { source: 'intelligence_pipeline' },
+        })}
+      />,
+    );
+    expect(screen.getByText('SI')).toBeInTheDocument();
+  });
 });
