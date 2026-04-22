@@ -57,10 +57,10 @@ describe('ResponseActions', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders Regenerate button when no draft exists', () => {
+  it('renders Redraft button when no draft exists', () => {
     render(<ResponseActions {...defaultProps()} />);
     expect(
-      screen.getByRole('button', { name: /Regenerate/ }),
+      screen.getByRole('button', { name: /Redraft/ }),
     ).toBeInTheDocument();
   });
 
@@ -241,27 +241,27 @@ describe('ResponseActions', () => {
   });
 
   // ========================================================================
-  // Regenerate with instructions
+  // Redraft with instructions
   // ========================================================================
 
-  it('shows input field when Regenerate is clicked once', async () => {
+  it('shows input field when Redraft is clicked once', async () => {
     const user = userEvent.setup();
     render(<ResponseActions {...defaultProps()} />);
 
-    await user.click(screen.getByRole('button', { name: /Regenerate/ }));
+    await user.click(screen.getByRole('button', { name: /Redraft/ }));
     expect(
-      screen.getByLabelText('Regeneration instructions'),
+      screen.getByLabelText('Redraft instructions'),
     ).toBeInTheDocument();
   });
 
-  it('sends instructions on second Regenerate click', async () => {
+  it('sends instructions on second Redraft click', async () => {
     const user = userEvent.setup();
     const onAction = vi.fn();
     render(<ResponseActions {...defaultProps({ onAction })} />);
 
     // First click — show input
-    await user.click(screen.getByRole('button', { name: /Regenerate/ }));
-    const input = screen.getByLabelText('Regeneration instructions');
+    await user.click(screen.getByRole('button', { name: /Redraft/ }));
+    const input = screen.getByLabelText('Redraft instructions');
     await user.type(input, 'Focus on ISO 27001');
 
     // Second click — send
@@ -273,15 +273,30 @@ describe('ResponseActions', () => {
     const user = userEvent.setup();
     render(<ResponseActions {...defaultProps()} />);
 
-    await user.click(screen.getByRole('button', { name: /Regenerate/ }));
+    await user.click(screen.getByRole('button', { name: /Redraft/ }));
     expect(
-      screen.getByLabelText('Regeneration instructions'),
+      screen.getByLabelText('Redraft instructions'),
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /Cancel/ }));
     expect(
-      screen.queryByLabelText('Regeneration instructions'),
+      screen.queryByLabelText('Redraft instructions'),
     ).not.toBeInTheDocument();
+  });
+
+  it('default button shows "Redraft"; instructions mode shows "Send"', async () => {
+    const user = userEvent.setup();
+    render(<ResponseActions {...defaultProps()} />);
+
+    // Default state: button text is "Redraft"
+    const btn = screen.getByRole('button', { name: /Redraft/ });
+    expect(btn).toHaveTextContent('Redraft');
+
+    // After clicking: button text switches to "Send"
+    await user.click(btn);
+    expect(screen.getByRole('button', { name: /Send/ })).toHaveTextContent(
+      'Send',
+    );
   });
 
   // ========================================================================

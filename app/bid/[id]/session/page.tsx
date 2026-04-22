@@ -628,7 +628,7 @@ export default function BidSessionPage({
                     ? 'Response is being drafted...'
                     : response
                       ? 'Edit your response...'
-                      : 'No response yet. Use "Regenerate" to draft an AI response or "Author Manually" to write your own.'
+                      : 'No response yet. Use "Redraft" to draft a response or "Author Manually" to write your own.'
                 }
                 onEditorReady={onEditorReady}
               />
