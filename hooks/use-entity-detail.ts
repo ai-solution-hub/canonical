@@ -1,8 +1,10 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { queryKeys } from '@/lib/query/query-keys';
 import { fetchJson, mutationFetchJson } from '@/lib/query/fetchers';
+import { formatEntityDisplayName } from '@/lib/entities/entity-dedup';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -38,6 +40,14 @@ export interface EntityDetail {
   metadata?: Record<string, unknown>;
 }
 
+/** Response shape from PATCH /api/entities/[canonical_name]/type */
+export interface EntityTypeChangeResponse {
+  updated: boolean;
+  canonical_name: string;
+  entity_type: string;
+  mentions_updated: number;
+}
+
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
@@ -49,6 +59,8 @@ export interface EntityDetail {
  * - Cached results make re-opening the same panel instant.
  * - Includes a `saveMetadata` mutation that invalidates the detail cache on
  *   success.
+ * - Includes a `changeType` mutation with optimistic update, rollback on
+ *   error, and cache invalidation on settle.
  */
 export function useEntityDetail(
   canonicalName: string | null,
@@ -85,6 +97,87 @@ export function useEntityDetail(
     },
   });
 
+  // ─── Type change mutation (P1-22) ────────────────────────────────────
+  const changeTypeMutation = useMutation<
+    EntityTypeChangeResponse,
+    Error,
+    string,
+    { previousDetail: EntityDetail | undefined }
+  >({
+    mutationFn: async (newType: string) => {
+      const res = await fetch(
+        `/api/entities/${encodeURIComponent(canonicalName!)}/type`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entity_type: newType }),
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update type');
+      return data as EntityTypeChangeResponse;
+    },
+
+    onMutate: async (newType) => {
+      // Cancel in-flight queries so they don't overwrite our optimistic update
+      await queryClient.cancelQueries({
+        queryKey: queryKeys.entities.detail(canonicalName!),
+      });
+
+      // Snapshot the previous detail cache for rollback
+      const previousDetail = queryClient.getQueryData<EntityDetail>(
+        queryKeys.entities.detail(canonicalName!),
+      );
+
+      // Optimistically update the detail cache
+      if (previousDetail) {
+        queryClient.setQueryData<EntityDetail>(
+          queryKeys.entities.detail(canonicalName!),
+          {
+            ...previousDetail,
+            effective_type: newType,
+            has_type_override: true,
+          },
+        );
+      }
+
+      return { previousDetail };
+    },
+
+    onError: (err, _newType, context) => {
+      // Rollback to the snapshot on failure
+      if (context?.previousDetail) {
+        queryClient.setQueryData(
+          queryKeys.entities.detail(canonicalName!),
+          context.previousDetail,
+        );
+      }
+      toast.error(err.message || 'Failed to update entity type');
+    },
+
+    onSuccess: (data) => {
+      const displayName = canonicalName
+        ? formatEntityDisplayName(canonicalName)
+        : 'Entity';
+      toast.success(
+        `Updated "${displayName}" type to ${data.entity_type} (${data.mentions_updated} mentions)`,
+      );
+    },
+
+    onSettled: () => {
+      // Refetch to ensure cache is accurate regardless of outcome
+      if (canonicalName) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.entities.detail(canonicalName),
+        });
+        // Also invalidate the entity list to reflect the type change
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.entities.all,
+        });
+      }
+    },
+  });
+
   return {
     /** The fetched entity detail, or undefined while loading / on error. */
     detail: query.data ?? null,
@@ -103,5 +196,12 @@ export function useEntityDetail(
     saveSuccess: saveMetadataMutation.isSuccess,
     /** Reset the mutation state (clears success/error). */
     resetSaveState: saveMetadataMutation.reset,
+
+    /** Mutation to change entity type via PATCH (P1-22). Optimistic update. */
+    changeType: changeTypeMutation.mutate,
+    /** True while the type-change request is in flight. */
+    isChangingType: changeTypeMutation.isPending,
+    /** Error from the most recent type-change attempt, or null. */
+    changeTypeError: changeTypeMutation.error?.message ?? null,
   };
 }
