@@ -769,9 +769,12 @@ export const CompanyProfileCreateSchema = z.object({
 
 /** PATCH /api/intelligence/profiles/:id
  *
- * @todo Same `.partial()` default-leak hazard as FeedSourceUpdateSchema —
+ * @todo OPS-14 (product-backlog.md §6): same `.partial()` default-leak
+ * hazard as FeedSourceUpdateSchema. Fields
  * services/certifications/geographic_scope/competitors all have
- * `.default([])`. Tracked as pre-launch follow-up.
+ * `.default([])` on the create schema, so every PATCH omitting them
+ * silently overwrites stored rows with empty arrays. Rewrite as an
+ * explicit schema when OPS-14 is picked up.
  */
 export const CompanyProfileUpdateSchema = CompanyProfileCreateSchema.partial();
 
