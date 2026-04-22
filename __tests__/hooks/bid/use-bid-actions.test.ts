@@ -29,7 +29,6 @@ const { hoistedBidId, hoistedMockSearchParams, hoistedMockRouter } =
 
 const mockPush = hoistedMockRouter.push;
 const mockReplace = hoistedMockRouter.replace;
-const mockRouter = hoistedMockRouter;
 
 vi.mock('next/navigation', () => ({
   useRouter: () => hoistedMockRouter,

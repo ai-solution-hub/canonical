@@ -439,9 +439,7 @@ describe('useEntityDetail', () => {
         expect(result.current.isChangingType).toBe(false);
       });
 
-      // Cache should be rolled back to original type
-      const cachedDetail = queryClient.getQueryData(['entities', 'detail', 'ISO 27001']);
-      // After rollback + invalidation refetch, it should be the original
+      // After rollback + invalidation refetch, cache should hold the original type
       await waitFor(() => {
         const detail = queryClient.getQueryData(['entities', 'detail', 'ISO 27001']) as Record<string, unknown> | undefined;
         expect(detail?.effective_type).toBe('certification');

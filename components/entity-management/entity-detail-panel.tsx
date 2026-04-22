@@ -73,14 +73,6 @@ const TYPE_COLOURS: Record<string, string> = {
   methodology: 'bg-muted text-muted-foreground',
 };
 
-function TypeBadge({ type }: { type: string }) {
-  return (
-    <Badge variant="outline" className={cn('text-xs', TYPE_COLOURS[type])}>
-      {type}
-    </Badge>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Expiry status badge
 // ---------------------------------------------------------------------------
