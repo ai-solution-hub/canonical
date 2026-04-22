@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Users, Loader2, UserPlus, MoreHorizontal, Ban } from 'lucide-react';
+import { Users, Loader2, UserPlus, Ban } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import type { UserRole } from '@/lib/roles';
@@ -37,12 +37,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+
+import { roleBadgeVariant, roleLabel } from '@/lib/user-helpers';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -56,8 +52,6 @@ interface TeamUser {
   created_at: string;
   last_sign_in_at: string | null;
 }
-
-import { roleBadgeVariant, roleLabel } from '@/lib/user-helpers';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -112,8 +106,6 @@ function InviteUserDialog({ onInvited }: { onInvited: () => void }) {
 
       const warnings = Array.isArray(data.warnings) ? data.warnings : [];
       if (warnings.length > 0) {
-        // Partial success — user invited but role assignment failed. Surface
-        // the warning so the admin knows to fix the role manually.
         toast.warning(`Invitation sent with warnings: ${warnings.join('; ')}`);
       } else {
         toast.success(`Invitation sent to ${email.trim()}`);
@@ -204,6 +196,113 @@ function InviteUserDialog({ onInvited }: { onInvited: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
+// Team Member Row — single responsive layout for all viewports
+// ---------------------------------------------------------------------------
+
+function TeamMemberRow({
+  user,
+  isSelf,
+  onRoleChange,
+  onDeactivate,
+}: {
+  user: TeamUser;
+  isSelf: boolean;
+  onRoleChange: (userId: string, newRole: UserRole) => void;
+  onDeactivate: (userId: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-4">
+      {/* Avatar + identity */}
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium uppercase text-muted-foreground">
+          {getDisplayFallback(user)[0]?.toUpperCase() ?? '?'}
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">
+            {getDisplayFallback(user)}
+            {isSelf && (
+              <span className="ml-1.5 text-xs text-muted-foreground">
+                (you)
+              </span>
+            )}
+          </p>
+          <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+        </div>
+      </div>
+
+      {/* Role + last sign-in + deactivate — responsive row */}
+      <div className="flex items-center gap-3 pl-11 sm:gap-4 sm:pl-0">
+        {/* Role */}
+        {isSelf ? (
+          <Badge variant={roleBadgeVariant(user.role)}>
+            {roleLabel(user.role)}
+          </Badge>
+        ) : (
+          <Select
+            value={user.role}
+            onValueChange={(v) => onRoleChange(user.id, v as UserRole)}
+          >
+            <SelectTrigger
+              size="sm"
+              className="h-7 w-[100px]"
+              aria-label={`Role for ${getDisplayFallback(user)}`}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="viewer">Viewer</SelectItem>
+              <SelectItem value="editor">Editor</SelectItem>
+              <SelectItem value="admin">Admin</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+
+        {/* Last sign-in — hidden on small screens to save space */}
+        <span className="hidden whitespace-nowrap text-xs text-muted-foreground sm:inline">
+          {formatDate(user.last_sign_in_at)}
+        </span>
+
+        {/* Deactivate — inline button with confirm dialog */}
+        {!isSelf && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                aria-label={`Deactivate ${getDisplayFallback(user)}`}
+              >
+                <Ban className="size-3.5" />
+                <span className="hidden sm:inline">Deactivate</span>
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Deactivate User</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to deactivate{' '}
+                  <strong>{user.display_name ?? user.email}</strong>? They will
+                  no longer be able to sign in.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => onDeactivate(user.id)}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Deactivate
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Team Section
 // ---------------------------------------------------------------------------
 
@@ -247,43 +346,51 @@ export function TeamSection() {
     loadCurrentUser();
   }, [fetchUsers, supabase]);
 
-  async function handleRoleChange(userId: string, newRole: UserRole) {
-    try {
-      const res = await fetch(`/api/admin/users/${userId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: newRole }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to update role');
+  const handleRoleChange = useCallback(
+    async (userId: string, newRole: UserRole) => {
+      try {
+        const res = await fetch(`/api/admin/users/${userId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: newRole }),
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || 'Failed to update role');
+        }
+        setUsers((prev) =>
+          prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u)),
+        );
+        toast.success('Role updated');
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : 'Failed to update role',
+        );
       }
-      setUsers((prev) =>
-        prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u)),
-      );
-      toast.success('Role updated');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update role');
-    }
-  }
+    },
+    [],
+  );
 
-  async function handleDeactivate(userId: string) {
-    try {
-      const res = await fetch(`/api/admin/users/${userId}`, {
-        method: 'DELETE',
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to deactivate user');
+  const handleDeactivate = useCallback(
+    async (userId: string) => {
+      try {
+        const res = await fetch(`/api/admin/users/${userId}`, {
+          method: 'DELETE',
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || 'Failed to deactivate user');
+        }
+        toast.success('User deactivated');
+        fetchUsers();
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : 'Failed to deactivate user',
+        );
       }
-      toast.success('User deactivated');
-      fetchUsers();
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Failed to deactivate user',
-      );
-    }
-  }
+    },
+    [fetchUsers],
+  );
 
   if (loading) {
     return (
@@ -320,254 +427,17 @@ export function TeamSection() {
             </p>
           </div>
         ) : (
-          <>
-            {/* Desktop: semantic table */}
-            <div className="hidden overflow-x-auto sm:block">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      User
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      Email
-                    </th>
-                    <th className="w-[120px] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      Role
-                    </th>
-                    <th className="w-[120px] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      Last Sign In
-                    </th>
-                    <th className="w-[48px] px-4 py-3">
-                      <span className="sr-only">Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {users.map((user) => {
-                    const isSelf = user.id === currentUserId;
-                    return (
-                      <tr key={user.id}>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium uppercase text-muted-foreground">
-                              {getDisplayFallback(user)[0]?.toUpperCase() ??
-                                '?'}
-                            </div>
-                            <p className="truncate text-sm font-medium">
-                              {getDisplayFallback(user)}
-                              {isSelf && (
-                                <span className="ml-1.5 text-xs text-muted-foreground">
-                                  (you)
-                                </span>
-                              )}
-                            </p>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <p className="truncate text-sm text-muted-foreground">
-                            {user.email}
-                          </p>
-                        </td>
-                        <td className="px-4 py-3">
-                          {isSelf ? (
-                            <Badge variant={roleBadgeVariant(user.role)}>
-                              {roleLabel(user.role)}
-                            </Badge>
-                          ) : (
-                            <Select
-                              value={user.role}
-                              onValueChange={(v) =>
-                                handleRoleChange(user.id, v as UserRole)
-                              }
-                            >
-                              <SelectTrigger
-                                size="sm"
-                                className="h-7 w-[100px]"
-                              >
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="viewer">Viewer</SelectItem>
-                                <SelectItem value="editor">Editor</SelectItem>
-                                <SelectItem value="admin">Admin</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-muted-foreground">
-                          {formatDate(user.last_sign_in_at)}
-                        </td>
-                        <td className="px-4 py-3">
-                          {!isSelf && (
-                            <AlertDialog>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="size-8"
-                                    aria-label={`Actions for ${user.display_name ?? user.email}`}
-                                  >
-                                    <MoreHorizontal className="size-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem className="text-destructive focus:text-destructive">
-                                      <Ban className="mr-2 size-4" />
-                                      Deactivate
-                                    </DropdownMenuItem>
-                                  </AlertDialogTrigger>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>
-                                    Deactivate User
-                                  </AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you want to deactivate{' '}
-                                    <strong>
-                                      {user.display_name ?? user.email}
-                                    </strong>
-                                    ? They will no longer be able to sign in.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => handleDeactivate(user.id)}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                  >
-                                    Deactivate
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile: card layout — aria-hidden so screen readers use the semantic table above */}
-            <div
-              className="divide-y divide-border sm:hidden"
-              aria-hidden="true"
-            >
-              {users.map((user) => {
-                const isSelf = user.id === currentUserId;
-                return (
-                  <div key={user.id} className="flex flex-col gap-2 px-4 py-3">
-                    {/* Name + email */}
-                    <div className="flex items-center gap-2">
-                      <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium uppercase text-muted-foreground">
-                        {getDisplayFallback(user)[0]?.toUpperCase() ?? '?'}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">
-                          {getDisplayFallback(user)}
-                          {isSelf && (
-                            <span className="ml-1.5 text-xs text-muted-foreground">
-                              (you)
-                            </span>
-                          )}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {user.email}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Role */}
-                    <div>
-                      {isSelf ? (
-                        <Badge variant={roleBadgeVariant(user.role)}>
-                          {roleLabel(user.role)}
-                        </Badge>
-                      ) : (
-                        <Select
-                          value={user.role}
-                          onValueChange={(v) =>
-                            handleRoleChange(user.id, v as UserRole)
-                          }
-                        >
-                          <SelectTrigger size="sm" className="h-7 w-[100px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="viewer">Viewer</SelectItem>
-                            <SelectItem value="editor">Editor</SelectItem>
-                            <SelectItem value="admin">Admin</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </div>
-
-                    {/* Last sign in */}
-                    <p className="text-xs text-muted-foreground">
-                      {formatDate(user.last_sign_in_at)}
-                    </p>
-
-                    {/* Actions */}
-                    <div>
-                      {!isSelf && (
-                        <AlertDialog>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="size-8"
-                                aria-label={`Actions for ${user.display_name ?? user.email}`}
-                              >
-                                <MoreHorizontal className="size-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <AlertDialogTrigger asChild>
-                                <DropdownMenuItem className="text-destructive focus:text-destructive">
-                                  <Ban className="mr-2 size-4" />
-                                  Deactivate
-                                </DropdownMenuItem>
-                              </AlertDialogTrigger>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>
-                                Deactivate User
-                              </AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Are you sure you want to deactivate{' '}
-                                <strong>
-                                  {user.display_name ?? user.email}
-                                </strong>
-                                ? They will no longer be able to sign in.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDeactivate(user.id)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
-                                Deactivate
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </>
+          <div className="divide-y divide-border" role="list">
+            {users.map((user) => (
+              <TeamMemberRow
+                key={user.id}
+                user={user}
+                isSelf={user.id === currentUserId}
+                onRoleChange={handleRoleChange}
+                onDeactivate={handleDeactivate}
+              />
+            ))}
+          </div>
         )}
       </Card>
     </div>
