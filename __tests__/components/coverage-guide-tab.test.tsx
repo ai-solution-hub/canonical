@@ -21,6 +21,10 @@ const { mockFetch } = vi.hoisted(() => ({
 // Module mocks
 // ---------------------------------------------------------------------------
 
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 vi.mock('@/components/coverage/coverage-guide-card', () => ({
   CoverageGuideCard: ({ guide }: { guide: { id: string; title: string } }) => (
     <div data-testid={`guide-card-${guide.id}`}>{guide.title}</div>

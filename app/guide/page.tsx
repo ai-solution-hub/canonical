@@ -1,9 +1,9 @@
-import { redirect } from 'next/navigation';
+import { permanentRedirect } from 'next/navigation';
 
 /**
  * /guide listing route consolidated into /coverage?tab=guides (P1-28).
  * The /guide/[slug] reader route is preserved.
  */
 export default function GuidesPage() {
-  redirect('/coverage?tab=guides');
+  permanentRedirect('/coverage?tab=guides');
 }
