@@ -34,9 +34,13 @@ vi.mock('next/headers', () => ({
   }),
 }));
 
-// Mock editor-utils for word counting
+// Mock editor-utils for word counting (route uses countWords(stripMarkdown(...)))
 vi.mock('@/lib/editor-utils', () => ({
-  countWordsFromHtml: vi.fn().mockReturnValue(42),
+  countWords: vi.fn().mockReturnValue(42),
+}));
+
+vi.mock('@/lib/content/strip-markdown', () => ({
+  stripMarkdown: vi.fn((text: string) => text),
 }));
 
 // Suppress console.error noise
@@ -196,7 +200,7 @@ describe('Bid Responses API', () => {
         data: {
           id: RESPONSE_UUID,
           question_id: QUESTION_UUID,
-          response_text: '<p>Test response</p>',
+          response_text: 'Test response',
           response_text_advanced: null,
           source_content_ids: [],
           metadata: {},
@@ -235,7 +239,7 @@ describe('Bid Responses API', () => {
       const body = await response.json();
       expect(body.id).toBe(RESPONSE_UUID);
       expect(body.question.question_text).toBe('What is your approach?');
-      expect(body.response_text).toBe('<p>Test response</p>');
+      expect(body.response_text).toBe('Test response');
       expect(body.review_status).toBe('draft');
     });
   });
@@ -337,7 +341,7 @@ describe('Bid Responses API', () => {
         data: {
           id: RESPONSE_UUID,
           question_id: QUESTION_UUID,
-          response_text: '<p>Updated response</p>',
+          response_text: '## Updated response\n\nWith markdown formatting.',
           response_text_advanced: null,
           review_status: 'edited',
           version: 2,
@@ -353,7 +357,7 @@ describe('Bid Responses API', () => {
         {
           method: 'PATCH',
           body: {
-            response_text: '<p>Updated response</p>',
+            response_text: '## Updated response\n\nWith markdown formatting.',
             review_status: 'edited',
           },
         },
@@ -365,7 +369,9 @@ describe('Bid Responses API', () => {
       expect(response.status).toBe(200);
 
       const body = await response.json();
-      expect(body.response_text).toBe('<p>Updated response</p>');
+      expect(body.response_text).toBe(
+        '## Updated response\n\nWith markdown formatting.',
+      );
       expect(body.review_status).toBe('edited');
     });
 
@@ -393,7 +399,7 @@ describe('Bid Responses API', () => {
         data: {
           id: RESPONSE_UUID,
           question_id: QUESTION_UUID,
-          response_text: '<p>Admin update</p>',
+          response_text: 'Admin update with **bold** text',
           response_text_advanced: null,
           review_status: 'approved',
           version: 3,
@@ -409,7 +415,7 @@ describe('Bid Responses API', () => {
         {
           method: 'PATCH',
           body: {
-            response_text: '<p>Admin update</p>',
+            response_text: 'Admin update with **bold** text',
             review_status: 'approved',
           },
         },
@@ -472,6 +478,70 @@ describe('Bid Responses API', () => {
       expect(mockSupabase._chain.update).toHaveBeenCalled();
       const updateArg = mockSupabase._chain.update.mock.calls[0][0];
       expect(updateArg.last_edited_by).toBe('test-user-id');
+    });
+
+    it('computes word count via countWords(stripMarkdown(response_text))', async () => {
+      configureRole(mockSupabase, 'editor');
+
+      // First .single(): fetch existing response
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: {
+          id: RESPONSE_UUID,
+          question_id: QUESTION_UUID,
+          metadata: {},
+        },
+        error: null,
+      });
+
+      // .maybeSingle(): verify question belongs to bid
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+        data: { id: QUESTION_UUID, word_limit: 500 },
+        error: null,
+      });
+
+      // Second .single(): update result
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: {
+          id: RESPONSE_UUID,
+          question_id: QUESTION_UUID,
+          response_text: '## Heading\n\n**Bold** paragraph',
+          response_text_advanced: null,
+          review_status: 'edited',
+          version: 2,
+          last_edited_by: 'test-user-id',
+          approved_by: null,
+          updated_at: '2026-03-01T00:00:00Z',
+        },
+        error: null,
+      });
+
+      const markdownInput = '## Heading\n\n**Bold** paragraph';
+      const request = createTestRequest(
+        `/api/bids/${BID_UUID}/responses/${RESPONSE_UUID}`,
+        {
+          method: 'PATCH',
+          body: {
+            response_text: markdownInput,
+            review_status: 'edited',
+          },
+        },
+      );
+
+      await patchResponse(request, {
+        params: createTestParams({ id: BID_UUID, rId: RESPONSE_UUID }),
+      });
+
+      // Verify stripMarkdown was called with the raw markdown
+      const { stripMarkdown } = await import('@/lib/content/strip-markdown');
+      expect(stripMarkdown).toHaveBeenCalledWith(markdownInput);
+
+      // Verify countWords was called with the stripped result
+      const { countWords } = await import('@/lib/editor-utils');
+      expect(countWords).toHaveBeenCalled();
+
+      // Verify the word count (42 from mock) was stored in metadata
+      const updateArg = mockSupabase._chain.update.mock.calls[0][0];
+      expect(updateArg.metadata.quality_data.word_count).toBe(42);
     });
 
     it('returns 400 for invalid review_status value', async () => {

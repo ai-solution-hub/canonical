@@ -412,7 +412,8 @@ describe('Bid Drafting Pipeline', () => {
 
   describe('Pass 3: Deterministic quality checks', () => {
     it('detects word count over limit', () => {
-      const longText = '<p>' + 'word '.repeat(600) + '</p>';
+      // Plain markdown: 600 repetitions of 'word' = 600 words
+      const longText = Array(600).fill('word').join(' ');
       const { wordCount, issues } = runDeterministicChecks(
         longText,
         [],
@@ -427,7 +428,7 @@ describe('Bid Drafting Pipeline', () => {
     });
 
     it('warns when word count is below 70% of limit', () => {
-      const shortText = '<p>' + 'word '.repeat(100) + '</p>';
+      const shortText = Array(100).fill('word').join(' ');
       const { issues } = runDeterministicChecks(
         shortText,
         [],
@@ -441,7 +442,7 @@ describe('Bid Drafting Pipeline', () => {
     });
 
     it('warns when no citations despite available content', () => {
-      const text = '<p>' + 'word '.repeat(400) + '</p>';
+      const text = Array(400).fill('word').join(' ');
       const { issues } = runDeterministicChecks(
         text,
         [],
@@ -469,7 +470,7 @@ describe('Bid Drafting Pipeline', () => {
     });
 
     it('passes when word count is within limit with citations', () => {
-      const text = '<p>' + 'word '.repeat(450) + '</p>';
+      const text = Array(450).fill('word').join(' ');
       const citations = [
         {
           cited_text: 'test',
@@ -492,7 +493,7 @@ describe('Bid Drafting Pipeline', () => {
     });
 
     it('handles null word limit (no compliance check)', () => {
-      const text = '<p>' + 'word '.repeat(1000) + '</p>';
+      const text = Array(1000).fill('word').join(' ');
       const { issues } = runDeterministicChecks(
         text,
         [],
