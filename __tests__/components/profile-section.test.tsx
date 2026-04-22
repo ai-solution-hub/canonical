@@ -55,6 +55,13 @@ vi.mock('@/hooks/use-user-role', () => ({
   useUserRole: () => mockUseUserRole,
 }));
 
+// Mock NotificationPreferences to avoid QueryClientProvider dependency
+vi.mock('@/components/settings/notification-preferences', () => ({
+  NotificationPreferences: () => (
+    <div data-testid="notification-preferences">Notifications</div>
+  ),
+}));
+
 import { ProfileSection } from '@/components/settings/profile-section';
 
 // ---------------------------------------------------------------------------

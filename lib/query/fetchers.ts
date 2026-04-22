@@ -60,6 +60,48 @@ export async function fetchTaxonomySyncStatus(): Promise<TaxonomySyncStatus> {
   return fetchJson<TaxonomySyncStatus>('/api/admin/taxonomy-sync/status');
 }
 
+// ---------------------------------------------------------------------------
+// Notification preferences
+// ---------------------------------------------------------------------------
+
+/** Shape returned by GET/PUT /api/notifications/preferences */
+export interface NotificationPreferences {
+  email_weekly_change_report: boolean;
+  email_review_assigned: boolean;
+  email_owned_content_flagged: boolean;
+  updated_at: string | null;
+}
+
+/** Fetch the current user's notification preferences. */
+export async function fetchNotificationPreferences(): Promise<NotificationPreferences> {
+  const result = await fetchJson<{ preferences: NotificationPreferences }>(
+    '/api/notifications/preferences',
+  );
+  return result.preferences;
+}
+
+/** Update one or more notification preference booleans. */
+export async function updateNotificationPreferences(
+  body: Partial<
+    Pick<
+      NotificationPreferences,
+      | 'email_weekly_change_report'
+      | 'email_review_assigned'
+      | 'email_owned_content_flagged'
+    >
+  >,
+): Promise<NotificationPreferences> {
+  const result = await fetchJson<{ preferences: NotificationPreferences }>(
+    '/api/notifications/preferences',
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+  );
+  return result.preferences;
+}
+
 export async function mutationFetchJson<T>(
   url: string,
   body: unknown,

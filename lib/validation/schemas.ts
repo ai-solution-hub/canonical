@@ -1756,3 +1756,25 @@ export const VerificationHistoryExportParamsSchema = z
     },
     { message: 'Maximum export window is 365 days' },
   );
+
+// ──────────────────────────────────────────
+// Notification Preferences
+// ──────────────────────────────────────────
+
+/**
+ * PUT body for /api/notifications/preferences.
+ *
+ * At least one field must be provided. All fields are optional booleans
+ * (partial update). Unknown fields are rejected via `.strict()`.
+ */
+export const NotificationPreferencesPutBodySchema = z
+  .object({
+    email_weekly_change_report: z.boolean().optional(),
+    email_review_assigned: z.boolean().optional(),
+    email_owned_content_flagged: z.boolean().optional(),
+  })
+  .strict()
+  .refine(
+    (data) => Object.keys(data).length > 0,
+    { message: 'At least one preference field is required' },
+  );

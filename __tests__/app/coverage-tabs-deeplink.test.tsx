@@ -38,6 +38,17 @@ vi.mock('@/components/ui/concept-help', () => ({
   ConceptHelp: () => null,
 }));
 
+// P1-11: coverage-tabs now imports useUserRole for access gating.
+// Mock as editor so deep-link tests continue to exercise tab selection.
+vi.mock('@/hooks/use-user-role', () => ({
+  useUserRole: () => ({
+    role: 'editor',
+    loading: false,
+    canEdit: true,
+    canAdmin: false,
+  }),
+}));
+
 // Stub out the child tab components so we only test the routing logic.
 // CoverageContent is imported via relative path in coverage-tabs.tsx, so
 // mock the absolute module path that Vitest resolves.
