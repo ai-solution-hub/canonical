@@ -155,6 +155,14 @@ function applyPostFilters(
     const layerValue = filters.layer;
     filtered = filtered.filter((r) => r.layer === layerValue);
   }
+  if (filters.source) {
+    const sourceValue = filters.source;
+    filtered = filtered.filter(
+      (r) =>
+        r.metadata &&
+        (r.metadata as Record<string, unknown>).source === sourceValue,
+    );
+  }
 
   return filtered;
 }
@@ -355,6 +363,11 @@ function buildBrowseQuery(
 
   if (filters.user_tags?.length) {
     query = query.overlaps('user_tags', filters.user_tags);
+  }
+
+  // Source filter (metadata JSONB path)
+  if (filters.source) {
+    query = query.eq('metadata->>source' as 'metadata', filters.source);
   }
 
   // Owner filter

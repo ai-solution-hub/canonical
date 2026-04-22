@@ -14,6 +14,7 @@ import {
   BarChart3,
   BookOpen,
   Newspaper,
+  FileBarChart,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SearchBar } from '@/components/browse/search-bar';
@@ -51,6 +52,12 @@ const NAV_LINKS = [
     href: '/workspaces',
     label: 'Workspaces',
     icon: Briefcase,
+    requiresEdit: false,
+  },
+  {
+    href: '/digest',
+    label: 'Change Reports',
+    icon: FileBarChart,
     requiresEdit: false,
   },
   {

@@ -230,6 +230,18 @@ export function FilterBadges() {
     });
   }
 
+  if (filters.source) {
+    const sourceLabels: Record<string, string> = {
+      intelligence_pipeline: 'Sector intelligence',
+    };
+    badges.push({
+      id: 'source',
+      label: 'Source',
+      value: sourceLabels[filters.source] ?? filters.source,
+      onRemove: () => removeFilter('source'),
+    });
+  }
+
   if (filters.owner) {
     const ownerLabels: Record<string, string> = {
       me: 'My content',

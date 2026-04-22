@@ -102,6 +102,23 @@ function StarToggle({
   );
 }
 
+/** Source intelligence badge (shown when metadata.source === 'intelligence_pipeline') */
+function SourceIntelligenceBadge({
+  metadata,
+}: {
+  metadata?: Record<string, unknown> | null;
+}) {
+  if (!metadata || metadata.source !== 'intelligence_pipeline') return null;
+  return (
+    <span
+      className="inline-flex items-center rounded-full border border-source-si-border bg-source-si-bg px-1.5 py-0 text-[10px] font-medium text-source-si-text"
+      title="From sector intelligence pipeline"
+    >
+      SI
+    </span>
+  );
+}
+
 /** Layer badge (shown when content_layers feature is enabled) */
 function LayerBadge({ layer }: { layer?: string | null }) {
   const { getLayerLabel } = useLayerVocabulary();
@@ -116,7 +133,7 @@ function LayerBadge({ layer }: { layer?: string | null }) {
   );
 }
 
-/** Header row: content type icon, domain badge, layer badge, unread dot, quick assign, star */
+/** Header row: content type icon, domain badge, layer badge, SI badge, unread dot, quick assign, star */
 function CardHeaderRow({
   item,
   isRead,
@@ -141,6 +158,7 @@ function CardHeaderRow({
       <ContentTypeIcon contentType={item.content_type} size="size-5" />
       <DomainBadge domain={item.primary_domain ?? ''} />
       <LayerBadge layer={item.layer} />
+      <SourceIntelligenceBadge metadata={item.metadata} />
       <div className="ml-auto flex items-center gap-1">
         <UnreadDot isRead={isRead} />
         {activeWorkspaces && assignedWorkspaceIds && (
@@ -461,6 +479,7 @@ export const ContentCard = memo(function ContentCard({
               </Badge>
             )}
             <LayerBadge layer={item.layer} />
+            <SourceIntelligenceBadge metadata={item.metadata} />
             <div className="ml-auto flex items-center gap-1">
               <UnreadDot isRead={isRead} />
               {activeWorkspaces && assignedWorkspaceIds && (
@@ -647,6 +666,7 @@ export const ContentCard = memo(function ContentCard({
             <>
               <DomainBadge domain={item.primary_domain ?? ''} />
               <LayerBadge layer={item.layer} />
+              <SourceIntelligenceBadge metadata={item.metadata} />
             </>
           }
           actionSlot={actionSlot}

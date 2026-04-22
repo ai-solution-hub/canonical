@@ -1,8 +1,8 @@
 /**
  * FilterBar Component Tests
  *
- * Tests the FilterBar component — view mode toggle, sort controls,
- * filter button with active count, and overflow menu interactions.
+ * Tests the FilterBar component — Display dropdown (view mode, unread toggle,
+ * multi-select, thumbnails), sort controls, and filter button with active count.
  */
 import { describe, it, expect, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -66,44 +66,9 @@ function makeProps(overrides: FilterBarTestProps = {}) {
 // ---------------------------------------------------------------------------
 
 describe('FilterBar', () => {
-  it('renders view mode toggle buttons', () => {
+  it('renders the Display dropdown trigger', () => {
     render(<FilterBar {...makeProps()} />);
-    expect(
-      screen.getByRole('button', { name: 'Grid view' }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: 'List view' }),
-    ).toBeInTheDocument();
-  });
-
-  it('marks the active view mode button as pressed', () => {
-    render(<FilterBar {...makeProps({ viewMode: 'list' })} />);
-    expect(screen.getByRole('button', { name: 'List view' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
-    expect(screen.getByRole('button', { name: 'Grid view' })).toHaveAttribute(
-      'aria-pressed',
-      'false',
-    );
-  });
-
-  it('calls onViewChange when grid button clicked', async () => {
-    const user = userEvent.setup();
-    const onViewChange = vi.fn();
-    render(<FilterBar {...makeProps({ viewMode: 'list', onViewChange })} />);
-
-    await user.click(screen.getByRole('button', { name: 'Grid view' }));
-    expect(onViewChange).toHaveBeenCalledWith('grid');
-  });
-
-  it('calls onViewChange when list button clicked', async () => {
-    const user = userEvent.setup();
-    const onViewChange = vi.fn();
-    render(<FilterBar {...makeProps({ viewMode: 'grid', onViewChange })} />);
-
-    await user.click(screen.getByRole('button', { name: 'List view' }));
-    expect(onViewChange).toHaveBeenCalledWith('list');
+    expect(screen.getByTestId('display-menu')).toBeInTheDocument();
   });
 
   it('renders the Filters button', () => {
@@ -133,18 +98,106 @@ describe('FilterBar', () => {
     expect(screen.queryByText('0')).not.toBeInTheDocument();
   });
 
-  it('renders the view mode group with correct role', () => {
+  // ── Display dropdown ──
+
+  it('Display dropdown shows view mode options (Grid + List)', async () => {
+    const user = userEvent.setup();
     render(<FilterBar {...makeProps()} />);
-    expect(
-      screen.getByRole('group', { name: 'View mode' }),
-    ).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('display-menu'));
+    expect(screen.getByText('Grid view')).toBeInTheDocument();
+    expect(screen.getByText('List view')).toBeInTheDocument();
   });
 
-  it('renders the More options overflow menu trigger', () => {
+  it('calls onViewChange(list) from Display dropdown', async () => {
+    const user = userEvent.setup();
+    const onViewChange = vi.fn();
+    render(<FilterBar {...makeProps({ viewMode: 'grid', onViewChange })} />);
+
+    await user.click(screen.getByTestId('display-menu'));
+    await user.click(screen.getByText('List view'));
+    expect(onViewChange).toHaveBeenCalledWith('list');
+  });
+
+  it('calls onViewChange(grid) from Display dropdown', async () => {
+    const user = userEvent.setup();
+    const onViewChange = vi.fn();
+    render(<FilterBar {...makeProps({ viewMode: 'list', onViewChange })} />);
+
+    await user.click(screen.getByTestId('display-menu'));
+    await user.click(screen.getByText('Grid view'));
+    expect(onViewChange).toHaveBeenCalledWith('grid');
+  });
+
+  it('Display dropdown shows unread toggle', async () => {
+    const user = userEvent.setup();
     render(<FilterBar {...makeProps()} />);
-    expect(
-      screen.getByRole('button', { name: 'More options' }),
-    ).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('display-menu'));
+    expect(screen.getByText('Show unread only')).toBeInTheDocument();
+  });
+
+  it('calls onToggleUnreadOnly from Display dropdown', async () => {
+    const user = userEvent.setup();
+    const onToggleUnreadOnly = vi.fn();
+    render(<FilterBar {...makeProps({ onToggleUnreadOnly })} />);
+
+    await user.click(screen.getByTestId('display-menu'));
+    await user.click(screen.getByText('Show unread only'));
+    expect(onToggleUnreadOnly).toHaveBeenCalledOnce();
+  });
+
+  it('Display dropdown shows "Show all items" when unread only is active', async () => {
+    const user = userEvent.setup();
+    render(<FilterBar {...makeProps({ showUnreadOnly: true })} />);
+
+    await user.click(screen.getByTestId('display-menu'));
+    expect(screen.getByText('Show all items')).toBeInTheDocument();
+  });
+
+  it('Display dropdown shows select items option', async () => {
+    const user = userEvent.setup();
+    render(<FilterBar {...makeProps()} />);
+
+    await user.click(screen.getByTestId('display-menu'));
+    expect(screen.getByText('Select items')).toBeInTheDocument();
+  });
+
+  it('calls onToggleMultiSelect from Display dropdown', async () => {
+    const user = userEvent.setup();
+    const onToggleMultiSelect = vi.fn();
+    render(<FilterBar {...makeProps({ onToggleMultiSelect })} />);
+
+    await user.click(screen.getByTestId('display-menu'));
+    await user.click(screen.getByText('Select items'));
+    expect(onToggleMultiSelect).toHaveBeenCalledOnce();
+  });
+
+  it('Display dropdown shows thumbnail toggle when in grid mode', async () => {
+    const user = userEvent.setup();
+    render(<FilterBar {...makeProps({ viewMode: 'grid' })} />);
+
+    await user.click(screen.getByTestId('display-menu'));
+    expect(screen.getByText('Hide thumbnails')).toBeInTheDocument();
+  });
+
+  it('Display dropdown hides thumbnail toggle when in list mode', async () => {
+    const user = userEvent.setup();
+    render(<FilterBar {...makeProps({ viewMode: 'list' })} />);
+
+    await user.click(screen.getByTestId('display-menu'));
+    expect(screen.queryByText('Hide thumbnails')).not.toBeInTheDocument();
+    expect(screen.queryByText('Show thumbnails')).not.toBeInTheDocument();
+  });
+
+  it('shows checkmark on active view mode in Display dropdown', async () => {
+    const user = userEvent.setup();
+    render(<FilterBar {...makeProps({ viewMode: 'grid' })} />);
+
+    await user.click(screen.getByTestId('display-menu'));
+    // The grid view item should have the checkmark
+    const gridItem = screen.getByText('Grid view').closest('[role="menuitem"]');
+    expect(gridItem?.querySelector('[aria-label="Active"]')).toBeTruthy();
   });
 
   // -------------------------------------------------------------------------

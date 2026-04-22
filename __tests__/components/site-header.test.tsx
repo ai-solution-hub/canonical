@@ -101,6 +101,9 @@ describe('SiteHeader', () => {
     expect(screen.getAllByText('Q&A Library').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Coverage').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Workspaces').length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getAllByText('Change Reports').length,
+    ).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Review').length).toBeGreaterThanOrEqual(1);
   });
 
@@ -229,6 +232,21 @@ describe('SiteHeader', () => {
     expect(
       within(mobileNav).getByTestId('sign-out-button-mobile'),
     ).toBeInTheDocument();
+  });
+
+  // ── D-61: /digest in NAV_LINKS ──
+
+  it('/digest (Change Reports) is present in NAV_LINKS with requiresEdit: false', () => {
+    // Even viewers should see the Change Reports link
+    mockUserRole.role = 'viewer';
+    mockUserRole.canEdit = false;
+    mockUserRole.loading = false;
+    render(<SiteHeader />);
+
+    const nav = screen.getByLabelText('Main navigation');
+    const changeReportsLink = within(nav).getByText('Change Reports');
+    expect(changeReportsLink).toBeInTheDocument();
+    expect(changeReportsLink.closest('a')).toHaveAttribute('href', '/digest');
   });
 
   it('no longer exposes a direct "Claude" link in the header or drawer', async () => {

@@ -5,7 +5,17 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import { toast } from 'sonner';
-import { Upload, Plus, Loader2, Search, AlertCircle } from 'lucide-react';
+import {
+  Plus,
+  Loader2,
+  Search,
+  AlertCircle,
+  PenLine,
+  Link2,
+  Upload,
+  FileSpreadsheet,
+  ChevronDown,
+} from 'lucide-react';
 import { ClaudePromptButton } from '@/components/content/claude-prompt-button';
 import { generateIngestDocumentPrompt } from '@/lib/claude-prompts';
 import { ContentGrid } from '@/components/content/content-grid';
@@ -20,6 +30,13 @@ import { SavePresetDialog } from '@/components/browse/save-preset-dialog';
 import { ManagePresetsDialog } from '@/components/browse/manage-presets-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useKeyboardShortcuts } from '@/hooks/ui/use-keyboard-shortcuts';
 import { useViewMode } from '@/hooks/ui/use-view-mode';
 import { useReadMarks } from '@/contexts/read-marks-context';
@@ -369,27 +386,55 @@ export function BrowseContent() {
         {/* Controls */}
         <div className="flex items-center gap-2">
           {canEdit && (
-            <>
-              <Button variant="default" size="sm" asChild className="gap-1.5">
-                <Link href="/item/new">
-                  <Plus className="size-3.5" />
-                  New Content
-                </Link>
-              </Button>
-              <Button variant="outline" size="sm" asChild className="gap-1.5">
-                <Link href="/item/new?tab=upload">
-                  <Upload className="size-3.5" />
-                  Upload
-                </Link>
-              </Button>
-              <span className="hidden md:inline-flex">
-                <ClaudePromptButton
-                  prompt={generateIngestDocumentPrompt().prompt}
-                  label="Open in Claude"
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="default"
                   size="sm"
-                />
-              </span>
-            </>
+                  className="gap-1"
+                  data-testid="new-content-menu"
+                >
+                  <Plus className="size-3.5" />
+                  New
+                  <ChevronDown className="size-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link href="/item/new">
+                    <PenLine className="size-4" />
+                    Write content
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/item/new?tab=url">
+                    <Link2 className="size-4" />
+                    Import URL
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/item/new?tab=upload">
+                    <Upload className="size-4" />
+                    Upload file
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/item/new?tab=batch">
+                    <FileSpreadsheet className="size-4" />
+                    Batch Q&amp;A
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <div className="px-1 py-0.5">
+                  <ClaudePromptButton
+                    prompt={generateIngestDocumentPrompt().prompt}
+                    label="Open in Claude"
+                    size="sm"
+                    className="w-full justify-start"
+                  />
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
           <FilterBar
             showUnreadOnly={showUnreadOnly}

@@ -288,6 +288,11 @@
   --color-relevance-irrelevant: oklch(0.95 0.03 20);
   --color-relevance-irrelevant-text: oklch(0.35 0.15 20);
 
+  /* Source intelligence badge */
+  --color-source-si-text: oklch(0.45 0.12 195);
+  --color-source-si-bg: oklch(0.93 0.04 195);
+  --color-source-si-border: oklch(0.8 0.06 195);
+
   /* Draft / publish action colours */
   --color-draft-badge-bg: oklch(0.93 0.04 70);
   --color-draft-badge-text: oklch(0.5 0.14 70);
@@ -580,6 +585,11 @@
   --color-relevance-irrelevant: oklch(0.25 0.05 20);
   --color-relevance-irrelevant-text: oklch(0.8 0.12 20);
 
+  /* Source intelligence badge (dark) */
+  --color-source-si-text: oklch(0.75 0.1 195);
+  --color-source-si-bg: oklch(0.25 0.04 195);
+  --color-source-si-border: oklch(0.35 0.06 195);
+
   /* Draft / publish action colours (dark) */
   --color-draft-badge-bg: oklch(0.25 0.04 70);
   --color-draft-badge-text: oklch(0.75 0.12 70);
@@ -789,6 +799,10 @@
   --color-relevance-low-text: var(--color-relevance-low-text);
   --color-relevance-irrelevant: var(--color-relevance-irrelevant);
   --color-relevance-irrelevant-text: var(--color-relevance-irrelevant-text);
+
+  --color-source-si-text: var(--color-source-si-text);
+  --color-source-si-bg: var(--color-source-si-bg);
+  --color-source-si-border: var(--color-source-si-border);
 
   --color-draft-badge-bg: var(--color-draft-badge-bg);
   --color-draft-badge-text: var(--color-draft-badge-text);

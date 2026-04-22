@@ -37,6 +37,13 @@ const SYSTEM_PRESETS: FilterPreset[] = [
     isSystem: true,
     createdAt: '2026-01-01T00:00:00.000Z',
   },
+  {
+    id: 'system-si',
+    name: 'Sector intelligence',
+    params: 'source=intelligence_pipeline',
+    isSystem: true,
+    createdAt: '2026-01-01T00:00:00.000Z',
+  },
 ];
 
 // ---------------------------------------------------------------------------
