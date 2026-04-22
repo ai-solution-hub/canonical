@@ -12,7 +12,6 @@ import {
   Settings,
   ShieldCheck,
   BarChart3,
-  BookOpen,
   Newspaper,
   FileBarChart,
 } from 'lucide-react';
@@ -47,7 +46,6 @@ const NAV_LINKS = [
     icon: BarChart3,
     requiresEdit: false,
   },
-  { href: '/guide', label: 'Guides', icon: BookOpen, requiresEdit: false },
   {
     href: '/workspaces',
     label: 'Workspaces',

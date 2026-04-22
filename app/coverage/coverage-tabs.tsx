@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import {
   BarChart3,
   BookOpen,
@@ -15,14 +16,49 @@ import { CoverageGuideTab } from '@/components/coverage/coverage-guide-tab';
 import { PriorityGapsTab } from '@/components/coverage/priority-gaps-tab';
 
 // ---------------------------------------------------------------------------
+// Valid tab values — used to validate the ?tab= query param
+// ---------------------------------------------------------------------------
+
+const VALID_TABS = new Set([
+  'priority-gaps',
+  'taxonomy',
+  'templates',
+  'guides',
+]);
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
 export function CoveragePageTabs() {
-  const [activeTab, setActiveTab] = useState('priority-gaps');
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const tabParam = searchParams.get('tab');
+  const initialTab =
+    tabParam && VALID_TABS.has(tabParam) ? tabParam : 'priority-gaps';
+
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  const handleTabChange = useCallback(
+    (value: string) => {
+      setActiveTab(value);
+      // Persist the tab selection in the URL for deep-linking
+      const params = new URLSearchParams(searchParams.toString());
+      if (value === 'priority-gaps') {
+        params.delete('tab');
+      } else {
+        params.set('tab', value);
+      }
+      const qs = params.toString();
+      router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+    },
+    [searchParams, router, pathname],
+  );
 
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab}>
+    <Tabs value={activeTab} onValueChange={handleTabChange}>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="flex items-center gap-1.5 text-xl font-semibold text-foreground">

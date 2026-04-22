@@ -36,7 +36,7 @@ export default function GuideDetailError({
           Try again
         </Button>
         <Button asChild variant="ghost">
-          <Link href="/guide">Back to Guides</Link>
+          <Link href="/coverage?tab=guides">Back to Guides</Link>
         </Button>
       </div>
     </div>
