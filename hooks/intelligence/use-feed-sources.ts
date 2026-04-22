@@ -10,7 +10,7 @@ export interface FeedSource {
   workspace_id: string;
   name: string;
   url: string;
-  source_type: 'rss' | 'web' | 'api';
+  source_type?: 'rss' | 'web' | 'api';
   polling_interval_minutes: number;
   is_active: boolean;
   last_polled_at: string | null;

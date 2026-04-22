@@ -346,11 +346,11 @@ describe('Intelligence Feed Sources API', () => {
         },
       );
       expect(insertCall).toBeDefined();
-      // The 360 default only applies when raw body omits polling_interval_minutes
-      // With explicit 120, it should pass through (Zod schema default + spread)
+      // The 360 default only applies when raw body omits polling_interval_minutes.
+      // With explicit 120, the route handler preserves it (Zod schema + raw check).
       expect(
         (insertCall![0] as Record<string, unknown>).polling_interval_minutes,
-      ).not.toBe(360);
+      ).toBe(120);
     });
 
     it('does NOT apply 360-min default for RSS source (T17)', async () => {

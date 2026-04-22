@@ -64,7 +64,7 @@ describe('pollWebSource', () => {
   });
 
   // T1: Happy path — Firecrawl returns HTML with metadata
-  it('returns a ParsedFeedItem with correct title, markdown content, pub_date, and guid', async () => {
+  it('returns a ParsedFeedItem with raw HTML in contentEncoded (Option C: poller produces HTML)', async () => {
     mockScrape.mockResolvedValueOnce({
       html: '<h1>Hello</h1><p>World</p>',
       metadata: {
@@ -82,11 +82,9 @@ describe('pollWebSource', () => {
     expect(item.title).toBe('Example');
     expect(item.guid).toBe('https://example.com/page');
     expect(item.publishedAt).toBe('2026-04-01');
-    // Turndown converts <h1> to # and <p> to plain text
-    expect(item.contentEncoded).toContain('# Hello');
+    // Option C: contentEncoded is raw HTML (extractContent does the Turndown)
+    expect(item.contentEncoded).toContain('<h1>Hello</h1>');
     expect(item.contentEncoded).toContain('World');
-    // F-1 regression: no backslash-escaped heading
-    expect(item.contentEncoded).not.toContain('\\#');
 
     // Verify Firecrawl was called with correct args
     expect(mockScrape).toHaveBeenCalledWith(
@@ -169,8 +167,8 @@ describe('pollWebSource', () => {
     expect(result.items).toHaveLength(0);
   });
 
-  // T6: F-1 regression — Turndown output must not double-escape headings or mangle links
-  it('produces clean markdown without double-escaped headings or mangled links (F-1)', async () => {
+  // T6: F-1 regression — Option C stores raw HTML; no Turndown in poller means no escape risk
+  it('stores raw HTML in contentEncoded (F-1 prevention via Option C: no Turndown in poller)', async () => {
     mockScrape.mockResolvedValueOnce({
       html: '<h1>Heading</h1><a href="/x">link</a>',
       metadata: { title: 'F-1 Test' },
@@ -179,17 +177,13 @@ describe('pollWebSource', () => {
     const result = await pollWebSource(webSource);
     expect(result.status).toBe('success');
 
-    const markdown = result.items[0].contentEncoded!;
-    // Must contain proper ATX heading
-    expect(markdown).toContain('# Heading');
-    // Must contain proper link syntax
-    expect(markdown).toContain('[link]');
-    expect(markdown).toContain('(/x)');
-    // Must NOT contain escaped heading marker
-    expect(markdown).not.toContain('\\#');
-    // Must NOT contain mangled link syntax
-    expect(markdown).not.toContain('\\[');
-    expect(markdown).not.toContain('\\]');
+    const content = result.items[0].contentEncoded!;
+    // Option C: raw HTML is passed through — extractContent does the single Turndown
+    expect(content).toContain('<h1>Heading</h1>');
+    expect(content).toContain('<a href="/x">link</a>');
+    // Must NOT contain any markdown (Turndown is NOT called in pollWebSource)
+    expect(content).not.toContain('# Heading');
+    expect(content).not.toContain('\\#');
   });
 });
 
@@ -254,6 +248,71 @@ describe('validateWebUrl', () => {
     await expect(
       validateWebUrl('https://example.com/binary'),
     ).rejects.toThrow(/expected HTML content-type/);
+  });
+
+  // T11-L1a: 501 on HEAD -> falls back to ranged GET
+  it('falls back to ranged GET when HEAD returns 501 (Not Implemented)', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 501,
+      headers: new Headers({}),
+    });
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
+    });
+
+    await expect(validateWebUrl('https://example.com/page')).resolves.toBeUndefined();
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFetch.mock.calls[0][1]).toMatchObject({ method: 'HEAD' });
+    expect(mockFetch.mock.calls[1][1]).toMatchObject({ method: 'GET' });
+  });
+
+  // T11-L1b: 403 on HEAD -> falls back to ranged GET
+  it('falls back to ranged GET when HEAD returns 403 (Forbidden)', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      headers: new Headers({}),
+    });
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
+    });
+
+    await expect(validateWebUrl('https://example.com/page')).resolves.toBeUndefined();
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFetch.mock.calls[0][1]).toMatchObject({ method: 'HEAD' });
+    expect(mockFetch.mock.calls[1][1]).toMatchObject({ method: 'GET' });
+  });
+
+  // T11-M3a: Content-Length: 0 -> throws empty body error
+  it('throws when Content-Length is explicitly 0 (empty body, M-3)', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({
+        'content-type': 'text/html; charset=utf-8',
+        'content-length': '0',
+      }),
+    });
+
+    await expect(validateWebUrl('https://example.com/empty')).rejects.toThrow(
+      /Content-Length is 0/,
+    );
+  });
+
+  // T11-M3b: Missing Content-Length header does NOT reject (streaming)
+  it('does not reject when Content-Length header is missing (streaming response)', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'text/html' }),
+    });
+
+    await expect(validateWebUrl('https://example.com/stream')).resolves.toBeUndefined();
   });
 
   // T11: 405 on HEAD -> falls back to ranged GET, succeeds if GET path works

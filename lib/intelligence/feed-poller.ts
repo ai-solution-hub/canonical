@@ -3,7 +3,6 @@ import Parser from 'rss-parser';
 import type { ParsedFeedItem, PollResult } from './types';
 import { FEED_FETCH_TIMEOUT_MS } from './types';
 import { RateLimitError, getGlobalRateLimiter } from './rate-limiter';
-import { turndown } from '@/lib/extraction/turndown';
 
 const USER_AGENT =
   'KnowledgeHub/1.0 (+https://knowledge-hub-seven-kappa.vercel.app)';
@@ -276,8 +275,9 @@ export async function validateWebUrl(url: string): Promise<void> {
       redirect: 'follow',
     });
 
-    // Some servers reject HEAD with 405 — fall back to ranged GET
-    if (response.status === 405) {
+    // Some servers reject HEAD with 405, 501 (Not Implemented), or 403
+    // (Forbidden for HEAD but serve GET correctly) — fall back to ranged GET
+    if ([405, 501, 403].includes(response.status)) {
       response = await fetch(url, {
         method: 'GET',
         headers: {
@@ -306,6 +306,16 @@ export async function validateWebUrl(url: string): Promise<void> {
   if (!isHtml) {
     throw new Error(
       `Web URL validation failed for ${url}: expected HTML content-type but got '${contentType}'`,
+    );
+  }
+
+  // M-3: Defence-in-depth — reject explicitly empty responses.
+  // Only check when Content-Length header is present (streaming responses
+  // omit it, so absence is NOT a rejection signal).
+  const contentLength = response.headers.get('content-length');
+  if (contentLength !== null && contentLength === '0') {
+    throw new Error(
+      `Web URL validation failed for ${url}: Content-Length is 0 (empty body)`,
     );
   }
 }
@@ -345,19 +355,20 @@ export async function pollWebSource(source: WebSourceRef): Promise<PollResult> {
       throw new Error('Firecrawl returned no HTML body');
     }
 
-    // 3. Convert HTML to markdown via Turndown (same service used by content-extractor)
-    const markdown = turndown.turndown(doc.html).trim();
-
     const metadata = (doc.metadata ?? {}) as Record<string, string | undefined>;
 
-    // 4. Synthesise a single ParsedFeedItem
+    // 3. Synthesise a single ParsedFeedItem with RAW HTML in contentEncoded.
+    // Option C (F-1 fix): pollers always produce HTML in contentEncoded,
+    // and extractContent does the single Turndown conversion — consistent
+    // with the RSS path. Avoids the double-Turndown regression where
+    // pollWebSource converts to markdown and extractContent converts again.
     const item: ParsedFeedItem = {
       title: normaliseFeedTitle(metadata.title) || source.name || source.url,
       url: source.url,
       guid: source.url, // guid === url for web sources (one page per source)
       publishedAt: metadata.publishedTime ?? new Date().toISOString(),
       summary: metadata.description ?? null,
-      contentEncoded: markdown, // pre-converted markdown in contentEncoded slot
+      contentEncoded: doc.html, // raw HTML — extractContent handles Turndown
       categories: [],
     };
 
