@@ -173,15 +173,6 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
 
           {/* ── Secondary filters (visible by default, collapsed sections) ── */}
 
-          <PlatformFilter
-            selectedPlatforms={draft.platforms}
-            counts={counts.platform}
-            onToggle={handlePlatformToggle}
-            defaultOpen={false}
-          />
-
-          <Separator className="my-3" />
-
           <AuthorFilter
             selectedAuthors={draft.authors}
             authorSearch={authorSearch}
@@ -211,6 +202,14 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
 
           {advancedOpen && (
             <div>
+              <PlatformFilter
+                selectedPlatforms={draft.platforms}
+                counts={counts.platform}
+                onToggle={handlePlatformToggle}
+                defaultOpen={false}
+              />
+
+              <Separator className="my-3" />
               {entityTypeCounts.length > 0 && (
                 <>
                   <FilterSection title="Entity Type" defaultOpen={false}>

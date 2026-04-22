@@ -216,9 +216,12 @@ describe('FilterPanel', () => {
     expect(screen.getByText('Content Type')).toBeInTheDocument();
   });
 
-  it('renders platform filter section', () => {
+  it('renders platform filter section inside Advanced', () => {
     render(<FilterPanel open={true} onOpenChange={mockOnOpenChange} />);
 
+    // Platform is now in the Advanced bucket — expand it first
+    expect(screen.queryByText('Platform')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /advanced/i }));
     expect(screen.getByText('Platform')).toBeInTheDocument();
   });
 
@@ -358,12 +361,13 @@ describe('FilterPanel', () => {
       expect(screen.queryByText('Date Range')).not.toBeInTheDocument();
     });
 
-    it('keeps Platform and Author in secondary position (visible by default)', () => {
+    it('keeps Author in secondary position (visible by default) and hides Platform behind Advanced', () => {
       render(<FilterPanel open={true} onOpenChange={mockOnOpenChange} />);
 
-      // Platform and Author are secondary — visible without Advanced
-      expect(screen.getByText('Platform')).toBeInTheDocument();
+      // Author is secondary — visible without Advanced
       expect(screen.getByText('Author')).toBeInTheDocument();
+      // Platform moved into Advanced bucket per audit 01a §P0-3
+      expect(screen.queryByText('Platform')).not.toBeInTheDocument();
     });
 
     it('shows Subtopic in the primary section when a single domain is selected', () => {
