@@ -583,6 +583,60 @@ describe('ReaderView', () => {
     });
   });
 
+  describe('P1-6 visual nesting — Classification Details admin-only guard', () => {
+    it('does not expose classification reasoning to viewers', () => {
+      render(
+        <ReaderView
+          data={createMockData({
+            canEdit: false,
+            canAdmin: false,
+            item: createMockItem({
+              classification_confidence: 0.95,
+              classification_reasoning: 'Detailed AI classification reasoning',
+            }),
+          })}
+          relatedItems={[]}
+        />,
+      );
+      expect(
+        screen.queryByText('Classification Details'),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('Detailed AI classification reasoning'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('does not expose classification reasoning to editors in reader mode', () => {
+      render(
+        <ReaderView
+          data={createMockData({
+            canEdit: true,
+            canAdmin: false,
+            item: createMockItem({
+              classification_reasoning: 'AI reasoning text should be hidden',
+            }),
+          })}
+          relatedItems={[]}
+        />,
+      );
+      expect(
+        screen.queryByText('AI reasoning text should be hidden'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('relationships section remains collapsible', () => {
+      render(<ReaderView data={createMockData()} relatedItems={[]} />);
+      expect(
+        screen.getByTestId('collapsible-relationships'),
+      ).toBeInTheDocument();
+    });
+
+    it('metadata sidebar remains collapsible', () => {
+      render(<ReaderView data={createMockData()} relatedItems={[]} />);
+      expect(screen.getByTestId('collapsible-metadata')).toBeInTheDocument();
+    });
+  });
+
   describe('freshness and metadata display', () => {
     it('displays FreshnessBadge when freshness is present', () => {
       render(

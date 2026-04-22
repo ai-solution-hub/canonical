@@ -508,4 +508,77 @@ describe('EditorView', () => {
       expect(screen.queryByTestId('thumbnail')).not.toBeInTheDocument();
     });
   });
+
+  describe('P1-6 visual nesting fixes', () => {
+    it('content section is always visible (not wrapped in a collapsible)', () => {
+      render(<EditorView data={createMockData()} relatedItems={[]} />);
+      // Content body should be in the DOM without a collapsible wrapper
+      const contentBody = screen.getByTestId('content-body');
+      expect(contentBody).toBeInTheDocument();
+      // No collapsible-content wrapper should exist
+      expect(
+        screen.queryByTestId('collapsible-content'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('content section has aria-label for accessibility', () => {
+      render(<EditorView data={createMockData()} relatedItems={[]} />);
+      // The content section should be a region with an accessible label
+      const contentSection = screen.getByRole('region', { name: 'Content' });
+      expect(contentSection).toBeInTheDocument();
+    });
+
+    it('relationships section remains collapsible', () => {
+      render(<EditorView data={createMockData()} relatedItems={[]} />);
+      // Relationships should still be inside a collapsible wrapper
+      expect(
+        screen.getByTestId('collapsible-relationships'),
+      ).toBeInTheDocument();
+    });
+
+    it('metadata sidebar remains collapsible', () => {
+      render(<EditorView data={createMockData()} relatedItems={[]} />);
+      // Metadata should still be inside a collapsible wrapper
+      expect(screen.getByTestId('collapsible-metadata')).toBeInTheDocument();
+    });
+
+    it('does not render Classification Details accordion (P0-3b admin-only policy)', () => {
+      render(
+        <EditorView
+          data={createMockData({
+            item: createMockItem({
+              classification_confidence: 0.95,
+              classification_reasoning: 'High confidence match for domain',
+            }),
+          })}
+          relatedItems={[]}
+        />,
+      );
+      // Classification Details and reasoning must not appear in the editor view
+      expect(
+        screen.queryByText('Classification Details'),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('High confidence match for domain'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('does not expose classification reasoning to non-admin editors', () => {
+      render(
+        <EditorView
+          data={createMockData({
+            canAdmin: false,
+            canEdit: true,
+            item: createMockItem({
+              classification_reasoning: 'Detailed AI reasoning text',
+            }),
+          })}
+          relatedItems={[]}
+        />,
+      );
+      expect(
+        screen.queryByText('Detailed AI reasoning text'),
+      ).not.toBeInTheDocument();
+    });
+  });
 });
