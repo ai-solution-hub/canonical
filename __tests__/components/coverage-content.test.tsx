@@ -14,7 +14,7 @@ import { mockTaxonomyContext } from '../helpers/mock-contexts';
 // vi.hoisted() — mock values referenced in vi.mock() factories
 // ---------------------------------------------------------------------------
 
-const { mockFetch, mockTaxonomy, mockUserRole } = vi.hoisted(() => ({
+const { mockFetch, mockTaxonomy, mockUserRole, mockCoverageTargets } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
   mockTaxonomy: {
     value: null as ReturnType<
@@ -23,6 +23,15 @@ const { mockFetch, mockTaxonomy, mockUserRole } = vi.hoisted(() => ({
   },
   mockUserRole: {
     value: { role: 'admin' as string, canAdmin: true, canEdit: true, loading: false },
+  },
+  mockCoverageTargets: {
+    value: {
+      targets: [] as Array<{ id: string; domain_id: string; metric_name: string; target_value: number; domain_name: string | null }>,
+      loading: false,
+      error: null,
+      saveTargets: vi.fn(),
+      refetch: vi.fn(),
+    },
   },
 }));
 
@@ -85,13 +94,7 @@ vi.mock('@/components/coverage/coverage-heatmap-view', () => ({
 }));
 
 vi.mock('@/hooks/use-coverage-targets', () => ({
-  useCoverageTargets: () => ({
-    targets: [],
-    loading: false,
-    error: null,
-    saveTargets: vi.fn(),
-    refetch: vi.fn(),
-  }),
+  useCoverageTargets: () => mockCoverageTargets.value,
 }));
 
 vi.mock('@/hooks/use-user-role', () => ({
@@ -176,6 +179,13 @@ describe('CoverageContent', () => {
     vi.clearAllMocks();
     mockTaxonomy.value = mockTaxonomyContext();
     mockUserRole.value = { role: 'admin', canAdmin: true, canEdit: true, loading: false };
+    mockCoverageTargets.value = {
+      targets: [],
+      loading: false,
+      error: null,
+      saveTargets: vi.fn(),
+      refetch: vi.fn(),
+    };
     vi.stubGlobal('fetch', mockFetch);
 
     // Clear localStorage store between tests
@@ -587,6 +597,118 @@ describe('CoverageContent', () => {
 
       expect(cardsBtn).toHaveAttribute('aria-pressed', 'false');
       expect(heatmapBtn).toHaveAttribute('aria-pressed', 'true');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Coverage targets empty state
+  // -------------------------------------------------------------------------
+
+  describe('coverage targets empty state', () => {
+    it('shows admin CTA when no targets exist and user is admin', async () => {
+      mockUserRole.value = { role: 'admin', canAdmin: true, canEdit: true, loading: false };
+      const data = createCoverageResponse();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(data),
+      });
+
+      render(<CoverageContent />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('coverage-summary-cards')).toBeInTheDocument();
+      });
+
+      expect(screen.getByText('No coverage targets set')).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          'Define target goals so you can track how current content measures up against what you need.',
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /create coverage target/i }),
+      ).toBeInTheDocument();
+    });
+
+    it('shows neutral message for non-admin when no targets exist', async () => {
+      mockUserRole.value = { role: 'editor', canAdmin: false, canEdit: true, loading: false };
+      const data = createCoverageResponse();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(data),
+      });
+
+      render(<CoverageContent />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('coverage-summary-cards')).toBeInTheDocument();
+      });
+
+      expect(
+        screen.getByText('No coverage targets configured yet.'),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: /create coverage target/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('shows neutral message for viewer when no targets exist', async () => {
+      mockUserRole.value = { role: 'viewer', canAdmin: false, canEdit: false, loading: false };
+      const data = createCoverageResponse();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(data),
+      });
+
+      render(<CoverageContent />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('coverage-summary-cards')).toBeInTheDocument();
+      });
+
+      expect(
+        screen.getByText('No coverage targets configured yet.'),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText('No coverage targets set'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('does not show empty state when targets exist', async () => {
+      mockCoverageTargets.value = {
+        targets: [
+          {
+            id: '00000000-0000-4000-8000-000000000010',
+            domain_id: '00000000-0000-4000-8000-000000000001',
+            metric_name: 'item_count',
+            target_value: 10,
+            domain_name: 'Corporate',
+          },
+        ],
+        loading: false,
+        error: null,
+        saveTargets: vi.fn(),
+        refetch: vi.fn(),
+      };
+
+      const data = createCoverageResponse();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(data),
+      });
+
+      render(<CoverageContent />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('coverage-summary-cards')).toBeInTheDocument();
+      });
+
+      expect(
+        screen.queryByText('No coverage targets set'),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('No coverage targets configured yet.'),
+      ).not.toBeInTheDocument();
     });
   });
 });

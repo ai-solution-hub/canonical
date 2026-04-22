@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { RefreshCw, LayoutGrid, Download, Grid3x3, Target } from 'lucide-react';
+import { RefreshCw, LayoutGrid, Download, Grid3x3, Target, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/empty-state/empty-state';
@@ -113,6 +113,52 @@ function CoverageEmpty({
       primaryCta={canEdit ? { label: 'Add content', href: '/item/new' } : undefined}
       headingLevel="h3"
     />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Coverage targets empty state
+// ---------------------------------------------------------------------------
+
+function CoverageTargetsEmpty({
+  canAdmin,
+  onCreateClick,
+}: {
+  canAdmin: boolean;
+  onCreateClick: () => void;
+}) {
+  if (canAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border px-6 py-10 text-center">
+        <Target
+          className="size-8 text-muted-foreground/50"
+          aria-hidden="true"
+        />
+        <div className="flex max-w-md flex-col gap-1">
+          <h3 className="text-base font-medium text-foreground">
+            No coverage targets set
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            Define target goals so you can track how current content measures up against what you need.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onCreateClick}
+          className="mt-1 gap-1.5"
+        >
+          <Plus className="size-3.5" aria-hidden="true" />
+          Create coverage target
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <p className="py-4 text-center text-sm text-muted-foreground">
+      No coverage targets configured yet.
+    </p>
   );
 }
 
@@ -387,10 +433,15 @@ export function CoverageContent() {
             <CoverageSummaryCards summary={data.summary} />
 
             {/* Coverage target progress */}
-            {targets.length > 0 && (
+            {targets.length > 0 ? (
               <CoverageTargetProgress
                 targets={targets}
                 coverageData={data.summary}
+              />
+            ) : (
+              <CoverageTargetsEmpty
+                canAdmin={canAdmin}
+                onCreateClick={() => setTargetEditorOpen(true)}
               />
             )}
 

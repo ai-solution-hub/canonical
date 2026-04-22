@@ -1,9 +1,14 @@
 'use client';
 
 import { useMemo } from 'react';
-import { CheckCircle, AlertTriangle } from 'lucide-react';
+import { CheckCircle, AlertTriangle, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import type { CoverageTargetRow } from '@/hooks/use-coverage-targets';
 import type { CoverageSummaryRow } from '@/components/coverage/coverage-summary-cards';
 
@@ -150,9 +155,25 @@ export function CoverageTargetProgress({
 
   return (
     <section aria-label="Coverage targets progress" className="space-y-4">
-      <h3 className="text-sm font-medium text-muted-foreground">
-        Coverage Targets
-      </h3>
+      <div className="flex items-center gap-1.5">
+        <h3 className="text-sm font-medium text-muted-foreground">
+          Target Goals
+        </h3>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label="What are target goals?"
+              className="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <HelpCircle className="size-4" aria-hidden="true" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-xs">
+            Minimum thresholds you want each domain to meet. Current content is measured against these goals.
+          </TooltipContent>
+        </Tooltip>
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {domainSummaries.map((domain) => (
@@ -193,7 +214,9 @@ export function CoverageTargetProgress({
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <span>{metric.label}</span>
                   <span>
-                    {metric.displayCurrent} / {metric.displayTarget}
+                    <span className="font-medium text-foreground" title="Current content">{metric.displayCurrent}</span>
+                    {' / '}
+                    <span title="Target goal">{metric.displayTarget}</span>
                     {metric.metric_name === 'max_expired' ? ' max' : ''}
                   </span>
                 </div>
@@ -205,7 +228,7 @@ export function CoverageTargetProgress({
                       ? '[&>[data-slot=progress-indicator]]:bg-freshness-fresh'
                       : '[&>[data-slot=progress-indicator]]:bg-freshness-expired',
                   )}
-                  aria-label={`${metric.label}: ${metric.displayCurrent} of ${metric.displayTarget}`}
+                  aria-label={`${metric.label}: current ${metric.displayCurrent}, target ${metric.displayTarget}`}
                 />
               </div>
             ))}
