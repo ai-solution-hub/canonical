@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { fetchUnifiedDashboardData } from '@/lib/dashboard';
 import { buildAttentionItems } from '@/lib/attention';
 import { ReorientSection } from '@/components/dashboard/reorient-section';
+import { DashboardFirstRunCard } from '@/components/dashboard/dashboard-first-run-card';
 import { OwnedContentHealth } from '@/components/dashboard/owned-content-health';
 import { ContentPerformanceSection } from '@/components/dashboard/content-performance-section';
 import { WarningsBanner } from '@/components/dashboard/warnings-banner';
@@ -166,6 +167,21 @@ async function DashboardContent() {
     errors: unified.errors,
   };
 
+  // ── First-run signals ──
+  // isKBEmpty: KB has zero content items — drives section suppression (spec §4.1)
+  const totalItems =
+    unified.freshness_summary.fresh +
+    unified.freshness_summary.aging +
+    unified.freshness_summary.stale +
+    unified.freshness_summary.expired;
+  const isKBEmpty = totalItems === 0;
+
+  // isFirstLogin: user has never been active — drives welcome card (spec §4.5)
+  const isFirstLogin =
+    !unified.reorient.last_active_at &&
+    unified.reorient.my_recent_work.length === 0 &&
+    unified.reorient.team_changes.length === 0;
+
   return (
     <>
       {/* Partial-failure banner — surfaces non-fatal sub-query errors from
@@ -184,18 +200,28 @@ async function DashboardContent() {
           phantom margin gap in the layout. */}
       <McpSetupNudge
         className="mt-6"
-        hasContent={
-          unified.freshness_summary.fresh +
-            unified.freshness_summary.aging +
-            unified.freshness_summary.stale +
-            unified.freshness_summary.expired >
-          0
-        }
+        hasContent={!isKBEmpty}
       />
 
-      {/* Reorient Me — personalised briefing */}
+      {/* First-run welcome card — role-branched onboarding for first-time
+          admin/editor users. Viewers see a one-liner in ReorientSection instead.
+          Rendered above ReorientSection per spec §4.2. */}
+      {isFirstLogin && (
+        <div className="mt-6">
+          <DashboardFirstRunCard
+            role={unified.user_role as 'admin' | 'editor' | 'viewer'}
+          />
+        </div>
+      )}
+
+      {/* Reorient Me — personalised briefing. When isFirstLogin, suppress
+          the first-login one-liner since the card above provides a richer
+          welcome (admin/editor) or the viewer copy is updated in-component. */}
       <div className="mt-6">
-        <ReorientSection data={reorientData} />
+        <ReorientSection
+          data={reorientData}
+          hideFirstLoginMessage={isFirstLogin}
+        />
       </div>
 
       {/* Two-column layout: Unified Attention + Active Bids */}
@@ -212,45 +238,54 @@ async function DashboardContent() {
         <OwnedContentHealth />
       </div>
 
-      {/* Content Performance — aggregate win-rate analytics */}
-      <div className="mt-6">
-        <ContentPerformanceSection />
-      </div>
+      {/* Content Performance — aggregate win-rate analytics (suppressed when KB empty) */}
+      {!isKBEmpty && (
+        <div className="mt-6">
+          <ContentPerformanceSection />
+        </div>
+      )}
 
-      {/* QuickStatsStrip — content health at a glance */}
-      <div className="mt-6">
-        <QuickStatsStrip
-          freshness={unified.freshness_summary}
-          activeBidCount={unified.active_bids.length}
-          unreadNotificationCount={
-            unified.attention_sources.unread_notification_count
-          }
-        />
-      </div>
+      {/* QuickStatsStrip — content health at a glance (suppressed when KB empty) */}
+      {!isKBEmpty && (
+        <div className="mt-6">
+          <QuickStatsStrip
+            freshness={unified.freshness_summary}
+            activeBidCount={unified.active_bids.length}
+            unreadNotificationCount={
+              unified.attention_sources.unread_notification_count
+            }
+          />
+        </div>
+      )}
 
-      {/* Compliance Status */}
-      <div className="mt-6">
-        <ComplianceStatusSection />
-      </div>
+      {/* Compliance Status (suppressed when KB empty) */}
+      {!isKBEmpty && (
+        <div className="mt-6">
+          <ComplianceStatusSection />
+        </div>
+      )}
 
       {/* Pipeline runs (admin-only, S152B WP4) — passive 24h health glance
-          paired with Sentry alerting in `lib/pipeline/record-run.ts`. */}
-      {unified.user_role === 'admin' && (
+          paired with Sentry alerting in `lib/pipeline/record-run.ts`.
+          Suppressed when KB empty. */}
+      {unified.user_role === 'admin' && !isKBEmpty && (
         <div className="mt-6">
           <PipelineRunsPanel />
         </div>
       )}
 
-      {/* Recent Activity */}
-      <section
-        className="mt-6 rounded-lg border bg-card p-4"
-        aria-label="Recent activity"
-      >
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          Recent Activity
-        </h2>
-        <DashboardActivityFeed activities={unified.recent_activity} />
-      </section>
+      {/* Recent Activity (suppressed when KB empty) */}
+      {!isKBEmpty && (
+        <section
+          className="mt-6 rounded-lg border bg-card p-4"
+          aria-label="Recent activity"
+        >
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            Recent Activity
+          </h2>
+          <DashboardActivityFeed activities={unified.recent_activity} />
+        </section>
+      )}
     </>
   );
 }
