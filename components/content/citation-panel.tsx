@@ -29,6 +29,8 @@ interface CitationPanelProps {
   sourceContent: SourceContent[];
   orphanedSourceIds?: Set<string>;
   onCitationClick?: (contentId: string) => void;
+  /** Start with the panel expanded (e.g. for reviewers verifying sources). */
+  defaultExpanded?: boolean;
   className?: string;
 }
 
@@ -37,9 +39,10 @@ export function CitationPanel({
   sourceContent,
   orphanedSourceIds,
   onCitationClick,
+  defaultExpanded = false,
   className,
 }: CitationPanelProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [expandedCitationIndex, setExpandedCitationIndex] = useState<
     number | null
   >(null);

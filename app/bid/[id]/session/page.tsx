@@ -39,6 +39,17 @@ import { useDraftRecovery } from '@/hooks/streaming/use-draft-recovery';
 import { useStreamCoordination } from '@/hooks/streaming/use-stream-coordination';
 import { cn } from '@/lib/utils';
 import type { Editor } from '@/components/bid/response-editor';
+import type { BidState } from '@/types/bid';
+
+/** Bid states at or after review — used for citation panel default-expanded (P1-4). */
+const REVIEW_OR_LATER_STATES: BidState[] = [
+  'in_review',
+  'ready_for_export',
+  'submitted',
+  'won',
+  'lost',
+  'withdrawn',
+];
 
 /** Displays word count alongside word limit with colour-coded feedback */
 function WordCountIndicator({
@@ -138,7 +149,7 @@ export default function BidSessionPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const { canEdit } = useUserRole();
+  const { canEdit, role } = useUserRole();
 
   // Platform modifier key (SSR-safe)
   const modKey = useModifierKey();
@@ -248,6 +259,11 @@ export default function BidSessionPage({
     [response?.citations],
   );
   const orphanedSourceIds = useCitationOrphans(citationSourceIds);
+
+  // Citation panel default-expanded for admin role or review-or-later bid states (P1-4)
+  const citationDefaultExpanded =
+    role === 'admin' ||
+    REVIEW_OR_LATER_STATES.includes(bid?.status as BidState);
 
   const bidName = bid?.name;
 
@@ -645,6 +661,7 @@ export default function BidSessionPage({
                   sourceContent={response.source_content ?? []}
                   orphanedSourceIds={orphanedSourceIds}
                   onCitationClick={handleCitationClick}
+                  defaultExpanded={citationDefaultExpanded}
                 />
               )}
             </div>
