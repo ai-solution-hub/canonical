@@ -28,7 +28,6 @@ const {
   mockUseIntelligenceWorkspace,
   mockUseFeedArticles,
   mockUseTriggerPoll,
-  mockMutate,
 } = vi.hoisted(() => {
   const mockMutate = vi.fn();
   return {
@@ -41,7 +40,6 @@ const {
       mutate: mockMutate,
       isPending: false,
     }),
-    mockMutate,
   };
 });
 
