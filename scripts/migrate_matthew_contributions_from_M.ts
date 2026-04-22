@@ -196,11 +196,25 @@ export interface MHistoryRow {
   created_at: string;
 }
 
+/** A workspace association row */
+export interface WorkspaceAssociation {
+  content_item_id: string;
+  workspace_id: string;
+}
+
 /** Summary output for dry-run */
 export interface MigrationReport {
   creates: { count: number; items: Array<{ id: string; title: string; created_at: string }> };
   updates: { count: number; items: Array<{ id: string; title: string; matchStatus: string }> };
   history: { count: number; items: Array<{ id: string; content_item_id: string | null; change_type: string }> };
+  workspaceAssociations: { count: number; items: Array<{ content_item_id: string; workspace_id: string }> };
+}
+
+/** Result from findMatchOnR when multiple matches exist */
+export interface FindMatchResult {
+  status: 'none' | 'unique' | 'ambiguous';
+  match?: { id: string; content_text_hash: string | null };
+  candidates?: Array<{ id: string; content_text_hash: string | null }>;
 }
 
 // ── Env loading (handles worktrees) ─────────────────────────────────────
@@ -364,12 +378,17 @@ export async function queryWorkspaceAssociations(
 /**
  * Check if a content item already exists on 'r' with the same title +
  * content_text_hash + created_by. Used for idempotency on creates.
+ *
+ * When contentTextHash is null, matches on title+created_by only and
+ * emits a warning (M-2: weaker idempotency signal).
  */
 export async function checkExistsOnR(
   clientR: SupabaseClient,
   title: string,
   contentTextHash: string | null,
   createdBy: string,
+  /** Original M item ID, used for warning context */
+  mItemId?: string,
 ): Promise<boolean> {
   let query = clientR
     .from('content_items')
@@ -383,27 +402,51 @@ export async function checkExistsOnR(
 
   const { data, error } = await query.limit(1);
   if (error) throw new Error(`Idempotency check on R failed: ${error.message}`);
-  return (data?.length ?? 0) > 0;
+
+  const exists = (data?.length ?? 0) > 0;
+
+  if (exists && !contentTextHash) {
+    console.warn(
+      `WARN: skipping create for M:${mItemId ?? 'unknown'} based on title+created_by only ` +
+      `(null content_text_hash); verify manually before live-apply if concerned`,
+    );
+  }
+
+  return exists;
 }
 
 /**
  * Find a matching content item on 'r' for an update candidate from 'M'.
  * Matches by title (content_text_hash may differ if Matthew changed content).
+ *
+ * Returns a discriminated result:
+ *   - 'none': no match found
+ *   - 'unique': exactly one match (safe to update)
+ *   - 'ambiguous': 2+ matches with same title (skip, require manual resolution)
  */
 export async function findMatchOnR(
   clientR: SupabaseClient,
   title: string,
-): Promise<{ id: string; content_text_hash: string | null } | null> {
+): Promise<FindMatchResult> {
   const { data, error } = await clientR
     .from('content_items')
     .select('id, content_text_hash')
     .eq('title', title)
-    .is('archived_at', null)
-    .limit(1);
+    .is('archived_at', null);
 
   if (error) throw new Error(`Match lookup on R failed: ${error.message}`);
-  if (!data || data.length === 0) return null;
-  return data[0] as { id: string; content_text_hash: string | null };
+  if (!data || data.length === 0) return { status: 'none' };
+  if (data.length === 1) {
+    return {
+      status: 'unique',
+      match: data[0] as { id: string; content_text_hash: string | null },
+    };
+  }
+  // 2+ matches — ambiguous, do not pick arbitrarily
+  return {
+    status: 'ambiguous',
+    candidates: data as Array<{ id: string; content_text_hash: string | null }>,
+  };
 }
 
 /**
@@ -425,6 +468,43 @@ export async function checkHistoryExistsOnR(
     .limit(1);
 
   if (error) throw new Error(`History idempotency check on R failed: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
+
+/**
+ * Check if a workspace exists on 'r' by UUID.
+ */
+export async function checkWorkspaceExistsOnR(
+  clientR: SupabaseClient,
+  workspaceId: string,
+): Promise<boolean> {
+  const { data, error } = await clientR
+    .from('workspaces')
+    .select('id')
+    .eq('id', workspaceId)
+    .limit(1);
+
+  if (error) throw new Error(`Workspace existence check on R failed: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
+
+/**
+ * Check if a workspace association already exists on 'r'.
+ * Used for idempotency on workspace association inserts.
+ */
+export async function checkWorkspaceAssocExistsOnR(
+  clientR: SupabaseClient,
+  contentItemId: string,
+  workspaceId: string,
+): Promise<boolean> {
+  const { data, error } = await clientR
+    .from('content_item_workspaces')
+    .select('content_item_id')
+    .eq('content_item_id', contentItemId)
+    .eq('workspace_id', workspaceId)
+    .limit(1);
+
+  if (error) throw new Error(`Workspace association check on R failed: ${error.message}`);
   return (data?.length ?? 0) > 0;
 }
 
@@ -552,7 +632,7 @@ Env vars required:
   NEXT_PUBLIC_SUPABASE_URL URL of project 'r' (production)
   SUPABASE_SECRET_KEY      Service key for project 'r'
 
-Expected volumes: 7 creates + 12 updates + 14 history rows.
+Expected volumes: 7 creates + 12 updates + 14 history rows + N workspace assocs.
 Idempotent: safe to re-run (skips already-migrated rows).
 `;
 
@@ -619,6 +699,12 @@ async function main() {
   }
   console.log();
 
+  // ── UUID mapping: M item IDs → R item IDs (C-1 fix) ────────────────
+
+  /** Maps M content_item UUIDs to R content_item UUIDs.
+   *  Populated during creates (new UUID from DB) and updates (matched UUID). */
+  const mIdToRId = new Map<string, string>();
+
   // ── Phase 2: Creates ────────────────────────────────────────────────
 
   console.log('Phase 2: Creates...');
@@ -629,12 +715,13 @@ async function main() {
   for (const item of creates) {
     const label = `[CREATE] ${item.title.slice(0, 60)}`;
 
-    // Idempotency check
+    // Idempotency check (M-2: passes mItemId for null-hash warning)
     const exists = await checkExistsOnR(
       clientR,
       item.title,
       item.content_text_hash,
       MATTHEW_USER_ID,
+      item.id,
     );
 
     if (exists) {
@@ -663,6 +750,8 @@ async function main() {
           continue;
         }
 
+        // C-1: Record M→R UUID mapping for history phase
+        mIdToRId.set(item.id, inserted[0].id);
         console.log(`  PASS: ${label} → ${inserted[0].id}`);
         createInserted++;
       } catch (err) {
@@ -671,6 +760,8 @@ async function main() {
         createFailed++;
       }
     } else {
+      // In dry-run, create a synthetic mapping for reporting
+      mIdToRId.set(item.id, `dry-run-r-id-for-${item.id}`);
       console.log(`  WOULD INSERT (dry-run): ${label}`);
       createInserted++;
     }
@@ -684,19 +775,36 @@ async function main() {
   let updateApplied = 0;
   let updateSkipped = 0;
   let updateNoMatch = 0;
+  let updateAmbiguous = 0;
   let updateFailed = 0;
 
   for (const item of updates) {
     const label = `[UPDATE] ${item.title.slice(0, 60)}`;
 
-    // Find matching item on 'r' by title
-    const match = await findMatchOnR(clientR, item.title);
+    // Find matching item on 'r' by title (M-1: handles 0/1/2+ matches)
+    const matchResult = await findMatchOnR(clientR, item.title);
 
-    if (!match) {
+    if (matchResult.status === 'none') {
       console.log(`  SKIP (no match on R): ${label}`);
       updateNoMatch++;
       continue;
     }
+
+    if (matchResult.status === 'ambiguous') {
+      const candidateIds = matchResult.candidates!.map((c) => c.id).join(', ');
+      console.log(
+        `  SKIP (ambiguous: ${matchResult.candidates!.length} matches on R, ` +
+        `title="${item.title}"): ${label}. Candidate IDs: ${candidateIds}. ` +
+        `Resolve manually before re-running.`,
+      );
+      updateAmbiguous++;
+      continue;
+    }
+
+    const match = matchResult.match!;
+
+    // C-1: Record M→R UUID mapping for history phase
+    mIdToRId.set(item.id, match.id);
 
     // If content_text_hash already matches Matthew's version, skip
     if (match.content_text_hash && match.content_text_hash === item.content_text_hash) {
@@ -741,11 +849,12 @@ async function main() {
 
   console.log();
 
-  // ── Phase 4: History rows ──────────────────────────────────────────
+  // ── Phase 4: History rows (C-1: translate content_item_id via mIdToRId) ──
 
   console.log('Phase 4: History rows...');
   let historyInserted = 0;
   let historySkipped = 0;
+  let historyOrphaned = 0;
   let historyFailed = 0;
 
   for (const row of history) {
@@ -757,10 +866,21 @@ async function main() {
       continue;
     }
 
-    // Idempotency check
+    // C-1: Translate M UUID → R UUID
+    const rContentItemId = mIdToRId.get(row.content_item_id);
+    if (!rContentItemId) {
+      console.log(
+        `  SKIP (orphan: no M→R mapping for ${row.content_item_id}): ${label}. ` +
+        `Item was neither created nor matched on R.`,
+      );
+      historyOrphaned++;
+      continue;
+    }
+
+    // Idempotency check (use translated R UUID)
     const exists = await checkHistoryExistsOnR(
       clientR,
-      row.content_item_id,
+      rContentItemId,
       row.version,
       MATTHEW_USER_ID,
     );
@@ -774,6 +894,8 @@ async function main() {
     if (args.liveApply) {
       try {
         const payload = buildHistoryPayload(row);
+        // C-1: Override content_item_id with translated R UUID
+        payload.content_item_id = rContentItemId;
         const { data: inserted, error: insertError } = await clientR
           .from('content_history')
           .insert(payload)
@@ -791,7 +913,7 @@ async function main() {
           continue;
         }
 
-        console.log(`  PASS: ${label} → ${inserted[0].id}`);
+        console.log(`  PASS: ${label} → ${inserted[0].id} (content_item_id: ${rContentItemId})`);
         historyInserted++;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -799,8 +921,83 @@ async function main() {
         historyFailed++;
       }
     } else {
-      console.log(`  WOULD INSERT (dry-run): ${label}`);
+      console.log(`  WOULD INSERT (dry-run): ${label} (content_item_id on R: ${rContentItemId})`);
       historyInserted++;
+    }
+  }
+
+  console.log();
+
+  // ── Phase 5: Workspace associations (H-1) ─────────────────────────
+
+  console.log('Phase 5: Workspace associations...');
+  let wsInserted = 0;
+  let wsSkipped = 0;
+  let wsOrphaned = 0;
+  let wsMissingWorkspace = 0;
+  let wsFailed = 0;
+
+  // Only query workspace associations for created items (updates already exist on R)
+  const createMItemIds = creates.map((c) => c.id);
+  const mWorkspaceAssocs = await queryWorkspaceAssociations(clientM, createMItemIds);
+
+  console.log(`  Workspace associations found on M: ${mWorkspaceAssocs.length}`);
+
+  for (const assoc of mWorkspaceAssocs) {
+    const rItemId = mIdToRId.get(assoc.content_item_id);
+    const label = `[WS-ASSOC] M:${assoc.content_item_id} → ws:${assoc.workspace_id}`;
+
+    if (!rItemId) {
+      console.log(`  SKIP (orphan: no M→R mapping for ${assoc.content_item_id}): ${label}`);
+      wsOrphaned++;
+      continue;
+    }
+
+    if (args.liveApply) {
+      try {
+        // Check workspace exists on R
+        const wsExists = await checkWorkspaceExistsOnR(clientR, assoc.workspace_id);
+        if (!wsExists) {
+          console.log(`  SKIP (workspace ${assoc.workspace_id} not found on R): ${label}`);
+          wsMissingWorkspace++;
+          continue;
+        }
+
+        // Idempotency check
+        const assocExists = await checkWorkspaceAssocExistsOnR(clientR, rItemId, assoc.workspace_id);
+        if (assocExists) {
+          console.log(`  SKIP (already exists on R): ${label}`);
+          wsSkipped++;
+          continue;
+        }
+
+        const { data: inserted, error: insertError } = await clientR
+          .from('content_item_workspaces')
+          .insert({ content_item_id: rItemId, workspace_id: assoc.workspace_id })
+          .select('content_item_id');
+
+        if (insertError) {
+          console.log(`  FAIL: ${label} — ${insertError.message}`);
+          wsFailed++;
+          continue;
+        }
+
+        if (!inserted || inserted.length !== 1) {
+          console.log(`  FAIL: ${label} — insert returned ${inserted?.length ?? 0} rows`);
+          wsFailed++;
+          continue;
+        }
+
+        console.log(`  PASS: ${label} → R:${rItemId}`);
+        wsInserted++;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.log(`  FAIL: ${label} — ${msg}`);
+        wsFailed++;
+      }
+    } else {
+      console.log(`  WOULD INSERT (dry-run): ${label} → R:${rItemId}`);
+      wsInserted++;
     }
   }
 
@@ -822,12 +1019,23 @@ async function main() {
   console.log(`    Applied:   ${updateApplied}${args.liveApply ? '' : ' (would update)'}`);
   console.log(`    Skipped:   ${updateSkipped} (already up to date)`);
   console.log(`    No match:  ${updateNoMatch} (not found on R)`);
+  console.log(`    Ambiguous: ${updateAmbiguous} (multiple matches, manual resolution needed)`);
   console.log(`    Failed:    ${updateFailed}`);
   console.log();
   console.log('  History:');
   console.log(`    Inserted:  ${historyInserted}${args.liveApply ? '' : ' (would insert)'}`);
   console.log(`    Skipped:   ${historySkipped}`);
+  console.log(`    Orphaned:  ${historyOrphaned} (no M→R mapping)`);
   console.log(`    Failed:    ${historyFailed}`);
+  console.log();
+  console.log('  Workspace Associations:');
+  console.log(`    Inserted:    ${wsInserted}${args.liveApply ? '' : ' (would insert)'}`);
+  console.log(`    Skipped:     ${wsSkipped} (already exists)`);
+  console.log(`    Orphaned:    ${wsOrphaned} (no M→R mapping)`);
+  console.log(`    No workspace:${wsMissingWorkspace} (workspace not on R)`);
+  console.log(`    Failed:      ${wsFailed}`);
+  console.log();
+  console.log(`  M→R UUID mappings: ${mIdToRId.size}`);
   console.log();
 
   if (!args.liveApply) {
@@ -840,7 +1048,7 @@ async function main() {
   }
 
   // Exit non-zero if any failures
-  if (createFailed + updateFailed + historyFailed > 0) {
+  if (createFailed + updateFailed + historyFailed + wsFailed > 0) {
     process.exit(1);
   }
 }

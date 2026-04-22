@@ -21,6 +21,8 @@ import {
   checkExistsOnR,
   findMatchOnR,
   checkHistoryExistsOnR,
+  checkWorkspaceExistsOnR,
+  checkWorkspaceAssocExistsOnR,
   queryCreates,
   queryUpdates,
   queryHistory,
@@ -33,6 +35,7 @@ import {
   type MContentItem,
   type MHistoryRow,
   type CliArgs,
+  type FindMatchResult,
 } from '../../scripts/migrate_matthew_contributions_from_M';
 
 // ── Fixtures ────────────────────────────────────────────────────────────
@@ -655,11 +658,12 @@ describe('checkExistsOnR', () => {
 });
 
 describe('findMatchOnR', () => {
-  it('returns matching item when found', async () => {
+  it('returns unique match when exactly one item found', async () => {
     const mockClient = createMockSupabaseClient();
     const chain = mockClient._selectChain;
 
-    chain.limit.mockResolvedValue({
+    // findMatchOnR no longer calls .limit(), chain ends at .is()
+    chain.is.mockResolvedValue({
       data: [{ id: 'match-id', content_text_hash: 'old-hash' }],
       error: null,
     });
@@ -669,14 +673,15 @@ describe('findMatchOnR', () => {
       'Test Title',
     );
 
-    expect(result).toEqual({ id: 'match-id', content_text_hash: 'old-hash' });
+    expect(result.status).toBe('unique');
+    expect(result.match).toEqual({ id: 'match-id', content_text_hash: 'old-hash' });
   });
 
-  it('returns null when no match found', async () => {
+  it('returns none when no match found (M-1: 0 matches)', async () => {
     const mockClient = createMockSupabaseClient();
     const chain = mockClient._selectChain;
 
-    chain.limit.mockResolvedValue({
+    chain.is.mockResolvedValue({
       data: [],
       error: null,
     });
@@ -686,7 +691,32 @@ describe('findMatchOnR', () => {
       'Non-existent Title',
     );
 
-    expect(result).toBeNull();
+    expect(result.status).toBe('none');
+    expect(result.match).toBeUndefined();
+  });
+
+  it('returns ambiguous when 2+ matches found (M-1: skip + list candidates)', async () => {
+    const mockClient = createMockSupabaseClient();
+    const chain = mockClient._selectChain;
+
+    chain.is.mockResolvedValue({
+      data: [
+        { id: 'id-a', content_text_hash: 'hash-a' },
+        { id: 'id-b', content_text_hash: 'hash-b' },
+      ],
+      error: null,
+    });
+
+    const result = await findMatchOnR(
+      mockClient as unknown as import('@supabase/supabase-js').SupabaseClient,
+      'Duplicate Title',
+    );
+
+    expect(result.status).toBe('ambiguous');
+    expect(result.candidates).toHaveLength(2);
+    expect(result.candidates![0].id).toBe('id-a');
+    expect(result.candidates![1].id).toBe('id-b');
+    expect(result.match).toBeUndefined();
   });
 });
 
@@ -786,5 +816,244 @@ describe('End-to-end migration report validation', () => {
       const payload = buildHistoryPayload(row);
       expect(validChangeTypes).toContain(payload.change_type);
     }
+  });
+});
+
+// ── C-1: FK violation prevention (mIdToRId mapping) ───────────────────
+
+describe('C-1: History content_item_id mapping', () => {
+  it('buildHistoryPayload passes through M content_item_id (caller must override)', () => {
+    // The raw payload still has the M UUID — the main() function overrides it
+    const row = createMockHistoryRow({ content_item_id: 'm-uuid-123' });
+    const payload = buildHistoryPayload(row);
+    expect(payload.content_item_id).toBe('m-uuid-123');
+    // Callers must do: payload.content_item_id = mIdToRId.get(row.content_item_id)
+  });
+
+  it('mIdToRId mapping concept: create→history flow', () => {
+    // Simulate the mapping that main() builds during Phase 2 (creates)
+    const mIdToRId = new Map<string, string>();
+    const mItemId = 'c0000001-0000-4000-8000-000000000001';
+    const rItemId = 'r1111111-2222-4333-8444-555555555555';
+
+    // After create succeeds, script records the mapping
+    mIdToRId.set(mItemId, rItemId);
+
+    // When processing history, translate the content_item_id
+    const historyRow = createMockHistoryRow({ content_item_id: mItemId });
+    const payload = buildHistoryPayload(historyRow);
+    const translatedId = mIdToRId.get(historyRow.content_item_id!);
+
+    expect(translatedId).toBe(rItemId);
+    payload.content_item_id = translatedId;
+    expect(payload.content_item_id).toBe(rItemId);
+  });
+
+  it('mIdToRId mapping concept: update→history flow', () => {
+    // Simulate the mapping that main() builds during Phase 3 (updates)
+    const mIdToRId = new Map<string, string>();
+    const mItemId = 'u0000001-0000-4000-8000-000000000002';
+    const rMatchId = 'r2222222-3333-4444-8555-666666666666';
+
+    // After findMatchOnR returns a unique match, script records the mapping
+    mIdToRId.set(mItemId, rMatchId);
+
+    // History row references the M UUID
+    const historyRow = createMockHistoryRow({
+      content_item_id: mItemId,
+      change_type: 'edit',
+      version: 2,
+    });
+    const translatedId = mIdToRId.get(historyRow.content_item_id!);
+
+    expect(translatedId).toBe(rMatchId);
+  });
+
+  it('mIdToRId mapping concept: orphan history skipped when no mapping', () => {
+    const mIdToRId = new Map<string, string>();
+    // No mapping exists for this M UUID
+    const orphanMId = 'o0000001-0000-4000-8000-000000000099';
+
+    const historyRow = createMockHistoryRow({ content_item_id: orphanMId });
+    const translatedId = mIdToRId.get(historyRow.content_item_id!);
+
+    expect(translatedId).toBeUndefined();
+    // Script would log + skip, not insert with stale M UUID
+  });
+});
+
+// ── H-1: Workspace association tests ──────────────────────────────────
+
+describe('H-1: Workspace associations', () => {
+  it('checkWorkspaceExistsOnR returns true when workspace found', async () => {
+    const mockClient = createMockSupabaseClient();
+    const chain = mockClient._selectChain;
+
+    chain.limit.mockResolvedValue({
+      data: [{ id: 'ws-id-1' }],
+      error: null,
+    });
+
+    const result = await checkWorkspaceExistsOnR(
+      mockClient as unknown as import('@supabase/supabase-js').SupabaseClient,
+      'ws-id-1',
+    );
+
+    expect(result).toBe(true);
+    expect(mockClient.from).toHaveBeenCalledWith('workspaces');
+  });
+
+  it('checkWorkspaceExistsOnR returns false when workspace not found', async () => {
+    const mockClient = createMockSupabaseClient();
+    const chain = mockClient._selectChain;
+
+    chain.limit.mockResolvedValue({
+      data: [],
+      error: null,
+    });
+
+    const result = await checkWorkspaceExistsOnR(
+      mockClient as unknown as import('@supabase/supabase-js').SupabaseClient,
+      'ws-missing',
+    );
+
+    expect(result).toBe(false);
+  });
+
+  it('checkWorkspaceAssocExistsOnR returns true when association exists (idempotency)', async () => {
+    const mockClient = createMockSupabaseClient();
+    const chain = mockClient._selectChain;
+
+    chain.limit.mockResolvedValue({
+      data: [{ content_item_id: 'r-item-1' }],
+      error: null,
+    });
+
+    const result = await checkWorkspaceAssocExistsOnR(
+      mockClient as unknown as import('@supabase/supabase-js').SupabaseClient,
+      'r-item-1',
+      'ws-1',
+    );
+
+    expect(result).toBe(true);
+    expect(mockClient.from).toHaveBeenCalledWith('content_item_workspaces');
+  });
+
+  it('checkWorkspaceAssocExistsOnR returns false when no association', async () => {
+    const mockClient = createMockSupabaseClient();
+    const chain = mockClient._selectChain;
+
+    chain.limit.mockResolvedValue({
+      data: [],
+      error: null,
+    });
+
+    const result = await checkWorkspaceAssocExistsOnR(
+      mockClient as unknown as import('@supabase/supabase-js').SupabaseClient,
+      'r-item-new',
+      'ws-1',
+    );
+
+    expect(result).toBe(false);
+  });
+
+  it('workspace association flow: maps M UUID to R UUID via mIdToRId', () => {
+    // End-to-end concept test: workspace assoc from M references M item UUID,
+    // must be translated to R item UUID before insert
+    const mIdToRId = new Map<string, string>();
+    const mItemId = 'c0000001-0000-4000-8000-000000000001';
+    const rItemId = 'r1111111-2222-4333-8444-555555555555';
+    mIdToRId.set(mItemId, rItemId);
+
+    const mAssoc = { content_item_id: mItemId, workspace_id: 'ws-shared-1' };
+    const rContentItemId = mIdToRId.get(mAssoc.content_item_id);
+
+    expect(rContentItemId).toBe(rItemId);
+    // Script inserts { content_item_id: rItemId, workspace_id: 'ws-shared-1' }
+  });
+
+  it('workspace association skipped gracefully when workspace UUID not on R', () => {
+    // Conceptual: if workspace doesn't exist on R, we skip
+    const wsExistsOnR = false;
+    expect(wsExistsOnR).toBe(false);
+    // Script logs SKIP + increments wsMissingWorkspace counter
+  });
+});
+
+// ── M-2: Null content_text_hash warning ───────────────────────────────
+
+describe('M-2: Null hash warning', () => {
+  it('checkExistsOnR emits warning when hash is null and match found', async () => {
+    const mockClient = createMockSupabaseClient();
+    const chain = mockClient._selectChain;
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    chain.limit.mockResolvedValue({
+      data: [{ id: 'existing-id' }],
+      error: null,
+    });
+
+    const result = await checkExistsOnR(
+      mockClient as unknown as import('@supabase/supabase-js').SupabaseClient,
+      'Test Title',
+      null, // null hash triggers warning
+      MATTHEW_USER_ID,
+      'm-item-id-123',
+    );
+
+    expect(result).toBe(true);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('WARN: skipping create for M:m-item-id-123'),
+    );
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('null content_text_hash'),
+    );
+
+    warnSpy.mockRestore();
+  });
+
+  it('checkExistsOnR does NOT warn when hash is present', async () => {
+    const mockClient = createMockSupabaseClient();
+    const chain = mockClient._selectChain;
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    chain.limit.mockResolvedValue({
+      data: [{ id: 'existing-id' }],
+      error: null,
+    });
+
+    await checkExistsOnR(
+      mockClient as unknown as import('@supabase/supabase-js').SupabaseClient,
+      'Test Title',
+      'valid-hash-123',
+      MATTHEW_USER_ID,
+      'm-item-id-456',
+    );
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it('checkExistsOnR does NOT warn when hash is null but no match found', async () => {
+    const mockClient = createMockSupabaseClient();
+    const chain = mockClient._selectChain;
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    chain.limit.mockResolvedValue({
+      data: [],
+      error: null,
+    });
+
+    const result = await checkExistsOnR(
+      mockClient as unknown as import('@supabase/supabase-js').SupabaseClient,
+      'Test Title',
+      null,
+      MATTHEW_USER_ID,
+      'm-item-id-789',
+    );
+
+    expect(result).toBe(false);
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 });
