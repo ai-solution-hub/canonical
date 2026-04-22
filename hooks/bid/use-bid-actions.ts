@@ -276,6 +276,7 @@ export function useBidActions({ id }: UseBidActionsParams) {
     useBidData(id);
 
   // Tab state — derived from URL ?tab= param for deep-link and refresh support
+  const searchString = searchParams.toString();
   const tabParam = searchParams.get('tab');
   const activeTab: Tab = useMemo(
     () => (isValidTab(tabParam) ? tabParam : 'overview'),
@@ -284,7 +285,7 @@ export function useBidActions({ id }: UseBidActionsParams) {
 
   const setActiveTab = useCallback(
     (tab: Tab) => {
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams(searchString);
       if (tab === 'overview') {
         params.delete('tab');
       } else {
@@ -294,7 +295,7 @@ export function useBidActions({ id }: UseBidActionsParams) {
       const newPath = search ? `${pathname}?${search}` : pathname;
       router.replace(newPath);
     },
-    [searchParams, pathname, router],
+    [searchString, pathname, router],
   );
 
   // Status transitions (useMutation)
