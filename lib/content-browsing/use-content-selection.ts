@@ -9,6 +9,11 @@ import type { SelectionState } from './types';
  * Manages a `Set<string>` of selected IDs with toggle, toggle-all, clear,
  * and auto-reset when filter dependencies change.
  *
+ * Note: /browse previously held selection in plain useState with no reset.
+ * Adopting this hook is an intentional UX improvement — filtered-out items
+ * can no longer persist in the selection set, preventing "acted on an item
+ * I can't see" accidents. Pass `[]` to preserve the legacy no-reset behaviour.
+ *
  * @param resetDeps - array of values that trigger selection reset (e.g. filter values)
  */
 export function useContentSelection(resetDeps: unknown[]): SelectionState {

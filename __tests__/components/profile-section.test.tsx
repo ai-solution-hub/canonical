@@ -88,6 +88,10 @@ describe('ProfileSection', () => {
     mockUseUserRole.loading = false;
     mockGetUser.mockResolvedValue({ data: { user: createMockUser() } });
     mockUpdateUser.mockResolvedValue({ error: null });
+    // Radix Select jsdom shims — feedback_radix_select_jsdom_shims.md
+    Element.prototype.hasPointerCapture = vi.fn(() => false);
+    Element.prototype.releasePointerCapture = vi.fn();
+    Element.prototype.scrollIntoView = vi.fn();
   });
 
   afterEach(() => {
@@ -277,7 +281,7 @@ describe('ProfileSection', () => {
   // ── Primary focus (P0-4 spec §7.4) ──
 
   // Test 19: Primary focus displayed
-  it('displays current primary_focus value', async () => {
+  it('displays current primary_focus value as the selected dropdown label', async () => {
     mockGetUser.mockResolvedValue({
       data: {
         user: createMockUser({
@@ -291,26 +295,63 @@ describe('ProfileSection', () => {
 
     render(<ProfileSection />);
 
+    const trigger = await screen.findByLabelText('Primary Focus');
+    // Radix Select renders the selected option's label inside the trigger.
     await waitFor(() => {
-      expect(screen.getByLabelText('Primary Focus')).toBeInTheDocument();
+      expect(trigger).toHaveTextContent('Bid writing');
     });
   });
 
   // Test 20: Primary focus editable
-  it('renders Primary Focus dropdown with correct options', async () => {
+  it('persists a Primary Focus selection via updateUser when the dropdown changes', async () => {
+    const user = userEvent.setup();
     render(<ProfileSection />);
 
+    const trigger = await screen.findByLabelText('Primary Focus');
+    await user.click(trigger);
+
+    const option = await screen.findByRole('option', {
+      name: 'Account management',
+    });
+    await user.click(option);
+
     await waitFor(() => {
-      expect(screen.getByLabelText('Primary Focus')).toBeInTheDocument();
+      expect(mockUpdateUser).toHaveBeenCalledWith({
+        data: { primary_focus: 'account_management' },
+      });
+    });
+    expect(mockToast.success).toHaveBeenCalledWith('Primary focus updated');
+  });
+
+  it('clears Primary Focus when the "None" sentinel is selected', async () => {
+    mockGetUser.mockResolvedValue({
+      data: {
+        user: createMockUser({
+          user_metadata: {
+            display_name: 'Test User',
+            primary_focus: 'marketing',
+          },
+        }),
+      },
+    });
+    const user = userEvent.setup();
+    render(<ProfileSection />);
+
+    const trigger = await screen.findByLabelText('Primary Focus');
+    await waitFor(() => {
+      expect(trigger).toHaveTextContent('Marketing content');
     });
 
-    // The select trigger should be in the document
-    expect(screen.getByLabelText('Primary Focus')).toBeInTheDocument();
-    // Helper text should be present
-    expect(
-      screen.getByText(
-        /helps tailor your experience to your primary workflow/i,
-      ),
-    ).toBeInTheDocument();
+    await user.click(trigger);
+    const noneOption = await screen.findByRole('option', {
+      name: /no preference/i,
+    });
+    await user.click(noneOption);
+
+    await waitFor(() => {
+      expect(mockUpdateUser).toHaveBeenCalledWith({
+        data: { primary_focus: null },
+      });
+    });
   });
 });

@@ -202,7 +202,7 @@ function renderBriefing() {
 
   if (isEmpty && !briefingData.last_active_at) {
     renderEmpty(
-      'Welcome to Knowledge Hub. Start by browsing the knowledge base or creating your first bid.',
+      "Welcome to Knowledge Hub. Let's get your company knowledge organised.",
     );
     return;
   } else if (isEmpty) {

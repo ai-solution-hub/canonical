@@ -14,8 +14,9 @@ import userEvent from '@testing-library/user-event';
 // vi.hoisted() — mocks referenced in vi.mock() factories
 // ---------------------------------------------------------------------------
 
-const { mockUpdateUser, mockToast } = vi.hoisted(() => ({
+const { mockUpdateUser, mockGetUser, mockToast } = vi.hoisted(() => ({
   mockUpdateUser: vi.fn(),
+  mockGetUser: vi.fn(),
   mockToast: {
     success: vi.fn(),
     error: vi.fn(),
@@ -48,6 +49,7 @@ vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
     auth: {
       updateUser: mockUpdateUser,
+      getUser: mockGetUser,
     },
   }),
 }));
@@ -90,6 +92,9 @@ beforeEach(() => {
   localStorageMap.clear();
   vi.clearAllMocks();
   mockUpdateUser.mockResolvedValue({ error: null });
+  // Default: no persisted persona — the hydrate effect reads user_metadata
+  // from supabase.auth.getUser() to restore the highlight.
+  mockGetUser.mockResolvedValue({ data: { user: { user_metadata: {} } } });
 });
 
 // ---------------------------------------------------------------------------
@@ -306,5 +311,24 @@ describe('DashboardFirstRunCard', () => {
         "Let's get your company knowledge organised.",
       ),
     ).toBeInTheDocument();
+  });
+
+  // Additional: hydrate selected persona from user_metadata on mount
+  it('restores previously-saved persona highlight from user_metadata', async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { user_metadata: { primary_focus: 'marketing' } } },
+    });
+
+    render(<DashboardFirstRunCard role="editor" />);
+
+    const marketing = await screen.findByRole('button', {
+      name: 'Marketing content',
+    });
+    await waitFor(() => {
+      expect(marketing).toHaveAttribute('aria-pressed', 'true');
+    });
+    expect(
+      screen.getByRole('button', { name: 'Bid writing' }),
+    ).toHaveAttribute('aria-pressed', 'false');
   });
 });

@@ -32,6 +32,7 @@ export function useContentBulkRunner<TItem = unknown>(
       operation: (id: string, item?: TItem) => Promise<boolean>,
       itemLookup?: (id: string) => TItem | undefined,
     ): Promise<number> => {
+      if (ids.length === 0) return 0;
       setBulkOperating(true);
       setBulkProgress({ current: 0, total: ids.length, label });
       let successCount = 0;

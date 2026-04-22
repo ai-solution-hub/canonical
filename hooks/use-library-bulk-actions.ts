@@ -6,6 +6,7 @@ import { queryKeys } from '@/lib/query/query-keys';
 import {
   useContentSelection,
   useContentBulkRunner,
+  type BulkProgress,
 } from '@/lib/content-browsing';
 import type { ContentListItem } from '@/types/content';
 
@@ -17,12 +18,6 @@ interface WorkspaceOption {
   id: string;
   name: string;
   type: string;
-}
-
-export interface BulkProgress {
-  current: number;
-  total: number;
-  label: string;
 }
 
 export interface UseLibraryBulkActionsParams {

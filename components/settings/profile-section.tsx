@@ -26,14 +26,10 @@ import {
 import { cn } from '@/lib/utils';
 import { roleBadgeVariant, roleLabel } from '@/lib/user-helpers';
 import { NotificationPreferences } from '@/components/settings/notification-preferences';
-
-type PrimaryFocus = 'bid_writing' | 'account_management' | 'marketing';
-
-const PRIMARY_FOCUS_OPTIONS: { value: PrimaryFocus; label: string }[] = [
-  { value: 'bid_writing', label: 'Bid writing' },
-  { value: 'account_management', label: 'Account management' },
-  { value: 'marketing', label: 'Marketing content' },
-];
+import {
+  PRIMARY_FOCUS_OPTIONS,
+  type PrimaryFocus,
+} from '@/lib/user-focus-constants';
 
 export function ProfileSection() {
   const supabase = createClient();

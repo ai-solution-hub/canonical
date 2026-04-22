@@ -9,6 +9,10 @@ import { UnifiedAttentionSection } from '@/components/dashboard/unified-attentio
 import { ComplianceStatusSection } from '@/components/dashboard/compliance-status-section';
 import { Skeleton } from '@/components/ui/skeleton';
 import { fetchUnifiedDashboardData } from '@/lib/dashboard';
+import {
+  deriveIsKBEmpty,
+  deriveIsFirstLogin,
+} from '@/lib/dashboard-signals';
 import { buildAttentionItems } from '@/lib/attention';
 import { ReorientSection } from '@/components/dashboard/reorient-section';
 import { DashboardFirstRunCard } from '@/components/dashboard/dashboard-first-run-card';
@@ -168,19 +172,11 @@ async function DashboardContent() {
   };
 
   // ── First-run signals ──
-  // isKBEmpty: KB has zero content items — drives section suppression (spec §4.1)
-  const totalItems =
-    unified.freshness_summary.fresh +
-    unified.freshness_summary.aging +
-    unified.freshness_summary.stale +
-    unified.freshness_summary.expired;
-  const isKBEmpty = totalItems === 0;
-
-  // isFirstLogin: user has never been active — drives welcome card (spec §4.5)
-  const isFirstLogin =
-    !unified.reorient.last_active_at &&
-    unified.reorient.my_recent_work.length === 0 &&
-    unified.reorient.team_changes.length === 0;
+  // Extracted to @/lib/dashboard-signals so integration tests exercise the
+  // same predicates as the page render (spec §4.1 / §4.5).
+  const isKBEmpty = deriveIsKBEmpty(unified.freshness_summary);
+  const isFirstLogin = deriveIsFirstLogin(unified.reorient);
+  const showFirstRunCard = isFirstLogin && unified.user_role !== 'viewer';
 
   return (
     <>
@@ -204,9 +200,10 @@ async function DashboardContent() {
       />
 
       {/* First-run welcome card — role-branched onboarding for first-time
-          admin/editor users. Viewers see a one-liner in ReorientSection instead.
-          Rendered above ReorientSection per spec §4.2. */}
-      {isFirstLogin && (
+          admin/editor users. Viewers see a one-liner in ReorientSection
+          instead (spec §4.2), so the wrapper is gated on non-viewer to
+          avoid a phantom margin gap. */}
+      {showFirstRunCard && (
         <div className="mt-6">
           <DashboardFirstRunCard
             role={unified.user_role as 'admin' | 'editor' | 'viewer'}
@@ -214,13 +211,13 @@ async function DashboardContent() {
         </div>
       )}
 
-      {/* Reorient Me — personalised briefing. When isFirstLogin, suppress
-          the first-login one-liner since the card above provides a richer
-          welcome (admin/editor) or the viewer copy is updated in-component. */}
+      {/* Reorient Me — personalised briefing. Suppress the one-liner only
+          when the first-run card above is actually rendered; viewers must
+          still see the welcome copy inside ReorientSection (spec §4.8). */}
       <div className="mt-6">
         <ReorientSection
           data={reorientData}
-          hideFirstLoginMessage={isFirstLogin}
+          hideFirstLoginMessage={showFirstRunCard}
         />
       </div>
 

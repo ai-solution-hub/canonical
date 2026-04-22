@@ -1,27 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Compass, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useHydrated } from '@/hooks/use-hydrated';
 import { createClient } from '@/lib/supabase/client';
+import {
+  PRIMARY_FOCUS_OPTIONS,
+  type PrimaryFocus,
+} from '@/lib/user-focus-constants';
 import { cn } from '@/lib/utils';
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
+// Spec §4.2 nominates EmptyState as the visual base. The card's extra
+// affordances (dismiss button, persona hint row) exceed EmptyState's current
+// composition API, so we render the same dashed-border shell directly — spec
+// allows this "lower-diff" path explicitly. If EmptyState later grows a
+// `className` + `primaryCtaVariant` escape hatch, migrate back to composition.
 
 const DISMISS_KEY = 'dashboard-first-run-dismissed';
-
-type PrimaryFocus = 'bid_writing' | 'account_management' | 'marketing';
-
-const PERSONA_HINTS: { label: string; value: PrimaryFocus }[] = [
-  { label: 'Bid writing', value: 'bid_writing' },
-  { label: 'Account management', value: 'account_management' },
-  { label: 'Marketing content', value: 'marketing' },
-];
 
 // ---------------------------------------------------------------------------
 // Component
@@ -39,6 +37,24 @@ export function DashboardFirstRunCard({ role }: DashboardFirstRunCardProps) {
   });
   const [selectedFocus, setSelectedFocus] = useState<PrimaryFocus | null>(null);
   const [savingFocus, setSavingFocus] = useState(false);
+
+  // Hydrate the highlight state from user_metadata so a previously-chosen
+  // persona stays highlighted after navigation back to the dashboard.
+  useEffect(() => {
+    if (role === 'viewer') return;
+    let cancelled = false;
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => {
+      if (cancelled) return;
+      const focus = data.user?.user_metadata?.primary_focus as
+        | PrimaryFocus
+        | undefined;
+      if (focus) setSelectedFocus(focus);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [role]);
 
   // Viewers do not see the first-run card (handled by ReorientSection copy)
   if (role === 'viewer') return null;
@@ -132,7 +148,7 @@ export function DashboardFirstRunCard({ role }: DashboardFirstRunCardProps) {
           I&apos;m primarily here for:
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
-          {PERSONA_HINTS.map((hint) => (
+          {PRIMARY_FOCUS_OPTIONS.map((hint) => (
             <button
               key={hint.value}
               type="button"

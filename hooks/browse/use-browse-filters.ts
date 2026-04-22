@@ -3,109 +3,22 @@
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useCallback, useMemo } from 'react';
 import type { BrowseFilters } from '@/types/content';
-import { useUrlFilters } from '@/lib/content-browsing';
-import type { UrlFilterConfig } from '@/lib/content-browsing';
+
+// Browse filters don't delegate to the shared `useUrlFilters` primitive
+// because browse carries a cross-parameter derivation that the shared
+// parser can't express: setting `quality_issues=true` auto-enables
+// `include_qa` unless the URL explicitly sets `include_qa=false`. The
+// shared hook parses each key in isolation, so this auto-include branch
+// cannot round-trip through it. Library uses the shared hook directly.
 
 // ---------------------------------------------------------------------------
-// Browse URL filter config for useUrlFilters base
-// ---------------------------------------------------------------------------
-
-const BROWSE_FILTER_CONFIG: UrlFilterConfig<BrowseFilters> = {
-  defaults: {
-    domain: undefined,
-    subtopic: undefined,
-    content_type: undefined,
-    platform: undefined,
-    author: undefined,
-    date_from: undefined,
-    date_to: undefined,
-    keywords: undefined,
-    starred: undefined,
-    priority: undefined,
-    workspace: undefined,
-    user_tags: undefined,
-    freshness: undefined,
-    layer: undefined,
-    entity: undefined,
-    entity_type: undefined,
-    quality_issues: undefined,
-    include_drafts: undefined,
-    include_qa: undefined,
-    owner: undefined,
-    review_status: undefined,
-    source: undefined,
-    sort: 'captured_date',
-    order: 'desc',
-  },
-  paramMap: {
-    content_type: 'type',
-    date_from: 'from',
-    date_to: 'to',
-  },
-  parsers: {
-    domain: (raw) => {
-      const arr = raw.split(',').filter(Boolean);
-      return arr.length ? arr : undefined;
-    },
-    subtopic: (raw) => raw || undefined,
-    content_type: (raw) => {
-      const arr = raw.split(',').filter(Boolean);
-      return arr.length ? arr : undefined;
-    },
-    platform: (raw) => {
-      const arr = raw.split(',').filter(Boolean);
-      return arr.length ? arr : undefined;
-    },
-    author: (raw) => {
-      const arr = raw.split('|').filter(Boolean);
-      return arr.length ? arr : undefined;
-    },
-    date_from: (raw) => raw || undefined,
-    date_to: (raw) => raw || undefined,
-    keywords: (raw) => {
-      const arr = raw.split(',').filter(Boolean);
-      return arr.length ? arr : undefined;
-    },
-    starred: (raw) => raw === 'true' || undefined,
-    priority: (raw) => {
-      const arr = raw.split(',').filter(Boolean);
-      return arr.length ? arr : undefined;
-    },
-    workspace: (raw) => raw || undefined,
-    user_tags: (raw) => {
-      const arr = raw.split(',').filter(Boolean);
-      return arr.length ? arr : undefined;
-    },
-    freshness: (raw) => {
-      const arr = raw.split(',').filter(Boolean);
-      return arr.length ? arr : undefined;
-    },
-    layer: (raw) => raw || undefined,
-    entity: (raw) => raw || undefined,
-    entity_type: (raw) => raw || undefined,
-    quality_issues: (raw) => raw === 'true' || undefined,
-    include_drafts: (raw) => raw === 'true' || undefined,
-    include_qa: (raw) => raw === 'true' || undefined,
-    owner: (raw) => raw || undefined,
-    review_status: (raw) => raw || undefined,
-    source: (raw) => raw || undefined,
-    sort: (raw) => (raw as BrowseFilters['sort']) || 'captured_date',
-    order: (raw) => (raw as BrowseFilters['order']) || 'desc',
-  },
-};
-
-// ---------------------------------------------------------------------------
-// Hook: useBrowseFilters (wrapper over useUrlFilters + browse-specific logic)
+// Hook: useBrowseFilters
 // ---------------------------------------------------------------------------
 
 export function useBrowseFilters() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-
-  // Initialise shared URL filter base — browse-specific overrides below handle
-  // the full filter lifecycle; the shared hook anchors the module dependency.
-  useUrlFilters<BrowseFilters>(BROWSE_FILTER_CONFIG);
 
   // Search query from URL (?q=) — browse-specific (not a filter dimension)
   const searchQuery = useMemo(
