@@ -46,6 +46,7 @@ import type { OnOptimisticUpdate } from '@/hooks/review/use-quick-review';
 import { useFilterPresets } from '@/hooks/browse/use-filter-presets';
 import { useQuickAssign } from '@/hooks/use-quick-assign';
 import { useDisplayNames } from '@/hooks/use-display-names';
+import { useContentSelection } from '@/lib/content-browsing';
 import {
   getSortOptionFromFilters,
   getSortFiltersFromOption,
@@ -122,11 +123,24 @@ export function BrowseContent() {
     loadReadMarks();
   }, [loadReadMarks]);
 
+  // Shared selection state — uses only toggleSelect + clearSelection (asymmetric adoption per spec §6.2)
+  const {
+    selectedIds,
+    toggleSelect: toggleSelectItem,
+    clearSelection,
+  } = useContentSelection([
+    filters.domain,
+    filters.content_type,
+    filters.platform,
+    filters.author,
+    filters.freshness,
+    searchQuery,
+  ]);
+
   // UI-only state
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const { viewMode, setViewMode } = useViewMode('kb-view-mode');
   const [hideThumbnails, setHideThumbnails] = useState(() => {
@@ -238,19 +252,7 @@ export function BrowseContent() {
     .filter((id): id is string => typeof id === 'string' && id.length > 0);
   const verifierNames = useDisplayNames(verifierIds);
 
-  // Multi-select handlers
-  const toggleSelectItem = useCallback((itemId: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(itemId)) {
-        next.delete(itemId);
-      } else {
-        next.add(itemId);
-      }
-      return next;
-    });
-  }, []);
-
+  // Multi-select handlers (using shared selection from useContentSelection)
   const handleMarkSelectedRead = useCallback(async () => {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
@@ -258,9 +260,9 @@ export function BrowseContent() {
     toast.success(
       `Marked ${ids.length} item${ids.length !== 1 ? 's' : ''} as read`,
     );
-    setSelectedIds(new Set());
+    clearSelection();
     setMultiSelectMode(false);
-  }, [selectedIds, markBulkRead]);
+  }, [selectedIds, markBulkRead, clearSelection]);
 
   // Send to review bulk action state
   const [isSendingToReview, setIsSendingToReview] = useState(false);
@@ -283,7 +285,7 @@ export function BrowseContent() {
       toast.success(
         `${data.updated} item${data.updated !== 1 ? 's' : ''} sent for review`,
       );
-      setSelectedIds(new Set());
+      clearSelection();
       setMultiSelectMode(false);
     } catch (err) {
       toast.error(
@@ -292,12 +294,12 @@ export function BrowseContent() {
     } finally {
       setIsSendingToReview(false);
     }
-  }, [selectedIds]);
+  }, [selectedIds, clearSelection]);
 
   const handleCancelMultiSelect = useCallback(() => {
-    setSelectedIds(new Set());
+    clearSelection();
     setMultiSelectMode(false);
-  }, []);
+  }, [clearSelection]);
 
   const handleToggleMultiSelect = useCallback(() => {
     if (multiSelectMode) {

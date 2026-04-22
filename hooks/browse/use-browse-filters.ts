@@ -3,18 +3,119 @@
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useCallback, useMemo } from 'react';
 import type { BrowseFilters } from '@/types/content';
+import { useUrlFilters } from '@/lib/content-browsing';
+import type { UrlFilterConfig } from '@/lib/content-browsing';
+
+// ---------------------------------------------------------------------------
+// Browse URL filter config for useUrlFilters base
+// ---------------------------------------------------------------------------
+
+const BROWSE_FILTER_CONFIG: UrlFilterConfig<BrowseFilters> = {
+  defaults: {
+    domain: undefined,
+    subtopic: undefined,
+    content_type: undefined,
+    platform: undefined,
+    author: undefined,
+    date_from: undefined,
+    date_to: undefined,
+    keywords: undefined,
+    starred: undefined,
+    priority: undefined,
+    workspace: undefined,
+    user_tags: undefined,
+    freshness: undefined,
+    layer: undefined,
+    entity: undefined,
+    entity_type: undefined,
+    quality_issues: undefined,
+    include_drafts: undefined,
+    include_qa: undefined,
+    owner: undefined,
+    review_status: undefined,
+    source: undefined,
+    sort: 'captured_date',
+    order: 'desc',
+  },
+  paramMap: {
+    content_type: 'type',
+    date_from: 'from',
+    date_to: 'to',
+  },
+  parsers: {
+    domain: (raw) => {
+      const arr = raw.split(',').filter(Boolean);
+      return arr.length ? arr : undefined;
+    },
+    subtopic: (raw) => raw || undefined,
+    content_type: (raw) => {
+      const arr = raw.split(',').filter(Boolean);
+      return arr.length ? arr : undefined;
+    },
+    platform: (raw) => {
+      const arr = raw.split(',').filter(Boolean);
+      return arr.length ? arr : undefined;
+    },
+    author: (raw) => {
+      const arr = raw.split('|').filter(Boolean);
+      return arr.length ? arr : undefined;
+    },
+    date_from: (raw) => raw || undefined,
+    date_to: (raw) => raw || undefined,
+    keywords: (raw) => {
+      const arr = raw.split(',').filter(Boolean);
+      return arr.length ? arr : undefined;
+    },
+    starred: (raw) => raw === 'true' || undefined,
+    priority: (raw) => {
+      const arr = raw.split(',').filter(Boolean);
+      return arr.length ? arr : undefined;
+    },
+    workspace: (raw) => raw || undefined,
+    user_tags: (raw) => {
+      const arr = raw.split(',').filter(Boolean);
+      return arr.length ? arr : undefined;
+    },
+    freshness: (raw) => {
+      const arr = raw.split(',').filter(Boolean);
+      return arr.length ? arr : undefined;
+    },
+    layer: (raw) => raw || undefined,
+    entity: (raw) => raw || undefined,
+    entity_type: (raw) => raw || undefined,
+    quality_issues: (raw) => raw === 'true' || undefined,
+    include_drafts: (raw) => raw === 'true' || undefined,
+    include_qa: (raw) => raw === 'true' || undefined,
+    owner: (raw) => raw || undefined,
+    review_status: (raw) => raw || undefined,
+    source: (raw) => raw || undefined,
+    sort: (raw) => (raw as BrowseFilters['sort']) || 'captured_date',
+    order: (raw) => (raw as BrowseFilters['order']) || 'desc',
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Hook: useBrowseFilters (wrapper over useUrlFilters + browse-specific logic)
+// ---------------------------------------------------------------------------
 
 export function useBrowseFilters() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
 
-  // Search query from URL (?q=)
+  // Delegate core URL-reading and clearFilters to shared hook
+  const {
+    clearFilters: sharedClearFilters,
+  } = useUrlFilters<BrowseFilters>(BROWSE_FILTER_CONFIG);
+
+  // Search query from URL (?q=) — browse-specific (not a filter dimension)
   const searchQuery = useMemo(
     () => searchParams.get('q') ?? undefined,
     [searchParams],
   );
 
+  // Browse filters need the quality_issues auto-include_qa logic that the
+  // shared parser cannot express, so we parse filters with the special case.
   const filters: BrowseFilters = useMemo(() => {
     const domainRaw = searchParams.get('domain')?.split(',').filter(Boolean);
     const typeRaw = searchParams.get('type')?.split(',').filter(Boolean);
@@ -268,6 +369,7 @@ export function useBrowseFilters() {
     setSearchQuery(undefined);
   }, [setSearchQuery]);
 
+  // Delegate clearFilters to shared hook (navigates to bare pathname)
   const clearFilters = useCallback(() => {
     router.push(pathname);
   }, [router, pathname]);
