@@ -281,7 +281,7 @@ export function TagsBrowse({
             placeholder="Search tags..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="border bg-white pl-9 shadow-sm dark:bg-input/30"
+            className="border bg-background pl-9 shadow-sm"
             aria-label="Search tags"
           />
         </div>

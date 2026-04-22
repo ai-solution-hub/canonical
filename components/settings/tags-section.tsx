@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/tooltip';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useTagsData } from '@/hooks/use-tags-data';
+import { mutationFetchJson } from '@/lib/query/fetchers';
 import { toast } from 'sonner';
 import { TagsCleanup } from './tags-cleanup';
 import { TagsBrowse } from './tags-browse';
@@ -83,13 +84,10 @@ export function TagsSection() {
     ] as const) {
       if (tagNames.length === 0) continue;
       try {
-        const res = await fetch('/api/tags/bulk-delete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tags: tagNames, type }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
+        const data = await mutationFetchJson<{ affected?: number }>(
+          '/api/tags/bulk-delete',
+          { tags: tagNames, type },
+        );
         totalAffected += data.affected ?? 0;
       } catch (err) {
         errors.push(
