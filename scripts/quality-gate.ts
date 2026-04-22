@@ -479,6 +479,15 @@ async function fetchAllInBatches<T = Record<string, unknown>>(
   return out;
 }
 
+/** Exclude test/artefact rows from generic content_items queries (OPS-21).
+ *  E2E and SUPERSEDE items use title prefixes '[E2E' and '[SUPERSEDE' to
+ *  identify themselves. These inflate corpus counts and cause false-positive
+ *  quality-gate failures. Applied to every generic check; NOT applied to
+ *  audit-content checks (which scope via source_file / user_tags already). */
+export function excludeArtefacts<Q extends { not: (...args: any[]) => Q }>(q: Q): Q {
+  return q.not('title', 'like', '[E2E%').not('title', 'like', '[SUPERSEDE%');
+}
+
 async function countNonDraftByType(
   sb: SupabaseClient,
 ): Promise<Record<string, number>> {
@@ -486,9 +495,11 @@ async function countNonDraftByType(
     sb,
     'content_items',
     (q) =>
-      q
-        .select('content_type, governance_review_status')
-        .or('governance_review_status.is.null,governance_review_status.neq.draft'),
+      excludeArtefacts(
+        q
+          .select('content_type, governance_review_status')
+          .or('governance_review_status.is.null,governance_review_status.neq.draft'),
+      ),
   );
   const counts: Record<string, number> = {};
   for (const row of rows) {
@@ -554,23 +565,26 @@ export async function embedding_coverage(
     // Verification finding L-1: use exact count for observed (not row-length
     // capped at .limit(20)) so the operator sees the full scale of the gap,
     // then fetch a small sample separately for the diagnostic list.
-    const { count, error: countErr } = await ctx.sb
-      .from('content_items')
-      .select('id', { count: 'exact', head: true })
-      .is('embedding', null)
-      .or('governance_review_status.is.null,governance_review_status.neq.draft');
+    const { count, error: countErr } = await excludeArtefacts(
+      ctx.sb
+        .from('content_items')
+        .select('id', { count: 'exact', head: true })
+        .is('embedding', null)
+        .or('governance_review_status.is.null,governance_review_status.neq.draft'),
+    );
     if (countErr) throw countErr;
     const missing = count ?? 0;
     let affected = '';
     if (missing > 0) {
-      const { data, error } = await ctx.sb
-        .from('content_items')
-        .select('id, title')
-        .is('embedding', null)
-        .or(
-          'governance_review_status.is.null,governance_review_status.neq.draft',
-        )
-        .limit(5);
+      const { data, error } = await excludeArtefacts(
+        ctx.sb
+          .from('content_items')
+          .select('id, title')
+          .is('embedding', null)
+          .or(
+            'governance_review_status.is.null,governance_review_status.neq.draft',
+          ),
+      ).limit(5);
       if (error) throw error;
       affected = (data ?? [])
         .map((r) => `${r.id}: ${(r.title as string).slice(0, 60)}`)
@@ -604,9 +618,11 @@ export async function chunk_coverage(
       title: string;
       content_type: string;
     }>(ctx.sb, 'content_items', (q) =>
-      q
-        .select('id, title, content_type')
-        .or('governance_review_status.is.null,governance_review_status.neq.draft'),
+      excludeArtefacts(
+        q
+          .select('id, title, content_type')
+          .or('governance_review_status.is.null,governance_review_status.neq.draft'),
+      ),
     );
     if (items.length === 0) {
       return {
@@ -670,10 +686,12 @@ export async function entity_mention_coverage(
       ctx.sb,
       'content_items',
       (q) =>
-        q
-          .select('id, content_type')
-          .or('governance_review_status.is.null,governance_review_status.neq.draft')
-          .not('classified_at', 'is', null),
+        excludeArtefacts(
+          q
+            .select('id, content_type')
+            .or('governance_review_status.is.null,governance_review_status.neq.draft')
+            .not('classified_at', 'is', null),
+        ),
     );
 
     const ids = items.map((r) => r.id as string);
@@ -740,10 +758,12 @@ export async function entity_relationship_coverage(
       ctx.sb,
       'content_items',
       (q) =>
-        q
-          .select('id, content_type')
-          .or('governance_review_status.is.null,governance_review_status.neq.draft')
-          .not('classified_at', 'is', null),
+        excludeArtefacts(
+          q
+            .select('id, content_type')
+            .or('governance_review_status.is.null,governance_review_status.neq.draft')
+            .not('classified_at', 'is', null),
+        ),
     );
 
     const ids = items.map((r) => r.id as string);
@@ -803,16 +823,17 @@ export async function classified_domains_not_empty(
   const t0 = now();
   const severity = severityFor(ctx.profileDef, 'classified_domains_not_empty');
   try {
-    const { data, error } = await ctx.sb
-      .from('content_items')
-      .select(
-        'id, title, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic',
-      )
-      .gt('classification_confidence', 0)
-      .or(
-        'primary_domain.eq.,primary_subtopic.eq.,secondary_domain.eq.,secondary_subtopic.eq.',
-      )
-      .limit(50);
+    const { data, error } = await excludeArtefacts(
+      ctx.sb
+        .from('content_items')
+        .select(
+          'id, title, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic',
+        )
+        .gt('classification_confidence', 0)
+        .or(
+          'primary_domain.eq.,primary_subtopic.eq.,secondary_domain.eq.,secondary_subtopic.eq.',
+        ),
+    ).limit(50);
     if (error) throw error;
     const rows = data ?? [];
     const sample = rows
@@ -870,11 +891,13 @@ export async function guide_domain_filter_resolves(
     const failures: string[] = [];
     for (const g of guideRows) {
       const domain = g.domain_filter as string;
-      const { count, error: cerr } = await ctx.sb
-        .from('content_items')
-        .select('id', { count: 'exact', head: true })
-        .eq('primary_domain', domain)
-        .or('governance_review_status.is.null,governance_review_status.neq.draft');
+      const { count, error: cerr } = await excludeArtefacts(
+        ctx.sb
+          .from('content_items')
+          .select('id', { count: 'exact', head: true })
+          .eq('primary_domain', domain)
+          .or('governance_review_status.is.null,governance_review_status.neq.draft'),
+      );
       if (cerr) throw cerr;
       if ((count ?? 0) === 0) {
         failures.push(`${g.slug}: domain_filter='${domain}' → 0 items`);
@@ -902,12 +925,13 @@ export async function dedup_status_reconciled(
   const severity = severityFor(ctx.profileDef, 'dedup_status_reconciled');
   try {
     const threshold = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const { data, error } = await ctx.sb
-      .from('content_items')
-      .select('id, title, content_type, created_at, updated_at, metadata')
-      .eq('dedup_status', 'confirmed_duplicate')
-      .lt('updated_at', threshold)
-      .limit(50);
+    const { data, error } = await excludeArtefacts(
+      ctx.sb
+        .from('content_items')
+        .select('id, title, content_type, created_at, updated_at, metadata')
+        .eq('dedup_status', 'confirmed_duplicate')
+        .lt('updated_at', threshold),
+    ).limit(50);
     if (error) throw error;
     const rows = data ?? [];
     const sample = rows
@@ -946,10 +970,12 @@ export async function suspected_duplicate_backlog(
   const t0 = now();
   const severity = severityFor(ctx.profileDef, 'suspected_duplicate_backlog');
   try {
-    const { count, error } = await ctx.sb
-      .from('content_items')
-      .select('id', { count: 'exact', head: true })
-      .eq('dedup_status', 'suspected_duplicate');
+    const { count, error } = await excludeArtefacts(
+      ctx.sb
+        .from('content_items')
+        .select('id', { count: 'exact', head: true })
+        .eq('dedup_status', 'suspected_duplicate'),
+    );
     if (error) throw error;
     const n = count ?? 0;
     const profile = ctx.dedup.profiles[ctx.profileName];
@@ -1005,9 +1031,11 @@ export async function history_v1_present(
       ctx.sb,
       'content_items',
       (q) =>
-        q
-          .select('id, title')
-          .or('governance_review_status.is.null,governance_review_status.neq.draft'),
+        excludeArtefacts(
+          q
+            .select('id, title')
+            .or('governance_review_status.is.null,governance_review_status.neq.draft'),
+        ),
     );
 
     const ids = items.map((r) => r.id as string);
@@ -1048,13 +1076,14 @@ export async function classified_but_no_confidence(
   const t0 = now();
   const severity = severityFor(ctx.profileDef, 'classified_but_no_confidence');
   try {
-    const { data, error } = await ctx.sb
-      .from('content_items')
-      .select('id, title, content_type, classified_at, updated_at')
-      .not('classified_at', 'is', null)
-      .is('classification_confidence', null)
-      .or('governance_review_status.is.null,governance_review_status.neq.draft')
-      .limit(50);
+    const { data, error } = await excludeArtefacts(
+      ctx.sb
+        .from('content_items')
+        .select('id, title, content_type, classified_at, updated_at')
+        .not('classified_at', 'is', null)
+        .is('classification_confidence', null)
+        .or('governance_review_status.is.null,governance_review_status.neq.draft'),
+    ).limit(50);
     if (error) throw error;
     const rows = data ?? [];
     const sample = rows
@@ -1087,13 +1116,14 @@ export async function summary_coverage(
   const t0 = now();
   const severity = severityFor(ctx.profileDef, 'summary_coverage');
   try {
-    const { data, error } = await ctx.sb
-      .from('content_items')
-      .select('id, title, content_type, classified_at')
-      .not('classified_at', 'is', null)
-      .is('summary', null)
-      .or('governance_review_status.is.null,governance_review_status.neq.draft')
-      .limit(50);
+    const { data, error } = await excludeArtefacts(
+      ctx.sb
+        .from('content_items')
+        .select('id, title, content_type, classified_at')
+        .not('classified_at', 'is', null)
+        .is('summary', null)
+        .or('governance_review_status.is.null,governance_review_status.neq.draft'),
+    ).limit(50);
     if (error) throw error;
     const rows = data ?? [];
     const sample = rows

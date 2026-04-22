@@ -20,6 +20,7 @@ import {
   renderMarkdown,
   renderJson,
   loadJson,
+  excludeArtefacts,
   type CheckResult,
   type CheckFn,
   type ProfilesConfig,
@@ -560,5 +561,38 @@ describe('renderJson', () => {
     const parsed = JSON.parse(json);
     expect(typeof parsed.run_duration_ms).toBe('number');
     expect(typeof parsed.checks[0].duration_ms).toBe('number');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// excludeArtefacts (OPS-21)
+// ---------------------------------------------------------------------------
+
+describe('excludeArtefacts', () => {
+  it('chains two .not() calls for [E2E% and [SUPERSEDE% title prefixes', () => {
+    const calls: Array<{ col: string; op: string; val: string }> = [];
+    const mockQuery = {
+      not(col: string, op: string, val: string) {
+        calls.push({ col, op, val });
+        return mockQuery;
+      },
+    };
+    const result = excludeArtefacts(mockQuery);
+    expect(result).toBe(mockQuery);
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toEqual({ col: 'title', op: 'like', val: '[E2E%' });
+    expect(calls[1]).toEqual({ col: 'title', op: 'like', val: '[SUPERSEDE%' });
+  });
+
+  it('is idempotent — calling twice adds 4 .not() calls total', () => {
+    const calls: Array<{ col: string; op: string; val: string }> = [];
+    const mockQuery = {
+      not(col: string, op: string, val: string) {
+        calls.push({ col, op, val });
+        return mockQuery;
+      },
+    };
+    excludeArtefacts(excludeArtefacts(mockQuery));
+    expect(calls).toHaveLength(4);
   });
 });

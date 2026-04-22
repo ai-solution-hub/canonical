@@ -125,6 +125,8 @@ class TestDefaults:
             logger=logs.append,
         )
 
+        # Step 1 is a deliberate no-op (OPS-20): DB trigger handles v1.
+        # history_ok is still True because the trigger guarantees v1 exists.
         assert result.history_ok is True
         assert result.chunks_stored == 3
         assert result.entities_stored == 5
@@ -136,7 +138,8 @@ class TestDefaults:
         assert result.layer_set == "content"
         assert result.errors == []
 
-        mock_kb_pipeline_modules.store.insert_content_history_entry.assert_called_once()
+        # Step 1 no longer calls insert_content_history_entry (OPS-20)
+        mock_kb_pipeline_modules.store.insert_content_history_entry.assert_not_called()
         mock_kb_pipeline_modules.chunk.store_chunks.assert_called_once_with(
             "item-1", "Some content body."
         )
@@ -179,7 +182,7 @@ class TestFlagGating:
     def test_write_history_false_skips_history(self, mock_kb_pipeline_modules):
         from kb_pipeline.post_insert import run_post_insert
 
-        run_post_insert(
+        result = run_post_insert(
             item_id="x",
             title="t",
             content="c",
@@ -187,6 +190,9 @@ class TestFlagGating:
             ingestion_source="test",
             write_history=False,
         )
+        # Step 1 is a no-op (OPS-20) but write_history=False still means
+        # history_ok stays at its default False value.
+        assert result.history_ok is False
         mock_kb_pipeline_modules.store.insert_content_history_entry.assert_not_called()
         # Chunks still ran
         mock_kb_pipeline_modules.chunk.store_chunks.assert_called_once()
@@ -203,7 +209,8 @@ class TestFlagGating:
             write_chunks=False,
         )
         mock_kb_pipeline_modules.chunk.store_chunks.assert_not_called()
-        mock_kb_pipeline_modules.store.insert_content_history_entry.assert_called_once()
+        # Step 1 is a no-op (OPS-20) — no call to insert_content_history_entry
+        mock_kb_pipeline_modules.store.insert_content_history_entry.assert_not_called()
 
     def test_store_entities_flag_false_skips_entity_work(
         self, mock_kb_pipeline_modules
@@ -301,8 +308,8 @@ class TestNoClassification:
         mock_kb_pipeline_modules.classify.store_entities.assert_not_called()
         mock_kb_pipeline_modules.classify.store_relationships.assert_not_called()
         mock_kb_pipeline_modules.store.merge_item_metadata.assert_not_called()
-        # But history + chunks + bridge + layer still run
-        mock_kb_pipeline_modules.store.insert_content_history_entry.assert_called_once()
+        # History Step 1 is a no-op (OPS-20), but chunks + bridge + layer still run
+        mock_kb_pipeline_modules.store.insert_content_history_entry.assert_not_called()
         mock_kb_pipeline_modules.chunk.store_chunks.assert_called_once()
         mock_kb_pipeline_modules.bridge.bridge_temporal_to_entities.assert_called_once()
         mock_kb_pipeline_modules.layer.infer_layer.assert_called_once()
@@ -337,24 +344,27 @@ class TestErrorCapture:
     """Any underlying call can raise. The helper must catch, log, and append
     to result.errors — never propagate."""
 
-    def test_history_error_captured(self, mock_kb_pipeline_modules):
+    def test_history_step_is_noop_so_no_error_possible(
+        self, mock_kb_pipeline_modules
+    ):
+        """OPS-20: Step 1 is a deliberate no-op. Even if
+        insert_content_history_entry were to raise, it is never called,
+        so history_ok is always True when write_history=True."""
         from kb_pipeline.post_insert import run_post_insert
 
         mock_kb_pipeline_modules.store.insert_content_history_entry.side_effect = (
-            RuntimeError("history boom")
+            RuntimeError("should never fire")
         )
-        logs: list[str] = []
         result = run_post_insert(
             item_id="x",
             title="t",
             content="c",
             content_type="article",
             ingestion_source="test",
-            logger=logs.append,
         )
-        assert result.history_ok is False
-        assert any("history" in e for e in result.errors)
-        assert any("history boom" in log for log in logs)
+        assert result.history_ok is True
+        assert not any("history" in e for e in result.errors)
+        mock_kb_pipeline_modules.store.insert_content_history_entry.assert_not_called()
         # Downstream steps still ran
         mock_kb_pipeline_modules.chunk.store_chunks.assert_called_once()
 
@@ -395,9 +405,7 @@ class TestErrorCapture:
     def test_multiple_errors_accumulate(self, mock_kb_pipeline_modules):
         from kb_pipeline.post_insert import run_post_insert
 
-        mock_kb_pipeline_modules.store.insert_content_history_entry.side_effect = (
-            RuntimeError("history boom")
-        )
+        # Step 1 is a no-op (OPS-20) so only chunks + layer errors fire.
         mock_kb_pipeline_modules.chunk.store_chunks.side_effect = RuntimeError(
             "chunk boom"
         )
@@ -411,8 +419,7 @@ class TestErrorCapture:
             content_type="article",
             ingestion_source="test",
         )
-        assert len(result.errors) >= 3
-        assert any("history" in e for e in result.errors)
+        assert len(result.errors) >= 2
         assert any("chunks" in e for e in result.errors)
         assert any("layer" in e for e in result.errors)
 
@@ -473,37 +480,25 @@ class TestLogging:
 
 
 class TestHistoryChangeSummary:
-    def test_default_summary_references_ingestion_source(
+    """OPS-20: Step 1 is a deliberate no-op — the DB trigger writes v1.
+    history_change_summary is still accepted as a parameter (API compat)
+    but is not passed anywhere because insert_content_history_entry is
+    no longer called. These tests verify the no-op behaviour."""
+
+    def test_history_change_summary_accepted_but_not_used(
         self, mock_kb_pipeline_modules
     ):
         from kb_pipeline.post_insert import run_post_insert
 
-        run_post_insert(
+        result = run_post_insert(
             item_id="x",
             title="t",
             content="c",
             content_type="article",
             ingestion_source="markdown_import",
-        )
-        call = (
-            mock_kb_pipeline_modules.store.insert_content_history_entry.call_args
-        )
-        assert "markdown_import" in call.kwargs["change_summary"]
-
-    def test_explicit_summary_overrides_default(
-        self, mock_kb_pipeline_modules
-    ):
-        from kb_pipeline.post_insert import run_post_insert
-
-        run_post_insert(
-            item_id="x",
-            title="t",
-            content="c",
-            content_type="article",
-            ingestion_source="test",
             history_change_summary="Custom reason here",
         )
-        call = (
-            mock_kb_pipeline_modules.store.insert_content_history_entry.call_args
-        )
-        assert call.kwargs["change_summary"] == "Custom reason here"
+        # insert_content_history_entry is never called (OPS-20)
+        mock_kb_pipeline_modules.store.insert_content_history_entry.assert_not_called()
+        # history_ok is True because the DB trigger guarantees v1
+        assert result.history_ok is True
