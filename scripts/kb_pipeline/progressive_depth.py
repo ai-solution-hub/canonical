@@ -6,7 +6,7 @@ quality score (lib/quality/quality-score.ts:completenessRaw).
 
 Two strategies:
 
-1. **AI generation** (primary) — uses claude-haiku-4-5-20251001 to structure
+1. **AI generation** (primary) — uses claude-haiku-4-5 to structure
    the Q&A answer into brief/detail/reference layers. Cheap (~£0.003/call).
 2. **Deterministic fallback** — pure Python extraction from existing fields.
    Used when AI generation fails or is unavailable (no API key, network
@@ -39,7 +39,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 # Model for progressive-depth generation — cheap + fast.
-PROGRESSIVE_DEPTH_MODEL = "claude-haiku-4-5-20251001"
+PROGRESSIVE_DEPTH_MODEL = "claude-haiku-4-5"
 PROGRESSIVE_DEPTH_MAX_TOKENS = 800
 
 SYSTEM_PROMPT = """\
@@ -163,7 +163,7 @@ def generate_progressive_depth_ai(
     answer_standard: str | None,
     answer_advanced: str | None,
 ) -> dict[str, str] | None:
-    """Generate progressive-depth columns via AI (claude-haiku-4-5-20251001).
+    """Generate progressive-depth columns via AI (claude-haiku-4-5).
 
     Returns {"brief": ..., "detail": ..., "reference": ...} on success,
     None on failure. Does not raise.
