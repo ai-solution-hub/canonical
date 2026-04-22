@@ -263,7 +263,8 @@ export default function BidSessionPage({
   // Citation panel default-expanded for admin role or review-or-later bid states (P1-4)
   const citationDefaultExpanded =
     role === 'admin' ||
-    (bid?.status != null && REVIEW_OR_LATER_STATES.includes(bid.status));
+    (bid?.status != null &&
+      (REVIEW_OR_LATER_STATES as readonly string[]).includes(bid.status));
 
   const bidName = bid?.name;
 

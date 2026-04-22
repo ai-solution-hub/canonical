@@ -4,8 +4,10 @@ import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { FeedSourceUpdateSchema } from '@/lib/validation/schemas';
+import type { Database } from '@/supabase/types/database.types';
 
 type RouteContext = { params: Promise<{ id: string; sourceId: string }> };
+type FeedSourceUpdate = Database['public']['Tables']['feed_sources']['Update'];
 
 /** GET /api/intelligence/workspaces/:id/sources/:sourceId — get a single feed source */
 export async function GET(_request: NextRequest, context: RouteContext) {
@@ -55,7 +57,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     // so this behaviour is decoupled from the schema — if a future change
     // reintroduces `.default(true)` on the PATCH schema, we still honour
     // "explicitly sent" semantics.
-    let updatePayload = { ...parsed.data };
+    let updatePayload: FeedSourceUpdate = { ...parsed.data };
     if (raw.is_active === true) {
       const { data: current, error: lookupError } = await supabase
         .from('feed_sources')

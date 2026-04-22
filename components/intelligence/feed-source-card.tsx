@@ -85,7 +85,8 @@ export function FeedSourceCard({
   canAdmin,
 }: FeedSourceCardProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const TypeIcon = SOURCE_TYPE_ICONS[source.source_type] ?? Rss;
+  const TypeIcon =
+    (source.source_type && SOURCE_TYPE_ICONS[source.source_type]) ?? Rss;
 
   return (
     <>
@@ -143,7 +144,9 @@ export function FeedSourceCard({
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <Badge variant="outline" className="gap-1 text-xs">
             <TypeIcon className="size-3" aria-hidden="true" />
-            {SOURCE_TYPE_LABELS[source.source_type] ?? source.source_type}
+            {(source.source_type && SOURCE_TYPE_LABELS[source.source_type]) ??
+              source.source_type ??
+              'Unknown'}
           </Badge>
 
           <span className="flex items-center gap-1">
