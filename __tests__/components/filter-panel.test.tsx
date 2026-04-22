@@ -226,12 +226,9 @@ describe('FilterPanel', () => {
     render(<FilterPanel open={true} onOpenChange={mockOnOpenChange} />);
 
     expect(screen.getByText('Freshness')).toBeInTheDocument();
-    // Freshness is collapsed by default — expand it first
-    fireEvent.click(screen.getByText('Freshness'));
-    // The text labels within the freshness buttons
+    // Freshness is now a primary filter — open by default
     const freshTexts = ['fresh', 'aging', 'stale', 'expired'];
     for (const text of freshTexts) {
-      // Each freshness button has a capitalized label span
       const buttons = screen.getAllByRole('button', {
         name: new RegExp(text, 'i'),
       });
@@ -239,9 +236,12 @@ describe('FilterPanel', () => {
     }
   });
 
-  it('renders priority filter section with high/medium/low options', () => {
+  it('renders priority filter section inside Advanced', () => {
     render(<FilterPanel open={true} onOpenChange={mockOnOpenChange} />);
 
+    // Priority is now in the Advanced bucket — expand it first
+    expect(screen.queryByText('Priority')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /advanced/i }));
     expect(screen.getByText('Priority')).toBeInTheDocument();
     expect(screen.getByText('High')).toBeInTheDocument();
     expect(screen.getByText('Medium')).toBeInTheDocument();
@@ -268,17 +268,25 @@ describe('FilterPanel', () => {
     expect(clearBtn).toBeDisabled();
   });
 
-  it('renders quality issues checkbox', () => {
+  it('renders quality issues checkbox inside Advanced', () => {
     render(<FilterPanel open={true} onOpenChange={mockOnOpenChange} />);
 
+    // Quality is now in the Advanced bucket — expand it first
+    expect(screen.queryByText('Quality')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /advanced/i }));
     expect(screen.getByText('Quality')).toBeInTheDocument();
     expect(screen.getByText('Has quality issues')).toBeInTheDocument();
   });
 
-  it('renders date range filter section with from/to inputs', () => {
+  it('renders date range filter section inside Advanced', () => {
     render(<FilterPanel open={true} onOpenChange={mockOnOpenChange} />);
 
+    // Date Range is now in the Advanced bucket — expand it first
+    expect(screen.queryByText('Date Range')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /advanced/i }));
     expect(screen.getByText('Date Range')).toBeInTheDocument();
+    // Expand the Date Range section itself
+    fireEvent.click(screen.getByText('Date Range'));
     expect(screen.getByLabelText('From')).toBeInTheDocument();
     expect(screen.getByLabelText('To')).toBeInTheDocument();
   });
@@ -288,5 +296,126 @@ describe('FilterPanel', () => {
 
     // The Sheet component should not render content when closed
     expect(screen.queryByText('Filters')).not.toBeInTheDocument();
+  });
+
+  // -----------------------------------------------------------------------
+  // Progressive disclosure (P1-1)
+  // -----------------------------------------------------------------------
+
+  describe('progressive disclosure', () => {
+    it('renders high-signal filters visible without expanding Advanced', () => {
+      render(<FilterPanel open={true} onOpenChange={mockOnOpenChange} />);
+
+      // Primary filters should be visible immediately
+      expect(screen.getByText('Domain')).toBeInTheDocument();
+      expect(screen.getByText('Content Type')).toBeInTheDocument();
+      expect(screen.getByText('Freshness')).toBeInTheDocument();
+    });
+
+    it('hides advanced filters behind a disclosure toggle by default', () => {
+      render(<FilterPanel open={true} onOpenChange={mockOnOpenChange} />);
+
+      // The Advanced toggle should exist
+      const advancedToggle = screen.getByRole('button', { name: /advanced/i });
+      expect(advancedToggle).toBeInTheDocument();
+
+      // Advanced sections should NOT be visible before expanding
+      // Date Range is an advanced filter
+      expect(screen.queryByText('Date Range')).not.toBeInTheDocument();
+      // Keywords is an advanced filter
+      expect(screen.queryByText('Keywords')).not.toBeInTheDocument();
+    });
+
+    it('reveals advanced filters when the Advanced toggle is clicked', () => {
+      render(<FilterPanel open={true} onOpenChange={mockOnOpenChange} />);
+
+      const advancedToggle = screen.getByRole('button', { name: /advanced/i });
+      fireEvent.click(advancedToggle);
+
+      // After expanding, advanced sections should be visible
+      expect(screen.getByText('Date Range')).toBeInTheDocument();
+      expect(screen.getByText('Keywords')).toBeInTheDocument();
+      expect(screen.getByText('Priority')).toBeInTheDocument();
+      expect(screen.getByText('Quality')).toBeInTheDocument();
+      expect(screen.getByText('Drafts')).toBeInTheDocument();
+      expect(screen.getByText('Q&A Pairs')).toBeInTheDocument();
+      expect(screen.getByText('Starred')).toBeInTheDocument();
+      expect(screen.getByText('Owner')).toBeInTheDocument();
+      expect(screen.getByText('Review Status')).toBeInTheDocument();
+    });
+
+    it('collapses advanced filters when the Advanced toggle is clicked again', () => {
+      render(<FilterPanel open={true} onOpenChange={mockOnOpenChange} />);
+
+      const advancedToggle = screen.getByRole('button', { name: /advanced/i });
+
+      // Open
+      fireEvent.click(advancedToggle);
+      expect(screen.getByText('Date Range')).toBeInTheDocument();
+
+      // Close
+      fireEvent.click(advancedToggle);
+      expect(screen.queryByText('Date Range')).not.toBeInTheDocument();
+    });
+
+    it('keeps Platform and Author in secondary position (visible by default)', () => {
+      render(<FilterPanel open={true} onOpenChange={mockOnOpenChange} />);
+
+      // Platform and Author are secondary — visible without Advanced
+      expect(screen.getByText('Platform')).toBeInTheDocument();
+      expect(screen.getByText('Author')).toBeInTheDocument();
+    });
+
+    it('shows Subtopic in the primary section when a single domain is selected', () => {
+      mockFilters.value = { ...mockFilters.value, domain: ['Corporate'] };
+      render(<FilterPanel open={true} onOpenChange={mockOnOpenChange} />);
+
+      // SubtopicFilter renders "Subtopic (Corporate)" as its title
+      expect(screen.getByText(/Subtopic \(Corporate\)/)).toBeInTheDocument();
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Filter application behaviour unchanged (P1-1)
+  // -----------------------------------------------------------------------
+
+  describe('filter application unchanged after reorganisation', () => {
+    it('applies primary filter (freshness) correctly', () => {
+      render(<FilterPanel open={true} onOpenChange={mockOnOpenChange} />);
+
+      // Freshness is now primary and defaultOpen — find the "fresh" toggle
+      // Use aria-pressed to distinguish filter buttons from section heading
+      const freshButtons = screen.getAllByRole('button', { name: /fresh/i });
+      const freshToggle = freshButtons.find(
+        (btn) => btn.getAttribute('aria-pressed') !== null,
+      );
+      expect(freshToggle).toBeDefined();
+      fireEvent.click(freshToggle!);
+
+      const applyBtn = screen.getByRole('button', { name: 'Apply filters' });
+      fireEvent.click(applyBtn);
+
+      expect(mockSetFilters).toHaveBeenCalled();
+    });
+
+    it('applies advanced filter (date range) correctly after expanding', () => {
+      render(<FilterPanel open={true} onOpenChange={mockOnOpenChange} />);
+
+      // Expand Advanced
+      const advancedToggle = screen.getByRole('button', { name: /advanced/i });
+      fireEvent.click(advancedToggle);
+
+      // Expand Date Range section
+      fireEvent.click(screen.getByText('Date Range'));
+
+      const fromInput = screen.getByLabelText('From');
+      fireEvent.change(fromInput, { target: { value: '2026-01-01' } });
+
+      // Click apply
+      const applyBtn = screen.getByRole('button', { name: 'Apply filters' });
+      fireEvent.click(applyBtn);
+
+      expect(mockSetFilters).toHaveBeenCalled();
+    });
   });
 });
