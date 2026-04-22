@@ -426,6 +426,38 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           };
         }
 
+        // S186 WP-E: write v1 content_history row to match the other 4 TS
+        // ingest routes (app/api/ingest/url, /api/items, /api/items/batch,
+        // /api/upload). The DB trigger `trg_content_items_ensure_v1_history`
+        // is a backstop — if this explicit write fails, the trigger fills
+        // in at transaction commit with change_reason='auto_v1_on_insert'.
+        // Non-fatal — the item itself is usable without history. No
+        // `.select()` is needed here: this runs in a Next.js API route (not a
+        // standalone Bun script) so the 204 response is fine. See CLAUDE.md
+        // §Supabase "Bun fetch hangs on HTTP 204 through sandbox proxy".
+        {
+          const { error: historyErr } = await supabase
+            .from('content_history')
+            .insert({
+              content_item_id: item.id,
+              title: args.title,
+              content: args.content,
+              brief: null,
+              detail: null,
+              reference: null,
+              change_type: 'create',
+              change_summary: 'Item created via MCP create_content_item tool',
+              change_reason: 'initial_ingest',
+              created_by: userId,
+              version: 1,
+            });
+          if (historyErr) {
+            console.error(
+              `MCP create_content_item v1 history insert failed for ${item.id}: ${historyErr.message}`,
+            );
+          }
+        }
+
         const created: CreatedItem = {
           id: item.id,
           title: item.title ?? args.title,
