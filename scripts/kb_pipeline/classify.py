@@ -732,11 +732,17 @@ def classify(
                 temporal_ref["related_entity"] = related_entity
             temporal_references.append(temporal_ref)
 
+    # S187: entity classifier occasionally emits uppercase slug forms
+    # (e.g. "CORPORATE", "PRODUCT-FEATURE") that don't match lowercase
+    # taxonomy_domains entries. Normalise only all-uppercase strings to
+    # lowercase — leaves pretty-cased names untouched.
+    _pd_raw = parsed["primary_domain"]
+    _sd_raw = parsed.get("secondary_domain")
     cls_result = ClassificationResult(
-        primary_domain=parsed["primary_domain"],
+        primary_domain=_pd_raw.lower() if isinstance(_pd_raw, str) and _pd_raw.isupper() else _pd_raw,
         primary_subtopic=parsed["primary_subtopic"],
         confidence=parsed["confidence"],
-        secondary_domain=parsed.get("secondary_domain"),
+        secondary_domain=_sd_raw.lower() if isinstance(_sd_raw, str) and _sd_raw.isupper() else _sd_raw,
         secondary_subtopic=parsed.get("secondary_subtopic"),
         suggested_title=parsed.get("suggested_title", ""),
         summary=parsed.get("summary", ""),

@@ -180,6 +180,21 @@ class TestClassify:
 
     @patch("kb_pipeline.classify._get_client")
     @patch("kb_pipeline.classify.get_system_prompt", return_value="system prompt")
+    def test_all_uppercase_domain_normalised_to_lower(self, _mock_prompt, mock_get_client):
+        """S187 regression: all-uppercase primary/secondary domains lowercase; mixed-case preserved."""
+        parsed = _valid_classification_json(
+            primary_domain="CORPORATE",
+            secondary_domain="PRODUCT-FEATURE",
+        )
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = _make_api_response(parsed)
+        mock_get_client.return_value = mock_client
+        result = classify("T", "Content")
+        assert result.primary_domain == "corporate"
+        assert result.secondary_domain == "product-feature"
+
+    @patch("kb_pipeline.classify._get_client")
+    @patch("kb_pipeline.classify.get_system_prompt", return_value="system prompt")
     def test_response_wrapped_in_triple_backticks(self, _mock_prompt, mock_get_client):
         """JSON wrapped in ``` backticks is parsed correctly."""
         parsed = _valid_classification_json()
