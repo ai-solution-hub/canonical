@@ -7,7 +7,8 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { ResponseUpdateBodySchema } from '@/lib/validation/schemas';
-import { countWordsFromHtml } from '@/lib/editor-utils';
+import { countWords } from '@/lib/editor-utils';
+import { stripMarkdown } from '@/lib/content/strip-markdown';
 import type { BidResponseMetadata, QualityData } from '@/types/bid-metadata';
 import { sb } from '@/lib/supabase/safe';
 
@@ -219,7 +220,7 @@ export async function PATCH(
     // Recalculate word count in metadata if response text changed
     if (response_text !== undefined) {
       const existingMeta = (existing.metadata ?? {}) as BidResponseMetadata;
-      const wordCount = countWordsFromHtml(response_text);
+      const wordCount = countWords(stripMarkdown(response_text));
       const wordLimitCompliance = question.word_limit
         ? wordCount <= question.word_limit
         : true;
