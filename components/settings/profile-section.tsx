@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { roleBadgeVariant, roleLabel } from '@/lib/user-helpers';
+import { NotificationPreferences } from '@/components/settings/notification-preferences';
 
 export function ProfileSection() {
   const supabase = createClient();
@@ -273,6 +274,9 @@ export function ProfileSection() {
           </div>
         </form>
       </Card>
+
+      {/* Notification preferences */}
+      <NotificationPreferences />
     </div>
   );
 }
