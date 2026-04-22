@@ -323,12 +323,14 @@ test.describe('Bid draft-stream happy path (8.0.7)', () => {
       ),
     ).toBeVisible({ timeout: 15000 });
 
-    // The "Regenerate" button is the entry point for both creating from
-    // empty AND for re-drafting. Clicking it reveals a "Regeneration
+    // The "Redraft" button is the entry point for both creating from
+    // empty AND for re-drafting. Clicking it reveals a "Redraft
     // instructions" textbox and swaps the button label to "Send"; only the
     // Send click dispatches the draft-stream POST. Confirmed at
     // components/bid/response-editor-toolbar.tsx (two-phase action).
-    const regenerateButton = page.getByRole('button', { name: /^Regenerate$/ });
+    // (Internal action name is still 'regenerate'; user-facing label was
+    // renamed in P1-12.)
+    const regenerateButton = page.getByRole('button', { name: /^Redraft$/ });
     await expect(regenerateButton).toBeVisible({ timeout: 15000 });
     await regenerateButton.click();
 
@@ -538,10 +540,11 @@ test.describe('Bid regenerate + restore (8.0.8)', () => {
       })
       .toContain(normaliseText('intentionally distinctive'));
 
-    // 2. Click Regenerate. With an existing row, this routes through the
+    // 2. Click Redraft. With an existing row, this routes through the
     //    /regenerate endpoint (NOT /draft-stream) because the action handler
-    //    branches on response?.id existence.
-    const regenerateButton = page.getByRole('button', { name: /^Regenerate$/ });
+    //    branches on response?.id existence. (Internal action name is still
+    //    'regenerate'; user-facing label was renamed in P1-12.)
+    const regenerateButton = page.getByRole('button', { name: /^Redraft$/ });
     await expect(regenerateButton).toBeVisible();
 
     // Click once to reveal the instructions input, then again to send.
