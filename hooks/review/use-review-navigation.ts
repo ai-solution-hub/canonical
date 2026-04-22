@@ -6,7 +6,6 @@ import type {
   UseInfiniteQueryResult,
 } from '@tanstack/react-query';
 import type { ReviewQueueItem } from '@/types/review';
-import type { QueueSortField } from '@/components/review/review-queue-panel';
 import type { ReviewQueuePage } from '@/hooks/review/use-review-queue-data';
 
 // ---------------------------------------------------------------------------
@@ -44,7 +43,6 @@ export interface UseReviewNavigationReturn {
 export function useReviewNavigation(
   queue: ReviewQueueItem[],
   isLoading: boolean,
-  queueSort: QueueSortField,
   queueQuery: UseInfiniteQueryResult<
     InfiniteData<ReviewQueuePage, number>,
     Error
@@ -71,53 +69,10 @@ export function useReviewNavigation(
   }, [queue.length]);
 
   // -----------------------------------------------------------------------
-  // Sorted queue (client-side sort for the side panel)
+  // Sorted queue — uses server-provided order (no client-side re-sorting)
   // -----------------------------------------------------------------------
 
-  const sortedQueue = useMemo(() => {
-    if (queueSort === 'default') return queue;
-
-    const sorted = [...queue];
-    switch (queueSort) {
-      case 'flagged':
-        sorted.sort((a, b) => {
-          const aFlagged = a.governance_review_status === 'pending' ? 1 : 0;
-          const bFlagged = b.governance_review_status === 'pending' ? 1 : 0;
-          if (bFlagged !== aFlagged) return bFlagged - aFlagged;
-          return 0;
-        });
-        break;
-      case 'domain':
-        sorted.sort((a, b) =>
-          (a.primary_domain ?? '').localeCompare(b.primary_domain ?? ''),
-        );
-        break;
-      case 'content_type':
-        sorted.sort((a, b) =>
-          (a.content_type ?? '').localeCompare(b.content_type ?? ''),
-        );
-        break;
-      case 'confidence':
-        sorted.sort(
-          (a, b) =>
-            (b.classification_confidence ?? 0) -
-            (a.classification_confidence ?? 0),
-        );
-        break;
-      case 'quality_score':
-        sorted.sort(
-          (a, b) =>
-            (a.quality_score ?? Infinity) - (b.quality_score ?? Infinity),
-        );
-        break;
-      case 'date':
-        sorted.sort((a, b) =>
-          (b.captured_date ?? '').localeCompare(a.captured_date ?? ''),
-        );
-        break;
-    }
-    return sorted;
-  }, [queue, queueSort]);
+  const sortedQueue = queue;
 
   // -----------------------------------------------------------------------
   // Panel selection (map sorted index back to real queue index)

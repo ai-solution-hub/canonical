@@ -4,40 +4,20 @@ import { useEffect, useRef } from 'react';
 import { DomainBadge } from '@/components/shared/domain-badge';
 import { Badge } from '@/components/ui/badge';
 import { Check, Flag } from 'lucide-react';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { getDisplayTitle } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { ReviewQueueItem } from '@/types/review';
-
-export type QueueSortField =
-  | 'default'
-  | 'flagged'
-  | 'domain'
-  | 'content_type'
-  | 'confidence'
-  | 'quality_score'
-  | 'date';
 
 interface ReviewQueuePanelProps {
   items: ReviewQueueItem[];
   currentIndex: number;
   onSelectItem: (index: number) => void;
-  sortBy: QueueSortField;
-  onSortChange: (sort: QueueSortField) => void;
 }
 
 export function ReviewQueuePanel({
   items,
   currentIndex,
   onSelectItem,
-  sortBy,
-  onSortChange,
 }: ReviewQueuePanelProps) {
   const currentRef = useRef<HTMLButtonElement>(null);
 
@@ -51,27 +31,6 @@ export function ReviewQueuePanel({
 
   return (
     <div className="flex h-full flex-col">
-      {/* Sort controls */}
-      <div className="border-b border-border px-3 py-2">
-        <Select
-          value={sortBy}
-          onValueChange={(v) => onSortChange(v as QueueSortField)}
-        >
-          <SelectTrigger className="h-8 text-xs">
-            <SelectValue placeholder="Sort by..." />
-          </SelectTrigger>
-          <SelectContent position="popper">
-            <SelectItem value="default">Default order</SelectItem>
-            <SelectItem value="flagged">Flagged first</SelectItem>
-            <SelectItem value="domain">Domain</SelectItem>
-            <SelectItem value="content_type">Content type</SelectItem>
-            <SelectItem value="confidence">Confidence</SelectItem>
-            <SelectItem value="quality_score">Quality score</SelectItem>
-            <SelectItem value="date">Date</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
       {/* Queue list */}
       <div className="flex-1 overflow-y-auto overscroll-contain">
         {items.map((item, index) => {

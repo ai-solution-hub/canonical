@@ -6,7 +6,6 @@ import {
   PanelRight,
   CheckCircle2,
   BookOpen,
-  Activity,
   ClipboardCheck,
   X,
 } from 'lucide-react';
@@ -56,7 +55,6 @@ export function ReviewContent() {
     showFlagInput,
     flagDetails,
     showQueuePanel,
-    queueSort,
     announcement,
 
     // Refs
@@ -86,7 +84,6 @@ export function ReviewContent() {
     setShowFlagInput,
     setFlagDetails,
     setFilters,
-    setQueueSort,
 
     // Keyboard shortcuts
     showHelp,
@@ -100,8 +97,6 @@ export function ReviewContent() {
   // Session summary dialog state
   const [showSummary, setShowSummary] = useState(false);
   const [sessionDuration, setSessionDuration] = useState(0);
-  // Review health cadence panel toggle
-  const [showCadence, setShowCadence] = useState(false);
   const [sessionStart] = useState(() => Date.now());
   const [sessionStats, setSessionStats] = useState<ReviewSessionStats>({
     total: 0,
@@ -387,20 +382,6 @@ export function ReviewContent() {
                 </span>
               )}
             </h1>
-            {/* Review health toggle */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowCadence(!showCadence)}
-              aria-label={
-                showCadence ? 'Hide review health' : 'Show review health'
-              }
-              aria-expanded={showCadence}
-              className="gap-1.5 text-xs text-muted-foreground"
-            >
-              <Activity className="size-3.5" aria-hidden="true" />
-              Health
-            </Button>
             {/* Queue panel toggle */}
             <Button
               variant="ghost"
@@ -423,8 +404,8 @@ export function ReviewContent() {
           />
         </div>
 
-        {/* Review health cadence card (collapsible) */}
-        {showCadence && <ReviewCadenceCard className="mb-4" />}
+        {/* Review health cadence card (always visible) */}
+        <ReviewCadenceCard className="mb-4" />
 
         {/* Progress bar */}
         <ReviewProgressBar
@@ -701,8 +682,6 @@ export function ReviewContent() {
             items={sortedQueue}
             currentIndex={currentSortedIndex}
             onSelectItem={handleSelectItem}
-            sortBy={queueSort}
-            onSortChange={setQueueSort}
           />
         </SheetContent>
       </Sheet>

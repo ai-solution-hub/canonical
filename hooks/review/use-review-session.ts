@@ -5,9 +5,7 @@ import type { ReadonlyURLSearchParams } from 'next/navigation';
 import type {
   ReviewFilters as ReviewFiltersType,
   ReviewProgress,
-  ReviewQueueSortField,
 } from '@/types/review';
-import type { QueueSortField } from '@/components/review/review-queue-panel';
 // ReviewAssignmentInfo is used by other sub-hooks, not directly here
 
 // ---------------------------------------------------------------------------
@@ -17,10 +15,7 @@ import type { QueueSortField } from '@/components/review/review-queue-panel';
 export interface UseReviewSessionReturn {
   // Filter/sort
   filters: ReviewFiltersType;
-  serverSort: ReviewQueueSortField | undefined;
-  queueSort: QueueSortField;
   setFilters: React.Dispatch<React.SetStateAction<ReviewFiltersType>>;
-  setQueueSort: (sort: QueueSortField) => void;
   handleFiltersChange: (newFilters: ReviewFiltersType) => void;
 
   // Progress
@@ -122,35 +117,6 @@ export function useReviewSession(
   }, []);
 
   // -----------------------------------------------------------------------
-  // Sort state
-  // -----------------------------------------------------------------------
-
-  const [queueSort, setQueueSortInternal] = useState<QueueSortField>('default');
-
-  /** Map client-side sort field to server-side API sort parameter */
-  const apiSortForQueueSort = useCallback(
-    (sort: QueueSortField): ReviewQueueSortField | undefined => {
-      if (sort === 'confidence') return 'confidence_asc';
-      if (sort === 'quality_score') return 'quality_score_asc';
-      return undefined; // Other sorts are client-side only
-    },
-    [],
-  );
-
-  const [serverSort, setServerSort] = useState<
-    ReviewQueueSortField | undefined
-  >(undefined);
-
-  const setQueueSort = useCallback(
-    (sort: QueueSortField) => {
-      setQueueSortInternal(sort);
-      const newServerSort = apiSortForQueueSort(sort);
-      setServerSort(newServerSort);
-    },
-    [apiSortForQueueSort],
-  );
-
-  // -----------------------------------------------------------------------
   // Progress state
   // -----------------------------------------------------------------------
 
@@ -188,10 +154,7 @@ export function useReviewSession(
 
   return {
     filters,
-    serverSort,
-    queueSort,
     setFilters,
-    setQueueSort,
     handleFiltersChange,
     progress,
     setProgress,
