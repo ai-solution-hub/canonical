@@ -192,3 +192,38 @@ describe('MetadataSidebar — resolveFlag error handling', () => {
     expect(mockToastError).toHaveBeenCalledWith('Failed to resolve quality flag');
   });
 });
+
+describe('MetadataSidebar — classification details admin-only guard (P1-6 F2)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetchFlags.mockResolvedValue({ data: [], error: null });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('does not render a "Classification Details" heading or classification_reasoning text even when reasoning is populated', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
+
+    const reasoningText = 'This item was classified as Corporate because of explicit taxonomy signals.';
+    render(
+      <MetadataSidebar
+        item={createItem({
+          classification_confidence: 0.92,
+          classification_reasoning: reasoningText,
+          classified_at: '2026-04-01T00:00:00Z',
+        })}
+        editingField={null}
+        editValue=""
+        saveSuccess={null}
+        startEdit={vi.fn()}
+        saveEdit={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText('Classification Details')).not.toBeInTheDocument();
+    expect(screen.queryByText(reasoningText)).not.toBeInTheDocument();
+    expect(screen.queryByText(/classified as Corporate/i)).not.toBeInTheDocument();
+  });
+});
