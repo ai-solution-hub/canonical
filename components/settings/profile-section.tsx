@@ -16,9 +16,24 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { roleBadgeVariant, roleLabel } from '@/lib/user-helpers';
 import { NotificationPreferences } from '@/components/settings/notification-preferences';
+
+type PrimaryFocus = 'bid_writing' | 'account_management' | 'marketing';
+
+const PRIMARY_FOCUS_OPTIONS: { value: PrimaryFocus; label: string }[] = [
+  { value: 'bid_writing', label: 'Bid writing' },
+  { value: 'account_management', label: 'Account management' },
+  { value: 'marketing', label: 'Marketing content' },
+];
 
 export function ProfileSection() {
   const supabase = createClient();
@@ -26,6 +41,8 @@ export function ProfileSection() {
   const [displayName, setDisplayName] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [primaryFocus, setPrimaryFocus] = useState<PrimaryFocus | ''>('');
+  const [savingFocus, setSavingFocus] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
@@ -45,6 +62,8 @@ export function ProfileSection() {
         const name = (user.user_metadata?.display_name as string) ?? '';
         setDisplayName(name);
         initialDisplayNameRef.current = name;
+        const focus = (user.user_metadata?.primary_focus as PrimaryFocus) ?? '';
+        setPrimaryFocus(focus);
       }
       setLoading(false);
     }
@@ -106,6 +125,26 @@ export function ProfileSection() {
       );
     } finally {
       setChangingPassword(false);
+    }
+  }
+
+  async function handlePrimaryFocusChange(value: string) {
+    // 'none' is the sentinel for clearing the selection
+    const newFocus = value === 'none' ? null : (value as PrimaryFocus);
+    setSavingFocus(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: { primary_focus: newFocus },
+      });
+      if (error) throw error;
+      setPrimaryFocus(newFocus ?? '');
+      toast.success('Primary focus updated');
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to update primary focus',
+      );
+    } finally {
+      setSavingFocus(false);
     }
   }
 
@@ -184,6 +223,29 @@ export function ProfileSection() {
             </div>
             <p className="text-xs text-muted-foreground">
               Your role is managed by an administrator.
+            </p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="primary-focus">Primary Focus</Label>
+            <Select
+              value={primaryFocus || 'none'}
+              onValueChange={handlePrimaryFocusChange}
+              disabled={savingFocus}
+            >
+              <SelectTrigger id="primary-focus" className="w-full">
+                <SelectValue placeholder="Select your primary focus" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No preference</SelectItem>
+                {PRIMARY_FOCUS_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Optional. Helps tailor your experience to your primary workflow.
             </p>
           </div>
           <div className="flex justify-end">
