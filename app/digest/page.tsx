@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { handleTablistKeyDown } from '@/lib/tablist-keyboard';
 import {
   Loader2,
   FileText,
@@ -9,7 +8,6 @@ import {
   Calendar,
   BookCheck,
   Filter,
-  SlidersHorizontal,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -34,15 +32,18 @@ import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { useDigestData } from '@/hooks/use-digest-data';
 import { useAccountAge } from '@/hooks/use-account-age';
 
-type DigestMode = 'preset' | 'daily' | 'custom';
-
+/**
+ * Unified period options — Daily and Custom collapsed into a single dropdown
+ * per audit P1-4 / P1-9. Preset periods are the zero-state; "Custom..." is
+ * a progressive-disclosure option that reveals the filter panel inline.
+ */
 const PERIOD_OPTIONS = [
+  { value: '1', label: 'Last 1 day', type: 'daily' as const },
   { value: '7', label: 'Last 7 days', type: 'weekly' as const },
   { value: '14', label: 'Last 14 days', type: 'custom' as const },
   { value: '30', label: 'Last 30 days', type: 'custom' as const },
+  { value: 'custom', label: 'Custom…', type: 'custom' as const },
 ];
-
-// Domain options are now loaded from taxonomy context in the page component
 
 function DigestSkeleton() {
   return (
@@ -73,85 +74,15 @@ function toDateInputValue(date: Date): string {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted sub-components (previously defined inside DigestPage body)
+// Extracted sub-components
 // ---------------------------------------------------------------------------
-
-interface ModeSelectorProps {
-  mode: DigestMode;
-  onModeChange: (mode: DigestMode) => void;
-}
-
-function ModeSelector({ mode, onModeChange }: ModeSelectorProps) {
-  return (
-    <div
-      role="tablist"
-      aria-label="Report mode"
-      onKeyDown={handleTablistKeyDown}
-      className="flex items-center gap-1 rounded-lg border bg-muted/50 p-1"
-    >
-      <button
-        role="tab"
-        id="tab-preset"
-        aria-selected={mode === 'preset'}
-        aria-controls="digest-content-panel"
-        tabIndex={mode === 'preset' ? 0 : -1}
-        onClick={() => onModeChange('preset')}
-        className={`rounded-md px-2 py-1.5 text-sm font-medium transition-colors sm:px-3 ${
-          mode === 'preset'
-            ? 'bg-background text-foreground shadow-sm'
-            : 'text-muted-foreground hover:text-foreground'
-        }`}
-      >
-        <Calendar className="inline-block size-3.5 sm:mr-1.5" />
-        <span className="sm:hidden">7d</span>
-        <span className="hidden sm:inline">Period</span>
-      </button>
-      <button
-        role="tab"
-        id="tab-daily"
-        aria-selected={mode === 'daily'}
-        aria-controls="digest-content-panel"
-        tabIndex={mode === 'daily' ? 0 : -1}
-        onClick={() => onModeChange('daily')}
-        className={`rounded-md px-2 py-1.5 text-sm font-medium transition-colors sm:px-3 ${
-          mode === 'daily'
-            ? 'bg-background text-foreground shadow-sm'
-            : 'text-muted-foreground hover:text-foreground'
-        }`}
-      >
-        <Calendar className="inline-block size-3.5 sm:mr-1.5" />
-        <span className="sm:hidden">1d</span>
-        <span className="hidden sm:inline">Daily</span>
-      </button>
-      <button
-        role="tab"
-        id="tab-custom"
-        aria-selected={mode === 'custom'}
-        aria-controls="digest-content-panel"
-        tabIndex={mode === 'custom' ? 0 : -1}
-        onClick={() => onModeChange('custom')}
-        className={`rounded-md px-2 py-1.5 text-sm font-medium transition-colors sm:px-3 ${
-          mode === 'custom'
-            ? 'bg-background text-foreground shadow-sm'
-            : 'text-muted-foreground hover:text-foreground'
-        }`}
-      >
-        <SlidersHorizontal className="inline-block size-3.5 sm:mr-1.5" />
-        <span className="sm:hidden">Filter</span>
-        <span className="hidden sm:inline">Custom</span>
-      </button>
-    </div>
-  );
-}
 
 interface GenerateControlsProps {
   variant: 'hero' | 'bar';
-  mode: DigestMode;
-  onModeChange: (mode: DigestMode) => void;
   generating: boolean;
   onGenerate: () => void;
-  periodDays: string;
-  onPeriodDaysChange: (value: string) => void;
+  periodSelection: string;
+  onPeriodSelectionChange: (value: string) => void;
   customDateFrom: string;
   onCustomDateFromChange: (value: string) => void;
   customDateTo: string;
@@ -165,12 +96,10 @@ interface GenerateControlsProps {
 
 function GenerateControls({
   variant,
-  mode,
-  onModeChange,
   generating,
   onGenerate,
-  periodDays,
-  onPeriodDaysChange,
+  periodSelection,
+  onPeriodSelectionChange,
   customDateFrom,
   onCustomDateFromChange,
   customDateTo,
@@ -183,6 +112,7 @@ function GenerateControls({
 }: GenerateControlsProps) {
   const buttonVariant = variant === 'hero' ? 'default' : 'outline';
   const buttonSize = variant === 'hero' ? 'lg' : 'default';
+  const isCustom = periodSelection === 'custom';
 
   return (
     <div className="space-y-4">
@@ -192,49 +122,171 @@ function GenerateControls({
           variant === 'hero' && 'justify-center',
         )}
       >
-        <ModeSelector mode={mode} onModeChange={onModeChange} />
+        <Select
+          value={periodSelection}
+          onValueChange={onPeriodSelectionChange}
+        >
+          <SelectTrigger className="w-[180px]">
+            <Calendar className="size-4" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PERIOD_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {!isCustom && (
+          <Button
+            onClick={onGenerate}
+            disabled={generating}
+            variant={buttonVariant}
+            size={buttonSize}
+          >
+            {generating ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="size-4" />
+                {variant === 'hero'
+                  ? 'Generate Report'
+                  : 'Generate New Report'}
+              </>
+            )}
+          </Button>
+        )}
       </div>
 
-      <div
-        role="tabpanel"
-        id="digest-content-panel"
-        aria-labelledby={`tab-${mode}`}
-      >
-        <div
-          className={cn(
-            'flex flex-wrap items-center gap-3',
-            variant === 'hero' && 'justify-center',
-          )}
-        >
-          {mode === 'preset' && (
-            <Select value={periodDays} onValueChange={onPeriodDaysChange}>
-              <SelectTrigger className="w-[160px]">
-                <Calendar className="size-4" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PERIOD_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
+      {/* Custom filter panel — revealed inline when "Custom..." is selected */}
+      {isCustom && (
+        <div className="rounded-xl border bg-card p-5">
+          <div className="mb-4 flex items-center gap-2">
+            <Filter className="size-4 text-primary" />
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Custom Report Filters
+            </h3>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            {/* Date range */}
+            <div className="space-y-2">
+              <Label htmlFor="date-from">From</Label>
+              <Input
+                id="date-from"
+                type="date"
+                value={customDateFrom}
+                onChange={(e) => onCustomDateFromChange(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="date-to">To</Label>
+              <Input
+                id="date-to"
+                type="date"
+                value={customDateTo}
+                onChange={(e) => onCustomDateToChange(e.target.value)}
+              />
+            </div>
+
+            {/* Domain filter */}
+            <div className="space-y-2">
+              <Label htmlFor="custom-domain">Domain</Label>
+              <Select
+                value={customDomain}
+                onValueChange={onCustomDomainChange}
+              >
+                <SelectTrigger id="custom-domain">
+                  <SelectValue placeholder="All domains" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All domains</SelectItem>
+                  {domainOptions.map((domain) => (
+                    <SelectItem key={domain} value={domain}>
+                      {domain}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Keywords filter */}
+            <div className="space-y-2">
+              <Label htmlFor="keywords">
+                Keywords{' '}
+                <span className="font-normal text-muted-foreground">
+                  (comma-separated)
+                </span>
+              </Label>
+              <Input
+                id="keywords"
+                type="text"
+                placeholder="e.g. ai agents, claude, llm"
+                value={customKeywords}
+                onChange={(e) => onCustomKeywordsChange(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Active filter badges */}
+          {((customDomain && customDomain !== 'all') ||
+            customKeywords.trim()) && (
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                Active filters:
+              </span>
+              {customDomain && customDomain !== 'all' && (
+                <Badge
+                  variant="secondary"
+                  className="gap-1 text-xs font-normal"
+                >
+                  {customDomain}
+                  <button
+                    onClick={() => onCustomDomainChange('')}
+                    aria-label={`Remove domain filter: ${customDomain}`}
+                    className="ml-0.5 flex min-h-[32px] min-w-[32px] items-center justify-center rounded-full hover:bg-muted"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </Badge>
+              )}
+              {customKeywords
+                .split(',')
+                .map((k) => k.trim())
+                .filter(Boolean)
+                .map((kw) => (
+                  <Badge
+                    key={kw}
+                    variant="secondary"
+                    className="gap-1 text-xs font-normal"
+                  >
+                    {kw}
+                    <button
+                      onClick={() => {
+                        const remaining = customKeywords
+                          .split(',')
+                          .map((k) => k.trim())
+                          .filter((k) => k && k !== kw)
+                          .join(', ');
+                        onCustomKeywordsChange(remaining);
+                      }}
+                      aria-label={`Remove keyword filter: ${kw}`}
+                      className="ml-0.5 flex min-h-[32px] min-w-[32px] items-center justify-center rounded-full hover:bg-muted"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </Badge>
                 ))}
-              </SelectContent>
-            </Select>
+            </div>
           )}
 
-          {mode === 'daily' && (
-            <span className="text-sm text-muted-foreground">
-              Summarise today&apos;s new additions
-            </span>
-          )}
-
-          {mode !== 'custom' && (
-            <Button
-              onClick={onGenerate}
-              disabled={generating}
-              variant={buttonVariant}
-              size={buttonSize}
-            >
+          <div className="mt-4">
+            <Button onClick={onGenerate} disabled={generating}>
               {generating ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
@@ -242,162 +294,14 @@ function GenerateControls({
                 </>
               ) : (
                 <>
-                  {mode === 'daily' ? (
-                    <RefreshCw className="size-4" />
-                  ) : variant === 'hero' ? (
-                    <RefreshCw className="size-4" />
-                  ) : (
-                    <RefreshCw className="size-4" />
-                  )}
-                  {variant === 'hero'
-                    ? 'Generate Report'
-                    : 'Generate New Report'}
+                  <RefreshCw className="size-4" />
+                  Generate Custom Report
                 </>
               )}
             </Button>
-          )}
-        </div>
-
-        {/* Custom filter panel */}
-        {mode === 'custom' && (
-          <div className="mt-4 rounded-xl border bg-card p-5">
-            <div className="mb-4 flex items-center gap-2">
-              <Filter className="size-4 text-primary" />
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                Custom Report Filters
-              </h3>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              {/* Date range */}
-              <div className="space-y-2">
-                <Label htmlFor="date-from">From</Label>
-                <Input
-                  id="date-from"
-                  type="date"
-                  value={customDateFrom}
-                  onChange={(e) => onCustomDateFromChange(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="date-to">To</Label>
-                <Input
-                  id="date-to"
-                  type="date"
-                  value={customDateTo}
-                  onChange={(e) => onCustomDateToChange(e.target.value)}
-                />
-              </div>
-
-              {/* Domain filter */}
-              <div className="space-y-2">
-                <Label htmlFor="custom-domain">Domain</Label>
-                <Select
-                  value={customDomain}
-                  onValueChange={onCustomDomainChange}
-                >
-                  <SelectTrigger id="custom-domain">
-                    <SelectValue placeholder="All domains" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All domains</SelectItem>
-                    {domainOptions.map((domain) => (
-                      <SelectItem key={domain} value={domain}>
-                        {domain}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Keywords filter */}
-              <div className="space-y-2">
-                <Label htmlFor="keywords">
-                  Keywords{' '}
-                  <span className="font-normal text-muted-foreground">
-                    (comma-separated)
-                  </span>
-                </Label>
-                <Input
-                  id="keywords"
-                  type="text"
-                  placeholder="e.g. ai agents, claude, llm"
-                  value={customKeywords}
-                  onChange={(e) => onCustomKeywordsChange(e.target.value)}
-                />
-              </div>
-            </div>
-
-            {/* Active filter badges */}
-            {((customDomain && customDomain !== 'all') ||
-              customKeywords.trim()) && (
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <span className="text-xs text-muted-foreground">
-                  Active filters:
-                </span>
-                {customDomain && customDomain !== 'all' && (
-                  <Badge
-                    variant="secondary"
-                    className="gap-1 text-xs font-normal"
-                  >
-                    {customDomain}
-                    <button
-                      onClick={() => onCustomDomainChange('')}
-                      aria-label={`Remove domain filter: ${customDomain}`}
-                      className="ml-0.5 flex min-h-[32px] min-w-[32px] items-center justify-center rounded-full hover:bg-muted"
-                    >
-                      <X className="size-3" />
-                    </button>
-                  </Badge>
-                )}
-                {customKeywords
-                  .split(',')
-                  .map((k) => k.trim())
-                  .filter(Boolean)
-                  .map((kw) => (
-                    <Badge
-                      key={kw}
-                      variant="secondary"
-                      className="gap-1 text-xs font-normal"
-                    >
-                      {kw}
-                      <button
-                        onClick={() => {
-                          const remaining = customKeywords
-                            .split(',')
-                            .map((k) => k.trim())
-                            .filter((k) => k && k !== kw)
-                            .join(', ');
-                          onCustomKeywordsChange(remaining);
-                        }}
-                        aria-label={`Remove keyword filter: ${kw}`}
-                        className="ml-0.5 flex min-h-[32px] min-w-[32px] items-center justify-center rounded-full hover:bg-muted"
-                      >
-                        <X className="size-3" />
-                      </button>
-                    </Badge>
-                  ))}
-              </div>
-            )}
-
-            <div className="mt-4">
-              <Button onClick={onGenerate} disabled={generating}>
-                {generating ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="size-4" />
-                    Generate Custom Report
-                  </>
-                )}
-              </Button>
-            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -461,10 +365,9 @@ export default function DigestPage() {
     handleGenerate,
   ]);
 
-  const [periodDays, setPeriodDays] = useState('7');
-
-  // Mode: preset (7/14/30 day), daily, or custom
-  const [mode, setMode] = useState<DigestMode>('preset');
+  // Unified period selection — "7" is the default (weekly preset).
+  // "custom" reveals the inline custom filter panel.
+  const [periodSelection, setPeriodSelection] = useState('7');
 
   // Custom filter state — lazy initialisers keep Date.now()/new Date()
   // out of the render path (react-hooks/purity).
@@ -479,12 +382,7 @@ export default function DigestPage() {
 
   // Build request body and trigger generation
   const onGenerate = useCallback(() => {
-    if (mode === 'daily') {
-      handleGenerate({
-        period_days: 1,
-        digest_type: 'daily',
-      });
-    } else if (mode === 'custom') {
+    if (periodSelection === 'custom') {
       const keywords = customKeywords
         .split(',')
         .map((k) => k.trim())
@@ -508,19 +406,21 @@ export default function DigestPage() {
         ...(keywords.length > 0 ? { keywords } : {}),
       });
     } else {
-      const selectedPeriod = PERIOD_OPTIONS.find((o) => o.value === periodDays);
+      const days = parseInt(periodSelection, 10);
+      const selectedPeriod = PERIOD_OPTIONS.find(
+        (o) => o.value === periodSelection,
+      );
       handleGenerate({
-        period_days: parseInt(periodDays, 10),
+        period_days: days,
         digest_type: selectedPeriod?.type ?? 'custom',
       });
     }
   }, [
-    mode,
+    periodSelection,
     customKeywords,
     customDateFrom,
     customDateTo,
     customDomain,
-    periodDays,
     handleGenerate,
   ]);
 
@@ -547,12 +447,10 @@ export default function DigestPage() {
 
   // Shared props for GenerateControls
   const controlsProps = {
-    mode,
-    onModeChange: setMode,
     generating,
     onGenerate,
-    periodDays,
-    onPeriodDaysChange: setPeriodDays,
+    periodSelection,
+    onPeriodSelectionChange: setPeriodSelection,
     customDateFrom,
     onCustomDateFromChange: setCustomDateFrom,
     customDateTo,
