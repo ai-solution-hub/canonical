@@ -14,6 +14,7 @@ import { CoverageContent } from './coverage-content';
 import { TemplateCoverageContent } from '@/components/coverage/template-coverage-content';
 import { CoverageGuideTab } from '@/components/coverage/coverage-guide-tab';
 import { PriorityGapsTab } from '@/components/coverage/priority-gaps-tab';
+import { useUserRole } from '@/hooks/use-user-role';
 
 // ---------------------------------------------------------------------------
 // Valid tab values — used to validate the ?tab= query param
@@ -31,6 +32,7 @@ const VALID_TABS = new Set([
 // ---------------------------------------------------------------------------
 
 export function CoveragePageTabs() {
+  const { canEdit, loading } = useUserRole();
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -56,6 +58,14 @@ export function CoveragePageTabs() {
     },
     [searchParams, router, pathname],
   );
+
+  // P1-11: Redirect viewers — coverage is editor+admin only.
+  // Wait for role to load before deciding, to avoid flickering editors.
+  // Placed after all hooks to satisfy React rules-of-hooks.
+  if (!loading && !canEdit) {
+    router.replace('/browse');
+    return null;
+  }
 
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange}>

@@ -44,7 +44,7 @@ const NAV_LINKS = [
     href: '/coverage',
     label: 'Coverage',
     icon: BarChart3,
-    requiresEdit: false,
+    requiresEdit: true,
   },
   {
     href: '/workspaces',

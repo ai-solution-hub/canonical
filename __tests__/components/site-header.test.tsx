@@ -174,6 +174,30 @@ describe('SiteHeader', () => {
     expect(within(nav).getByText('Review')).toBeInTheDocument();
   });
 
+  // ── P1-11: /coverage requiresEdit gating ──
+
+  it('hides Coverage link for viewers (P1-11)', () => {
+    mockUserRole.role = 'viewer';
+    mockUserRole.canEdit = false;
+    mockUserRole.canAdmin = false;
+    mockUserRole.loading = false;
+    render(<SiteHeader />);
+
+    const nav = screen.getByLabelText('Main navigation');
+    expect(within(nav).queryByText('Coverage')).not.toBeInTheDocument();
+  });
+
+  it('shows Coverage link for editors (P1-11)', () => {
+    mockUserRole.role = 'editor';
+    mockUserRole.canEdit = true;
+    mockUserRole.canAdmin = false;
+    mockUserRole.loading = false;
+    render(<SiteHeader />);
+
+    const nav = screen.getByLabelText('Main navigation');
+    expect(within(nav).getByText('Coverage')).toBeInTheDocument();
+  });
+
   it('renders mobile menu button', () => {
     render(<SiteHeader />);
     expect(screen.getByLabelText('Open navigation menu')).toBeInTheDocument();
