@@ -246,6 +246,52 @@ describe('FeedSourceUpdateSchema', () => {
     const result = FeedSourceUpdateSchema.safeParse({});
     expect(result.success).toBe(true);
   });
+
+  // Regression: .partial() preserved .default() from FeedSourceCreateSchema,
+  // silently overwriting stored values on PATCH when fields were omitted.
+
+  it('omitting source_type does NOT inject default "rss"', () => {
+    const result = FeedSourceUpdateSchema.safeParse({ name: 'x' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.source_type).toBeUndefined();
+    }
+  });
+
+  it('omitting polling_interval_minutes does NOT inject default 30', () => {
+    const result = FeedSourceUpdateSchema.safeParse({ name: 'x' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.polling_interval_minutes).toBeUndefined();
+    }
+  });
+
+  it('omitting is_active does NOT inject default true', () => {
+    const result = FeedSourceUpdateSchema.safeParse({ name: 'x' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.is_active).toBeUndefined();
+    }
+  });
+
+  it('still validates source_type enum when provided', () => {
+    const result = FeedSourceUpdateSchema.safeParse({
+      source_type: 'invalid',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('still enforces polling_interval_minutes range', () => {
+    const result = FeedSourceUpdateSchema.safeParse({
+      polling_interval_minutes: 2,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('still enforces url format', () => {
+    const result = FeedSourceUpdateSchema.safeParse({ url: 'not-a-url' });
+    expect(result.success).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------

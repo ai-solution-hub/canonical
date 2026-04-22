@@ -767,7 +767,12 @@ export const CompanyProfileCreateSchema = z.object({
   key_topics: z.array(z.string()).min(1, 'At least one key topic is required'),
 });
 
-/** PATCH /api/intelligence/profiles/:id */
+/** PATCH /api/intelligence/profiles/:id
+ *
+ * @todo Same `.partial()` default-leak hazard as FeedSourceUpdateSchema —
+ * services/certifications/geographic_scope/competitors all have
+ * `.default([])`. Tracked as pre-launch follow-up.
+ */
 export const CompanyProfileUpdateSchema = CompanyProfileCreateSchema.partial();
 
 /** POST /api/intelligence/workspaces/:id/sources */
@@ -779,8 +784,19 @@ export const FeedSourceCreateSchema = z.object({
   is_active: z.boolean().default(true),
 });
 
-/** PATCH /api/intelligence/workspaces/:id/sources/:sourceId */
-export const FeedSourceUpdateSchema = FeedSourceCreateSchema.partial();
+/** PATCH /api/intelligence/workspaces/:id/sources/:sourceId
+ *
+ * Explicit schema (not `.partial()`) because FeedSourceCreateSchema's
+ * `.default()` values would silently overwrite stored rows on any PATCH
+ * that omits source_type / polling_interval_minutes / is_active.
+ */
+export const FeedSourceUpdateSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(200).optional(),
+  url: z.string().url('Must be a valid URL').optional(),
+  source_type: z.enum(['rss', 'web', 'api']).optional(),
+  polling_interval_minutes: z.number().int().min(5).max(1440).optional(),
+  is_active: z.boolean().optional(),
+});
 
 /** GET /api/intelligence/workspaces/:id/articles (query params) */
 export const FeedArticleListParamsSchema = z.object({
