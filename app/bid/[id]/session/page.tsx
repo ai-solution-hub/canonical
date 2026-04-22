@@ -616,8 +616,8 @@ export default function BidSessionPage({
                 content={editorContent}
                 wordLimit={currentQuestion?.word_limit ?? null}
                 onChange={setEditorContent}
-                onSave={(html) => {
-                  setEditorContent(html);
+                onSave={(markdown) => {
+                  setEditorContent(markdown);
                   if (response?.id) {
                     handleActionWithRecovery('save');
                   }
