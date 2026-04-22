@@ -126,7 +126,7 @@ function GenerateControls({
           value={periodSelection}
           onValueChange={onPeriodSelectionChange}
         >
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-[180px]" aria-label="Report period">
             <Calendar className="size-4" />
             <SelectValue />
           </SelectTrigger>

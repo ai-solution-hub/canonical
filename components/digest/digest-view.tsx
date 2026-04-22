@@ -142,19 +142,19 @@ function GovernanceSection({ summary }: { summary: DigestGovernanceSummary }) {
           <p className="text-2xl font-bold text-foreground">
             {formatDelta(items_modified)}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">items modified</p>
+          <p className="mt-1 text-xs text-muted-foreground">Items modified</p>
         </div>
         <div className="rounded-lg border bg-background p-4 text-center">
           <p className="text-2xl font-bold text-quality-good">
             {formatDelta(items_verified)}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">items verified</p>
+          <p className="mt-1 text-xs text-muted-foreground">Items verified</p>
         </div>
         <div className="rounded-lg border bg-background p-4 text-center">
           <p className="text-2xl font-bold text-status-warning">
             {formatDelta(items_flagged)}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">items flagged</p>
+          <p className="mt-1 text-xs text-muted-foreground">Items flagged</p>
         </div>
       </div>
       {freshness_breakdown && (

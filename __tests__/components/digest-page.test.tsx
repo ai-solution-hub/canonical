@@ -327,8 +327,11 @@ describe('DigestPage', () => {
     // No tablist should exist — tabs were collapsed into dropdown
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
 
-    // The period dropdown trigger should be present
-    expect(screen.getByRole('combobox')).toBeInTheDocument();
+    // The period dropdown trigger should be present with an accessible name
+    // (replaces the tabpanel aria-labelledby guard from the pre-dropdown era).
+    const trigger = screen.getByRole('combobox');
+    expect(trigger).toBeInTheDocument();
+    expect(trigger).toHaveAccessibleName('Report period');
   });
 
   // 4. Preset mode: generate button present with default "Last 7 days"
