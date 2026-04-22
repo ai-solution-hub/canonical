@@ -456,4 +456,33 @@ describe('ResponseEditor', () => {
     expect(callArgs.extensions).toContain('TableCellExt');
     expect(callArgs.extensions).toContain('TableHeaderExt');
   });
+
+  // ---- L-4: @tiptap/markdown table-extensions regression guard ----
+  // The Markdown extension alone cannot roundtrip GFM pipe tables without
+  // Table/TableRow/TableCell/TableHeader extensions. If any of these five
+  // extensions are removed or reordered incorrectly in a future dependency
+  // update, tables silently vanish from the parse-serialize cycle.
+  // This test locks the co-presence of all five required extensions.
+
+  it('L-4: Markdown + all four Table extensions are co-present (table roundtrip guard)', () => {
+    vi.clearAllMocks();
+    render(<ResponseEditor {...defaultProps()} />);
+    const callArgs = mockUseEditor.mock.calls[0][0] as {
+      extensions: unknown[];
+      contentType: string;
+    };
+    // All five extensions must be present together for GFM table roundtripping
+    const requiredExtensions = [
+      'MarkdownExt',
+      'TableExt',
+      'TableRowExt',
+      'TableCellExt',
+      'TableHeaderExt',
+    ];
+    for (const ext of requiredExtensions) {
+      expect(callArgs.extensions).toContain(ext);
+    }
+    // Markdown must be configured in markdown content mode
+    expect(callArgs.contentType).toBe('markdown');
+  });
 });
