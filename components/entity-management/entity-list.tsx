@@ -71,6 +71,8 @@ const TYPE_COLOURS: Record<string, string> = {
   project: 'bg-entity-project-bg text-entity-project-text',
   sector: 'bg-entity-sector-bg text-entity-sector-text',
   product: 'bg-entity-product-bg text-entity-product-text',
+  standard: 'bg-muted text-muted-foreground',
+  methodology: 'bg-muted text-muted-foreground',
 };
 
 function TypeBadge({ type, onClick }: { type: string; onClick?: () => void }) {
@@ -294,9 +296,11 @@ function TypeEditDialog({
     },
 
     onSettled: () => {
-      // Invalidate entity-related queries to keep caches consistent
+      // The list owns its own data via useState + onComplete()'s refetch,
+      // so entities.all invalidation would be redundant. The filters cache
+      // is consumed outside this component, so invalidate it here.
       queryClient.invalidateQueries({
-        queryKey: queryKeys.entities.all,
+        queryKey: queryKeys.filters.entities,
       });
       onComplete();
     },

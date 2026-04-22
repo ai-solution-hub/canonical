@@ -69,6 +69,8 @@ const TYPE_COLOURS: Record<string, string> = {
   project: 'bg-entity-project-bg text-entity-project-text',
   sector: 'bg-entity-sector-bg text-entity-sector-text',
   product: 'bg-entity-product-bg text-entity-product-text',
+  standard: 'bg-muted text-muted-foreground',
+  methodology: 'bg-muted text-muted-foreground',
 };
 
 function TypeBadge({ type }: { type: string }) {

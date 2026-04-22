@@ -174,6 +174,12 @@ export function useEntityDetail(
         queryClient.invalidateQueries({
           queryKey: queryKeys.entities.all,
         });
+        // Browse-panel entity filter options cache sits outside
+        // queryKeys.entities.all — invalidate explicitly so downstream
+        // filter data reflects the new type.
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.filters.entities,
+        });
       }
     },
   });
