@@ -23,7 +23,8 @@ import {
 import type { ISectionOptions } from 'docx';
 import { format } from 'date-fns';
 import { enGB } from 'date-fns/locale';
-import { htmlToPlainText, countWords } from '@/lib/editor-utils';
+import { countWords } from '@/lib/editor-utils';
+import { stripMarkdown } from '@/lib/content/strip-markdown';
 import type {
   ExportQuestion,
   ExportBidMetadata,
@@ -522,7 +523,7 @@ function buildQuestionParagraphs(
   }
 
   // Word count footer
-  const plainText = responseHtml ? htmlToPlainText(responseHtml) : '';
+  const plainText = responseHtml ? stripMarkdown(responseHtml) : '';
   const wordCount = countWords(plainText);
   const wordCountText = question.word_limit
     ? `Word count: ${wordCount}/${question.word_limit}`
