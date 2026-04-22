@@ -75,6 +75,7 @@ export function BidCreationWizard({
   const [estimatedValue, setEstimatedValue] = useState('');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [savingPath, setSavingPath] = useState<'upload' | 'blank' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Created bid reference
@@ -100,6 +101,7 @@ export function BidCreationWizard({
     setEstimatedValue('');
     setNotes('');
     setSaving(false);
+    setSavingPath(null);
     setError(null);
     setCreatedBid(null);
     setExtractionResult(null);
@@ -119,6 +121,7 @@ export function BidCreationWizard({
   async function handleCreateBid(e: FormEvent, advanceToUpload: boolean) {
     e.preventDefault();
     setSaving(true);
+    setSavingPath(advanceToUpload ? 'upload' : 'blank');
     setError(null);
 
     try {
@@ -160,6 +163,7 @@ export function BidCreationWizard({
       setError(err instanceof Error ? err.message : 'Failed to create bid');
     } finally {
       setSaving(false);
+      setSavingPath(null);
     }
   }
 
@@ -334,7 +338,7 @@ export function BidCreationWizard({
                   disabled={saving || !name.trim() || !buyer.trim()}
                   className="w-full"
                 >
-                  {saving ? (
+                  {savingPath === 'upload' ? (
                     <>
                       <Loader2
                         className="size-4 animate-spin"
@@ -359,7 +363,7 @@ export function BidCreationWizard({
                     handleCreateBid(e as unknown as FormEvent, false)
                   }
                 >
-                  {saving ? (
+                  {savingPath === 'blank' ? (
                     <>
                       <Loader2
                         className="size-4 animate-spin"
