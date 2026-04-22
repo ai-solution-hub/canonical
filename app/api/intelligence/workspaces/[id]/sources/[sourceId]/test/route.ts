@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
-import { pollFeed } from '@/lib/intelligence/feed-poller';
+import { pollFeed, pollWebSource } from '@/lib/intelligence/feed-poller';
 
 type RouteContext = { params: Promise<{ id: string; sourceId: string }> };
 
@@ -14,10 +14,10 @@ export async function POST(_request: NextRequest, context: RouteContext) {
     if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;
 
-    // Fetch the source to get its URL
+    // Fetch the source to get its URL and type
     const { data: source, error: sourceError } = await supabase
       .from('feed_sources')
-      .select('id, url, etag, last_modified')
+      .select('id, url, etag, last_modified, source_type')
       .eq('id', sourceId)
       .eq('workspace_id', id)
       .single();
@@ -29,8 +29,23 @@ export async function POST(_request: NextRequest, context: RouteContext) {
       );
     }
 
-    // Test poll the feed
-    const result = await pollFeed(source);
+    // Branch on source_type: rss → pollFeed, web → pollWebSource
+    const sourceType = source.source_type ?? 'rss';
+
+    if (sourceType === 'api') {
+      return NextResponse.json(
+        {
+          error: 'Test polling is not yet supported for API sources',
+          source_type: sourceType,
+        },
+        { status: 501 },
+      );
+    }
+
+    const result =
+      sourceType === 'web'
+        ? await pollWebSource(source)
+        : await pollFeed(source);
 
     if (result.status === 'error' || result.status === 'timeout') {
       return NextResponse.json({

@@ -118,6 +118,47 @@ describe('digestToMarkdown', () => {
     );
   });
 
+  it('should render governance summary as "Review Activity This Period" with deltas', () => {
+    const digest = makeDigest({
+      governance_summary: {
+        items_modified: 24,
+        items_verified: 12,
+        items_flagged: 3,
+        freshness_breakdown: {
+          fresh: 30,
+          aging: 8,
+          stale: 3,
+          expired: 1,
+        },
+      },
+    });
+    const md = digestToMarkdown(digest);
+
+    expect(md).toContain('## Review Activity This Period');
+    expect(md).not.toContain('## KB Health');
+    expect(md).toContain('**Items modified:** +24');
+    expect(md).toContain('**Items verified:** +12');
+    expect(md).toContain('**Items flagged:** +3');
+    expect(md).toContain(
+      '**Freshness:** 30 fresh, 8 aging, 3 stale, 1 expired',
+    );
+  });
+
+  it('should format zero deltas without plus sign', () => {
+    const digest = makeDigest({
+      governance_summary: {
+        items_modified: 0,
+        items_verified: 0,
+        items_flagged: 0,
+      },
+    });
+    const md = digestToMarkdown(digest);
+
+    expect(md).toContain('**Items modified:** 0');
+    expect(md).toContain('**Items verified:** 0');
+    expect(md).toContain('**Items flagged:** 0');
+  });
+
   it('should render item links when includeItemLinks and itemUrls are provided', () => {
     const digest = makeDigest();
     const md = digestToMarkdown(digest, {

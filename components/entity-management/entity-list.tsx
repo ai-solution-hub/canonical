@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2,
   Search,
@@ -32,7 +33,9 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { VALID_ENTITY_TYPES } from '@/lib/validation/schemas';
+import { queryKeys } from '@/lib/query/query-keys';
 import { formatEntityDisplayName } from '@/lib/entities/entity-dedup';
+import type { EntityTypeChangeResponse } from '@/hooks/use-entity-detail';
 import { MergeModal } from './merge-modal';
 import type { EntityForMerge } from './merge-modal';
 import { SplitModal } from './split-modal';
@@ -68,6 +71,8 @@ const TYPE_COLOURS: Record<string, string> = {
   project: 'bg-entity-project-bg text-entity-project-text',
   sector: 'bg-entity-sector-bg text-entity-sector-text',
   product: 'bg-entity-product-bg text-entity-product-text',
+  standard: 'bg-muted text-muted-foreground',
+  methodology: 'bg-muted text-muted-foreground',
 };
 
 function TypeBadge({ type, onClick }: { type: string; onClick?: () => void }) {
@@ -221,45 +226,91 @@ function TypeEditDialog({
   open,
   onOpenChange,
   entity,
+  entities,
+  setEntities,
   onComplete,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   entity: EntityRow | null;
+  entities: EntityRow[];
+  setEntities: React.Dispatch<React.SetStateAction<EntityRow[]>>;
   onComplete: () => void;
 }) {
-  const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
   const [selectedType, setSelectedType] = useState('');
 
   useEffect(() => {
     if (entity) setSelectedType(entity.entity_type);
   }, [entity]);
 
-  async function handleSave() {
-    if (!entity || !selectedType || selectedType === entity.entity_type) return;
-    setLoading(true);
-    try {
+  const mutation = useMutation<
+    EntityTypeChangeResponse,
+    Error,
+    string,
+    { previousEntities: EntityRow[] }
+  >({
+    mutationFn: async (newType: string) => {
       const res = await fetch(
-        `/api/entities/${encodeURIComponent(entity.canonical_name)}/type`,
+        `/api/entities/${encodeURIComponent(entity!.canonical_name)}/type`,
         {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ entity_type: selectedType }),
+          body: JSON.stringify({ entity_type: newType }),
         },
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update type');
+      return data as EntityTypeChangeResponse;
+    },
 
+    onMutate: async (newType) => {
+      // Snapshot the entity list for rollback
+      const previousEntities = [...entities];
+
+      // Optimistically update the entity list
+      setEntities((prev) =>
+        prev.map((e) =>
+          e.canonical_name === entity!.canonical_name
+            ? { ...e, entity_type: newType }
+            : e,
+        ),
+      );
+
+      return { previousEntities };
+    },
+
+    onError: (err, _newType, context) => {
+      // Rollback to snapshot on failure
+      if (context?.previousEntities) {
+        setEntities(context.previousEntities);
+      }
+      toast.error(err.message || 'Failed to update entity type');
+    },
+
+    onSuccess: (data) => {
       toast.success(
-        `Updated "${formatEntityDisplayName(entity.canonical_name)}" type to ${selectedType} (${data.mentions_updated} mentions)`,
+        `Updated "${formatEntityDisplayName(entity!.canonical_name)}" type to ${data.entity_type} (${data.mentions_updated} mentions)`,
       );
       onOpenChange(false);
+    },
+
+    onSettled: () => {
+      // The list owns its own data via useState + onComplete()'s refetch,
+      // so entities.all invalidation would be redundant. The filters cache
+      // is consumed outside this component, so invalidate it here.
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.filters.entities,
+      });
       onComplete();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update type');
-    } finally {
-      setLoading(false);
-    }
+    },
+  });
+
+  const isPending = mutation.isPending;
+
+  function handleSave() {
+    if (!entity || !selectedType || selectedType === entity.entity_type) return;
+    mutation.mutate(selectedType);
   }
 
   if (!entity) return null;
@@ -273,7 +324,11 @@ function TypeEditDialog({
             {formatEntityDisplayName(entity.canonical_name)}&rdquo;
           </DialogTitle>
         </DialogHeader>
-        <Select value={selectedType} onValueChange={setSelectedType}>
+        <Select
+          value={selectedType}
+          onValueChange={setSelectedType}
+          disabled={isPending}
+        >
           <SelectTrigger className="w-full">
             <SelectValue />
           </SelectTrigger>
@@ -290,15 +345,16 @@ function TypeEditDialog({
             variant="outline"
             size="sm"
             onClick={() => onOpenChange(false)}
+            disabled={isPending}
           >
             Cancel
           </Button>
           <Button
             size="sm"
-            disabled={loading || selectedType === entity.entity_type}
+            disabled={isPending || selectedType === entity.entity_type}
             onClick={handleSave}
           >
-            {loading && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
+            {isPending && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
             Save
           </Button>
         </DialogFooter>
@@ -583,6 +639,8 @@ export function EntityList() {
         open={!!typeEditEntity}
         onOpenChange={(open) => !open && setTypeEditEntity(null)}
         entity={typeEditEntity}
+        entities={entities}
+        setEntities={setEntities}
         onComplete={() => {
           setTypeEditEntity(null);
           fetchEntities();

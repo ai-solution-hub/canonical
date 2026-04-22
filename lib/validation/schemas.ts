@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { FALLBACK_LAYERS } from '@/lib/client-config';
 import { getValidTypeValues } from '@/lib/workspace-types';
 
 // ──────────────────────────────────────────
@@ -793,7 +792,15 @@ export const CompanyProfileCreateSchema = z.object({
   key_topics: z.array(z.string()).min(1, 'At least one key topic is required'),
 });
 
-/** PATCH /api/intelligence/profiles/:id */
+/** PATCH /api/intelligence/profiles/:id
+ *
+ * @todo OPS-14 (product-backlog.md §6): same `.partial()` default-leak
+ * hazard as FeedSourceUpdateSchema. Fields
+ * services/certifications/geographic_scope/competitors all have
+ * `.default([])` on the create schema, so every PATCH omitting them
+ * silently overwrites stored rows with empty arrays. Rewrite as an
+ * explicit schema when OPS-14 is picked up.
+ */
 export const CompanyProfileUpdateSchema = CompanyProfileCreateSchema.partial();
 
 /** POST /api/intelligence/workspaces/:id/sources */
@@ -805,8 +812,19 @@ export const FeedSourceCreateSchema = z.object({
   is_active: z.boolean().default(true),
 });
 
-/** PATCH /api/intelligence/workspaces/:id/sources/:sourceId */
-export const FeedSourceUpdateSchema = FeedSourceCreateSchema.partial();
+/** PATCH /api/intelligence/workspaces/:id/sources/:sourceId
+ *
+ * Explicit schema (not `.partial()`) because FeedSourceCreateSchema's
+ * `.default()` values would silently overwrite stored rows on any PATCH
+ * that omits source_type / polling_interval_minutes / is_active.
+ */
+export const FeedSourceUpdateSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(200).optional(),
+  url: z.string().url('Must be a valid URL').optional(),
+  source_type: z.enum(['rss', 'web', 'api']).optional(),
+  polling_interval_minutes: z.number().int().min(5).max(1440).optional(),
+  is_active: z.boolean().optional(),
+});
 
 /** GET /api/intelligence/workspaces/:id/articles (query params) */
 export const FeedArticleListParamsSchema = z.object({
@@ -1031,6 +1049,7 @@ export const TaxonomySubtopicCreateSchema = z.object({
   domain_id: z.string().uuid('domain_id must be a valid UUID'),
   name: z.string().trim().min(1, 'Subtopic name is required').max(100),
   display_order: z.number().int().min(0).max(999).optional(),
+  description: z.string().trim().max(1000).nullable().optional(),
 });
 
 /** PATCH /api/taxonomy/subtopics/:id */
@@ -1039,6 +1058,7 @@ export const TaxonomySubtopicUpdateSchema = z.object({
   display_order: z.number().int().min(0).max(999).optional(),
   is_active: z.boolean().optional(),
   accepted_at: z.string().datetime().nullable().optional(),
+  description: z.string().trim().max(1000).nullable().optional(),
 });
 
 /** POST /api/taxonomy/reorder */
@@ -1373,20 +1393,26 @@ export const CoverageTargetPutBodySchema = z.object({
   targets: z.array(coverageTargetEntrySchema).min(1).max(200),
 });
 
-/** PATCH /api/items/[id]/metadata — update metadata (layer, topic_id) */
-const layerValues = FALLBACK_LAYERS.map((l) => l.key);
-
-export const ItemMetadataUpdateSchema = z
-  .object({
-    layer: z
-      .enum(layerValues as [string, ...string[]])
-      .nullable()
-      .optional(),
-    topic_id: z.string().max(200).nullable().optional(),
-  })
-  .refine((data) => Object.keys(data).length > 0, {
-    message: 'At least one metadata field required',
-  });
+/**
+ * Build a metadata update schema with DB-driven layer keys.
+ *
+ * PATCH /api/items/[id]/metadata — update metadata (layer, topic_id).
+ * The `layer` field is constrained to the provided `layerKeys` list
+ * (fetched from `layer_vocabulary` at request time via `fetchActiveLayerKeys`).
+ */
+export function buildItemMetadataUpdateSchema(layerKeys: string[]) {
+  return z
+    .object({
+      layer: z
+        .enum(layerKeys as [string, ...string[]])
+        .nullable()
+        .optional(),
+      topic_id: z.string().max(200).nullable().optional(),
+    })
+    .refine((data) => Object.keys(data).length > 0, {
+      message: 'At least one metadata field required',
+    });
+}
 
 // ──────────────────────────────────────────
 // Category B: GET handler schemas

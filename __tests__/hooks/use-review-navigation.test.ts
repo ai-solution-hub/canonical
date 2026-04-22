@@ -7,7 +7,6 @@ import type {
   UseInfiniteQueryResult,
 } from '@tanstack/react-query';
 import type { ReviewQueueItem } from '@/types/review';
-import type { QueueSortField } from '@/components/review/review-queue-panel';
 import type { ReviewQueuePage } from '@/hooks/review/use-review-queue-data';
 
 import { useReviewNavigation } from '@/hooks/review/use-review-navigation';
@@ -140,7 +139,7 @@ describe('useReviewNavigation', () => {
 
       const { result, rerender } = renderHook(
         ({ queue }: { queue: ReviewQueueItem[] }) =>
-          useReviewNavigation(queue, false, 'default', queueQuery),
+          useReviewNavigation(queue, false, queueQuery),
         {
           wrapper: createWrapper(),
           initialProps: { queue: items },
@@ -165,7 +164,7 @@ describe('useReviewNavigation', () => {
 
       const { result, rerender } = renderHook(
         ({ queue }: { queue: ReviewQueueItem[] }) =>
-          useReviewNavigation(queue, false, 'default', queueQuery),
+          useReviewNavigation(queue, false, queueQuery),
         {
           wrapper: createWrapper(),
           initialProps: { queue: items },
@@ -188,7 +187,7 @@ describe('useReviewNavigation', () => {
 
       const { result, rerender } = renderHook(
         ({ queue }: { queue: ReviewQueueItem[] }) =>
-          useReviewNavigation(queue, false, 'default', queueQuery),
+          useReviewNavigation(queue, false, queueQuery),
         {
           wrapper: createWrapper(),
           initialProps: { queue: [] },
@@ -204,107 +203,27 @@ describe('useReviewNavigation', () => {
   });
 
   // =========================================================================
-  // Sort modes
+  // Queue ordering
   // =========================================================================
 
-  describe('sort modes', () => {
-    const items = [
-      makeQueueItem({
-        id: 'z',
-        primary_domain: 'Zebra',
-        content_type: 'guide',
-        classification_confidence: 0.5,
-        quality_score: 90,
-        captured_date: '2026-01-01',
-        governance_review_status: null,
-      }),
-      makeQueueItem(
-        {
-          id: 'a',
-          primary_domain: 'Alpha',
-          content_type: 'article',
-          classification_confidence: 0.9,
-          quality_score: 30,
-          captured_date: '2026-03-01',
-          governance_review_status: 'pending',
-        },
-        1,
-      ),
-      makeQueueItem(
-        {
-          id: 'm',
-          primary_domain: 'Middle',
-          content_type: 'brief',
-          classification_confidence: 0.7,
-          quality_score: 60,
-          captured_date: '2026-02-01',
-          governance_review_status: null,
-        },
-        2,
-      ),
-    ];
-
-    function renderWithSort(sort: QueueSortField) {
+  describe('queue ordering', () => {
+    it('sortedQueue returns items in server-provided order', () => {
+      const items = [
+        makeQueueItem({ id: 'z', primary_domain: 'Zebra' }),
+        makeQueueItem({ id: 'a', primary_domain: 'Alpha' }, 1),
+        makeQueueItem({ id: 'm', primary_domain: 'Middle' }, 2),
+      ];
       const queueQuery = makeMockQueueQuery();
-      return renderHook(
-        () => useReviewNavigation(items, false, sort, queueQuery),
+
+      const { result } = renderHook(
+        () => useReviewNavigation(items, false, queueQuery),
         { wrapper: createWrapper() },
       );
-    }
 
-    it('default sort returns items in original order', () => {
-      const { result } = renderWithSort('default');
       expect(result.current.sortedQueue.map((i) => i.id)).toEqual([
         'z',
         'a',
         'm',
-      ]);
-    });
-
-    it('flagged sort puts pending items first', () => {
-      const { result } = renderWithSort('flagged');
-      // Item 'a' has governance_review_status='pending', so it goes first
-      expect(result.current.sortedQueue[0].id).toBe('a');
-    });
-
-    it('domain sort orders alphabetically by primary_domain', () => {
-      const { result } = renderWithSort('domain');
-      expect(result.current.sortedQueue.map((i) => i.primary_domain)).toEqual([
-        'Alpha',
-        'Middle',
-        'Zebra',
-      ]);
-    });
-
-    it('content_type sort orders alphabetically by content_type', () => {
-      const { result } = renderWithSort('content_type');
-      expect(result.current.sortedQueue.map((i) => i.content_type)).toEqual([
-        'article',
-        'brief',
-        'guide',
-      ]);
-    });
-
-    it('confidence sort orders by classification_confidence descending', () => {
-      const { result } = renderWithSort('confidence');
-      expect(
-        result.current.sortedQueue.map((i) => i.classification_confidence),
-      ).toEqual([0.9, 0.7, 0.5]);
-    });
-
-    it('quality_score sort orders by quality_score ascending (lowest first)', () => {
-      const { result } = renderWithSort('quality_score');
-      expect(result.current.sortedQueue.map((i) => i.quality_score)).toEqual([
-        30, 60, 90,
-      ]);
-    });
-
-    it('date sort orders by captured_date descending (newest first)', () => {
-      const { result } = renderWithSort('date');
-      expect(result.current.sortedQueue.map((i) => i.captured_date)).toEqual([
-        '2026-03-01',
-        '2026-02-01',
-        '2026-01-01',
       ]);
     });
   });
@@ -314,9 +233,7 @@ describe('useReviewNavigation', () => {
   // =========================================================================
 
   describe('handleSelectItem', () => {
-    it('maps sorted index to real queue index', () => {
-      // Original order: z, a, m
-      // Sorted by domain (Alpha, Middle, Zebra): a, m, z
+    it('selects item by index in the queue', () => {
       const items = [
         makeQueueItem({ id: 'z', primary_domain: 'Zebra' }),
         makeQueueItem({ id: 'a', primary_domain: 'Alpha' }, 1),
@@ -325,22 +242,21 @@ describe('useReviewNavigation', () => {
       const queueQuery = makeMockQueueQuery();
 
       const { result } = renderHook(
-        () => useReviewNavigation(items, false, 'domain', queueQuery),
+        () => useReviewNavigation(items, false, queueQuery),
         { wrapper: createWrapper() },
       );
 
-      // Sorted: [a(idx1), m(idx2), z(idx0)]
-      // Select sorted index 0 -> item 'a' -> real index 1
+      // Select index 1 -> item 'a' -> real index 1
       act(() => {
-        result.current.handleSelectItem(0);
+        result.current.handleSelectItem(1);
       });
       expect(result.current.currentIndex).toBe(1);
 
-      // Select sorted index 2 -> item 'z' -> real index 0
+      // Select index 2 -> item 'm' -> real index 2
       act(() => {
         result.current.handleSelectItem(2);
       });
-      expect(result.current.currentIndex).toBe(0);
+      expect(result.current.currentIndex).toBe(2);
     });
 
     it('does nothing for out-of-bounds sorted index', () => {
@@ -348,7 +264,7 @@ describe('useReviewNavigation', () => {
       const queueQuery = makeMockQueueQuery();
 
       const { result } = renderHook(
-        () => useReviewNavigation(items, false, 'default', queueQuery),
+        () => useReviewNavigation(items, false, queueQuery),
         { wrapper: createWrapper() },
       );
 
@@ -375,7 +291,7 @@ describe('useReviewNavigation', () => {
       const queueQuery = makeMockQueueQuery();
 
       const { result } = renderHook(
-        () => useReviewNavigation(items, false, 'default', queueQuery),
+        () => useReviewNavigation(items, false, queueQuery),
         { wrapper: createWrapper() },
       );
 
@@ -393,7 +309,7 @@ describe('useReviewNavigation', () => {
       const queueQuery = makeMockQueueQuery();
 
       const { result } = renderHook(
-        () => useReviewNavigation(items, false, 'default', queueQuery),
+        () => useReviewNavigation(items, false, queueQuery),
         { wrapper: createWrapper() },
       );
 
@@ -416,7 +332,7 @@ describe('useReviewNavigation', () => {
       const queueQuery = makeMockQueueQuery();
 
       const { result } = renderHook(
-        () => useReviewNavigation([], false, 'default', queueQuery),
+        () => useReviewNavigation([], false, queueQuery),
         { wrapper: createWrapper() },
       );
 
@@ -434,7 +350,7 @@ describe('useReviewNavigation', () => {
       const queueQuery = makeMockQueueQuery();
 
       const { result } = renderHook(
-        () => useReviewNavigation(items, false, 'default', queueQuery),
+        () => useReviewNavigation(items, false, queueQuery),
         { wrapper: createWrapper() },
       );
 
@@ -455,7 +371,7 @@ describe('useReviewNavigation', () => {
       const queueQuery = makeMockQueueQuery();
 
       const { result } = renderHook(
-        () => useReviewNavigation(items, false, 'default', queueQuery),
+        () => useReviewNavigation(items, false, queueQuery),
         { wrapper: createWrapper() },
       );
 
@@ -490,7 +406,7 @@ describe('useReviewNavigation', () => {
       });
 
       const { result } = renderHook(
-        () => useReviewNavigation(items, false, 'default', queueQuery),
+        () => useReviewNavigation(items, false, queueQuery),
         { wrapper: createWrapper() },
       );
 
@@ -513,7 +429,7 @@ describe('useReviewNavigation', () => {
       });
 
       const { result } = renderHook(
-        () => useReviewNavigation(items, false, 'default', queueQuery),
+        () => useReviewNavigation(items, false, queueQuery),
         { wrapper: createWrapper() },
       );
 
@@ -536,7 +452,7 @@ describe('useReviewNavigation', () => {
       });
 
       const { result } = renderHook(
-        () => useReviewNavigation(items, false, 'default', queueQuery),
+        () => useReviewNavigation(items, false, queueQuery),
         { wrapper: createWrapper() },
       );
 
@@ -559,7 +475,7 @@ describe('useReviewNavigation', () => {
       });
 
       const { result } = renderHook(
-        () => useReviewNavigation(items, false, 'default', queueQuery),
+        () => useReviewNavigation(items, false, queueQuery),
         { wrapper: createWrapper() },
       );
 
@@ -576,7 +492,7 @@ describe('useReviewNavigation', () => {
   // =========================================================================
 
   describe('currentSortedIndex', () => {
-    it('reflects current item position in sorted queue', () => {
+    it('reflects current item position in queue', () => {
       const items = [
         makeQueueItem({ id: 'z', primary_domain: 'Zebra' }),
         makeQueueItem({ id: 'a', primary_domain: 'Alpha' }, 1),
@@ -584,19 +500,19 @@ describe('useReviewNavigation', () => {
       const queueQuery = makeMockQueueQuery();
 
       const { result } = renderHook(
-        () => useReviewNavigation(items, false, 'domain', queueQuery),
+        () => useReviewNavigation(items, false, queueQuery),
         { wrapper: createWrapper() },
       );
 
-      // currentIndex=0 -> item 'z' -> in sorted [a, z] it's at index 1
-      expect(result.current.currentSortedIndex).toBe(1);
+      // currentIndex=0 -> item 'z' -> sortedQueue is same as queue -> index 0
+      expect(result.current.currentSortedIndex).toBe(0);
     });
 
     it('returns -1 when queue is empty', () => {
       const queueQuery = makeMockQueueQuery();
 
       const { result } = renderHook(
-        () => useReviewNavigation([], false, 'default', queueQuery),
+        () => useReviewNavigation([], false, queueQuery),
         { wrapper: createWrapper() },
       );
 
@@ -614,7 +530,7 @@ describe('useReviewNavigation', () => {
       const queueQuery = makeMockQueueQuery();
 
       const { result } = renderHook(
-        () => useReviewNavigation(items, false, 'default', queueQuery),
+        () => useReviewNavigation(items, false, queueQuery),
         { wrapper: createWrapper() },
       );
 
@@ -630,7 +546,7 @@ describe('useReviewNavigation', () => {
       const queueQuery = makeMockQueueQuery();
 
       const { result } = renderHook(
-        () => useReviewNavigation(items, false, 'default', queueQuery),
+        () => useReviewNavigation(items, false, queueQuery),
         { wrapper: createWrapper() },
       );
 

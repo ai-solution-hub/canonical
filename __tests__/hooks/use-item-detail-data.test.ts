@@ -72,17 +72,11 @@ vi.mock('@/hooks/ui/use-reader-preferences', () => ({
     maxWidth: 'medium',
     panelLayout: {},
     readerOpen: false,
-    isDetached: false,
-    detachedPosition: null,
-    detachedSize: null,
     setFontSize: vi.fn(),
     setMaxWidth: vi.fn(),
     setPanelLayout: vi.fn(),
     setReaderOpen: vi.fn(),
     toggleReader: vi.fn(),
-    toggleDetached: vi.fn(),
-    setDetachedPosition: vi.fn(),
-    setDetachedSize: vi.fn(),
   }),
 }));
 
@@ -305,7 +299,6 @@ describe('useItemDetailData', () => {
       expect(result.current.maxWidth).toBe('medium');
       expect(result.current.panelLayout).toBeDefined();
       expect(typeof result.current.readerOpen).toBe('boolean');
-      expect(typeof result.current.isDetached).toBe('boolean');
       expect(typeof result.current.showSplitReader).toBe('boolean');
 
       // Inline edit

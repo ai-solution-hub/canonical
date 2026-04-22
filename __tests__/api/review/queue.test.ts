@@ -1,10 +1,12 @@
 /**
- * Review Queue API — sort parameter and quality_score tests.
+ * Review Queue API — sort parameter, quality_score, and assigned_to_me tests.
  *
  * Tests server-side sorting by confidence and quality score,
- * and verifies quality_score is included in the response.
+ * verifies quality_score is included in the response,
+ * and tests the assigned_to_me filter intersection logic.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { NextRequest } from 'next/server';
 import {
   createMockSupabaseClient,
   configureRole,
@@ -42,6 +44,22 @@ import { GET as getQueue } from '@/app/api/review/queue/route';
 // ---------------------------------------------------------------------------
 
 const VALID_UUID = '00000000-0000-4000-8000-000000000001';
+
+/**
+ * Create a NextRequest with multi-value searchParams support.
+ * The standard createTestRequest only supports single-value params via .set().
+ * This helper uses .append() so keys like domain can appear multiple times.
+ */
+function createMultiParamRequest(
+  path: string,
+  params: [string, string][],
+): NextRequest {
+  const url = new URL(path, 'http://localhost:3000');
+  for (const [key, value] of params) {
+    url.searchParams.append(key, value);
+  }
+  return new NextRequest(url, { method: 'GET' });
+}
 
 function makeMockItem(overrides: Record<string, unknown> = {}) {
   return {
@@ -304,5 +322,250 @@ describe('GET /api/review/queue — quality_score in response', () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.items[0].quality_score).toBeNull();
+  });
+});
+
+// ===========================================================================
+// assigned_to_me intersection logic (H-1)
+// ===========================================================================
+
+describe('GET /api/review/queue — assigned_to_me filter', () => {
+  beforeEach(resetMocks);
+
+  it('filters by union of assignment domains and content types', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Track which table each from() call targets
+    const fromCalls: string[] = [];
+    const assignmentChain = {
+      ...mockSupabase._chain,
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      then: vi.fn((resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              filter_domains: ['Health & Safety'],
+              filter_content_types: ['policy'],
+            },
+            {
+              filter_domains: ['Environmental'],
+              filter_content_types: null,
+            },
+          ],
+          error: null,
+        }),
+      ),
+    };
+
+    // Wire up assignment chain methods to return themselves
+    for (const method of ['select', 'eq', 'neq', 'in', 'is', 'not', 'or', 'order', 'range'] as const) {
+      if (method !== 'then') {
+        (assignmentChain as Record<string, ReturnType<typeof vi.fn>>)[method] =
+          vi.fn().mockReturnValue(assignmentChain);
+      }
+    }
+
+    mockSupabase.from.mockImplementation((table: string) => {
+      fromCalls.push(table);
+      if (table === 'review_assignments') {
+        return assignmentChain;
+      }
+      return mockSupabase._chain;
+    });
+
+    // Content items query resolves with one item
+    const mockItems = [makeMockItem()];
+    let contentThenCount = 0;
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        contentThenCount++;
+        if (contentThenCount === 1) {
+          return resolve({ data: mockItems, error: null, count: 1 });
+        }
+        return resolve({ data: null, error: null, count: 0 });
+      },
+    );
+
+    const req = createTestRequest('/api/review/queue', {
+      searchParams: { assigned_to_me: 'true' },
+    });
+    const res = await getQueue(req);
+
+    expect(res.status).toBe(200);
+
+    // Assert the content_items query received the UNION of assignment filters
+    // Domains: ['Health & Safety'] + ['Environmental'] = both
+    const inCalls = mockSupabase._chain.in.mock.calls;
+    const domainInCall = inCalls.find(
+      (call: unknown[]) => call[0] === 'primary_domain',
+    );
+    expect(domainInCall).toBeDefined();
+    expect(domainInCall![1]).toEqual(
+      expect.arrayContaining(['Health & Safety', 'Environmental']),
+    );
+    expect(domainInCall![1]).toHaveLength(2);
+
+    // Content types: ['policy'] (only one assignment had non-null types)
+    const ctInCall = inCalls.find(
+      (call: unknown[]) => call[0] === 'content_type',
+    );
+    expect(ctInCall).toBeDefined();
+    expect(ctInCall![1]).toEqual(['policy']);
+  });
+
+  it('returns empty result immediately when user has no active assignments', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Assignment query returns empty list
+    const assignmentChain = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      then: vi.fn((resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null }),
+      ),
+    };
+
+    mockSupabase.from.mockImplementation((table: string) => {
+      if (table === 'review_assignments') {
+        return assignmentChain;
+      }
+      return mockSupabase._chain;
+    });
+
+    const req = createTestRequest('/api/review/queue', {
+      searchParams: { assigned_to_me: 'true' },
+    });
+    const res = await getQueue(req);
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.items).toEqual([]);
+    expect(json.total).toBe(0);
+    expect(json.has_more).toBe(false);
+
+    // Verify content_items was never queried — no from('content_items') call
+    const fromCalls = mockSupabase.from.mock.calls.map(
+      (c: unknown[]) => c[0],
+    );
+    expect(fromCalls).not.toContain('content_items');
+  });
+
+  it('intersects user-selected domain with assignment domains', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Assignment has two domains; user selects only one of them
+    const assignmentChain = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      then: vi.fn((resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              filter_domains: ['Health & Safety', 'Finance'],
+              filter_content_types: null,
+            },
+          ],
+          error: null,
+        }),
+      ),
+    };
+
+    mockSupabase.from.mockImplementation((table: string) => {
+      if (table === 'review_assignments') {
+        return assignmentChain;
+      }
+      return mockSupabase._chain;
+    });
+
+    // Content items query
+    let contentThenCount = 0;
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        contentThenCount++;
+        if (contentThenCount === 1) {
+          return resolve({ data: [], error: null, count: 0 });
+        }
+        return resolve({ data: null, error: null, count: 0 });
+      },
+    );
+
+    // User selects domain=Finance AND assigned_to_me=true
+    const req = createMultiParamRequest('/api/review/queue', [
+      ['assigned_to_me', 'true'],
+      ['domain', 'Finance'],
+    ]);
+    const res = await getQueue(req);
+
+    expect(res.status).toBe(200);
+
+    // The content_items query should receive domain=['Finance'] (the intersection)
+    const inCalls = mockSupabase._chain.in.mock.calls;
+    const domainInCall = inCalls.find(
+      (call: unknown[]) => call[0] === 'primary_domain',
+    );
+    expect(domainInCall).toBeDefined();
+    // Intersection: ['Finance'] only, not ['Health & Safety', 'Finance']
+    expect(domainInCall![1]).toEqual(['Finance']);
+  });
+
+  it('passes through unrestricted when assignment has null filter arrays', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Assignment with both filter arrays null = unrestricted
+    const assignmentChain = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      then: vi.fn((resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              filter_domains: null,
+              filter_content_types: null,
+            },
+          ],
+          error: null,
+        }),
+      ),
+    };
+
+    mockSupabase.from.mockImplementation((table: string) => {
+      if (table === 'review_assignments') {
+        return assignmentChain;
+      }
+      return mockSupabase._chain;
+    });
+
+    // Content items query
+    const mockItems = [makeMockItem()];
+    let contentThenCount = 0;
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        contentThenCount++;
+        if (contentThenCount === 1) {
+          return resolve({ data: mockItems, error: null, count: 1 });
+        }
+        return resolve({ data: null, error: null, count: 0 });
+      },
+    );
+
+    const req = createTestRequest('/api/review/queue', {
+      searchParams: { assigned_to_me: 'true' },
+    });
+    const res = await getQueue(req);
+
+    expect(res.status).toBe(200);
+
+    // With null assignment filters and no user domain/content_type params,
+    // the query should NOT have .in('primary_domain', ...) or .in('content_type', ...)
+    const inCalls = mockSupabase._chain.in.mock.calls;
+    const domainInCall = inCalls.find(
+      (call: unknown[]) => call[0] === 'primary_domain',
+    );
+    const ctInCall = inCalls.find(
+      (call: unknown[]) => call[0] === 'content_type',
+    );
+    expect(domainInCall).toBeUndefined();
+    expect(ctInCall).toBeUndefined();
   });
 });

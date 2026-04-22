@@ -26,8 +26,6 @@ import type {
   ReaderFontSize,
   ReaderMaxWidth,
   PanelLayout,
-  FloatingPosition,
-  FloatingSize,
 } from '@/hooks/ui/use-reader-preferences';
 import type { TranscriptSegment, TranscriptHighlight } from '@/types/content';
 import type { LayerContentMap } from '@/hooks/use-topic-layer-content';
@@ -79,17 +77,11 @@ export interface ItemDetailData {
   maxWidth: ReaderMaxWidth;
   panelLayout: PanelLayout;
   readerOpen: boolean;
-  isDetached: boolean;
-  detachedPosition: FloatingPosition | null;
-  detachedSize: FloatingSize | null;
   setFontSize: (size: ReaderFontSize) => void;
   setMaxWidth: (width: ReaderMaxWidth) => void;
   setPanelLayout: (layout: PanelLayout) => void;
   setReaderOpen: (open: boolean) => void;
   toggleReader: () => void;
-  toggleDetached: () => void;
-  setDetachedPosition: (pos: FloatingPosition) => void;
-  setDetachedSize: (size: FloatingSize) => void;
   showSplitReader: boolean;
 
   // --- Inline field edit ---
@@ -196,19 +188,13 @@ export function useItemDetailData({
     maxWidth,
     panelLayout,
     readerOpen,
-    isDetached,
-    detachedPosition,
-    detachedSize,
     setFontSize,
     setMaxWidth,
     setPanelLayout,
     setReaderOpen,
     toggleReader,
-    toggleDetached,
-    setDetachedPosition,
-    setDetachedSize,
   } = useReaderPreferences();
-  const showSplitReader = readerOpen && !isDetached;
+  const showSplitReader = readerOpen;
 
   // --- Inline field edit ---
   const inlineEdit = useInlineFieldEdit<ItemData>({
@@ -506,17 +492,11 @@ export function useItemDetailData({
     maxWidth,
     panelLayout,
     readerOpen,
-    isDetached,
-    detachedPosition,
-    detachedSize,
     setFontSize,
     setMaxWidth,
     setPanelLayout,
     setReaderOpen,
     toggleReader,
-    toggleDetached,
-    setDetachedPosition,
-    setDetachedSize,
     showSplitReader,
 
     // Inline field edit

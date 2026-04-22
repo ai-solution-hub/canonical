@@ -25,6 +25,7 @@ export interface ReviewFilters {
   source_file?: string;
   source_document_id?: string;
   sort?: ReviewQueueSortField;
+  assigned_to_me?: boolean;
 }
 
 // -- Action payload --

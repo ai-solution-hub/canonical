@@ -23,7 +23,8 @@ import {
 import type { ISectionOptions } from 'docx';
 import { format } from 'date-fns';
 import { enGB } from 'date-fns/locale';
-import { htmlToPlainText, countWords } from '@/lib/editor-utils';
+import { countWords } from '@/lib/editor-utils';
+import { stripMarkdown } from '@/lib/content/strip-markdown';
 import type {
   ExportQuestion,
   ExportBidMetadata,
@@ -62,173 +63,220 @@ function formatStatus(status: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// HTML helpers
+// Markdown-to-DOCX helpers
 // ---------------------------------------------------------------------------
 
 /**
- * Strip HTML tags from a string and decode common entities.
- */
-function stripHtmlTags(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .trim();
-}
-
-/**
- * Parse inline HTML into TextRun objects, preserving bold/italic/underline.
+ * Parse inline markdown formatting into TextRun objects.
  *
- * Walks the HTML string using regex to detect inline formatting tags
- * and converts them to docx TextRun properties.
+ * Handles bold, italic, underscore-italic, and bold-italic within a
+ * single line of text, producing docx TextRun objects with the
+ * appropriate formatting properties.
  */
-function parseInlineFormatting(html: string): TextRun[] {
+function parseMarkdownInline(text: string): TextRun[] {
   const runs: TextRun[] = [];
 
-  // Regex to match opening/closing inline tags or plain text segments
-  const tokenRegex = /<(\/?)(?:strong|b|em|i|u|a)(?:\s[^>]*)?>|([^<]+)/gi;
-  let bold = false;
-  let italic = false;
-  let underline = false;
+  // Regex to match bold+italic (***), bold (**), or italic (* or _)
+  // Order matters: bold+italic before bold before italic
+  const inlineRegex = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|_(.+?)_)/g;
+  let lastIndex = 0;
   let match: RegExpExecArray | null;
 
-  while ((match = tokenRegex.exec(html)) !== null) {
-    const fullMatch = match[0];
-    const isClosing = match[1] === '/';
-    const textContent = match[2];
+  while ((match = inlineRegex.exec(text)) !== null) {
+    // Add plain text before this match
+    if (match.index > lastIndex) {
+      const plain = text.slice(lastIndex, match.index);
+      if (plain.length > 0) {
+        runs.push(new TextRun({ text: plain, font: 'Calibri', size: 22 }));
+      }
+    }
 
-    if (textContent !== undefined) {
-      // Plain text segment — decode entities and create a run
-      const decoded = decodeEntities(textContent);
-      if (decoded.length > 0) {
-        runs.push(
-          new TextRun({
-            text: decoded,
-            font: 'Calibri',
-            size: 22,
-            bold: bold || undefined,
-            italics: italic || undefined,
-            underline: underline ? { type: 'single' as const } : undefined,
-          }),
-        );
-      }
-    } else {
-      // Tag — update formatting state
-      const tagName = fullMatch
-        .replace(/<\/?/i, '')
-        .replace(/[\s>].*/, '')
-        .toLowerCase();
-      if (tagName === 'strong' || tagName === 'b') {
-        bold = !isClosing;
-      } else if (tagName === 'em' || tagName === 'i') {
-        italic = !isClosing;
-      } else if (tagName === 'u') {
-        underline = !isClosing;
-      }
+    // Determine formatting type
+    if (match[2] !== undefined) {
+      // ***bold italic***
+      runs.push(
+        new TextRun({
+          text: match[2],
+          font: 'Calibri',
+          size: 22,
+          bold: true,
+          italics: true,
+        }),
+      );
+    } else if (match[3] !== undefined) {
+      // **bold**
+      runs.push(
+        new TextRun({
+          text: match[3],
+          font: 'Calibri',
+          size: 22,
+          bold: true,
+        }),
+      );
+    } else if (match[4] !== undefined) {
+      // *italic*
+      runs.push(
+        new TextRun({
+          text: match[4],
+          font: 'Calibri',
+          size: 22,
+          italics: true,
+        }),
+      );
+    } else if (match[5] !== undefined) {
+      // _italic_
+      runs.push(
+        new TextRun({
+          text: match[5],
+          font: 'Calibri',
+          size: 22,
+          italics: true,
+        }),
+      );
+    }
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Remaining plain text after last match
+  if (lastIndex < text.length) {
+    const remaining = text.slice(lastIndex);
+    if (remaining.length > 0) {
+      runs.push(
+        new TextRun({ text: remaining, font: 'Calibri', size: 22 }),
+      );
     }
   }
 
-  // Fallback: if no runs were produced (e.g., empty or tag-only input)
-  if (runs.length === 0) {
-    const plain = stripHtmlTags(html);
-    if (plain.length > 0) {
-      runs.push(new TextRun({ text: plain, font: 'Calibri', size: 22 }));
-    }
+  // Fallback for text with no inline formatting
+  if (runs.length === 0 && text.length > 0) {
+    runs.push(new TextRun({ text, font: 'Calibri', size: 22 }));
   }
 
   return runs;
 }
 
-/** Decode common HTML entities */
-function decodeEntities(text: string): string {
-  return text
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
-}
-
 /**
- * Convert Tiptap HTML to an array of Word Paragraphs.
+ * Convert Tiptap markdown to an array of Word Paragraphs.
  *
- * Handles the HTML output from the Tiptap editor, converting block-level
- * and inline elements to their Word equivalents. Headings within responses
- * are mapped to H3+ to avoid conflicting with section/question headings.
+ * Parses the markdown subset produced by `@tiptap/markdown`'s
+ * `getMarkdown()` method:
+ * - `# H1` / `## H2` / `### H3` headings (mapped to H3/H4/H5 in DOCX
+ *   to avoid conflicting with document section/question headings)
+ * - `**bold**`, `*italic*`, `_italic_` inline formatting
+ * - `- ` / `* ` unordered list items
+ * - `1. ` / `2. ` ordered list items
+ * - Paragraph breaks on blank lines (double newline)
+ * - GFM pipe tables rendered as plain text rows (full DOCX table
+ *   construction is out of scope for this lightweight parser)
+ *
+ * Also handles plain text and legacy HTML gracefully — if the input
+ * contains no markdown features, it produces a single paragraph.
+ *
+ * @internal Exported for unit tests only.
  */
-function htmlToDocxParagraphs(html: string): Paragraph[] {
+export function markdownToDocxParagraphs(markdown: string): Paragraph[] {
   const paragraphs: Paragraph[] = [];
 
-  // Split on block-level closing tags to identify paragraphs
-  const blocks = html
-    .replace(/<br\s*\/?>/gi, '\n')
-    .split(/<\/(?:p|div|h[1-6]|li)>/gi)
-    .filter((block) => block.trim().length > 0);
+  if (!markdown || markdown.trim().length === 0) {
+    return paragraphs;
+  }
+
+  // Split into blocks on blank lines (markdown paragraph convention)
+  const blocks = markdown.split(/\n{2,}/);
 
   for (const block of blocks) {
     const trimmed = block.trim();
+    if (trimmed.length === 0) continue;
 
-    // Detect heading level
-    const headingMatch = trimmed.match(/<h([1-3])[^>]*>/i);
-    if (headingMatch) {
-      const level = parseInt(headingMatch[1], 10);
-      const text = stripHtmlTags(trimmed);
-      // Response headings start at H3 (H1/H2 used by section/question)
-      const headingLevel =
-        level === 1
-          ? HeadingLevel.HEADING_3
-          : level === 2
-            ? HeadingLevel.HEADING_4
-            : HeadingLevel.HEADING_5;
+    // Process each line within the block (handles lists and headings
+    // that may appear as consecutive single-newline-separated lines)
+    const lines = trimmed.split('\n');
 
-      paragraphs.push(
-        new Paragraph({
-          heading: headingLevel,
-          children: [
-            new TextRun({
-              text,
-              bold: true,
-              font: 'Calibri',
-            }),
-          ],
-          spacing: { before: 200, after: 100 },
-        }),
-      );
-      continue;
-    }
+    for (const rawLine of lines) {
+      const line = rawLine.trimEnd();
+      if (line.length === 0) continue;
 
-    // Detect list items — check for ordered vs unordered
-    const isListItem = /<li[^>]*>/i.test(trimmed);
-    const isOrderedItem = /<ol[^>]*>/i.test(trimmed);
+      // ── Headings: # H1, ## H2, ### H3 ──
+      const headingMatch = line.match(/^(#{1,3})\s+(.+)$/);
+      if (headingMatch) {
+        const level = headingMatch[1].length;
+        const headingText = headingMatch[2];
+        // Response headings start at H3 (H1/H2 used by section/question)
+        const headingLevel =
+          level === 1
+            ? HeadingLevel.HEADING_3
+            : level === 2
+              ? HeadingLevel.HEADING_4
+              : HeadingLevel.HEADING_5;
 
-    if (isListItem) {
-      const text = stripHtmlTags(trimmed);
-      if (text.length > 0) {
-        const listProps: Record<string, unknown> = isOrderedItem
-          ? { numbering: { reference: 'default-numbering', level: 0 } }
-          : { bullet: { level: 0 } };
         paragraphs.push(
           new Paragraph({
-            ...listProps,
-            children: parseInlineFormatting(trimmed),
+            heading: headingLevel,
+            children: [
+              new TextRun({
+                text: headingText,
+                bold: true,
+                font: 'Calibri',
+              }),
+            ],
+            spacing: { before: 200, after: 100 },
+          }),
+        );
+        continue;
+      }
+
+      // ── Unordered list: - item or * item ──
+      const ulMatch = line.match(/^[-*]\s+(.+)$/);
+      if (ulMatch) {
+        paragraphs.push(
+          new Paragraph({
+            bullet: { level: 0 },
+            children: parseMarkdownInline(ulMatch[1]),
             spacing: { after: 60 },
           }),
         );
+        continue;
       }
-      continue;
-    }
 
-    // Regular paragraph
-    const text = stripHtmlTags(trimmed);
-    if (text.length > 0) {
+      // ── Ordered list: 1. item, 2. item ──
+      const olMatch = line.match(/^\d+\.\s+(.+)$/);
+      if (olMatch) {
+        paragraphs.push(
+          new Paragraph({
+            numbering: { reference: 'default-numbering', level: 0 },
+            children: parseMarkdownInline(olMatch[1]),
+            spacing: { after: 60 },
+          }),
+        );
+        continue;
+      }
+
+      // ── Table separator rows (---) — skip ──
+      if (/^\|?\s*[-:]+[-|\s:]*$/.test(line)) {
+        continue;
+      }
+
+      // ── Table data/header rows — render as plain text ──
+      if (line.startsWith('|') && line.endsWith('|')) {
+        const cellText = line
+          .slice(1, -1)
+          .split('|')
+          .map((c) => c.trim())
+          .join(' | ');
+        paragraphs.push(
+          new Paragraph({
+            children: parseMarkdownInline(cellText),
+            spacing: { after: 60 },
+          }),
+        );
+        continue;
+      }
+
+      // ── Regular paragraph ──
       paragraphs.push(
         new Paragraph({
-          children: parseInlineFormatting(trimmed),
+          children: parseMarkdownInline(line),
           spacing: { after: 120 },
         }),
       );
@@ -498,12 +546,12 @@ function buildQuestionParagraphs(
   );
 
   // Response content
-  const responseHtml = opts.useAdvancedVariant
+  const responseMarkdown = opts.useAdvancedVariant
     ? question.response_text_advanced || question.response_text
     : question.response_text;
 
-  if (responseHtml) {
-    paragraphs.push(...htmlToDocxParagraphs(responseHtml));
+  if (responseMarkdown) {
+    paragraphs.push(...markdownToDocxParagraphs(responseMarkdown));
   } else {
     paragraphs.push(
       new Paragraph({
@@ -522,7 +570,7 @@ function buildQuestionParagraphs(
   }
 
   // Word count footer
-  const plainText = responseHtml ? htmlToPlainText(responseHtml) : '';
+  const plainText = responseMarkdown ? stripMarkdown(responseMarkdown) : '';
   const wordCount = countWords(plainText);
   const wordCountText = question.word_limit
     ? `Word count: ${wordCount}/${question.word_limit}`

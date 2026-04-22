@@ -253,3 +253,140 @@ export async function pollFeed(source: FeedSourceRef): Promise<PollResult> {
     };
   }
 }
+
+// ── Web source polling (P0-WEB) ──
+
+/** Accepted HTML content types for web source validation */
+const HTML_CONTENT_TYPES = ['text/html', 'application/xhtml+xml'];
+
+/**
+ * Validate that a URL returns an HTML page suitable for web source scraping.
+ * Prefers HEAD for cheapness; falls back to ranged GET when the server rejects HEAD.
+ * Throws a descriptive error on any failure (non-200, non-HTML, empty body).
+ */
+export async function validateWebUrl(url: string): Promise<void> {
+  let response: Response;
+
+  try {
+    response = await fetch(url, {
+      method: 'HEAD',
+      headers: { 'User-Agent': USER_AGENT },
+      signal: AbortSignal.timeout(FEED_FETCH_TIMEOUT_MS),
+      redirect: 'follow',
+    });
+
+    // Some servers reject HEAD with 405, 501 (Not Implemented), or 403
+    // (Forbidden for HEAD but serve GET correctly) — fall back to ranged GET
+    if ([405, 501, 403].includes(response.status)) {
+      response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'User-Agent': USER_AGENT,
+          Range: 'bytes=0-1023',
+        },
+        signal: AbortSignal.timeout(FEED_FETCH_TIMEOUT_MS),
+        redirect: 'follow',
+      });
+    }
+  } catch (err) {
+    throw new Error(
+      `Web URL validation failed for ${url}: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  // Accept 200 and 206 (partial content from Range header)
+  if (!response.ok && response.status !== 206) {
+    throw new Error(
+      `Web URL validation failed for ${url}: HTTP ${response.status}`,
+    );
+  }
+
+  const contentType = (response.headers.get('content-type') ?? '').toLowerCase();
+  const isHtml = HTML_CONTENT_TYPES.some((ct) => contentType.startsWith(ct));
+  if (!isHtml) {
+    throw new Error(
+      `Web URL validation failed for ${url}: expected HTML content-type but got '${contentType}'`,
+    );
+  }
+
+  // M-3: Defence-in-depth — reject explicitly empty responses.
+  // Only check when Content-Length header is present (streaming responses
+  // omit it, so absence is NOT a rejection signal).
+  const contentLength = response.headers.get('content-length');
+  if (contentLength !== null && contentLength === '0') {
+    throw new Error(
+      `Web URL validation failed for ${url}: Content-Length is 0 (empty body)`,
+    );
+  }
+}
+
+/**
+ * Web source reference — subset of FeedSource from pipeline.ts.
+ * Kept minimal to avoid importing the full pipeline module.
+ */
+interface WebSourceRef {
+  id: string;
+  url: string;
+  name?: string;
+}
+
+/**
+ * Poll a single web source by scraping with Firecrawl (HTML mode + Turndown).
+ * Returns a PollResult in the same shape as pollFeed() so downstream
+ * processing (dedup, classify, store) is identical.
+ *
+ * Unlike RSS polling, web sources produce exactly one item per poll
+ * (the page itself). The item's guid is set to the source URL so
+ * dedup treats each URL as a unique entity.
+ */
+export async function pollWebSource(source: WebSourceRef): Promise<PollResult> {
+  try {
+    // 1. Validate the URL is reachable and returns HTML
+    await validateWebUrl(source.url);
+
+    // 2. Scrape with Firecrawl using HTML format (F-1 fix: avoids double-escape)
+    const { default: Firecrawl } = await import('@mendable/firecrawl-js');
+    const firecrawl = new Firecrawl({ apiKey: process.env.FIRECRAWL_API_KEY });
+    const doc = await firecrawl.scrape(source.url, {
+      formats: ['html'] as const,
+    });
+
+    if (!doc.html) {
+      throw new Error('Firecrawl returned no HTML body');
+    }
+
+    const metadata = (doc.metadata ?? {}) as Record<string, string | undefined>;
+
+    // 3. Synthesise a single ParsedFeedItem with RAW HTML in contentEncoded.
+    // Option C (F-1 fix): pollers always produce HTML in contentEncoded,
+    // and extractContent does the single Turndown conversion — consistent
+    // with the RSS path. Avoids the double-Turndown regression where
+    // pollWebSource converts to markdown and extractContent converts again.
+    const item: ParsedFeedItem = {
+      title: normaliseFeedTitle(metadata.title) || source.name || source.url,
+      url: source.url,
+      guid: source.url, // guid === url for web sources (one page per source)
+      publishedAt: metadata.publishedTime ?? new Date().toISOString(),
+      summary: metadata.description ?? null,
+      contentEncoded: doc.html, // raw HTML — extractContent handles Turndown
+      categories: [],
+    };
+
+    return {
+      feedSourceId: source.id,
+      status: 'success',
+      items: [item],
+      etag: null,
+      lastModified: null,
+    };
+  } catch (err) {
+    return {
+      feedSourceId: source.id,
+      status: 'error',
+      error: err instanceof Error ? err.message : String(err),
+      items: [],
+      etag: null,
+      lastModified: null,
+    };
+  }
+}

@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { generateBidDocx } from '@/lib/bid/bid-export-docx';
+import {
+  generateBidDocx,
+  markdownToDocxParagraphs,
+} from '@/lib/bid/bid-export-docx';
 import type {
   ExportQuestion,
   ExportBidMetadata,
@@ -36,7 +39,7 @@ function makeQuestion(overrides: Partial<ExportQuestion> = {}): ExportQuestion {
     confidence_posture: 'strong_match',
     status: 'complete',
     response_text:
-      '<p>Our approach to data encryption involves AES-256 for data at rest.</p>',
+      'Our approach to data encryption involves AES-256 for data at rest.',
     response_text_advanced: null,
     review_status: 'approved',
     citations: [
@@ -126,7 +129,7 @@ describe('generateBidDocx', () => {
   // -----------------------------------------------------------------------
   it('should exclude unanswered questions when includeUnanswered is false', async () => {
     const questions = [
-      makeQuestion({ question_id: 'q-001', response_text: '<p>Answer</p>' }),
+      makeQuestion({ question_id: 'q-001', response_text: 'Answer' }),
       makeQuestion({
         question_id: 'q-002',
         question_sequence: 2,
@@ -150,9 +153,9 @@ describe('generateBidDocx', () => {
   // -----------------------------------------------------------------------
   it('should use advanced variant text when useAdvancedVariant is true', async () => {
     const question = makeQuestion({
-      response_text: '<p>Standard response.</p>',
+      response_text: 'Standard response.',
       response_text_advanced:
-        '<p>Advanced response with significantly more detailed content and additional paragraphs explaining the approach.</p>',
+        'Advanced response with significantly more detailed content and additional paragraphs explaining the approach.',
     });
 
     const standard = await generateBidDocx(makeMetadata(), [question], {
@@ -237,14 +240,14 @@ describe('generateBidDocx', () => {
         section_name: 'Commercial',
         section_sequence: 2,
         question_sequence: 1,
-        response_text: '<p>Commercial answer</p>',
+        response_text: 'Commercial answer',
       }),
       makeQuestion({
         question_id: 'q-001',
         section_name: 'Technical',
         section_sequence: 1,
         question_sequence: 1,
-        response_text: '<p>Technical answer</p>',
+        response_text: 'Technical answer',
       }),
     ];
 
@@ -307,7 +310,7 @@ describe('generateBidDocx', () => {
     // 13 words, limit 500 — well within
     const question = makeQuestion({
       response_text:
-        '<p>Our approach to data encryption involves AES-256 for data at rest.</p>',
+        'Our approach to data encryption involves AES-256 for data at rest.',
       word_limit: 500,
     });
 
@@ -322,7 +325,7 @@ describe('generateBidDocx', () => {
     // 13 words, limit 5 — over limit
     const question = makeQuestion({
       response_text:
-        '<p>Our approach to data encryption involves AES-256 for data at rest.</p>',
+        'Our approach to data encryption involves AES-256 for data at rest.',
       word_limit: 5,
     });
 
@@ -335,7 +338,7 @@ describe('generateBidDocx', () => {
   // -----------------------------------------------------------------------
   it('should produce valid output for questions with no word limit', async () => {
     const question = makeQuestion({
-      response_text: '<p>Some response text here.</p>',
+      response_text: 'Some response text here.',
       word_limit: null,
     });
 
@@ -354,14 +357,14 @@ describe('generateBidDocx', () => {
   });
 
   // -----------------------------------------------------------------------
-  // 18. HTML response with formatting tags
+  // 18. Markdown response with formatting
   // -----------------------------------------------------------------------
-  it('should handle HTML response with formatting tags', async () => {
+  it('should handle markdown response with formatting', async () => {
     const question = makeQuestion({
       response_text:
-        '<p>We use <strong>AES-256</strong> encryption for <em>all</em> data at rest.</p>' +
-        '<ul><li>Server-side encryption</li><li>Client-side encryption</li></ul>' +
-        '<p>Our <u>comprehensive</u> approach covers all scenarios.</p>',
+        'We use **AES-256** encryption for *all* data at rest.\n\n' +
+        '- Server-side encryption\n- Client-side encryption\n\n' +
+        'Our comprehensive approach covers all scenarios.',
     });
 
     const buffer = await generateBidDocx(makeMetadata(), [question]);
@@ -389,7 +392,7 @@ describe('generateBidDocx', () => {
   // -----------------------------------------------------------------------
   it('should fall back to standard response when advanced variant is null', async () => {
     const question = makeQuestion({
-      response_text: '<p>Standard response.</p>',
+      response_text: 'Standard response.',
       response_text_advanced: null,
     });
 
@@ -415,7 +418,7 @@ describe('generateBidDocx', () => {
       makeQuestion({
         question_id: 'q-001',
         question_sequence: 1,
-        response_text: '<p>Answered</p>',
+        response_text: 'Answered',
         review_status: 'approved',
       }),
       makeQuestion({
@@ -429,7 +432,7 @@ describe('generateBidDocx', () => {
       makeQuestion({
         question_id: 'q-003',
         question_sequence: 3,
-        response_text: '<p>AI draft</p>',
+        response_text: 'AI draft',
         review_status: 'ai_drafted',
       }),
     ];
@@ -508,5 +511,100 @@ describe('generateBidDocx', () => {
       includeCitations: true,
     });
     expect(buffer.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// markdownToDocxParagraphs — M-1 regression fix (WP4)
+// ---------------------------------------------------------------------------
+
+describe('markdownToDocxParagraphs', () => {
+  it('returns empty array for empty/whitespace input', () => {
+    expect(markdownToDocxParagraphs('')).toEqual([]);
+    expect(markdownToDocxParagraphs('   ')).toEqual([]);
+    expect(markdownToDocxParagraphs('\n\n')).toEqual([]);
+  });
+
+  it('produces a single paragraph for plain text', () => {
+    const result = markdownToDocxParagraphs('Hello world');
+    expect(result).toHaveLength(1);
+    expect(result[0]).toBeDefined();
+  });
+
+  it('produces heading paragraphs for # / ## / ### syntax', () => {
+    const md = '# Heading 1\n\n## Heading 2\n\n### Heading 3';
+    const result = markdownToDocxParagraphs(md);
+    expect(result).toHaveLength(3);
+  });
+
+  it('produces bullet paragraphs for - list items', () => {
+    const md = '- First item\n- Second item\n- Third item';
+    const result = markdownToDocxParagraphs(md);
+    expect(result).toHaveLength(3);
+  });
+
+  it('produces bullet paragraphs for * list items', () => {
+    const md = '* Alpha\n* Beta';
+    const result = markdownToDocxParagraphs(md);
+    expect(result).toHaveLength(2);
+  });
+
+  it('produces numbered paragraphs for ordered list items', () => {
+    const md = '1. First\n2. Second\n3. Third';
+    const result = markdownToDocxParagraphs(md);
+    expect(result).toHaveLength(3);
+  });
+
+  it('handles mixed content: heading, paragraph, bold, list', () => {
+    const md =
+      '## Our Approach\n\n' +
+      'We use **AES-256** encryption for *all* data at rest.\n\n' +
+      '- Server-side encryption\n- Client-side encryption\n\n' +
+      'Our comprehensive approach covers all scenarios.';
+    const result = markdownToDocxParagraphs(md);
+    // 1 heading + 1 paragraph + 2 bullet items + 1 paragraph = 5
+    expect(result).toHaveLength(5);
+  });
+
+  it('handles GFM pipe tables as plain-text rows', () => {
+    const md =
+      '| Col1 | Col2 |\n' +
+      '| --- | --- |\n' +
+      '| A | B |';
+    const result = markdownToDocxParagraphs(md);
+    // Header row + data row (separator row is skipped)
+    expect(result).toHaveLength(2);
+  });
+
+  it('handles paragraphs separated by blank lines', () => {
+    const md = 'First paragraph.\n\nSecond paragraph.\n\nThird paragraph.';
+    const result = markdownToDocxParagraphs(md);
+    expect(result).toHaveLength(3);
+  });
+
+  it('gracefully handles plain text with no markdown features', () => {
+    const md = 'Just a simple sentence with no formatting at all.';
+    const result = markdownToDocxParagraphs(md);
+    expect(result).toHaveLength(1);
+  });
+
+  it('generates valid DOCX when used through generateBidDocx with markdown content', async () => {
+    const question = makeQuestion({
+      response_text:
+        '## Technical Approach\n\n' +
+        'We employ **industry-leading** encryption:\n\n' +
+        '- AES-256 for data at rest\n' +
+        '- TLS 1.3 for data in transit\n\n' +
+        '1. Encrypt at source\n' +
+        '2. Verify at destination\n\n' +
+        'Our *comprehensive* methodology ensures compliance.',
+    });
+
+    const buffer = await generateBidDocx(makeMetadata(), [question]);
+    expect(buffer).toBeInstanceOf(Buffer);
+    expect(buffer.length).toBeGreaterThan(0);
+    // Valid ZIP (DOCX is a ZIP container)
+    expect(buffer[0]).toBe(0x50);
+    expect(buffer[1]).toBe(0x4b);
   });
 });

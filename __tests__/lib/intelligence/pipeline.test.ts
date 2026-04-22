@@ -10,6 +10,7 @@ import {
 // Mock all dependencies
 vi.mock('@/lib/intelligence/feed-poller', () => ({
   pollFeed: vi.fn(),
+  pollWebSource: vi.fn(),
 }));
 vi.mock('@/lib/intelligence/content-extractor', () => ({
   extractContent: vi.fn(),
@@ -363,6 +364,220 @@ describe('processFeedSource', () => {
     expect(contentItemInsert).toBeUndefined();
 
     consoleSpy.mockRestore();
+  });
+
+  // ── source_type branching (P0-WEB / WP3B) ──
+
+  it('calls pollWebSource (not pollFeed) when source_type is "web" (T12)', async () => {
+    vi.clearAllMocks();
+    const { pollFeed, pollWebSource } = await import(
+      '@/lib/intelligence/feed-poller'
+    );
+    vi.mocked(pollWebSource).mockResolvedValue({
+      feedSourceId: 'web-source-1',
+      status: 'success',
+      items: [],
+      etag: null,
+      lastModified: null,
+    });
+
+    const mockSupabase = {
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+            single: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }),
+        update: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ error: null }),
+        }),
+        insert: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { id: 'fa-1' }, error: null }),
+          }),
+          error: null,
+        }),
+      }),
+    } as any;
+
+    const webSource = {
+      id: 'web-source-1',
+      workspace_id: 'ws-1',
+      name: 'Company Website',
+      url: 'https://example.com/page',
+      etag: null,
+      last_modified: null,
+      polling_interval_minutes: 360,
+      consecutive_failures: 0,
+      article_count: 0,
+      source_type: 'web' as const,
+    };
+
+    await processFeedSource(mockSupabase, webSource, null, null);
+
+    expect(vi.mocked(pollWebSource)).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'web-source-1', url: 'https://example.com/page' }),
+    );
+    expect(vi.mocked(pollFeed)).not.toHaveBeenCalled();
+  });
+
+  it('does not double-escape markdown when web source content flows through extractContent (C-1)', async () => {
+    vi.clearAllMocks();
+    const { pollWebSource } = await import('@/lib/intelligence/feed-poller');
+    const { extractContent } = await import('@/lib/intelligence/content-extractor');
+
+    // The HTML that Firecrawl returns (and pollWebSource now stores as-is
+    // in contentEncoded per Option C — pollers produce HTML, extractContent
+    // does the single Turndown conversion).
+    const firecrawlHtml = '<h1>Heading</h1><p>Some text</p><a href="/x">link</a>';
+
+    vi.mocked(pollWebSource).mockResolvedValue({
+      feedSourceId: 'web-source-c1',
+      status: 'success',
+      items: [
+        {
+          title: 'Web Page',
+          url: 'https://example.com/page',
+          guid: 'https://example.com/page',
+          publishedAt: '2026-04-01T00:00:00Z',
+          summary: 'A web page',
+          contentEncoded: firecrawlHtml,
+          categories: [],
+        },
+      ],
+      etag: null,
+      lastModified: null,
+    });
+
+    // Import turndown to simulate extractContent Tier 1: single HTML->markdown
+    const { turndown } = await import('@/lib/extraction/turndown');
+
+    // extractContent mock: simulate what the real Tier 1 does — runs turndown
+    // on contentEncoded (which is now raw HTML from the poller).
+    vi.mocked(extractContent).mockImplementation(async (item) => {
+      const content = item.contentEncoded
+        ? turndown.turndown(item.contentEncoded).trim()
+        : item.summary ?? item.title;
+      return {
+        content,
+        title: item.title,
+        description: item.summary,
+        thumbnailUrl: null,
+        method: 'rss_content' as const,
+        wordCount: content.split(/\s+/).filter(Boolean).length,
+      };
+    });
+
+    const insertCalls: Array<{ table: string; data: Record<string, unknown> }> = [];
+    const mockSupabase = {
+      from: vi.fn().mockImplementation((table: string) => ({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+            single: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }),
+        update: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ error: null }),
+        }),
+        insert: vi.fn().mockImplementation((data: Record<string, unknown>) => {
+          insertCalls.push({ table, data });
+          return {
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: { id: 'fa-c1' }, error: null }),
+            }),
+            error: null,
+          };
+        }),
+      })),
+    } as any;
+
+    const webSource = {
+      id: 'web-source-c1',
+      workspace_id: 'ws-1',
+      name: 'Company Website',
+      url: 'https://example.com/page',
+      etag: null,
+      last_modified: null,
+      polling_interval_minutes: 360,
+      consecutive_failures: 0,
+      article_count: 0,
+      source_type: 'web' as const,
+    };
+
+    await processFeedSource(mockSupabase, webSource, null, null);
+
+    // The stored content in feed_articles must not have double-escaped headings
+    const feedArticleInsert = insertCalls.find((c) => c.table === 'feed_articles');
+    expect(feedArticleInsert).toBeDefined();
+    const storedContent = feedArticleInsert!.data.raw_content as string;
+    expect(storedContent).toContain('# Heading');
+    expect(storedContent).toContain('[link]');
+    expect(storedContent).toContain('(/x)');
+    // C-1 regression: must NOT contain backslash-escaped heading
+    expect(storedContent).not.toContain('\\#');
+    expect(storedContent).not.toContain('\\[');
+  });
+
+  it('calls pollFeed (not pollWebSource) when source_type is "rss" (T13)', async () => {
+    vi.clearAllMocks();
+    const { pollFeed, pollWebSource } = await import(
+      '@/lib/intelligence/feed-poller'
+    );
+    vi.mocked(pollFeed).mockResolvedValue({
+      feedSourceId: 'rss-source-1',
+      status: 'success',
+      items: [],
+      etag: null,
+      lastModified: null,
+    });
+
+    const mockSupabase = {
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+            single: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }),
+        update: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ error: null }),
+        }),
+        insert: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { id: 'fa-1' }, error: null }),
+          }),
+          error: null,
+        }),
+      }),
+    } as any;
+
+    const rssSource = {
+      id: 'rss-source-1',
+      workspace_id: 'ws-1',
+      name: 'DfE Feed',
+      url: 'https://example.com/feed.atom',
+      etag: null,
+      last_modified: null,
+      polling_interval_minutes: 30,
+      consecutive_failures: 0,
+      article_count: 0,
+      source_type: 'rss' as const,
+    };
+
+    await processFeedSource(mockSupabase, rssSource, null, null);
+
+    expect(vi.mocked(pollFeed)).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'rss-source-1', url: 'https://example.com/feed.atom' }),
+    );
+    expect(vi.mocked(pollWebSource)).not.toHaveBeenCalled();
   });
 });
 

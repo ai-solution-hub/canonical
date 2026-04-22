@@ -11,9 +11,9 @@ import type { CitationEntry } from '@/types/bid-metadata';
 describe('runDeterministicChecks', () => {
   const baseQuestion = { question_text: 'Test question', word_limit: 500 };
 
-  it('counts words correctly from HTML', () => {
+  it('counts words correctly from markdown', () => {
     const result = runDeterministicChecks(
-      '<p>Hello world test</p>',
+      'Hello world test',
       [],
       baseQuestion,
       0,
@@ -22,7 +22,7 @@ describe('runDeterministicChecks', () => {
   });
 
   it('flags over word limit as error', () => {
-    const longText = '<p>' + 'word '.repeat(550) + '</p>';
+    const longText = 'word '.repeat(550) + 'word';
     const result = runDeterministicChecks(
       longText,
       [],
@@ -37,7 +37,7 @@ describe('runDeterministicChecks', () => {
   });
 
   it('flags under 70% word limit as warning', () => {
-    const shortText = '<p>' + 'word '.repeat(100) + '</p>';
+    const shortText = 'word '.repeat(100) + 'word';
     const result = runDeterministicChecks(
       shortText,
       [],
@@ -52,7 +52,7 @@ describe('runDeterministicChecks', () => {
   });
 
   it('does not flag when within word limit', () => {
-    const text = '<p>' + 'word '.repeat(450) + '</p>';
+    const text = 'word '.repeat(450) + 'word';
     const result = runDeterministicChecks(
       text,
       [],
@@ -65,7 +65,7 @@ describe('runDeterministicChecks', () => {
   });
 
   it('does not flag at exactly 70% of word limit', () => {
-    const text = '<p>' + 'word '.repeat(350) + '</p>';
+    const text = 'word '.repeat(350) + 'word';
     const result = runDeterministicChecks(
       text,
       [],
@@ -79,7 +79,7 @@ describe('runDeterministicChecks', () => {
   });
 
   it('skips word limit check when no limit set', () => {
-    const longText = '<p>' + 'word '.repeat(1000) + '</p>';
+    const longText = 'word '.repeat(1000) + 'word';
     const result = runDeterministicChecks(
       longText,
       [],
@@ -93,7 +93,7 @@ describe('runDeterministicChecks', () => {
 
   it('flags zero citations when KB content available', () => {
     const result = runDeterministicChecks(
-      '<p>Some response text here</p>',
+      'Some response text here',
       [],
       baseQuestion,
       5,
@@ -109,7 +109,7 @@ describe('runDeterministicChecks', () => {
 
   it('does not flag citations when no KB content available', () => {
     const result = runDeterministicChecks(
-      '<p>Some response text here</p>',
+      'Some response text here',
       [],
       baseQuestion,
       0,
@@ -135,7 +135,7 @@ describe('runDeterministicChecks', () => {
     ];
 
     const result = runDeterministicChecks(
-      '<p>Some response with citations</p>',
+      'Some response with citations',
       citations,
       baseQuestion,
       5,
@@ -149,7 +149,7 @@ describe('runDeterministicChecks', () => {
   });
 
   it('flags empty response', () => {
-    const result = runDeterministicChecks('<p></p>', [], baseQuestion, 0);
+    const result = runDeterministicChecks('', [], baseQuestion, 0);
 
     const emptyIssue = result.issues.find((i) => i.type === 'missing_section');
     expect(emptyIssue).toBeDefined();
@@ -158,33 +158,38 @@ describe('runDeterministicChecks', () => {
   });
 
   it('flags empty response with only whitespace', () => {
-    const result = runDeterministicChecks('<p>   </p>', [], baseQuestion, 0);
+    const result = runDeterministicChecks('   ', [], baseQuestion, 0);
 
     const emptyIssue = result.issues.find((i) => i.type === 'missing_section');
     expect(emptyIssue).toBeDefined();
   });
 
-  it('returns correct word count for complex HTML', () => {
-    // Block-level elements (h2, p) are separated by whitespace during stripping,
-    // so "Introduction" and "This" are correctly counted as separate words
-    const html =
-      '<h2>Introduction</h2><p>This is a <strong>detailed</strong> response with <em>multiple</em> sections.</p>';
-    const result = runDeterministicChecks(html, [], baseQuestion, 0);
-    // DOMParser textContent joins block elements without whitespace:
-    // "IntroductionThis is a detailed response with multiple sections." = 8 words
-    expect(result.wordCount).toBe(8);
+  it('returns correct word count for complex markdown', () => {
+    // Markdown headings and inline formatting are stripped before counting
+    const responseMarkdown =
+      '## Introduction\n\nThis is a **detailed** response with *multiple* sections.';
+    const result = runDeterministicChecks(
+      responseMarkdown,
+      [],
+      baseQuestion,
+      0,
+    );
+    // stripMarkdown removes ## and ** and *, leaving:
+    // "Introduction\n\nThis is a detailed response with multiple sections."
+    // = 9 words (Introduction + This is a detailed response with multiple sections)
+    expect(result.wordCount).toBe(9);
   });
 
   it('can produce both word limit and empty response issues', () => {
     // Edge case: word_limit=0 means the check is skipped (falsy), empty text triggers missing_section
-    const result = runDeterministicChecks('<p></p>', [], baseQuestion, 0);
+    const result = runDeterministicChecks('', [], baseQuestion, 0);
     const issues = result.issues;
 
     expect(issues.some((i) => i.type === 'missing_section')).toBe(true);
   });
 
   it('can flag both word limit and citation issues simultaneously', () => {
-    const longText = '<p>' + 'word '.repeat(550) + '</p>';
+    const longText = 'word '.repeat(550) + 'word';
     const result = runDeterministicChecks(
       longText,
       [],

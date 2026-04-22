@@ -238,8 +238,8 @@ export function EditorView({
             />
           </div>
 
-          {/* Content group (expanded by default) */}
-          <CollapsibleSection title="Content" defaultOpen>
+          {/* Content — always visible (content IS the page's purpose; P1-6 nesting fix) */}
+          <section aria-label="Content">
             <ContentBody
               item={item}
               setItem={setItem}
@@ -280,7 +280,7 @@ export function EditorView({
                 className="mb-6"
               />
             )}
-          </CollapsibleSection>
+          </section>
 
           {/* Claude actions — contextual ingestion prompts (editors only) */}
           {canEdit &&

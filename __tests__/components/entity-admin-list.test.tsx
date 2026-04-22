@@ -57,6 +57,7 @@ vi.mock('@/components/entity-management/entity-detail-panel', () => ({
 }));
 
 import { EntityList } from '@/components/entity-management/entity-list';
+import { createQueryWrapper } from '../helpers/query-wrapper';
 
 // ---------------------------------------------------------------------------
 // Factories
@@ -121,6 +122,15 @@ function setupFetchResponses(response = createEntityResponse()) {
 }
 
 // ---------------------------------------------------------------------------
+// Render helper — wraps EntityList in QueryClientProvider
+// ---------------------------------------------------------------------------
+
+function renderEntityList() {
+  const { Wrapper } = createQueryWrapper();
+  return render(<EntityList />, { wrapper: Wrapper });
+}
+
+// ---------------------------------------------------------------------------
 // Setup / teardown
 // ---------------------------------------------------------------------------
 
@@ -141,7 +151,7 @@ afterEach(() => {
 describe('EntityList', () => {
   it('shows loading state initially', () => {
     setupFetchResponses();
-    render(<EntityList />);
+    renderEntityList();
 
     // Before the debounce timer fires there should be a loader
     expect(
@@ -151,7 +161,7 @@ describe('EntityList', () => {
 
   it('renders entity list after loading', async () => {
     setupFetchResponses();
-    render(<EntityList />);
+    renderEntityList();
 
     // Advance past the 300ms debounce
     vi.advanceTimersByTime(350);
@@ -166,7 +176,7 @@ describe('EntityList', () => {
 
   it('shows summary statistics', async () => {
     setupFetchResponses();
-    render(<EntityList />);
+    renderEntityList();
     vi.advanceTimersByTime(350);
 
     await waitFor(() => {
@@ -176,7 +186,7 @@ describe('EntityList', () => {
 
   it('displays mention and variant counts', async () => {
     setupFetchResponses();
-    render(<EntityList />);
+    renderEntityList();
     vi.advanceTimersByTime(350);
 
     await waitFor(() => {
@@ -190,7 +200,7 @@ describe('EntityList', () => {
 
   it('shows entity count text', async () => {
     setupFetchResponses();
-    render(<EntityList />);
+    renderEntityList();
     vi.advanceTimersByTime(350);
 
     await waitFor(() => {
@@ -200,7 +210,7 @@ describe('EntityList', () => {
 
   it('shows empty state when no entities found', async () => {
     setupFetchResponses({ entities: [], total: 0 });
-    render(<EntityList />);
+    renderEntityList();
     vi.advanceTimersByTime(350);
 
     await waitFor(() => {
@@ -210,7 +220,7 @@ describe('EntityList', () => {
 
   it('shows type conflict warning', async () => {
     setupFetchResponses();
-    render(<EntityList />);
+    renderEntityList();
     vi.advanceTimersByTime(350);
 
     await waitFor(() => {
@@ -224,7 +234,7 @@ describe('EntityList', () => {
 
   it('has a search input', async () => {
     setupFetchResponses();
-    render(<EntityList />);
+    renderEntityList();
 
     const searchInput = screen.getByLabelText('Search entities');
     expect(searchInput).toBeInTheDocument();
@@ -233,7 +243,7 @@ describe('EntityList', () => {
   it('triggers fetch with search query after debounce', async () => {
     setupFetchResponses();
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    render(<EntityList />);
+    renderEntityList();
     vi.advanceTimersByTime(350);
 
     await waitFor(() => {
@@ -258,7 +268,7 @@ describe('EntityList', () => {
 
   it('renders view detail button for each entity', async () => {
     setupFetchResponses();
-    render(<EntityList />);
+    renderEntityList();
     vi.advanceTimersByTime(350);
 
     await waitFor(() => {
@@ -272,7 +282,7 @@ describe('EntityList', () => {
   it('opens detail panel when view detail button clicked', async () => {
     setupFetchResponses();
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    render(<EntityList />);
+    renderEntityList();
     vi.advanceTimersByTime(350);
 
     await waitFor(() => {
@@ -296,7 +306,7 @@ describe('EntityList', () => {
         json: () => Promise.resolve({ error: 'fail' }),
       }),
     );
-    render(<EntityList />);
+    renderEntityList();
     vi.advanceTimersByTime(350);
 
     await waitFor(() => {
@@ -306,7 +316,7 @@ describe('EntityList', () => {
 
   it('renders split button only for entities with multiple variants', async () => {
     setupFetchResponses();
-    render(<EntityList />);
+    renderEntityList();
     vi.advanceTimersByTime(350);
 
     await waitFor(() => {

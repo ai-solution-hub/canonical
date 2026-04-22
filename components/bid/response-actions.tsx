@@ -171,7 +171,7 @@ export function ResponseActions({
                 ) : (
                   <RefreshCw className="size-4" />
                 )}
-                {showRegenerateInput ? 'Send' : 'Regenerate'}
+                {showRegenerateInput ? 'Send' : 'Redraft'}
               </Button>
             </TooltipTrigger>
             <TooltipContent>
@@ -245,7 +245,7 @@ export function ResponseActions({
               placeholder="E.g. Focus more on ISO 27001 compliance..."
               className="h-8 flex-1 rounded-md border px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
               autoFocus
-              aria-label="Regeneration instructions"
+              aria-label="Redraft instructions"
             />
             <Button
               variant="ghost"

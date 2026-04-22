@@ -321,4 +321,217 @@ describe('useEntityDetail', () => {
       expect(result.current.saveError).toBeNull();
     });
   });
+
+  // ─── Type change mutation (P1-22) ────────────────────────────────────
+  describe('type change mutation', () => {
+    it('calls PATCH /type endpoint and updates cache optimistically', async () => {
+      const { useEntityDetail } = await importHook();
+      const { queryClient, Wrapper } = createQueryWrapper();
+
+      // Initial detail fetch
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(MOCK_ENTITY_DETAIL),
+      });
+
+      const { result } = renderHook(
+        () => useEntityDetail('ISO 27001', true),
+        { wrapper: Wrapper },
+      );
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      // Mock the PATCH type response
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            updated: true,
+            canonical_name: 'ISO 27001',
+            entity_type: 'regulation',
+            mentions_updated: 12,
+          }),
+      });
+
+      // Mock the refetch after invalidation
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            ...MOCK_ENTITY_DETAIL,
+            effective_type: 'regulation',
+            has_type_override: true,
+          }),
+      });
+
+      // Change the type
+      act(() => {
+        result.current.changeType('regulation');
+      });
+
+      // Optimistic update should appear immediately
+      await waitFor(() => {
+        const cachedDetail = queryClient.getQueryData(['entities', 'detail', 'ISO 27001']);
+        expect(cachedDetail).toBeDefined();
+        expect((cachedDetail as Record<string, unknown>).effective_type).toBe('regulation');
+        expect((cachedDetail as Record<string, unknown>).has_type_override).toBe(true);
+      });
+
+      // Verify the PATCH call was made correctly
+      await waitFor(() => {
+        expect(result.current.isChangingType).toBe(false);
+      });
+
+      const patchCall = mockFetch.mock.calls.find(
+        (call) =>
+          typeof call[0] === 'string' &&
+          call[0].includes('/type') &&
+          call[1]?.method === 'PATCH',
+      );
+      expect(patchCall).toBeDefined();
+      expect(JSON.parse(patchCall![1].body)).toEqual({
+        entity_type: 'regulation',
+      });
+    });
+
+    it('rolls back cache on server error and shows toast', async () => {
+      const { useEntityDetail } = await importHook();
+      const { queryClient, Wrapper } = createQueryWrapper();
+
+      // Initial detail fetch
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(MOCK_ENTITY_DETAIL),
+      });
+
+      const { result } = renderHook(
+        () => useEntityDetail('ISO 27001', true),
+        { wrapper: Wrapper },
+      );
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      // Mock the PATCH type response with server error
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: () =>
+          Promise.resolve({ error: 'Database connection failed' }),
+      });
+
+      // Mock the refetch after invalidation (returns original data)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(MOCK_ENTITY_DETAIL),
+      });
+
+      // Change the type (should fail)
+      act(() => {
+        result.current.changeType('regulation');
+      });
+
+      // Wait for mutation to settle
+      await waitFor(() => {
+        expect(result.current.isChangingType).toBe(false);
+      });
+
+      // After rollback + invalidation refetch, cache should hold the original type
+      await waitFor(() => {
+        const detail = queryClient.getQueryData(['entities', 'detail', 'ISO 27001']) as Record<string, unknown> | undefined;
+        expect(detail?.effective_type).toBe('certification');
+      });
+
+      // Error should be surfaced
+      expect(result.current.changeTypeError).toBe('Database connection failed');
+    });
+
+    it('preserves citations after type change (content_item_count stable)', async () => {
+      const { useEntityDetail } = await importHook();
+      const { Wrapper } = createQueryWrapper();
+
+      // Initial detail fetch — entity has 2 content items (citations)
+      const entityWithCitations = {
+        ...MOCK_ENTITY_DETAIL,
+        content_item_count: 2,
+        content_items: [
+          { id: 'item-1', title: 'Security Policy', content_type: 'policy' },
+          { id: 'item-2', title: 'ISMS Overview', content_type: 'article' },
+        ],
+        mention_count: 12,
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(entityWithCitations),
+      });
+
+      const { result } = renderHook(
+        () => useEntityDetail('ISO 27001', true),
+        { wrapper: Wrapper },
+      );
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      // Record pre-change citation counts
+      const preCitationCount = result.current.detail!.content_item_count;
+      const preMentionCount = result.current.detail!.mention_count;
+      expect(preCitationCount).toBe(2);
+      expect(preMentionCount).toBe(12);
+
+      // Mock the PATCH type response — mentions_updated = 12 (all mentions
+      // updated, NOT deleted — this is the backend's entity_type_override
+      // approach which preserves citations by design)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            updated: true,
+            canonical_name: 'ISO 27001',
+            entity_type: 'regulation',
+            mentions_updated: 12,
+          }),
+      });
+
+      // Mock the refetch after invalidation — citations still present
+      const postChangeEntity = {
+        ...entityWithCitations,
+        effective_type: 'regulation',
+        has_type_override: true,
+        // Citations and mentions preserved — this is the key assertion
+        content_item_count: 2,
+        content_items: entityWithCitations.content_items,
+        mention_count: 12,
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(postChangeEntity),
+      });
+
+      // Perform the type change
+      act(() => {
+        result.current.changeType('regulation');
+      });
+
+      // Wait for the refetch after settle
+      await waitFor(() => {
+        expect(result.current.isChangingType).toBe(false);
+      });
+
+      await waitFor(() => {
+        expect(result.current.detail?.effective_type).toBe('regulation');
+      });
+
+      // Citations must be unchanged after the type change
+      expect(result.current.detail!.content_item_count).toBe(preCitationCount);
+      expect(result.current.detail!.mention_count).toBe(preMentionCount);
+      expect(result.current.detail!.content_items).toHaveLength(2);
+    });
+  });
 });

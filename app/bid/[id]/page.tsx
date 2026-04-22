@@ -415,11 +415,6 @@ export default function BidDetailPage({
             completedCount={completedCount}
             totalQuestions={totalQuestions}
             canEdit={canEdit}
-            onMatchQuestions={handleMatchQuestions}
-            showCostEstimate={showCostEstimate}
-            onShowCostEstimate={setShowCostEstimate}
-            draftingAll={draftingAll}
-            onDraftAll={handleDraftAll}
             onSwitchTab={setActiveTab}
             onShowOutcomeDialog={() => setShowOutcomeDialog(true)}
             onShowKBReview={() => setShowKBReview(true)}
@@ -700,11 +695,6 @@ function OverviewTab({
   completedCount,
   totalQuestions,
   canEdit,
-  onMatchQuestions,
-  showCostEstimate,
-  onShowCostEstimate,
-  draftingAll,
-  onDraftAll,
   onSwitchTab,
   onShowOutcomeDialog,
   onShowKBReview,
@@ -721,11 +711,6 @@ function OverviewTab({
   completedCount: number;
   totalQuestions: number;
   canEdit: boolean;
-  onMatchQuestions: () => void;
-  showCostEstimate: boolean;
-  onShowCostEstimate: (open: boolean) => void;
-  draftingAll: boolean;
-  onDraftAll: () => void;
   onSwitchTab: (tab: 'overview' | 'questions' | 'documents') => void;
   onShowOutcomeDialog: () => void;
   onShowKBReview: () => void;
@@ -735,7 +720,6 @@ function OverviewTab({
   onRefreshReadiness: () => void;
 }) {
   const metadata = bid.domain_metadata as BidMetadata;
-  const overviewStatus = bid.status as BidState;
   const postureBreakdown = stats
     ? [
         {
@@ -807,41 +791,6 @@ function OverviewTab({
         )}
       </div>
 
-      {/* Draft All Responses action */}
-      {canEdit &&
-        totalQuestions > 0 &&
-        ['drafting', 'in_review'].includes(overviewStatus) && (
-          <div className="rounded-lg border bg-card p-4">
-            <h2 className="text-sm font-medium text-foreground">
-              Knowledge-based Drafting
-            </h2>
-            <p className="mt-1.5 text-sm text-muted-foreground">
-              Draft responses for all eligible questions using your knowledge
-              base.
-            </p>
-            <Button
-              variant="default"
-              size="sm"
-              className="mt-3 gap-1.5"
-              disabled={draftingAll}
-              onClick={() => onShowCostEstimate(true)}
-            >
-              {draftingAll ? (
-                <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-              ) : (
-                <PenLine className="size-3.5" aria-hidden="true" />
-              )}
-              {draftingAll ? 'Drafting...' : 'Draft All Responses'}
-            </Button>
-            <CostEstimateDialog
-              open={showCostEstimate}
-              onOpenChange={onShowCostEstimate}
-              bidId={bidId}
-              onProceed={onDraftAll}
-            />
-          </div>
-        )}
-
       {/* Confidence breakdown */}
       {postureBreakdown.length > 0 && (
         <div className="rounded-lg border bg-card p-4">
@@ -853,17 +802,6 @@ function OverviewTab({
               <ConfidenceDot key={posture} posture={posture} count={count} />
             ))}
           </div>
-          {stats && stats.unmatched_count > 0 && canEdit && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-3 gap-1.5"
-              onClick={onMatchQuestions}
-            >
-              <RefreshCw className="size-3.5" aria-hidden="true" />
-              Find answers for {stats.unmatched_count} questions
-            </Button>
-          )}
         </div>
       )}
 
@@ -949,28 +887,12 @@ function OverviewTab({
         );
       })()}
 
-      {/* Tender documents summary */}
-      <div className="rounded-lg border bg-card p-4">
-        <h2 className="text-sm font-medium text-foreground">
-          Tender Documents
-        </h2>
-        {(bid.tender_documents?.length ?? 0) > 0 ? (
-          <ul className="mt-3 space-y-2">
-            {bid.tender_documents?.map((doc) => (
-              <li key={doc.path} className="flex items-center gap-2 text-sm">
-                <FileText
-                  className="size-4 shrink-0 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <span className="min-w-0 truncate">{doc.filename}</span>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  ({Math.round(doc.size / 1024)} KB)
-                </span>
-                <TenderDownloadLink bidId={bidId} doc={doc} />
-              </li>
-            ))}
-          </ul>
-        ) : (
+      {/* Tender documents — upload affordance only (docs tab covers uploaded files) */}
+      {(bid.tender_documents?.length ?? 0) === 0 && (
+        <div className="rounded-lg border bg-card p-4">
+          <h2 className="text-sm font-medium text-foreground">
+            Tender Documents
+          </h2>
           <div className="mt-3 flex flex-col items-center gap-2 rounded-lg border border-dashed border-border py-6 text-center">
             <Upload
               className="size-6 text-muted-foreground/50"
@@ -995,8 +917,8 @@ function OverviewTab({
               </Button>
             )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

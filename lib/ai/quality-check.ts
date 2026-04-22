@@ -9,7 +9,8 @@ import type {
   QualityData,
   QualityIssueEntry,
 } from '@/types/bid-metadata';
-import { htmlToPlainText, countWords } from '@/lib/editor-utils';
+import { countWords } from '@/lib/editor-utils';
+import { stripMarkdown } from '@/lib/content/strip-markdown';
 import {
   getAnthropicClient,
   getModelForTier,
@@ -54,13 +55,13 @@ interface AIQualityResult {
  * These don't require AI and can run on client or server.
  */
 export function runDeterministicChecks(
-  responseHtml: string,
+  responseMarkdown: string,
   citations: CitationEntry[],
   question: QualityCheckQuestion,
   matchedContentCount: number,
 ): { wordCount: number; issues: QualityIssueEntry[] } {
   const issues: QualityIssueEntry[] = [];
-  const plainText = htmlToPlainText(responseHtml);
+  const plainText = stripMarkdown(responseMarkdown);
   const wordCount = countWords(plainText);
 
   // Word count compliance
@@ -105,7 +106,7 @@ export function runDeterministicChecks(
  */
 async function runAIQualityCheck(
   question: QualityCheckQuestion,
-  responseHtml: string,
+  responseMarkdown: string,
   citations: CitationEntry[],
   matchedContentCount: number,
 ): Promise<{
@@ -117,7 +118,7 @@ async function runAIQualityCheck(
 }> {
   const anthropic = getAnthropicClient();
   const model = getModelForTier('quality');
-  const plainText = htmlToPlainText(responseHtml);
+  const plainText = stripMarkdown(responseMarkdown);
 
   const aiCheck = await anthropic.messages.create({
     model,
@@ -185,7 +186,7 @@ Check for:
  */
 export async function checkResponseQuality(
   question: QualityCheckQuestion,
-  responseHtml: string,
+  responseMarkdown: string,
   citations: CitationEntry[],
   matchedContentCount: number,
 ): Promise<{
@@ -197,7 +198,7 @@ export async function checkResponseQuality(
 }> {
   // Deterministic checks first
   const { wordCount, issues } = runDeterministicChecks(
-    responseHtml,
+    responseMarkdown,
     citations,
     question,
     matchedContentCount,
@@ -212,7 +213,7 @@ export async function checkResponseQuality(
     cost,
   } = await runAIQualityCheck(
     question,
-    responseHtml,
+    responseMarkdown,
     citations,
     matchedContentCount,
   );

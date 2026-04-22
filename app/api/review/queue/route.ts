@@ -53,6 +53,98 @@ export async function GET(request: NextRequest) {
       .filter(Boolean);
     const sourceFileParam = searchParams.get('source_file');
     const sourceDocumentIdParam = searchParams.get('source_document_id');
+    const assignedToMe = searchParams.get('assigned_to_me') === 'true';
+
+    // If assigned_to_me is active, look up the user's active assignments and
+    // merge their filter criteria (domains, content_types) into the query.
+    // Multiple assignments are unioned: items matching ANY assignment are shown.
+    let assignmentDomains: string[] = [];
+    let assignmentContentTypes: string[] = [];
+    let hasAssignments = false;
+
+    if (assignedToMe) {
+      const { data: assignments, error: assignErr } = await supabase
+        .from('review_assignments')
+        .select('filter_domains, filter_content_types')
+        .eq('reviewer_id', user.id)
+        .eq('status', 'active');
+
+      if (assignErr) {
+        console.error('Failed to fetch assignments for filter:', assignErr);
+        return NextResponse.json(
+          { error: 'Failed to fetch assignment filters' },
+          { status: 500 },
+        );
+      }
+
+      if (assignments && assignments.length > 0) {
+        hasAssignments = true;
+        // Union all assignment filters (items matching ANY assignment)
+        for (const a of assignments) {
+          if (Array.isArray(a.filter_domains)) {
+            assignmentDomains.push(...a.filter_domains);
+          }
+          if (Array.isArray(a.filter_content_types)) {
+            assignmentContentTypes.push(...a.filter_content_types);
+          }
+        }
+        assignmentDomains = [...new Set(assignmentDomains)];
+        assignmentContentTypes = [...new Set(assignmentContentTypes)];
+      }
+
+      // If user has no active assignments, return empty result immediately
+      if (!hasAssignments) {
+        const response: ReviewQueueResponse = {
+          items: [],
+          total: 0,
+          verified_count: 0,
+          flagged_count: 0,
+          has_more: false,
+        };
+        return NextResponse.json(response);
+      }
+    }
+
+    // Compute effective domain/content-type filters, merging assignment filters
+    // with any explicit user-selected filters. This is needed for both the
+    // standard and flagged query paths.
+    let effectiveDomainParams = domainParams;
+    let effectiveContentTypeParams = contentTypeParams;
+
+    if (assignedToMe && assignmentDomains.length > 0) {
+      effectiveDomainParams =
+        domainParams.length > 0
+          ? domainParams.filter((d) => assignmentDomains.includes(d))
+          : assignmentDomains;
+      if (effectiveDomainParams.length === 0) {
+        // Intersection is empty — no results can match
+        return NextResponse.json({
+          items: [],
+          total: 0,
+          verified_count: 0,
+          flagged_count: 0,
+          has_more: false,
+        } satisfies ReviewQueueResponse);
+      }
+    }
+
+    if (assignedToMe && assignmentContentTypes.length > 0) {
+      effectiveContentTypeParams =
+        contentTypeParams.length > 0
+          ? contentTypeParams.filter((ct) =>
+              assignmentContentTypes.includes(ct),
+            )
+          : assignmentContentTypes;
+      if (effectiveContentTypeParams.length === 0) {
+        return NextResponse.json({
+          items: [],
+          total: 0,
+          verified_count: 0,
+          flagged_count: 0,
+          has_more: false,
+        } satisfies ReviewQueueResponse);
+      }
+    }
 
     // For flagged status, we need to find items with open review_needed flags.
     // This requires a two-step query: first find flagged IDs, then fetch items.
@@ -61,8 +153,8 @@ export async function GET(request: NextRequest) {
         supabase,
         limit,
         offset,
-        domainParams,
-        contentTypeParams,
+        effectiveDomainParams,
+        effectiveContentTypeParams,
         sourceFileParam,
         sourceDocumentIdParam,
         sort,
@@ -91,13 +183,14 @@ export async function GET(request: NextRequest) {
     }
     // status === 'all' or 'draft' — no verification filter
 
-    // Apply optional filters
-    if (domainParams.length > 0) {
-      query = query.in('primary_domain', domainParams);
+    // Apply optional filters (using effective params that already account for
+    // assignment filter intersection when assigned_to_me is active)
+    if (effectiveDomainParams.length > 0) {
+      query = query.in('primary_domain', effectiveDomainParams);
     }
 
-    if (contentTypeParams.length > 0) {
-      query = query.in('content_type', contentTypeParams);
+    if (effectiveContentTypeParams.length > 0) {
+      query = query.in('content_type', effectiveContentTypeParams);
     }
 
     if (sourceFileParam) {
@@ -191,8 +284,8 @@ async function handleFlaggedQuery(
   supabase: any,
   limit: number,
   offset: number,
-  domainParams: string[],
-  contentTypeParams: string[],
+  effectiveDomainParams: string[],
+  effectiveContentTypeParams: string[],
   sourceFileParam: string | null,
   sourceDocumentIdParam: string | null,
   sort?: string,
@@ -238,12 +331,12 @@ async function handleFlaggedQuery(
     .select(REVIEW_COLUMNS, { count: 'exact' })
     .in('id', itemIds);
 
-  if (domainParams.length > 0) {
-    query = query.in('primary_domain', domainParams);
+  if (effectiveDomainParams.length > 0) {
+    query = query.in('primary_domain', effectiveDomainParams);
   }
 
-  if (contentTypeParams.length > 0) {
-    query = query.in('content_type', contentTypeParams);
+  if (effectiveContentTypeParams.length > 0) {
+    query = query.in('content_type', effectiveContentTypeParams);
   }
 
   if (sourceFileParam) {

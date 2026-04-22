@@ -131,6 +131,8 @@ export function TaxonomySection() {
         editingSubtopic={t.editingSubtopic}
         subtopicName={t.subtopicName}
         setSubtopicName={t.setSubtopicName}
+        subtopicDescription={t.subtopicDescription}
+        setSubtopicDescription={t.setSubtopicDescription}
         subtopicOrder={t.subtopicOrder}
         setSubtopicOrder={t.setSubtopicOrder}
         subtopicSaving={t.subtopicSaving}

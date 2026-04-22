@@ -39,6 +39,17 @@ import { useDraftRecovery } from '@/hooks/streaming/use-draft-recovery';
 import { useStreamCoordination } from '@/hooks/streaming/use-stream-coordination';
 import { cn } from '@/lib/utils';
 import type { Editor } from '@/components/bid/response-editor';
+import type { BidState } from '@/types/bid';
+
+/** Bid states at or after review — used for citation panel default-expanded (P1-4). */
+const REVIEW_OR_LATER_STATES: BidState[] = [
+  'in_review',
+  'ready_for_export',
+  'submitted',
+  'won',
+  'lost',
+  'withdrawn',
+];
 
 /** Displays word count alongside word limit with colour-coded feedback */
 function WordCountIndicator({
@@ -138,7 +149,7 @@ export default function BidSessionPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const { canEdit } = useUserRole();
+  const { canEdit, role } = useUserRole();
 
   // Platform modifier key (SSR-safe)
   const modKey = useModifierKey();
@@ -248,6 +259,11 @@ export default function BidSessionPage({
     [response?.citations],
   );
   const orphanedSourceIds = useCitationOrphans(citationSourceIds);
+
+  // Citation panel default-expanded for admin role or review-or-later bid states (P1-4)
+  const citationDefaultExpanded =
+    role === 'admin' ||
+    (bid?.status != null && REVIEW_OR_LATER_STATES.includes(bid.status));
 
   const bidName = bid?.name;
 
@@ -616,8 +632,8 @@ export default function BidSessionPage({
                 content={editorContent}
                 wordLimit={currentQuestion?.word_limit ?? null}
                 onChange={setEditorContent}
-                onSave={(html) => {
-                  setEditorContent(html);
+                onSave={(markdown) => {
+                  setEditorContent(markdown);
                   if (response?.id) {
                     handleActionWithRecovery('save');
                   }
@@ -628,7 +644,7 @@ export default function BidSessionPage({
                     ? 'Response is being drafted...'
                     : response
                       ? 'Edit your response...'
-                      : 'No response yet. Use "Regenerate" to draft an AI response or "Author Manually" to write your own.'
+                      : 'No response yet. Use "Redraft" to draft a response or "Author Manually" to write your own.'
                 }
                 onEditorReady={onEditorReady}
               />
@@ -641,10 +657,12 @@ export default function BidSessionPage({
               {/* Citations */}
               {response && (
                 <CitationPanel
+                  key={currentQuestion?.id}
                   citations={response.citations ?? []}
                   sourceContent={response.source_content ?? []}
                   orphanedSourceIds={orphanedSourceIds}
                   onCitationClick={handleCitationClick}
+                  defaultExpanded={citationDefaultExpanded}
                 />
               )}
             </div>

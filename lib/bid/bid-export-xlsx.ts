@@ -10,11 +10,8 @@
 import ExcelJS from 'exceljs';
 import { format } from 'date-fns';
 import { enGB } from 'date-fns/locale';
-import {
-  htmlToPlainText,
-  countWords,
-  wordCountPercentage,
-} from '@/lib/editor-utils';
+import { countWords, wordCountPercentage } from '@/lib/editor-utils';
+import { stripMarkdown } from '@/lib/content/strip-markdown';
 import type {
   ExportQuestion,
   ExportBidMetadata,
@@ -219,10 +216,10 @@ function buildResponsesSheet(
   // Add data rows
   for (let i = 0; i < questions.length; i++) {
     const q = questions[i];
-    const responseHtml = useAdvancedVariant
+    const responseMarkdown = useAdvancedVariant
       ? q.response_text_advanced || q.response_text
       : q.response_text;
-    const plainText = responseHtml ? htmlToPlainText(responseHtml) : '';
+    const plainText = responseMarkdown ? stripMarkdown(responseMarkdown) : '';
     const wordCount = countWords(plainText);
     const compliance = q.word_limit
       ? wordCountPercentage(wordCount, q.word_limit)

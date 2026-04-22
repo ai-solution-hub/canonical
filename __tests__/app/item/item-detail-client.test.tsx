@@ -117,10 +117,6 @@ vi.mock('react-resizable-panels', () => ({
   Separator: () => <div data-testid="panel-separator" />,
 }));
 
-vi.mock('@/components/reader/floating-reader', () => ({
-  FloatingReader: () => <div data-testid="floating-reader" />,
-}));
-
 vi.mock('@/components/reader/reader-panel', () => ({
   ReaderPanel: () => <div data-testid="reader-panel" />,
 }));
@@ -198,17 +194,11 @@ function createMockData(overrides: Record<string, unknown> = {}) {
     maxWidth: 'medium',
     panelLayout: {},
     readerOpen: false,
-    isDetached: false,
-    detachedPosition: null,
-    detachedSize: null,
     setFontSize: vi.fn(),
     setMaxWidth: vi.fn(),
     setPanelLayout: vi.fn(),
     setReaderOpen: vi.fn(),
     toggleReader: vi.fn(),
-    toggleDetached: vi.fn(),
-    setDetachedPosition: vi.fn(),
-    setDetachedSize: vi.fn(),
     showSplitReader: false,
     inlineEdit: {
       editingField: null,
@@ -514,7 +504,6 @@ describe('ItemDetailClient (orchestrator)', () => {
         createMockData({
           showSplitReader: true,
           readerOpen: true,
-          isDetached: false,
           panelLayout: { detail: 55, reader: 45 },
         }),
       );
@@ -525,31 +514,17 @@ describe('ItemDetailClient (orchestrator)', () => {
       expect(screen.getByTestId('reader-panel')).toBeInTheDocument();
     });
 
-    it('renders floating reader when readerOpen and isDetached', () => {
+    it('does not render a floating reader (P1-7: floating reader removed)', () => {
       mockUseItemDetailData.mockReturnValue(
         createMockData({
           readerOpen: true,
-          isDetached: true,
-          showSplitReader: false,
+          showSplitReader: true,
         }),
       );
 
       render(<ItemDetailClient item={createMockItem()} relatedItems={[]} />);
 
-      expect(screen.getByTestId('floating-reader')).toBeInTheDocument();
-    });
-
-    it('does not render floating reader when not open', () => {
-      mockUseItemDetailData.mockReturnValue(
-        createMockData({
-          readerOpen: false,
-          isDetached: false,
-          showSplitReader: false,
-        }),
-      );
-
-      render(<ItemDetailClient item={createMockItem()} relatedItems={[]} />);
-
+      // FloatingReader should never appear — the component was deleted
       expect(screen.queryByTestId('floating-reader')).not.toBeInTheDocument();
     });
   });

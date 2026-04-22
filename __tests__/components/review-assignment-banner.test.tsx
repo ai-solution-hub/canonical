@@ -72,7 +72,6 @@ const { mockUseReviewQueue } = vi.hoisted(() => {
       showFlagInput: false,
       flagDetails: '',
       showQueuePanel: false,
-      queueSort: 'default' as const,
       announcement: '',
       activeAssignment: null,
       cardRef: { current: null },
@@ -94,7 +93,6 @@ const { mockUseReviewQueue } = vi.hoisted(() => {
       setShowFlagInput: vi.fn(),
       setFlagDetails: vi.fn(),
       setFilters: vi.fn(),
-      setQueueSort: vi.fn(),
       showHelp: false,
       setShowHelp: vi.fn(),
     })),
@@ -297,7 +295,6 @@ describe('ReviewContent — assignment banner', () => {
         showFlagInput: false,
         flagDetails: '',
         showQueuePanel: false,
-        queueSort: 'default' as const,
         announcement: '',
         activeAssignment: null,
         cardRef: { current: null },
@@ -319,7 +316,6 @@ describe('ReviewContent — assignment banner', () => {
         setShowFlagInput: vi.fn(),
         setFlagDetails: vi.fn(),
         setFilters: vi.fn(),
-        setQueueSort: vi.fn(),
         showHelp: false,
         setShowHelp: vi.fn(),
       };
@@ -403,7 +399,7 @@ describe('ReviewContent — assignment banner', () => {
     expect(screen.getByText(/due 01\/04\/2026/)).toBeInTheDocument();
   });
 
-  it('calls setFilters with default values when "Clear filters" is clicked', async () => {
+  it('toggles assigned_to_me on when "Show my assigned items" is clicked (filter off)', async () => {
     const user = userEvent.setup();
     const mockSetFilters = vi.fn();
 
@@ -419,14 +415,50 @@ describe('ReviewContent — assignment banner', () => {
         item_count: 10,
         due_date: null,
       },
+      filters: { status: 'unverified' as const },
       setFilters: mockSetFilters,
     });
     render(<ReviewContent />);
 
-    const clearButton = screen.getByRole('button', { name: /Clear filters/ });
+    const showButton = screen.getByRole('button', {
+      name: /Show my assigned items/,
+    });
+    await user.click(showButton);
+
+    expect(mockSetFilters).toHaveBeenCalledWith(
+      expect.objectContaining({ assigned_to_me: true }),
+    );
+  });
+
+  it('clears assigned_to_me when "Clear assignment filter" is clicked (filter on)', async () => {
+    const user = userEvent.setup();
+    const mockSetFilters = vi.fn();
+
+    setHookReturn({
+      activeAssignment: {
+        id: 'assign-4b',
+        notes: 'Check environmental items',
+        filter_domains: ['Environmental'],
+        filter_content_types: [],
+        filter_freshness: [],
+        filter_date_from: null,
+        filter_date_to: null,
+        item_count: 10,
+        due_date: null,
+      },
+      filters: { status: 'unverified' as const, assigned_to_me: true },
+      setFilters: mockSetFilters,
+    });
+    render(<ReviewContent />);
+
+    const clearButton = screen.getByRole('button', {
+      name: /Clear assignment filter/,
+    });
     await user.click(clearButton);
 
-    expect(mockSetFilters).toHaveBeenCalledWith({ status: 'unverified' });
+    expect(mockSetFilters).toHaveBeenCalledWith(
+      expect.objectContaining({ assigned_to_me: undefined }),
+    );
   });
 
   it('has role="status" on the banner for screen reader accessibility', () => {

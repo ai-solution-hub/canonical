@@ -5,9 +5,7 @@ import type { ReadonlyURLSearchParams } from 'next/navigation';
 import type {
   ReviewFilters as ReviewFiltersType,
   ReviewProgress,
-  ReviewQueueSortField,
 } from '@/types/review';
-import type { QueueSortField } from '@/components/review/review-queue-panel';
 // ReviewAssignmentInfo is used by other sub-hooks, not directly here
 
 // ---------------------------------------------------------------------------
@@ -17,10 +15,7 @@ import type { QueueSortField } from '@/components/review/review-queue-panel';
 export interface UseReviewSessionReturn {
   // Filter/sort
   filters: ReviewFiltersType;
-  serverSort: ReviewQueueSortField | undefined;
-  queueSort: QueueSortField;
   setFilters: React.Dispatch<React.SetStateAction<ReviewFiltersType>>;
-  setQueueSort: (sort: QueueSortField) => void;
   handleFiltersChange: (newFilters: ReviewFiltersType) => void;
 
   // Progress
@@ -62,6 +57,7 @@ export function useReviewSession(
     const content_type = searchParams.getAll('content_type').filter(Boolean);
     const source_file = searchParams.get('source_file');
     const source_document_id = searchParams.get('source_document_id');
+    const assigned_to_me = searchParams.get('assigned_to_me') === 'true';
 
     return {
       status: ['unverified', 'verified', 'flagged', 'draft', 'all'].includes(
@@ -73,6 +69,7 @@ export function useReviewSession(
       content_type: content_type.length > 0 ? content_type : undefined,
       source_file: source_file ?? undefined,
       source_document_id: source_document_id ?? undefined,
+      assigned_to_me: assigned_to_me || undefined,
     };
     // Only compute once on mount — searchParams changes are handled by setFilters
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -106,6 +103,9 @@ export function useReviewSession(
     if (filters.source_document_id) {
       params.set('source_document_id', filters.source_document_id);
     }
+    if (filters.assigned_to_me) {
+      params.set('assigned_to_me', 'true');
+    }
 
     const search = params.toString();
     const newPath = search ? `/review?${search}` : '/review';
@@ -115,35 +115,6 @@ export function useReviewSession(
   const handleFiltersChange = useCallback((newFilters: ReviewFiltersType) => {
     setFilters(newFilters);
   }, []);
-
-  // -----------------------------------------------------------------------
-  // Sort state
-  // -----------------------------------------------------------------------
-
-  const [queueSort, setQueueSortInternal] = useState<QueueSortField>('default');
-
-  /** Map client-side sort field to server-side API sort parameter */
-  const apiSortForQueueSort = useCallback(
-    (sort: QueueSortField): ReviewQueueSortField | undefined => {
-      if (sort === 'confidence') return 'confidence_asc';
-      if (sort === 'quality_score') return 'quality_score_asc';
-      return undefined; // Other sorts are client-side only
-    },
-    [],
-  );
-
-  const [serverSort, setServerSort] = useState<
-    ReviewQueueSortField | undefined
-  >(undefined);
-
-  const setQueueSort = useCallback(
-    (sort: QueueSortField) => {
-      setQueueSortInternal(sort);
-      const newServerSort = apiSortForQueueSort(sort);
-      setServerSort(newServerSort);
-    },
-    [apiSortForQueueSort],
-  );
 
   // -----------------------------------------------------------------------
   // Progress state
@@ -183,10 +154,7 @@ export function useReviewSession(
 
   return {
     filters,
-    serverSort,
-    queueSort,
     setFilters,
-    setQueueSort,
     handleFiltersChange,
     progress,
     setProgress,

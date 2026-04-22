@@ -204,10 +204,11 @@ describe('extractContent', () => {
       text: () => Promise.resolve('Too short'),
     });
 
-    // Firecrawl mock returns content
+    // Firecrawl mock returns HTML content (F-1 fix: html format, not markdown)
     const { default: Firecrawl } = await import('@mendable/firecrawl-js');
+    const htmlContent = '<p>' + 'Firecrawl content. '.repeat(100) + '</p>';
     const mockScrape = vi.fn().mockResolvedValue({
-      markdown: 'Firecrawl content '.repeat(100),
+      html: htmlContent,
       metadata: { title: 'FC Title' },
     });
     vi.mocked(Firecrawl).mockImplementation(function () {
@@ -216,6 +217,45 @@ describe('extractContent', () => {
 
     const result = await extractContent(item);
     expect(result.method).toBe('firecrawl');
+  });
+
+  // T14: F-1 regression — Firecrawl HTML output converted via Turndown must
+  // NOT contain backslash-escaped heading markers (\#). The fix is requesting
+  // html format (not markdown) from Firecrawl and running Turndown locally.
+  it('Firecrawl tier produces markdown without \\# escape (F-1 regression, T14)', async () => {
+    const item = { ...baseItem, contentEncoded: null };
+
+    // Tier 2 (fetch) fails
+    mockFetch.mockRejectedValueOnce(new Error('fetch failed'));
+
+    // Tier 2.5 (Jina) returns too little
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      text: () => Promise.resolve('Too short'),
+    });
+
+    // Firecrawl returns HTML with a heading
+    const { default: Firecrawl } = await import('@mendable/firecrawl-js');
+    const htmlWithHeading =
+      '<h1>Important Heading</h1><p>' + 'Substantial body. '.repeat(100) + '</p>';
+    const mockScrape = vi.fn().mockResolvedValue({
+      html: htmlWithHeading,
+      metadata: { title: 'F-1 Test' },
+    });
+    vi.mocked(Firecrawl).mockImplementation(function () {
+      return { scrape: mockScrape } as any;
+    });
+
+    const result = await extractContent(item);
+    expect(result.method).toBe('firecrawl');
+    // Verify clean heading — no backslash escape
+    expect(result.content).toContain('# Important Heading');
+    expect(result.content).not.toContain('\\#');
+    // Verify Firecrawl was called with html format (not markdown)
+    expect(mockScrape).toHaveBeenCalledWith(
+      item.url,
+      expect.objectContaining({ formats: ['html'] }),
+    );
   });
 });
 

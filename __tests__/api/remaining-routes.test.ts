@@ -30,6 +30,18 @@ vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: mockCheckRateLimit,
 }));
 
+vi.mock('@/lib/validation/layer-schemas', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/validation/layer-schemas')>(
+    '@/lib/validation/layer-schemas',
+  );
+  return {
+    ...actual,
+    fetchActiveLayerKeys: vi.fn(() =>
+      Promise.resolve(['sales_brief', 'bid_detail', 'company_reference', 'research']),
+    ),
+  };
+});
+
 // Import routes AFTER mocks are registered
 const { GET: digestLatestGet } = await import('@/app/api/digest/latest/route');
 const { GET: digestListGet } = await import('@/app/api/digest/list/route');
@@ -700,6 +712,29 @@ describe('PATCH /api/guides/[slug]/sections/[sectionId]', () => {
 
     const res = await guideSectionPatch(req, { params });
     expect(res.status).toBe(429);
+  });
+
+  it('returns 503 when layer vocabulary is unavailable', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const { fetchActiveLayerKeys } = await import('@/lib/validation/layer-schemas');
+    vi.mocked(fetchActiveLayerKeys).mockRejectedValueOnce(
+      new Error('Layer vocabulary fetch failed: connection refused'),
+    );
+
+    const req = createTestRequest(
+      `/api/guides/my-guide/sections/${VALID_UUID}`,
+      {
+        method: 'PATCH',
+        body: { section_name: 'Updated Section' },
+      },
+    );
+
+    const res = await guideSectionPatch(req, { params });
+    expect(res.status).toBe(503);
+
+    const body = await res.json();
+    expect(body.error).toBe('Layer vocabulary unavailable');
   });
 
   it('returns 404 when guide not found', async () => {

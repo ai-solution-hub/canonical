@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDraftStream } from '@/hooks/streaming/use-draft-stream';
 import { useBidSession } from '@/hooks/bid/use-bid-session';
 import { useBidResponseActions } from '@/hooks/bid/use-bid-response-actions';
-import { responseToHtml } from '@/lib/markdown-to-html';
 import { queryKeys } from '@/lib/query/query-keys';
 import { toast } from 'sonner';
 import type { useContentLibraryDrawer } from '@/hooks/use-content-library-drawer';
@@ -13,15 +12,19 @@ import type { ResponseAction } from '@/components/bid/response-actions';
 import type { BidQuestion, BidMetadata, ConfidencePosture } from '@/types/bid';
 import type { CitationEntry, QualityData } from '@/types/bid-metadata';
 
-// ── HTML comparison helper (exported for tests) ──
+// ── Content comparison helper (exported for tests) ──
 
 /**
- * Normalises HTML for equality comparison by stripping markup and
- * collapsing whitespace. Used to detect whether the user has genuinely
- * edited the editor content versus whether the difference between
- * `editorContent` and `lastServerContentRef.current` is just cosmetic
- * (Tiptap serialisation differences, `marked.parse` vs Tiptap HTML
- * structure, attribute ordering, HTML entity encoding, etc.).
+ * Normalises content (markdown or legacy HTML) for equality comparison
+ * by stripping any residual markup and collapsing whitespace. Used to
+ * detect whether the user has genuinely edited the editor content versus
+ * whether the difference between `editorContent` and
+ * `lastServerContentRef.current` is just cosmetic (Tiptap serialisation
+ * differences, whitespace normalisation, etc.).
+ *
+ * Since WP4A (S182), the editor stores and transmits markdown — the HTML
+ * stripping regexes are retained as a no-op safety net for any legacy
+ * content that may still flow through the sync path.
  *
  * Trade-off: a pure text comparison cannot detect formatting-only
  * edits (e.g. user bolds a word without changing the text). In the
@@ -39,8 +42,8 @@ import type { CitationEntry, QualityData } from '@/types/bid-metadata';
  * every subsequent server update permanently blocked — and the initial
  * hydration on reload likewise failed.
  */
-export function normaliseHtmlForComparison(html: string): string {
-  const text = html
+export function normaliseForComparison(content: string): string {
+  const text = content
     // Replace block-level closing tags with a space to preserve word boundaries
     .replace(/<\/(p|div|h[1-6]|li|br)>/gi, ' ')
     .replace(/<br\s*\/?>/gi, ' ')
@@ -246,22 +249,22 @@ export function useStreamCoordination({
     if (serverText === lastSyncedServerTextRef.current) return;
 
     // Server has new content — detect whether the user has edited since the
-    // last sync. We compare via `normaliseHtmlForComparison` because the raw
+    // last sync. We compare via `normaliseForComparison` because the raw
     // HTML we previously stored in `lastServerContentRef` differs from the
     // normalised HTML Tiptap produces via its `onUpdate` callback.
     if (
-      normaliseHtmlForComparison(editorContent) !==
-      normaliseHtmlForComparison(lastServerContentRef.current)
+      normaliseForComparison(editorContent) !==
+      normaliseForComparison(lastServerContentRef.current)
     ) {
       // User has edits — skip the sync to preserve them. Leave
       // `lastSyncedServerTextRef` stale so the next response change retries.
       return;
     }
 
-    // Safe to sync.
-    const serverHtml = serverText !== null ? responseToHtml(serverText) : '';
-    setEditorContent(serverHtml);
-    lastServerContentRef.current = serverHtml;
+    // Safe to sync — feed markdown directly (no HTML bridge).
+    const serverMarkdown = serverText ?? '';
+    setEditorContent(serverMarkdown);
+    lastServerContentRef.current = serverMarkdown;
     lastSyncedServerTextRef.current = serverText;
   }, [
     response,
@@ -308,7 +311,7 @@ export function useStreamCoordination({
     // writes its current text into editor state — a legitimate subscription.
     if (elapsed >= 60) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- throttled sync of streamed text into editor state (external-system subscription)
-      setEditorContent(responseToHtml(stream.text));
+      setEditorContent(stream.text);
       lastEditorUpdateRef.current = now;
       return;
     }
@@ -316,7 +319,7 @@ export function useStreamCoordination({
     // Otherwise schedule an update
     if (rafRef.current !== null) return; // Already scheduled
     rafRef.current = window.requestAnimationFrame(() => {
-      setEditorContent(responseToHtml(streamTextRef.current));
+      setEditorContent(streamTextRef.current);
       lastEditorUpdateRef.current = Date.now();
       rafRef.current = null;
     });
@@ -334,19 +337,18 @@ export function useStreamCoordination({
   // ── Stream completion — final sync + cache invalidation ──
   useEffect(() => {
     if (stream.phase === 'done') {
-      // Final content sync — convert Markdown from AI to HTML for TipTap.
+      // Final content sync — feed markdown directly to editor state.
       // This is the terminal flush of a streamed external-system response
       // into editor state, so setState here is the documented exception.
       if (stream.text) {
-        const streamedHtml = responseToHtml(stream.text);
         // eslint-disable-next-line react-hooks/set-state-in-effect -- final flush of streamed text into editor state (external-system subscription)
-        setEditorContent(streamedHtml);
+        setEditorContent(stream.text);
         // Update lastServerContent so the sync effect can overwrite when
         // the invalidated response query returns with the server's stored
         // version of the streamed content. lastSyncedServerTextRef is left
         // as-is so the next response change (post-invalidation) triggers
         // a fresh sync via `serverText !== lastSyncedServerTextRef`.
-        lastServerContentRef.current = streamedHtml;
+        lastServerContentRef.current = stream.text;
       }
       // Invalidate cached data — TanStack refetches in the background
       queryClient.invalidateQueries({

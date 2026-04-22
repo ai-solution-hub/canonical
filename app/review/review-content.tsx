@@ -6,7 +6,6 @@ import {
   PanelRight,
   CheckCircle2,
   BookOpen,
-  Activity,
   ClipboardCheck,
   X,
 } from 'lucide-react';
@@ -56,7 +55,6 @@ export function ReviewContent() {
     showFlagInput,
     flagDetails,
     showQueuePanel,
-    queueSort,
     announcement,
 
     // Refs
@@ -86,7 +84,6 @@ export function ReviewContent() {
     setShowFlagInput,
     setFlagDetails,
     setFilters,
-    setQueueSort,
 
     // Keyboard shortcuts
     showHelp,
@@ -100,8 +97,6 @@ export function ReviewContent() {
   // Session summary dialog state
   const [showSummary, setShowSummary] = useState(false);
   const [sessionDuration, setSessionDuration] = useState(0);
-  // Review health cadence panel toggle
-  const [showCadence, setShowCadence] = useState(false);
   const [sessionStart] = useState(() => Date.now());
   const [sessionStats, setSessionStats] = useState<ReviewSessionStats>({
     total: 0,
@@ -230,7 +225,8 @@ export function ReviewContent() {
       filters.domain?.length ||
       filters.content_type?.length ||
       filters.source_file ||
-      filters.source_document_id;
+      filters.source_document_id ||
+      filters.assigned_to_me;
 
     const allVerified =
       !hasFilters && progress.total > 0 && progress.verified >= progress.total;
@@ -286,6 +282,21 @@ export function ReviewContent() {
               </p>
               <Button asChild variant="outline" className="mt-4">
                 <Link href="/browse">Back to Browse</Link>
+              </Button>
+            </>
+          ) : filters.assigned_to_me ? (
+            <>
+              <h2 className="text-lg font-semibold">No assigned items</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                You have no items assigned to you. An admin can assign reviewers
+                in Settings.
+              </p>
+              <Button
+                variant="outline"
+                className="mt-4"
+                onClick={() => setFilters({ status: 'unverified' })}
+              >
+                Clear filters
               </Button>
             </>
           ) : (
@@ -371,20 +382,6 @@ export function ReviewContent() {
                 </span>
               )}
             </h1>
-            {/* Review health toggle */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowCadence(!showCadence)}
-              aria-label={
-                showCadence ? 'Hide review health' : 'Show review health'
-              }
-              aria-expanded={showCadence}
-              className="gap-1.5 text-xs text-muted-foreground"
-            >
-              <Activity className="size-3.5" aria-hidden="true" />
-              Health
-            </Button>
             {/* Queue panel toggle */}
             <Button
               variant="ghost"
@@ -407,8 +404,8 @@ export function ReviewContent() {
           />
         </div>
 
-        {/* Review health cadence card (collapsible) */}
-        {showCadence && <ReviewCadenceCard className="mb-4" />}
+        {/* Review health cadence card (always visible) */}
+        <ReviewCadenceCard className="mb-4" />
 
         {/* Progress bar */}
         <ReviewProgressBar
@@ -443,15 +440,31 @@ export function ReviewContent() {
                 </span>
               )}
             </p>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="shrink-0 gap-1.5 text-xs"
-              onClick={() => setFilters({ status: 'unverified' })}
-            >
-              <X className="size-3.5" aria-hidden="true" />
-              Clear filters
-            </Button>
+            {filters.assigned_to_me ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="shrink-0 gap-1.5 text-xs"
+                onClick={() =>
+                  setFilters({ ...filters, assigned_to_me: undefined })
+                }
+              >
+                <X className="size-3.5" aria-hidden="true" />
+                Clear assignment filter
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="shrink-0 gap-1.5 text-xs"
+                onClick={() =>
+                  setFilters({ ...filters, assigned_to_me: true })
+                }
+              >
+                <ClipboardCheck className="size-3.5" aria-hidden="true" />
+                Show my assigned items
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -669,8 +682,6 @@ export function ReviewContent() {
             items={sortedQueue}
             currentIndex={currentSortedIndex}
             onSelectItem={handleSelectItem}
-            sortBy={queueSort}
-            onSortChange={setQueueSort}
           />
         </SheetContent>
       </Sheet>

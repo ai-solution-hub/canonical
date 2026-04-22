@@ -50,9 +50,28 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const parsed = parseBody(FeedSourceUpdateSchema, raw);
     if (!parsed.success) return parsed.response;
 
+    // F-3 / D-4: Reset consecutive_failures only when the caller explicitly
+    // sends is_active: true. Read from the raw body rather than parsed.data
+    // so this behaviour is decoupled from the schema — if a future change
+    // reintroduces `.default(true)` on the PATCH schema, we still honour
+    // "explicitly sent" semantics.
+    let updatePayload = { ...parsed.data };
+    if (raw.is_active === true) {
+      const { data: current, error: lookupError } = await supabase
+        .from('feed_sources')
+        .select('is_active')
+        .eq('id', sourceId)
+        .eq('workspace_id', id)
+        .single();
+
+      if (!lookupError && current && current.is_active === false) {
+        updatePayload = { ...updatePayload, consecutive_failures: 0 };
+      }
+    }
+
     const { data, error } = await supabase
       .from('feed_sources')
-      .update(parsed.data)
+      .update(updatePayload)
       .eq('id', sourceId)
       .eq('workspace_id', id)
       .select()

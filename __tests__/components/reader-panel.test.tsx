@@ -147,11 +147,6 @@ describe('ReaderPanel', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it('hides close button when hideCloseButton is true', () => {
-    render(<ReaderPanel {...defaultProps({ hideCloseButton: true })} />);
-    expect(screen.queryByLabelText('Close reader')).not.toBeInTheDocument();
-  });
-
   it('renders empty state when no reader content is available', () => {
     render(
       <ReaderPanel
@@ -218,21 +213,13 @@ describe('ReaderPanel', () => {
     expect(link.closest('a')).toHaveAttribute('target', '_blank');
   });
 
-  it('shows detach button when onDetachToggle is provided', () => {
-    const onDetachToggle = vi.fn();
-    render(<ReaderPanel {...defaultProps({ onDetachToggle })} />);
+  it('does not render a detach/dock button (P1-7: floating reader removed)', () => {
+    render(<ReaderPanel {...defaultProps()} />);
     expect(
-      screen.getByLabelText('Pop out to floating window (Shift+R)'),
-    ).toBeInTheDocument();
-  });
-
-  it('shows dock label when isDetached is true', () => {
-    const onDetachToggle = vi.fn();
-    render(
-      <ReaderPanel {...defaultProps({ onDetachToggle, isDetached: true })} />,
-    );
+      screen.queryByLabelText('Pop out to floating window (Shift+R)'),
+    ).not.toBeInTheDocument();
     expect(
-      screen.getByLabelText('Dock to split view (Shift+R)'),
-    ).toBeInTheDocument();
+      screen.queryByLabelText('Dock to split view (Shift+R)'),
+    ).not.toBeInTheDocument();
   });
 });

@@ -1,11 +1,12 @@
 /**
  * DigestPage Component Tests
  *
- * Tests the digest page — loading state, hero/generate states, mode selector,
+ * Tests the digest page — loading state, hero/generate states, period selector,
  * custom filters, generation flow, past digests, and accessibility.
  *
- * Updated for TanStack Query migration (Wave 2A) and digest-to-"Change Report"
- * vocabulary reframing.
+ * Updated for TanStack Query migration (Wave 2A), digest-to-"Change Report"
+ * vocabulary reframing, and P1-9/P1-4 filter simplification (tabs collapsed
+ * into unified period dropdown with inline custom panel).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -98,6 +99,24 @@ vi.mock('@/lib/supabase/client', () => ({
 
 // Import AFTER mocks
 import DigestPage from '@/app/digest/page';
+
+// ---------------------------------------------------------------------------
+// jsdom polyfill — Radix Select uses pointer capture APIs not present in jsdom
+// ---------------------------------------------------------------------------
+function patchJsdom() {
+  if (!Element.prototype.hasPointerCapture) {
+    Element.prototype.hasPointerCapture = () => false;
+  }
+  if (!Element.prototype.setPointerCapture) {
+    Element.prototype.setPointerCapture = () => {};
+  }
+  if (!Element.prototype.releasePointerCapture) {
+    Element.prototype.releasePointerCapture = () => {};
+  }
+  if (!Element.prototype.scrollIntoView) {
+    Element.prototype.scrollIntoView = () => {};
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Fixed time anchor for date-sensitive assertions (CLAUDE.md gotcha: pin
@@ -253,6 +272,7 @@ describe('DigestPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal('fetch', mockFetch);
+    patchJsdom();
     // Pin Date.now() so the 24h account-age boundary (P0-11 auto-gen
     // gate) is deterministic AND so the `/digest` custom date-range
     // default — computed via a lazy `useState` initialiser in
@@ -295,8 +315,8 @@ describe('DigestPage', () => {
     ).toBeInTheDocument();
   });
 
-  // 3. Mode selector tabs — now labelled "Report mode"
-  it('renders three mode tabs with correct aria attributes', async () => {
+  // 3. Period dropdown — replaces three-tab mode selector (P1-4/P1-9)
+  it('renders a unified period dropdown with preset and custom options', async () => {
     setupFetch({ latest: null, list: [] });
     renderDigestPage();
 
@@ -304,20 +324,18 @@ describe('DigestPage', () => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
-    const tablist = screen.getByRole('tablist', { name: 'Report mode' });
-    expect(tablist).toBeInTheDocument();
+    // No tablist should exist — tabs were collapsed into dropdown
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
 
-    const tabs = within(tablist).getAllByRole('tab');
-    expect(tabs).toHaveLength(3);
-
-    // First tab (Period) should be selected by default
-    expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
-    expect(tabs[1]).toHaveAttribute('aria-selected', 'false');
-    expect(tabs[2]).toHaveAttribute('aria-selected', 'false');
+    // The period dropdown trigger should be present with an accessible name
+    // (replaces the tabpanel aria-labelledby guard from the pre-dropdown era).
+    const trigger = screen.getByRole('combobox');
+    expect(trigger).toBeInTheDocument();
+    expect(trigger).toHaveAccessibleName('Report period');
   });
 
-  // 4. Preset mode: period select and generate button — now "Generate Report"
-  it('shows generate button in preset mode', async () => {
+  // 4. Preset mode: generate button present with default "Last 7 days"
+  it('shows generate button with default period selection', async () => {
     setupFetch({ latest: null, list: [] });
     renderDigestPage();
 
@@ -330,8 +348,8 @@ describe('DigestPage', () => {
     ).toBeInTheDocument();
   });
 
-  // 5. Daily mode
-  it('shows daily mode text when Daily tab is selected', async () => {
+  // 5. Custom option reveals inline filter panel (replaces old tab test)
+  it('shows custom filter panel when Custom option is selected from dropdown', async () => {
     const user = userEvent.setup();
     setupFetch({ latest: null, list: [] });
     renderDigestPage();
@@ -340,24 +358,12 @@ describe('DigestPage', () => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
-    const dailyTab = screen.getByRole('tab', { name: /Daily/i });
-    await user.click(dailyTab);
+    // Open the period dropdown and select "Custom..."
+    const trigger = screen.getByRole('combobox');
+    await user.click(trigger);
 
-    expect(screen.getByText(/Summarise today/)).toBeInTheDocument();
-  });
-
-  // 6. Custom mode: shows filter panel — now "Custom Report Filters"
-  it('shows custom filter panel when Custom tab is selected', async () => {
-    const user = userEvent.setup();
-    setupFetch({ latest: null, list: [] });
-    renderDigestPage();
-
-    await waitFor(() => {
-      expect(screen.getByText('Change Reports')).toBeInTheDocument();
-    });
-
-    const customTab = screen.getByRole('tab', { name: /Custom/i });
-    await user.click(customTab);
+    const customOption = screen.getByRole('option', { name: /Custom/i });
+    await user.click(customOption);
 
     expect(screen.getByText('Custom Report Filters')).toBeInTheDocument();
     expect(screen.getByLabelText('From')).toBeInTheDocument();
@@ -366,7 +372,7 @@ describe('DigestPage', () => {
     expect(screen.getByLabelText(/Keywords/)).toBeInTheDocument();
   });
 
-  // 7. Custom filter badges
+  // 6. Custom filter badges
   it('shows active filter badges in custom mode and removes on click', async () => {
     const user = userEvent.setup();
     setupFetch({ latest: null, list: [] });
@@ -376,8 +382,11 @@ describe('DigestPage', () => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
-    const customTab = screen.getByRole('tab', { name: /Custom/i });
-    await user.click(customTab);
+    // Select Custom... from dropdown
+    const trigger = screen.getByRole('combobox');
+    await user.click(trigger);
+    const customOption = screen.getByRole('option', { name: /Custom/i });
+    await user.click(customOption);
 
     // Type keywords
     const keywordsInput = screen.getByLabelText(/Keywords/);
@@ -398,7 +407,7 @@ describe('DigestPage', () => {
     expect(screen.getByText('ai agents')).toBeInTheDocument();
   });
 
-  // 8. Generate preset digest
+  // 7. Generate preset digest
   it('calls fetch with correct body when generating preset digest', async () => {
     const user = userEvent.setup();
     const generatedDigest = makeDigest({ id: 'new-digest' });
@@ -425,7 +434,7 @@ describe('DigestPage', () => {
     });
   });
 
-  // 9. Generate custom digest — button now says "Generate Custom Report"
+  // 8. Generate custom digest
   it('calls fetch with custom filters when generating custom digest', async () => {
     const user = userEvent.setup();
     setupFetch({ latest: null, list: [], generateResult: makeDigest() });
@@ -435,8 +444,11 @@ describe('DigestPage', () => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
-    const customTab = screen.getByRole('tab', { name: /Custom/i });
-    await user.click(customTab);
+    // Select Custom... from dropdown
+    const trigger = screen.getByRole('combobox');
+    await user.click(trigger);
+    const customOption = screen.getByRole('option', { name: /Custom/i });
+    await user.click(customOption);
 
     const keywordsInput = screen.getByLabelText(/Keywords/);
     await user.clear(keywordsInput);
@@ -458,7 +470,7 @@ describe('DigestPage', () => {
     });
   });
 
-  // 10. Generating state shows spinner text
+  // 9. Generating state shows spinner text
   it('shows generating text during generation', async () => {
     const user = userEvent.setup();
     // Make generate hang so we can see the generating state
@@ -491,7 +503,7 @@ describe('DigestPage', () => {
     });
   });
 
-  // 11. Successful generation updates view
+  // 10. Successful generation updates view
   it('shows DigestView after successful generation', async () => {
     const user = userEvent.setup();
     const generatedDigest = makeDigest({ id: 'generated-1' });
@@ -516,7 +528,7 @@ describe('DigestPage', () => {
     );
   });
 
-  // 12. Generation error
+  // 11. Generation error
   it('shows toast error when generation fails', async () => {
     const user = userEvent.setup();
     setupFetch({
@@ -540,7 +552,7 @@ describe('DigestPage', () => {
     });
   });
 
-  // 13. Digest view state renders controls and DigestView — "Generate New Report"
+  // 12. Digest view state renders controls and DigestView — "Generate New Report"
   it('renders bar controls and DigestView when digest exists', async () => {
     const digest = makeDigest();
     setupFetch({ latest: digest, list: [] });
@@ -556,7 +568,7 @@ describe('DigestPage', () => {
     ).toBeInTheDocument();
   });
 
-  // 14. Mark all as read
+  // 13. Mark all as read
   it('calls markBulkRead with item IDs when mark all as read is clicked', async () => {
     const user = userEvent.setup();
     const digest = makeDigest({ item_ids: ['item-1', 'item-2', 'item-3'] });
@@ -580,7 +592,7 @@ describe('DigestPage', () => {
     });
   });
 
-  // 15. Past digests list — now "Previous Reports"
+  // 14. Past digests list — now "Previous Reports"
   it('renders previous reports excluding the current one', async () => {
     const digest = makeDigest({ id: 'current-digest' });
     const pastList = [
@@ -601,7 +613,7 @@ describe('DigestPage', () => {
     expect(items).toHaveLength(2);
   });
 
-  // 16. Load past digest
+  // 15. Load past digest
   it('loads a past digest when clicked', async () => {
     const user = userEvent.setup();
     const currentDigest = makeDigest({ id: 'current-digest' });
@@ -627,7 +639,7 @@ describe('DigestPage', () => {
     });
   });
 
-  // 17. Empty past digests
+  // 16. Empty past digests
   it('does not render previous reports section when none exist', async () => {
     const digest = makeDigest();
     setupFetch({ latest: digest, list: [digest] });
@@ -640,7 +652,7 @@ describe('DigestPage', () => {
     expect(screen.queryByText('Previous Reports')).not.toBeInTheDocument();
   });
 
-  // 18. aria-live regions
+  // 17. aria-live regions
   it('has aria-live region during generating state', async () => {
     const user = userEvent.setup();
     mockFetch.mockImplementation(async (url: string) => {
@@ -670,7 +682,7 @@ describe('DigestPage', () => {
     });
   });
 
-  // 19. Content section has correct aria-label — now "Change reports"
+  // 18. Content section has correct aria-label — "Change reports"
   it('wraps content in section with correct aria-label', async () => {
     setupFetch({ latest: null, list: [] });
     renderDigestPage();
@@ -684,9 +696,8 @@ describe('DigestPage', () => {
     ).toBeInTheDocument();
   });
 
-  // 20. Mode switching works correctly
-  it('switches between all three modes', async () => {
-    const user = userEvent.setup();
+  // 19. No tablist in the new dropdown-based design (P1-4/P1-9)
+  it('does not render a tablist — tabs replaced by dropdown', async () => {
     setupFetch({ latest: null, list: [] });
     renderDigestPage();
 
@@ -694,36 +705,12 @@ describe('DigestPage', () => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
-    // Start in preset mode
-    expect(screen.getByRole('tab', { name: /Period/i })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    );
-
-    // Switch to daily
-    await user.click(screen.getByRole('tab', { name: /Daily/i }));
-    expect(screen.getByRole('tab', { name: /Daily/i })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    );
-    expect(screen.getByRole('tab', { name: /Period/i })).toHaveAttribute(
-      'aria-selected',
-      'false',
-    );
-
-    // Switch to custom
-    await user.click(screen.getByRole('tab', { name: /Custom/i }));
-    expect(screen.getByRole('tab', { name: /Custom/i })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    );
-    expect(screen.getByRole('tab', { name: /Daily/i })).toHaveAttribute(
-      'aria-selected',
-      'false',
-    );
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    expect(screen.queryByRole('tabpanel')).not.toBeInTheDocument();
   });
 
-  // 21. loadReadMarks is called on mount
+  // 20. loadReadMarks is called on mount
   it('calls loadReadMarks on mount', async () => {
     setupFetch({ latest: null, list: [] });
     renderDigestPage();
@@ -733,7 +720,7 @@ describe('DigestPage', () => {
     });
   });
 
-  // 22. Mark all as read extracts IDs from domain_summaries when item_ids is empty
+  // 21. Mark all as read extracts IDs from domain_summaries when item_ids is empty
   it('extracts item IDs from domain_summaries when item_ids is not present', async () => {
     const user = userEvent.setup();
     const digest = makeDigest({
@@ -768,7 +755,7 @@ describe('DigestPage', () => {
     });
   });
 
-  // 23. Generate button is disabled during generation
+  // 22. Generate button is disabled during generation
   it('disables generate button while generating', async () => {
     const user = userEvent.setup();
     mockFetch.mockImplementation(async (url: string) => {
@@ -802,21 +789,8 @@ describe('DigestPage', () => {
     });
   });
 
-  // 24. tabpanel has correct aria-labelledby
-  it('renders tabpanel with correct aria-labelledby for active mode', async () => {
-    setupFetch({ latest: null, list: [] });
-    renderDigestPage();
-
-    await waitFor(() => {
-      expect(screen.getByText('Change Reports')).toBeInTheDocument();
-    });
-
-    const tabpanel = screen.getByRole('tabpanel');
-    expect(tabpanel).toHaveAttribute('aria-labelledby', 'tab-preset');
-  });
-
-  // 25. Mark all as read button is positioned after digest content, not in controls
-  it('renders mark all as read button after digest content, not in controls bar', async () => {
+  // 23. Mark all as read button is positioned after digest content, not in controls
+  it('renders mark all as read button after digest content', async () => {
     const digest = makeDigest();
     setupFetch({ latest: digest, list: [] });
     renderDigestPage();
@@ -829,16 +803,9 @@ describe('DigestPage', () => {
       name: /Mark all as read/i,
     });
     expect(markAllButton).toBeInTheDocument();
-
-    // The button should be a sibling of the DigestView, not inside the controls
-    // Verify by checking its parent structure — it should not be inside a tabpanel
-    const tabpanel = screen.getByRole('tabpanel');
-    expect(
-      within(tabpanel).queryByRole('button', { name: /Mark all as read/i }),
-    ).not.toBeInTheDocument();
   });
 
-  // 26. Mark all as read button is not shown when no digest exists
+  // 24. Mark all as read button is not shown when no digest exists
   it('does not render mark all as read button in hero state', async () => {
     setupFetch({ latest: null, list: [] });
     renderDigestPage();
@@ -852,9 +819,42 @@ describe('DigestPage', () => {
     ).not.toBeInTheDocument();
   });
 
+  // 25. Daily generation via "Last 1 day" dropdown option
+  it('generates daily digest when "Last 1 day" is selected', async () => {
+    const user = userEvent.setup();
+    const generated = makeDigest({ id: 'daily-gen' });
+    setupFetch({ latest: null, list: [], generateResult: generated });
+    renderDigestPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Change Reports')).toBeInTheDocument();
+    });
+
+    // Select "Last 1 day" from the dropdown
+    const trigger = screen.getByRole('combobox');
+    await user.click(trigger);
+    const dailyOption = screen.getByRole('option', { name: /Last 1 day/i });
+    await user.click(dailyOption);
+
+    const generateButton = screen.getByRole('button', {
+      name: /Generate Report/i,
+    });
+    await user.click(generateButton);
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/digest/generate',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('"period_days":1'),
+        }),
+      );
+    });
+  });
+
   // ─── P0-11: /digest auto-gen guard on account age > 24h ───
 
-  // 27. New account (< 24h): no auto-gen, new-account empty-state visible,
+  // 26. New account (< 24h): no auto-gen, new-account empty-state visible,
   //     manual Generate button still functional.
   it('new account (< 24h) does NOT auto-generate and renders new-account empty-state', async () => {
     mockNewAccount();
@@ -907,7 +907,7 @@ describe('DigestPage', () => {
     });
   });
 
-  // 28. Established account (> 24h): auto-gen fires exactly once with the
+  // 27. Established account (> 24h): auto-gen fires exactly once with the
   //     weekly defaults.
   it('established account (> 24h) auto-generates weekly report on first visit', async () => {
     mockOldAccount();
@@ -947,7 +947,7 @@ describe('DigestPage', () => {
     });
   });
 
-  // 29. Auto-gen does NOT fire when a digest already exists — even for
+  // 28. Auto-gen does NOT fire when a digest already exists — even for
   //     established accounts. Prevents burning an AI call on a page refresh.
   it('does not auto-generate when a digest is already cached', async () => {
     mockOldAccount();

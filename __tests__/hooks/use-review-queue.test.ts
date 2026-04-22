@@ -51,10 +51,7 @@ vi.mock('@/hooks/review/use-review-shortcuts', () => ({
 
 const mockSessionReturn = vi.hoisted(() => ({
   filters: { status: 'unverified' as const } as ReviewFiltersType,
-  serverSort: undefined as string | undefined,
-  queueSort: 'default' as const,
   setFilters: vi.fn(),
-  setQueueSort: vi.fn(),
   handleFiltersChange: vi.fn(),
   progress: {
     verified: 0,
@@ -268,8 +265,6 @@ describe('useReviewQueue', () => {
     // Reset mock return values to defaults
     Object.assign(mockSessionReturn, {
       filters: { status: 'unverified' as const } as ReviewFiltersType,
-      serverSort: undefined,
-      queueSort: 'default' as const,
       progress: {
         verified: 0,
         flagged: 0,
@@ -283,7 +278,6 @@ describe('useReviewQueue', () => {
       showQueuePanel: false,
     });
     mockSessionReturn.setFilters = vi.fn();
-    mockSessionReturn.setQueueSort = vi.fn();
     mockSessionReturn.handleFiltersChange = vi.fn();
     mockSessionReturn.setProgress = vi.fn();
     mockSessionReturn.setAnnouncement = vi.fn();
@@ -633,8 +627,8 @@ describe('useReviewQueue', () => {
   // Sorting
   // =========================================================================
 
-  describe('sorting', () => {
-    it('sortedQueue returns queue as-is when sort is default', () => {
+  describe('queue ordering', () => {
+    it('sortedQueue returns queue in server-provided order', () => {
       const items = [
         makeQueueItem({ id: 'def1', primary_domain: 'Zebra' }),
         makeQueueItem({ id: 'def2', primary_domain: 'Alpha' }, 1),
@@ -645,43 +639,26 @@ describe('useReviewQueue', () => {
         wrapper: createWrapper(),
       });
 
-      expect(result.current.queueSort).toBe('default');
       expect(result.current.sortedQueue[0].id).toBe('def1');
       expect(result.current.sortedQueue[1].id).toBe('def2');
     });
 
-    it('sortedQueue reflects navigation sub-hook sorting', () => {
+    it('sortedQueue reflects navigation sub-hook order', () => {
       const items = [
         makeQueueItem({ id: 'dom1', primary_domain: 'Zebra' }),
         makeQueueItem({ id: 'dom2', primary_domain: 'Alpha' }, 1),
         makeQueueItem({ id: 'dom3', primary_domain: 'Middle' }, 2),
       ];
-      // Simulate sorted order from navigation hook
-      const sorted = [items[1], items[2], items[0]];
       setupLoadedState(items);
-      mockNavReturn.sortedQueue = sorted;
 
       const { result } = renderHook(() => useReviewQueue(), {
         wrapper: createWrapper(),
       });
 
-      expect(result.current.sortedQueue[0].primary_domain).toBe('Alpha');
-      expect(result.current.sortedQueue[1].primary_domain).toBe('Middle');
-      expect(result.current.sortedQueue[2].primary_domain).toBe('Zebra');
-    });
-
-    it('setQueueSort delegates to session sub-hook', () => {
-      setupLoadedState([makeQueueItem()]);
-
-      const { result } = renderHook(() => useReviewQueue(), {
-        wrapper: createWrapper(),
-      });
-
-      act(() => {
-        result.current.setQueueSort('confidence');
-      });
-
-      expect(mockSessionReturn.setQueueSort).toHaveBeenCalledWith('confidence');
+      // Without client-side sort, order matches the queue
+      expect(result.current.sortedQueue[0].id).toBe('dom1');
+      expect(result.current.sortedQueue[1].id).toBe('dom2');
+      expect(result.current.sortedQueue[2].id).toBe('dom3');
     });
   });
 
@@ -839,9 +816,8 @@ describe('useReviewQueue', () => {
   // =========================================================================
 
   describe('orchestrator wiring', () => {
-    it('passes session filters and serverSort to data hook', () => {
+    it('passes session filters to data hook with undefined serverSort', () => {
       mockSessionReturn.filters = { status: 'flagged', domain: ['Technical'] };
-      mockSessionReturn.serverSort = 'confidence_asc';
 
       renderHook(() => useReviewQueue(), {
         wrapper: createWrapper(),
@@ -849,14 +825,13 @@ describe('useReviewQueue', () => {
 
       expect(vi.mocked(useReviewQueueData)).toHaveBeenCalledWith(
         { status: 'flagged', domain: ['Technical'] },
-        'confidence_asc',
+        undefined,
       );
     });
 
-    it('passes data queue and session sort to navigation hook', () => {
+    it('passes data queue to navigation hook without sort param', () => {
       const items = [makeQueueItem({ id: 'wire1' })];
       setupLoadedState(items);
-      mockSessionReturn.queueSort = 'domain';
 
       renderHook(() => useReviewQueue(), {
         wrapper: createWrapper(),
@@ -865,7 +840,6 @@ describe('useReviewQueue', () => {
       expect(vi.mocked(useReviewNavigation)).toHaveBeenCalledWith(
         items,
         false,
-        'domain',
         expect.anything(),
       );
     });
@@ -1084,7 +1058,7 @@ describe('useReviewQueue', () => {
       expect(mockActionsReturn.handlePublish).toHaveBeenCalled();
     });
 
-    it('all 36 return properties are present', () => {
+    it('all 34 return properties are present', () => {
       setupLoadedState([makeQueueItem()]);
 
       const { result } = renderHook(() => useReviewQueue(), {
@@ -1103,7 +1077,6 @@ describe('useReviewQueue', () => {
         'showFlagInput',
         'flagDetails',
         'showQueuePanel',
-        'queueSort',
         'announcement',
         'activeAssignment',
         'cardRef',
@@ -1125,7 +1098,6 @@ describe('useReviewQueue', () => {
         'setShowFlagInput',
         'setFlagDetails',
         'setFilters',
-        'setQueueSort',
         'showHelp',
         'setShowHelp',
       ];
@@ -1134,7 +1106,7 @@ describe('useReviewQueue', () => {
         expect(result.current).toHaveProperty(prop);
       }
 
-      expect(expectedProperties).toHaveLength(36);
+      expect(expectedProperties).toHaveLength(34);
     });
   });
 });

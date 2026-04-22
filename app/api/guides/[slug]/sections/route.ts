@@ -7,9 +7,10 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import {
-  guideSectionSchema,
+  buildGuideSectionSchema,
   guideSectionsReorderSchema,
 } from '@/lib/validation/guide-schemas';
+import { fetchActiveLayerKeys } from '@/lib/validation/layer-schemas';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { rateLimitResponse } from '@/lib/auth';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -138,8 +139,22 @@ export async function POST(
     if (!guideResult.ok) return guideResolutionResponse(guideResult);
     const guide = { id: guideResult.id };
 
+    let layerKeys: string[];
+    try {
+      layerKeys = await fetchActiveLayerKeys(supabase);
+    } catch (err) {
+      return NextResponse.json(
+        {
+          error: 'Layer vocabulary unavailable',
+          detail: safeErrorMessage(err, 'Layer vocabulary unavailable'),
+        },
+        { status: 503 },
+      );
+    }
+    const schema = buildGuideSectionSchema(layerKeys);
+
     const raw = await request.json();
-    const parsed = parseBody(guideSectionSchema, raw);
+    const parsed = parseBody(schema, raw);
     if (!parsed.success) return parsed.response;
 
     const { data, error } = await supabase

@@ -47,6 +47,7 @@ export function ReviewFilters({
     filters.content_type?.length ? 1 : 0,
     filters.source_file ? 1 : 0,
     filters.source_document_id ? 1 : 0,
+    filters.assigned_to_me ? 1 : 0,
   ].reduce((a, b) => a + b, 0);
 
   // Build domain options from stats
@@ -128,6 +129,13 @@ export function ReviewFilters({
     onFiltersChange({ ...filters, source_document_id: docId });
   };
 
+  const handleAssignedToMeToggle = () => {
+    onFiltersChange({
+      ...filters,
+      assigned_to_me: filters.assigned_to_me ? undefined : true,
+    });
+  };
+
   const handleClearAll = () => {
     onFiltersChange({ status: 'unverified' });
   };
@@ -151,6 +159,32 @@ export function ReviewFilters({
         </PopoverTrigger>
         <PopoverContent align="end" className="w-80 p-0">
           <div className="flex flex-col divide-y divide-border">
+            {/* Assigned to me toggle */}
+            <div className="p-3">
+              <button
+                onClick={handleAssignedToMeToggle}
+                role="switch"
+                aria-checked={filters.assigned_to_me ?? false}
+                className={cn(
+                  'flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+                  filters.assigned_to_me && 'bg-accent font-medium',
+                )}
+              >
+                <span>Assigned to me</span>
+                <span
+                  className={cn(
+                    'inline-flex size-4 items-center justify-center rounded border text-[10px]',
+                    filters.assigned_to_me
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-input bg-background',
+                  )}
+                  aria-hidden="true"
+                >
+                  {filters.assigned_to_me && '✓'}
+                </span>
+              </button>
+            </div>
+
             {/* Status filter */}
             <div className="p-3">
               <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">

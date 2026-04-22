@@ -1,17 +1,14 @@
 /**
  * ReviewQueuePanel Component Tests
  *
- * Tests the sort dropdown and item rendering.
- * Note: Radix UI Select interactions are not fully compatible with jsdom,
- * so sort change callbacks are tested via the hook tests instead.
+ * Tests item rendering and position indicator behaviour.
+ * Sort picker has been removed (P1-8 / D-2) — panel is a read-only
+ * position indicator; sort is handled exclusively via the filter popover.
  */
 import { describe, it, expect, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
-import {
-  ReviewQueuePanel,
-  type QueueSortField,
-} from '@/components/review/review-queue-panel';
+import { ReviewQueuePanel } from '@/components/review/review-queue-panel';
 import type { ReviewQueueItem } from '@/types/review';
 
 // ---------------------------------------------------------------------------
@@ -80,19 +77,17 @@ function makeItem(
 // ---------------------------------------------------------------------------
 
 describe('ReviewQueuePanel', () => {
-  it('renders the sort dropdown trigger', () => {
+  it('renders without a sort picker', () => {
     render(
       <ReviewQueuePanel
         items={[makeItem('1')]}
         currentIndex={0}
         onSelectItem={vi.fn()}
-        sortBy="default"
-        onSortChange={vi.fn()}
       />,
     );
 
-    const trigger = screen.getByRole('combobox');
-    expect(trigger).toBeInTheDocument();
+    // No combobox (sort picker) should be present
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   });
 
   it('shows the correct number of items in the footer', () => {
@@ -103,8 +98,6 @@ describe('ReviewQueuePanel', () => {
         items={items}
         currentIndex={0}
         onSelectItem={vi.fn()}
-        sortBy="default"
-        onSortChange={vi.fn()}
       />,
     );
 
@@ -117,8 +110,6 @@ describe('ReviewQueuePanel', () => {
         items={[makeItem('1')]}
         currentIndex={0}
         onSelectItem={vi.fn()}
-        sortBy="default"
-        onSortChange={vi.fn()}
       />,
     );
 
@@ -136,8 +127,6 @@ describe('ReviewQueuePanel', () => {
         items={items}
         currentIndex={0}
         onSelectItem={vi.fn()}
-        sortBy="default"
-        onSortChange={vi.fn()}
       />,
     );
 
@@ -156,8 +145,6 @@ describe('ReviewQueuePanel', () => {
         items={items}
         currentIndex={0}
         onSelectItem={vi.fn()}
-        sortBy="default"
-        onSortChange={vi.fn()}
       />,
     );
 
@@ -183,38 +170,10 @@ describe('ReviewQueuePanel', () => {
         items={items}
         currentIndex={0}
         onSelectItem={onSelectItem}
-        sortBy="default"
-        onSortChange={vi.fn()}
       />,
     );
 
     await user.click(screen.getByRole('button', { name: 'Second' }));
     expect(onSelectItem).toHaveBeenCalledWith(1);
-  });
-
-  it('accepts QueueSortField values including confidence', () => {
-    // Verify the component renders without error with each sort value
-    const sortValues: QueueSortField[] = [
-      'default',
-      'flagged',
-      'domain',
-      'content_type',
-      'confidence',
-      'quality_score',
-      'date',
-    ];
-
-    for (const sortBy of sortValues) {
-      const { unmount } = render(
-        <ReviewQueuePanel
-          items={[makeItem('1')]}
-          currentIndex={0}
-          onSelectItem={vi.fn()}
-          sortBy={sortBy}
-          onSortChange={vi.fn()}
-        />,
-      );
-      unmount();
-    }
   });
 });

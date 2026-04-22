@@ -35,6 +35,7 @@ import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { formatContentType } from '@/lib/format';
 import { formatEntityDisplayName } from '@/lib/entities/entity-dedup';
+import { VALID_ENTITY_TYPES } from '@/lib/validation/schemas';
 import {
   deriveExpiryStatus,
   type CertificationMetadata,
@@ -68,15 +69,9 @@ const TYPE_COLOURS: Record<string, string> = {
   project: 'bg-entity-project-bg text-entity-project-text',
   sector: 'bg-entity-sector-bg text-entity-sector-text',
   product: 'bg-entity-product-bg text-entity-product-text',
+  standard: 'bg-muted text-muted-foreground',
+  methodology: 'bg-muted text-muted-foreground',
 };
-
-function TypeBadge({ type }: { type: string }) {
-  return (
-    <Badge variant="outline" className={cn('text-xs', TYPE_COLOURS[type])}>
-      {type}
-    </Badge>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Expiry status badge
@@ -616,6 +611,8 @@ export function EntityDetailPanel({
     saveError,
     saveSuccess,
     resetSaveState,
+    changeType,
+    isChangingType,
   } = useEntityDetail(canonicalName, open);
 
   const showMetadataSection =
@@ -656,7 +653,32 @@ export function EntityDetailPanel({
             {/* -- Type and stats ----------------------------------------- */}
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
-                <TypeBadge type={detail.effective_type} />
+                <Select
+                  value={detail.effective_type}
+                  onValueChange={(newType) => changeType(newType)}
+                  disabled={isChangingType}
+                >
+                  <SelectTrigger
+                    className={cn(
+                      'h-7 w-auto gap-1.5 border px-2 text-xs font-medium',
+                      TYPE_COLOURS[detail.effective_type],
+                      isChangingType && 'opacity-60',
+                    )}
+                    aria-label="Change entity type"
+                  >
+                    <SelectValue />
+                    {isChangingType && (
+                      <Loader2 className="size-3 animate-spin" />
+                    )}
+                  </SelectTrigger>
+                  <SelectContent>
+                    {VALID_ENTITY_TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>
+                        {t}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {detail.has_type_override && (
                   <span className="text-xs text-muted-foreground">
                     (overridden from {detail.entity_type})

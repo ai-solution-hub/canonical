@@ -190,15 +190,9 @@ export type FeatureName = keyof typeof CLIENT_CONFIG.features;
 export type LayerKey = (typeof CLIENT_CONFIG.layer_vocabulary)[number]['key'];
 
 /**
- * Static fallback layer definitions.
- *
- * Used by:
- *   - LayerVocabularyProvider when the DB fetch fails
- *   - Server-side validation (API routes) that cannot use React context
- *   - Python pipeline (via layer-schemas.ts static exports)
- *
- * When adding new layers via the admin UI, also add them here and redeploy
- * so that server-side validation accepts them.
+ * Static layer definitions for seed data, client-side fallback,
+ * and server-side display helpers. NOT used for API validation —
+ * API handlers fetch live layers from the DB via fetchActiveLayerKeys().
  */
 export const FALLBACK_LAYERS: readonly LayerDefinition[] =
   CLIENT_CONFIG.layer_vocabulary;

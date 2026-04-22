@@ -30,6 +30,18 @@ vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: mockCheckRateLimit,
 }));
 
+vi.mock('@/lib/validation/layer-schemas', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/validation/layer-schemas')>(
+    '@/lib/validation/layer-schemas',
+  );
+  return {
+    ...actual,
+    fetchActiveLayerKeys: vi.fn(() =>
+      Promise.resolve(['sales_brief', 'bid_detail', 'company_reference', 'research']),
+    ),
+  };
+});
+
 // Import routes AFTER mocks are registered
 import { GET as listGuides, POST as createGuide } from '@/app/api/guides/route';
 import {
@@ -593,6 +605,33 @@ describe('POST /api/guides/[slug]/sections', () => {
       params: createTestParams({ slug: 'nonexistent' }),
     });
     expect(res.status).toBe(404);
+  });
+
+  it('returns 503 when layer vocabulary is unavailable', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // resolveGuideId
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: 'guide-1' },
+      error: null,
+    });
+
+    const { fetchActiveLayerKeys } = await import('@/lib/validation/layer-schemas');
+    vi.mocked(fetchActiveLayerKeys).mockRejectedValueOnce(
+      new Error('Layer vocabulary fetch failed: connection refused'),
+    );
+
+    const req = createTestRequest('/api/guides/scp-sector/sections', {
+      method: 'POST',
+      body: validSectionBody(),
+    });
+    const res = await createSection(req, {
+      params: createTestParams({ slug: 'scp-sector' }),
+    });
+    expect(res.status).toBe(503);
+
+    const body = await res.json();
+    expect(body.error).toBe('Layer vocabulary unavailable');
   });
 
   it('returns 400 for invalid section body', async () => {

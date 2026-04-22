@@ -15,7 +15,7 @@ import userEvent from '@testing-library/user-event';
 
 const { mockEditor, mockUseEditor } = vi.hoisted(() => {
   const editor = {
-    getHTML: vi.fn(() => '<p>Test content</p>'),
+    getMarkdown: vi.fn(() => 'Test content'),
     setEditable: vi.fn(),
     isEditable: true,
     commands: {
@@ -59,12 +59,28 @@ vi.mock('@tiptap/extension-placeholder', () => ({
   default: { configure: vi.fn(() => 'Placeholder') },
 }));
 
-vi.mock('@tiptap/extension-underline', () => ({
-  default: 'UnderlineExt',
-}));
-
 vi.mock('@tiptap/extension-link', () => ({
   default: { configure: vi.fn(() => 'LinkExt') },
+}));
+
+vi.mock('@tiptap/markdown', () => ({
+  Markdown: 'MarkdownExt',
+}));
+
+vi.mock('@tiptap/extension-table', () => ({
+  Table: { configure: vi.fn(() => 'TableExt') },
+}));
+
+vi.mock('@tiptap/extension-table-row', () => ({
+  TableRow: 'TableRowExt',
+}));
+
+vi.mock('@tiptap/extension-table-cell', () => ({
+  TableCell: 'TableCellExt',
+}));
+
+vi.mock('@tiptap/extension-table-header', () => ({
+  TableHeader: 'TableHeaderExt',
 }));
 
 vi.mock('@/components/item-detail/editor-toolbar', () => ({
@@ -88,7 +104,7 @@ function defaultProps(
   overrides: Partial<Parameters<typeof ResponseEditor>[0]> = {},
 ) {
   return {
-    content: '<p>Test content</p>',
+    content: 'Test content',
     onChange: vi.fn(),
     onSave: vi.fn(),
     ...overrides,
@@ -103,7 +119,7 @@ describe('ResponseEditor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockEditor.storage.characterCount.words.mockReturnValue(42);
-    mockEditor.getHTML.mockReturnValue('<p>Test content</p>');
+    mockEditor.getMarkdown.mockReturnValue('Test content');
     mockEditor.isEditable = true;
     mockUseEditor.mockReturnValue(mockEditor);
   });
@@ -185,12 +201,12 @@ describe('ResponseEditor', () => {
 
   // ---- Save interaction ----
 
-  it('calls onSave with editor HTML when save button is clicked', async () => {
+  it('calls onSave with editor markdown when save button is clicked', async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
     render(<ResponseEditor {...defaultProps({ onSave })} />);
     await user.click(screen.getByRole('button', { name: 'Save' }));
-    expect(onSave).toHaveBeenCalledWith('<p>Test content</p>');
+    expect(onSave).toHaveBeenCalledWith('Test content');
   });
 
   it('calls onSave with empty string when editor is null', async () => {
@@ -271,14 +287,14 @@ describe('ResponseEditor', () => {
     const onSave = vi.fn();
     render(<ResponseEditor {...defaultProps({ onSave })} />);
     fireEvent.keyDown(document, { key: 's', ctrlKey: true });
-    expect(onSave).toHaveBeenCalledWith('<p>Test content</p>');
+    expect(onSave).toHaveBeenCalledWith('Test content');
   });
 
   it('triggers save on Cmd+S (metaKey) keydown', () => {
     const onSave = vi.fn();
     render(<ResponseEditor {...defaultProps({ onSave })} />);
     fireEvent.keyDown(document, { key: 's', metaKey: true });
-    expect(onSave).toHaveBeenCalledWith('<p>Test content</p>');
+    expect(onSave).toHaveBeenCalledWith('Test content');
   });
 
   it('does not trigger save on Ctrl+S when readOnly', () => {
@@ -299,29 +315,30 @@ describe('ResponseEditor', () => {
   // ---- Content sync from parent ----
 
   it('syncs content from parent when content prop changes', () => {
-    mockEditor.getHTML.mockReturnValue('<p>Old content</p>');
+    mockEditor.getMarkdown.mockReturnValue('Old content');
     const { rerender } = render(
-      <ResponseEditor {...defaultProps({ content: '<p>Old content</p>' })} />,
+      <ResponseEditor {...defaultProps({ content: 'Old content' })} />,
     );
     vi.clearAllMocks();
-    mockEditor.getHTML.mockReturnValue('<p>Old content</p>');
+    mockEditor.getMarkdown.mockReturnValue('Old content');
     rerender(
-      <ResponseEditor {...defaultProps({ content: '<p>New content</p>' })} />,
+      <ResponseEditor {...defaultProps({ content: 'New content' })} />,
     );
     expect(mockEditor.commands.setContent).toHaveBeenCalledWith(
-      '<p>New content</p>',
+      'New content',
+      { contentType: 'markdown' },
     );
   });
 
-  it('does not sync content when prop matches editor HTML', () => {
-    mockEditor.getHTML.mockReturnValue('<p>Same content</p>');
+  it('does not sync content when prop matches editor markdown', () => {
+    mockEditor.getMarkdown.mockReturnValue('Same content');
     const { rerender } = render(
-      <ResponseEditor {...defaultProps({ content: '<p>Same content</p>' })} />,
+      <ResponseEditor {...defaultProps({ content: 'Same content' })} />,
     );
     vi.clearAllMocks();
-    mockEditor.getHTML.mockReturnValue('<p>Same content</p>');
+    mockEditor.getMarkdown.mockReturnValue('Same content');
     rerender(
-      <ResponseEditor {...defaultProps({ content: '<p>Same content</p>' })} />,
+      <ResponseEditor {...defaultProps({ content: 'Same content' })} />,
     );
     expect(mockEditor.commands.setContent).not.toHaveBeenCalled();
   });
@@ -342,14 +359,14 @@ describe('ResponseEditor', () => {
 
   // ---- onChange via onUpdate ----
 
-  it('fires onChange callback via onUpdate', () => {
+  it('fires onChange callback via onUpdate with markdown', () => {
     const onChange = vi.fn();
     render(<ResponseEditor {...defaultProps({ onChange })} />);
     const config = mockUseEditor.mock.calls[0][0] as {
-      onUpdate: (args: { editor: { getHTML: () => string } }) => void;
+      onUpdate: (args: { editor: { getMarkdown: () => string } }) => void;
     };
-    config.onUpdate({ editor: { getHTML: () => '<p>Updated</p>' } });
-    expect(onChange).toHaveBeenCalledWith('<p>Updated</p>');
+    config.onUpdate({ editor: { getMarkdown: () => '**Updated** content' } });
+    expect(onChange).toHaveBeenCalledWith('**Updated** content');
   });
 
   // ---- Placeholder extension ----
@@ -404,5 +421,68 @@ describe('ResponseEditor', () => {
     ).mock.calls.at(-1);
     const config = lastCall?.[0] as Record<string, unknown>;
     expect(config).not.toHaveProperty('limit');
+  });
+
+  // ---- Markdown canonical format ----
+
+  it('configures useEditor with contentType: markdown', () => {
+    render(<ResponseEditor {...defaultProps()} />);
+    const callArgs = mockUseEditor.mock.calls[0][0] as {
+      contentType: string;
+    };
+    expect(callArgs.contentType).toBe('markdown');
+  });
+
+  it('passes Markdown extension to useEditor', () => {
+    render(<ResponseEditor {...defaultProps()} />);
+    const callArgs = mockUseEditor.mock.calls[0][0] as {
+      extensions: unknown[];
+    };
+    expect(callArgs.extensions).toContain('MarkdownExt');
+  });
+
+  it('passes Table extensions to useEditor for GFM table support', async () => {
+    const TableMock = await import('@tiptap/extension-table');
+    vi.clearAllMocks();
+    render(<ResponseEditor {...defaultProps()} />);
+    expect(TableMock.Table.configure).toHaveBeenCalledWith({
+      resizable: false,
+    });
+    const callArgs = mockUseEditor.mock.calls[0][0] as {
+      extensions: unknown[];
+    };
+    expect(callArgs.extensions).toContain('TableExt');
+    expect(callArgs.extensions).toContain('TableRowExt');
+    expect(callArgs.extensions).toContain('TableCellExt');
+    expect(callArgs.extensions).toContain('TableHeaderExt');
+  });
+
+  // ---- L-4: @tiptap/markdown table-extensions regression guard ----
+  // The Markdown extension alone cannot roundtrip GFM pipe tables without
+  // Table/TableRow/TableCell/TableHeader extensions. If any of these five
+  // extensions are removed or reordered incorrectly in a future dependency
+  // update, tables silently vanish from the parse-serialize cycle.
+  // This test locks the co-presence of all five required extensions.
+
+  it('L-4: Markdown + all four Table extensions are co-present (table roundtrip guard)', () => {
+    vi.clearAllMocks();
+    render(<ResponseEditor {...defaultProps()} />);
+    const callArgs = mockUseEditor.mock.calls[0][0] as {
+      extensions: unknown[];
+      contentType: string;
+    };
+    // All five extensions must be present together for GFM table roundtripping
+    const requiredExtensions = [
+      'MarkdownExt',
+      'TableExt',
+      'TableRowExt',
+      'TableCellExt',
+      'TableHeaderExt',
+    ];
+    for (const ext of requiredExtensions) {
+      expect(callArgs.extensions).toContain(ext);
+    }
+    // Markdown must be configured in markdown content mode
+    expect(callArgs.contentType).toBe('markdown');
   });
 });

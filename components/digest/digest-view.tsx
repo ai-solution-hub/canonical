@@ -76,7 +76,7 @@ export function DigestView({ digest, className }: DigestViewProps) {
         </section>
       )}
 
-      {/* Governance / KB Health */}
+      {/* Review activity this period (governance summary) */}
       {digest.governance_summary && (
         <GovernanceSection summary={digest.governance_summary} />
       )}
@@ -120,6 +120,11 @@ export function DigestView({ digest, className }: DigestViewProps) {
   );
 }
 
+/** Format a number as a delta string, e.g. 12 → "+12", 0 → "0". */
+function formatDelta(value: number): string {
+  return value > 0 ? `+${value}` : String(value);
+}
+
 function GovernanceSection({ summary }: { summary: DigestGovernanceSummary }) {
   const { items_modified, items_verified, items_flagged, freshness_breakdown } =
     summary;
@@ -129,25 +134,27 @@ function GovernanceSection({ summary }: { summary: DigestGovernanceSummary }) {
       <div className="mb-4 flex items-center gap-2">
         <Shield className="size-4 text-primary" />
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          KB Health
+          Review Activity This Period
         </h2>
       </div>
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-lg border bg-background p-4 text-center">
-          <p className="text-2xl font-bold text-foreground">{items_modified}</p>
-          <p className="mt-1 text-xs text-muted-foreground">Items Modified</p>
+          <p className="text-2xl font-bold text-foreground">
+            {formatDelta(items_modified)}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">Items modified</p>
         </div>
         <div className="rounded-lg border bg-background p-4 text-center">
           <p className="text-2xl font-bold text-quality-good">
-            {items_verified}
+            {formatDelta(items_verified)}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">Items Verified</p>
+          <p className="mt-1 text-xs text-muted-foreground">Items verified</p>
         </div>
         <div className="rounded-lg border bg-background p-4 text-center">
           <p className="text-2xl font-bold text-status-warning">
-            {items_flagged}
+            {formatDelta(items_flagged)}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">Items Flagged</p>
+          <p className="mt-1 text-xs text-muted-foreground">Items flagged</p>
         </div>
       </div>
       {freshness_breakdown && (

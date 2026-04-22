@@ -59,7 +59,7 @@ vi.mock('@/lib/drawer-insert', () => ({
 import { toast } from 'sonner';
 import {
   useStreamCoordination,
-  normaliseHtmlForComparison,
+  normaliseForComparison,
   type BidResponse,
 } from '@/hooks/streaming/use-stream-coordination';
 import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
@@ -1318,7 +1318,7 @@ describe('useStreamCoordination', () => {
 
       // Now wait for the response to load and sync through to the editor.
       // The fix treats '<p></p>' as equivalent to '' via
-      // `normaliseHtmlForComparison`, so the sync passes.
+      // `normaliseForComparison`, so the sync passes.
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
       });
@@ -1386,68 +1386,68 @@ describe('useStreamCoordination', () => {
   });
 
   // =========================================================================
-  // normaliseHtmlForComparison — S152B WP14 unit tests
+  // normaliseForComparison — S152B WP14 unit tests
   // =========================================================================
 
-  describe('normaliseHtmlForComparison', () => {
+  describe('normaliseForComparison', () => {
     it('strips tags and returns plain text', () => {
-      expect(normaliseHtmlForComparison('<p>Hello</p>')).toBe('Hello');
-      expect(normaliseHtmlForComparison('<p>Hello <strong>World</strong></p>')).toBe(
+      expect(normaliseForComparison('<p>Hello</p>')).toBe('Hello');
+      expect(normaliseForComparison('<p>Hello <strong>World</strong></p>')).toBe(
         'Hello World',
       );
     });
 
     it('treats empty string and Tiptap empty doc as equivalent', () => {
-      expect(normaliseHtmlForComparison('')).toBe('');
-      expect(normaliseHtmlForComparison('<p></p>')).toBe('');
-      expect(normaliseHtmlForComparison('<p><br></p>')).toBe('');
-      expect(normaliseHtmlForComparison('<p><br/></p>')).toBe('');
-      expect(normaliseHtmlForComparison('<p><br /></p>')).toBe('');
+      expect(normaliseForComparison('')).toBe('');
+      expect(normaliseForComparison('<p></p>')).toBe('');
+      expect(normaliseForComparison('<p><br></p>')).toBe('');
+      expect(normaliseForComparison('<p><br/></p>')).toBe('');
+      expect(normaliseForComparison('<p><br /></p>')).toBe('');
     });
 
     it('preserves word boundaries across block-level closing tags', () => {
       // Without word-boundary-preserving replacement, this would collapse
       // to "HelloWorld" and false-match against "Hello World".
-      expect(normaliseHtmlForComparison('<p>Hello</p><p>World</p>')).toBe(
+      expect(normaliseForComparison('<p>Hello</p><p>World</p>')).toBe(
         'Hello World',
       );
     });
 
     it('collapses whitespace between and within tags', () => {
-      expect(normaliseHtmlForComparison('<p>Hello</p>\n<p>World</p>')).toBe(
-        normaliseHtmlForComparison('<p>Hello</p> <p>World</p>'),
+      expect(normaliseForComparison('<p>Hello</p>\n<p>World</p>')).toBe(
+        normaliseForComparison('<p>Hello</p> <p>World</p>'),
       );
-      expect(normaliseHtmlForComparison('<p>Hello   World</p>')).toBe(
+      expect(normaliseForComparison('<p>Hello   World</p>')).toBe(
         'Hello World',
       );
     });
 
     it('treats self-closing and non-self-closing br as equivalent', () => {
-      expect(normaliseHtmlForComparison('<p>Line 1<br/>Line 2</p>')).toBe(
-        normaliseHtmlForComparison('<p>Line 1<br>Line 2</p>'),
+      expect(normaliseForComparison('<p>Line 1<br/>Line 2</p>')).toBe(
+        normaliseForComparison('<p>Line 1<br>Line 2</p>'),
       );
-      expect(normaliseHtmlForComparison('<p>Line 1<br />Line 2</p>')).toBe(
-        normaliseHtmlForComparison('<p>Line 1<br>Line 2</p>'),
+      expect(normaliseForComparison('<p>Line 1<br />Line 2</p>')).toBe(
+        normaliseForComparison('<p>Line 1<br>Line 2</p>'),
       );
     });
 
     it('treats leading and trailing whitespace as equivalent', () => {
-      expect(normaliseHtmlForComparison('<p>Hello</p>')).toBe(
-        normaliseHtmlForComparison('<p>Hello</p>\n'),
+      expect(normaliseForComparison('<p>Hello</p>')).toBe(
+        normaliseForComparison('<p>Hello</p>\n'),
       );
-      expect(normaliseHtmlForComparison('<p>Hello</p>')).toBe(
-        normaliseHtmlForComparison('  <p>Hello</p>  '),
+      expect(normaliseForComparison('<p>Hello</p>')).toBe(
+        normaliseForComparison('  <p>Hello</p>  '),
       );
     });
 
     it('decodes common HTML entities so marked and Tiptap output match', () => {
-      expect(normaliseHtmlForComparison('<p>Hello&nbsp;World</p>')).toBe(
+      expect(normaliseForComparison('<p>Hello&nbsp;World</p>')).toBe(
         'Hello World',
       );
-      expect(normaliseHtmlForComparison('<p>Tom &amp; Jerry</p>')).toBe(
+      expect(normaliseForComparison('<p>Tom &amp; Jerry</p>')).toBe(
         'Tom & Jerry',
       );
-      expect(normaliseHtmlForComparison('<p>&lt;angle&gt;</p>')).toBe(
+      expect(normaliseForComparison('<p>&lt;angle&gt;</p>')).toBe(
         '<angle>',
       );
     });
@@ -1456,16 +1456,16 @@ describe('useStreamCoordination', () => {
       // Tiptap may add style/class attributes that marked.parse does not
       // emit. The pure-text comparison sidesteps this serialisation gap.
       expect(
-        normaliseHtmlForComparison('<p style="text-align:left">Hello</p>'),
-      ).toBe(normaliseHtmlForComparison('<p>Hello</p>'));
+        normaliseForComparison('<p style="text-align:left">Hello</p>'),
+      ).toBe(normaliseForComparison('<p>Hello</p>'));
       expect(
-        normaliseHtmlForComparison('<p class="tiptap-p">Hello</p>'),
-      ).toBe(normaliseHtmlForComparison('<p>Hello</p>'));
+        normaliseForComparison('<p class="tiptap-p">Hello</p>'),
+      ).toBe(normaliseForComparison('<p>Hello</p>'));
     });
 
     it('distinguishes genuinely different content', () => {
-      expect(normaliseHtmlForComparison('<p>Hello</p>')).not.toBe(
-        normaliseHtmlForComparison('<p>Goodbye</p>'),
+      expect(normaliseForComparison('<p>Hello</p>')).not.toBe(
+        normaliseForComparison('<p>Goodbye</p>'),
       );
     });
   });

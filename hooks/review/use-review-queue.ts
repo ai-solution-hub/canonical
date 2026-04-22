@@ -8,7 +8,6 @@ import type {
   ReviewFilters as ReviewFiltersType,
   ReviewStatsResponse,
 } from '@/types/review';
-import type { QueueSortField } from '@/components/review/review-queue-panel';
 import { useReviewShortcuts } from '@/hooks/review/use-review-shortcuts';
 import { useReviewSession } from '@/hooks/review/use-review-session';
 import { useReviewQueueData } from '@/hooks/review/use-review-queue-data';
@@ -44,7 +43,6 @@ export interface UseReviewQueueReturn {
   showFlagInput: boolean;
   flagDetails: string;
   showQueuePanel: boolean;
-  queueSort: QueueSortField;
   announcement: string;
 
   // Assignment
@@ -74,7 +72,6 @@ export interface UseReviewQueueReturn {
   setShowFlagInput: (show: boolean) => void;
   setFlagDetails: (details: string) => void;
   setFilters: (filters: ReviewFiltersType) => void;
-  setQueueSort: (sort: QueueSortField) => void;
 
   // Keyboard shortcuts
   showHelp: boolean;
@@ -104,7 +101,7 @@ export function useReviewQueue(): UseReviewQueueReturn {
   // -------------------------------------------------------------------------
   // 2. Server data (queue via infinite query, stats, assignments)
   // -------------------------------------------------------------------------
-  const data = useReviewQueueData(session.filters, session.serverSort);
+  const data = useReviewQueueData(session.filters, undefined);
 
   // -------------------------------------------------------------------------
   // 3. Navigation (index, sorting, selection, focus, prefetch)
@@ -112,7 +109,6 @@ export function useReviewQueue(): UseReviewQueueReturn {
   const nav = useReviewNavigation(
     data.queue,
     data.isLoading,
-    session.queueSort,
     data.queueQuery,
   );
 
@@ -192,7 +188,7 @@ export function useReviewQueue(): UseReviewQueueReturn {
   });
 
   // -------------------------------------------------------------------------
-  // Return — exact same 36 properties as UseReviewQueueReturn
+  // Return — 34 properties as UseReviewQueueReturn
   // -------------------------------------------------------------------------
 
   return {
@@ -208,7 +204,6 @@ export function useReviewQueue(): UseReviewQueueReturn {
     showFlagInput: session.showFlagInput,
     flagDetails: session.flagDetails,
     showQueuePanel: session.showQueuePanel,
-    queueSort: session.queueSort,
     announcement: session.announcement,
 
     // Assignment
@@ -238,7 +233,6 @@ export function useReviewQueue(): UseReviewQueueReturn {
     setShowFlagInput: session.setShowFlagInput,
     setFlagDetails: session.setFlagDetails,
     setFilters: session.setFilters,
-    setQueueSort: session.setQueueSort,
 
     // Keyboard shortcuts
     showHelp,

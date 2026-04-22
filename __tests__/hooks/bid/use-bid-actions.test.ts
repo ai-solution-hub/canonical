@@ -8,18 +8,32 @@ import type { BidState, ExtractionResult } from '@/types/bid';
 // Mocks
 // ---------------------------------------------------------------------------
 
-const mockPush = vi.fn();
-const mockRouter = {
-  push: mockPush,
-  replace: vi.fn(),
-  back: vi.fn(),
-  forward: vi.fn(),
-  refresh: vi.fn(),
-  prefetch: vi.fn(),
-};
+const { hoistedBidId, hoistedMockSearchParams, hoistedMockRouter } =
+  vi.hoisted(() => {
+    const id = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
+    const searchParams = { current: new URLSearchParams() };
+    const router = {
+      push: vi.fn(),
+      replace: vi.fn(),
+      back: vi.fn(),
+      forward: vi.fn(),
+      refresh: vi.fn(),
+      prefetch: vi.fn(),
+    };
+    return {
+      hoistedBidId: id,
+      hoistedMockSearchParams: searchParams,
+      hoistedMockRouter: router,
+    };
+  });
+
+const mockPush = hoistedMockRouter.push;
+const mockReplace = hoistedMockRouter.replace;
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => mockRouter,
+  useRouter: () => hoistedMockRouter,
+  useSearchParams: () => hoistedMockSearchParams.current,
+  usePathname: () => `/bid/${hoistedBidId}`,
 }));
 
 vi.mock('sonner', () => ({
@@ -59,7 +73,7 @@ import { useBidActions } from '@/hooks/bid/use-bid-actions';
 // Test data
 // ---------------------------------------------------------------------------
 
-const TEST_BID_ID = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
+const TEST_BID_ID = hoistedBidId;
 
 const MOCK_BID = {
   id: TEST_BID_ID,
@@ -201,6 +215,7 @@ function mockFetchSuccess(overrides?: {
 describe('useBidActions (TanStack Query)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    hoistedMockSearchParams.current = new URLSearchParams();
     mockCanTransition.mockReturnValue(true);
     mockGetAvailableTransitions.mockReturnValue(['drafting', 'submitted']);
   });
@@ -658,7 +673,7 @@ describe('useBidActions (TanStack Query)', () => {
 
   // ─── 14. handleUploadComplete processes extraction results ────────────
 
-  it('handleUploadComplete sets extracted questions and switches to questions tab', async () => {
+  it('handleUploadComplete sets extracted questions and navigates to questions tab via URL', async () => {
     mockFetchSuccess();
     const { Wrapper } = createWrapper();
     const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
@@ -698,7 +713,10 @@ describe('useBidActions (TanStack Query)', () => {
 
     expect(result.current.showQuestionReview).toBe(true);
     expect(result.current.extractedQuestions).toHaveLength(2);
-    expect(result.current.activeTab).toBe('questions');
+    // Tab switch now goes via router.replace (URL-synced)
+    expect(mockReplace).toHaveBeenCalledWith(
+      `/bid/${TEST_BID_ID}?tab=questions`,
+    );
     expect(result.current.extractedQuestions[0]).toEqual({
       section_name: 'Section A',
       section_sequence: 1,
@@ -1236,6 +1254,139 @@ describe('useBidActions (TanStack Query)', () => {
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('No questions to match');
+    });
+  });
+
+  // ─── URL-synced tab state (P1-5) ───────────────────────────────────────
+
+  describe('URL-synced tab state (P1-5)', () => {
+    it('reads active tab from ?tab= search param on mount', async () => {
+      hoistedMockSearchParams.current = new URLSearchParams('tab=questions');
+      mockFetchSuccess();
+      const { Wrapper } = createWrapper();
+      const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+        wrapper: Wrapper,
+      });
+
+      await waitFor(() => {
+        expect(result.current.bid).not.toBeNull();
+      });
+
+      expect(result.current.activeTab).toBe('questions');
+    });
+
+    it('reads documents tab from URL', async () => {
+      hoistedMockSearchParams.current = new URLSearchParams('tab=documents');
+      mockFetchSuccess();
+      const { Wrapper } = createWrapper();
+      const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+        wrapper: Wrapper,
+      });
+
+      await waitFor(() => {
+        expect(result.current.bid).not.toBeNull();
+      });
+
+      expect(result.current.activeTab).toBe('documents');
+    });
+
+    it('defaults to overview when no ?tab= param is present', async () => {
+      hoistedMockSearchParams.current = new URLSearchParams();
+      mockFetchSuccess();
+      const { Wrapper } = createWrapper();
+      const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+        wrapper: Wrapper,
+      });
+
+      await waitFor(() => {
+        expect(result.current.bid).not.toBeNull();
+      });
+
+      expect(result.current.activeTab).toBe('overview');
+    });
+
+    it('falls back to overview for invalid ?tab= values without errors', async () => {
+      hoistedMockSearchParams.current = new URLSearchParams('tab=invalid');
+      mockFetchSuccess();
+      const { Wrapper } = createWrapper();
+      const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+        wrapper: Wrapper,
+      });
+
+      await waitFor(() => {
+        expect(result.current.bid).not.toBeNull();
+      });
+
+      // Invalid tab silently defaults to overview
+      expect(result.current.activeTab).toBe('overview');
+    });
+
+    it('setActiveTab calls router.replace (not push) with ?tab= param', async () => {
+      mockFetchSuccess();
+      const { Wrapper } = createWrapper();
+      const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+        wrapper: Wrapper,
+      });
+
+      await waitFor(() => {
+        expect(result.current.bid).not.toBeNull();
+      });
+
+      act(() => {
+        result.current.setActiveTab('questions');
+      });
+
+      expect(mockReplace).toHaveBeenCalledWith(
+        `/bid/${TEST_BID_ID}?tab=questions`,
+      );
+      // Must NOT use router.push (which pollutes browser history)
+      expect(mockPush).not.toHaveBeenCalledWith(
+        expect.stringContaining('tab='),
+      );
+    });
+
+    it('setActiveTab to overview removes ?tab= param for clean URLs', async () => {
+      hoistedMockSearchParams.current = new URLSearchParams('tab=questions');
+      mockFetchSuccess();
+      const { Wrapper } = createWrapper();
+      const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+        wrapper: Wrapper,
+      });
+
+      await waitFor(() => {
+        expect(result.current.bid).not.toBeNull();
+      });
+
+      act(() => {
+        result.current.setActiveTab('overview');
+      });
+
+      // Overview is the default — clean URL without ?tab=
+      expect(mockReplace).toHaveBeenCalledWith(`/bid/${TEST_BID_ID}`);
+    });
+
+    it('preserves other query params when setting tab', async () => {
+      hoistedMockSearchParams.current = new URLSearchParams(
+        'other=value&tab=overview',
+      );
+      mockFetchSuccess();
+      const { Wrapper } = createWrapper();
+      const { result } = renderHook(() => useBidActions({ id: TEST_BID_ID }), {
+        wrapper: Wrapper,
+      });
+
+      await waitFor(() => {
+        expect(result.current.bid).not.toBeNull();
+      });
+
+      act(() => {
+        result.current.setActiveTab('documents');
+      });
+
+      // Should preserve 'other=value' and update 'tab'
+      const replaceArg = mockReplace.mock.calls[0][0] as string;
+      expect(replaceArg).toContain('other=value');
+      expect(replaceArg).toContain('tab=documents');
     });
   });
 });

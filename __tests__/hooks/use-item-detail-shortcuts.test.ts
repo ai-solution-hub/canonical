@@ -30,8 +30,6 @@ function createParams(
     handleStarToggle: vi.fn(),
     handlePriorityCycle: vi.fn(),
     toggleReader: vi.fn(),
-    readerOpen: false,
-    toggleDetached: vi.fn(),
     canEdit: true,
     startEdit: vi.fn(),
     cancelEdit: vi.fn(),
@@ -205,27 +203,16 @@ describe('useItemDetailShortcuts', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Shift+R -- detach or navigate to /review
+  // Shift+R -- navigate to /review
   // -------------------------------------------------------------------------
 
-  it('calls toggleDetached on Shift+R when reader is open', () => {
-    const params = createParams({ readerOpen: true });
-    renderHook(() => useItemDetailShortcuts(params));
-
-    fireEvent.keyDown(window, { key: 'R', shiftKey: true });
-
-    expect(params.toggleDetached).toHaveBeenCalledOnce();
-    expect(params.router.push).not.toHaveBeenCalled();
-  });
-
-  it('navigates to /review on Shift+R when reader is closed', () => {
-    const params = createParams({ readerOpen: false });
+  it('navigates to /review on Shift+R', () => {
+    const params = createParams();
     renderHook(() => useItemDetailShortcuts(params));
 
     fireEvent.keyDown(window, { key: 'R', shiftKey: true });
 
     expect(params.router.push).toHaveBeenCalledWith('/review');
-    expect(params.toggleDetached).not.toHaveBeenCalled();
   });
 
   // -------------------------------------------------------------------------

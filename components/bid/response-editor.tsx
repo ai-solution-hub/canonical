@@ -2,10 +2,14 @@
 
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import { Markdown } from '@tiptap/markdown';
 import CharacterCount from '@tiptap/extension-character-count';
 import Placeholder from '@tiptap/extension-placeholder';
-import UnderlineExt from '@tiptap/extension-underline';
 import LinkExt from '@tiptap/extension-link';
+import { Table } from '@tiptap/extension-table';
+import { TableRow } from '@tiptap/extension-table-row';
+import { TableCell } from '@tiptap/extension-table-cell';
+import { TableHeader } from '@tiptap/extension-table-header';
 import { useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { EditorToolbar } from '@/components/item-detail/editor-toolbar';
@@ -16,8 +20,8 @@ export type { Editor };
 interface ResponseEditorProps {
   content: string;
   wordLimit?: number | null;
-  onChange: (html: string) => void;
-  onSave: (html: string) => void;
+  onChange: (markdown: string) => void;
+  onSave: (markdown: string) => void;
   readOnly?: boolean;
   placeholder?: string;
   className?: string;
@@ -39,8 +43,8 @@ export function ResponseEditor({
     extensions: [
       StarterKit.configure({
         link: false,
-        underline: false,
       }),
+      Markdown,
       // S152B WP14 #16: `limit` removed. The previous `limit: wordLimit * 6`
       // caused Tiptap to silently truncate overflowing content from the FRONT
       // on every `setContent` — so a streamed AI draft that exceeded the cap
@@ -50,14 +54,20 @@ export function ResponseEditor({
         wordCounter: (text) => text.split(/\s+/).filter(Boolean).length,
       }),
       Placeholder.configure({ placeholder }),
-      UnderlineExt,
       LinkExt.configure({ openOnClick: false }),
+      // Table extensions are load-bearing — without them, @tiptap/markdown
+      // silently drops GFM tables at parse time (see content-editor.tsx:38-40).
+      Table.configure({ resizable: false }),
+      TableRow,
+      TableHeader,
+      TableCell,
     ],
     content,
+    contentType: 'markdown',
     editable: !readOnly,
     immediatelyRender: false,
     onUpdate: ({ editor: e }) => {
-      onChange(e.getHTML());
+      onChange(e.getMarkdown());
     },
   });
 
@@ -77,8 +87,8 @@ export function ResponseEditor({
 
   // Sync content from parent (e.g., when AI draft arrives)
   useEffect(() => {
-    if (editor && content !== editor.getHTML()) {
-      editor.commands.setContent(content);
+    if (editor && content !== editor.getMarkdown()) {
+      editor.commands.setContent(content, { contentType: 'markdown' });
     }
   }, [content, editor]);
 
@@ -87,7 +97,7 @@ export function ResponseEditor({
   const isUnderTarget = wordLimit ? wordCount < wordLimit * 0.7 : false;
 
   const handleSave = useCallback(() => {
-    onSave(editor?.getHTML() ?? '');
+    onSave(editor?.getMarkdown() ?? '');
   }, [editor, onSave]);
 
   // Ctrl+S / Cmd+S save shortcut

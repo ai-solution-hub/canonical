@@ -1,6 +1,39 @@
 import { z } from 'zod';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { FALLBACK_LAYERS } from '@/lib/client-config';
 import type { LayerDefinition } from '@/contexts/layer-vocabulary-context';
+import type { Database } from '@/supabase/types/database.types';
+
+// ---------------------------------------------------------------------------
+// Server-side layer fetch helper (DB-driven validation — P1-36)
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch active layer keys from the `layer_vocabulary` table.
+ *
+ * Returns `string[]` of `key` values ordered by `display_order` ASC.
+ * Throws on Supabase error or empty result — callers should catch and
+ * return 503 to the client.
+ *
+ * Uses the caller's authenticated Supabase client (respects RLS).
+ */
+export async function fetchActiveLayerKeys(
+  supabase: SupabaseClient<Database>,
+): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('layer_vocabulary')
+    .select('key')
+    .eq('is_active', true)
+    .order('display_order', { ascending: true });
+
+  if (error) {
+    throw new Error(`Layer vocabulary fetch failed: ${error.message}`);
+  }
+  if (!data || data.length === 0) {
+    throw new Error('No active layers found in layer_vocabulary');
+  }
+  return data.map((row) => row.key);
+}
 
 // ---------------------------------------------------------------------------
 // Static fallback keys (used by server-side code that cannot use React context)
@@ -37,7 +70,7 @@ function getMetadataUpdateBodySchema(layers?: LayerDefinition[]) {
   );
 }
 
-// Keep the static export for backward compatibility during migration
+// Test-only export; validates per-layer content shape, not layer key selection.
 export const MetadataUpdateBodySchema = getMetadataUpdateBodySchema();
 
 /**

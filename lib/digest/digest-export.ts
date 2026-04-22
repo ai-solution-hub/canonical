@@ -91,14 +91,15 @@ export function digestToMarkdown(
     }
   }
 
-  // KB Health (governance summary)
+  // Review activity this period (governance summary)
   if (digest.governance_summary) {
     const gs = digest.governance_summary;
-    lines.push('## KB Health');
+    lines.push('## Review Activity This Period');
     lines.push('');
-    lines.push(`- **Items Modified:** ${gs.items_modified}`);
-    lines.push(`- **Items Verified:** ${gs.items_verified}`);
-    lines.push(`- **Items Flagged:** ${gs.items_flagged}`);
+    const fmtDelta = (n: number) => (n > 0 ? `+${n}` : String(n));
+    lines.push(`- **Items modified:** ${fmtDelta(gs.items_modified)}`);
+    lines.push(`- **Items verified:** ${fmtDelta(gs.items_verified)}`);
+    lines.push(`- **Items flagged:** ${fmtDelta(gs.items_flagged)}`);
     if (gs.freshness_breakdown) {
       const fb = gs.freshness_breakdown;
       lines.push(

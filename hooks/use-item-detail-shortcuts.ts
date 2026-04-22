@@ -9,8 +9,6 @@ interface UseItemDetailShortcutsParams {
   handleStarToggle: () => void;
   handlePriorityCycle: () => void;
   toggleReader: () => void;
-  readerOpen: boolean;
-  toggleDetached: () => void;
   canEdit: boolean;
   /** Start inline editing a field (E key targets suggested_title) */
   startEdit: (field: string) => void;
@@ -35,7 +33,7 @@ interface UseItemDetailShortcutsParams {
  *  e — toggle inline edit: start suggested_title when idle, cancel when editing
  *  Escape — cancel current inline edit
  *  r — toggle reader panel (all modes)
- *  Shift+R — toggle detached reader (if open) or navigate to /review
+ *  Shift+R — navigate to /review
  *  Shift+D — toggle detail mode between reader and editor
  *
  * When in reader mode, editing shortcuts (E, S, P) are disabled.
@@ -47,8 +45,6 @@ export function useItemDetailShortcuts({
   handleStarToggle,
   handlePriorityCycle,
   toggleReader,
-  readerOpen,
-  toggleDetached,
   canEdit,
   startEdit,
   cancelEdit,
@@ -131,7 +127,7 @@ export function useItemDetailShortcuts({
         e.preventDefault();
         toggleReader();
       }
-      // Shift+R — toggle detached reader or navigate to /review
+      // Shift+R — navigate to /review
       if (
         e.key === 'R' &&
         e.shiftKey &&
@@ -140,11 +136,7 @@ export function useItemDetailShortcuts({
         !e.altKey
       ) {
         e.preventDefault();
-        if (readerOpen) {
-          toggleDetached();
-        } else {
-          router.push('/review');
-        }
+        router.push('/review');
       }
       // Shift+D — toggle detail mode (editor <-> reader)
       if (
@@ -169,8 +161,6 @@ export function useItemDetailShortcuts({
     handleStarToggle,
     handlePriorityCycle,
     toggleReader,
-    readerOpen,
-    toggleDetached,
     canEdit,
     startEdit,
     cancelEdit,
