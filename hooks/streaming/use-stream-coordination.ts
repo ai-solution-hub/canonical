@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDraftStream } from '@/hooks/streaming/use-draft-stream';
 import { useBidSession } from '@/hooks/bid/use-bid-session';
 import { useBidResponseActions } from '@/hooks/bid/use-bid-response-actions';
-import { responseToHtml } from '@/lib/markdown-to-html';
 import { queryKeys } from '@/lib/query/query-keys';
 import { toast } from 'sonner';
 import type { useContentLibraryDrawer } from '@/hooks/use-content-library-drawer';
@@ -258,10 +257,10 @@ export function useStreamCoordination({
       return;
     }
 
-    // Safe to sync.
-    const serverHtml = serverText !== null ? responseToHtml(serverText) : '';
-    setEditorContent(serverHtml);
-    lastServerContentRef.current = serverHtml;
+    // Safe to sync — feed markdown directly (no HTML bridge).
+    const serverMarkdown = serverText ?? '';
+    setEditorContent(serverMarkdown);
+    lastServerContentRef.current = serverMarkdown;
     lastSyncedServerTextRef.current = serverText;
   }, [
     response,
@@ -308,7 +307,7 @@ export function useStreamCoordination({
     // writes its current text into editor state — a legitimate subscription.
     if (elapsed >= 60) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- throttled sync of streamed text into editor state (external-system subscription)
-      setEditorContent(responseToHtml(stream.text));
+      setEditorContent(stream.text);
       lastEditorUpdateRef.current = now;
       return;
     }
@@ -316,7 +315,7 @@ export function useStreamCoordination({
     // Otherwise schedule an update
     if (rafRef.current !== null) return; // Already scheduled
     rafRef.current = window.requestAnimationFrame(() => {
-      setEditorContent(responseToHtml(streamTextRef.current));
+      setEditorContent(streamTextRef.current);
       lastEditorUpdateRef.current = Date.now();
       rafRef.current = null;
     });
@@ -334,19 +333,18 @@ export function useStreamCoordination({
   // ── Stream completion — final sync + cache invalidation ──
   useEffect(() => {
     if (stream.phase === 'done') {
-      // Final content sync — convert Markdown from AI to HTML for TipTap.
+      // Final content sync — feed markdown directly to editor state.
       // This is the terminal flush of a streamed external-system response
       // into editor state, so setState here is the documented exception.
       if (stream.text) {
-        const streamedHtml = responseToHtml(stream.text);
         // eslint-disable-next-line react-hooks/set-state-in-effect -- final flush of streamed text into editor state (external-system subscription)
-        setEditorContent(streamedHtml);
+        setEditorContent(stream.text);
         // Update lastServerContent so the sync effect can overwrite when
         // the invalidated response query returns with the server's stored
         // version of the streamed content. lastSyncedServerTextRef is left
         // as-is so the next response change (post-invalidation) triggers
         // a fresh sync via `serverText !== lastSyncedServerTextRef`.
-        lastServerContentRef.current = streamedHtml;
+        lastServerContentRef.current = stream.text;
       }
       // Invalidate cached data — TanStack refetches in the background
       queryClient.invalidateQueries({
