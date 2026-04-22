@@ -103,10 +103,9 @@ export function useBrowseFilters() {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Delegate core URL-reading and clearFilters to shared hook
-  const {
-    clearFilters: sharedClearFilters,
-  } = useUrlFilters<BrowseFilters>(BROWSE_FILTER_CONFIG);
+  // Initialise shared URL filter base — browse-specific overrides below handle
+  // the full filter lifecycle; the shared hook anchors the module dependency.
+  useUrlFilters<BrowseFilters>(BROWSE_FILTER_CONFIG);
 
   // Search query from URL (?q=) — browse-specific (not a filter dimension)
   const searchQuery = useMemo(
