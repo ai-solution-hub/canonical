@@ -58,13 +58,13 @@
 -- 14 Implementation         deployment        bid_detail            2           Deployment/rollout items
 -- 15 SLAs                   sla               company_reference     1           Service-level items
 -- 16 Integrations           integration       bid_detail            5           Integration-specific items
--- 17 Data Handling          data-protection   company_reference     0           CONTENT-POPULATION PENDING: data-protection items exist (18) but none at company_reference layer
+-- 17 Data Handling          data-protection   company_reference     0           CONTENT-POPULATION PENDING: 18 data-protection items exist in product-feature domain but none at company_reference layer (5 exist at company_reference in other domains; not visible to Product Guides whose domain_filter is product-feature)
 -- 18 Accessibility          usability         bid_detail           38           Accessibility/UX items at detail layer
 -- 19 Certifications         certification     company_reference     0           CONTENT-POPULATION PENDING: no certification items at company_reference layer yet
 --
 -- CONTENT-POPULATION PENDING sections (3 of 19, repeated across 3 guides = 9 of 57):
 --   - Pricing (#6): subtopic 'financial' is semantically correct; content at company_reference layer needs loading
---   - Data Handling (#17): subtopic 'data-protection' is semantically correct; 18 items exist but all at bid_detail/sales_brief layers
+--   - Data Handling (#17): subtopic 'data-protection' is semantically correct; 18 items in product-feature domain exist but all at bid_detail/sales_brief layers (5 items at company_reference exist only in other domains, not visible via product-feature domain_filter)
 --   - Certifications (#19): subtopic 'certification' is semantically correct; no certification-tagged items exist yet in product-feature domain
 --
 -- IDEMPOTENCY: Uses WHERE subtopic_filter IS NULL guard on each UPDATE
