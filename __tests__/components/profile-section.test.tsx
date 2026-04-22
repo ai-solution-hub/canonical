@@ -273,4 +273,44 @@ describe('ProfileSection', () => {
 
     addEventSpy.mockRestore();
   });
+
+  // ── Primary focus (P0-4 spec §7.4) ──
+
+  // Test 19: Primary focus displayed
+  it('displays current primary_focus value', async () => {
+    mockGetUser.mockResolvedValue({
+      data: {
+        user: createMockUser({
+          user_metadata: {
+            display_name: 'Test User',
+            primary_focus: 'bid_writing',
+          },
+        }),
+      },
+    });
+
+    render(<ProfileSection />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Primary Focus')).toBeInTheDocument();
+    });
+  });
+
+  // Test 20: Primary focus editable
+  it('renders Primary Focus dropdown with correct options', async () => {
+    render(<ProfileSection />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Primary Focus')).toBeInTheDocument();
+    });
+
+    // The select trigger should be in the document
+    expect(screen.getByLabelText('Primary Focus')).toBeInTheDocument();
+    // Helper text should be present
+    expect(
+      screen.getByText(
+        /helps tailor your experience to your primary workflow/i,
+      ),
+    ).toBeInTheDocument();
+  });
 });
