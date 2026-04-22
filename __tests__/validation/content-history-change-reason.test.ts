@@ -141,25 +141,40 @@ describe('content_history.change_reason guard (S153)', () => {
     );
   });
 
-  it('Python pipeline entry points call insert_content_history_entry (via shared helper)', () => {
-    // S185 WP-D centralised the insert_content_history_entry call inside
-    // scripts/kb_pipeline/post_insert.py::run_post_insert. Prior to S185
-    // each entry point (pipeline.py, ingest_markdown.py) called it inline;
-    // now they call run_post_insert which calls insert_content_history_entry
-    // with the canonical change_reason="initial_ingest". Guard updated to
-    // check the shared helper rather than every caller inline.
-    const helperPath = 'scripts/kb_pipeline/post_insert.py';
-    const content = readFileSync(path.join(REPO_ROOT, helperPath), 'utf-8');
+  it('Python pipeline v1-history is guaranteed by DB trigger (OPS-20 Step 1 no-op)', () => {
+    // S185 WP-D centralised v1-history in post_insert.py; S186 added
+    // DB trigger `trg_content_items_ensure_v1_history` (migration
+    // 20260422060118) as a backstop. OPS-20 (S188 WP2) made
+    // post_insert.py Step 1 a deliberate no-op because the trigger fires
+    // first at transaction commit, leaving the app-level INSERT to hit the
+    // UNIQUE (content_item_id, version) constraint and silent-fail.
+    //
+    // Guard intent: every Python ingest path produces exactly one v1
+    // `content_history` row. The guarantee now lives at the DB layer.
+    // This guard verifies: (a) the trigger migration exists and creates
+    // the trigger, (b) post_insert.py documents the no-op contract, and
+    // (c) callers still invoke run_post_insert so the broader pipeline
+    // (embedding / chunks / entities / temporal) still runs.
+    const triggerMigration = 'supabase/migrations/20260422060118_ensure_content_items_v1_history.sql';
+    const triggerContent = readFileSync(path.join(REPO_ROOT, triggerMigration), 'utf-8');
     expect(
-      content,
-      `${helperPath} should call insert_content_history_entry`,
-    ).toMatch(/insert_content_history_entry\(/);
-    expect(
-      content,
-      `${helperPath} should pass change_reason="initial_ingest"`,
-    ).toMatch(/change_reason\s*=\s*["']initial_ingest["']/);
+      triggerContent,
+      `${triggerMigration} should create trg_content_items_ensure_v1_history`,
+    ).toMatch(/trg_content_items_ensure_v1_history/);
 
-    // Callers must call run_post_insert (which routes through the helper).
+    const helperPath = 'scripts/kb_pipeline/post_insert.py';
+    const helperContent = readFileSync(path.join(REPO_ROOT, helperPath), 'utf-8');
+    expect(
+      helperContent,
+      `${helperPath} should document the OPS-20 Step 1 no-op`,
+    ).toMatch(/DELIBERATE NO-OP \(OPS-20\)/);
+    expect(
+      helperContent,
+      `${helperPath} should reference migration 20260422060118`,
+    ).toMatch(/20260422060118/);
+
+    // Callers must call run_post_insert (which still orchestrates embedding,
+    // chunking, entity extraction, temporal refs, etc.).
     for (const rel of [
       'scripts/kb_pipeline/pipeline.py',
       'scripts/ingest_markdown.py',

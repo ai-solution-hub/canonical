@@ -140,27 +140,16 @@ def run_post_insert(
     # Lazy imports — avoids circular deps with callers + lets optional
     # components (e.g. temporal_bridge) fail cleanly if missing.
     # ------------------------------------------------------------------
-    # Step 1: content_history v1
+    # Step 1: content_history v1 — DELIBERATE NO-OP (OPS-20)
+    #
+    # The DB trigger from migration 20260422060118 writes a v1
+    # content_history row with change_reason='auto_v1_on_insert' at
+    # transaction commit. Any app-level insert races and silent-fails
+    # on the UNIQUE(content_item_id, version) constraint, so Step 1
+    # is skipped for Python ingests. The trigger is the guarantee.
     # ------------------------------------------------------------------
     if write_history:
-        try:
-            from .store import insert_content_history_entry
-
-            summary = history_change_summary or (
-                f"Imported via {ingestion_source}"
-            )
-            insert_content_history_entry(
-                content_item_id=item_id,
-                title=title,
-                content=content,
-                change_summary=summary,
-                change_reason="initial_ingest",
-            )
-            result.history_ok = True
-        except Exception as e:
-            msg = f"history: {e}"
-            result.errors.append(msg)
-            log(f"{log_prefix}[History] ERROR (non-blocking): {e}")
+        result.history_ok = True  # v1 handled by DB trigger
 
     # ------------------------------------------------------------------
     # Step 2: chunks (REQUIRED for MCP retrieval — S181 regression root cause
