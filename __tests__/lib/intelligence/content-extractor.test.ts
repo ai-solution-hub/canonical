@@ -259,6 +259,113 @@ describe('extractContent', () => {
   });
 });
 
+describe('extractContent — Firecrawl resolvedUrl (S189 WP1)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns resolvedUrl from Firecrawl metadata.sourceURL when it differs from input URL', async () => {
+    const googleNewsUrl = 'https://news.google.com/rss/articles/CBMiX2h0dHBz';
+    const publisherUrl = 'https://www.farrer.co.uk/news/kcsie-2026-proposed-changes';
+    const item: ParsedFeedItem = {
+      ...baseItem,
+      url: googleNewsUrl,
+      contentEncoded: null,
+    };
+
+    // Tier 2 (fetch) fails — Google News redirects don't work with simple fetch
+    mockFetch.mockRejectedValueOnce(new Error('consent redirect'));
+    // Tier 2.5 (Jina) fails
+    mockFetch.mockRejectedValueOnce(new Error('jina failed'));
+
+    // Firecrawl mock returns HTML content with metadata.sourceURL
+    const { default: Firecrawl } = await import('@mendable/firecrawl-js');
+    const htmlContent = '<p>' + 'Publisher article content. '.repeat(100) + '</p>';
+    const mockScrape = vi.fn().mockResolvedValue({
+      html: htmlContent,
+      metadata: {
+        title: 'KCSIE 2026 Changes',
+        description: 'Proposed changes',
+        sourceURL: publisherUrl,
+        ogImage: 'https://www.farrer.co.uk/image.jpg',
+      },
+    });
+    vi.mocked(Firecrawl).mockImplementation(function () {
+      return { scrape: mockScrape } as any;
+    });
+
+    const result = await extractContent(item);
+    expect(result.method).toBe('firecrawl');
+    expect(result.resolvedUrl).toBe(publisherUrl);
+    expect(result.title).toBe('KCSIE 2026 Changes');
+  });
+
+  it('returns resolvedUrl as undefined when metadata.sourceURL is absent', async () => {
+    const item: ParsedFeedItem = {
+      ...baseItem,
+      url: 'https://example.com/article',
+      contentEncoded: null,
+    };
+
+    // Tier 2 (fetch) fails
+    mockFetch.mockRejectedValueOnce(new Error('fetch failed'));
+    // Tier 2.5 (Jina) fails
+    mockFetch.mockRejectedValueOnce(new Error('jina failed'));
+
+    // Firecrawl returns without sourceURL
+    const { default: Firecrawl } = await import('@mendable/firecrawl-js');
+    const htmlContent = '<p>' + 'Article content here. '.repeat(100) + '</p>';
+    const mockScrape = vi.fn().mockResolvedValue({
+      html: htmlContent,
+      metadata: { title: 'Test Title' },
+    });
+    vi.mocked(Firecrawl).mockImplementation(function () {
+      return { scrape: mockScrape } as any;
+    });
+
+    const result = await extractContent(item);
+    expect(result.method).toBe('firecrawl');
+    expect(result.resolvedUrl).toBeUndefined();
+  });
+
+  it('returns resolvedUrl as undefined when metadata.sourceURL equals input URL', async () => {
+    const articleUrl = 'https://example.com/article';
+    const item: ParsedFeedItem = {
+      ...baseItem,
+      url: articleUrl,
+      contentEncoded: null,
+    };
+
+    // Tier 2 (fetch) fails
+    mockFetch.mockRejectedValueOnce(new Error('fetch failed'));
+    // Tier 2.5 (Jina) fails
+    mockFetch.mockRejectedValueOnce(new Error('jina failed'));
+
+    // Firecrawl returns sourceURL same as input
+    const { default: Firecrawl } = await import('@mendable/firecrawl-js');
+    const htmlContent = '<p>' + 'Content here. '.repeat(100) + '</p>';
+    const mockScrape = vi.fn().mockResolvedValue({
+      html: htmlContent,
+      metadata: { title: 'Test Title', sourceURL: articleUrl },
+    });
+    vi.mocked(Firecrawl).mockImplementation(function () {
+      return { scrape: mockScrape } as any;
+    });
+
+    const result = await extractContent(item);
+    expect(result.method).toBe('firecrawl');
+    expect(result.resolvedUrl).toBeUndefined();
+  });
+
+  it('does not include resolvedUrl for non-Firecrawl extraction tiers', async () => {
+    // Tier 1 (RSS content:encoded) should not have resolvedUrl
+    const item = { ...baseItem, contentEncoded: 'Word '.repeat(150) };
+    const result = await extractContent(item);
+    expect(result.method).toBe('rss_content');
+    expect(result.resolvedUrl).toBeUndefined();
+  });
+});
+
 describe('normaliseUrl', () => {
   it('lowercases hostname', () => {
     expect(normaliseUrl('https://WWW.GOV.UK/page')).toBe(

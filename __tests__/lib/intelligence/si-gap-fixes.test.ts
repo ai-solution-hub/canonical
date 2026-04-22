@@ -13,8 +13,8 @@ vi.mock('@/lib/intelligence/feed-poller', () => ({
 vi.mock('@/lib/intelligence/content-extractor', () => ({
   extractContent: vi.fn(),
   normaliseUrl: vi.fn((url: string) => url),
-  resolveGoogleNewsUrl: vi.fn(async (url: string) => url),
   isGoogleNewsUrl: vi.fn(() => false),
+  checkFirecrawlApiKey: vi.fn(),
 }));
 vi.mock('@/lib/intelligence/relevance-scorer', () => ({
   embeddingPreFilter: vi.fn(),
@@ -101,7 +101,7 @@ describe('SI-L5: Workspace-Level Scoring Threshold', () => {
   it('passes workspace threshold to scoreRelevance', async () => {
     const { processFeedSource } = await import('@/lib/intelligence/pipeline');
     const { pollFeed } = await import('@/lib/intelligence/feed-poller');
-    const { extractContent, resolveGoogleNewsUrl } = await import(
+    const { extractContent } = await import(
       '@/lib/intelligence/content-extractor'
     );
     const { embeddingPreFilter, scoreRelevance } = await import(
@@ -125,10 +125,6 @@ describe('SI-L5: Workspace-Level Scoring Threshold', () => {
       etag: null,
       lastModified: null,
     });
-
-    vi.mocked(resolveGoogleNewsUrl).mockResolvedValue(
-      'https://example.com/article',
-    );
 
     vi.mocked(extractContent).mockResolvedValue({
       content: 'Long content '.repeat(50),
@@ -222,7 +218,7 @@ describe('SI-L5: Workspace-Level Scoring Threshold', () => {
   it('uses default threshold when not specified', async () => {
     const { processFeedSource } = await import('@/lib/intelligence/pipeline');
     const { pollFeed } = await import('@/lib/intelligence/feed-poller');
-    const { extractContent, resolveGoogleNewsUrl } = await import(
+    const { extractContent } = await import(
       '@/lib/intelligence/content-extractor'
     );
     const { embeddingPreFilter, scoreRelevance } = await import(
@@ -246,10 +242,6 @@ describe('SI-L5: Workspace-Level Scoring Threshold', () => {
       etag: null,
       lastModified: null,
     });
-
-    vi.mocked(resolveGoogleNewsUrl).mockResolvedValue(
-      'https://example.com/article2',
-    );
 
     vi.mocked(extractContent).mockResolvedValue({
       content: 'Long content '.repeat(50),
