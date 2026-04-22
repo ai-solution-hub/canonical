@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
 import { toast } from 'sonner';
@@ -20,6 +20,12 @@ import type {
 import type { TenderExtractedMetadata } from '@/types/bid-metadata';
 
 type Tab = 'overview' | 'questions' | 'documents';
+
+const VALID_TABS: readonly Tab[] = ['overview', 'questions', 'documents'];
+
+function isValidTab(value: string | null): value is Tab {
+  return value !== null && VALID_TABS.includes(value as Tab);
+}
 
 interface ExtractedQuestion {
   section_name: string;
@@ -261,14 +267,35 @@ function useQuestionExtraction(
 
 export function useBidActions({ id }: UseBidActionsParams) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const queryClient = useQueryClient();
 
   // Data fetching (TanStack Query)
   const { bid, questions, stats, loading, fetchBid, fetchQuestions } =
     useBidData(id);
 
-  // Tab state (kept here as it bridges data and extraction concerns)
-  const [activeTab, setActiveTab] = useState<Tab>('overview');
+  // Tab state — derived from URL ?tab= param for deep-link and refresh support
+  const tabParam = searchParams.get('tab');
+  const activeTab: Tab = useMemo(
+    () => (isValidTab(tabParam) ? tabParam : 'overview'),
+    [tabParam],
+  );
+
+  const setActiveTab = useCallback(
+    (tab: Tab) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (tab === 'overview') {
+        params.delete('tab');
+      } else {
+        params.set('tab', tab);
+      }
+      const search = params.toString();
+      const newPath = search ? `${pathname}?${search}` : pathname;
+      router.replace(newPath);
+    },
+    [searchParams, pathname, router],
+  );
 
   // Status transitions (useMutation)
   const { transitioning, handleStatusTransition } = useBidTransitions(
