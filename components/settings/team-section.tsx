@@ -211,7 +211,10 @@ function TeamMemberRow({
   onDeactivate: (userId: string) => void;
 }) {
   return (
-    <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-4">
+    <div
+      role="listitem"
+      className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-4"
+    >
       {/* Avatar + identity */}
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium uppercase text-muted-foreground">

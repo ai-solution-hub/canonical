@@ -73,6 +73,13 @@ const MOCK_USERS = [
 
 let fetchMock: Mock;
 
+// Radix Select needs these pointer shims in jsdom
+beforeEach(() => {
+  Element.prototype.hasPointerCapture = vi.fn(() => false);
+  Element.prototype.releasePointerCapture = vi.fn();
+  Element.prototype.scrollIntoView = vi.fn();
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   mockGetUser.mockResolvedValue({
@@ -153,6 +160,35 @@ describe('TeamSection — Invite flow', () => {
     });
   });
 
+  it('shows error toast when invite fails', async () => {
+    const { toast } = await import('sonner');
+    const user = userEvent.setup();
+    render(<TeamSection />);
+    await screen.findByText('Admin User');
+
+    await user.click(screen.getByRole('button', { name: /invite user/i }));
+    await user.type(
+      screen.getByLabelText('Email Address'),
+      'fail@example.com',
+    );
+
+    fetchMock.mockImplementation(async (url: string, _opts?: RequestInit) => {
+      if (url === '/api/admin/users/invite') {
+        return {
+          ok: false,
+          json: async () => ({ error: 'User already exists' }),
+        };
+      }
+      return { ok: true, json: async () => MOCK_USERS };
+    });
+
+    await user.click(screen.getByRole('button', { name: /send invitation/i }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalled();
+    });
+  });
+
   it('shows warning toast when invite has warnings', async () => {
     const { toast } = await import('sonner');
     const user = userEvent.setup();
@@ -225,6 +261,44 @@ describe('TeamSection — Role change', () => {
     });
     expect(roleSelect).toBeInTheDocument();
     expect(roleSelect).toHaveTextContent('Viewer');
+  });
+
+  it('fires PATCH when role is changed for another user', async () => {
+    const user = userEvent.setup();
+    render(<TeamSection />);
+    await screen.findByText('Admin User');
+
+    fetchMock.mockImplementation(async (url: string, opts?: RequestInit) => {
+      if (
+        typeof url === 'string' &&
+        url === `/api/admin/users/${OTHER_USER_ID}` &&
+        opts?.method === 'PATCH'
+      ) {
+        return { ok: true, json: async () => ({}) };
+      }
+      if (url === '/api/admin/users') {
+        return { ok: true, json: async () => MOCK_USERS };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+
+    const roleSelect = screen.getByRole('combobox', {
+      name: /role for editor user/i,
+    });
+    await user.click(roleSelect);
+
+    const adminOption = await screen.findByRole('option', { name: /admin/i });
+    await user.click(adminOption);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/admin/users/${OTHER_USER_ID}`,
+        expect.objectContaining({
+          method: 'PATCH',
+          body: expect.stringContaining('"role":"admin"'),
+        }),
+      );
+    });
   });
 });
 
