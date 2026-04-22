@@ -1,8 +1,11 @@
 /**
  * SettingsSidebar Component Tests
  *
- * Covers admin gating + section resolution for reviewer-assignments entry
- * (P0-7 WP3). Also regression-guards the System-group nav position.
+ * Covers:
+ * - Admin gating + section resolution for reviewer-assignments entry (P0-7 WP3)
+ * - System-group nav position regression guard
+ * - P1-20: Developer Setup sidebar entry removed; legacy deep-link redirects to connections
+ * - Sidebar nav entry count for admin vs non-admin
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -21,7 +24,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// getValidSection — reviewer-assignments resolution
+// getValidSection — section resolution
 // ---------------------------------------------------------------------------
 
 describe('getValidSection — reviewer-assignments', () => {
@@ -38,6 +41,63 @@ describe('getValidSection — reviewer-assignments', () => {
   it('falls back to profile for unknown sections regardless of role', () => {
     expect(getValidSection('unknown-section', true)).toBe('profile');
     expect(getValidSection('unknown-section', false)).toBe('profile');
+  });
+});
+
+describe('getValidSection — developer-setup legacy redirect', () => {
+  it('maps legacy developer-setup to connections for admin users', () => {
+    expect(getValidSection('developer-setup', true)).toBe('connections');
+  });
+
+  it('maps legacy developer-setup to connections for non-admin users', () => {
+    expect(getValidSection('developer-setup', false)).toBe('connections');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SettingsSidebar — nav entry count and labels
+// ---------------------------------------------------------------------------
+
+describe('SettingsSidebar — nav entry count', () => {
+  it('renders 10 nav entries for admin users (no Developer Setup)', () => {
+    render(
+      <SettingsSidebar
+        isAdmin
+        activeSection="profile"
+        onSectionChange={vi.fn()}
+      />,
+    );
+    const nav = screen.getByRole('navigation', {
+      name: 'Settings navigation',
+    });
+    const buttons = nav.querySelectorAll('button');
+    expect(buttons).toHaveLength(10);
+  });
+
+  it('renders 2 nav entries for non-admin users (Profile + Connections)', () => {
+    render(
+      <SettingsSidebar
+        isAdmin={false}
+        activeSection="profile"
+        onSectionChange={vi.fn()}
+      />,
+    );
+    const nav = screen.getByRole('navigation', {
+      name: 'Settings navigation',
+    });
+    const buttons = nav.querySelectorAll('button');
+    expect(buttons).toHaveLength(2);
+  });
+
+  it('does not have a Developer Setup entry for admin users', () => {
+    render(
+      <SettingsSidebar
+        isAdmin
+        activeSection="profile"
+        onSectionChange={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText('Developer Setup')).not.toBeInTheDocument();
   });
 });
 
