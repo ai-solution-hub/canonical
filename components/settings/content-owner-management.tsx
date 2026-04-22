@@ -121,11 +121,12 @@ export function ContentOwnerManagement() {
       const response = await fetch('/api/users/display-names', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_ids: roles.map((r) => r.user_id) }),
+        body: JSON.stringify({ ids: roles.map((r) => r.user_id) }),
       });
 
-      const nameData = response.ok ? await response.json() : {};
-      const names: Record<string, string> = nameData.display_names ?? {};
+      const names: Record<string, string> = response.ok
+        ? await response.json()
+        : {};
 
       setTeamMembers(
         roles.map((r) => ({
