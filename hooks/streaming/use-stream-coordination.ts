@@ -12,15 +12,19 @@ import type { ResponseAction } from '@/components/bid/response-actions';
 import type { BidQuestion, BidMetadata, ConfidencePosture } from '@/types/bid';
 import type { CitationEntry, QualityData } from '@/types/bid-metadata';
 
-// ── HTML comparison helper (exported for tests) ──
+// ── Content comparison helper (exported for tests) ──
 
 /**
- * Normalises HTML for equality comparison by stripping markup and
- * collapsing whitespace. Used to detect whether the user has genuinely
- * edited the editor content versus whether the difference between
- * `editorContent` and `lastServerContentRef.current` is just cosmetic
- * (Tiptap serialisation differences, `marked.parse` vs Tiptap HTML
- * structure, attribute ordering, HTML entity encoding, etc.).
+ * Normalises content (markdown or legacy HTML) for equality comparison
+ * by stripping any residual markup and collapsing whitespace. Used to
+ * detect whether the user has genuinely edited the editor content versus
+ * whether the difference between `editorContent` and
+ * `lastServerContentRef.current` is just cosmetic (Tiptap serialisation
+ * differences, whitespace normalisation, etc.).
+ *
+ * Since WP4A (S182), the editor stores and transmits markdown — the HTML
+ * stripping regexes are retained as a no-op safety net for any legacy
+ * content that may still flow through the sync path.
  *
  * Trade-off: a pure text comparison cannot detect formatting-only
  * edits (e.g. user bolds a word without changing the text). In the
@@ -38,8 +42,8 @@ import type { CitationEntry, QualityData } from '@/types/bid-metadata';
  * every subsequent server update permanently blocked — and the initial
  * hydration on reload likewise failed.
  */
-export function normaliseHtmlForComparison(html: string): string {
-  const text = html
+export function normaliseForComparison(content: string): string {
+  const text = content
     // Replace block-level closing tags with a space to preserve word boundaries
     .replace(/<\/(p|div|h[1-6]|li|br)>/gi, ' ')
     .replace(/<br\s*\/?>/gi, ' ')
@@ -245,12 +249,12 @@ export function useStreamCoordination({
     if (serverText === lastSyncedServerTextRef.current) return;
 
     // Server has new content — detect whether the user has edited since the
-    // last sync. We compare via `normaliseHtmlForComparison` because the raw
+    // last sync. We compare via `normaliseForComparison` because the raw
     // HTML we previously stored in `lastServerContentRef` differs from the
     // normalised HTML Tiptap produces via its `onUpdate` callback.
     if (
-      normaliseHtmlForComparison(editorContent) !==
-      normaliseHtmlForComparison(lastServerContentRef.current)
+      normaliseForComparison(editorContent) !==
+      normaliseForComparison(lastServerContentRef.current)
     ) {
       // User has edits — skip the sync to preserve them. Leave
       // `lastSyncedServerTextRef` stale so the next response change retries.
