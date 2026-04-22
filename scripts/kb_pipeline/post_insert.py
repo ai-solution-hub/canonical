@@ -71,6 +71,7 @@ class PostInsertResult:
     temporal_refs_stored: int = 0
     bridged: int = 0
     layer_set: str | None = None
+    progressive_depth_ok: bool = False
     errors: list[str] = field(default_factory=list)
 
 
@@ -89,6 +90,10 @@ def run_post_insert(
     write_temporal: bool = True,
     bridge_temporal: bool = True,
     infer_layer_flag: bool = True,
+    generate_progressive_depth_flag: bool = False,
+    question_text: str | None = None,
+    answer_standard: str | None = None,
+    answer_advanced: str | None = None,
     log_prefix: str = "  ",
     logger=None,
 ) -> PostInsertResult:
@@ -115,6 +120,14 @@ def run_post_insert(
     write_temporal, bridge_temporal, infer_layer_flag : bool
         Per-step opt-outs. All default True — disable only when a specific
         script can't run a given step (e.g. a dry-run partial mode).
+    generate_progressive_depth_flag : bool
+        Whether to generate progressive-depth columns (brief, detail,
+        reference) for q_a_pair content items. Defaults to False — enable
+        only from the bid library importer. Requires question_text +
+        answer_standard to produce output.
+    question_text, answer_standard, answer_advanced : str, optional
+        Raw Q&A fields for progressive-depth generation. Required when
+        generate_progressive_depth_flag is True.
     log_prefix : str
         Prefix applied to every log line. Scripts passing `"  "` get a
         two-space indent to match their existing output.
@@ -292,5 +305,50 @@ def run_post_insert(
             msg = f"layer: {e}"
             result.errors.append(msg)
             log(f"{log_prefix}[Layer]   ERROR (non-blocking): {e}")
+
+    # ------------------------------------------------------------------
+    # Step 9: progressive-depth columns (brief, detail, reference)
+    #
+    # Only for q_a_pair rows. Populates the completeness dimension of
+    # the quality score. Uses AI generation with deterministic fallback.
+    # Gated behind generate_progressive_depth_flag (default False) to
+    # avoid running on non-Q&A ingest paths.
+    # ------------------------------------------------------------------
+    if generate_progressive_depth_flag and content_type == "q_a_pair":
+        if question_text and answer_standard:
+            try:
+                from .progressive_depth import generate_progressive_depth
+                from .store import update_content_item
+
+                depth_result = generate_progressive_depth(
+                    question_text=question_text,
+                    answer_standard=answer_standard,
+                    answer_advanced=answer_advanced,
+                    content_type=content_type,
+                    use_ai=True,
+                )
+                if depth_result is not None:
+                    update_content_item(item_id, depth_result)
+                    result.progressive_depth_ok = True
+                    log(
+                        f"{log_prefix}[Depth]   "
+                        f"brief={len(depth_result['brief'])}c, "
+                        f"detail={len(depth_result['detail'])}c, "
+                        f"reference={len(depth_result['reference'])}c"
+                    )
+                else:
+                    log(
+                        f"{log_prefix}[Depth]   "
+                        f"Skipped — insufficient content for generation"
+                    )
+            except Exception as e:
+                msg = f"progressive_depth: {e}"
+                result.errors.append(msg)
+                log(f"{log_prefix}[Depth]   ERROR (non-blocking): {e}")
+        else:
+            log(
+                f"{log_prefix}[Depth]   "
+                f"Skipped — missing question_text or answer_standard"
+            )
 
     return result

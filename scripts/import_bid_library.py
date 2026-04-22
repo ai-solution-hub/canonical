@@ -688,6 +688,10 @@ def main():
                         bridge_temporal=False,
                         write_temporal=False,
                         infer_layer_flag=False,
+                        generate_progressive_depth_flag=True,
+                        question_text=pair.get("question_text", ""),
+                        answer_standard=pair.get("answer_standard"),
+                        answer_advanced=pair.get("answer_advanced"),
                     )
                     chunk_success += pi.chunks_stored
                     if not chunking_enabled:

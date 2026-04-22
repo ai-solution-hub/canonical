@@ -32,7 +32,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 @pytest.fixture
 def mock_kb_pipeline_modules(monkeypatch):
-    """Replace the 8 kb_pipeline sub-modules the helper lazily imports.
+    """Replace the 9 kb_pipeline sub-modules the helper lazily imports.
 
     Each mock returns deterministic values and records calls. The helper
     uses ``from .store import insert_content_history_entry`` style imports
@@ -73,12 +73,24 @@ def mock_kb_pipeline_modules(monkeypatch):
     )
     monkeypatch.setitem(sys.modules, "kb_pipeline.layer_inference", layer)
 
+    # progressive_depth — generate_progressive_depth
+    progressive_depth = sys.modules.get("kb_pipeline.progressive_depth") or SimpleNamespace()
+    progressive_depth.generate_progressive_depth = MagicMock(
+        return_value={
+            "brief": "Test brief.",
+            "detail": "Test detail.",
+            "reference": "Test reference.",
+        }
+    )
+    monkeypatch.setitem(sys.modules, "kb_pipeline.progressive_depth", progressive_depth)
+
     return SimpleNamespace(
         store=store,
         chunk=chunk,
         classify=classify,
         bridge=bridge,
         layer=layer,
+        progressive_depth=progressive_depth,
     )
 
 
@@ -167,6 +179,7 @@ class TestDefaults:
         assert r.temporal_refs_stored == 0
         assert r.bridged == 0
         assert r.layer_set is None
+        assert r.progressive_depth_ok is False
         assert r.errors == []
 
 
@@ -502,3 +515,167 @@ class TestHistoryChangeSummary:
         mock_kb_pipeline_modules.store.insert_content_history_entry.assert_not_called()
         # history_ok is True because the DB trigger guarantees v1
         assert result.history_ok is True
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Progressive-depth generation (Step 9)
+# ──────────────────────────────────────────────────────────────────────
+
+
+class TestProgressiveDepth:
+    """Step 9: progressive-depth column generation for q_a_pair items.
+
+    Gated behind generate_progressive_depth_flag (default False). When True
+    and content_type == 'q_a_pair', calls generate_progressive_depth() and
+    updates the row via update_content_item().
+    """
+
+    def test_flag_false_skips_progressive_depth(self, mock_kb_pipeline_modules):
+        """Default flag=False means progressive_depth is never called."""
+        from kb_pipeline.post_insert import run_post_insert
+
+        result = run_post_insert(
+            item_id="x",
+            title="t",
+            content="c",
+            content_type="q_a_pair",
+            ingestion_source="bid_library_import",
+            question_text="What is X?",
+            answer_standard="Answer.",
+        )
+        assert result.progressive_depth_ok is False
+        mock_kb_pipeline_modules.progressive_depth.generate_progressive_depth.assert_not_called()
+
+    def test_flag_true_runs_progressive_depth(self, mock_kb_pipeline_modules):
+        """Flag=True + q_a_pair content type triggers generation + update."""
+        from kb_pipeline.post_insert import run_post_insert
+
+        result = run_post_insert(
+            item_id="item-pd-1",
+            title="t",
+            content="c",
+            content_type="q_a_pair",
+            ingestion_source="bid_library_import",
+            generate_progressive_depth_flag=True,
+            question_text="What is ISO 27001?",
+            answer_standard="ISO 27001 is a standard.",
+            answer_advanced="Advanced certification details.",
+        )
+        assert result.progressive_depth_ok is True
+        mock_kb_pipeline_modules.progressive_depth.generate_progressive_depth.assert_called_once_with(
+            question_text="What is ISO 27001?",
+            answer_standard="ISO 27001 is a standard.",
+            answer_advanced="Advanced certification details.",
+            content_type="q_a_pair",
+            use_ai=True,
+        )
+        # update_content_item called twice: once for layer, once for depth
+        # (layer runs first because infer_layer_flag defaults True)
+        depth_update_call = None
+        for call in mock_kb_pipeline_modules.store.update_content_item.call_args_list:
+            args, kwargs = call
+            if len(args) >= 2 and "brief" in args[1]:
+                depth_update_call = call
+                break
+        assert depth_update_call is not None
+
+    def test_flag_true_non_qa_skipped(self, mock_kb_pipeline_modules):
+        """Flag=True but content_type=article → no progressive depth."""
+        from kb_pipeline.post_insert import run_post_insert
+
+        result = run_post_insert(
+            item_id="x",
+            title="t",
+            content="c",
+            content_type="article",
+            ingestion_source="test",
+            generate_progressive_depth_flag=True,
+            question_text="What?",
+            answer_standard="Answer.",
+        )
+        assert result.progressive_depth_ok is False
+        mock_kb_pipeline_modules.progressive_depth.generate_progressive_depth.assert_not_called()
+
+    def test_missing_question_text_skipped(self, mock_kb_pipeline_modules):
+        """Flag=True but no question_text → skipped with log."""
+        from kb_pipeline.post_insert import run_post_insert
+
+        logs: list[str] = []
+        result = run_post_insert(
+            item_id="x",
+            title="t",
+            content="c",
+            content_type="q_a_pair",
+            ingestion_source="test",
+            generate_progressive_depth_flag=True,
+            question_text=None,
+            answer_standard="Answer.",
+            logger=logs.append,
+        )
+        assert result.progressive_depth_ok is False
+        assert any("missing" in log.lower() for log in logs)
+
+    def test_generation_error_captured(self, mock_kb_pipeline_modules):
+        """Exception in generate_progressive_depth is caught, not raised."""
+        from kb_pipeline.post_insert import run_post_insert
+
+        mock_kb_pipeline_modules.progressive_depth.generate_progressive_depth.side_effect = (
+            RuntimeError("depth boom")
+        )
+        result = run_post_insert(
+            item_id="x",
+            title="t",
+            content="c",
+            content_type="q_a_pair",
+            ingestion_source="test",
+            generate_progressive_depth_flag=True,
+            question_text="What?",
+            answer_standard="Answer.",
+        )
+        assert result.progressive_depth_ok is False
+        assert any("progressive_depth" in e for e in result.errors)
+
+    def test_generation_returns_none_no_update(self, mock_kb_pipeline_modules):
+        """When generate_progressive_depth returns None, no DB update occurs."""
+        from kb_pipeline.post_insert import run_post_insert
+
+        mock_kb_pipeline_modules.progressive_depth.generate_progressive_depth.return_value = None
+        # Reset update_content_item call count (layer step may call it)
+        mock_kb_pipeline_modules.store.update_content_item.reset_mock()
+
+        logs: list[str] = []
+        result = run_post_insert(
+            item_id="x",
+            title="t",
+            content="c",
+            content_type="q_a_pair",
+            ingestion_source="test",
+            generate_progressive_depth_flag=True,
+            question_text="What?",
+            answer_standard="Answer.",
+            infer_layer_flag=False,
+            logger=logs.append,
+        )
+        assert result.progressive_depth_ok is False
+        # update_content_item should NOT have been called (layer disabled too)
+        mock_kb_pipeline_modules.store.update_content_item.assert_not_called()
+        assert any("insufficient" in log.lower() or "skipped" in log.lower() for log in logs)
+
+    def test_does_not_affect_other_steps(self, mock_kb_pipeline_modules):
+        """Progressive depth does not interfere with existing steps."""
+        from kb_pipeline.post_insert import run_post_insert
+
+        result = run_post_insert(
+            item_id="x",
+            title="t",
+            content="c",
+            content_type="q_a_pair",
+            ingestion_source="test",
+            generate_progressive_depth_flag=True,
+            question_text="What?",
+            answer_standard="Answer.",
+        )
+        # Other steps still run
+        assert result.chunks_stored == 3
+        assert result.layer_set == "content"
+        assert result.errors == []
