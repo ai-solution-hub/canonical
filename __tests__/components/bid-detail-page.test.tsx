@@ -181,6 +181,13 @@ vi.mock('@/components/bid/question-review', () => ({
   QuestionReview: () => <div data-testid="question-review">QuestionReview</div>,
 }));
 
+vi.mock('@/components/bid/readiness-checklist', () => ({
+  ReadinessChecklist: () => (
+    <div data-testid="readiness-checklist">Submission Readiness</div>
+  ),
+  ReadinessBadge: () => null,
+}));
+
 vi.mock('@/components/bid/tender-upload', () => ({
   TenderUpload: () => <div data-testid="tender-upload">TenderUpload</div>,
 }));
@@ -818,6 +825,50 @@ describe('BidDetailPage', () => {
         screen.queryByText('Start answering questions'),
       ).not.toBeInTheDocument();
       expect(screen.queryByText('Review responses')).not.toBeInTheDocument();
+    });
+  });
+
+  // ---- P1-3 Overview tab thin-out ----
+
+  describe('Overview tab thin-out (P1-3)', () => {
+    it('does not render Knowledge-based Drafting card on Overview', () => {
+      mockUseBidActions.mockReturnValue(
+        makeDefaultHookReturn({
+          activeTab: 'overview',
+          bidStatus: 'drafting',
+          totalQuestions: 10,
+          stats: makeStats(),
+        }),
+      );
+      renderWithQuery(<BidDetailPage params={mockParams} />);
+      expect(
+        screen.queryByText('Knowledge-based Drafting'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('still renders NextActionCard on Overview', () => {
+      mockUseBidActions.mockReturnValue(
+        makeDefaultHookReturn({
+          activeTab: 'overview',
+          bidStatus: 'drafting',
+        }),
+      );
+      renderWithQuery(<BidDetailPage params={mockParams} />);
+      expect(
+        screen.getByText('Start answering questions'),
+      ).toBeInTheDocument();
+    });
+
+    it('still renders Submission Readiness on Overview', () => {
+      mockUseBidActions.mockReturnValue(
+        makeDefaultHookReturn({
+          activeTab: 'overview',
+          bidStatus: 'drafting',
+          totalQuestions: 10,
+        }),
+      );
+      renderWithQuery(<BidDetailPage params={mockParams} />);
+      expect(screen.getByTestId('readiness-checklist')).toBeInTheDocument();
     });
   });
 });
