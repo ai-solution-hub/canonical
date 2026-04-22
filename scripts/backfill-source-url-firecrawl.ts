@@ -233,13 +233,25 @@ async function main() {
       console.log(`         Resolved: ${publisherUrl}`);
 
       if (APPLY) {
-        const { error: updateError } = await supabase
+        // CLAUDE.md Gotcha: REST PATCH returns 200 OK with 0 rows on UUID
+        // mismatch. Include .select() to verify exactly one row was
+        // written — silent 0-row writes would leave Google News URLs in
+        // place and mask the backfill.
+        const { data: updated, error: updateError } = await supabase
           .from('content_items')
           .update({ source_url: publisherUrl })
-          .eq('id', item.id);
+          .eq('id', item.id)
+          .select('id');
 
         if (updateError) {
           console.log(`         ERROR: update failed — ${updateError.message}`);
+          failed++;
+          continue;
+        }
+        if (!updated || updated.length !== 1) {
+          console.log(
+            `         ERROR: update matched ${updated?.length ?? 0} rows (expected 1) — row may have been deleted or UUID mismatch`,
+          );
           failed++;
           continue;
         }
