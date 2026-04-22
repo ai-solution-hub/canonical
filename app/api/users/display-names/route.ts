@@ -30,7 +30,13 @@ export async function POST(request: NextRequest) {
     const auth = await getAuthenticatedClient();
     if (!auth.success) return authFailureResponse(auth);
 
-    const raw = await request.json();
+    const raw = await request.json().catch((_err) => null);
+    if (raw === null) {
+      return NextResponse.json(
+        { error: 'Request body must be valid JSON with an `ids` array.' },
+        { status: 400 },
+      );
+    }
     const parsed = parseBody(DisplayNamesBodySchema, raw);
     if (!parsed.success) return parsed.response;
 

@@ -182,20 +182,12 @@ describe('Golden Path Real DB Integration (Phase 3b)', () => {
     expect(error).toBeNull();
     expect(entities).toBeTruthy();
 
-    // KNOWN ISSUE: The entity_mentions upsert in classify.ts uses
-    // onConflict: 'canonical_name,entity_type,content_item_id' but
-    // there may be no matching unique constraint (error 42P10). If entity
-    // storage failed silently, we get 0 rows. Log the finding but still
-    // assert the expected behaviour.
-    if (entities!.length === 0) {
-      console.warn(
-        '[REAL BUG FOUND] entity_mentions has 0 rows for the classified item. ' +
-          'This is likely caused by missing unique constraint on ' +
-          '(canonical_name, entity_type, content_item_id). ' +
-          'Check classify.ts upsert and entity_mentions table constraints.',
-      );
-    }
-
+    // Audited S186 — `entity_mentions` rows follow a successful Step 2
+    // classify. Unique constraint
+    // `entity_mentions_canonical_name_entity_type_content_item_id_key` is in
+    // place; the earlier `[REAL BUG FOUND]` warning (removed) was a red
+    // herring caused by a cascade from a stale hardcoded UUID in Step 2.
+    // See `docs/audits/entity-mentions-step3-investigation-2026-04-22.md`.
     expect(entities!.length).toBeGreaterThanOrEqual(1);
 
     // At least one certification entity
