@@ -7,7 +7,6 @@ import {
   FolderTree,
   Menu,
   Plug,
-  Terminal,
   Network,
   BookOpen,
   UserCheck,
@@ -41,8 +40,7 @@ export type SettingsSection =
   | 'team'
   | 'governance'
   | 'reviewer-assignments'
-  | 'provenance'
-  | 'developer-setup';
+  | 'provenance';
 
 interface SectionDef {
   id: SettingsSection;
@@ -95,12 +93,6 @@ const ALL_SECTIONS: SectionDef[] = [
     group: 'system',
     href: '/provenance',
   },
-  {
-    id: 'developer-setup',
-    label: 'Developer Setup',
-    icon: Terminal,
-    group: 'system',
-  },
 ];
 
 const GROUP_LABELS: Record<string, string> = {
@@ -126,6 +118,7 @@ const LEGACY_SECTION_MAP: Record<string, SettingsSection> = {
   tags: 'content-organisation',
   layers: 'content-organisation',
   integrations: 'connections',
+  'developer-setup': 'connections',
 };
 
 export function getValidSection(
