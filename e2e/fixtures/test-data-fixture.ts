@@ -216,9 +216,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
 
       const bidDeadline = new Date(
         now + FRESHNESS_OFFSETS.FOURTEEN_DAYS_FUTURE_MS,
-      )
-        .toISOString()
-        .split('T')[0];
+      ).toISOString();
       const workspaceShapes = buildCoreWorkspaces(bidDeadline);
       const workspaceInserts = workspaceShapes.map((shape) => ({
         ...shape,
