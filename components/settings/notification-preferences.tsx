@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Bell } from 'lucide-react';
+import { Loader2, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -96,7 +96,7 @@ export function NotificationPreferences() {
   return (
     <Card className="p-6">
       <h3 className="mb-1 flex items-center gap-1.5 text-base font-semibold">
-        <Bell className="size-4 text-muted-foreground" aria-hidden="true" />
+        <Mail className="size-4 text-muted-foreground" aria-hidden="true" />
         Notifications
       </h3>
       <p className="mb-4 text-sm text-muted-foreground">

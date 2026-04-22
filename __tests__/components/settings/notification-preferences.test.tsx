@@ -103,6 +103,42 @@ describe('NotificationPreferences', () => {
     global.fetch = originalFetch;
   });
 
+  it('renders loading spinners before data resolves', async () => {
+    // Delay the GET so the loading state is observable synchronously.
+    let resolvePrefs: ((value: unknown) => void) | null = null;
+    global.fetch = vi.fn().mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvePrefs = resolve;
+        }),
+    );
+
+    const { container } = renderWithQuery(<NotificationPreferences />);
+
+    // Spinners render (one per switch row) while the query is pending.
+    const spinners = container.querySelectorAll('svg.animate-spin');
+    expect(spinners.length).toBeGreaterThan(0);
+
+    // No switches rendered yet (switches are gated behind !isLoading).
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+
+    // Unblock the query so the render cycle settles and React Query cleans up.
+    resolvePrefs?.({
+      ok: true,
+      json: async () => ({
+        preferences: {
+          email_weekly_change_report: true,
+          email_review_assigned: true,
+          email_owned_content_flagged: true,
+        },
+      }),
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('switch').length).toBe(3);
+    });
+  });
+
   it('renders three switches with correct labels', async () => {
     renderWithQuery(<NotificationPreferences />);
 

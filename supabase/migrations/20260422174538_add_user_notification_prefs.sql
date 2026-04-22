@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS user_notification_prefs (
   email_weekly_change_report boolean NOT NULL DEFAULT true,
   email_review_assigned boolean NOT NULL DEFAULT true,
   email_owned_content_flagged boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 

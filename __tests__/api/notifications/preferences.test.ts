@@ -262,6 +262,24 @@ describe('PUT /api/notifications/preferences', () => {
     expect(res.status).toBe(400);
   });
 
+  it('returns 400 when all fields are explicitly undefined', async () => {
+    // Zod .optional() + .strict() strips undefined fields before .refine().
+    // The refine must therefore reject the resulting empty object.
+    configureRole(mockSupabase, 'viewer');
+
+    const req = createTestRequest('/api/notifications/preferences', {
+      method: 'PUT',
+      body: {
+        email_weekly_change_report: undefined,
+        email_review_assigned: undefined,
+        email_owned_content_flagged: undefined,
+      },
+    });
+
+    const res = await PUT(req);
+    expect(res.status).toBe(400);
+  });
+
   it('accepts partial updates (only some fields)', async () => {
     configureRole(mockSupabase, 'viewer');
 

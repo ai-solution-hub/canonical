@@ -140,6 +140,11 @@ describe('CoveragePageTabs access gating (P1-11)', () => {
   });
 
   // Test 4: Loading state -- no redirect while loading
+  // Intent: the guard renders the full tabs UI while `loading: true` so that
+  // editors/admins never see a flash-of-redirect during the role resolution
+  // tick. The positive assertion on the heading documents the expected
+  // visible state; the negative assertion on `mockReplace` is the critical
+  // correctness check.
   it('does not redirect while role is still loading', () => {
     mockUserRole.role = null;
     mockUserRole.canEdit = false;
@@ -148,7 +153,9 @@ describe('CoveragePageTabs access gating (P1-11)', () => {
 
     render(<CoveragePageTabs />);
 
-    // Must NOT redirect during loading -- would flicker editors
     expect(mockReplace).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole('heading', { name: /coverage dashboard/i }),
+    ).toBeInTheDocument();
   });
 });

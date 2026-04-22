@@ -6,8 +6,12 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { NotificationPreferencesPutBodySchema } from '@/lib/validation/schemas';
+import { sb } from '@/lib/supabase/safe';
 
 export const maxDuration = 10;
+
+const PREF_COLUMNS =
+  'email_weekly_change_report, email_review_assigned, email_owned_content_flagged, updated_at, created_at';
 
 /** Default preferences when no row exists for a user. */
 const DEFAULT_PREFERENCES = {
@@ -26,24 +30,18 @@ export async function GET() {
     if (!auth.success) return authFailureResponse(auth);
     const { supabase, user } = auth;
 
-    const { data, error } = await supabase
-      .from('user_notification_prefs')
-      .select(
-        'email_weekly_change_report, email_review_assigned, email_owned_content_flagged, updated_at',
-      )
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    if (error) {
-      console.error('Notification prefs fetch error:', error);
-      return NextResponse.json(
-        { error: 'Failed to load notification preferences' },
-        { status: 500 },
-      );
-    }
+    const data = await sb(
+      supabase
+        .from('user_notification_prefs')
+        .select(PREF_COLUMNS)
+        .eq('user_id', user.id)
+        .maybeSingle(),
+      'user_notification_prefs.get',
+    );
 
     // Return stored prefs or sensible defaults (all ON)
-    const preferences = data ?? { ...DEFAULT_PREFERENCES, updated_at: null };
+    const preferences =
+      data ?? { ...DEFAULT_PREFERENCES, updated_at: null, created_at: null };
 
     return NextResponse.json({ preferences });
   } catch (err) {
@@ -68,27 +66,20 @@ export async function PUT(request: NextRequest) {
     const parsed = parseBody(NotificationPreferencesPutBodySchema, body);
     if (!parsed.success) return parsed.response;
 
-    const { data, error } = await supabase
-      .from('user_notification_prefs')
-      .upsert(
-        {
-          user_id: user.id,
-          ...parsed.data,
-        },
-        { onConflict: 'user_id' },
-      )
-      .select(
-        'email_weekly_change_report, email_review_assigned, email_owned_content_flagged, updated_at',
-      )
-      .single();
-
-    if (error) {
-      console.error('Notification prefs upsert error:', error);
-      return NextResponse.json(
-        { error: 'Failed to update notification preferences' },
-        { status: 500 },
-      );
-    }
+    const data = await sb(
+      supabase
+        .from('user_notification_prefs')
+        .upsert(
+          {
+            user_id: user.id,
+            ...parsed.data,
+          },
+          { onConflict: 'user_id' },
+        )
+        .select(PREF_COLUMNS)
+        .single(),
+      'user_notification_prefs.upsert',
+    );
 
     return NextResponse.json({ preferences: data });
   } catch (err) {
