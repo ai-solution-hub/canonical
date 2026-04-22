@@ -1,13 +1,6 @@
 'use client';
 
-import {
-  X,
-  BookOpen,
-  FileText,
-  ExternalLink,
-  Maximize2,
-  PanelRightClose,
-} from 'lucide-react';
+import { X, BookOpen, FileText, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ReaderView } from '@/components/reader/reader-view';
 import { IframeViewer } from '@/components/reader/iframe-viewer';
@@ -69,12 +62,6 @@ interface ReaderPanelProps {
   filePath?: string | null;
   /** Whether the source URL can be embedded in an iframe */
   frameable?: boolean;
-  /** Called when detach/dock button is clicked */
-  onDetachToggle?: () => void;
-  /** Whether the reader is currently in detached (floating) mode */
-  isDetached?: boolean;
-  /** Hide the close button (used in floating mode where the container has its own close) */
-  hideCloseButton?: boolean;
 }
 
 const FONT_SIZES: { value: ReaderFontSize; label: string }[] = [
@@ -126,9 +113,6 @@ export function ReaderPanel({
   highlights,
   filePath,
   frameable,
-  onDetachToggle,
-  isDetached,
-  hideCloseButton,
 }: ReaderPanelProps) {
   // Determine if a platform-specific reader card should be shown
   const isNewsletter = platform === 'email' || contentType === 'newsletter';
@@ -151,42 +135,14 @@ export function ReaderPanel({
           <span className="text-sm font-medium text-muted-foreground">
             Reader
           </span>
-          <div className="flex items-center gap-1">
-            {onDetachToggle && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={onDetachToggle}
-                aria-label={
-                  isDetached
-                    ? 'Dock to split view (Shift+R)'
-                    : 'Pop out to floating window (Shift+R)'
-                }
-                title={
-                  isDetached
-                    ? 'Dock to split view (Shift+R)'
-                    : 'Pop out (Shift+R)'
-                }
-                className="hidden md:inline-flex"
-              >
-                {isDetached ? (
-                  <PanelRightClose className="size-4" />
-                ) : (
-                  <Maximize2 className="size-4" />
-                )}
-              </Button>
-            )}
-            {!hideCloseButton && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={onClose}
-                aria-label="Close reader"
-              >
-                <X className="size-4" />
-              </Button>
-            )}
-          </div>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onClose}
+            aria-label="Close reader"
+          >
+            <X className="size-4" />
+          </Button>
         </div>
         {/* Empty state */}
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
@@ -264,52 +220,24 @@ export function ReaderPanel({
   // Whether to show font/width controls (only for generic reader and newsletter)
   const showTypographyControls = !hasPlatformCard || isNewsletter;
 
-  // PDF items use a specialised layout — the PdfReaderView has its own toolbar
-  // so we only render the close/detach buttons in a minimal header.
+  // PDF items use a specialised layout ��� the PdfReaderView has its own toolbar
+  // so we only render the close button in a minimal header.
   if (isPdf) {
     return (
       <div className="flex h-full flex-col">
-        {/* Minimal header with detach/close */}
+        {/* Minimal header with close */}
         <div className="flex items-center justify-between border-b border-border px-3 py-2">
           <span className="text-sm font-medium text-muted-foreground">
             PDF Reader
           </span>
-          <div className="flex items-center gap-1">
-            {onDetachToggle && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={onDetachToggle}
-                aria-label={
-                  isDetached
-                    ? 'Dock to split view (Shift+R)'
-                    : 'Pop out to floating window (Shift+R)'
-                }
-                title={
-                  isDetached
-                    ? 'Dock to split view (Shift+R)'
-                    : 'Pop out (Shift+R)'
-                }
-                className="hidden md:inline-flex"
-              >
-                {isDetached ? (
-                  <PanelRightClose className="size-4" />
-                ) : (
-                  <Maximize2 className="size-4" />
-                )}
-              </Button>
-            )}
-            {!hideCloseButton && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={onClose}
-                aria-label="Close reader"
-              >
-                <X className="size-4" />
-              </Button>
-            )}
-          </div>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onClose}
+            aria-label="Close reader"
+          >
+            <X className="size-4" />
+          </Button>
         </div>
         {/* PDF viewer fills remaining space */}
         <div className="flex-1 overflow-hidden">
@@ -386,42 +314,14 @@ export function ReaderPanel({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1">
-          {onDetachToggle && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={onDetachToggle}
-              aria-label={
-                isDetached
-                  ? 'Dock to split view (Shift+R)'
-                  : 'Pop out to floating window (Shift+R)'
-              }
-              title={
-                isDetached
-                  ? 'Dock to split view (Shift+R)'
-                  : 'Pop out (Shift+R)'
-              }
-              className="hidden md:inline-flex"
-            >
-              {isDetached ? (
-                <PanelRightClose className="size-4" />
-              ) : (
-                <Maximize2 className="size-4" />
-              )}
-            </Button>
-          )}
-          {!hideCloseButton && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={onClose}
-              aria-label="Close reader"
-            >
-              <X className="size-4" />
-            </Button>
-          )}
-        </div>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={onClose}
+          aria-label="Close reader"
+        >
+          <X className="size-4" />
+        </Button>
       </div>
       {/* Reader content */}
       <div className="flex-1 overflow-y-auto p-6">

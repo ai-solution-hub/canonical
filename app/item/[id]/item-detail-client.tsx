@@ -6,7 +6,6 @@ import {
   Group as PanelGroup,
   Separator as PanelResizeHandle,
 } from 'react-resizable-panels';
-import { FloatingReader } from '@/components/reader/floating-reader';
 import { ReaderPanel } from '@/components/reader/reader-panel';
 import { ErrorBoundary } from '@/components/shared/error-boundary';
 
@@ -117,8 +116,6 @@ export function ItemDetailClient({
     handleStarToggle: data.handleStarToggle,
     handlePriorityCycle: data.handlePriorityCycle,
     toggleReader: data.toggleReader,
-    readerOpen: data.readerOpen,
-    toggleDetached: data.toggleDetached,
     canEdit: data.canEdit,
     startEdit: data.startEdit,
     cancelEdit: data.cancelEdit,
@@ -141,7 +138,7 @@ export function ItemDetailClient({
     <DetailModeToggle detailMode={detailMode} onToggle={handleModeToggle} />
   ) : undefined;
 
-  // Reader panel props — shared across split and floating reader
+  // Reader panel props for the split reader
   const readerPanelProps = {
     readerHtml: data.item.metadata?.reader_html as string | undefined,
     contentType: data.item.content_type,
@@ -161,7 +158,6 @@ export function ItemDetailClient({
     segments: data.segments,
     highlights: data.highlights,
     frameable: data.item.metadata?.frameable === true,
-    onDetachToggle: data.toggleDetached,
   };
 
   // Render the active view based on mode
@@ -215,38 +211,12 @@ export function ItemDetailClient({
                 minSize="25%"
               >
                 <div className="h-full border-l border-border bg-card">
-                  <ReaderPanel {...readerPanelProps} isDetached={false} />
+                  <ReaderPanel {...readerPanelProps} />
                 </div>
               </Panel>
             </>
           )}
         </PanelGroup>
-        {data.readerOpen && data.isDetached && (
-          <FloatingReader
-            readerHtml={data.item.metadata?.reader_html as string | undefined}
-            contentType={data.item.content_type}
-            title={data.title}
-            fontSize={data.fontSize}
-            maxWidth={data.maxWidth}
-            onFontSizeChange={data.setFontSize}
-            onMaxWidthChange={data.setMaxWidth}
-            onClose={() => data.setReaderOpen(false)}
-            onDock={data.toggleDetached}
-            position={data.detachedPosition}
-            size={data.detachedSize}
-            onPositionChange={data.setDetachedPosition}
-            onSizeChange={data.setDetachedSize}
-            platform={data.item.platform}
-            metadata={data.item.metadata}
-            authorName={data.item.author_name}
-            sourceUrl={data.item.source_url}
-            filePath={data.item.file_path}
-            content={data.item.content}
-            transcriptChapters={data.transcriptChapters}
-            segments={data.segments}
-            highlights={data.highlights}
-          />
-        )}
       </>
     </ErrorBoundary>
   );

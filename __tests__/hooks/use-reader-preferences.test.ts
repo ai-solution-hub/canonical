@@ -47,9 +47,6 @@ describe('useReaderPreferences', () => {
     expect(result.current.maxWidth).toBe('medium');
     expect(result.current.panelLayout).toEqual({ detail: 55, reader: 45 });
     expect(result.current.readerOpen).toBe(false);
-    expect(result.current.isDetached).toBe(false);
-    expect(result.current.detachedPosition).toBeNull();
-    expect(result.current.detachedSize).toBeNull();
   });
 
   // -------------------------------------------------------------------------
@@ -62,9 +59,6 @@ describe('useReaderPreferences', () => {
       maxWidth: 'wide',
       panelLayout: { detail: 40, reader: 60 },
       readerOpen: true,
-      isDetached: false,
-      detachedPosition: null,
-      detachedSize: null,
     });
 
     const { result } = renderHook(() => useReaderPreferences());
@@ -82,16 +76,6 @@ describe('useReaderPreferences', () => {
 
     expect(result.current.fontSize).toBe('medium');
     expect(result.current.maxWidth).toBe('medium');
-  });
-
-  it('validates size constraints — rejects size with width < 400', () => {
-    localStorageStore['kb-reader-preferences'] = JSON.stringify({
-      detachedSize: { width: 300, height: 500 },
-    });
-
-    const { result } = renderHook(() => useReaderPreferences());
-
-    expect(result.current.detachedSize).toBeNull();
   });
 
   // -------------------------------------------------------------------------
@@ -139,22 +123,6 @@ describe('useReaderPreferences', () => {
     expect(result.current.readerOpen).toBe(true);
   });
 
-  it('setReaderOpen(false) also un-detaches', () => {
-    localStorageStore['kb-reader-preferences'] = JSON.stringify({
-      readerOpen: true,
-      isDetached: true,
-    });
-
-    const { result } = renderHook(() => useReaderPreferences());
-
-    act(() => {
-      result.current.setReaderOpen(false);
-    });
-
-    expect(result.current.readerOpen).toBe(false);
-    expect(result.current.isDetached).toBe(false);
-  });
-
   // -------------------------------------------------------------------------
   // toggleReader
   // -------------------------------------------------------------------------
@@ -169,10 +137,9 @@ describe('useReaderPreferences', () => {
     expect(result.current.readerOpen).toBe(true);
   });
 
-  it('toggleReader closing also un-detaches', () => {
+  it('toggleReader closes when open', () => {
     localStorageStore['kb-reader-preferences'] = JSON.stringify({
       readerOpen: true,
-      isDetached: true,
     });
 
     const { result } = renderHook(() => useReaderPreferences());
@@ -182,97 +149,23 @@ describe('useReaderPreferences', () => {
     });
 
     expect(result.current.readerOpen).toBe(false);
-    expect(result.current.isDetached).toBe(false);
   });
 
   // -------------------------------------------------------------------------
-  // toggleDetached
+  // P1-7: floating reader removed — no detach/floating state
   // -------------------------------------------------------------------------
 
-  it('toggleDetached does nothing when reader is closed', () => {
+  it('does not expose floating/detach state (P1-7)', () => {
     const { result } = renderHook(() => useReaderPreferences());
 
-    act(() => {
-      result.current.toggleDetached();
-    });
-
-    expect(result.current.isDetached).toBe(false);
-  });
-
-  it('toggleDetached toggles when reader is open', () => {
-    localStorageStore['kb-reader-preferences'] = JSON.stringify({
-      readerOpen: true,
-    });
-
-    const { result } = renderHook(() => useReaderPreferences());
-
-    act(() => {
-      result.current.toggleDetached();
-    });
-
-    expect(result.current.isDetached).toBe(true);
-
-    act(() => {
-      result.current.toggleDetached();
-    });
-
-    expect(result.current.isDetached).toBe(false);
-  });
-
-  // -------------------------------------------------------------------------
-  // Detached position and size
-  // -------------------------------------------------------------------------
-
-  it('setDetachedPosition updates position', () => {
-    const { result } = renderHook(() => useReaderPreferences());
-
-    act(() => {
-      result.current.setDetachedPosition({ x: 200, y: 150 });
-    });
-
-    expect(result.current.detachedPosition).toEqual({ x: 200, y: 150 });
-  });
-
-  it('setDetachedSize updates size', () => {
-    const { result } = renderHook(() => useReaderPreferences());
-
-    act(() => {
-      result.current.setDetachedSize({ width: 800, height: 600 });
-    });
-
-    expect(result.current.detachedSize).toEqual({ width: 800, height: 600 });
-  });
-
-  // -------------------------------------------------------------------------
-  // Auto-reattach on small screens
-  // -------------------------------------------------------------------------
-
-  it('auto-reattaches when window is resized below 768px', () => {
-    localStorageStore['kb-reader-preferences'] = JSON.stringify({
-      readerOpen: true,
-      isDetached: true,
-    });
-
-    // Start with wide screen
-    Object.defineProperty(window, 'innerWidth', {
-      value: 1024,
-      writable: true,
-      configurable: true,
-    });
-
-    const { result } = renderHook(() => useReaderPreferences());
-    expect(result.current.isDetached).toBe(true);
-
-    // Simulate resize to narrow screen
-    act(() => {
-      Object.defineProperty(window, 'innerWidth', {
-        value: 600,
-        writable: true,
-        configurable: true,
-      });
-      window.dispatchEvent(new Event('resize'));
-    });
-
-    expect(result.current.isDetached).toBe(false);
+    // These properties should no longer exist on the return value
+    const returned = result.current as Record<string, unknown>;
+    expect(returned.isDetached).toBeUndefined();
+    expect(returned.detachedPosition).toBeUndefined();
+    expect(returned.detachedSize).toBeUndefined();
+    expect(returned.toggleDetached).toBeUndefined();
+    expect(returned.setDetachedPosition).toBeUndefined();
+    expect(returned.setDetachedSize).toBeUndefined();
+    expect(returned.setIsDetached).toBeUndefined();
   });
 });
