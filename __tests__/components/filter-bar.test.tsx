@@ -190,14 +190,20 @@ describe('FilterBar', () => {
     expect(screen.queryByText('Show thumbnails')).not.toBeInTheDocument();
   });
 
-  it('shows checkmark on active view mode in Display dropdown', async () => {
+  it('marks the active view mode as checked in Display dropdown', async () => {
     const user = userEvent.setup();
     render(<FilterBar {...makeProps({ viewMode: 'grid' })} />);
 
     await user.click(screen.getByTestId('display-menu'));
-    // The grid view item should have the checkmark
-    const gridItem = screen.getByText('Grid view').closest('[role="menuitem"]');
-    expect(gridItem?.querySelector('[aria-label="Active"]')).toBeTruthy();
+    // Radix DropdownMenuRadioItem uses role="menuitemradio" with aria-checked
+    const gridItem = screen
+      .getByText('Grid view')
+      .closest('[role="menuitemradio"]');
+    expect(gridItem).toHaveAttribute('aria-checked', 'true');
+    const listItem = screen
+      .getByText('List view')
+      .closest('[role="menuitemradio"]');
+    expect(listItem).toHaveAttribute('aria-checked', 'false');
   });
 
   // -------------------------------------------------------------------------

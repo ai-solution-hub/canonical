@@ -28,6 +28,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -154,24 +156,19 @@ export function FilterBar({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>View mode</DropdownMenuLabel>
-          <DropdownMenuItem onClick={() => onViewChange('grid')}>
-            <LayoutGrid className="size-4" />
-            Grid view
-            {viewMode === 'grid' && (
-              <span className="ml-auto text-xs text-primary" aria-label="Active">
-                &#10003;
-              </span>
-            )}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onViewChange('list')}>
-            <List className="size-4" />
-            List view
-            {viewMode === 'list' && (
-              <span className="ml-auto text-xs text-primary" aria-label="Active">
-                &#10003;
-              </span>
-            )}
-          </DropdownMenuItem>
+          <DropdownMenuRadioGroup
+            value={viewMode}
+            onValueChange={(v) => onViewChange(v as ViewMode)}
+          >
+            <DropdownMenuRadioItem value="grid">
+              <LayoutGrid className="size-4" />
+              Grid view
+            </DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="list">
+              <List className="size-4" />
+              List view
+            </DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
 
           <DropdownMenuSeparator />
 
