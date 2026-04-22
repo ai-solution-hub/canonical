@@ -1,6 +1,25 @@
 /**
  * Sector Intelligence — Google News Dedup Real-DB Integration Test (§2.1.7)
  *
+ * TODO(S189-WP1): this test is SEMANTICALLY BROKEN after the S189 WP1
+ * `source_url` Firecrawl fix. The test assumed `resolveGoogleNewsUrl()`
+ * was the dedup mechanism for Google News wrapper URLs, and stubbed
+ * `global.fetch` to return a canonical URL when the pipeline called the
+ * function. Post-WP1, `resolveGoogleNewsUrl()` is no longer called by
+ * the pipeline — Firecrawl's `metadata.sourceURL` is now the resolution
+ * path, writing to `content_items.source_url`. `feed_articles.external_url`
+ * still stores the raw RSS URL (for dedup), so the test's assertion at
+ * line 404 (`expect(firstRows[0].external_url).toBe(CANONICAL_ARTICLE_URL)`)
+ * would fail because both wrapper URLs now land in `feed_articles` as
+ * distinct `external_url` values.
+ *
+ * This test is EXCLUDED from the default suite (`vitest.config.ts:13`)
+ * so CI is unaffected. Rework plan: drop the `global.fetch` stub; assert
+ * dedup happens at `content_items.source_url` via the mocked
+ * `extractContent` returning the same `resolvedUrl` for both wrappers.
+ * Pick up in a follow-up session alongside the `resolveGoogleNewsUrl`
+ * removal.
+ *
  * Proves that two feed sources in the same workspace, polling different
  * Google News search queries (e.g. "multi-academy trust" vs "MAT
  * safeguarding"), correctly dedup when both surface the same underlying

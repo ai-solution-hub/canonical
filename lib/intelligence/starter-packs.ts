@@ -11,8 +11,10 @@
  * lib/validation/schemas.ts:771 enforces the same.
  *
  * All feeds — including Google News and Atom — use source_type: 'rss'.
- * Google News URL resolution is handled by resolveGoogleNewsUrl() in
- * lib/intelligence/content-extractor.ts at ingestion time.
+ * Google News URL resolution is handled by Firecrawl's metadata.sourceURL
+ * at extraction time (S189 WP1) — the pipeline stores the resolved publisher
+ * URL on content_items.source_url while keeping the raw RSS URL in
+ * feed_articles.external_url.
  */
 import type { Database } from '@/supabase/types/database.types';
 

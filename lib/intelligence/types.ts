@@ -31,6 +31,11 @@ export interface ExtractionResult {
   thumbnailUrl: string | null;
   method: 'rss_content' | 'fetch' | 'jina_reader' | 'firecrawl' | 'summary_fallback';
   wordCount: number;
+  /** Publisher URL resolved by Firecrawl (via metadata.sourceURL). Present only
+   *  when extraction reaches the Firecrawl tier and the response includes a
+   *  sourceURL that differs from the input URL. Used by the pipeline to prefer
+   *  the real publisher URL over opaque redirect URLs (e.g. Google News). */
+  resolvedUrl?: string;
 }
 
 /** Result of relevance scoring */

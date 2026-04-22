@@ -7,7 +7,6 @@ import { pollFeed, pollWebSource } from './feed-poller';
 import {
   extractContent,
   normaliseUrl,
-  resolveGoogleNewsUrl,
   checkFirecrawlApiKey,
 } from './content-extractor';
 import { embeddingPreFilter, scoreRelevance } from './relevance-scorer';
@@ -345,11 +344,11 @@ export async function processFeedSource(
   for (const item of pollResult.items) {
     if (!item.url) continue;
 
-    // SI-M1: Resolve Google News redirect URLs before dedup
-    const resolvedUrl = await resolveGoogleNewsUrl(item.url);
-
-    // Normalise URL for dedup and storage
-    const normalisedUrl = normaliseUrl(resolvedUrl);
+    // Normalise the raw RSS URL for dedup and feed_articles storage.
+    // Google News redirect URLs are kept as-is in feed_articles (provenance).
+    // The real publisher URL is resolved later by Firecrawl (extraction tier 3)
+    // and used only for content_items.source_url.
+    const normalisedUrl = normaliseUrl(item.url);
 
     // 2a. Dedup check
     const duplicate = await isDuplicate(
@@ -491,9 +490,21 @@ export async function processFeedSource(
       if (passed) {
         result.articlesPassed++;
 
-        // 2f. For passed articles: create content_item + classify
+        // 2f. For passed articles: create content_item + classify.
+        // Prefer the Firecrawl-resolved publisher URL (e.g. real article URL
+        // behind a Google News redirect) over the raw RSS URL. Falls back to
+        // the raw URL when Firecrawl did not resolve or was not reached.
+        // Pass the original RSS URL (normalisedUrl) as feedArticleUrl so the
+        // feed_articles link update matches on the stored external_url.
         try {
-          await storeAsContentItem(supabase, source, { ...item, url: resolvedUrl }, extraction);
+          const contentItemUrl = extraction.resolvedUrl ?? item.url;
+          await storeAsContentItem(
+            supabase,
+            source,
+            { ...item, url: contentItemUrl },
+            extraction,
+            normalisedUrl,
+          );
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           result.errors.push(
@@ -552,7 +563,12 @@ async function ensureWorkspaceLink(
   });
 }
 
-/** Store a passed article as a content_item in the KB */
+/** Store a passed article as a content_item in the KB.
+ *  @param feedArticleUrl — the normalised URL stored in feed_articles.external_url
+ *    (used for the content_item_id link update). When a Firecrawl-resolved
+ *    publisher URL differs from the raw RSS URL, item.url carries the publisher
+ *    URL for content_items.source_url while feedArticleUrl carries the original
+ *    RSS URL for the feed_articles join. */
 async function storeAsContentItem(
   supabase: Supabase,
   source: FeedSource,
@@ -563,6 +579,7 @@ async function storeAsContentItem(
     description: string | null;
     thumbnailUrl: string | null;
   },
+  feedArticleUrl?: string,
 ): Promise<void> {
   // D3 (spec §6): one content_items row per unique source_url, linked
   // to many workspaces via `content_item_workspaces`. If the URL is
@@ -581,12 +598,15 @@ async function storeAsContentItem(
   );
 
   if (existingByUrl) {
-    const normalisedItemUrl = normaliseUrl(item.url);
+    // Use feedArticleUrl (the RSS URL stored in feed_articles.external_url)
+    // for the link update — item.url may be the resolved publisher URL which
+    // would not match the feed_articles row.
+    const normalisedFeedUrl = normaliseUrl(feedArticleUrl ?? item.url);
     await supabase
       .from('feed_articles')
       .update({ content_item_id: existingByUrl.id })
       .eq('workspace_id', source.workspace_id)
-      .eq('external_url', normalisedItemUrl);
+      .eq('external_url', normalisedFeedUrl);
     await ensureWorkspaceLink(
       supabase,
       source.workspace_id,
@@ -641,13 +661,15 @@ async function storeAsContentItem(
 
   if (error || !contentItem) return;
 
-  // Update feed_article with content_item_id link (use normalised URL for matching)
-  const normalisedItemUrl = normaliseUrl(item.url);
+  // Update feed_article with content_item_id link. Use feedArticleUrl (the
+  // raw RSS URL stored in feed_articles.external_url) so the WHERE clause
+  // matches even when item.url is a Firecrawl-resolved publisher URL.
+  const normalisedFeedUrl = normaliseUrl(feedArticleUrl ?? item.url);
   await supabase
     .from('feed_articles')
     .update({ content_item_id: contentItem.id })
     .eq('workspace_id', source.workspace_id)
-    .eq('external_url', normalisedItemUrl);
+    .eq('external_url', normalisedFeedUrl);
 
   // Classify the content item (adds taxonomy, entities, AND embeddings)
   // classifyContent already generates and stores embeddings — no separate embedding call needed

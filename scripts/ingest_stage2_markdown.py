@@ -432,6 +432,10 @@ def main() -> int:
         # Entities/relationships are deferred to Loop 2 (ai_classify pass).
         from kb_pipeline.post_insert import run_post_insert
 
+        # Progressive-depth generation (S189 WP3) fires only for q_a_pair
+        # rows. The Anthropic wrapper detects content_type internally and
+        # no-ops for articles.
+        is_qa_pair = record["content_type"] == "q_a_pair"
         run_post_insert(
             item_id=item_id,
             title=record["title"],
@@ -445,6 +449,10 @@ def main() -> int:
             store_entities_flag=False,
             bridge_temporal=False,
             write_temporal=False,
+            generate_progressive_depth_flag=is_qa_pair,
+            question_text=pair.get("question_text") if is_qa_pair else None,
+            answer_standard=pair.get("answer_standard") if is_qa_pair else None,
+            answer_advanced=pair.get("answer_advanced") if is_qa_pair else None,
         )
 
         # ── Auto-supersession (S186 WP-B.6) ──────────────────────────

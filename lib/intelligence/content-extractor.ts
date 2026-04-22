@@ -283,22 +283,30 @@ export async function extractContent(
 
     if (doc.html) {
       const text = turndown.turndown(doc.html).trim();
+      const metadata = doc.metadata as Record<string, string> | undefined;
+      // Firecrawl resolves redirect chains internally (browser-based) and
+      // exposes the final publisher URL as metadata.sourceURL. This is the
+      // real article URL for Google News redirect URLs.
+      const sourceURL = metadata?.sourceURL;
+      const resolvedUrl =
+        sourceURL && sourceURL !== item.url ? sourceURL : undefined;
+      if (resolvedUrl) {
+        console.log(
+          `[Extraction] ${item.url} — Firecrawl resolved publisher URL: ${resolvedUrl}`,
+        );
+      }
       console.log(
         `[Extraction] ${item.url} — Tier 3 (firecrawl), ${wordCount(text)} words`,
       );
       return {
         ...baseResult,
         content: text,
-        title:
-          (doc.metadata as Record<string, string> | undefined)?.title ??
-          item.title,
-        description:
-          (doc.metadata as Record<string, string> | undefined)?.description ??
-          item.summary,
-        thumbnailUrl:
-          (doc.metadata as Record<string, string> | undefined)?.ogImage ?? null,
+        title: metadata?.title ?? item.title,
+        description: metadata?.description ?? item.summary,
+        thumbnailUrl: metadata?.ogImage ?? null,
         method: 'firecrawl',
         wordCount: wordCount(text),
+        resolvedUrl,
       };
     }
   } catch (err) {

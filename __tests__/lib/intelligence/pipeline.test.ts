@@ -15,7 +15,6 @@ vi.mock('@/lib/intelligence/feed-poller', () => ({
 vi.mock('@/lib/intelligence/content-extractor', () => ({
   extractContent: vi.fn(),
   normaliseUrl: vi.fn((url: string) => url),
-  resolveGoogleNewsUrl: vi.fn((url: string) => Promise.resolve(url)),
   checkFirecrawlApiKey: vi.fn(),
 }));
 vi.mock('@/lib/intelligence/relevance-scorer', () => ({
@@ -364,6 +363,279 @@ describe('processFeedSource', () => {
     expect(contentItemInsert).toBeUndefined();
 
     consoleSpy.mockRestore();
+  });
+
+  // ── S189 WP1: Firecrawl resolvedUrl preference ──
+
+  it('uses extraction.resolvedUrl as content_items.source_url when present (S189 WP1)', async () => {
+    vi.clearAllMocks();
+    const { pollFeed } = await import('@/lib/intelligence/feed-poller');
+    const { extractContent } = await import('@/lib/intelligence/content-extractor');
+    const { embeddingPreFilter, scoreRelevance } = await import('@/lib/intelligence/relevance-scorer');
+
+    const googleNewsUrl = 'https://news.google.com/rss/articles/CBMiX2h0dHBz';
+    const publisherUrl = 'https://www.farrer.co.uk/news/kcsie-2026-proposed-changes';
+
+    vi.mocked(pollFeed).mockResolvedValue({
+      feedSourceId: 'source-1',
+      status: 'success',
+      items: [
+        {
+          title: 'KCSIE 2026 Changes',
+          url: googleNewsUrl,
+          guid: 'guid-gn-1',
+          publishedAt: '2026-04-01T10:00:00Z',
+          summary: 'Proposed changes to KCSIE',
+          contentEncoded: null,
+          categories: [],
+        },
+      ],
+      etag: null,
+      lastModified: null,
+    });
+
+    vi.mocked(extractContent).mockResolvedValue({
+      content: 'Long article content. '.repeat(50),
+      title: 'KCSIE 2026 Changes',
+      description: 'Proposed changes',
+      thumbnailUrl: null,
+      method: 'firecrawl',
+      wordCount: 200,
+      resolvedUrl: publisherUrl,
+    });
+
+    vi.mocked(embeddingPreFilter).mockResolvedValue({
+      similarity: 0.8,
+      passed: true,
+    });
+
+    vi.mocked(scoreRelevance).mockResolvedValue({
+      score: 0.9,
+      category: 'high',
+      reasoning: 'Highly relevant',
+      matchedCategories: ['safeguarding'],
+      passed: true,
+    });
+
+    // Track all inserts and updates
+    const insertCalls: Array<{ table: string; data: Record<string, unknown> }> = [];
+    const updateCalls: Array<{ table: string; data: Record<string, unknown>; filters: Record<string, unknown> }> = [];
+
+    // Mock dedup module
+    vi.doMock('@/lib/dedup', () => ({
+      checkExactDuplicate: vi.fn().mockResolvedValue({ isDuplicate: false }),
+      resolveDedupStamp: vi.fn().mockReturnValue({ dedup_status: 'clean' }),
+    }));
+
+    const mockSupabase = {
+      from: vi.fn().mockImplementation((table: string) => {
+        const builder: Record<string, unknown> = {};
+        builder.select = vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+            is: vi.fn().mockReturnValue({
+              limit: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+              }),
+            }),
+            single: vi.fn().mockResolvedValue({ data: null, error: null }),
+            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        });
+        builder.insert = vi.fn().mockImplementation((data: Record<string, unknown>) => {
+          insertCalls.push({ table, data });
+          return {
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { id: `${table}-id-1` },
+                error: null,
+              }),
+            }),
+            error: null,
+          };
+        });
+        builder.update = vi.fn().mockImplementation((data: Record<string, unknown>) => {
+          const eqFn = vi.fn().mockImplementation((col: string, val: unknown) => {
+            const innerEq = vi.fn().mockImplementation((col2: string, val2: unknown) => {
+              updateCalls.push({
+                table,
+                data,
+                filters: { [col]: val, [col2]: val2 },
+              });
+              return Promise.resolve({ error: null });
+            });
+            return { eq: innerEq };
+          });
+          return { eq: eqFn };
+        });
+        return builder;
+      }),
+    } as any;
+
+    const source = {
+      id: 'source-1',
+      workspace_id: 'ws-1',
+      name: 'Google News Feed',
+      url: 'https://news.google.com/rss/search?q=education',
+      etag: null,
+      last_modified: null,
+      polling_interval_minutes: 30,
+      consecutive_failures: 0,
+      article_count: 0,
+    };
+
+    const companyContext = {
+      name: 'Test Co',
+      sectors: ['education'],
+      services: ['safeguarding'],
+      keyTopics: ['KCSIE'],
+      targetCustomers: 'Schools',
+      valueProposition: 'Safeguarding support',
+    };
+
+    await processFeedSource(mockSupabase, source, companyContext, [0.1, 0.2], null);
+
+    // Verify content_items was inserted with the PUBLISHER URL, not the Google News URL
+    const contentItemInsert = insertCalls.find((c) => c.table === 'content_items');
+    expect(contentItemInsert).toBeDefined();
+    expect(contentItemInsert!.data.source_url).toBe(publisherUrl);
+    expect(contentItemInsert!.data.source_url).not.toContain('news.google.com');
+
+    // Verify feed_articles was inserted with the ORIGINAL RSS URL (normalised)
+    const feedArticleInsert = insertCalls.find((c) => c.table === 'feed_articles');
+    expect(feedArticleInsert).toBeDefined();
+    expect((feedArticleInsert!.data.external_url as string)).toContain('news.google.com');
+  });
+
+  it('falls back to raw RSS URL for content_items when extraction has no resolvedUrl (S189 WP1)', async () => {
+    vi.clearAllMocks();
+    const { pollFeed } = await import('@/lib/intelligence/feed-poller');
+    const { extractContent } = await import('@/lib/intelligence/content-extractor');
+    const { embeddingPreFilter, scoreRelevance } = await import('@/lib/intelligence/relevance-scorer');
+
+    const govUkUrl = 'https://www.gov.uk/government/news/article-123';
+
+    vi.mocked(pollFeed).mockResolvedValue({
+      feedSourceId: 'source-1',
+      status: 'success',
+      items: [
+        {
+          title: 'Gov UK Article',
+          url: govUkUrl,
+          guid: 'guid-gov-1',
+          publishedAt: '2026-04-01T10:00:00Z',
+          summary: 'Government announcement',
+          contentEncoded: null,
+          categories: [],
+        },
+      ],
+      etag: null,
+      lastModified: null,
+    });
+
+    // No resolvedUrl — direct feeds provide the publisher URL already
+    vi.mocked(extractContent).mockResolvedValue({
+      content: 'Long article content. '.repeat(50),
+      title: 'Gov UK Article',
+      description: 'Government announcement',
+      thumbnailUrl: null,
+      method: 'fetch',
+      wordCount: 200,
+      // resolvedUrl deliberately omitted
+    });
+
+    vi.mocked(embeddingPreFilter).mockResolvedValue({
+      similarity: 0.8,
+      passed: true,
+    });
+
+    vi.mocked(scoreRelevance).mockResolvedValue({
+      score: 0.9,
+      category: 'high',
+      reasoning: 'Highly relevant',
+      matchedCategories: ['policy'],
+      passed: true,
+    });
+
+    vi.doMock('@/lib/dedup', () => ({
+      checkExactDuplicate: vi.fn().mockResolvedValue({ isDuplicate: false }),
+      resolveDedupStamp: vi.fn().mockReturnValue({ dedup_status: 'clean' }),
+    }));
+
+    const insertCalls: Array<{ table: string; data: Record<string, unknown> }> = [];
+
+    const mockSupabase = {
+      from: vi.fn().mockImplementation((table: string) => {
+        const builder: Record<string, unknown> = {};
+        builder.select = vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+            is: vi.fn().mockReturnValue({
+              limit: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+              }),
+            }),
+            single: vi.fn().mockResolvedValue({ data: null, error: null }),
+            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        });
+        builder.insert = vi.fn().mockImplementation((data: Record<string, unknown>) => {
+          insertCalls.push({ table, data });
+          return {
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { id: `${table}-id-1` },
+                error: null,
+              }),
+            }),
+            error: null,
+          };
+        });
+        builder.update = vi.fn().mockImplementation(() => ({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ error: null }),
+          }),
+        }));
+        return builder;
+      }),
+    } as any;
+
+    const source = {
+      id: 'source-1',
+      workspace_id: 'ws-1',
+      name: 'Gov UK Feed',
+      url: 'https://www.gov.uk/feed.atom',
+      etag: null,
+      last_modified: null,
+      polling_interval_minutes: 30,
+      consecutive_failures: 0,
+      article_count: 0,
+    };
+
+    const companyContext = {
+      name: 'Test Co',
+      sectors: ['education'],
+      services: ['policy'],
+      keyTopics: ['education'],
+      targetCustomers: 'Schools',
+      valueProposition: 'Policy support',
+    };
+
+    await processFeedSource(mockSupabase, source, companyContext, [0.1, 0.2], null);
+
+    // content_items should use the original gov.uk URL (no resolvedUrl available)
+    const contentItemInsert = insertCalls.find((c) => c.table === 'content_items');
+    expect(contentItemInsert).toBeDefined();
+    expect(contentItemInsert!.data.source_url).toBe(govUkUrl);
+
+    // feed_articles also uses the same URL
+    const feedArticleInsert = insertCalls.find((c) => c.table === 'feed_articles');
+    expect(feedArticleInsert).toBeDefined();
+    expect((feedArticleInsert!.data.external_url as string)).toContain('gov.uk');
   });
 
   // ── source_type branching (P0-WEB / WP3B) ──
