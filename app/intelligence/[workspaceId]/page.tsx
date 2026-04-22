@@ -9,6 +9,7 @@ import {
   Play,
   BarChart3,
   BookOpen,
+  ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +22,27 @@ import { useFeedArticles } from '@/hooks/intelligence/use-feed-articles';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useTriggerPoll } from '@/hooks/intelligence/use-trigger-poll';
 import { getRelevanceLabel } from '@/lib/intelligence/relevance-display';
+import type { MetricsSummary } from '@/hooks/intelligence/use-intelligence-metrics';
+
+/**
+ * Derive whether the current period is "quiet" — no new passed articles,
+ * no unresolved flags, and no sources with errors.
+ *
+ * Returns `false` when metrics have not loaded yet to avoid a flash-collapse
+ * on mount (show full layout until we know it is quiet).
+ *
+ * Ref: audit principle #8 — "silence is part of the UX".
+ */
+export function deriveIsQuietWeek(
+  metrics: MetricsSummary | undefined,
+): boolean {
+  if (!metrics) return false;
+  return (
+    metrics.passed_articles === 0 &&
+    metrics.unresolved_flags === 0 &&
+    metrics.sources_with_errors === 0
+  );
+}
 
 export default function WorkspaceOverviewPage() {
   const params = useParams();
@@ -43,6 +65,8 @@ export default function WorkspaceOverviewPage() {
     limit: 5,
   });
 
+  const isQuietWeek = deriveIsQuietWeek(metrics);
+
   if (metricsLoading) {
     return (
       <div role="status" aria-label="Loading workspace overview">
@@ -62,12 +86,11 @@ export default function WorkspaceOverviewPage() {
     );
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Pipeline health — surfaced first so failing pipelines are visible
-          before performance metrics. */}
-      <HealthPanel workspaceId={workspaceId} />
-
+  // Shared detail sections: MetricsPanel, RssFeedPanel, Recent Passed,
+  // Recent Flags. These are the low-signal sections collapsed during quiet
+  // weeks. Extracted so the JSX is not duplicated across branches.
+  const detailSections = (
+    <>
       {/* Metrics panel */}
       {metrics && (
         <div className="rounded-lg border bg-card p-4 shadow-sm">
@@ -189,8 +212,46 @@ export default function WorkspaceOverviewPage() {
           )}
         </div>
       </div>
+    </>
+  );
 
-      {/* Quick actions */}
+  return (
+    <div className="space-y-6">
+      {/* Pipeline health — always visible regardless of quiet state.
+          Defence-in-depth: severity banner shows even if quiet conditions
+          are met (which requires sources_with_errors === 0). */}
+      <HealthPanel workspaceId={workspaceId} />
+
+      {isQuietWeek ? (
+        /* Quiet week: collapse low-signal sections behind a native <details>
+           toggle. Uses HTML disclosure widget for built-in keyboard
+           accessibility (Enter/Space to toggle, focusable <summary>).
+           Ref: DECISIONS P1-14; audit principle #8. */
+        <details
+          className="group rounded-lg border bg-card shadow-sm"
+          data-testid="quiet-week-collapse"
+        >
+          <summary className="flex cursor-pointer list-none items-center gap-2 p-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground [&::-webkit-details-marker]:hidden">
+            <ChevronRight
+              className="size-4 shrink-0 transition-transform group-open:rotate-90"
+              aria-hidden="true"
+            />
+            No new activity this period — expand for details
+          </summary>
+          <div
+            className="space-y-6 px-4 pb-4"
+            data-testid="quiet-week-details"
+          >
+            {detailSections}
+          </div>
+        </details>
+      ) : (
+        /* Active week: render all sections expanded as before. */
+        detailSections
+      )}
+
+      {/* Quick actions — always visible so Sarah can trigger a poll,
+          navigate to Sources, or open the articles list. */}
       <div className="rounded-lg border bg-card p-4 shadow-sm">
         <h3 className="mb-3 text-sm font-semibold text-foreground">
           Quick Actions
@@ -239,7 +300,7 @@ export default function WorkspaceOverviewPage() {
               title="Manually trigger the intelligence pipeline to poll all due sources now."
             >
               <Play className="mr-1.5 size-3.5" aria-hidden="true" />
-              {triggerPoll.isPending ? 'Polling\u2026' : 'Trigger Poll'}
+              {triggerPoll.isPending ? 'Polling…' : 'Trigger Poll'}
             </Button>
           )}
         </div>
