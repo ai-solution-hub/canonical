@@ -150,7 +150,7 @@ describe('EntityDetailPanel — holder placeholder (OPS-25)', () => {
     expect(holderTrigger).toHaveTextContent('Self-held');
   });
 
-  it('calls onChange with holder="supplier" when user picks Supplier-held', async () => {
+  it('reveals supplier-name input when user picks Supplier-held (proves holder transitions to "supplier")', async () => {
     const mockSaveMetadata = vi.fn().mockResolvedValue(undefined);
     const entityDetail = makeEntityDetail({});
     entityDetail.saveMetadata = mockSaveMetadata;

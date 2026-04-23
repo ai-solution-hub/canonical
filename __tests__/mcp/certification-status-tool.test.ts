@@ -707,9 +707,10 @@ describe('get_certification_status — holder coverage (OPS-24)', () => {
     // The cert appears in the report (it has an entity_relationships 'holds'
     // row) but has NO holder assigned since metadata.holder is absent and the
     // holderMap skips it (lines 304-306 continue when not 'self'|'supplier').
-    for (const cert of result.structuredContent.certifications) {
-      expect(cert.holder).toBeUndefined();
-    }
+    // Guard against vacuous-pass: the handler must return exactly one cert
+    // entry before we can meaningfully assert on its holder field.
+    expect(result.structuredContent.certifications).toHaveLength(1);
+    expect(result.structuredContent.certifications[0].holder).toBeUndefined();
   });
 
   // 4. Bogus holder value (e.g. 'unknown'): rejected at line 303-306
