@@ -1,7 +1,8 @@
 # MCP Module
 
-MCP server exposing the Knowledge Hub as 42 tools, 12 resources, and 5 prompts
-via Streamable HTTP transport at `/api/mcp/mcp`.
+MCP server exposed via Streamable HTTP transport at `/api/mcp/mcp`. Current
+tool, resource, and prompt counts: `docs/generated/mcp-inventory.md`
+(regenerate with `bun run generate:mcp-inventory`).
 
 ## Key Files
 
@@ -102,8 +103,8 @@ App types in `mcp-apps/{name}/src/types.ts` must match the corresponding
 
 ## Testing
 
-- **Unit tests:** 17 files in `__tests__/mcp/` — formatters, tool registration,
-  app contracts
+- **Unit tests:** `__tests__/mcp/` — formatters, tool registration, app
+  contracts (file count tracked in `docs/generated/codebase-stats.md`)
 - **Eval Layer 1:** `bun run test:mcp-eval` — protocol compliance (42 checks)
 - **Eval Layer 3:** `bun run test:mcp-eval:rq` — response quality (17 checks)
 - **Eval Layer 4:** `bun run test:mcp-eval:fc` — functional correctness (37

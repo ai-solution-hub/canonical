@@ -13,8 +13,7 @@ structured data accessible by AI. The first domain applications are bid
 management and sector intelligence for UK SMBs. The knowledge base
 is the foundation for these and future applications.
 
-**Team:** Liam (product owner) + Claude Code as
-development partner. All code is written through human-AI collaboration.
+**Team:** Liam (product owner) + Claude Code as development partner.
 
 ## Commands
 
@@ -65,9 +64,9 @@ Key file: `proxy.ts` — Next.js 16 auth middleware, `publicRoutes` allowlist
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `app/`        | Next.js 16 App Router — API routes, page routes                                                                                                                                                                                                 |
 | `mcp-apps/`   | MCP App UIs (Vite single-file builds for Claude Desktop/Claude.ai)                                                                                                                                                                              |
-| `components/` | 21 domain subdirs — new components go in their domain dir, never at root                                                                                                                                                                        |
+| `components/` | 23 domain subdirs — new components go in their domain dir, never at root                                                                                                                                                                        |
 | `contexts/`   | React contexts (read-marks, taxonomy, client-features, layer-vocabulary)                                                                                                                                                                        |
-| `hooks/`      | Custom React hooks — 6 domain subdirs (bid, browse, intelligence, review, streaming, ui) + general hooks at root                                                                                                                                              |
+| `hooks/`      | Custom React hooks — 7 domain subdirs (bid, browse, intelligence, provenance, review, streaming, ui) + general hooks at root                                                                                                                                  |
 | `lib/`        | Core modules — `ai/`, `mcp/` (tools, resources, prompts), `bid/`, `content/`, `coverage/`, `digest/`, `entities/`, `extraction/`, `quality/`, `source-documents/`, `supabase/`, `taxonomy/`, `templates/`, `validation/`, plus standalone utils |
 | `types/`      | TypeScript types (content, bid, bid-metadata, digest, review, template, owner, reorient, unified-gap, filter-preset, css.d)                                                                                                                     |
 | `scripts/`    | Python pipeline (`kb_pipeline/`), ingestion CLIs, search CLI, batch scripts                                                                                                                                                                     |
@@ -81,13 +80,17 @@ Current counts (routes, components, hooks, tools, migrations, tests):
 
 ## Environment
 
-Env vars in `.env` and `.env.local` — see `.env.example` for full template.
-Key vars: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `SUPABASE_URL`,
-`SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
-`SUPABASE_SECRET_KEY`, `AI_SUMMARY_MODEL` (optional, defaults `claude-sonnet-4-6`).
-`AI_CLASSIFICATION_MODEL` (optional) — Python classification model, defaults `claude-opus-4-6`.
-`AI_EMBEDDING_MODEL` (optional) — embedding model for both pipelines, defaults `text-embedding-3-large`.
-`AI_EMBEDDING_DIMS` (optional) — embedding dimensions, defaults `1024`. Schema-locked to `vector(N)` columns.
+Env vars in `.env` and `.env.local` — full template in `.env.example`.
+
+Required: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `SUPABASE_URL`,
+`SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SECRET_KEY`.
+
+Optional model overrides:
+- `AI_SUMMARY_MODEL` — `claude-sonnet-4-6`
+- `AI_CLASSIFICATION_MODEL` — `claude-opus-4-6` (Python pipeline)
+- `AI_EMBEDDING_MODEL` — `text-embedding-3-large` (both pipelines)
+- `AI_EMBEDDING_DIMS` — `1024` (schema-locked to `vector(N)` columns)
 
 ## Supabase & Schema
 
@@ -203,8 +206,6 @@ conventions: `docs/continuation-prompts/README.md`.
 - **REST PATCH on wrong UUID:** Returns 200 OK with 0 rows (silent no-op).
   Always verify updates by re-querying.
 - **RLS requires user_roles entry:** New users cannot write until seeded.
-- **notifications_type_check:** Valid types listed in schema reference (§29
-  CHECK Constraints). Other values fail the DB constraint.
 - **CLI in Claude Code sandbox:** Run `supabase migration new`, `db push`, and
   `gen types` with `dangerouslyDisableSandbox: true`. `SUPABASE_DB_PASSWORD`
   must be set as a shell env var.
@@ -265,8 +266,7 @@ conventions: `docs/continuation-prompts/README.md`.
   rules `local/no-unchecked-supabase-error` and `local/no-silent-promise-catch`.
   Full spec: `docs/specs/silent-failure-prevention-spec.md`.
 - **Cron `pipeline_runs` inserts:** Use `recordPipelineRun()` from
-  `@/lib/pipeline/record-run`, not raw insert. Uses `sb()` internally, fires
-  Sentry on failures, never throws.
+  `@/lib/pipeline/record-run`, not raw insert.
 - **Data fetching:** TanStack Query exclusively. Keys in
   `lib/query/query-keys.ts`, fetchers in `lib/query/fetchers.ts`. No SWR or raw
   fetch in hooks.
@@ -345,8 +345,8 @@ conventions: `docs/continuation-prompts/README.md`.
   detection of unused files/exports.
 - **`classifyContent` userId must be a UUID:** Use pipeline service account
   UUID (`a0000000-0000-4000-8000-000000000001`), never literal strings.
-- **`content_items.summary` (not `ai_summary`):** Column renamed in S164b.
-  `feed_articles.ai_summary` was intentionally NOT renamed.
+- **`content_items.summary` (not `ai_summary`):** `feed_articles.ai_summary`
+  is intentionally a separate column — do not "fix" the naming.
 - **Proxy blocks non-API public routes:** New public endpoints must be added to
   `publicRoutes` in `proxy.ts` (project root) or they silently redirect to
   `/login`.
