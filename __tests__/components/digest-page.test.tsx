@@ -212,10 +212,26 @@ function setupFetch(
     detail?: Record<string, unknown> | null;
     generateResult?: Record<string, unknown> | null;
     generateError?: string | null;
+    autoGenerateEnabled?: boolean;
   } = {},
 ) {
   mockFetch.mockImplementation(async (url: string) => {
     const urlStr = typeof url === 'string' ? url : String(url);
+
+    // OPS-23: notification preferences query from the digest page
+    if (urlStr.includes('/api/notifications/preferences')) {
+      return {
+        ok: true,
+        json: async () => ({
+          preferences: {
+            email_weekly_change_report: true,
+            email_review_assigned: true,
+            email_owned_content_flagged: true,
+            auto_generate_change_reports: options.autoGenerateEnabled ?? true,
+          },
+        }),
+      };
+    }
 
     if (urlStr.includes('/api/digest/latest')) {
       return {
@@ -235,6 +251,7 @@ function setupFetch(
       if (options.generateError) {
         return {
           ok: false,
+          status: 400,
           json: async () => ({ error: options.generateError }),
         };
       }
@@ -470,11 +487,27 @@ describe('DigestPage', () => {
     });
   });
 
-  // 9. Generating state shows spinner text
-  it('shows generating text during generation', async () => {
+  // 9. Generating state shows cancel button and progress text (OPS-23)
+  it('shows cancel button and progress text during generation', async () => {
     const user = userEvent.setup();
     // Make generate hang so we can see the generating state
     mockFetch.mockImplementation(async (url: string) => {
+      if (
+        typeof url === 'string' &&
+        url.includes('/api/notifications/preferences')
+      ) {
+        return {
+          ok: true,
+          json: async () => ({
+            preferences: {
+              email_weekly_change_report: true,
+              email_review_assigned: true,
+              email_owned_content_flagged: true,
+              auto_generate_change_reports: true,
+            },
+          }),
+        };
+      }
       if (typeof url === 'string' && url.includes('/api/digest/latest')) {
         return { ok: true, json: async () => ({ digest: null }) };
       }
@@ -499,7 +532,11 @@ describe('DigestPage', () => {
     await user.click(generateButton);
 
     await waitFor(() => {
-      expect(screen.getByText('Generating...')).toBeInTheDocument();
+      // OPS-23: Cancel button replaces Generate button during generation
+      expect(
+        screen.getByRole('button', { name: /Cancel/i }),
+      ).toBeInTheDocument();
+      expect(screen.getByText(/Generating your report/)).toBeInTheDocument();
     });
   });
 
@@ -656,6 +693,22 @@ describe('DigestPage', () => {
   it('has aria-live region during generating state', async () => {
     const user = userEvent.setup();
     mockFetch.mockImplementation(async (url: string) => {
+      if (
+        typeof url === 'string' &&
+        url.includes('/api/notifications/preferences')
+      ) {
+        return {
+          ok: true,
+          json: async () => ({
+            preferences: {
+              email_weekly_change_report: true,
+              email_review_assigned: true,
+              email_owned_content_flagged: true,
+              auto_generate_change_reports: true,
+            },
+          }),
+        };
+      }
       if (typeof url === 'string' && url.includes('/api/digest/latest')) {
         return { ok: true, json: async () => ({ digest: null }) };
       }
@@ -755,10 +808,26 @@ describe('DigestPage', () => {
     });
   });
 
-  // 22. Generate button is disabled during generation
-  it('disables generate button while generating', async () => {
+  // 22. Cancel button replaces Generate button during generation (OPS-23)
+  it('shows Cancel button during generation instead of Generate', async () => {
     const user = userEvent.setup();
     mockFetch.mockImplementation(async (url: string) => {
+      if (
+        typeof url === 'string' &&
+        url.includes('/api/notifications/preferences')
+      ) {
+        return {
+          ok: true,
+          json: async () => ({
+            preferences: {
+              email_weekly_change_report: true,
+              email_review_assigned: true,
+              email_owned_content_flagged: true,
+              auto_generate_change_reports: true,
+            },
+          }),
+        };
+      }
       if (typeof url === 'string' && url.includes('/api/digest/latest')) {
         return { ok: true, json: async () => ({ digest: null }) };
       }
@@ -783,9 +852,14 @@ describe('DigestPage', () => {
     await user.click(generateButton);
 
     await waitFor(() => {
+      // OPS-23: Cancel button replaces Generate while in-flight
       expect(
-        screen.getByRole('button', { name: /Generating/i }),
-      ).toBeDisabled();
+        screen.getByRole('button', { name: /Cancel/i }),
+      ).toBeInTheDocument();
+      // Generate button should no longer be visible
+      expect(
+        screen.queryByRole('button', { name: /Generate Report/i }),
+      ).not.toBeInTheDocument();
     });
   });
 

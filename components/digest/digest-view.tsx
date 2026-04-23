@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { Layers, FileText, Shield } from 'lucide-react';
+import { Layers, FileText, Shield, Activity } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { DigestDomainSection } from '@/components/digest/digest-domain-section';
 import { formatDate } from '@/lib/format';
@@ -76,9 +76,18 @@ export function DigestView({ digest, className }: DigestViewProps) {
         </section>
       )}
 
-      {/* Review activity this period (governance summary) */}
+      {/* Review activity this period (governance summary — period-scoped deltas only) */}
       {digest.governance_summary && (
-        <GovernanceSection summary={digest.governance_summary} />
+        <ReviewActivitySection summary={digest.governance_summary} />
+      )}
+
+      {/* Current KB health — freshness breakdown (OPS-19: extracted from
+          the period card because this is a current-state snapshot, not a
+          period delta) */}
+      {digest.governance_summary?.freshness_breakdown && (
+        <KBHealthSection
+          freshnessBreakdown={digest.governance_summary.freshness_breakdown}
+        />
       )}
 
       {/* Theme clusters */}
@@ -120,14 +129,22 @@ export function DigestView({ digest, className }: DigestViewProps) {
   );
 }
 
-/** Format a number as a delta string, e.g. 12 → "+12", 0 → "0". */
+/** Format a number as a delta string, e.g. 12 -> "+12", 0 -> "0". */
 function formatDelta(value: number): string {
   return value > 0 ? `+${value}` : String(value);
 }
 
-function GovernanceSection({ summary }: { summary: DigestGovernanceSummary }) {
-  const { items_modified, items_verified, items_flagged, freshness_breakdown } =
-    summary;
+/**
+ * Review Activity This Period — period-scoped deltas only (modified /
+ * verified / flagged counts). OPS-19: freshness breakdown extracted to
+ * KBHealthSection below.
+ */
+function ReviewActivitySection({
+  summary,
+}: {
+  summary: DigestGovernanceSummary;
+}) {
+  const { items_modified, items_verified, items_flagged } = summary;
 
   return (
     <section className="rounded-xl border bg-card p-6">
@@ -157,23 +174,47 @@ function GovernanceSection({ summary }: { summary: DigestGovernanceSummary }) {
           <p className="mt-1 text-xs text-muted-foreground">Items flagged</p>
         </div>
       </div>
-      {freshness_breakdown && (
-        <div className="mt-4">
-          <p className="mb-2 text-xs font-medium text-muted-foreground">
-            Freshness Breakdown
-          </p>
-          <div className="flex flex-wrap gap-4">
-            {(['fresh', 'aging', 'stale', 'expired'] as const).map((state) => (
-              <div key={state} className="flex items-center gap-1.5">
-                <FreshnessBadge freshness={state} compact />
-                <span className="text-sm font-medium text-foreground">
-                  {freshness_breakdown[state]}
-                </span>
-              </div>
-            ))}
+    </section>
+  );
+}
+
+/**
+ * Current KB Health — freshness breakdown snapshot.
+ *
+ * OPS-19: Extracted from the period-scoped GovernanceSection because the
+ * freshness breakdown (fresh/aging/stale/expired counts) is a current-state
+ * snapshot of the entire KB, not a period delta. Rendered as its own card
+ * below the "Review Activity This Period" section.
+ */
+function KBHealthSection({
+  freshnessBreakdown,
+}: {
+  freshnessBreakdown: DigestGovernanceSummary['freshness_breakdown'];
+}) {
+  if (!freshnessBreakdown) return null;
+
+  return (
+    <section className="rounded-xl border bg-card p-6">
+      <div className="mb-4 flex items-center gap-2">
+        <Activity className="size-4 text-primary" />
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          Current KB Health
+        </h2>
+      </div>
+      <p className="mb-3 text-xs text-muted-foreground">
+        Freshness breakdown across all knowledge base items (current state, not
+        period-specific).
+      </p>
+      <div className="flex flex-wrap gap-4">
+        {(['fresh', 'aging', 'stale', 'expired'] as const).map((state) => (
+          <div key={state} className="flex items-center gap-1.5">
+            <FreshnessBadge freshness={state} compact />
+            <span className="text-sm font-medium text-foreground">
+              {freshnessBreakdown[state]}
+            </span>
           </div>
-        </div>
-      )}
+        ))}
+      </div>
     </section>
   );
 }

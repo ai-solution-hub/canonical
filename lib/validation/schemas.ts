@@ -311,10 +311,7 @@ export const ItemUpdateBodySchema = z
           message: 'superseded_by value must be a UUID string or null',
           path: ['value'],
         });
-      } else if (
-        typeof data.value === 'string' &&
-        !UUID_RE.test(data.value)
-      ) {
+      } else if (typeof data.value === 'string' && !UUID_RE.test(data.value)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: 'superseded_by value must be a valid UUID',
@@ -1795,9 +1792,9 @@ export const NotificationPreferencesPutBodySchema = z
     email_weekly_change_report: z.boolean().optional(),
     email_review_assigned: z.boolean().optional(),
     email_owned_content_flagged: z.boolean().optional(),
+    auto_generate_change_reports: z.boolean().optional(),
   })
   .strict()
-  .refine(
-    (data) => Object.keys(data).length > 0,
-    { message: 'At least one preference field is required' },
-  );
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'At least one preference field is required',
+  });

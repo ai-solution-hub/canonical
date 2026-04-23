@@ -1,9 +1,9 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
-import { fetchJson, mutationFetchJson } from '@/lib/query/fetchers';
+import { fetchJson, mutationFetchJson, ApiError } from '@/lib/query/fetchers';
 import { toast } from 'sonner';
 import type { Digest, DigestGenerateResponse } from '@/types/digest';
 
@@ -41,9 +41,14 @@ interface GenerateDigestParams {
  *
  * Task 5: `loadDigest` routes through `queryClient.fetchQuery` so the
  * result is cached and subsequent loads for the same digest are instant.
+ *
+ * OPS-23: AbortController support for cancelling in-flight generation.
  */
 export function useDigestData() {
   const queryClient = useQueryClient();
+
+  // AbortController ref for cancelling in-flight generation (OPS-23)
+  const abortRef = useRef<AbortController | null>(null);
 
   // ─── Latest digest query ───
 
@@ -72,9 +77,18 @@ export function useDigestData() {
   // ─── Generate mutation ───
 
   const generateMutation = useMutation({
-    mutationFn: (params: GenerateDigestParams) =>
-      mutationFetchJson<DigestGenerateResponse>('/api/digest/generate', params),
+    mutationFn: (params: GenerateDigestParams) => {
+      // Create a new AbortController for each generation attempt
+      const controller = new AbortController();
+      abortRef.current = controller;
+      return mutationFetchJson<DigestGenerateResponse>(
+        '/api/digest/generate',
+        params,
+        { signal: controller.signal },
+      );
+    },
     onSuccess: (data) => {
+      abortRef.current = null;
       // Update the latest digest cache directly
       queryClient.setQueryData(queryKeys.digests.latest, data.digest);
       // Invalidate the list to pick up the new entry
@@ -84,11 +98,30 @@ export function useDigestData() {
       toast.success('Report generated successfully');
     },
     onError: (error) => {
+      abortRef.current = null;
+      // Don't toast on user-initiated abort
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        toast.info('Report generation cancelled');
+        return;
+      }
+      // Don't toast for cost-guard errors — handled by the page component
+      if (error instanceof ApiError && error.code === 'DIGEST_TOO_MANY_ITEMS') {
+        return;
+      }
       toast.error(
         error instanceof Error ? error.message : 'Failed to generate report',
       );
     },
   });
+
+  // Cancel in-flight generation (OPS-23)
+  const cancelGeneration = useCallback(() => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
+    generateMutation.reset();
+  }, [generateMutation]);
 
   // ─── Load a specific past digest ───
 
@@ -125,6 +158,7 @@ export function useDigestData() {
     generating: generateMutation.isPending,
     generateError: generateMutation.error,
     handleGenerate: generateMutation.mutate,
+    cancelGeneration,
     loadDigest,
   };
 }

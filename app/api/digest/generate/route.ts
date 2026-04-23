@@ -49,6 +49,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result);
   } catch (err) {
     if (err instanceof AIServiceError) {
+      // OPS-23: structured 413 body for the cost guard
+      if (err.status === 413) {
+        try {
+          const parsed = JSON.parse(err.message);
+          if (parsed.code === 'DIGEST_TOO_MANY_ITEMS') {
+            return NextResponse.json(parsed, { status: 413 });
+          }
+        } catch {
+          // Not JSON — fall through to generic path
+        }
+      }
       return NextResponse.json(
         { error: safeErrorMessage(err, err.message) },
         { status: err.status },

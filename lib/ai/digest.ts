@@ -24,6 +24,23 @@ import { tryQuery } from '@/lib/supabase/safe';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 
 // ──────────────────────────────────────────
+// Constants
+// ──────────────────────────────────────────
+
+/**
+ * Maximum number of content items allowed for automatic digest generation.
+ *
+ * Rationale: ~250 tokens/item x 150 = 37.5K input tokens. At Sonnet 4-6
+ * pricing that is ~$0.11 per call — well under rate-limit concern. A 7-day
+ * window on a steady-state KB rarely exceeds this; first-ingestion days
+ * (e.g. 500+ items with recent captured_date) easily do.
+ *
+ * Exported so the client can display the threshold in the "too many items"
+ * empty state and so tests can reference it.
+ */
+export const DIGEST_AUTO_GEN_MAX_ITEMS = 150;
+
+// ──────────────────────────────────────────
 // Types
 // ──────────────────────────────────────────
 
@@ -215,6 +232,21 @@ export async function generateDigest(
     throw new AIServiceError(
       'No content items found for the selected filters and period',
       400,
+    );
+  }
+
+  // Pre-flight cost guard (OPS-23): reject before calling Claude when
+  // the item count exceeds the threshold. The API route catches the 413
+  // and returns a structured error the client can render as actionable UX.
+  if (typedItems.length > DIGEST_AUTO_GEN_MAX_ITEMS) {
+    throw new AIServiceError(
+      JSON.stringify({
+        code: 'DIGEST_TOO_MANY_ITEMS',
+        item_count: typedItems.length,
+        max: DIGEST_AUTO_GEN_MAX_ITEMS,
+        message: `Your KB has ${typedItems.length} items in the selected period — that exceeds the ${DIGEST_AUTO_GEN_MAX_ITEMS}-item limit for automatic summaries. Use Custom filter to narrow the date range or apply a domain filter.`,
+      }),
+      413,
     );
   }
 
