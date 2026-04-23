@@ -354,6 +354,7 @@ export function OrganisationSection() {
       )}
 
       <OrganisationForm
+        key={profile?.id ?? 'new'}
         initialData={profile}
         onSubmit={(data) => upsertMutation.mutate(data)}
         isPending={upsertMutation.isPending}

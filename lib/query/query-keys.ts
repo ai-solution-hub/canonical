@@ -232,6 +232,7 @@ export const queryKeys = {
     all: ['user'] as const,
     role: ['user', 'role'] as const,
     claudeConnected: ['user', 'claude-connected'] as const,
+    primaryFocus: ['user', 'primary-focus'] as const,
   },
 
   // Citations

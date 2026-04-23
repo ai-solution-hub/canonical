@@ -230,11 +230,10 @@ describe('FilterBadges', () => {
       );
     });
 
-    it('renders Layer badge before Freshness badge', () => {
-      mockActiveFilterCount.value = 2;
+    it('renders Layer badge when it is the only active filter', () => {
+      mockActiveFilterCount.value = 1;
       mockFilters.value = {
         layer: 'bid_detail',
-        freshness: ['fresh'],
       };
       render(<FilterBadges />);
 
@@ -242,12 +241,9 @@ describe('FilterBadges', () => {
         name: /^Remove .+ filter:/,
       });
 
-      // Layer should come before Freshness
       const layerIdx = removeButtons.findIndex(
         (btn) => btn.getAttribute('aria-label') === 'Remove Layer filter: Bid Detail',
       );
-      // Freshness badges don't exist as a named filter in the current badges
-      // but Layer should be first in this set
       expect(layerIdx).toBe(0);
     });
 

@@ -8,6 +8,7 @@ import {
   getFullPrimaryProfile,
   generateSlug,
 } from '@/lib/organisation-profile';
+import { sb } from '@/lib/supabase/safe';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export const maxDuration = 15;
@@ -58,7 +59,7 @@ export async function PUT(request: NextRequest) {
 
     // Resolve slug — auto-generate from name, handle UNIQUE collisions
     const slug = await resolveUniqueSlug(
-      supabase as SupabaseClient,
+      supabase,
       generateSlug(validated.name),
       existing?.id,
     );
@@ -68,67 +69,57 @@ export async function PUT(request: NextRequest) {
 
     if (existing) {
       // Update existing primary profile
-      const { data, error } = await (supabase as SupabaseClient)
-        .from('company_profiles')
-        .update({
-          name: validated.name,
-          slug,
-          description: validated.description ?? null,
-          website_url: websiteUrl,
-          sectors: validated.sectors,
-          services: validated.services,
-          certifications: validated.certifications,
-          geographic_scope: validated.geographic_scope,
-          target_customers: validated.target_customers ?? null,
-          value_proposition: validated.value_proposition ?? null,
-          key_topics: validated.key_topics,
-        })
-        .eq('id', existing.id)
-        .select(
-          'id, name, description, website_url, sectors, services, certifications, geographic_scope, target_customers, value_proposition, key_topics',
-        )
-        .single();
-
-      if (error) {
-        return NextResponse.json(
-          { error: 'Failed to update organisation profile' },
-          { status: 500 },
-        );
-      }
+      const data = await sb(
+        supabase
+          .from('company_profiles')
+          .update({
+            name: validated.name,
+            slug,
+            description: validated.description ?? null,
+            website_url: websiteUrl,
+            sectors: validated.sectors,
+            services: validated.services,
+            certifications: validated.certifications,
+            geographic_scope: validated.geographic_scope,
+            target_customers: validated.target_customers ?? null,
+            value_proposition: validated.value_proposition ?? null,
+            key_topics: validated.key_topics,
+          })
+          .eq('id', existing.id)
+          .select(
+            'id, name, description, website_url, sectors, services, certifications, geographic_scope, target_customers, value_proposition, key_topics',
+          )
+          .single(),
+      );
 
       return NextResponse.json({ profile: data });
     } else {
       // Create new primary profile
-      const { data, error } = await (supabase as SupabaseClient)
-        .from('company_profiles')
-        .insert({
-          name: validated.name,
-          slug,
-          description: validated.description ?? null,
-          website_url: websiteUrl,
-          sectors: validated.sectors,
-          services: validated.services,
-          certifications: validated.certifications,
-          geographic_scope: validated.geographic_scope,
-          competitors: [],
-          target_customers: validated.target_customers ?? null,
-          value_proposition: validated.value_proposition ?? null,
-          key_topics: validated.key_topics,
-          is_active: true,
-          is_primary: true,
-          created_by: user.id,
-        })
-        .select(
-          'id, name, description, website_url, sectors, services, certifications, geographic_scope, target_customers, value_proposition, key_topics',
-        )
-        .single();
-
-      if (error) {
-        return NextResponse.json(
-          { error: 'Failed to create organisation profile' },
-          { status: 500 },
-        );
-      }
+      const data = await sb(
+        supabase
+          .from('company_profiles')
+          .insert({
+            name: validated.name,
+            slug,
+            description: validated.description ?? null,
+            website_url: websiteUrl,
+            sectors: validated.sectors,
+            services: validated.services,
+            certifications: validated.certifications,
+            geographic_scope: validated.geographic_scope,
+            competitors: [],
+            target_customers: validated.target_customers ?? null,
+            value_proposition: validated.value_proposition ?? null,
+            key_topics: validated.key_topics,
+            is_active: true,
+            is_primary: true,
+            created_by: user.id,
+          })
+          .select(
+            'id, name, description, website_url, sectors, services, certifications, geographic_scope, target_customers, value_proposition, key_topics',
+          )
+          .single(),
+      );
 
       return NextResponse.json({ profile: data }, { status: 201 });
     }
@@ -158,7 +149,7 @@ async function resolveUniqueSlug(
 
   // Check if slug is taken (by a different profile)
   let candidate = slug;
-  let suffix = 1;
+  let suffix = 0;
 
   for (;;) {
     const query = supabase

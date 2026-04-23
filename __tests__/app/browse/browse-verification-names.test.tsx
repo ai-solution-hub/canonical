@@ -153,6 +153,10 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/browse',
 }));
 
+vi.mock('@/hooks/use-primary-focus', () => ({
+  usePrimaryFocus: () => ({ primaryFocus: null, isLoading: false }),
+}));
+
 vi.mock('@/contexts/read-marks-context', () => ({
   useReadMarks: () => ({
     isRead: () => false,

@@ -2,15 +2,8 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
+import { queryKeys } from '@/lib/query/query-keys';
 import type { PrimaryFocus } from '@/lib/user-focus-constants';
-
-/**
- * Query key for the current user's primary focus — kept local because it is
- * only consumed here and by its test file. The value is immutable for a
- * session (written once by P0-4 first-run card or Settings profile), so
- * staleTime is set to Infinity.
- */
-const PRIMARY_FOCUS_QUERY_KEY = ['user', 'primary-focus'] as const;
 
 const VALID_FOCUS_VALUES: ReadonlySet<string> = new Set([
   'bid_writing',
@@ -35,7 +28,7 @@ export interface UsePrimaryFocusResult {
  */
 export function usePrimaryFocus(): UsePrimaryFocusResult {
   const { data, isLoading } = useQuery({
-    queryKey: PRIMARY_FOCUS_QUERY_KEY,
+    queryKey: queryKeys.user.primaryFocus,
     queryFn: async (): Promise<{ primaryFocus: PrimaryFocus | null }> => {
       const supabase = createClient();
       const {

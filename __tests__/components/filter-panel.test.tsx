@@ -454,8 +454,8 @@ describe('FilterPanel', () => {
       expect(screen.getByText('Sales Brief')).toBeInTheDocument();
       expect(screen.getByText('Bid Detail')).toBeInTheDocument();
       expect(screen.getByText('Company Reference')).toBeInTheDocument();
-      // "Research" appears both as a layer chip and a taxonomy domain,
-      // so use getAllByText to avoid the multiple-elements error
+      // 'Research' appears as both the Research layer chip and in the
+      // Keywords filter's exposed keyword chips (pre-existing mock data).
       expect(screen.getAllByText('Research').length).toBeGreaterThanOrEqual(1);
     });
 

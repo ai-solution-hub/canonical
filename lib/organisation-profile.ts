@@ -12,19 +12,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 
-// ---------------------------------------------------------------------------
-// Type augmentation — is_primary may not be in generated types yet.
-// Main session will regen types in Wave 3 and this can be removed.
-// ---------------------------------------------------------------------------
-
 type CompanyProfileRow =
   Database['public']['Tables']['company_profiles']['Row'];
-
-// Extend with is_primary if not already present in generated types.
-// When types are regenerated, this becomes a no-op identity intersection.
-type CompanyProfileWithPrimary = CompanyProfileRow & {
-  is_primary: boolean;
-};
 
 // ---------------------------------------------------------------------------
 // Public types (consumed by hooks and downstream features)
@@ -118,7 +107,7 @@ const ORGANISATION_PROFILE_SELECT =
 export async function getOrganisationProfile(
   supabase: SupabaseClient<Database>,
 ): Promise<OrganisationProfile | null> {
-  const { data, error } = await (supabase as SupabaseClient)
+  const { data, error } = await supabase
     .from('company_profiles')
     .select(ORGANISATION_PROFILE_SELECT)
     .eq('is_primary', true)
@@ -139,8 +128,8 @@ export async function getOrganisationProfile(
  */
 export async function getFullPrimaryProfile(
   supabase: SupabaseClient<Database>,
-): Promise<CompanyProfileWithPrimary | null> {
-  const { data, error } = await (supabase as SupabaseClient)
+): Promise<CompanyProfileRow | null> {
+  const { data, error } = await supabase
     .from('company_profiles')
     .select('*')
     .eq('is_primary', true)
@@ -152,5 +141,5 @@ export async function getFullPrimaryProfile(
     return null;
   }
 
-  return data as CompanyProfileWithPrimary | null;
+  return data;
 }

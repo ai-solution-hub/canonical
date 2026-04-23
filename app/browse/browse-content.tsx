@@ -27,6 +27,7 @@ import { BulkActions } from '@/components/browse/bulk-actions';
 import { LoadingSkeleton, EmptyState } from '@/components/browse/browse-states';
 import { PresetBar } from '@/components/browse/preset-bar';
 import { SearchPromptCards } from '@/components/browse/search-prompt-cards';
+import { shouldShowColdStartPrompts } from '@/lib/browse-cold-start';
 import { SavePresetDialog } from '@/components/browse/save-preset-dialog';
 import { ManagePresetsDialog } from '@/components/browse/manage-presets-dialog';
 import { Button } from '@/components/ui/button';
@@ -509,18 +510,19 @@ export function BrowseContent() {
       </div>
 
       {/* Prompt cards — cold-start state (P1-10) */}
-      {!searchQuery &&
-        activeFilterCount === 0 &&
-        !showUnreadOnly &&
-        !isLoading &&
-        totalCount !== null &&
-        totalCount > 0 && (
-          <SearchPromptCards
-            primaryFocus={primaryFocus}
-            role={(role as 'admin' | 'editor' | 'viewer') ?? 'viewer'}
-            onSelectQuery={handlePromptCardSelect}
-          />
-        )}
+      {shouldShowColdStartPrompts({
+        searchQuery,
+        activeFilterCount,
+        showUnreadOnly,
+        isLoading,
+        totalCount,
+      }) && (
+        <SearchPromptCards
+          primaryFocus={primaryFocus}
+          role={(role as 'admin' | 'editor' | 'viewer') ?? 'viewer'}
+          onSelectQuery={handlePromptCardSelect}
+        />
+      )}
 
       {/* Preset bar */}
       <div className="mt-4">
