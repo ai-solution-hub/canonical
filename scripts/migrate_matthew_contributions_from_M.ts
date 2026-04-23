@@ -543,7 +543,6 @@ export function buildCreatePayload(item: MContentItem): Record<string, unknown> 
     source_document_id: item.source_document_id,
     source_file: item.source_file,
     layer: item.layer,
-    content_text_hash: item.content_text_hash,
     freshness: item.freshness,
     lifecycle_type: item.lifecycle_type,
     metadata: item.metadata,
@@ -585,7 +584,6 @@ export function buildUpdatePayload(item: MContentItem): Record<string, unknown> 
     answer_standard: item.answer_standard,
     answer_advanced: item.answer_advanced,
     notes: item.notes,
-    content_text_hash: item.content_text_hash,
     updated_at: item.updated_at,
     updated_by: MATTHEW_USER_ID,
   };
@@ -874,6 +872,13 @@ async function main() {
         `Item was neither created nor matched on R.`,
       );
       historyOrphaned++;
+      continue;
+    }
+
+    if (!args.liveApply) {
+      // Dry-run: skip idempotency check (synthetic R UUID fails PG UUID validation)
+      console.log(`  WOULD INSERT (dry-run): ${label} → R content_item_id ${rContentItemId}`);
+      historyInserted++;
       continue;
     }
 
