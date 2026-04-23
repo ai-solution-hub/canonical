@@ -7,7 +7,7 @@ import {
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
-import { ItemCreateBodySchema } from '@/lib/validation/schemas';
+import { ItemCreateBodySchema, normaliseTag } from '@/lib/validation/schemas';
 import { generateEmbedding } from '@/lib/ai/embed';
 import { stripMarkdown } from '@/lib/content/strip-markdown';
 import { recordPipelineRun } from '@/lib/pipeline/record-run';
@@ -118,6 +118,12 @@ export async function POST(request: NextRequest) {
       // Non-fatal — continue with creation
     }
 
+    // Normalise ai_keywords at the write boundary (spec ss6.6 EP3).
+    // Ensures web-form-submitted keywords match classify-time canonicalisation.
+    const normalisedAiKeywords = ai_keywords?.length
+      ? [...new Set(ai_keywords.map(normaliseTag).filter((k) => k.length > 0))]
+      : undefined;
+
     // Build the insert payload
     const insertData: Database['public']['Tables']['content_items']['Insert'] =
       {
@@ -141,7 +147,7 @@ export async function POST(request: NextRequest) {
         ...(secondary_subtopic && { secondary_subtopic }),
         ...(priority && { priority }),
         ...(user_tags?.length && { user_tags }),
-        ...(ai_keywords?.length && { ai_keywords }),
+        ...(normalisedAiKeywords?.length && { ai_keywords: normalisedAiKeywords }),
         ...(author_name && { author_name }),
         ...(source_url && { source_url }),
         ...(brief && { brief }),

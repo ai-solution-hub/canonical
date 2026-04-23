@@ -526,11 +526,22 @@ def _to_singular(kw: str) -> str:
     Handles trailing 's' only — does not attempt irregular plurals
     (e.g. 'policies' → 'policy'). Short words (<=3 chars) are left unchanged
     to avoid mangling words like 'bus', 'gas', 'SaaS'.
+
+    Guards (do NOT strip trailing 's'):
+      - len <= 3: 'bus', 'gas'
+      - endswith 'ss': 'access', 'process'
+      - endswith 'us': 'status', 'nexus'
+      - endswith 'sis': 'analysis', 'diagnosis'
+      - endswith 'ous': 'continuous', 'previous'
     """
-    # Don't singularise very short words or words ending in 'ss' (e.g. 'access')
     if len(kw) <= 3 or kw.endswith("ss"):
         return kw
-    if kw.endswith("s") and not kw.endswith("us"):
+    if (
+        kw.endswith("s")
+        and not kw.endswith("us")
+        and not kw.endswith("sis")
+        and not kw.endswith("ous")
+    ):
         return kw[:-1]
     return kw
 
@@ -538,14 +549,23 @@ def _to_singular(kw: str) -> str:
 def normalise_keyword(kw: str) -> str:
     """Normalise an AI keyword for consistent storage.
 
-    - Strips whitespace
+    - Strips leading/trailing whitespace
+    - Collapses internal whitespace to single space (ASCII whitespace only)
     - Preserves known proper nouns/acronyms (hardcoded allowlist)
     - Lowercases everything else
     - Converts to singular form for simple English plurals (trailing 's')
+
+    The whitespace regex uses re.ASCII so that only ASCII whitespace characters
+    (tab, newline, carriage return, form feed, vertical tab, space) are matched.
+    This maintains parity with the TS normaliseTag() which uses the equivalent
+    character class [\\t\\n\\r\\f\\v ]+.
     """
     kw = kw.strip()
     if not kw:
         return kw
+
+    # Collapse internal whitespace (ASCII-only parity with TS)
+    kw = re.sub(r"[\t\n\r\f\v ]+", " ", kw, flags=re.ASCII)
 
     # Check if the entire keyword is a known proper noun (case-insensitive)
     canonical = _PROPER_NOUN_LOOKUP.get(kw.lower())

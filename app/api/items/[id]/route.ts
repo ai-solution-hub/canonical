@@ -6,6 +6,7 @@ import {
   ItemUpdateBodySchema,
   VALID_CONTENT_TYPES,
   VALID_PLATFORMS,
+  normaliseTag,
 } from '@/lib/validation/schemas';
 import { generateSingleFieldChangeSummary } from '@/lib/change-summary';
 import { generateEmbedding } from '@/lib/ai/embed';
@@ -276,12 +277,19 @@ export async function PATCH(
       value,
     );
 
+    // Normalise ai_keywords at the write boundary (spec ss6.6 EP4).
+    // Ensures web-form-edited keywords match classify-time canonicalisation.
+    const effectiveValue =
+      field === 'ai_keywords' && Array.isArray(value)
+        ? [...new Set(value.map(normaliseTag).filter((k: string) => k.length > 0))]
+        : value;
+
     // For Q&A answer fields, auto-rebuild the content field from Standard + Advanced.
     // Canonical shape per P0-BM Phase 3 spec ss4.1:
     //   Q: {question}\n\n{answer_standard}\n\n{answer_advanced}
     // Question sourced via resolveQuestionForRebuild (spec ss6.2 Option B).
     const updateData: Record<string, unknown> = {
-      [field]: value,
+      [field]: effectiveValue,
       updated_by: user.id,
     };
     let rebuiltQaContent: string | null = null;

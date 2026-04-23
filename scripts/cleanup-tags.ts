@@ -12,6 +12,8 @@
  *   bun run scripts/cleanup-tags.ts --help        # show usage
  */
 
+import { normaliseTag } from '../lib/validation/schemas';
+
 // ── Synonym merge mappings ───────────────────────────────────────────────────
 
 /**
@@ -110,15 +112,23 @@ export function processItemKeywords(
   // Step 2: Apply synonym merges
   const afterMerge = applySynonymMerges(afterRemoval, merges);
 
+  // Step 3: Canonicalise via normaliseTag (spec ss6.6 EP10).
+  // Ensures merge outputs (e.g. synonym canonical forms) are in normalised form.
+  const afterNormalise = [
+    ...new Set(
+      afterMerge.map(normaliseTag).filter((kw) => kw.length > 0),
+    ),
+  ];
+
   // Check if anything changed
   if (
-    afterMerge.length === keywords.length &&
-    afterMerge.every((kw, i) => kw === keywords[i])
+    afterNormalise.length === keywords.length &&
+    afterNormalise.every((kw, i) => kw === keywords[i])
   ) {
     return null;
   }
 
-  return afterMerge;
+  return afterNormalise;
 }
 
 // ── Script entry point (only runs when executed directly) ────────────────────

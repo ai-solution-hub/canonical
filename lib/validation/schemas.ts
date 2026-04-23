@@ -941,14 +941,22 @@ const TAG_PROPER_NOUN_ALLOWLIST: ReadonlyMap<string, string> = new Map([
 
 /**
  * Normalise a tag for consistent storage.
- * - Trims whitespace
+ * - Trims leading/trailing whitespace
+ * - Collapses internal whitespace to single space (ASCII whitespace only)
  * - Preserves known proper nouns/acronyms
  * - Lowercases everything else
  * - Converts simple English plurals to singular (trailing 's')
+ *
+ * The whitespace regex uses an explicit ASCII character class [\t\n\r\f\v ]+
+ * (NOT \s+) to maintain parity with the Python normalise_keyword() which uses
+ * re.ASCII. Unicode whitespace (e.g. U+00A0 NBSP) is intentionally NOT matched.
  */
 export function normaliseTag(tag: string): string {
   tag = tag.trim();
   if (!tag) return tag;
+
+  // Collapse internal whitespace (ASCII-only parity with Python)
+  tag = tag.replace(/[\t\n\r\f\v ]+/g, ' ');
 
   // Check if it is a known proper noun (case-insensitive)
   const canonical = TAG_PROPER_NOUN_ALLOWLIST.get(tag.toLowerCase());
