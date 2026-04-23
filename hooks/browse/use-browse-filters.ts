@@ -264,6 +264,9 @@ export function useBrowseFilters() {
 
   const setSearchQuery = useCallback(
     (query: string | undefined) => {
+      // from_bid persistence (SD-5): cloning URLSearchParams from the
+      // current URL preserves every existing param, so from_bid rides
+      // through both set and clear cases without explicit handling.
       const params = new URLSearchParams(searchParams.toString());
       if (query) {
         params.set('q', query);

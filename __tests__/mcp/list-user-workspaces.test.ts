@@ -31,11 +31,16 @@ vi.mock('@/lib/mcp/auth', () => ({
 }));
 
 vi.mock('@/lib/supabase/safe', () => ({
-  sb: vi.fn(async (queryPromise: Promise<{ data: unknown; error: unknown }>) => {
-    const result = await queryPromise;
-    if (result.error) throw new Error(String(result.error));
-    return result.data;
-  }),
+  sb: vi.fn(
+    async (
+      queryPromise: Promise<{ data: unknown; error: unknown }>,
+      _context?: string,
+    ) => {
+      const result = await queryPromise;
+      if (result.error) throw new Error(String(result.error));
+      return result.data;
+    },
+  ),
 }));
 
 // ---------------------------------------------------------------------------
@@ -241,6 +246,30 @@ describe('list_user_workspaces MCP tool', () => {
     // Verify eq was called with both is_archived and type filter
     expect(eqCalls).toContainEqual(['is_archived', false]);
     expect(eqCalls).toContainEqual(['type', 'intelligence']);
+  });
+
+  it('remaps type: "content" to DB enum "kb_section" when filtering', async () => {
+    // The tool accepts 'content' as the user-facing type name but the DB enum
+    // is `kb_section` — mapping must happen in the query layer.
+    const eqCalls: Array<[string, unknown]> = [];
+    const chainedQuery = {
+      eq: vi.fn((...args: [string, unknown]) => {
+        eqCalls.push(args);
+        return chainedQuery;
+      }),
+      order: vi.fn().mockResolvedValue({
+        data: [WORKSPACE_FIXTURES.kbSection],
+        error: null,
+      }),
+    };
+    mocks.fromReturn.select.mockReturnValue(chainedQuery);
+
+    const tool = getWorkspaceTool();
+    await tool.callback({ type: 'content' }, MOCK_EXTRA);
+
+    // DB enum is kb_section, not content
+    expect(eqCalls).toContainEqual(['type', 'kb_section']);
+    expect(eqCalls).not.toContainEqual(['type', 'content']);
   });
 
   it('denies access to unauthenticated users', async () => {

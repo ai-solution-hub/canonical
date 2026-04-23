@@ -155,9 +155,18 @@ export function useFilterPresets(): UseFilterPresetsReturn {
     (presetId: string) => {
       const preset = presets.find((p) => p.id === presetId);
       if (!preset) return;
-      router.push(`/browse?${preset.params}`);
+      // Preserve from_bid sticky URL param (SD-5 / risk R-4): presets
+      // are normalised on save so from_bid is stripped; re-append from
+      // the current URL when applying so bid-context survives preset
+      // switches in the same session.
+      const fromBid = searchParams.get('from_bid');
+      const params = new URLSearchParams(preset.params);
+      if (fromBid) {
+        params.set('from_bid', fromBid);
+      }
+      router.push(`/browse?${params.toString()}`);
     },
-    [presets, router],
+    [presets, router, searchParams],
   );
 
   const savePreset = useCallback(

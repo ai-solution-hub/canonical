@@ -1,7 +1,7 @@
 /**
  * Tests for the bulk_assign_owner MCP tool (P1-32).
  *
- * 18 test cases (T1-T18) covering:
+ * Test cases (T1-T18 per spec §8) covering:
  *   - Happy paths: admin apply, editor/viewer rejection
  *   - Scope filters: AND semantics, empty scope
  *   - Dry-run vs apply
@@ -10,6 +10,11 @@
  *   - Cursor pagination + scope_hash mismatch
  *   - Audit trail best-effort
  *   - Notification matrix + self-assign skip
+ *
+ * T8 ("dry-run after apply reflects post-apply state") is an integration
+ * scenario requiring two sequential calls against real DB state mutation.
+ * Unit-test mocks cannot observe post-apply state between calls — T8 is
+ * covered by the integration test suite against the live DB.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 

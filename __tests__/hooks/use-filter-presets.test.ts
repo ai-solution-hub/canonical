@@ -128,6 +128,33 @@ describe('useFilterPresets', () => {
     expect(mockPush).not.toHaveBeenCalled();
   });
 
+  // 5b. applyPreset preserves from_bid sticky URL param (P1-30 SD-5 / risk R-4)
+  it('applyPreset preserves from_bid when present in current URL', () => {
+    currentSearchParams = new URLSearchParams(
+      'from_bid=ws-bid-42&domain=Corporate',
+    );
+    const { result } = renderHook(() => useFilterPresets());
+    act(() => {
+      result.current.applyPreset('system-stale');
+    });
+    const pushedUrl = mockPush.mock.calls[0][0];
+    expect(pushedUrl).toContain('from_bid=ws-bid-42');
+    expect(pushedUrl).toContain('freshness=stale');
+    // Old domain filter should be replaced by preset
+    expect(pushedUrl).not.toContain('domain=Corporate');
+  });
+
+  // 5c. applyPreset does not add from_bid when absent
+  it('applyPreset omits from_bid when not in current URL', () => {
+    currentSearchParams = new URLSearchParams('domain=Corporate');
+    const { result } = renderHook(() => useFilterPresets());
+    act(() => {
+      result.current.applyPreset('system-stale');
+    });
+    const pushedUrl = mockPush.mock.calls[0][0];
+    expect(pushedUrl).not.toContain('from_bid');
+  });
+
   // 6. savePreset adds to user presets and persists to localStorage
   it('savePreset adds to user presets and persists to localStorage', () => {
     currentSearchParams = new URLSearchParams('domain=Corporate');

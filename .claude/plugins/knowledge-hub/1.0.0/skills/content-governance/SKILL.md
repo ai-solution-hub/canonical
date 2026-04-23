@@ -208,6 +208,7 @@ When the `get_dashboard_summary` tool returns KB health data, interpret it as:
 
 ## Related Skills
 
+- **@governance-review** — Active triage workflow: pull the governance queue, iterate items, approve/revert with structured reasons
 - **@classification** — How content is classified into the taxonomy
 - **@knowledge-synthesis** — How source freshness affects confidence scoring
 - **@bid-writing** — How freshness affects bid response quality

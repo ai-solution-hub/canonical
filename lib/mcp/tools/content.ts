@@ -1475,13 +1475,17 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             ? updatedCount
             : itemsAffected.length;
 
-        // 9. Audit trail — best-effort content_history insert
+        // 9. Audit trail — best-effort content_history insert.
+        // change_reason: canonical 'owner_change' value (Appendix D of
+        // docs/reference/data-entry-points.md) — matches single-item
+        // owner PATCH so provenance queries group both paths together.
         try {
           await sb(
             supabase.from('content_history').insert(
               itemsAffected.map((item) => ({
                 content_item_id: item.id,
                 change_type: 'owner_assigned',
+                change_reason: 'owner_change',
                 title: `Ownership assigned via bulk_assign_owner`,
                 content: `Owner changed to ${ownerId}`,
                 version: 0,
@@ -1527,14 +1531,29 @@ export async function registerContentTools(server: McpServer): Promise<void> {
               ? `${count} item${count === 1 ? '' : 's'} assigned to you${scopeDesc}`
               : `You have been assigned as owner of ${count} content item${count === 1 ? '' : 's'}`;
 
-            await supabase.from('notifications').insert({
-              user_id: ownerId,
-              type: 'owner_assignment',
-              entity_type: 'content_item',
-              entity_id: targetIds[0],
-              title,
-              message: null,
-            });
+            // PostgREST resolves to `{ error }` rather than throwing on DB-level
+            // rejections (constraint violations, RLS), so destructure and route
+            // explicitly — the outer try/catch only covers JS-level failures.
+            const { error: notifyError } = await supabase
+              .from('notifications')
+              .insert({
+                user_id: ownerId,
+                type: 'owner_assignment',
+                entity_type: 'content_item',
+                entity_id: targetIds[0],
+                title,
+                message: null,
+              });
+            if (notifyError) {
+              logBestEffortWarn(
+                'content.owner.notify',
+                'Failed to create bulk owner assignment notification',
+                {
+                  owner_id: ownerId,
+                  error: notifyError.message,
+                },
+              );
+            }
           } catch (err) {
             logBestEffortWarn(
               'content.owner.notify',

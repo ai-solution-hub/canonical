@@ -138,9 +138,11 @@ export const CANONICAL_TOOL_NAMES = [
   'get_change_report', // 54
   // S186 WP-B.4 — supersession model (53 → 54).
   'supersede_content_item', // 55
+  // S194 UI-simp WP4.2 — P1-34 workspace resolution helper (55 → 56).
+  'list_user_workspaces', // 56
 ] as const;
 
-export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 55
+export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 56
 
 /** Read-only tools (no side effects). */
 export const READ_ONLY_TOOLS = new Set([
@@ -186,6 +188,8 @@ export const READ_ONLY_TOOLS = new Set([
   'get_assignments_for_user',
   // S180 P1-35
   'get_change_report',
+  // S194 UI-simp WP4.2 — P1-34
+  'list_user_workspaces',
 ]);
 
 /** Write tools that modify data. */

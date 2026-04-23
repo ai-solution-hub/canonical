@@ -401,4 +401,34 @@ test.describe('from_bid URL parameter persistence', () => {
     const url = new URL(page.url());
     expect(url.searchParams.get('from_bid')).toBe(workerData.bidId);
   });
+
+  test('from_bid survives filter apply then clear in /browse', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
+    // Navigate directly to /browse with from_bid and an applied filter
+    await page.goto(
+      `/browse?from_bid=${workerData.bidId}&domain=Corporate&q=test`,
+    );
+    await expect(page).toHaveURL(
+      new RegExp(`from_bid=${workerData.bidId}.*domain=Corporate`),
+      { timeout: 10000 },
+    );
+
+    // Click the "Clear filters" / "Clear all" control. The Browse UI renders
+    // a clear-filters button when any filter is active.
+    const clearButton = page
+      .getByRole('button', { name: /clear (all )?filters?/i })
+      .first();
+    await expect(clearButton).toBeVisible({ timeout: 5000 });
+    await clearButton.click();
+
+    // After clearing, from_bid should still be in the URL but the filter
+    // params (domain, q) should be gone — SD-5 from_bid persistence.
+    await page.waitForURL(/from_bid=/, { timeout: 5000 });
+    const postClearUrl = new URL(page.url());
+    expect(postClearUrl.searchParams.get('from_bid')).toBe(workerData.bidId);
+    expect(postClearUrl.searchParams.get('domain')).toBeNull();
+    expect(postClearUrl.searchParams.get('q')).toBeNull();
+  });
 });

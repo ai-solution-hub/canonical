@@ -43,10 +43,14 @@ export function SearchBar({
   // Sync internal query state when defaultValue changes externally
   // (e.g. prompt card selection in Browse, or URL param change).
   // Using key={defaultValue} at call site would reset dropdown state,
-  // so we sync explicitly for the inline variant.
+  // so we sync explicitly. Only the inline variant consumes defaultValue
+  // today; guarding by variant prevents hero/compact regressions if a
+  // future call site passes defaultValue.
   useEffect(() => {
-    setQuery(defaultValue);
-  }, [defaultValue]);
+    if (variant === 'inline') {
+      setQuery(defaultValue);
+    }
+  }, [defaultValue, variant]);
 
   useEffect(() => {
     if (autoFocus && window.matchMedia('(pointer: fine)').matches) {
