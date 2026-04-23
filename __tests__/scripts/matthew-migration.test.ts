@@ -10,7 +10,7 @@
  * @vitest-environment node
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   parseCliArgs,
   validateEnvM,
@@ -34,8 +34,6 @@ import {
   HISTORY_SELECT_COLUMNS,
   type MContentItem,
   type MHistoryRow,
-  type CliArgs,
-  type FindMatchResult,
 } from '../../scripts/migrate_matthew_contributions_from_M';
 
 // ── Fixtures ────────────────────────────────────────────────────────────
