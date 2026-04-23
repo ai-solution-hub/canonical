@@ -218,6 +218,17 @@ conventions: `docs/continuation-prompts/README.md`.
   204, which Bun hangs on in the sandbox. Production is unaffected. **Fix:** run
   supabase-writing scripts with `dangerouslyDisableSandbox: true`. Do NOT add
   `.select()` workarounds in production code.
+- **`content_items.content_text_hash` is `GENERATED ALWAYS`:** explicit insert
+  or update value rejected with `cannot insert a non-DEFAULT value into column`.
+  PG auto-computes via `md5(normalised content)`. Omit the field from any
+  payload writing `content_items`.
+- **`pg_dump` version must match server PG major version:** Supabase 'r' runs
+  PG 17.6; Homebrew `pg_dump@16` refuses to dump. Install `postgresql@17` via
+  Homebrew and use `/opt/homebrew/opt/postgresql@17/bin/pg_dump` explicitly.
+- **CLI `.temp/project-ref` can silently go stale post-env-flip:** `supabase
+  db push` may push to the WRONG project (looks like silent-fail on intended
+  project). Always `cat supabase/.temp/project-ref` before any push; relink via
+  `supabase link --project-ref <correct>` if drift detected.
 
 ### Testing
 
@@ -267,6 +278,12 @@ conventions: `docs/continuation-prompts/README.md`.
   Full spec: `docs/specs/silent-failure-prevention-spec.md`.
 - **Cron `pipeline_runs` inserts:** Use `recordPipelineRun()` from
   `@/lib/pipeline/record-run`, not raw insert.
+- **`BRANDING.organisationName` is camelCase, not snake_case:** Two distinct
+  symbols in `lib/client-config.ts` — `BRANDING` (export at line ~626; Zod-
+  derived `BrandingConfig`; camelCase `organisationName`) vs
+  `CLIENT_CONFIG.entity_examples.organisation_name` (snake; classifier-prompt
+  only). TS code referencing the client org name uses
+  `BRANDING.organisationName.toLowerCase()`.
 - **Data fetching:** TanStack Query exclusively. Keys in
   `lib/query/query-keys.ts`, fetchers in `lib/query/fetchers.ts`. No SWR or raw
   fetch in hooks.
