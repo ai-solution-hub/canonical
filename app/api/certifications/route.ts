@@ -11,6 +11,7 @@ import {
   type RegistrationMetadata,
   type ExpiryStatus,
 } from '@/lib/certification-status';
+import { BRANDING } from '@/lib/client-config';
 
 export const maxDuration = 30;
 
@@ -108,10 +109,32 @@ export async function GET() {
       return NextResponse.json(emptyReport);
     }
 
-    // Collect unique target entity names from holds relationships
+    // Filter to relationships where the source entity is the client org
+    const orgNameLower = BRANDING.organisationName.toLowerCase();
+    const orgRelationships = relationships.filter(
+      (r) => r.source_entity.toLowerCase() === orgNameLower,
+    );
+
+    // Collect unique target entity names from filtered holds relationships
     const targetEntities = [
-      ...new Set(relationships.map((r) => r.target_entity)),
+      ...new Set(orgRelationships.map((r) => r.target_entity)),
     ];
+
+    if (targetEntities.length === 0) {
+      const emptyReport: CertificationReport = {
+        certifications: [],
+        frameworks: [],
+        registrations: [],
+        summary: {
+          total_certifications: 0,
+          valid: 0,
+          expiring_soon: 0,
+          expired: 0,
+          unknown: 0,
+        },
+      };
+      return NextResponse.json(emptyReport);
+    }
 
     // 2. Get entity_mentions for the target entities with metadata
     const { data: mentions, error: mentionsError } = await supabase
@@ -217,7 +240,12 @@ export async function GET() {
       const expiryStatus = deriveExpiryStatus(expiryDate);
 
       if (agg.effective_type === 'certification') {
-        const holder = (metadata.holder as 'self' | 'supplier') ?? 'self';
+        const holder = metadata.holder as 'self' | 'supplier' | undefined;
+
+        // Skip certifications where holder is not explicitly set — avoids
+        // surfacing false positives from legacy data lacking metadata.holder
+        if (!holder) continue;
+
         const entry: CertificationEntry = {
           canonical_name: agg.canonical_name,
           entity_type: 'certification',
