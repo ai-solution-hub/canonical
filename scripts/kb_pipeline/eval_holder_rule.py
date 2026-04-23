@@ -2,13 +2,14 @@
 """Evaluation script for the holder-disambiguation prompt rule (S192 WP1).
 
 Fetches content items linked to `holds` relationships from Supabase, re-runs
-classification with the updated prompt (dry-run -- NO DB writes), and compares
-new relationships against existing entity_relationships rows to report TP/FP/FN.
+classification with the updated prompt (always dry-run; NO DB writes), and
+compares new relationships against existing entity_relationships rows to report
+TP/FP/FN.
 
 Usage:
-    python3 scripts/kb_pipeline/eval_holder_rule.py --dry-run
-    python3 scripts/kb_pipeline/eval_holder_rule.py --dry-run --limit 5
-    python3 scripts/kb_pipeline/eval_holder_rule.py --dry-run --output report.json
+    python3 scripts/kb_pipeline/eval_holder_rule.py
+    python3 scripts/kb_pipeline/eval_holder_rule.py --limit 5
+    python3 scripts/kb_pipeline/eval_holder_rule.py --output report.json
 
 NOTE: When running from Claude Code, invoke with dangerouslyDisableSandbox: true
 because the Anthropic SDK's httpx transport hangs behind the sandbox SOCKS proxy.
@@ -338,6 +339,15 @@ def run_evaluation(limit=None, dry_run=True):
             len(diff["precision_regressions"]),
         )
 
+    # Precision regressions exclude the known example-datacentre positive controls
+    # (spec ss4.3 lists iso 27001, iso 9001, iso 14001 as EXPECTED flips).
+    # gross = raw count of client_org -> non_client_org source changes.
+    # net   = gross minus positive-control flips = TRUE precision regressions
+    #         (spec ss4.5 accept-threshold: 0).
+    net_precision_regressions = (
+        total_precision_regressions - len(positive_controls_changed)
+    )
+
     # Build report
     report = {
         "eval_type": "holder_disambiguation_rule",
@@ -348,7 +358,6 @@ def run_evaluation(limit=None, dry_run=True):
         "unique_content_items": len(items_to_rels),
         "items_evaluated": total_evaluated,
         "limit_applied": limit,
-        "total_cert_mentions_evaluated": total_evaluated,
         "positive_controls_changed": [
             {
                 "target": c["target"],
@@ -359,7 +368,8 @@ def run_evaluation(limit=None, dry_run=True):
         ],
         "positive_controls_expected": 3,
         "positive_controls_found": len(positive_controls_changed),
-        "precision_regressions": total_precision_regressions,
+        "precision_regressions": net_precision_regressions,
+        "gross_source_changes_from_client": total_precision_regressions,
         "recall_new_supplier_detections": total_recall_new_supplier,
         "total_unchanged": total_unchanged,
         "total_changed_holder": total_changed_holder,
@@ -378,14 +388,8 @@ def main():
     parser = argparse.ArgumentParser(
         description=(
             "Run the holder-disambiguation prompt rule evaluation against "
-            "production cert mentions. Dry-run only -- no DB writes."
+            "production cert mentions. Always dry-run -- no DB writes."
         ),
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        default=True,
-        help="Run in dry-run mode (default; no DB writes).",
     )
     parser.add_argument(
         "--limit",
@@ -412,7 +416,7 @@ def main():
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
-    report = run_evaluation(limit=args.limit, dry_run=args.dry_run)
+    report = run_evaluation(limit=args.limit, dry_run=True)
 
     report_json = json.dumps(report, indent=2, ensure_ascii=False)
 
@@ -430,7 +434,11 @@ def main():
         f"Positive controls changed: "
         f"{report['positive_controls_found']}"
         f"/{report['positive_controls_expected']}\n"
-        f"Precision regressions: {report['precision_regressions']}\n"
+        f"Precision regressions (net, spec threshold=0): "
+        f"{report['precision_regressions']}\n"
+        f"Gross source-changes from client: "
+        f"{report['gross_source_changes_from_client']} "
+        f"(includes {report['positive_controls_found']} expected positive-control flips)\n"
         f"New supplier detections: "
         f"{report['recall_new_supplier_detections']}\n"
         f"Total holder changes: {report['total_changed_holder']}\n"
