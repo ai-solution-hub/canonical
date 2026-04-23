@@ -57,7 +57,7 @@ def fetch_holds_relationships():
     path = (
         "entity_relationships"
         "?relationship_type=eq.holds"
-        "&select=id,source_entity,target_entity,source_item_id,confidence"
+        "&select=id,source_entity,target_entity,relationship_type,source_item_id,confidence"
         "&order=source_entity.asc"
     )
     status, data = _request("GET", path)
