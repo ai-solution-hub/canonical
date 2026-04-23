@@ -21,6 +21,8 @@ import { ContentPerformanceSection } from '@/components/dashboard/content-perfor
 import { WarningsBanner } from '@/components/dashboard/warnings-banner';
 import { McpSetupNudge } from '@/components/shell/mcp-setup-nudge';
 import { PipelineRunsPanel } from '@/components/intelligence/pipeline-runs-panel';
+import { OrganisationProfileNudge } from '@/components/dashboard/organisation-profile-nudge';
+import { getOrganisationProfile, isProfileComplete } from '@/lib/organisation-profile';
 import type { ReorientData } from '@/types/reorient';
 
 // ---------------------------------------------------------------------------
@@ -60,7 +62,14 @@ async function getDashboardData() {
     isAdmin,
     role,
   );
-  return { unified, roleWarnings };
+
+  // Organisation profile check for dashboard nudge (P1-15).
+  // Best-effort — failure returns null (treated as incomplete).
+  const orgProfile = isAdmin || role === 'editor'
+    ? await getOrganisationProfile(supabase)
+    : null;
+
+  return { unified, roleWarnings, orgProfileComplete: isProfileComplete(orgProfile) };
 }
 
 // ---------------------------------------------------------------------------
@@ -129,7 +138,7 @@ async function DashboardContent() {
     );
   }
 
-  const { unified, roleWarnings } = result;
+  const { unified, roleWarnings, orgProfileComplete } = result;
 
   // Compose the warnings array consumed by `<WarningsBanner />`. Mirrors the
   // `warnings: [...roleWarnings, ...dashboard.errors]` envelope built by
@@ -210,6 +219,17 @@ async function DashboardContent() {
           />
         </div>
       )}
+
+      {/* Organisation profile nudge — progressive onboarding step after the
+          first-run card. Renders when first-login AND profile incomplete.
+          Client component handles dismiss + persona copy (P1-15 Phase 1). */}
+      <div className="mt-4">
+        <OrganisationProfileNudge
+          isProfileComplete={orgProfileComplete}
+          isFirstLogin={isFirstLogin}
+          userRole={unified.user_role}
+        />
+      </div>
 
       {/* Reorient Me — personalised briefing. Suppress the one-liner only
           when the first-run card above is actually rendered; viewers must

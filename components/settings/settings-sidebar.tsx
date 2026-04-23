@@ -12,6 +12,7 @@ import {
   UserCheck,
   Fingerprint,
   ClipboardCheck,
+  Building2,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
@@ -32,6 +33,7 @@ import {
 
 export type SettingsSection =
   | 'profile'
+  | 'organisation'
   | 'connections'
   | 'content-organisation'
   | 'content-owners'
@@ -49,10 +51,13 @@ interface SectionDef {
   group: 'personal' | 'content' | 'system';
   /** When set, clicking navigates to this route instead of switching section. */
   href?: string;
+  /** When true, section is hidden from viewers (admin + editor only). */
+  adminOrEditorOnly?: boolean;
 }
 
 const ALL_SECTIONS: SectionDef[] = [
   { id: 'profile', label: 'Profile', icon: User, group: 'personal' },
+  { id: 'organisation', label: 'Organisation', icon: Building2, group: 'personal', adminOrEditorOnly: true },
   { id: 'connections', label: 'Connections', icon: Plug, group: 'personal' },
   {
     id: 'content-organisation',
@@ -107,9 +112,12 @@ const GROUP_ORDER = ['personal', 'content', 'system'] as const;
 // Helpers
 // ---------------------------------------------------------------------------
 
-function getVisibleSections(isAdmin: boolean): SectionDef[] {
+function getVisibleSections(isAdmin: boolean, canEdit = false): SectionDef[] {
+  const isAdminOrEditor = isAdmin || canEdit;
   if (isAdmin) return ALL_SECTIONS;
-  return ALL_SECTIONS.filter((s) => s.group === 'personal');
+  return ALL_SECTIONS.filter(
+    (s) => s.group === 'personal' && (!s.adminOrEditorOnly || isAdminOrEditor),
+  );
 }
 
 /** Legacy section IDs that map to their new equivalents */
@@ -124,11 +132,12 @@ const LEGACY_SECTION_MAP: Record<string, SettingsSection> = {
 export function getValidSection(
   param: string | null,
   isAdmin: boolean,
+  canEdit = false,
 ): SettingsSection {
   // Map legacy section IDs to their new equivalents
   const resolved =
     param && LEGACY_SECTION_MAP[param] ? LEGACY_SECTION_MAP[param] : param;
-  const visible = getVisibleSections(isAdmin);
+  const visible = getVisibleSections(isAdmin, canEdit);
   const match = visible.find((s) => s.id === resolved);
   return match?.id ?? 'profile';
 }
@@ -202,14 +211,16 @@ function SidebarNav({
 
 export function SettingsSidebar({
   isAdmin,
+  canEdit = false,
   activeSection,
   onSectionChange,
 }: {
   isAdmin: boolean;
+  canEdit?: boolean;
   activeSection: SettingsSection;
   onSectionChange: (section: SettingsSection) => void;
 }) {
-  const sections = getVisibleSections(isAdmin);
+  const sections = getVisibleSections(isAdmin, canEdit);
 
   // If only one section visible, no sidebar needed
   if (sections.length <= 1) return null;
@@ -234,14 +245,16 @@ export function SettingsSidebar({
 
 export function SettingsMobileSidebar({
   isAdmin,
+  canEdit = false,
   activeSection,
   onSectionChange,
 }: {
   isAdmin: boolean;
+  canEdit?: boolean;
   activeSection: SettingsSection;
   onSectionChange: (section: SettingsSection) => void;
 }) {
-  const sections = getVisibleSections(isAdmin);
+  const sections = getVisibleSections(isAdmin, canEdit);
   const [open, setOpen] = useState(false);
 
   // No mobile sidebar if only one section
