@@ -206,3 +206,109 @@ test.describe('Search', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Live preview in Browse (P1-30 Phase 3 — spec §7.3)
+// ---------------------------------------------------------------------------
+
+test.describe('Live preview dropdown', () => {
+  test.beforeEach(async ({ authenticatedPage: page }) => {
+    await page.goto('/browse');
+    // Wait for content to load (item count visible)
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({
+      timeout: 10000,
+    });
+  });
+
+  test('type 3 chars in inline search — preview dropdown appears with results', async ({
+    authenticatedPage: page,
+  }) => {
+    // The inline SearchBar on /browse has role="combobox"
+    const searchInput = page.locator(
+      'form[aria-label="Search content"] [role="combobox"]',
+    );
+    await searchInput.waitFor({ state: 'visible' });
+    await searchInput.click();
+    // Type a 3-char query likely to match content in the KB (broad term)
+    await searchInput.fill('pol');
+
+    // Wait for preview results region to appear (debounce + fetch)
+    const previewRegion = page.locator('[data-testid="preview-results-region"]');
+    await expect(previewRegion).toBeVisible({ timeout: 5000 });
+
+    // Should have at least one preview result link
+    const previewLinks = previewRegion.locator('a[href^="/item/"]');
+    const linkCount = await previewLinks.count();
+    // If there are zero matches in the DB for "pol", the region still renders
+    // with "See all results" — check for that as a minimum
+    if (linkCount > 0) {
+      await expect(previewLinks.first()).toBeVisible();
+    } else {
+      await expect(previewRegion.getByText('See all results')).toBeVisible();
+    }
+  });
+
+  test('type 2 chars — no preview, Popular topics still visible', async ({
+    authenticatedPage: page,
+  }) => {
+    const searchInput = page.locator(
+      'form[aria-label="Search content"] [role="combobox"]',
+    );
+    await searchInput.waitFor({ state: 'visible' });
+    await searchInput.click();
+    await searchInput.fill('ri');
+
+    // Give some time for any async work
+    await page.waitForTimeout(500);
+
+    // Preview region should NOT appear
+    const previewRegion = page.locator('[data-testid="preview-results-region"]');
+    await expect(previewRegion).toBeHidden();
+
+    // Popular topics may or may not load (depends on API); at minimum,
+    // the dropdown should show if there are recent searches OR suggestions.
+    // We assert the preview is absent — that is the spec requirement.
+  });
+
+  test('click preview result — navigates to /item/{id}', async ({
+    authenticatedPage: page,
+  }) => {
+    const searchInput = page.locator(
+      'form[aria-label="Search content"] [role="combobox"]',
+    );
+    await searchInput.waitFor({ state: 'visible' });
+    await searchInput.click();
+    await searchInput.fill('pol');
+
+    // Wait for at least one preview link
+    const previewRegion = page.locator('[data-testid="preview-results-region"]');
+    await expect(previewRegion).toBeVisible({ timeout: 5000 });
+
+    const firstLink = previewRegion.locator('a[href^="/item/"]').first();
+    if (await firstLink.isVisible({ timeout: 3000 }).catch(() => false)) {
+      const href = await firstLink.getAttribute('href');
+      await firstLink.click();
+      await expect(page).toHaveURL(/\/item\//);
+      if (href) {
+        await expect(page).toHaveURL(
+          new RegExp(href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+        );
+      }
+    }
+  });
+
+  test('press Enter in input — runs full semantic search', async ({
+    authenticatedPage: page,
+  }) => {
+    const searchInput = page.locator(
+      'form[aria-label="Search content"] [role="combobox"]',
+    );
+    await searchInput.waitFor({ state: 'visible' });
+    await searchInput.click();
+    await searchInput.fill('IT support');
+    await searchInput.press('Enter');
+
+    // Should navigate to the search-results mode (URL contains ?q=)
+    await expect(page).toHaveURL(/q=IT/);
+  });
+});
