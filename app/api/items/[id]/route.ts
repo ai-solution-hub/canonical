@@ -269,20 +269,22 @@ export async function PATCH(
       return NextResponse.json({ error: 'Item not found' }, { status: 404 });
     }
 
-    // Generate change summary
-    const oldValue = currentItem[field as keyof typeof currentItem];
-    const changeSummary = generateSingleFieldChangeSummary(
-      field,
-      oldValue,
-      value,
-    );
-
     // Normalise ai_keywords at the write boundary (spec ss6.6 EP4).
     // Ensures web-form-edited keywords match classify-time canonicalisation.
+    // Computed BEFORE change summary so the recorded value matches what is
+    // actually stored (WP3 L-1 fix).
     const effectiveValue =
       field === 'ai_keywords' && Array.isArray(value)
         ? [...new Set(value.map(normaliseTag).filter((k: string) => k.length > 0))]
         : value;
+
+    // Generate change summary using the normalised value
+    const oldValue = currentItem[field as keyof typeof currentItem];
+    const changeSummary = generateSingleFieldChangeSummary(
+      field,
+      oldValue,
+      effectiveValue,
+    );
 
     // For Q&A answer fields, auto-rebuild the content field from Standard + Advanced.
     // Canonical shape per P0-BM Phase 3 spec ss4.1:

@@ -29,6 +29,7 @@ import { parseArgs } from 'util';
 import path from 'path';
 import fs from 'fs';
 import { normaliseTag } from '../lib/validation/schemas';
+import type { Database } from '../supabase/types/database.types';
 
 // ── Env loading (handles worktrees) ────────────────────────────────────────
 
@@ -123,7 +124,7 @@ Examples:
     process.exit(1);
   }
 
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabase = createClient<Database>(supabaseUrl, supabaseKey);
 
   console.log('='.repeat(60));
   console.log('BACKFILL: Canonicalise ai_keywords');

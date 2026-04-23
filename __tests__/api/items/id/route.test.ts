@@ -55,7 +55,6 @@ vi.mock('@/lib/quality/quality-score', () => ({
 
 // Import route AFTER mocks are registered
 import { PATCH } from '@/app/api/items/[id]/route';
-import { normaliseTag } from '@/lib/validation/schemas';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -234,23 +233,77 @@ describe('PATCH /api/items/[id] — ai_keywords normalisation (EP4)', () => {
     expect(updateCall.ai_keywords).toEqual(['system', 'GDPR']);
   });
 
-  it('only normalises ai_keywords field, not other fields', () => {
-    // Verify the normalisation logic is field-gated by checking that
-    // normaliseTag is only applied when field === 'ai_keywords'.
-    // This is a direct unit assertion on the normalisation condition
-    // rather than a full route integration test, since the PATCH handler's
-    // complex mock chain makes end-to-end title-field testing unreliable.
-    //
-    // The production code applies normalisation via:
-    //   field === 'ai_keywords' && Array.isArray(value) ? [...new Set(value.map(normaliseTag)...)] : value
-    // This condition ensures non-array or non-ai_keywords values pass through.
-    // Title value should NOT be normalised
-    const titleValue = 'Updated Title With Capitals';
-    const field = 'title';
-    const effectiveValue =
-      field === 'ai_keywords' && Array.isArray(titleValue)
-        ? [...new Set([titleValue].map(normaliseTag).filter((k: string) => k.length > 0))]
-        : titleValue;
-    expect(effectiveValue).toBe('Updated Title With Capitals');
+  it('records normalised value (not raw) in change summary', async () => {
+    // WP3 L-1 fix: generateSingleFieldChangeSummary must receive the
+    // normalised effectiveValue, not the raw pre-normalisation value.
+    // 1. Role lookup -> editor
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { role: 'editor' },
+      error: null,
+    });
+    // 2. Fetch current item
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: defaultCurrentItem({ ai_keywords: ['old-tag'] }),
+      error: null,
+    });
+    // 3. Update succeeds
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: null }),
+    );
+
+    const request = createTestRequest(`/api/items/${VALID_UUID}`, {
+      method: 'PATCH',
+      body: {
+        field: 'ai_keywords',
+        value: ['Systems', 'GDPR'],
+      },
+    });
+
+    await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
+
+    // generateSingleFieldChangeSummary should have been called with normalised values
+    expect(mockGenerateSingleFieldChangeSummary).toHaveBeenCalledWith(
+      'ai_keywords',
+      ['old-tag'],
+      // Normalised: "Systems" -> "system", "GDPR" stays uppercase
+      ['system', 'GDPR'],
+    );
+  });
+
+  it('does not normalise non-ai_keywords fields (e.g. suggested_title)', async () => {
+    // Real integration test: PATCH a suggested_title field and verify the stored
+    // value is the raw string, not normalised via normaliseTag.
+    // 1. Role lookup -> editor
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { role: 'editor' },
+      error: null,
+    });
+    // 2. Fetch current item
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: defaultCurrentItem(),
+      error: null,
+    });
+
+    const request = createTestRequest(`/api/items/${VALID_UUID}`, {
+      method: 'PATCH',
+      body: {
+        field: 'suggested_title',
+        value: 'Updated Title With Capitals',
+      },
+    });
+
+    const response = await PATCH(request, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
+
+    expect(response.status).toBe(200);
+
+    const updateCall = mockSupabase._chain.update.mock.calls[0]?.[0];
+    expect(updateCall).toBeDefined();
+    // suggested_title should be stored as-is, not normalised
+    expect(updateCall.suggested_title).toBe('Updated Title With Capitals');
   });
 });
