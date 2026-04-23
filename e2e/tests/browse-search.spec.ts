@@ -278,23 +278,26 @@ test.describe('Live preview dropdown', () => {
     );
     await searchInput.waitFor({ state: 'visible' });
     await searchInput.click();
-    await searchInput.fill('pol');
+    // "the" is near-universal in indexed content; at least one preview match
+    // should exist in any realistic test DB. If it does not, the test SHOULD
+    // fail rather than silently pass — the spec (§7.3) requires asserting
+    // navigation, which is meaningless without a real click.
+    await searchInput.fill('the');
 
-    // Wait for at least one preview link
     const previewRegion = page.locator('[data-testid="preview-results-region"]');
     await expect(previewRegion).toBeVisible({ timeout: 5000 });
 
     const firstLink = previewRegion.locator('a[href^="/item/"]').first();
-    if (await firstLink.isVisible({ timeout: 3000 }).catch(() => false)) {
-      const href = await firstLink.getAttribute('href');
-      await firstLink.click();
-      await expect(page).toHaveURL(/\/item\//);
-      if (href) {
-        await expect(page).toHaveURL(
-          new RegExp(href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
-        );
-      }
-    }
+    // Fail-honest: require at least one preview result. If this throws on a
+    // cleanroom DB, the seed data is missing — not a test bug.
+    await expect(firstLink).toBeVisible({ timeout: 5000 });
+    const href = await firstLink.getAttribute('href');
+    expect(href).toBeTruthy();
+    await firstLink.click();
+    await expect(page).toHaveURL(/\/item\//);
+    await expect(page).toHaveURL(
+      new RegExp(href!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+    );
   });
 
   test('press Enter in input — runs full semantic search', async ({

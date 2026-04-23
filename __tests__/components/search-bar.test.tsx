@@ -500,5 +500,36 @@ describe('SearchBar', () => {
       await user.keyboard('{Enter}');
       expect(onSearch).toHaveBeenCalledWith('risk assessment');
     });
+
+    it('ArrowDown keyboard nav extends into preview results (spec §4.1)', async () => {
+      mockPreviewFetch();
+      const user = userEvent.setup();
+      renderSearchBar({ variant: 'inline' });
+      const input = screen.getByRole('combobox');
+      await user.click(input);
+      await user.type(input, 'risk assess');
+      // Wait for the preview section to render with at least the first result
+      await waitFor(
+        () => {
+          expect(screen.getByText('Risk Assessment Guide')).toBeInTheDocument();
+        },
+        { timeout: 2000 },
+      );
+      // Before ArrowDown, no active descendant (or -1 index semantics).
+      // Press ArrowDown once — should point at the first navigable item.
+      // With no recent searches persisted in this test, the first item is
+      // the first preview result (Risk Assessment Guide, id='item-001').
+      await user.keyboard('{ArrowDown}');
+      const activeDescendant = input.getAttribute('aria-activedescendant');
+      expect(activeDescendant).not.toBeNull();
+      // The activeDescendant should point at an option associated with the
+      // first preview result — its <a> has href="/item/item-001" so the
+      // option id encodes the item id.
+      const firstPreviewLink = screen
+        .getByText('Risk Assessment Guide')
+        .closest('a');
+      expect(firstPreviewLink).not.toBeNull();
+      expect(activeDescendant).toBe(firstPreviewLink!.getAttribute('id'));
+    });
   });
 });

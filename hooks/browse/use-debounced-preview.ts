@@ -21,6 +21,11 @@ interface PreviewResponse {
   count: number;
 }
 
+// Stable empty-array reference — inline `[]` on each render would create a
+// new reference and break downstream `useMemo`/dep-array stability
+// (CLAUDE.md UI / Frontend gotcha).
+const EMPTY_RESULTS: PreviewResult[] = [];
+
 export interface UseDebouncedPreviewOptions {
   /** Minimum query length to trigger a preview fetch. Default: PREVIEW_MIN_QUERY_LENGTH (3) */
   minLength?: number;
@@ -93,7 +98,7 @@ export function useDebouncedPreview(
   });
 
   return {
-    results: enabled && data ? data.results : [],
+    results: enabled && data ? data.results : EMPTY_RESULTS,
     isLoading: enabled ? tanstackIsLoading : false,
   };
 }

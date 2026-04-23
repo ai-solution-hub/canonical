@@ -29,6 +29,14 @@ interface SearchBarProps {
   inputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
+// Flat dropdown item list used for ArrowUp/ArrowDown keyboard nav across
+// the Recent / Preview / See-all / Suggestion sections (spec §4.1).
+type DropdownItem =
+  | { type: 'recent'; value: string }
+  | { type: 'preview'; result: PreviewResult }
+  | { type: 'see-all' }
+  | { type: 'suggestion'; value: string };
+
 export function SearchBar({
   variant = 'compact',
   defaultValue = '',
@@ -115,13 +123,7 @@ export function SearchBar({
   // Build flat list of all dropdown items for keyboard navigation.
   // Preview results and the "See all results" button are interleaved
   // between recent searches and popular topics (spec §4.1).
-  // Items are tagged with type for keyboard-nav dispatch.
-  type DropdownItem =
-    | { type: 'recent'; value: string }
-    | { type: 'preview'; result: PreviewResult }
-    | { type: 'see-all' }
-    | { type: 'suggestion'; value: string };
-
+  // `DropdownItem` type is declared at module level.
   const allItems: DropdownItem[] = [];
   if (showRecent) {
     // Section 1: Recent searches
