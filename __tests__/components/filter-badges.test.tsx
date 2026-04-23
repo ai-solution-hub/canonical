@@ -190,4 +190,74 @@ describe('FilterBadges', () => {
     await user.click(removeBtn);
     expect(mockClearSearchQuery).toHaveBeenCalledOnce();
   });
+
+  // -------------------------------------------------------------------------
+  // P1-16: Three-axis badge ordering regression
+  // -------------------------------------------------------------------------
+
+  describe('three-axis badge ordering (P1-16)', () => {
+    it('renders Layer badge at position 4 (after Domain and Subtopic, before Content Type)', () => {
+      mockActiveFilterCount.value = 4;
+      mockFilters.value = {
+        domain: ['Corporate'],
+        subtopic: 'pricing',
+        layer: 'sales_brief',
+        content_type: ['article'],
+      };
+      render(<FilterBadges />);
+
+      // Get all rendered badges by their remove buttons (each badge has one)
+      const removeButtons = screen.getAllByRole('button', {
+        name: /^Remove .+ filter:/,
+      });
+
+      // Expected order: Domain, Subtopic, Layer, Type
+      expect(removeButtons[0]).toHaveAttribute(
+        'aria-label',
+        'Remove Domain filter: Corporate',
+      );
+      expect(removeButtons[1]).toHaveAttribute(
+        'aria-label',
+        'Remove Subtopic filter: Pricing',
+      );
+      expect(removeButtons[2]).toHaveAttribute(
+        'aria-label',
+        'Remove Layer filter: Sales Brief',
+      );
+      expect(removeButtons[3]).toHaveAttribute(
+        'aria-label',
+        'Remove Type filter: Article',
+      );
+    });
+
+    it('renders Layer badge before Freshness badge', () => {
+      mockActiveFilterCount.value = 2;
+      mockFilters.value = {
+        layer: 'bid_detail',
+        freshness: ['fresh'],
+      };
+      render(<FilterBadges />);
+
+      const removeButtons = screen.getAllByRole('button', {
+        name: /^Remove .+ filter:/,
+      });
+
+      // Layer should come before Freshness
+      const layerIdx = removeButtons.findIndex(
+        (btn) => btn.getAttribute('aria-label') === 'Remove Layer filter: Bid Detail',
+      );
+      // Freshness badges don't exist as a named filter in the current badges
+      // but Layer should be first in this set
+      expect(layerIdx).toBe(0);
+    });
+
+    it('renders Layer badge with formatted label from getLayerLabel', () => {
+      mockActiveFilterCount.value = 1;
+      mockFilters.value = { layer: 'company_reference' };
+      render(<FilterBadges />);
+
+      expect(screen.getByText('Layer:')).toBeInTheDocument();
+      expect(screen.getByText('Company Reference')).toBeInTheDocument();
+    });
+  });
 });

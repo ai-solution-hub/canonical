@@ -134,6 +134,38 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
             </>
           )}
 
+          {isFeatureEnabled('content_layers') && (
+            <>
+              <FilterSection title="Content Layer" defaultOpen>
+                <div className="flex flex-wrap gap-2">
+                  {layerVocabulary.map((layer) => {
+                    const isActive = draft.layer === layer.key;
+                    return (
+                      <button
+                        key={layer.key}
+                        type="button"
+                        onClick={() => handleLayerToggle(layer.key)}
+                        aria-pressed={isActive}
+                        className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                          isActive
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-border bg-muted text-foreground hover:bg-accent'
+                        }`}
+                      >
+                        {layer.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Filter by content depth layer
+                </p>
+              </FilterSection>
+
+              <Separator className="my-3" />
+            </>
+          )}
+
           <ContentTypeFilter
             selectedTypes={draft.content_types}
             counts={counts.content_type}
@@ -143,7 +175,9 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
 
           <Separator className="my-3" />
 
-          <FilterSection title="Freshness" defaultOpen>
+          {/* ── Secondary filters (visible by default, collapsed sections) ── */}
+
+          <FilterSection title="Freshness" defaultOpen={false}>
             <div className="flex flex-wrap gap-2">
               {(['fresh', 'aging', 'stale', 'expired'] as const).map(
                 (state) => {
@@ -170,8 +204,6 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
           </FilterSection>
 
           <Separator className="my-3" />
-
-          {/* ── Secondary filters (visible by default, collapsed sections) ── */}
 
           <AuthorFilter
             selectedAuthors={draft.authors}
@@ -451,38 +483,6 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
               </FilterSection>
 
               <Separator className="my-3" />
-
-              {isFeatureEnabled('content_layers') && (
-                <>
-                  <FilterSection title="Content Layer" defaultOpen={false}>
-                    <div className="flex flex-wrap gap-2">
-                      {layerVocabulary.map((layer) => {
-                        const isActive = draft.layer === layer.key;
-                        return (
-                          <button
-                            key={layer.key}
-                            type="button"
-                            onClick={() => handleLayerToggle(layer.key)}
-                            aria-pressed={isActive}
-                            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                              isActive
-                                ? 'border-primary bg-primary/10 text-primary'
-                                : 'border-border bg-muted text-foreground hover:bg-accent'
-                            }`}
-                          >
-                            {layer.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Filter by content depth layer
-                    </p>
-                  </FilterSection>
-
-                  <Separator className="my-3" />
-                </>
-              )}
 
               <FilterSection title="Quality" defaultOpen={false}>
                 <label
