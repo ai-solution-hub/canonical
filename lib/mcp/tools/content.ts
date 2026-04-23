@@ -1,14 +1,16 @@
 /**
- * Content item tool registrations (8 tools):
+ * Content item tool registrations (9 tools):
  *   4. get_content_item
  *  12. create_content_item
  *  19. update_content_item
  *  21. get_content_items
  *      get_workspace_items
  *  31. assign_content_owner
+ *  32. bulk_assign_owner
  *  33. get_document_versions
  *  35. get_document_diff
  */
+import { createHash } from 'crypto';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createMcpClient, getMcpUserId, checkMcpRole } from '@/lib/mcp/auth';
@@ -1086,6 +1088,507 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             {
               type: 'text' as const,
               text: `Failed to assign content owner: ${message}. Ensure you have admin permissions.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 32. bulk_assign_owner (non-idempotent write — admin only)
+  // -------------------------------------------------------------------------
+  defineTool(
+    server,
+    'bulk_assign_owner',
+    {
+      title: 'Bulk Assign Content Owner',
+      description:
+        'Assign a content owner to items matching a scope filter (domain, subtopic, content_type). ' +
+        'Supports dry-run preview, skip-if-owned default with force_override opt-in, ' +
+        'cursor pagination for scopes >500 items, and per-item audit trail. ' +
+        'Requires admin role. Use this for "assign all unowned Healthcare content to Sarah" workflows.',
+      inputSchema: {
+        scope: z
+          .object({
+            domain: z
+              .string()
+              .optional()
+              .describe('Primary domain filter (e.g. "Healthcare")'),
+            subtopic: z
+              .string()
+              .optional()
+              .describe('Primary subtopic within the domain'),
+            content_type: z
+              .string()
+              .optional()
+              .describe(
+                'Content type filter (e.g. "article", "qa_pair", "policy")',
+              ),
+            unowned_only: z
+              .boolean()
+              .default(true)
+              .describe(
+                'Only assign items with no current owner (default: true)',
+              ),
+          })
+          .describe(
+            'Scope filter. Apply mode (dry_run: false) requires at least one of domain, subtopic, or content_type. ' +
+              'dry_run: true accepts empty scope for whole-KB inspection.',
+          ),
+        owner_id: z
+          .string()
+          .uuid()
+          .describe('User UUID of the new content owner'),
+        force_override: z
+          .boolean()
+          .default(false)
+          .describe(
+            'When true AND unowned_only is false, overwrite existing owners. ' +
+              'When false (default), items with an existing owner are skipped even if unowned_only is false.',
+          ),
+        notify: z
+          .boolean()
+          .default(true)
+          .describe(
+            'Send a notification to the new owner on successful apply. Default true. Set false to suppress.',
+          ),
+        batch_mode: z
+          .boolean()
+          .default(false)
+          .describe(
+            'When true, send a single summary notification instead of per-item. ' +
+              'Useful for large scope applies.',
+          ),
+        cursor: z
+          .string()
+          .optional()
+          .describe(
+            'Opaque pagination cursor returned by previous call when assigned_count === 500. ' +
+              'Supplying it continues from where the previous call stopped.',
+          ),
+        dry_run: z
+          .boolean()
+          .default(false)
+          .describe(
+            'Preview affected items without writing. Empty scope permitted in dry_run for whole-KB inspection.',
+          ),
+      },
+      annotations: NON_IDEMPOTENT_WRITE_ANNOTATIONS,
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        // 1. Admin gate
+        const role = await checkMcpRole(extra.authInfo, ['admin']);
+        if (!role) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: 'Permission denied: admin role required to bulk assign content owners.',
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const supabase = createMcpClient(extra.authInfo);
+        const actingUserId = getMcpUserId(extra.authInfo);
+
+        const {
+          scope,
+          owner_id: ownerId,
+          force_override: forceOverride,
+          notify,
+          batch_mode: batchMode,
+          cursor,
+          dry_run: dryRun,
+        } = args;
+
+        // Reject empty scope on apply mode (Zod .refine() equivalent)
+        const hasScopeFilter =
+          scope.domain !== undefined ||
+          scope.subtopic !== undefined ||
+          scope.content_type !== undefined;
+        if (!dryRun && !hasScopeFilter) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: 'Apply mode requires at least one of domain, subtopic, or content_type. Use dry_run: true to preview whole-KB scope.',
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // 2. Validate owner exists in user_roles
+        const { data: ownerRow, error: ownerError } = await supabase
+          .from('user_roles')
+          .select('user_id')
+          .eq('user_id', ownerId)
+          .maybeSingle();
+
+        if (ownerError || !ownerRow) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Invalid owner_id: user ${ownerId} not found in user_roles.`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // 3. Cursor decode + scope_hash validation
+        const scopeSnapshot = {
+          domain: scope.domain ?? null,
+          subtopic: scope.subtopic ?? null,
+          content_type: scope.content_type ?? null,
+          unowned_only: scope.unowned_only,
+        };
+        const scopeHash = createHash('sha256')
+          .update(JSON.stringify(scopeSnapshot))
+          .digest('hex')
+          .slice(0, 16);
+
+        let cursorLastId: string | null = null;
+        if (cursor) {
+          try {
+            const decoded = JSON.parse(
+              Buffer.from(cursor, 'base64url').toString('utf8'),
+            ) as { last_id: string; scope_hash: string };
+            if (decoded.scope_hash !== scopeHash) {
+              return {
+                content: [
+                  {
+                    type: 'text' as const,
+                    text: 'Scope changed between paginated calls. The cursor is no longer valid — start a new pagination sequence with the updated scope.',
+                  },
+                ],
+                isError: true,
+              };
+            }
+            cursorLastId = decoded.last_id;
+          } catch {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: 'Invalid cursor format. Use the opaque cursor string returned by the previous call.',
+                },
+              ],
+              isError: true,
+            };
+          }
+        }
+
+        // 4. Build scope query
+        let query = supabase
+          .from('content_items')
+          .select('id, title, content_owner_id')
+          .order('id', { ascending: true })
+          .limit(501); // fetch 501 to detect if pagination needed
+
+        if (scope.domain) {
+          query = query.eq('primary_domain', scope.domain);
+        }
+        if (scope.subtopic) {
+          query = query.eq('primary_subtopic', scope.subtopic);
+        }
+        if (scope.content_type) {
+          query = query.eq('content_type', scope.content_type);
+        }
+        if (scope.unowned_only) {
+          query = query.is('content_owner_id' as 'id', null);
+        }
+        if (cursorLastId) {
+          query = query.gt('id' as 'content_owner_id', cursorLastId);
+        }
+
+        const { data: matchedItems, error: queryError } = await query;
+        if (queryError) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Failed to query content items: ${queryError.message}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const allMatched = matchedItems ?? [];
+        const hasMore = allMatched.length > 500;
+        const capped = hasMore ? allMatched.slice(0, 500) : allMatched;
+
+        // 5. Partition into affected / skipped
+        type MatchedItem = {
+          id: string;
+          title: string;
+          content_owner_id: string | null;
+        };
+        const itemsAffected: Array<{
+          id: string;
+          title: string;
+          previous_owner_id: string | null;
+        }> = [];
+        const itemsSkipped: Array<{
+          id: string;
+          title: string;
+          current_owner_id: string;
+        }> = [];
+
+        for (const item of capped as MatchedItem[]) {
+          if (item.content_owner_id && !scope.unowned_only) {
+            if (forceOverride) {
+              itemsAffected.push({
+                id: item.id,
+                title: item.title,
+                previous_owner_id: item.content_owner_id,
+              });
+            } else {
+              itemsSkipped.push({
+                id: item.id,
+                title: item.title,
+                current_owner_id: item.content_owner_id,
+              });
+            }
+          } else if (!item.content_owner_id) {
+            itemsAffected.push({
+              id: item.id,
+              title: item.title,
+              previous_owner_id: null,
+            });
+          }
+        }
+
+        // Build next_cursor
+        const nextCursor = hasMore
+          ? Buffer.from(
+              JSON.stringify({
+                last_id: capped[capped.length - 1].id,
+                scope_hash: scopeHash,
+              }),
+            ).toString('base64url')
+          : null;
+
+        // Build warnings
+        const warnings: string[] = [];
+        if (itemsSkipped.length > 0) {
+          warnings.push(
+            `${itemsSkipped.length} item${itemsSkipped.length === 1 ? '' : 's'} skipped because they already have an owner; set force_override: true to reassign.`,
+          );
+        }
+
+        // 6. Dry-run: return preview
+        if (dryRun) {
+          const result = {
+            action: 'bulk_assign_owner' as const,
+            dry_run: true,
+            scope: scopeSnapshot,
+            owner_id: ownerId,
+            assigned_count: itemsAffected.length,
+            skipped_owned_count: itemsSkipped.length,
+            items_affected: itemsAffected,
+            ...(itemsSkipped.length > 0
+              ? { items_skipped: itemsSkipped.slice(0, 100) }
+              : {}),
+            next_cursor: nextCursor,
+            ...(warnings.length > 0 ? { warnings } : {}),
+          };
+
+          const lines = [
+            `**Bulk Assign Owner — DRY RUN**`,
+            `Scope: ${JSON.stringify(scopeSnapshot)}`,
+            `Owner: ${ownerId}`,
+            `Would assign: ${itemsAffected.length} item${itemsAffected.length === 1 ? '' : 's'}`,
+            `Skipped (already owned): ${itemsSkipped.length}`,
+          ];
+          if (nextCursor) {
+            lines.push(
+              `\nMore items available — pass the next_cursor value to continue.`,
+            );
+          }
+
+          return {
+            content: [{ type: 'text' as const, text: lines.join('\n') }],
+            structuredContent: toStructuredContent(result),
+          };
+        }
+
+        // 7. Apply mode
+        if (itemsAffected.length === 0) {
+          const result = {
+            action: 'bulk_assign_owner' as const,
+            dry_run: false,
+            scope: scopeSnapshot,
+            owner_id: ownerId,
+            assigned_count: 0,
+            skipped_owned_count: itemsSkipped.length,
+            items_affected: [],
+            ...(itemsSkipped.length > 0
+              ? { items_skipped: itemsSkipped.slice(0, 100) }
+              : {}),
+            next_cursor: nextCursor,
+            ...(warnings.length > 0 ? { warnings } : {}),
+          };
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `No items to assign. ${itemsSkipped.length} item${itemsSkipped.length === 1 ? ' was' : 's were'} skipped (already owned).`,
+              },
+            ],
+            structuredContent: toStructuredContent(result),
+          };
+        }
+
+        // 8. Call RPC
+        const targetIds = itemsAffected.map((i) => i.id);
+        const { data: updatedCount, error: rpcError } = await supabase.rpc(
+          'bulk_assign_content_owner',
+          {
+            p_item_ids: targetIds,
+            p_owner_id: ownerId,
+            p_assigned_by: actingUserId,
+          },
+        );
+
+        if (rpcError) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Failed to assign content owner: ${rpcError.message}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const count =
+          typeof updatedCount === 'number'
+            ? updatedCount
+            : itemsAffected.length;
+
+        // 9. Audit trail — best-effort content_history insert
+        try {
+          await sb(
+            supabase.from('content_history').insert(
+              itemsAffected.map((item) => ({
+                content_item_id: item.id,
+                change_type: 'owner_assigned',
+                title: `Ownership assigned via bulk_assign_owner`,
+                content: `Owner changed to ${ownerId}`,
+                version: 0,
+                created_by: actingUserId,
+                metadata: {
+                  source: 'mcp:bulk_assign_owner',
+                  scope: scopeSnapshot,
+                  previous_owner_id: item.previous_owner_id,
+                  new_owner_id: ownerId,
+                } as unknown as Json,
+              })),
+            ),
+            'content_history.bulk_assign_owner',
+          );
+        } catch (err) {
+          logBestEffortWarn(
+            'content.owner.audit',
+            'Failed to write content_history for bulk owner assignment',
+            {
+              affected_count: itemsAffected.length,
+              error: err instanceof Error ? err.message : String(err),
+            },
+          );
+          warnings.push(
+            'Audit trail write failed — ownership was assigned but history records were not created.',
+          );
+        }
+
+        // 10. Notification (best-effort)
+        if (notify && ownerId !== actingUserId) {
+          try {
+            const scopeParts: string[] = [];
+            if (scopeSnapshot.domain)
+              scopeParts.push(`domain: ${scopeSnapshot.domain}`);
+            if (scopeSnapshot.subtopic)
+              scopeParts.push(`subtopic: ${scopeSnapshot.subtopic}`);
+            if (scopeSnapshot.content_type)
+              scopeParts.push(`type: ${scopeSnapshot.content_type}`);
+            const scopeDesc =
+              scopeParts.length > 0 ? ` across ${scopeParts.join(', ')}` : '';
+
+            const title = batchMode
+              ? `${count} item${count === 1 ? '' : 's'} assigned to you${scopeDesc}`
+              : `You have been assigned as owner of ${count} content item${count === 1 ? '' : 's'}`;
+
+            await supabase.from('notifications').insert({
+              user_id: ownerId,
+              type: 'owner_assignment',
+              entity_type: 'content_item',
+              entity_id: targetIds[0],
+              title,
+              message: null,
+            });
+          } catch (err) {
+            logBestEffortWarn(
+              'content.owner.notify',
+              'Failed to create bulk owner assignment notification',
+              {
+                owner_id: ownerId,
+                error: err instanceof Error ? err.message : String(err),
+              },
+            );
+          }
+        }
+
+        // 11. Return structured result
+        const result = {
+          action: 'bulk_assign_owner' as const,
+          dry_run: false,
+          scope: scopeSnapshot,
+          owner_id: ownerId,
+          assigned_count: count,
+          skipped_owned_count: itemsSkipped.length,
+          items_affected: itemsAffected,
+          ...(itemsSkipped.length > 0
+            ? { items_skipped: itemsSkipped.slice(0, 100) }
+            : {}),
+          next_cursor: nextCursor,
+          ...(warnings.length > 0 ? { warnings } : {}),
+        };
+
+        const lines = [
+          `**Bulk Assign Owner — APPLIED**`,
+          `Assigned ${count} item${count === 1 ? '' : 's'} to ${ownerId}.`,
+        ];
+        if (itemsSkipped.length > 0) {
+          lines.push(
+            `Skipped ${itemsSkipped.length} already-owned item${itemsSkipped.length === 1 ? '' : 's'}.`,
+          );
+        }
+        if (nextCursor) {
+          lines.push(
+            `\nMore items available — pass the next_cursor value to continue.`,
+          );
+        }
+
+        return {
+          content: [{ type: 'text' as const, text: lines.join('\n') }],
+          structuredContent: toStructuredContent(result),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Failed to bulk assign content owner: ${message}. Ensure you have admin permissions.`,
             },
           ],
           isError: true,
