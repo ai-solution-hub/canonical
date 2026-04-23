@@ -5,7 +5,7 @@ import { Copy, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { VerificationBadge } from '@/components/shared/verification-badge';
 import { cn } from '@/lib/utils';
-import { ContentRenderer } from '@/components/item-detail/content-renderer';
+import { QAPairRenderer } from '@/components/qa/qa-pair-renderer';
 
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
 
@@ -216,9 +216,7 @@ export function QAAnswerDisplay({
                 onCancel={inlineEdit.cancelEdit}
               />
             ) : (
-              <div className="text-sm leading-relaxed">
-                <ContentRenderer content={item.answer_standard ?? ''} />
-              </div>
+              <QAPairRenderer answerStandard={item.answer_standard} />
             )}
           </div>
         </div>
@@ -285,9 +283,7 @@ export function QAAnswerDisplay({
                 onCancel={inlineEdit.cancelEdit}
               />
             ) : (
-              <div className="text-sm leading-relaxed">
-                <ContentRenderer content={item.answer_advanced ?? ''} />
-              </div>
+              <QAPairRenderer answerAdvanced={item.answer_advanced} />
             )}
           </div>
         </div>
@@ -298,9 +294,7 @@ export function QAAnswerDisplay({
         !isEditingAdvanced &&
         item.content && (
           <div className="rounded-xl border bg-card p-4">
-            <div className="text-sm leading-relaxed">
-              <ContentRenderer content={item.content} />
-            </div>
+            <QAPairRenderer answerStandard={item.content} />
           </div>
         )}
       {!item.answer_standard &&

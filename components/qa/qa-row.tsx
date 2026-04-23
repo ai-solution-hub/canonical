@@ -15,7 +15,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { FreshnessBadge } from '@/components/shared/freshness-badge';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { ContentRenderer } from '@/components/item-detail/content-renderer';
+import { QAPairRenderer } from '@/components/qa/qa-pair-renderer';
 import type { ContentListItem } from '@/types/content';
 
 // ---------------------------------------------------------------------------
@@ -195,9 +195,7 @@ export function QARow({ item, selected, onToggleSelect }: QARowProps) {
                     </kbd>
                   </Button>
                 </div>
-                <div className="text-sm text-foreground leading-relaxed">
-                  <ContentRenderer content={item.answer_standard!} />
-                </div>
+                <QAPairRenderer answerStandard={item.answer_standard} />
               </div>
             )}
             {hasAdvanced && (
@@ -232,15 +230,11 @@ export function QARow({ item, selected, onToggleSelect }: QARowProps) {
                     )}
                   </Button>
                 </div>
-                <div className="text-sm text-foreground leading-relaxed">
-                  <ContentRenderer content={item.answer_advanced!} />
-                </div>
+                <QAPairRenderer answerAdvanced={item.answer_advanced} />
               </div>
             )}
             {!hasStandard && !hasAdvanced && item.content && (
-              <div className="text-sm text-foreground leading-relaxed">
-                <ContentRenderer content={item.content} />
-              </div>
+              <QAPairRenderer answerStandard={item.content} />
             )}
             {!hasStandard && !hasAdvanced && !item.content && (
               <p className="text-sm italic text-muted-foreground">

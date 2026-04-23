@@ -7,7 +7,7 @@ import { ContentRenderer } from '@/components/item-detail/content-renderer';
 // Types
 // ---------------------------------------------------------------------------
 
-export interface QAPairRendererProps {
+interface QAPairRendererProps {
   /** The question text (rendered as a visually prominent block). */
   question?: string | null;
   /** Standard answer content (may contain markdown). */
@@ -55,13 +55,13 @@ export function QAPairRenderer({
       )}
 
       {hasStandard && (
-        <div className="text-sm leading-relaxed">
+        <div className="text-sm text-foreground leading-relaxed">
           <ContentRenderer content={answerStandard!} />
         </div>
       )}
 
       {hasAdvanced && (
-        <div className="text-sm leading-relaxed">
+        <div className="text-sm text-foreground leading-relaxed">
           <ContentRenderer content={answerAdvanced!} />
         </div>
       )}
