@@ -357,10 +357,10 @@ describe('buildCreatePayload', () => {
     expect(payload.superseded_by).toBeNull();
   });
 
-  it('preserves content_text_hash for dedup', () => {
+  it('omits content_text_hash so PG GENERATED ALWAYS computes it', () => {
     const item = createMockContentItem({ content_text_hash: 'abc123' });
     const payload = buildCreatePayload(item);
-    expect(payload.content_text_hash).toBe('abc123');
+    expect(payload).not.toHaveProperty('content_text_hash');
   });
 
   it('defaults dedup_status to clean when empty', () => {
