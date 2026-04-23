@@ -294,6 +294,10 @@ describe('ReorientSection', () => {
 
     render(<ReorientSection data={data} />);
     expect(screen.getByText(/welcome to knowledge hub/i)).toBeInTheDocument();
+    // Viewer copy updated per spec §4.8
+    expect(
+      screen.getByText(/search the knowledge base to find what you need/i),
+    ).toBeInTheDocument();
     expect(
       screen.queryByText(/everything looks good/i),
     ).not.toBeInTheDocument();
@@ -311,6 +315,61 @@ describe('ReorientSection', () => {
     expect(
       screen.queryByText(/welcome to knowledge hub/i),
     ).not.toBeInTheDocument();
+  });
+
+  // ── hideFirstLoginMessage prop (P0-4 spec §7.3) ──
+
+  // Test 16: First-login message hidden when prop set
+  it('suppresses first-login one-liner when hideFirstLoginMessage is true', () => {
+    const data = makeReorientData({
+      last_active_at: null,
+      last_active_relative: '',
+      team_changes: [],
+      my_recent_work: [],
+    });
+
+    render(<ReorientSection data={data} hideFirstLoginMessage />);
+    // The section still renders (greeting/display-name nudge), but the welcome one-liner is gone
+    expect(
+      screen.getByRole('region', { name: /personal briefing/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/welcome to knowledge hub/i),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/search the knowledge base/i),
+    ).not.toBeInTheDocument();
+  });
+
+  // Test 17: Viewer copy updated
+  it('shows updated viewer copy for first-login users', () => {
+    const data = makeReorientData({
+      last_active_at: null,
+      last_active_relative: '',
+      team_changes: [],
+      my_recent_work: [],
+    });
+
+    render(<ReorientSection data={data} />);
+    // Updated copy per spec §4.8 — no longer mentions "creating your first bid"
+    expect(
+      screen.getByText(/search the knowledge base to find what you need/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/creating your first bid/i),
+    ).not.toBeInTheDocument();
+  });
+
+  // Test 18: Existing non-first-login behaviour unchanged
+  it('returns standard empty state for non-first-login users regardless of hideFirstLoginMessage', () => {
+    const data = makeReorientData({
+      last_active_at: '2026-03-08T08:00:00Z',
+      team_changes: [],
+      my_recent_work: [],
+    });
+
+    render(<ReorientSection data={data} hideFirstLoginMessage />);
+    expect(screen.getByText(/everything looks good/i)).toBeInTheDocument();
   });
 
   // ── Dismiss ──

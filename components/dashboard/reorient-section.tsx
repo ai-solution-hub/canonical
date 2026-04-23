@@ -232,9 +232,11 @@ function DisplayNameNudge() {
 
 interface ReorientSectionProps {
   data: ReorientData;
+  /** When true, suppresses the first-login one-liner (the new DashboardFirstRunCard provides a richer welcome). */
+  hideFirstLoginMessage?: boolean;
 }
 
-export function ReorientSection({ data }: ReorientSectionProps) {
+export function ReorientSection({ data, hideFirstLoginMessage }: ReorientSectionProps) {
   const hydrated = useHydrated();
   const [dismissed, setDismissed] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -287,11 +289,15 @@ export function ReorientSection({ data }: ReorientSectionProps) {
       </div>
 
       {isEmpty ? (
-        <p className="mt-3 text-sm text-muted-foreground">
-          {isFirstLogin
-            ? `Welcome to ${BRANDING.productName}. Start by browsing the knowledge base or creating your first bid.`
-            : 'Everything looks good \u2014 no urgent items and nothing new since your last visit.'}
-        </p>
+        // When hideFirstLoginMessage is set, the DashboardFirstRunCard provides
+        // a richer welcome experience — suppress the one-liner to avoid duplication.
+        isFirstLogin && hideFirstLoginMessage ? null : (
+          <p className="mt-3 text-sm text-muted-foreground">
+            {isFirstLogin
+              ? `Welcome to ${BRANDING.productName}. Search the knowledge base to find what you need.`
+              : 'Everything looks good — no urgent items and nothing new since your last visit.'}
+          </p>
+        )
       ) : (
         <div className="mt-4 space-y-4">
           <TeamChanges changes={data.team_changes} />

@@ -64,6 +64,16 @@ export function FilterBadges() {
     });
   }
 
+  // Layer badge — position 4 (three-axis model: Categories → Layers → rest)
+  if (filters.layer) {
+    badges.push({
+      id: 'layer',
+      label: 'Layer',
+      value: getLayerLabel(filters.layer),
+      onRemove: () => removeFilter('layer'),
+    });
+  }
+
   // Individual badge per selected content type
   if (filters.content_type?.length) {
     for (const type of filters.content_type) {
@@ -158,15 +168,6 @@ export function FilterBadges() {
         onRemove: () => removeFilterValue('user_tags', tag),
       });
     }
-  }
-
-  if (filters.layer) {
-    badges.push({
-      id: 'layer',
-      label: 'Layer',
-      value: getLayerLabel(filters.layer),
-      onRemove: () => removeFilter('layer'),
-    });
   }
 
   if (filters.entity_type) {

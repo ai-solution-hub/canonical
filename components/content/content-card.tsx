@@ -126,7 +126,7 @@ function LayerBadge({ layer }: { layer?: string | null }) {
   return (
     <Badge
       variant="outline"
-      className="text-[10px] px-1.5 py-0 border-confidence-needs-sme-border text-confidence-needs-sme"
+      className="text-xs px-1.5 py-0 border-confidence-needs-sme-border text-confidence-needs-sme"
     >
       {getLayerLabel(layer)}
     </Badge>

@@ -5,16 +5,23 @@
  * to repeat the pattern.
  */
 
-/** API error with optional error code for differentiated handling. */
+/** API error with optional code + structured payload for differentiated handling. */
 export class ApiError extends Error {
   readonly code: string | undefined;
   readonly status: number;
+  readonly data: Record<string, unknown> | undefined;
 
-  constructor(message: string, status: number, code?: string) {
+  constructor(
+    message: string,
+    status: number,
+    code?: string,
+    data?: Record<string, unknown>,
+  ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+    this.data = data;
   }
 }
 
@@ -27,9 +34,12 @@ export async function fetchJson<T>(
   if (!res.ok) {
     const body = await res.json().catch((_err) => ({}));
     const data = body as Record<string, unknown>;
-    const message = (data.error as string) ?? `Request failed: ${res.status}`;
+    const message =
+      (data.error as string) ??
+      (data.message as string) ??
+      `Request failed: ${res.status}`;
     const code = data.code as string | undefined;
-    throw new ApiError(message, res.status, code);
+    throw new ApiError(message, res.status, code, data);
   }
   return res.json() as Promise<T>;
 }
@@ -42,9 +52,9 @@ export async function fetchJson<T>(
  */
 /** Fetch per-item provenance data (admin-only). */
 export async function fetchItemProvenance(id: string) {
-  return fetchJson<import('@/lib/provenance/item-provenance').ItemProvenanceResponse>(
-    `/api/provenance/item/${id}`,
-  );
+  return fetchJson<
+    import('@/lib/provenance/item-provenance').ItemProvenanceResponse
+  >(`/api/provenance/item/${id}`);
 }
 
 /** Response shape for GET /api/admin/taxonomy-sync/status */
@@ -69,6 +79,7 @@ export interface NotificationPreferences {
   email_weekly_change_report: boolean;
   email_review_assigned: boolean;
   email_owned_content_flagged: boolean;
+  auto_generate_change_reports: boolean;
   updated_at: string | null;
 }
 
@@ -88,6 +99,7 @@ export async function updateNotificationPreferences(
       | 'email_weekly_change_report'
       | 'email_review_assigned'
       | 'email_owned_content_flagged'
+      | 'auto_generate_change_reports'
     >
   >,
 ): Promise<NotificationPreferences> {
@@ -105,7 +117,7 @@ export async function updateNotificationPreferences(
 export async function mutationFetchJson<T>(
   url: string,
   body: unknown,
-  init?: RequestInit,
+  init?: RequestInit & { signal?: AbortSignal },
 ): Promise<T> {
   const res = await fetch(url, {
     method: 'POST',
@@ -115,9 +127,15 @@ export async function mutationFetchJson<T>(
   });
   if (!res.ok) {
     const data = await res.json().catch((_err) => ({}));
-    throw new Error(
-      (data as Record<string, string>).error ?? `Request failed: ${res.status}`,
-    );
+    const record = data as Record<string, unknown>;
+    // OPS-23: propagate structured error code + payload (e.g. DIGEST_TOO_MANY_ITEMS
+    // carries item_count + max in `data` — clients read typed fields, not regex).
+    const code = record.code as string | undefined;
+    const message =
+      (record.error as string) ??
+      (record.message as string) ??
+      `Request failed: ${res.status}`;
+    throw new ApiError(message, res.status, code, record);
   }
   return res.json() as Promise<T>;
 }

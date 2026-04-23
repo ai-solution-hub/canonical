@@ -4,17 +4,30 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useCallback, useMemo } from 'react';
 import type { BrowseFilters } from '@/types/content';
 
+// Browse filters don't delegate to the shared `useUrlFilters` primitive
+// because browse carries a cross-parameter derivation that the shared
+// parser can't express: setting `quality_issues=true` auto-enables
+// `include_qa` unless the URL explicitly sets `include_qa=false`. The
+// shared hook parses each key in isolation, so this auto-include branch
+// cannot round-trip through it. Library uses the shared hook directly.
+
+// ---------------------------------------------------------------------------
+// Hook: useBrowseFilters
+// ---------------------------------------------------------------------------
+
 export function useBrowseFilters() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
 
-  // Search query from URL (?q=)
+  // Search query from URL (?q=) — browse-specific (not a filter dimension)
   const searchQuery = useMemo(
     () => searchParams.get('q') ?? undefined,
     [searchParams],
   );
 
+  // Browse filters need the quality_issues auto-include_qa logic that the
+  // shared parser cannot express, so we parse filters with the special case.
   const filters: BrowseFilters = useMemo(() => {
     const domainRaw = searchParams.get('domain')?.split(',').filter(Boolean);
     const typeRaw = searchParams.get('type')?.split(',').filter(Boolean);
@@ -268,6 +281,7 @@ export function useBrowseFilters() {
     setSearchQuery(undefined);
   }, [setSearchQuery]);
 
+  // Delegate clearFilters to shared hook (navigates to bare pathname)
   const clearFilters = useCallback(() => {
     router.push(pathname);
   }, [router, pathname]);

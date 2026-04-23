@@ -23,6 +23,7 @@ interface PrefSwitch {
     | 'email_weekly_change_report'
     | 'email_review_assigned'
     | 'email_owned_content_flagged'
+    | 'auto_generate_change_reports'
   >;
   label: string;
   description: string;
@@ -44,6 +45,12 @@ const PREF_SWITCHES: PrefSwitch[] = [
     label: 'Owned content flags',
     description: 'Email when content you own gets flagged for review',
   },
+  {
+    key: 'auto_generate_change_reports',
+    label: 'Auto-generate weekly Change Reports',
+    description:
+      'Automatically generate a weekly Change Report on your first visit to Change Reports',
+  },
 ];
 
 /** Default preferences when the server has no row for this user. */
@@ -52,10 +59,12 @@ const DEFAULTS: Pick<
   | 'email_weekly_change_report'
   | 'email_review_assigned'
   | 'email_owned_content_flagged'
+  | 'auto_generate_change_reports'
 > = {
   email_weekly_change_report: true,
   email_review_assigned: true,
   email_owned_content_flagged: true,
+  auto_generate_change_reports: true,
 };
 
 // ---------------------------------------------------------------------------
@@ -107,7 +116,10 @@ export function NotificationPreferences() {
         {PREF_SWITCHES.map((pref) => {
           const switchId = `notification-pref-${pref.key}`;
           return (
-            <div key={pref.key} className="flex items-start justify-between gap-4">
+            <div
+              key={pref.key}
+              className="flex items-start justify-between gap-4"
+            >
               <div className="flex flex-col gap-0.5">
                 <Label htmlFor={switchId} className="text-sm font-medium">
                   {pref.label}

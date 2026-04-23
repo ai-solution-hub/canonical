@@ -117,19 +117,29 @@ vi.mock('@/hooks/browse/use-filter-data', () => ({
   }),
 }));
 
+const { mockIsFeatureEnabled } = vi.hoisted(() => ({
+  mockIsFeatureEnabled: vi.fn(() => true),
+}));
+
 vi.mock('@/lib/client-config', () => ({
-  isFeatureEnabled: () => false,
+  isFeatureEnabled: (...args: unknown[]) => mockIsFeatureEnabled(...args),
   CLIENT_CONFIG: { features: {}, layer_vocabulary: [] },
   FALLBACK_LAYERS: [],
 }));
 
 vi.mock('@/contexts/layer-vocabulary-context', () => ({
   useLayerVocabulary: () => ({
-    layers: [],
+    layers: [
+      { key: 'sales_brief', label: 'Sales Brief', description: '', display_order: 1, is_active: true },
+      { key: 'bid_detail', label: 'Bid Detail', description: '', display_order: 2, is_active: true },
+      { key: 'company_reference', label: 'Company Reference', description: '', display_order: 3, is_active: true },
+      { key: 'research', label: 'Research', description: '', display_order: 4, is_active: true },
+    ],
     loading: false,
     error: null,
-    getLayerKeys: () => [],
-    getLayerLabel: (key: string) => key,
+    getLayerKeys: () => ['sales_brief', 'bid_detail', 'company_reference', 'research'],
+    getLayerLabel: (key: string) =>
+      key.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
     getLayerDescription: () => '',
     refresh: vi.fn(),
   }),
@@ -159,6 +169,7 @@ import { FilterPanel } from '@/components/browse/filter-panel';
 describe('FilterPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockIsFeatureEnabled.mockReturnValue(true);
     mockFilters.value = {
       domain: undefined,
       subtopic: undefined,
@@ -225,11 +236,13 @@ describe('FilterPanel', () => {
     expect(screen.getByText('Platform')).toBeInTheDocument();
   });
 
-  it('renders freshness filter section with all four states', () => {
+  it('renders freshness filter section in Secondary tier', () => {
     render(<FilterPanel open={true} onOpenChange={mockOnOpenChange} />);
 
+    // Freshness is a secondary filter — section visible but collapsed (defaultOpen=false)
     expect(screen.getByText('Freshness')).toBeInTheDocument();
-    // Freshness is now a primary filter — open by default
+    // Expand the Freshness section to see the chips
+    fireEvent.click(screen.getByText('Freshness'));
     const freshTexts = ['fresh', 'aging', 'stale', 'expired'];
     for (const text of freshTexts) {
       const buttons = screen.getAllByRole('button', {
@@ -311,7 +324,9 @@ describe('FilterPanel', () => {
 
       // Primary filters should be visible immediately
       expect(screen.getByText('Domain')).toBeInTheDocument();
+      expect(screen.getByText('Content Layer')).toBeInTheDocument();
       expect(screen.getByText('Content Type')).toBeInTheDocument();
+      // Freshness is now Secondary (still visible, but collapsed)
       expect(screen.getByText('Freshness')).toBeInTheDocument();
     });
 
@@ -384,11 +399,13 @@ describe('FilterPanel', () => {
   // -----------------------------------------------------------------------
 
   describe('filter application unchanged after reorganisation', () => {
-    it('applies primary filter (freshness) correctly', () => {
+    it('applies secondary filter (freshness) correctly after expanding section', () => {
       render(<FilterPanel open={true} onOpenChange={mockOnOpenChange} />);
 
-      // Freshness is now primary and defaultOpen — find the "fresh" toggle
-      // Use aria-pressed to distinguish filter buttons from section heading
+      // Freshness is now secondary and defaultOpen={false} — expand section first
+      fireEvent.click(screen.getByText('Freshness'));
+
+      // Find the "fresh" toggle — use aria-pressed to distinguish from section heading
       const freshButtons = screen.getAllByRole('button', { name: /fresh/i });
       const freshToggle = freshButtons.find(
         (btn) => btn.getAttribute('aria-pressed') !== null,
@@ -420,6 +437,103 @@ describe('FilterPanel', () => {
       fireEvent.click(applyBtn);
 
       expect(mockSetFilters).toHaveBeenCalled();
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // P1-16: Three-axis tier regression tests
+  // -----------------------------------------------------------------------
+
+  describe('three-axis tier placement (P1-16)', () => {
+    it('renders Layer filter in Primary tier (visible without Advanced)', () => {
+      render(<FilterPanel open={true} onOpenChange={mockOnOpenChange} />);
+
+      // Content Layer should be visible as a primary filter
+      expect(screen.getByText('Content Layer')).toBeInTheDocument();
+      // Layer chips should be visible without clicking Advanced
+      expect(screen.getByText('Sales Brief')).toBeInTheDocument();
+      expect(screen.getByText('Bid Detail')).toBeInTheDocument();
+      expect(screen.getByText('Company Reference')).toBeInTheDocument();
+      // "Research" appears both as a layer chip and a taxonomy domain,
+      // so use getAllByText to avoid the multiple-elements error
+      expect(screen.getAllByText('Research').length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('renders Freshness in Secondary tier (not Primary)', () => {
+      render(<FilterPanel open={true} onOpenChange={mockOnOpenChange} />);
+
+      // Freshness section heading is visible (secondary tier is visible)
+      expect(screen.getByText('Freshness')).toBeInTheDocument();
+
+      // But freshness chips are NOT visible by default (defaultOpen=false)
+      // The section must be expanded to see the state buttons
+      expect(
+        screen.queryByRole('button', { name: /^fresh$/i }),
+      ).not.toBeInTheDocument();
+
+      // Expand the section
+      fireEvent.click(screen.getByText('Freshness'));
+      const freshButtons = screen.getAllByRole('button', { name: /fresh/i });
+      const freshToggle = freshButtons.find(
+        (btn) => btn.getAttribute('aria-pressed') !== null,
+      );
+      expect(freshToggle).toBeDefined();
+    });
+
+    it('does not duplicate Layer inside Advanced tier', () => {
+      render(<FilterPanel open={true} onOpenChange={mockOnOpenChange} />);
+
+      // Layer is in Primary
+      expect(screen.getByText('Content Layer')).toBeInTheDocument();
+
+      // Expand Advanced
+      fireEvent.click(screen.getByRole('button', { name: /advanced/i }));
+
+      // Content Layer should appear exactly once (in Primary, not duplicated in Advanced)
+      expect(screen.getAllByText('Content Layer')).toHaveLength(1);
+    });
+
+    it('hides Layer when content_layers feature flag is disabled', () => {
+      mockIsFeatureEnabled.mockReturnValue(false);
+      render(<FilterPanel open={true} onOpenChange={mockOnOpenChange} />);
+
+      expect(screen.queryByText('Content Layer')).not.toBeInTheDocument();
+      expect(screen.queryByText('Sales Brief')).not.toBeInTheDocument();
+    });
+
+    it('Primary tier contains Domain, Layer, Content Type in correct order', () => {
+      render(<FilterPanel open={true} onOpenChange={mockOnOpenChange} />);
+
+      const domainEl = screen.getByText('Domain');
+      const layerEl = screen.getByText('Content Layer');
+      const typeEl = screen.getByText('Content Type');
+
+      // All three should be in the document before the Advanced toggle
+      const advancedToggle = screen.getByRole('button', { name: /advanced/i });
+
+      // Compare DOM positions: Primary elements should precede Advanced
+      expect(
+        domainEl.compareDocumentPosition(advancedToggle) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(
+        layerEl.compareDocumentPosition(advancedToggle) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(
+        typeEl.compareDocumentPosition(advancedToggle) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+
+      // Layer should come after Domain, before Content Type
+      expect(
+        domainEl.compareDocumentPosition(layerEl) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(
+        layerEl.compareDocumentPosition(typeEl) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
     });
   });
 });

@@ -9,8 +9,11 @@ import {
   BookCheck,
   Filter,
   X,
+  AlertTriangle,
+  Square,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,6 +34,8 @@ import { useReadMarks } from '@/contexts/read-marks-context';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { useDigestData } from '@/hooks/use-digest-data';
 import { useAccountAge } from '@/hooks/use-account-age';
+import { queryKeys } from '@/lib/query/query-keys';
+import { fetchNotificationPreferences, ApiError } from '@/lib/query/fetchers';
 
 /**
  * Unified period options — Daily and Custom collapsed into a single dropdown
@@ -81,6 +86,7 @@ interface GenerateControlsProps {
   variant: 'hero' | 'bar';
   generating: boolean;
   onGenerate: () => void;
+  onCancel: () => void;
   periodSelection: string;
   onPeriodSelectionChange: (value: string) => void;
   customDateFrom: string;
@@ -98,6 +104,7 @@ function GenerateControls({
   variant,
   generating,
   onGenerate,
+  onCancel,
   periodSelection,
   onPeriodSelectionChange,
   customDateFrom,
@@ -122,10 +129,7 @@ function GenerateControls({
           variant === 'hero' && 'justify-center',
         )}
       >
-        <Select
-          value={periodSelection}
-          onValueChange={onPeriodSelectionChange}
-        >
+        <Select value={periodSelection} onValueChange={onPeriodSelectionChange}>
           <SelectTrigger className="w-[180px]" aria-label="Report period">
             <Calendar className="size-4" />
             <SelectValue />
@@ -139,28 +143,28 @@ function GenerateControls({
           </SelectContent>
         </Select>
 
-        {!isCustom && (
-          <Button
-            onClick={onGenerate}
-            disabled={generating}
-            variant={buttonVariant}
-            size={buttonSize}
-          >
-            {generating ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="size-4" />
-                {variant === 'hero'
-                  ? 'Generate Report'
-                  : 'Generate New Report'}
-              </>
-            )}
-          </Button>
-        )}
+        {!isCustom &&
+          (generating ? (
+            <Button
+              onClick={onCancel}
+              variant="destructive"
+              size={buttonSize}
+              aria-label="Cancel report generation"
+            >
+              <Square className="size-4" />
+              Cancel
+            </Button>
+          ) : (
+            <Button
+              onClick={onGenerate}
+              disabled={generating}
+              variant={buttonVariant}
+              size={buttonSize}
+            >
+              <RefreshCw className="size-4" />
+              {variant === 'hero' ? 'Generate Report' : 'Generate New Report'}
+            </Button>
+          ))}
       </div>
 
       {/* Custom filter panel — revealed inline when "Custom..." is selected */}
@@ -197,10 +201,7 @@ function GenerateControls({
             {/* Domain filter */}
             <div className="space-y-2">
               <Label htmlFor="custom-domain">Domain</Label>
-              <Select
-                value={customDomain}
-                onValueChange={onCustomDomainChange}
-              >
+              <Select value={customDomain} onValueChange={onCustomDomainChange}>
                 <SelectTrigger id="custom-domain">
                   <SelectValue placeholder="All domains" />
                 </SelectTrigger>
@@ -286,22 +287,51 @@ function GenerateControls({
           )}
 
           <div className="mt-4">
-            <Button onClick={onGenerate} disabled={generating}>
-              {generating ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="size-4" />
-                  Generate Custom Report
-                </>
-              )}
-            </Button>
+            {generating ? (
+              <Button
+                onClick={onCancel}
+                variant="destructive"
+                aria-label="Cancel report generation"
+              >
+                <Square className="size-4" />
+                Cancel
+              </Button>
+            ) : (
+              <Button onClick={onGenerate} disabled={generating}>
+                <RefreshCw className="size-4" />
+                Generate Custom Report
+              </Button>
+            )}
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Too Many Items empty state (OPS-23)
+// ---------------------------------------------------------------------------
+
+interface TooManyItemsProps {
+  itemCount: number;
+  max: number;
+}
+
+function TooManyItemsNotice({ itemCount, max }: TooManyItemsProps) {
+  return (
+    <div className="mt-6 rounded-xl border border-status-warning/30 bg-status-warning/5 p-6 text-center">
+      <div className="mx-auto mb-3 flex size-10 items-center justify-center rounded-full bg-status-warning/10">
+        <AlertTriangle className="size-5 text-status-warning" />
+      </div>
+      <h3 className="text-sm font-semibold text-foreground">
+        Too many items for automatic summary
+      </h3>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Your KB has <strong>{itemCount}</strong> items in the last 7 days
+        (limit: {max}). Use <strong>Custom</strong> filter to narrow the date
+        range or apply a domain filter.
+      </p>
     </div>
   );
 }
@@ -321,7 +351,9 @@ export default function DigestPage() {
     pastDigests,
     loadingPastDigests,
     generating,
+    generateError,
     handleGenerate,
+    cancelGeneration,
     loadDigest,
   } = useDigestData();
 
@@ -330,6 +362,31 @@ export default function DigestPage() {
     isNewAccount,
     loading: accountAgeLoading,
   } = useAccountAge();
+
+  // OPS-23: Fetch notification preferences for auto-gen guard
+  const { data: notifPrefs, isLoading: notifPrefsLoading } = useQuery({
+    queryKey: queryKeys.notifications.preferences,
+    queryFn: fetchNotificationPreferences,
+  });
+
+  // OPS-23: Detect the "too many items" 413 response and read the
+  // structured payload from `error.data` (item_count + max). Falls back
+  // to zero/150 defaults if the API shape drifts.
+  const tooManyItems =
+    generateError instanceof ApiError &&
+    generateError.code === 'DIGEST_TOO_MANY_ITEMS';
+
+  let tooManyItemCount = 0;
+  let tooManyItemMax = 150;
+  if (tooManyItems && generateError instanceof ApiError) {
+    const data = generateError.data;
+    if (typeof data?.item_count === 'number') {
+      tooManyItemCount = data.item_count;
+    }
+    if (typeof data?.max === 'number') {
+      tooManyItemMax = data.max;
+    }
+  }
 
   // Trigger lazy loading of read marks for this page
   useEffect(() => {
@@ -340,16 +397,21 @@ export default function DigestPage() {
   //
   // When a user lands on `/digest` with no existing report, fire the weekly
   // generation automatically so Sarah's Monday reorientation does not start
-  // with a cold-click. Guarded on account age > 24h: accounts younger than
-  // that have no meaningful KB history, so auto-gen would burn an AI call
-  // and produce an empty report.
+  // with a cold-click. Guarded on:
+  //   - account age > 24h: new accounts have no meaningful KB history
+  //   - auto_generate_change_reports pref is ON (OPS-23): user can opt out
+  //     via Settings > Notifications
   const autoGenTriggered = useRef(false);
   useEffect(() => {
     if (autoGenTriggered.current) return;
-    if (loading || accountAgeLoading) return;
+    if (loading || accountAgeLoading || notifPrefsLoading) return;
     if (currentDigest) return;
     if (generating) return;
     if (!isOver24h) return;
+
+    // OPS-23: respect the user's auto-generate preference
+    const autoGenEnabled = notifPrefs?.auto_generate_change_reports ?? true;
+    if (!autoGenEnabled) return;
 
     autoGenTriggered.current = true;
     handleGenerate({
@@ -359,9 +421,11 @@ export default function DigestPage() {
   }, [
     loading,
     accountAgeLoading,
+    notifPrefsLoading,
     currentDigest,
     generating,
     isOver24h,
+    notifPrefs,
     handleGenerate,
   ]);
 
@@ -449,6 +513,7 @@ export default function DigestPage() {
   const controlsProps = {
     generating,
     onGenerate,
+    onCancel: cancelGeneration,
     periodSelection,
     onPeriodSelectionChange: setPeriodSelection,
     customDateFrom,
@@ -511,6 +576,16 @@ export default function DigestPage() {
           <div className="mt-8 w-full max-w-2xl">
             <GenerateControls variant="hero" {...controlsProps} />
           </div>
+
+          {/* OPS-23: "too many items" notice replaces generation skeleton */}
+          {tooManyItems && (
+            <div className="mt-6 w-full max-w-2xl">
+              <TooManyItemsNotice
+                itemCount={tooManyItemCount}
+                max={tooManyItemMax}
+              />
+            </div>
+          )}
 
           {generating && (
             <div

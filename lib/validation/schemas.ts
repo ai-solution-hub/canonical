@@ -311,10 +311,7 @@ export const ItemUpdateBodySchema = z
           message: 'superseded_by value must be a UUID string or null',
           path: ['value'],
         });
-      } else if (
-        typeof data.value === 'string' &&
-        !UUID_RE.test(data.value)
-      ) {
+      } else if (typeof data.value === 'string' && !UUID_RE.test(data.value)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: 'superseded_by value must be a valid UUID',
@@ -794,14 +791,37 @@ export const CompanyProfileCreateSchema = z.object({
 
 /** PATCH /api/intelligence/profiles/:id
  *
- * @todo OPS-14 (product-backlog.md §6): same `.partial()` default-leak
- * hazard as FeedSourceUpdateSchema. Fields
- * services/certifications/geographic_scope/competitors all have
- * `.default([])` on the create schema, so every PATCH omitting them
- * silently overwrites stored rows with empty arrays. Rewrite as an
- * explicit schema when OPS-14 is picked up.
+ * Explicit schema (not `.partial()`) because CompanyProfileCreateSchema's
+ * `.default([])` values would silently overwrite stored rows on any PATCH
+ * that omits services / certifications / geographic_scope / competitors.
  */
-export const CompanyProfileUpdateSchema = CompanyProfileCreateSchema.partial();
+export const CompanyProfileUpdateSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(200).optional(),
+  slug: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[a-z0-9-]+$/, 'Slug must be lowercase with hyphens only')
+    .optional(),
+  description: z.string().max(2000).optional(),
+  website_url: z.string().url().optional().or(z.literal('')),
+  sectors: z.array(z.string()).min(1, 'At least one sector is required').optional(),
+  services: z.array(z.string()).optional(),
+  certifications: z.array(z.string()).optional(),
+  geographic_scope: z.array(z.string()).optional(),
+  competitors: z
+    .array(
+      z.object({
+        name: z.string(),
+        website: z.string().optional(),
+        notes: z.string().optional(),
+      }),
+    )
+    .optional(),
+  target_customers: z.string().max(1000).optional(),
+  value_proposition: z.string().max(2000).optional(),
+  key_topics: z.array(z.string()).min(1, 'At least one key topic is required').optional(),
+});
 
 /** POST /api/intelligence/workspaces/:id/sources */
 export const FeedSourceCreateSchema = z.object({
@@ -1772,9 +1792,9 @@ export const NotificationPreferencesPutBodySchema = z
     email_weekly_change_report: z.boolean().optional(),
     email_review_assigned: z.boolean().optional(),
     email_owned_content_flagged: z.boolean().optional(),
+    auto_generate_change_reports: z.boolean().optional(),
   })
   .strict()
-  .refine(
-    (data) => Object.keys(data).length > 0,
-    { message: 'At least one preference field is required' },
-  );
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'At least one preference field is required',
+  });

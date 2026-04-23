@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  getAuthorisedClient,
-  authFailureResponse,
-} from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { NotificationPreferencesPutBodySchema } from '@/lib/validation/schemas';
@@ -11,13 +8,14 @@ import { sb } from '@/lib/supabase/safe';
 export const maxDuration = 10;
 
 const PREF_COLUMNS =
-  'email_weekly_change_report, email_review_assigned, email_owned_content_flagged, updated_at, created_at';
+  'email_weekly_change_report, email_review_assigned, email_owned_content_flagged, auto_generate_change_reports, updated_at, created_at';
 
 /** Default preferences when no row exists for a user. */
 const DEFAULT_PREFERENCES = {
   email_weekly_change_report: true,
   email_review_assigned: true,
   email_owned_content_flagged: true,
+  auto_generate_change_reports: true,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -40,8 +38,11 @@ export async function GET() {
     );
 
     // Return stored prefs or sensible defaults (all ON)
-    const preferences =
-      data ?? { ...DEFAULT_PREFERENCES, updated_at: null, created_at: null };
+    const preferences = data ?? {
+      ...DEFAULT_PREFERENCES,
+      updated_at: null,
+      created_at: null,
+    };
 
     return NextResponse.json({ preferences });
   } catch (err) {
@@ -84,7 +85,9 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ preferences: data });
   } catch (err) {
     return NextResponse.json(
-      { error: safeErrorMessage(err, 'Notification preferences update failed') },
+      {
+        error: safeErrorMessage(err, 'Notification preferences update failed'),
+      },
       { status: 500 },
     );
   }

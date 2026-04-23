@@ -142,21 +142,82 @@ describe('CompanyProfileCreateSchema', () => {
 // ---------------------------------------------------------------------------
 
 describe('CompanyProfileUpdateSchema', () => {
-  it('accepts partial updates', () => {
-    const result = CompanyProfileUpdateSchema.safeParse({
-      name: 'Updated Name',
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it('accepts empty object (no changes)', () => {
+  it('parses empty input — all fields optional', () => {
     const result = CompanyProfileUpdateSchema.safeParse({});
     expect(result.success).toBe(true);
   });
 
-  it('still validates field constraints', () => {
+  it('preserves values when field present', () => {
     const result = CompanyProfileUpdateSchema.safeParse({
-      slug: 'Invalid Slug!',
+      services: ['consultancy', 'training'],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.services).toEqual(['consultancy', 'training']);
+    }
+  });
+
+  // Regression: .partial() preserved .default([]) from CompanyProfileCreateSchema,
+  // silently overwriting stored values on PATCH when array fields were omitted.
+
+  it('omitting services does NOT inject default []', () => {
+    const result = CompanyProfileUpdateSchema.safeParse({ name: 'new name' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.services).toBeUndefined();
+    }
+  });
+
+  it('omitting certifications does NOT inject default []', () => {
+    const result = CompanyProfileUpdateSchema.safeParse({ name: 'new name' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.certifications).toBeUndefined();
+    }
+  });
+
+  it('omitting geographic_scope does NOT inject default []', () => {
+    const result = CompanyProfileUpdateSchema.safeParse({ name: 'new name' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.geographic_scope).toBeUndefined();
+    }
+  });
+
+  it('omitting competitors does NOT inject default []', () => {
+    const result = CompanyProfileUpdateSchema.safeParse({ name: 'new name' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.competitors).toBeUndefined();
+    }
+  });
+
+  it('rejects invalid slug format', () => {
+    const result = CompanyProfileUpdateSchema.safeParse({
+      slug: 'Invalid Slug',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects empty sectors array (min 1 still enforced)', () => {
+    const result = CompanyProfileUpdateSchema.safeParse({
+      sectors: [],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('validates nested competitor schema', () => {
+    const result = CompanyProfileUpdateSchema.safeParse({
+      competitors: [{ name: 'Acme', website: 'not-a-url' }],
+    });
+    // website on competitor schema is z.string().optional() — no .url() constraint,
+    // so 'not-a-url' is accepted as a plain string
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects competitor entry missing required name', () => {
+    const result = CompanyProfileUpdateSchema.safeParse({
+      competitors: [{ website: 'https://acme.com' }],
     });
     expect(result.success).toBe(false);
   });

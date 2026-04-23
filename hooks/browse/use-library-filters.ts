@@ -2,6 +2,8 @@
 
 import { useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import { useUrlFilters } from '@/lib/content-browsing';
+import type { UrlFilterConfig } from '@/lib/content-browsing';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -19,7 +21,34 @@ export interface LibraryFilters {
 export type GroupBy = 'none' | 'source' | 'domain';
 
 // ---------------------------------------------------------------------------
-// Hook: useLibraryFilters (URL search params)
+// URL filter config for library filters
+// ---------------------------------------------------------------------------
+
+const LIBRARY_FILTER_CONFIG: UrlFilterConfig<LibraryFilters> = {
+  defaults: {
+    domain: undefined,
+    source_file: undefined,
+    variant: undefined,
+    search: undefined,
+    freshness: undefined,
+    verified: undefined,
+  },
+  paramMap: {
+    source_file: 'source',
+    search: 'q',
+  },
+  parsers: {
+    domain: (raw) => raw || undefined,
+    source_file: (raw) => raw || undefined,
+    variant: (raw) => (raw as LibraryFilters['variant']) || undefined,
+    search: (raw) => raw || undefined,
+    freshness: (raw) => (raw as LibraryFilters['freshness']) || undefined,
+    verified: (raw) => (raw as LibraryFilters['verified']) || undefined,
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Hook: useLibraryFilters (thin wrapper over useUrlFilters)
 // ---------------------------------------------------------------------------
 
 export function useLibraryFilters() {
@@ -27,23 +56,10 @@ export function useLibraryFilters() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const filters: LibraryFilters = useMemo(
-    () => ({
-      domain: searchParams.get('domain') || undefined,
-      source_file: searchParams.get('source') || undefined,
-      variant:
-        (searchParams.get('variant') as LibraryFilters['variant']) || undefined,
-      search: searchParams.get('q') || undefined,
-      freshness:
-        (searchParams.get('freshness') as LibraryFilters['freshness']) ||
-        undefined,
-      verified:
-        (searchParams.get('verified') as LibraryFilters['verified']) ||
-        undefined,
-    }),
-    [searchParams],
-  );
+  const { filters, setFilters, clearFilters, activeCount } =
+    useUrlFilters<LibraryFilters>(LIBRARY_FILTER_CONFIG);
 
+  // GroupBy is library-specific state, not part of the shared filter primitive
   const groupBy: GroupBy = useMemo(
     () => (searchParams.get('group') as GroupBy) || 'none',
     [searchParams],
@@ -61,36 +77,6 @@ export function useLibraryFilters() {
     },
     [searchParams, router, pathname],
   );
-
-  const setFilters = useCallback(
-    (updates: Partial<LibraryFilters>) => {
-      const params = new URLSearchParams(searchParams.toString());
-      for (const [key, value] of Object.entries(updates)) {
-        const paramKey =
-          key === 'source_file' ? 'source' : key === 'search' ? 'q' : key;
-        if (value) {
-          params.set(paramKey, value);
-        } else {
-          params.delete(paramKey);
-        }
-      }
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-    },
-    [searchParams, router, pathname],
-  );
-
-  const clearFilters = useCallback(() => {
-    router.replace(pathname, { scroll: false });
-  }, [router, pathname]);
-
-  const activeCount = [
-    filters.domain,
-    filters.source_file,
-    filters.variant,
-    filters.search,
-    filters.freshness,
-    filters.verified,
-  ].filter(Boolean).length;
 
   return {
     filters,

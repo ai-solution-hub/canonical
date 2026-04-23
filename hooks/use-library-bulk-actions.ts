@@ -1,9 +1,13 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { queryKeys } from '@/lib/query/query-keys';
+import {
+  useContentSelection,
+  useContentBulkRunner,
+  type BulkProgress,
+} from '@/lib/content-browsing';
 import type { ContentListItem } from '@/types/content';
 
 // ---------------------------------------------------------------------------
@@ -14,12 +18,6 @@ interface WorkspaceOption {
   id: string;
   name: string;
   type: string;
-}
-
-export interface BulkProgress {
-  current: number;
-  total: number;
-  label: string;
 }
 
 export interface UseLibraryBulkActionsParams {
@@ -72,16 +70,23 @@ export function useLibraryBulkActions({
   items,
   filterDeps,
 }: UseLibraryBulkActionsParams): UseLibraryBulkActionsReturn {
-  const queryClient = useQueryClient();
+  // Shared selection state — delegates to lib/content-browsing
+  const {
+    selectedIds,
+    toggleSelect,
+    toggleSelectAll: sharedToggleSelectAll,
+    clearSelection,
+  } = useContentSelection(filterDeps);
 
-  // Bulk selection state
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkOperating, setBulkOperating] = useState(false);
-  const [bulkProgress, setBulkProgress] = useState<BulkProgress>({
-    current: 0,
-    total: 0,
-    label: '',
-  });
+  // Shared bulk runner — delegates to lib/content-browsing
+  // Uses itemLookup for tag-merge case where operation needs item.user_tags
+  const { bulkOperating, bulkProgress, runBulkOperation } =
+    useContentBulkRunner<ContentListItem>(queryKeys.contentItems.all);
+
+  // Adapt toggleSelectAll to close over items (preserves existing public API)
+  const toggleSelectAll = useCallback(() => {
+    sharedToggleSelectAll(items.map((i) => i.id));
+  }, [items, sharedToggleSelectAll]);
 
   // Tag dialog state
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
@@ -93,92 +98,35 @@ export function useLibraryBulkActions({
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
   const [workspacesLoading, setWorkspacesLoading] = useState(false);
 
-  // Selection helpers
-  const toggleSelect = useCallback((id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  }, []);
+  // Item lookup for bulk runner (enables tag-merge at line 209 in original)
+  const itemLookup = useCallback(
+    (id: string) => items.find((it) => it.id === id),
+    [items],
+  );
 
-  const toggleSelectAll = useCallback(() => {
-    setSelectedIds((prev) => {
-      if (prev.size === items.length && items.length > 0) {
-        return new Set();
-      }
-      return new Set(items.map((i) => i.id));
-    });
-  }, [items]);
-
-  const clearSelection = useCallback(() => {
-    setSelectedIds(new Set());
-  }, []);
-
-  // Clear selection when filters change
-  useEffect(() => {
-    setSelectedIds(new Set());
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- filterDeps is a dynamic array from the parent
-  }, filterDeps);
-
-  // Bulk operation runner
-  const runBulkOperation = useCallback(
+  // Wrapper: run bulk op with selection clearing after
+  const runWithClear = useCallback(
     async (
       label: string,
-      operation: (id: string, item: ContentListItem) => Promise<boolean>,
+      operation: (id: string, item?: ContentListItem) => Promise<boolean>,
+      needsLookup?: boolean,
     ) => {
       const ids = Array.from(selectedIds);
-      setBulkOperating(true);
-      setBulkProgress({ current: 0, total: ids.length, label });
-      let successCount = 0;
-      let errorCount = 0;
-
-      for (let i = 0; i < ids.length; i++) {
-        const item = items.find((it) => it.id === ids[i]);
-        if (!item) continue;
-
-        try {
-          const ok = await operation(ids[i], item);
-          if (ok) successCount++;
-          else errorCount++;
-        } catch (err) {
-          errorCount++;
-          console.error(
-            `Bulk operation "${label}" failed for item ${ids[i]}:`,
-            err,
-          );
-        }
-
-        setBulkProgress({ current: i + 1, total: ids.length, label });
-      }
-
-      setBulkOperating(false);
-      setBulkProgress({ current: 0, total: 0, label: '' });
-      setSelectedIds(new Set());
-
-      // Invalidate library queries so TanStack Query refetches automatically
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.contentItems.all,
-      });
-
-      if (errorCount > 0) {
-        toast.error(
-          `${errorCount} item${errorCount !== 1 ? 's' : ''} failed during ${label.toLowerCase()}`,
-        );
-      }
-
-      return successCount;
+      const count = await runBulkOperation(
+        label,
+        ids,
+        operation,
+        needsLookup ? itemLookup : undefined,
+      );
+      clearSelection();
+      return count;
     },
-    [selectedIds, items, queryClient],
+    [selectedIds, runBulkOperation, itemLookup, clearSelection],
   );
 
   // Bulk re-classify
   const handleBulkReclassify = useCallback(async () => {
-    const count = await runBulkOperation('Re-classifying', async (id) => {
+    const count = await runWithClear('Re-classifying', async (id) => {
       const res = await fetch(`/api/items/${id}/classify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -187,7 +135,7 @@ export function useLibraryBulkActions({
       return res.ok;
     });
     toast.success(`Re-classified ${count} item${count !== 1 ? 's' : ''}`);
-  }, [runBulkOperation]);
+  }, [runWithClear]);
 
   // Bulk tag — opens dialog
   const handleBulkTagOpen = useCallback(() => {
@@ -206,20 +154,25 @@ export function useLibraryBulkActions({
     }
     setTagDialogOpen(false);
 
-    const count = await runBulkOperation('Tagging', async (id, item) => {
-      const existing = (item.user_tags as string[] | null) ?? [];
-      const merged = [...new Set([...existing, ...newTags])];
-      const res = await fetch(`/api/items/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ field: 'user_tags', value: merged }),
-      });
-      return res.ok;
-    });
+    // Tag merge needs item.user_tags via itemLookup
+    const count = await runWithClear(
+      'Tagging',
+      async (id, item) => {
+        const existing = (item?.user_tags as string[] | null) ?? [];
+        const merged = [...new Set([...existing, ...newTags])];
+        const res = await fetch(`/api/items/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ field: 'user_tags', value: merged }),
+        });
+        return res.ok;
+      },
+      true, // needsLookup = true for tag merge
+    );
     toast.success(
       `Tagged ${count} item${count !== 1 ? 's' : ''} with: ${newTags.join(', ')}`,
     );
-  }, [tagInput, runBulkOperation]);
+  }, [tagInput, runWithClear]);
 
   // Bulk assign — opens dialog
   const handleBulkAssignOpen = useCallback(async () => {
@@ -254,7 +207,7 @@ export function useLibraryBulkActions({
     }
     setAssignDialogOpen(false);
 
-    const count = await runBulkOperation('Assigning', async (id) => {
+    const count = await runWithClear('Assigning', async (id) => {
       const res = await fetch(`/api/items/${id}/workspaces`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -269,11 +222,11 @@ export function useLibraryBulkActions({
     toast.success(
       `Assigned ${count} item${count !== 1 ? 's' : ''} to "${ws?.name ?? 'workspace'}"`,
     );
-  }, [selectedWorkspaceId, workspaces, runBulkOperation]);
+  }, [selectedWorkspaceId, workspaces, runWithClear]);
 
   // Bulk verify
   const handleBulkVerify = useCallback(async () => {
-    const count = await runBulkOperation('Verifying', async (id) => {
+    const count = await runWithClear('Verifying', async (id) => {
       const res = await fetch('/api/review/action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -282,18 +235,18 @@ export function useLibraryBulkActions({
       return res.ok;
     });
     toast.success(`Verified ${count} item${count !== 1 ? 's' : ''}`);
-  }, [runBulkOperation]);
+  }, [runWithClear]);
 
   // Bulk delete (admin only)
   const handleBulkDelete = useCallback(async () => {
-    const count = await runBulkOperation('Deleting', async (id) => {
+    const count = await runWithClear('Deleting', async (id) => {
       const res = await fetch(`/api/items/${id}`, {
         method: 'DELETE',
       });
       return res.ok;
     });
     toast.success(`Deleted ${count} item${count !== 1 ? 's' : ''}`);
-  }, [runBulkOperation]);
+  }, [runWithClear]);
 
   return {
     selectedIds,

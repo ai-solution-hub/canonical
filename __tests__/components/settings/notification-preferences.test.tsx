@@ -67,6 +67,7 @@ function mockFetchPrefs(prefs: {
   email_weekly_change_report: boolean;
   email_review_assigned: boolean;
   email_owned_content_flagged: boolean;
+  auto_generate_change_reports: boolean;
 }) {
   global.fetch = vi.fn().mockResolvedValue({
     ok: true,
@@ -79,6 +80,7 @@ function mockFetchPrefsDefault() {
     email_weekly_change_report: true,
     email_review_assigned: true,
     email_owned_content_flagged: true,
+    auto_generate_change_reports: true,
   });
 }
 
@@ -135,11 +137,11 @@ describe('NotificationPreferences', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getAllByRole('switch').length).toBe(3);
+      expect(screen.getAllByRole('switch').length).toBe(4);
     });
   });
 
-  it('renders three switches with correct labels', async () => {
+  it('renders four switches with correct labels', async () => {
     renderWithQuery(<NotificationPreferences />);
 
     await waitFor(() => {
@@ -148,6 +150,9 @@ describe('NotificationPreferences', () => {
 
     expect(screen.getByLabelText('Review assignments')).toBeInTheDocument();
     expect(screen.getByLabelText('Owned content flags')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Auto-generate weekly Change Reports'),
+    ).toBeInTheDocument();
   });
 
   it('renders section heading', async () => {
@@ -173,6 +178,11 @@ describe('NotificationPreferences', () => {
     expect(
       screen.getByText('Email when content you own gets flagged for review'),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Automatically generate a weekly Change Report on your first visit to Change Reports',
+      ),
+    ).toBeInTheDocument();
   });
 
   it('shows switches as checked when defaults are all ON', async () => {
@@ -191,10 +201,14 @@ describe('NotificationPreferences', () => {
     const flaggedSwitch = screen.getByRole('switch', {
       name: 'Owned content flags',
     });
+    const autoGenSwitch = screen.getByRole('switch', {
+      name: 'Auto-generate weekly Change Reports',
+    });
 
     expect(weeklySwitch).toHaveAttribute('data-state', 'checked');
     expect(reviewSwitch).toHaveAttribute('data-state', 'checked');
     expect(flaggedSwitch).toHaveAttribute('data-state', 'checked');
+    expect(autoGenSwitch).toHaveAttribute('data-state', 'checked');
   });
 
   it('shows switches matching server state when some are OFF', async () => {
@@ -202,6 +216,7 @@ describe('NotificationPreferences', () => {
       email_weekly_change_report: false,
       email_review_assigned: true,
       email_owned_content_flagged: false,
+      auto_generate_change_reports: true,
     });
 
     renderWithQuery(<NotificationPreferences />);
@@ -231,33 +246,37 @@ describe('NotificationPreferences', () => {
     // First call: GET prefs (all on)
     // Second call: PUT to toggle one off
     let callCount = 0;
-    global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
-      callCount++;
-      if (!init || init.method !== 'PUT') {
-        // GET call
+    global.fetch = vi
+      .fn()
+      .mockImplementation(async (url: string, init?: RequestInit) => {
+        callCount++;
+        if (!init || init.method !== 'PUT') {
+          // GET call
+          return {
+            ok: true,
+            json: async () => ({
+              preferences: {
+                email_weekly_change_report: true,
+                email_review_assigned: true,
+                email_owned_content_flagged: true,
+                auto_generate_change_reports: true,
+              },
+            }),
+          };
+        }
+        // PUT call
         return {
           ok: true,
           json: async () => ({
             preferences: {
-              email_weekly_change_report: true,
+              email_weekly_change_report: false,
               email_review_assigned: true,
               email_owned_content_flagged: true,
+              auto_generate_change_reports: true,
             },
           }),
         };
-      }
-      // PUT call
-      return {
-        ok: true,
-        json: async () => ({
-          preferences: {
-            email_weekly_change_report: false,
-            email_review_assigned: true,
-            email_owned_content_flagged: true,
-          },
-        }),
-      };
-    });
+      });
 
     renderWithQuery(<NotificationPreferences />);
 
@@ -285,24 +304,27 @@ describe('NotificationPreferences', () => {
     const user = userEvent.setup();
 
     // GET succeeds, PUT fails
-    global.fetch = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
-      if (!init || init.method !== 'PUT') {
+    global.fetch = vi
+      .fn()
+      .mockImplementation(async (_url: string, init?: RequestInit) => {
+        if (!init || init.method !== 'PUT') {
+          return {
+            ok: true,
+            json: async () => ({
+              preferences: {
+                email_weekly_change_report: true,
+                email_review_assigned: true,
+                email_owned_content_flagged: true,
+                auto_generate_change_reports: true,
+              },
+            }),
+          };
+        }
         return {
-          ok: true,
-          json: async () => ({
-            preferences: {
-              email_weekly_change_report: true,
-              email_review_assigned: true,
-              email_owned_content_flagged: true,
-            },
-          }),
+          ok: false,
+          json: async () => ({ error: 'Failed to update' }),
         };
-      }
-      return {
-        ok: false,
-        json: async () => ({ error: 'Failed to update' }),
-      };
-    });
+      });
 
     renderWithQuery(<NotificationPreferences />);
 
@@ -323,30 +345,34 @@ describe('NotificationPreferences', () => {
   it('shows toast on successful mutation', async () => {
     const user = userEvent.setup();
 
-    global.fetch = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
-      if (!init || init.method !== 'PUT') {
+    global.fetch = vi
+      .fn()
+      .mockImplementation(async (_url: string, init?: RequestInit) => {
+        if (!init || init.method !== 'PUT') {
+          return {
+            ok: true,
+            json: async () => ({
+              preferences: {
+                email_weekly_change_report: true,
+                email_review_assigned: true,
+                email_owned_content_flagged: true,
+                auto_generate_change_reports: true,
+              },
+            }),
+          };
+        }
         return {
           ok: true,
           json: async () => ({
             preferences: {
-              email_weekly_change_report: true,
+              email_weekly_change_report: false,
               email_review_assigned: true,
               email_owned_content_flagged: true,
+              auto_generate_change_reports: true,
             },
           }),
         };
-      }
-      return {
-        ok: true,
-        json: async () => ({
-          preferences: {
-            email_weekly_change_report: false,
-            email_review_assigned: true,
-            email_owned_content_flagged: true,
-          },
-        }),
-      };
-    });
+      });
 
     renderWithQuery(<NotificationPreferences />);
 
