@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render } from '@testing-library/react';
+import { createQueryWrapper } from '../../helpers/query-wrapper';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks — must be declared before vi.mock() factories reference them
@@ -282,7 +283,7 @@ describe('BrowseContent — Verification Names', () => {
   });
 
   it('calls useDisplayNames with verified_by UUIDs from items', () => {
-    render(<BrowseContent />);
+    render(<BrowseContent />, { wrapper: createQueryWrapper().Wrapper });
 
     // useDisplayNames should have been called with an array containing the verified_by UUIDs
     expect(mockUseDisplayNames).toHaveBeenCalled();
@@ -294,7 +295,7 @@ describe('BrowseContent — Verification Names', () => {
   });
 
   it('passes verifierNames map to ContentGrid', () => {
-    render(<BrowseContent />);
+    render(<BrowseContent />, { wrapper: createQueryWrapper().Wrapper });
 
     expect(mockContentGridProps).toHaveBeenCalled();
     const gridProps = mockContentGridProps.mock.calls[0][0] as Record<
@@ -332,7 +333,7 @@ describe('BrowseContent — Verification Names', () => {
       updateQualityFlag: vi.fn(),
     });
 
-    render(<BrowseContent />);
+    render(<BrowseContent />, { wrapper: createQueryWrapper().Wrapper });
 
     expect(mockUseDisplayNames).toHaveBeenCalled();
     const callArgs = mockUseDisplayNames.mock.calls[0][0] as string[];

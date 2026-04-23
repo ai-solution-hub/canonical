@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import {
   getAuthenticatedClient,
   rateLimitResponse,
@@ -8,6 +9,14 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import { sb } from '@/lib/supabase/safe';
 import { PREVIEW_MAX_RESULTS } from '@/lib/search-history';
+import { parseSearchParams } from '@/lib/validation';
+
+const PreviewSearchSchema = z.object({
+  q: z.string().trim().min(1),
+  // Accept any positive int; clamp to max 20 server-side rather than reject
+  // so accidental over-fetch just gets trimmed (spec §4.1 "max 20 clamp").
+  limit: z.number().int().positive().optional(),
+});
 
 /**
  * Escape characters that are PostgREST ilike wildcards.
@@ -32,24 +41,14 @@ export async function GET(request: NextRequest) {
     const rl = checkRateLimit(`search-preview:${user.id}`, 60, 60_000);
     if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
-    // Validate query param
-    const q = request.nextUrl.searchParams.get('q')?.trim();
-    if (!q) {
-      return NextResponse.json(
-        { error: 'Query parameter "q" is required' },
-        { status: 400 },
-      );
-    }
-
-    // Parse and clamp limit
-    const rawLimit = request.nextUrl.searchParams.get('limit');
-    let limit = PREVIEW_MAX_RESULTS;
-    if (rawLimit !== null) {
-      const parsed = parseInt(rawLimit, 10);
-      if (!Number.isNaN(parsed) && parsed > 0) {
-        limit = Math.min(parsed, 20);
-      }
-    }
+    // Validate query params via shared Zod helper
+    const parsed = parseSearchParams(
+      PreviewSearchSchema,
+      request.nextUrl.searchParams,
+    );
+    if (!parsed.success) return parsed.response;
+    const { q, limit: requestedLimit } = parsed.data;
+    const limit = Math.min(requestedLimit ?? PREVIEW_MAX_RESULTS, 20);
 
     // Escape ilike wildcards
     const escaped = escapeIlike(q);

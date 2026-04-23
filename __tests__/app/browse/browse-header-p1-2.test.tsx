@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { createQueryWrapper } from '../../helpers/query-wrapper';
 
 // ---------------------------------------------------------------------------
 // vi.hoisted() — mocks referenced in vi.mock() factories
@@ -175,14 +176,14 @@ describe('P1-2: Browse Header Consolidation', () => {
   // ── 1. + New split-button menu ──
 
   it('renders the + New menu trigger for editors', () => {
-    render(<BrowseContent />);
+    render(<BrowseContent />, { wrapper: createQueryWrapper().Wrapper });
     expect(screen.getByTestId('new-content-menu')).toBeInTheDocument();
     expect(screen.getByTestId('new-content-menu')).toHaveTextContent('New');
   });
 
   it('+ New menu renders all 5 items when opened', async () => {
     const user = userEvent.setup();
-    render(<BrowseContent />);
+    render(<BrowseContent />, { wrapper: createQueryWrapper().Wrapper });
 
     await user.click(screen.getByTestId('new-content-menu'));
 
@@ -196,7 +197,7 @@ describe('P1-2: Browse Header Consolidation', () => {
 
   it('+ New menu items link to correct paths', async () => {
     const user = userEvent.setup();
-    render(<BrowseContent />);
+    render(<BrowseContent />, { wrapper: createQueryWrapper().Wrapper });
 
     await user.click(screen.getByTestId('new-content-menu'));
 
@@ -216,14 +217,14 @@ describe('P1-2: Browse Header Consolidation', () => {
   it('does not render + New menu for viewers', () => {
     mockUserRole.role = 'viewer';
     mockUserRole.canEdit = false;
-    render(<BrowseContent />);
+    render(<BrowseContent />, { wrapper: createQueryWrapper().Wrapper });
     expect(screen.queryByTestId('new-content-menu')).not.toBeInTheDocument();
   });
 
   // ── 2. Upload button removed from header ──
 
   it('does not render a standalone Upload button in the header', () => {
-    render(<BrowseContent />);
+    render(<BrowseContent />, { wrapper: createQueryWrapper().Wrapper });
     // The old header had a visible "Upload" button next to "New Content"
     // Now it should only be inside the dropdown
     const buttons = screen.getAllByRole('button');
@@ -239,13 +240,13 @@ describe('P1-2: Browse Header Consolidation', () => {
   // ── 3. Display dropdown ──
 
   it('renders the Display dropdown trigger', () => {
-    render(<BrowseContent />);
+    render(<BrowseContent />, { wrapper: createQueryWrapper().Wrapper });
     expect(screen.getByTestId('display-menu')).toBeInTheDocument();
   });
 
   it('Display dropdown consolidates view, unread, and multi-select controls', async () => {
     const user = userEvent.setup();
-    render(<BrowseContent />);
+    render(<BrowseContent />, { wrapper: createQueryWrapper().Wrapper });
 
     await user.click(screen.getByTestId('display-menu'));
 
@@ -262,7 +263,7 @@ describe('P1-2: Browse Header Consolidation', () => {
 
   it('/ shortcut focuses the browse search input', async () => {
     const user = userEvent.setup();
-    render(<BrowseContent />);
+    render(<BrowseContent />, { wrapper: createQueryWrapper().Wrapper });
 
     const searchInput = screen.getByLabelText('Search the knowledge base');
     expect(searchInput).not.toHaveFocus();
@@ -273,7 +274,7 @@ describe('P1-2: Browse Header Consolidation', () => {
 
   it('Shift+R navigates to /review', async () => {
     const user = userEvent.setup();
-    render(<BrowseContent />);
+    render(<BrowseContent />, { wrapper: createQueryWrapper().Wrapper });
 
     await user.keyboard('{Shift>}R{/Shift}');
     expect(mockRouter.push).toHaveBeenCalledWith('/review');
