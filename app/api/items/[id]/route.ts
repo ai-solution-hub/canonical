@@ -20,6 +20,7 @@ import {
   SupersessionError,
 } from '@/lib/supersession/set';
 import { SupabaseError } from '@/lib/supabase/safe';
+import { resolveQuestionForRebuild } from '@/lib/bid-library-ingest/resolve-question';
 
 export const maxDuration = 60;
 
@@ -275,7 +276,10 @@ export async function PATCH(
       value,
     );
 
-    // For Q&A answer fields, auto-rebuild the content field from Standard + Advanced
+    // For Q&A answer fields, auto-rebuild the content field from Standard + Advanced.
+    // Canonical shape per P0-BM Phase 3 spec ss4.1:
+    //   Q: {question}\n\n{answer_standard}\n\n{answer_advanced}
+    // Question sourced via resolveQuestionForRebuild (spec ss6.2 Option B).
     const updateData: Record<string, unknown> = {
       [field]: value,
       updated_by: user.id,
@@ -285,14 +289,18 @@ export async function PATCH(
       (field === 'answer_standard' || field === 'answer_advanced') &&
       currentItem.content_type === 'q_a_pair'
     ) {
+      const question = resolveQuestionForRebuild(
+        currentItem.content,
+        currentItem.title,
+      );
       const standard =
         field === 'answer_standard' ? value : currentItem.answer_standard;
       const advanced =
         field === 'answer_advanced' ? value : currentItem.answer_advanced;
-      const parts: string[] = [];
+      const parts: string[] = [`Q: ${question}`];
       if (standard) parts.push(String(standard));
       if (advanced) parts.push(String(advanced));
-      const joined = parts.join('\n\n') || null;
+      const joined = parts.join('\n\n');
       updateData.content = joined;
       rebuiltQaContent = joined;
     }
