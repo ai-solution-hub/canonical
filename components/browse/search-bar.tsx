@@ -5,28 +5,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Search, Clock } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useModifierKey } from '@/hooks/ui/use-modifier-key';
-
-const MAX_RECENT_SEARCHES = 10;
-const STORAGE_KEY = 'kb-recent-searches';
-
-function getRecentSearches(): string[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-}
-
-function addRecentSearch(query: string) {
-  const searches = getRecentSearches().filter((s) => s !== query);
-  searches.unshift(query);
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify(searches.slice(0, MAX_RECENT_SEARCHES)),
-  );
-}
+import { addRecentSearch, getRecentSearches } from '@/lib/search-history';
 
 interface SearchBarProps {
   variant?: 'hero' | 'compact';
