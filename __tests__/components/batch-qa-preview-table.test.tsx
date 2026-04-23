@@ -114,14 +114,14 @@ describe('parsePastedQA', () => {
 // ---------------------------------------------------------------------------
 
 describe('formatQAContent', () => {
-  it('formats a Q&A pair as "Q: {question}\\n\\nA: {answer}"', () => {
+  it('formats a Q&A pair as "Q: {question}\\n\\n{answer}" (no A: prefix)', () => {
     const pair: QAPair = { question: 'What is X?', answer: 'X is a thing' };
-    expect(formatQAContent(pair)).toBe('Q: What is X?\n\nA: X is a thing');
+    expect(formatQAContent(pair)).toBe('Q: What is X?\n\nX is a thing');
   });
 
   it('handles empty strings', () => {
     const pair: QAPair = { question: '', answer: '' };
-    expect(formatQAContent(pair)).toBe('Q: \n\nA: ');
+    expect(formatQAContent(pair)).toBe('Q: \n\n');
   });
 
   it('preserves multi-line answers', () => {
@@ -130,7 +130,7 @@ describe('formatQAContent', () => {
       answer: 'Line 1\nLine 2\nLine 3',
     };
     expect(formatQAContent(pair)).toBe(
-      'Q: What is X?\n\nA: Line 1\nLine 2\nLine 3',
+      'Q: What is X?\n\nLine 1\nLine 2\nLine 3',
     );
   });
 });

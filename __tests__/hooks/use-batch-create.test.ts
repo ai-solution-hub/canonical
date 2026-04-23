@@ -131,7 +131,7 @@ describe('useBatchCreate', () => {
       expect(body.items).toHaveLength(2);
       expect(body.items[0]).toEqual({
         title: 'What is X?',
-        content: 'Q: What is X?\n\nA: X is a thing',
+        content: 'Q: What is X?\n\nX is a thing',
         contentType: 'q_a_pair',
       });
 

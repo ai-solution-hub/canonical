@@ -5,6 +5,7 @@ import { parseBody } from '@/lib/validation';
 import { safeErrorMessage } from '@/lib/error';
 import crypto from 'crypto';
 import type { Database, Json } from '@/supabase/types/database.types';
+import { extractAnswerFromContent } from '@/lib/bid-library-ingest/extract-answer';
 
 export const maxDuration = 120;
 
@@ -21,7 +22,7 @@ export const maxDuration = 120;
 const BatchItemSchema = z.object({
   /** Title — the question text (truncated at word boundary to 120 chars). */
   title: z.string().trim().min(1, 'Title is required').max(500),
-  /** Body — formatted as "Q: {question}\n\nA: {answer}". */
+  /** Body — formatted as "Q: {question}\n\n{answer}" (no A: prefix). */
   content: z.string().min(1, 'Content is required').max(500_000),
   /** Content type — should be 'q_a_pair'. */
   contentType: z.enum(['q_a_pair']).default('q_a_pair'),
@@ -226,8 +227,9 @@ export async function POST(request: NextRequest) {
             dedup_status: dedupStamp.dedup_status,
             // P0-BM Phase 3 spec ss4.6 Path 2: populate answer_standard for
             // q_a_pair so first PATCH edit does not destroy creation content
-            // (bug B2 fix). Content arrives shaped as "Q: {q}\n\n{answer}".
-            answer_standard: item.content,
+            // (bug B2 fix). Content arrives as composite "Q: {q}\n\n{answer}";
+            // extract the answer portion only to avoid double-prefix on rebuild.
+            answer_standard: extractAnswerFromContent(item.content),
             ...(source_document_id ? { source_document_id } : {}),
             ...(item.answerAdvanced
               ? { answer_advanced: item.answerAdvanced }

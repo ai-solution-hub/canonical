@@ -62,7 +62,7 @@ export function parsePastedQA(text: string): QAPair[] {
  * Format a Q&A pair into the content format expected by the batch API.
  */
 export function formatQAContent(pair: QAPair): string {
-  return `Q: ${pair.question}\n\nA: ${pair.answer}`;
+  return `Q: ${pair.question}\n\n${pair.answer}`;
 }
 
 // ---------------------------------------------------------------------------

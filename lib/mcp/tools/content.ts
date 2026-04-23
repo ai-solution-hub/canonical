@@ -43,6 +43,7 @@ import {
   NON_IDEMPOTENT_WRITE_ANNOTATIONS,
 } from './shared';
 import { slugifyDomain } from '@/lib/ai/classify';
+import { extractAnswerFromContent } from '@/lib/bid-library-ingest/extract-answer';
 
 // ---------------------------------------------------------------------------
 // Shared helper: fetch content items by ID array and format as batch result.
@@ -408,9 +409,10 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             }),
             // P0-BM Phase 3 spec ss4.6 Path 4: populate answer_standard for
             // q_a_pair so first PATCH edit does not destroy creation content
-            // (bug B2 fix).
+            // (bug B2 fix). MCP callers may send composite "Q: {q}\n\n{answer}"
+            // content; extract the answer portion only to avoid double-prefix.
             ...(args.content_type === 'q_a_pair' && args.content
-              ? { answer_standard: args.content }
+              ? { answer_standard: extractAnswerFromContent(args.content) }
               : {}),
           };
 

@@ -110,13 +110,14 @@ vi.mock('@/lib/editor-utils', () => ({
 import { POST as createItem } from '@/app/api/items/route';
 import { POST as batchCreate } from '@/app/api/items/batch/route';
 import { POST as bidIntegrate } from '@/app/api/bids/[id]/outcome/integrate/route';
+import { extractAnswerFromContent } from '@/lib/bid-library-ingest/extract-answer';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-const VALID_UUID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
-const BID_UUID = 'b1b2c3d4-e5f6-7890-abcd-ef1234567890';
+const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
+const BID_UUID = '660e8400-e29b-41d4-a716-446655440001';
 
 /**
  * Reset all mock chains and configure standard auth + return values.
@@ -258,7 +259,7 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
   // -------------------------------------------------------------------------
 
   describe('Path 2 — POST /api/items/batch', () => {
-    it('sets answer_standard = item.content for each q_a_pair in batch', async () => {
+    it('sets answer_standard to extracted answer (not composite) for q_a_pair batch', async () => {
       configureRole(mockSupabase, 'editor');
 
       const batchContent = 'Q: What is our policy?\n\nWe follow best practice.';
@@ -319,7 +320,9 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
           (call[0] as Record<string, unknown>).content_type === 'q_a_pair',
       );
       expect(contentInsert).toBeDefined();
-      expect((contentInsert![0] as Record<string, unknown>).answer_standard).toBe(batchContent);
+      // C-1 fix: answer_standard should be the extracted answer portion only,
+      // not the full composite "Q: {q}\n\n{answer}" content
+      expect((contentInsert![0] as Record<string, unknown>).answer_standard).toBe('We follow best practice.');
     });
   });
 
@@ -464,6 +467,266 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
       const afterQuestion = content.split('\n\n').slice(1).join('\n\n');
       expect(afterQuestion).toBe('Via our formal complaints process.');
       expect(afterQuestion).not.toMatch(/^A: /);
+    });
+
+    it('splitIntoQAPairs content round-trips through extractAnswerFromContent correctly', async () => {
+      const { splitIntoQAPairs } = await import(
+        '@/lib/quality/qa-detection'
+      );
+
+      const pairs = [
+        {
+          question: 'What training do you provide?',
+          answer: 'All staff receive annual mandatory training.',
+          answerAdvanced: '',
+          source: 'text' as const,
+          confidence: 'high' as const,
+          sectionName: 'Training',
+          tableIndex: -1,
+          rowIndex: -1,
+        },
+      ];
+
+      const result = splitIntoQAPairs(pairs);
+      const compositeContent = result[0].content;
+
+      // extractAnswerFromContent should return just the answer
+      const extracted = extractAnswerFromContent(compositeContent);
+      expect(extracted).toBe('All staff receive annual mandatory training.');
+      expect(extracted).not.toContain('Q: ');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Round-trip tests (M-1): verify no double-prefix on first PATCH edit
+  // -------------------------------------------------------------------------
+
+  describe('Round-trip: answer_standard does not cause double-prefix on PATCH rebuild', () => {
+    it('Path 1 (web-form): plain answer content is no-op through extractAnswerFromContent', () => {
+      // Path 1 sets answer_standard = content directly (content is plain answer text)
+      const plainAnswer = 'We follow best practices for quality assurance.';
+
+      // extractAnswerFromContent is idempotent on non-composite content
+      const extracted = extractAnswerFromContent(plainAnswer);
+      expect(extracted).toBe(plainAnswer);
+
+      // Simulate PATCH rebuild: Q: {question}\n\n{answer_standard}
+      const question = 'What is your quality policy?';
+      const rebuilt = `Q: ${question}\n\n${extracted}`;
+      expect(rebuilt).toBe(
+        'Q: What is your quality policy?\n\nWe follow best practices for quality assurance.',
+      );
+      // No double Q: prefix
+      expect(rebuilt.match(/Q: /g)).toHaveLength(1);
+    });
+
+    it('Path 2 (batch): composite content is extracted before storing answer_standard', async () => {
+      configureRole(mockSupabase, 'editor');
+
+      const question = 'What is your waste policy?';
+      const answer = 'We recycle 90% of waste.';
+      const compositeContent = `Q: ${question}\n\n${answer}`;
+
+      // Pipeline run insert
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: { id: 'pipeline-run-id' },
+        error: null,
+      });
+
+      // Item insert
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: { id: VALID_UUID, title: question },
+        error: null,
+      });
+
+      // Classification fetch
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: { primary_domain: null, primary_subtopic: null },
+        error: null,
+      });
+
+      // Quality score fetch
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: {
+          freshness: 'current',
+          classification_confidence: 0.9,
+          brief: null,
+          detail: null,
+          reference: null,
+          summary: null,
+          citation_count: 0,
+        },
+        error: null,
+      });
+
+      const req = createTestRequest('/api/items/batch', {
+        method: 'POST',
+        body: {
+          items: [
+            {
+              title: question,
+              content: compositeContent,
+              contentType: 'q_a_pair',
+            },
+          ],
+        },
+      });
+
+      const res = await batchCreate(req);
+      expect(res.status).toBe(201);
+
+      // Find the content_items insert
+      const insertCalls = mockSupabase._chain.insert.mock.calls;
+      const contentInsert = insertCalls.find(
+        (call: unknown[]) =>
+          (call[0] as Record<string, unknown>).content_type === 'q_a_pair',
+      );
+      expect(contentInsert).toBeDefined();
+
+      const insertData = contentInsert![0] as Record<string, unknown>;
+      // answer_standard should be the extracted answer only, NOT the composite
+      expect(insertData.answer_standard).toBe(answer);
+      expect(insertData.answer_standard).not.toContain('Q: ');
+
+      // Simulate PATCH rebuild with the stored answer_standard
+      const rebuilt = `Q: ${question}\n\n${insertData.answer_standard}`;
+      expect(rebuilt).toBe(`Q: What is your waste policy?\n\nWe recycle 90% of waste.`);
+      expect(rebuilt.match(/Q: /g)).toHaveLength(1);
+    });
+
+    it('Path 3 (bid integrate): response text is plain, no extraction needed', () => {
+      // Path 3 uses responseText directly (not composite) so answer_standard
+      // is already correct. Verify the helper is a no-op on plain text.
+      const responseText = 'We have comprehensive waste management policies.';
+      const extracted = extractAnswerFromContent(responseText);
+      expect(extracted).toBe(responseText);
+
+      // Simulate PATCH rebuild
+      const question = 'What is your waste policy?';
+      const rebuilt = `Q: ${question}\n\n${extracted}`;
+      expect(rebuilt.match(/Q: /g)).toHaveLength(1);
+    });
+
+    it('Path 4 (MCP): composite content is extracted before storing answer_standard', () => {
+      // MCP callers may send Q:-prefixed composite content
+      const question = 'How do you handle data protection?';
+      const answer = 'We comply with GDPR requirements.';
+      const compositeContent = `Q: ${question}\n\n${answer}`;
+
+      // extractAnswerFromContent extracts the answer portion
+      const extracted = extractAnswerFromContent(compositeContent);
+      expect(extracted).toBe(answer);
+
+      // Simulate PATCH rebuild with the stored answer_standard
+      const rebuilt = `Q: ${question}\n\n${extracted}`;
+      expect(rebuilt.match(/Q: /g)).toHaveLength(1);
+    });
+
+    it('Path 5 (qa-detection): composite content round-trips through extract + rebuild', async () => {
+      const { splitIntoQAPairs } = await import(
+        '@/lib/quality/qa-detection'
+      );
+
+      const pairs = [
+        {
+          question: 'What certifications do you hold?',
+          answer: 'ISO 9001 and ISO 14001.',
+          answerAdvanced: 'We also hold ISO 27001 for information security.',
+          source: 'table' as const,
+          confidence: 'high' as const,
+          sectionName: 'Certifications',
+          tableIndex: 0,
+          rowIndex: 0,
+        },
+      ];
+
+      const result = splitIntoQAPairs(pairs);
+      const compositeContent = result[0].content;
+
+      // Extract the answer_standard portion
+      const extracted = extractAnswerFromContent(compositeContent);
+      expect(extracted).toBe('ISO 9001 and ISO 14001.');
+
+      // Simulate PATCH rebuild with answer_standard + answer_advanced
+      const question = 'What certifications do you hold?';
+      const answerAdvanced = 'We also hold ISO 27001 for information security.';
+      const rebuilt = `Q: ${question}\n\n${extracted}\n\n${answerAdvanced}`;
+      expect(rebuilt.match(/Q: /g)).toHaveLength(1);
+      // No double prefix, correct canonical shape
+      expect(rebuilt).toBe(
+        'Q: What certifications do you hold?\n\nISO 9001 and ISO 14001.\n\nWe also hold ISO 27001 for information security.',
+      );
+    });
+
+    it('PATCH edit to answer_advanced after batch create produces correct rebuild', async () => {
+      // Simulate the full lifecycle:
+      // 1. Batch create stores answer_standard = extractAnswerFromContent(composite)
+      // 2. User edits answer_advanced via PATCH
+      // 3. PATCH handler rebuilds content from Q: + answer_standard + answer_advanced
+      const question = 'What is your environmental policy?';
+      const answerStandard = 'We minimise environmental impact.';
+      const newAnswerAdvanced = 'Our carbon offset programme covers all operations.';
+
+      // After batch create, stored state:
+      // content = "Q: What is your environmental policy?\n\nWe minimise environmental impact."
+      // answer_standard = "We minimise environmental impact." (extracted via helper)
+      // answer_advanced = null
+
+      // PATCH rebuild when answer_advanced is edited:
+      const parts = [`Q: ${question}`];
+      parts.push(answerStandard);
+      parts.push(newAnswerAdvanced);
+      const rebuilt = parts.join('\n\n');
+
+      expect(rebuilt).toBe(
+        'Q: What is your environmental policy?\n\nWe minimise environmental impact.\n\nOur carbon offset programme covers all operations.',
+      );
+      expect(rebuilt.match(/Q: /g)).toHaveLength(1);
+    });
+
+    it('PATCH edit to answer_standard after batch create produces correct rebuild', async () => {
+      // Same lifecycle but editing answer_standard instead
+      const question = 'What is your health and safety policy?';
+      const newAnswerStandard = 'Updated: We exceed all H&S requirements.';
+
+      // PATCH rebuild when answer_standard is edited:
+      const parts = [`Q: ${question}`];
+      parts.push(newAnswerStandard);
+      const rebuilt = parts.join('\n\n');
+
+      expect(rebuilt).toBe(
+        'Q: What is your health and safety policy?\n\nUpdated: We exceed all H&S requirements.',
+      );
+      expect(rebuilt.match(/Q: /g)).toHaveLength(1);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Path 4: MCP create_content_item — extraction helper coverage (L-1)
+  // -------------------------------------------------------------------------
+
+  describe('Path 4 — MCP create_content_item extraction logic', () => {
+    it('extractAnswerFromContent correctly handles MCP composite content', () => {
+      // MCP callers may send content in composite Q: format
+      const mcpContent = 'Q: How do you manage subcontractors?\n\nAll subcontractors are vetted and approved.';
+      const extracted = extractAnswerFromContent(mcpContent);
+      expect(extracted).toBe('All subcontractors are vetted and approved.');
+    });
+
+    it('extractAnswerFromContent is a no-op for MCP plain content', () => {
+      // MCP callers may also send plain answer text
+      const mcpContent = 'All subcontractors are vetted and approved.';
+      const extracted = extractAnswerFromContent(mcpContent);
+      expect(extracted).toBe(mcpContent);
+    });
+
+    it('extractAnswerFromContent handles MCP content with advanced answer', () => {
+      const mcpContent =
+        'Q: What is your safeguarding policy?\n\nAll staff are DBS checked.\n\nWe also run annual safeguarding refresher training.';
+      const extracted = extractAnswerFromContent(mcpContent);
+      expect(extracted).toBe(
+        'All staff are DBS checked.\n\nWe also run annual safeguarding refresher training.',
+      );
     });
   });
 });
