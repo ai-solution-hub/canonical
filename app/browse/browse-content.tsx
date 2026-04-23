@@ -26,6 +26,8 @@ import { FilterBar, type SortOption } from '@/components/browse/filter-bar';
 import { BulkActions } from '@/components/browse/bulk-actions';
 import { LoadingSkeleton, EmptyState } from '@/components/browse/browse-states';
 import { PresetBar } from '@/components/browse/preset-bar';
+import { SearchPromptCards } from '@/components/browse/search-prompt-cards';
+import { shouldShowColdStartPrompts } from '@/lib/browse-cold-start';
 import { SavePresetDialog } from '@/components/browse/save-preset-dialog';
 import { ManagePresetsDialog } from '@/components/browse/manage-presets-dialog';
 import { Button } from '@/components/ui/button';
@@ -51,11 +53,13 @@ import {
   getSortOptionFromFilters,
   getSortFiltersFromOption,
 } from '@/lib/browse-helpers';
+import { usePrimaryFocus } from '@/hooks/use-primary-focus';
 
 export function BrowseContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { canEdit } = useUserRole();
+  const { role, canEdit } = useUserRole();
+  const { primaryFocus } = usePrimaryFocus();
 
   // Parse ?from_bid=<workspaceId> for contextual quick-assign shortcut
   const fromBidId = searchParams.get('from_bid') ?? undefined;
@@ -170,6 +174,15 @@ export function BrowseContent() {
       }
     },
     [localSearchQuery, setSearchQuery],
+  );
+
+  // Prompt card click: set both local input state and trigger search
+  const handlePromptCardSelect = useCallback(
+    (query: string) => {
+      setLocalSearchQuery(query);
+      setSearchQuery(query);
+    },
+    [setSearchQuery],
   );
 
   // Reset activeIndex when items change (new filter/sort/data)
@@ -495,6 +508,21 @@ export function BrowseContent() {
           ? `${totalCount} result${totalCount !== 1 ? 's' : ''} for ${searchQuery}`
           : ''}
       </div>
+
+      {/* Prompt cards — cold-start state (P1-10) */}
+      {shouldShowColdStartPrompts({
+        searchQuery,
+        activeFilterCount,
+        showUnreadOnly,
+        isLoading,
+        totalCount,
+      }) && (
+        <SearchPromptCards
+          primaryFocus={primaryFocus}
+          role={(role as 'admin' | 'editor' | 'viewer') ?? 'viewer'}
+          onSelectQuery={handlePromptCardSelect}
+        />
+      )}
 
       {/* Preset bar */}
       <div className="mt-4">

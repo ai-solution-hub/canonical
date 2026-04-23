@@ -196,6 +196,12 @@ export const queryKeys = {
     preferences: ['notifications', 'preferences'] as const,
   },
 
+  // Organisation profile (app-wide, P1-15)
+  organisationProfile: {
+    all: ['organisation-profile'] as const,
+    primary: ['organisation-profile', 'primary'] as const,
+  },
+
   // Settings
   settings: {
     all: ['settings'] as const,
@@ -226,6 +232,7 @@ export const queryKeys = {
     all: ['user'] as const,
     role: ['user', 'role'] as const,
     claudeConnected: ['user', 'claude-connected'] as const,
+    primaryFocus: ['user', 'primary-focus'] as const,
   },
 
   // Citations

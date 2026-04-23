@@ -823,6 +823,24 @@ export const CompanyProfileUpdateSchema = z.object({
   key_topics: z.array(z.string()).min(1, 'At least one key topic is required').optional(),
 });
 
+// ──────────────────────────────────────────
+// Organisation Profile (app-wide, P1-15)
+// ──────────────────────────────────────────
+
+/** PUT /api/organisation/profile — full upsert (not partial PATCH). */
+export const OrganisationProfileUpsertSchema = z.object({
+  name: z.string().min(1, 'Organisation name is required').max(200),
+  description: z.string().max(2000).optional(),
+  website_url: z.string().url().optional().or(z.literal('')),
+  sectors: z.array(z.string()).min(1, 'At least one sector is required'),
+  services: z.array(z.string()).default([]),
+  certifications: z.array(z.string()).default([]),
+  geographic_scope: z.array(z.string()).default([]),
+  target_customers: z.string().max(1000).optional(),
+  value_proposition: z.string().max(2000).optional(),
+  key_topics: z.array(z.string()).default([]),
+});
+
 /** POST /api/intelligence/workspaces/:id/sources */
 export const FeedSourceCreateSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200),

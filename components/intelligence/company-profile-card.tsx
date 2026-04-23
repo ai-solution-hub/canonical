@@ -13,11 +13,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Pencil, Trash2, Globe, Tag, Briefcase } from 'lucide-react';
+import { Pencil, Trash2, Globe, Tag, Briefcase, Star } from 'lucide-react';
 import type { CompanyProfile } from '@/hooks/intelligence/use-company-profiles';
 
 interface CompanyProfileCardProps {
-  profile: CompanyProfile;
+  profile: CompanyProfile & { is_primary?: boolean };
   onEdit: () => void;
   onDelete: () => void;
   canAdmin: boolean;
@@ -44,9 +44,17 @@ export function CompanyProfileCard({
       <div className="rounded-lg border bg-card p-4 shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-base font-semibold text-foreground">
-              {profile.name}
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="truncate text-base font-semibold text-foreground">
+                {profile.name}
+              </h3>
+              {profile.is_primary && (
+                <Badge variant="default" className="shrink-0 gap-1 text-xs">
+                  <Star className="size-3" aria-hidden="true" />
+                  Primary
+                </Badge>
+              )}
+            </div>
             {profile.website_url && (
               <a
                 href={profile.website_url}

@@ -20,6 +20,11 @@ import type { SettingsSection } from '@/components/settings/settings-sidebar';
 // export from each module.
 // ---------------------------------------------------------------------------
 
+const LazyOrganisationSection = lazy(() =>
+  import('@/components/settings/organisation-section').then((m) => ({
+    default: m.OrganisationSection,
+  })),
+);
 const LazyTeamSection = lazy(() =>
   import('@/components/settings/team-section').then((m) => ({
     default: m.TeamSection,
@@ -84,6 +89,12 @@ function SectionContent({ section }: { section: SettingsSection }) {
       return <ProfileSection />;
     case 'connections':
       return <ConnectionsSection />;
+    case 'organisation':
+      return (
+        <Suspense fallback={<SectionSkeleton />}>
+          <LazyOrganisationSection />
+        </Suspense>
+      );
     case 'content-organisation':
       return (
         <Suspense fallback={<SectionSkeleton />}>
@@ -138,11 +149,11 @@ function SectionContent({ section }: { section: SettingsSection }) {
 function SettingsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { loading, canAdmin } = useUserRole();
+  const { loading, canAdmin, canEdit } = useUserRole();
 
   // Support both ?section= and legacy ?tab= parameters
   const sectionParam = searchParams.get('section') ?? searchParams.get('tab');
-  const activeSection = getValidSection(sectionParam, canAdmin);
+  const activeSection = getValidSection(sectionParam, canAdmin, canEdit);
 
   // Redirect activity section to the new /provenance route
   useEffect(() => {
@@ -205,6 +216,7 @@ function SettingsContent() {
         </div>
         <SettingsMobileSidebar
           isAdmin={canAdmin}
+          canEdit={canEdit}
           activeSection={activeSection}
           onSectionChange={handleSectionChange}
         />
@@ -213,6 +225,7 @@ function SettingsContent() {
       <div className="flex gap-8">
         <SettingsSidebar
           isAdmin={canAdmin}
+          canEdit={canEdit}
           activeSection={activeSection}
           onSectionChange={handleSectionChange}
         />
