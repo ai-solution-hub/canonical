@@ -33,7 +33,16 @@ function getEnvVar(name: string): string {
 }
 
 async function main() {
-  const supabaseUrl = getEnvVar('NEXT_PUBLIC_SUPABASE_URL');
+  // Mirrors fallback pattern used by generate-classification-prompt-taxonomy.ts
+  // and sync-plugin-taxonomy.ts — accepts either SUPABASE_URL (CI secrets
+  // convention) or NEXT_PUBLIC_SUPABASE_URL (local .env convention).
+  const supabaseUrl =
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!supabaseUrl) {
+    throw new Error(
+      'Missing required environment variable: SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL',
+    );
+  }
   const supabaseKey = getEnvVar('SUPABASE_SECRET_KEY');
 
   const supabase = createClient(supabaseUrl, supabaseKey);
