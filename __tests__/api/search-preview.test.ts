@@ -1,0 +1,371 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  createMockSupabaseClient,
+  configureUnauthenticated,
+} from '../helpers/mock-supabase';
+import { createTestRequest } from '../helpers/mock-next';
+
+// ---------------------------------------------------------------------------
+// Shared mock client
+// ---------------------------------------------------------------------------
+
+const mockSupabase = createMockSupabaseClient();
+
+const { mockCookies } = vi.hoisted(() => {
+  return {
+    mockCookies: vi.fn().mockResolvedValue({ getAll: () => [], set: () => {} }),
+  };
+});
+
+vi.mock('@/lib/supabase/server', () => ({
+  createClient: vi.fn(async () => mockSupabase),
+  createServiceClient: vi.fn(() => mockSupabase),
+}));
+
+vi.mock('next/headers', () => ({
+  cookies: mockCookies,
+}));
+
+// Suppress console.error noise from error handling paths
+vi.spyOn(console, 'error').mockImplementation(() => {});
+
+// ---------------------------------------------------------------------------
+// Import handler + escape helper under test (AFTER mocks)
+// ---------------------------------------------------------------------------
+
+import { GET, escapeIlike } from '@/app/api/search/preview/route';
+
+// Reset the rate-limit store between tests so each test is independent
+import { _resetRateLimitStore } from '@/lib/rate-limit';
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe('GET /api/search/preview', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    _resetRateLimitStore();
+
+    // Re-wire next/headers mock (cleared by clearAllMocks)
+    mockCookies.mockResolvedValue({ getAll: () => [], set: () => {} });
+
+    // Default authenticated user
+    mockSupabase.auth.getUser.mockResolvedValue({
+      data: { user: { id: 'test-user-id', email: 'test@example.com' } },
+      error: null,
+    });
+
+    // Default chain response — resolves to empty array when awaited
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null, count: 0 }),
+    );
+  });
+
+  // -----------------------------------------------------------------------
+  // Auth
+  // -----------------------------------------------------------------------
+
+  it('returns 401 when unauthenticated', async () => {
+    configureUnauthenticated(mockSupabase);
+
+    const req = createTestRequest('/api/search/preview', {
+      searchParams: { q: 'test' },
+    });
+
+    const res = await GET(req);
+    expect(res.status).toBe(401);
+
+    const json = await res.json();
+    expect(json.error).toBe('Unauthorised');
+  });
+
+  it('returns 500 when auth service fails', async () => {
+    mockSupabase.auth.getUser.mockResolvedValueOnce({
+      data: { user: null },
+      error: {
+        name: 'AuthApiError',
+        message: 'Auth service unavailable',
+        status: 503,
+      },
+    });
+
+    const req = createTestRequest('/api/search/preview', {
+      searchParams: { q: 'test' },
+    });
+
+    const res = await GET(req);
+    expect(res.status).toBe(500);
+  });
+
+  // -----------------------------------------------------------------------
+  // Validation
+  // -----------------------------------------------------------------------
+
+  it('returns 400 when q param is missing', async () => {
+    const req = createTestRequest('/api/search/preview');
+
+    const res = await GET(req);
+    expect(res.status).toBe(400);
+
+    const json = await res.json();
+    expect(json.error).toContain('"q"');
+  });
+
+  it('returns 400 when q param is empty after trim', async () => {
+    const req = createTestRequest('/api/search/preview', {
+      searchParams: { q: '   ' },
+    });
+
+    const res = await GET(req);
+    expect(res.status).toBe(400);
+  });
+
+  // -----------------------------------------------------------------------
+  // Results
+  // -----------------------------------------------------------------------
+
+  it('returns title + content matches with correct shape', async () => {
+    const mockResults = [
+      {
+        id: 'item-1',
+        title: 'Risk Assessment Guide',
+        content_type: 'article',
+        primary_domain: 'governance',
+        layer: 'operational',
+      },
+      {
+        id: 'item-2',
+        title: 'Safety Policy',
+        content_type: 'policy',
+        primary_domain: null,
+        layer: 'strategic',
+      },
+    ];
+
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: mockResults, error: null, count: 2 }),
+    );
+
+    const req = createTestRequest('/api/search/preview', {
+      searchParams: { q: 'risk' },
+    });
+
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+
+    const json = await res.json();
+    expect(json.results).toHaveLength(2);
+    expect(json.count).toBe(2);
+
+    // Verify response shape — layer must NOT be included
+    for (const result of json.results) {
+      expect(result).toHaveProperty('id');
+      expect(result).toHaveProperty('title');
+      expect(result).toHaveProperty('content_type');
+      expect(result).toHaveProperty('primary_domain');
+      expect(result).not.toHaveProperty('layer');
+    }
+  });
+
+  it('sorts title matches before content-only matches', async () => {
+    const mockResults = [
+      {
+        id: 'content-only',
+        title: 'General Policy',
+        content_type: 'policy',
+        primary_domain: null,
+        layer: 'operational',
+      },
+      {
+        id: 'title-match',
+        title: 'Risk Assessment Guide',
+        content_type: 'article',
+        primary_domain: 'governance',
+        layer: 'operational',
+      },
+    ];
+
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: mockResults, error: null, count: 2 }),
+    );
+
+    const req = createTestRequest('/api/search/preview', {
+      searchParams: { q: 'risk' },
+    });
+
+    const res = await GET(req);
+    const json = await res.json();
+
+    // Title-match item ("Risk Assessment Guide" contains "risk") should come first
+    expect(json.results[0].id).toBe('title-match');
+    expect(json.results[1].id).toBe('content-only');
+  });
+
+  // -----------------------------------------------------------------------
+  // Limit
+  // -----------------------------------------------------------------------
+
+  it('defaults limit to 8 (PREVIEW_MAX_RESULTS)', async () => {
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null, count: 0 }),
+    );
+
+    const req = createTestRequest('/api/search/preview', {
+      searchParams: { q: 'test' },
+    });
+
+    await GET(req);
+
+    // The chain should have .limit() called with 8
+    expect(mockSupabase._chain.limit).toHaveBeenCalledWith(8);
+  });
+
+  it('respects custom limit param', async () => {
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null, count: 0 }),
+    );
+
+    const req = createTestRequest('/api/search/preview', {
+      searchParams: { q: 'test', limit: '5' },
+    });
+
+    await GET(req);
+
+    expect(mockSupabase._chain.limit).toHaveBeenCalledWith(5);
+  });
+
+  it('clamps limit at max 20', async () => {
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null, count: 0 }),
+    );
+
+    const req = createTestRequest('/api/search/preview', {
+      searchParams: { q: 'test', limit: '100' },
+    });
+
+    await GET(req);
+
+    expect(mockSupabase._chain.limit).toHaveBeenCalledWith(20);
+  });
+
+  // -----------------------------------------------------------------------
+  // Escape helper (pure function — tested directly)
+  // -----------------------------------------------------------------------
+
+  describe('escapeIlike', () => {
+    it('escapes % wildcard', () => {
+      expect(escapeIlike('50% off')).toBe('50\\% off');
+    });
+
+    it('escapes _ wildcard', () => {
+      expect(escapeIlike('hello_world')).toBe('hello\\_world');
+    });
+
+    it('escapes \\ backslash', () => {
+      expect(escapeIlike('path\\to\\file')).toBe('path\\\\to\\\\file');
+    });
+
+    it('escapes all three characters in combination', () => {
+      expect(escapeIlike('50%_test\\')).toBe('50\\%\\_test\\\\');
+    });
+
+    it('returns plain strings unchanged', () => {
+      expect(escapeIlike('risk assessment')).toBe('risk assessment');
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Rate limit
+  // -----------------------------------------------------------------------
+
+  it('returns 429 when rate limit is exceeded', async () => {
+    // Exhaust the rate limit (60 requests per minute)
+    for (let i = 0; i < 60; i++) {
+      const req = createTestRequest('/api/search/preview', {
+        searchParams: { q: 'test' },
+      });
+      await GET(req);
+    }
+
+    // 61st request should be rate-limited
+    const req = createTestRequest('/api/search/preview', {
+      searchParams: { q: 'test' },
+    });
+
+    const res = await GET(req);
+    expect(res.status).toBe(429);
+
+    const json = await res.json();
+    expect(json.error).toContain('Rate limit');
+  });
+
+  // -----------------------------------------------------------------------
+  // Supabase query construction
+  // -----------------------------------------------------------------------
+
+  it('calls supabase with correct table and ilike filter', async () => {
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null, count: 0 }),
+    );
+
+    const req = createTestRequest('/api/search/preview', {
+      searchParams: { q: 'risk assessment' },
+    });
+
+    await GET(req);
+
+    expect(mockSupabase.from).toHaveBeenCalledWith('content_items');
+    expect(mockSupabase._chain.select).toHaveBeenCalledWith(
+      'id, title, content_type, primary_domain, layer',
+    );
+    expect(mockSupabase._chain.or).toHaveBeenCalledWith(
+      'title.ilike.%risk assessment%,content.ilike.%risk assessment%',
+    );
+  });
+
+  it('passes escaped query to ilike filter', async () => {
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null, count: 0 }),
+    );
+
+    const req = createTestRequest('/api/search/preview', {
+      searchParams: { q: '50% discount' },
+    });
+
+    await GET(req);
+
+    expect(mockSupabase._chain.or).toHaveBeenCalledWith(
+      'title.ilike.%50\\% discount%,content.ilike.%50\\% discount%',
+    );
+  });
+
+  // -----------------------------------------------------------------------
+  // Error handling
+  // -----------------------------------------------------------------------
+
+  it('returns 500 when supabase query fails', async () => {
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: null,
+          error: { message: 'DB error', code: 'PGRST000', details: '', hint: '' },
+        }),
+    );
+
+    const req = createTestRequest('/api/search/preview', {
+      searchParams: { q: 'test' },
+    });
+
+    const res = await GET(req);
+    expect(res.status).toBe(500);
+  });
+});
