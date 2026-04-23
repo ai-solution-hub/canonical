@@ -325,7 +325,7 @@ export async function queryCreates(clientM: SupabaseClient): Promise<MContentIte
     .order('created_at', { ascending: true });
 
   if (error) throw new Error(`Query creates on M failed: ${error.message}`);
-  return (data ?? []) as MContentItem[];
+  return (data ?? []) as unknown as MContentItem[];
 }
 
 /**
@@ -341,7 +341,7 @@ export async function queryUpdates(clientM: SupabaseClient): Promise<MContentIte
     .order('updated_at', { ascending: true });
 
   if (error) throw new Error(`Query updates on M failed: ${error.message}`);
-  return (data ?? []) as MContentItem[];
+  return (data ?? []) as unknown as MContentItem[];
 }
 
 /**
@@ -355,7 +355,7 @@ export async function queryHistory(clientM: SupabaseClient): Promise<MHistoryRow
     .order('created_at', { ascending: true });
 
   if (error) throw new Error(`Query history on M failed: ${error.message}`);
-  return (data ?? []) as MHistoryRow[];
+  return (data ?? []) as unknown as MHistoryRow[];
 }
 
 /**
@@ -372,7 +372,7 @@ export async function queryWorkspaceAssociations(
     .in('content_item_id', contentItemIds);
 
   if (error) throw new Error(`Query workspace associations on M failed: ${error.message}`);
-  return (data ?? []) as Array<{ content_item_id: string; workspace_id: string }>;
+  return (data ?? []) as unknown as Array<{ content_item_id: string; workspace_id: string }>;
 }
 
 /**

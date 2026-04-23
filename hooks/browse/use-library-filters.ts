@@ -16,6 +16,7 @@ export interface LibraryFilters {
   search?: string;
   freshness?: 'fresh' | 'aging' | 'stale' | 'expired';
   verified?: 'verified' | 'unverified';
+  [key: string]: unknown;
 }
 
 export type GroupBy = 'none' | 'source' | 'domain';

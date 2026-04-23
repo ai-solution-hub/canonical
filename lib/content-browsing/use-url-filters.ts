@@ -23,7 +23,7 @@ export function useUrlFilters<T extends Record<string, unknown>>(
   // Build filter object from URL params
   const filters = useMemo(() => {
     const result: Record<string, unknown> = {};
-    const defaultValues = defaults ?? {};
+    const defaultValues: Partial<T> = defaults ?? ({} as Partial<T>);
     const keys = Object.keys(defaultValues) as Array<keyof T>;
 
     for (const key of keys) {
@@ -45,7 +45,7 @@ export function useUrlFilters<T extends Record<string, unknown>>(
 
   // Count active filters (non-default, truthy values)
   const activeCount = useMemo(() => {
-    const defaultValues = defaults ?? {};
+    const defaultValues: Partial<T> = defaults ?? ({} as Partial<T>);
     let count = 0;
 
     for (const key of Object.keys(defaultValues) as Array<keyof T>) {

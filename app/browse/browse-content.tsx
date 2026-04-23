@@ -511,7 +511,7 @@ export function BrowseContent() {
 
       {/* Prompt cards — cold-start state (P1-10) */}
       {shouldShowColdStartPrompts({
-        searchQuery,
+        searchQuery: searchQuery ?? '',
         activeFilterCount,
         showUnreadOnly,
         isLoading,
