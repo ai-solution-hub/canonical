@@ -694,7 +694,7 @@ describe('splitIntoQAPairs', () => {
     expect(result).toHaveLength(1);
     expect(result[0].title).toBe('What is your quality policy?');
     expect(result[0].content).toBe(
-      'Q: What is your quality policy?\n\nA: We follow ISO 9001 standards throughout our operations.',
+      'Q: What is your quality policy?\n\nWe follow ISO 9001 standards throughout our operations.',
     );
     expect(result[0].contentType).toBe('q_a_pair');
     expect(result[0].sectionName).toBe('Quality');

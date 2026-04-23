@@ -406,6 +406,12 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             ...(Object.keys(metadata).length > 0 && {
               metadata: metadata as unknown as Json,
             }),
+            // P0-BM Phase 3 spec ss4.6 Path 4: populate answer_standard for
+            // q_a_pair so first PATCH edit does not destroy creation content
+            // (bug B2 fix).
+            ...(args.content_type === 'q_a_pair' && args.content
+              ? { answer_standard: args.content }
+              : {}),
           };
 
         const { data: item, error } = await supabase

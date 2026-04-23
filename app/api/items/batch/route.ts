@@ -224,6 +224,10 @@ export async function POST(request: NextRequest) {
             created_by: user.id,
             metadata,
             dedup_status: dedupStamp.dedup_status,
+            // P0-BM Phase 3 spec ss4.6 Path 2: populate answer_standard for
+            // q_a_pair so first PATCH edit does not destroy creation content
+            // (bug B2 fix). Content arrives shaped as "Q: {q}\n\n{answer}".
+            answer_standard: item.content,
             ...(source_document_id ? { source_document_id } : {}),
             ...(item.answerAdvanced
               ? { answer_advanced: item.answerAdvanced }

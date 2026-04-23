@@ -56,11 +56,16 @@ export interface DetectedQAPair {
 /**
  * Input format for creating content items from detected pairs.
  * Maps to the q_a_pair content type in the KB.
+ *
+ * Content shape (canonical per P0-BM Phase 3 spec ss4.1):
+ *   "Q: {question}\n\n{answer}"
+ * No `A:` prefix on the answer — position after the `Q:` line + `\n\n`
+ * separator implies "answer" semantically.
  */
 export interface QACreateInput {
   /** Title — the question text (truncated at word boundary to 120 chars). */
   title: string;
-  /** Body — formatted as "Q: {question}\n\nA: {answer}". */
+  /** Body — formatted as "Q: {question}\n\n{answer}". */
   content: string;
   /** Content type — always 'q_a_pair'. */
   contentType: 'q_a_pair';
@@ -877,7 +882,7 @@ export function splitIntoQAPairs(pairs: DetectedQAPair[]): QACreateInput[] {
   // Map to creation inputs
   return deduped.map((pair) => ({
     title: truncateAtWordBoundary(pair.question, 120),
-    content: `Q: ${pair.question}\n\nA: ${pair.answer}`,
+    content: `Q: ${pair.question}\n\n${pair.answer}`,
     contentType: 'q_a_pair' as const,
     sectionName: pair.sectionName,
     answerAdvanced: pair.answerAdvanced,

@@ -156,6 +156,11 @@ export async function POST(request: NextRequest) {
         ...(embeddingValue && { embedding: embeddingValue }),
         ...(governance_review_status && { governance_review_status }),
         ...(source_document_id && { source_document_id }),
+        // P0-BM Phase 3 spec ss4.6 Path 1: populate answer_standard for q_a_pair
+        // so first PATCH edit does not destroy creation content (bug B2 fix).
+        ...(content_type === 'q_a_pair' && content
+          ? { answer_standard: content }
+          : {}),
       };
 
     // Single INSERT with embedding included

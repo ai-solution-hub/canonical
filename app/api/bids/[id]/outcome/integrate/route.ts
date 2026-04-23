@@ -195,12 +195,13 @@ export async function POST(
         const title = integration.title ?? questionText.slice(0, 200);
         const contentType = integration.content_type ?? 'q_a_pair';
 
+        const insertContent = responseText ?? '';
         const { data: newItem, error: insertError } = await supabase
           .from('content_items')
           .insert({
             title,
             suggested_title: title,
-            content: responseText ?? '',
+            content: insertContent,
             content_type: contentType,
             platform: 'extraction',
             source_url: null,
@@ -209,6 +210,12 @@ export async function POST(
             summary: `Response to bid question: ${questionText.slice(0, 200)}`,
             captured_date: new Date().toISOString(),
             created_by: user.id,
+            // P0-BM Phase 3 spec ss4.6 Path 3: populate answer_standard for
+            // q_a_pair so first PATCH edit does not destroy creation content
+            // (bug B2 fix).
+            ...(contentType === 'q_a_pair' && insertContent
+              ? { answer_standard: insertContent }
+              : {}),
             metadata: {
               source_bid_id: id,
               source_bid_name: bid.name,
