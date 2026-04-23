@@ -937,7 +937,84 @@ const TAG_PROPER_NOUN_ALLOWLIST: ReadonlyMap<string, string> = new Map([
   ['soc 2', 'SOC 2'],
   ['nist', 'NIST'],
   ['owasp', 'OWASP'],
+  ['duns', 'DUNS'],
 ]);
+
+/**
+ * Words that visually end in 's' but are not plurals — must NOT be
+ * singularised. Extend with care; each entry here is a permanent carve-out.
+ */
+const TAG_PLURAL_LOOKING_SINGULARS: ReadonlySet<string> = new Set([
+  'news',
+  'means',
+  'series',
+  'species',
+  // -ics fields of study: singular in domain usage (not plural of -ic)
+  'analytics',
+  'economics',
+  'ethics',
+  'genetics',
+  'linguistics',
+  'logistics',
+  'mathematics',
+  'physics',
+  'politics',
+  'robotics',
+  'statistics',
+]);
+
+/**
+ * Convert an English plural word to its singular form.
+ *
+ * Handles:
+ *   - Short words (len <= 3): left unchanged (bus, gas)
+ *   - Plural-looking singulars (news, means, series, species): left unchanged
+ *   - -sses -> strip 'es' (addresses -> address, classes -> class)
+ *   - -ss / -us / -sis / -ous: left unchanged (access, status, analysis, continuous)
+ *   - -ies (len > 4) -> -y (policies -> policy, companies -> company, libraries -> library)
+ *   - -ches/shes/xes/zes -> strip 'es' (breaches -> breach, dishes -> dish, boxes -> box, quizzes -> quiz)
+ *   - default trailing 's' -> strip (audits -> audit, systems -> system)
+ *
+ * Does NOT handle: -ves -> -f (knives -> knife), -oes (heroes, potatoes),
+ * or other irregular forms. Add carve-outs to TAG_PLURAL_LOOKING_SINGULARS
+ * if regressions surface.
+ */
+function toSingular(tag: string): string {
+  if (tag.length <= 3) return tag;
+  if (TAG_PLURAL_LOOKING_SINGULARS.has(tag)) return tag;
+
+  // -sses -> strip 'es' first, before the bare 'ss' guard
+  if (tag.endsWith('sses')) return tag.slice(0, -2);
+
+  // Guards: unchanged endings
+  if (tag.endsWith('ss')) return tag;
+  if (tag.endsWith('us')) return tag;
+  if (tag.endsWith('sis')) return tag;
+  if (tag.endsWith('ous')) return tag;
+
+  // -ies (len > 4) -> -y
+  if (tag.endsWith('ies') && tag.length > 4) {
+    return tag.slice(0, -3) + 'y';
+  }
+
+  // -ches/shes/xes -> strip 'es'
+  // NOTE: -zes is NOT included — most -ze words pluralise with +s only
+  // (size, prize, freeze), so default strip-s handles them. Irregular
+  // doubled-consonant plurals like 'quizzes' -> 'quizz' are an accepted
+  // edge case; add to TAG_PLURAL_LOOKING_SINGULARS if they surface.
+  if (
+    tag.endsWith('ches') ||
+    tag.endsWith('shes') ||
+    tag.endsWith('xes')
+  ) {
+    return tag.slice(0, -2);
+  }
+
+  // Default: strip trailing 's'
+  if (tag.endsWith('s')) return tag.slice(0, -1);
+
+  return tag;
+}
 
 /**
  * Normalise a tag for consistent storage.
@@ -945,7 +1022,7 @@ const TAG_PROPER_NOUN_ALLOWLIST: ReadonlyMap<string, string> = new Map([
  * - Collapses internal whitespace to single space (ASCII whitespace only)
  * - Preserves known proper nouns/acronyms
  * - Lowercases everything else
- * - Converts simple English plurals to singular (trailing 's')
+ * - Converts simple English plurals to singular (see toSingular)
  *
  * The whitespace regex uses an explicit ASCII character class [\t\n\r\f\v ]+
  * (NOT \s+) to maintain parity with the Python normalise_keyword() which uses
@@ -962,21 +1039,9 @@ export function normaliseTag(tag: string): string {
   const canonical = TAG_PROPER_NOUN_ALLOWLIST.get(tag.toLowerCase());
   if (canonical !== undefined) return canonical;
 
-  // Lowercase
+  // Lowercase + singularise
   tag = tag.toLowerCase();
-
-  // Simple singular: strip trailing 's' unless word is short or matches
-  // known patterns that should keep their trailing 's'
-  if (
-    tag.length > 3 &&
-    tag.endsWith('s') &&
-    !tag.endsWith('ss') &&
-    !tag.endsWith('us') &&
-    !tag.endsWith('sis') &&
-    !tag.endsWith('ous')
-  ) {
-    tag = tag.slice(0, -1);
-  }
+  tag = toSingular(tag);
 
   return tag;
 }

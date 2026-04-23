@@ -514,34 +514,88 @@ PROPER_NOUN_ALLOWLIST = frozenset([
     "SOC 2",
     "NIST",
     "OWASP",
+    "DUNS",
 ])
 
 # Build a lookup from lowered form → canonical form for O(1) matching
 _PROPER_NOUN_LOOKUP = {pn.lower(): pn for pn in PROPER_NOUN_ALLOWLIST}
 
+# Words that visually end in 's' but are not plurals — must NOT be
+# singularised. Extend with care; each entry is a permanent carve-out.
+_PLURAL_LOOKING_SINGULARS = frozenset([
+    "news",
+    "means",
+    "series",
+    "species",
+    # -ics fields of study: singular in domain usage (not plural of -ic)
+    "analytics",
+    "economics",
+    "ethics",
+    "genetics",
+    "linguistics",
+    "logistics",
+    "mathematics",
+    "physics",
+    "politics",
+    "robotics",
+    "statistics",
+])
+
 
 def _to_singular(kw: str) -> str:
-    """Convert simple English plurals to singular form.
+    """Convert an English plural word to its singular form.
 
-    Handles trailing 's' only — does not attempt irregular plurals
-    (e.g. 'policies' → 'policy'). Short words (<=3 chars) are left unchanged
-    to avoid mangling words like 'bus', 'gas', 'SaaS'.
+    Handles:
+      - Short words (len <= 3): left unchanged ('bus', 'gas')
+      - Plural-looking singulars ('news', 'means', 'series', 'species'): unchanged
+      - '-sses' → strip 'es' ('addresses' → 'address', 'classes' → 'class')
+      - '-ss' / '-us' / '-sis' / '-ous': unchanged ('access', 'status', 'analysis', 'continuous')
+      - '-ies' (len > 4) → '-y' ('policies' → 'policy', 'companies' → 'company')
+      - '-ches' / '-shes' / '-xes' / '-zes' → strip 'es' ('breaches' → 'breach',
+        'dishes' → 'dish', 'boxes' → 'box', 'quizzes' → 'quiz')
+      - default trailing 's' → strip ('audits' → 'audit', 'systems' → 'system')
 
-    Guards (do NOT strip trailing 's'):
-      - len <= 3: 'bus', 'gas'
-      - endswith 'ss': 'access', 'process'
-      - endswith 'us': 'status', 'nexus'
-      - endswith 'sis': 'analysis', 'diagnosis'
-      - endswith 'ous': 'continuous', 'previous'
+    Does NOT handle '-ves' → '-f' (knives → knife), '-oes' (heroes, potatoes),
+    or other irregular forms. Add carve-outs to _PLURAL_LOOKING_SINGULARS if
+    regressions surface.
     """
-    if len(kw) <= 3 or kw.endswith("ss"):
+    if len(kw) <= 3:
         return kw
+    if kw in _PLURAL_LOOKING_SINGULARS:
+        return kw
+
+    # -sses → strip 'es' first, before the bare 'ss' guard
+    if kw.endswith("sses"):
+        return kw[:-2]
+
+    # Guards: unchanged endings
+    if kw.endswith("ss"):
+        return kw
+    if kw.endswith("us"):
+        return kw
+    if kw.endswith("sis"):
+        return kw
+    if kw.endswith("ous"):
+        return kw
+
+    # -ies (len > 4) → -y
+    if kw.endswith("ies") and len(kw) > 4:
+        return kw[:-3] + "y"
+
+    # -ches/shes/xes → strip 'es'
+    # NOTE: -zes is NOT included — most -ze words pluralise with +s only
+    # ('size', 'prize', 'freeze'), so default strip-s handles them. Irregular
+    # doubled-consonant plurals like 'quizzes' → 'quizz' are an accepted
+    # edge case; add to _PLURAL_LOOKING_SINGULARS if they surface.
     if (
-        kw.endswith("s")
-        and not kw.endswith("us")
-        and not kw.endswith("sis")
-        and not kw.endswith("ous")
+        kw.endswith("ches")
+        or kw.endswith("shes")
+        or kw.endswith("xes")
     ):
+        return kw[:-2]
+
+    # Default: strip trailing 's'
+    if kw.endswith("s"):
         return kw[:-1]
     return kw
 
