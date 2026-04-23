@@ -78,7 +78,7 @@ export function loadEnv(): void {
 // Canonical lists — updated to 54 tools (S186 WP-B.4 adds supersede_content_item)
 // ---------------------------------------------------------------------------
 
-/** Canonical set of all 54 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
+/** Canonical set of all 55 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
 export const CANONICAL_TOOL_NAMES = [
   'search_knowledge_base', // 1
   'search_qa_library', // 2
@@ -98,48 +98,51 @@ export const CANONICAL_TOOL_NAMES = [
   'get_content_items', // 16
   'get_workspace_items', // 17
   'assign_content_owner', // 18
-  'get_document_versions', // 19
-  'get_document_diff', // 20
-  'get_quality_summary', // 21
-  'get_coverage_gaps', // 22
-  'audit_content', // 23
-  'find_all_duplicates', // 24
-  'suggest_content_creation', // 25
-  'get_quality_briefing', // 26
-  'get_quality_actions', // 27
-  'classify_content', // 28
-  'generate_summary', // 29
-  'get_entity_relationships', // 30
-  'get_certification_status', // 31
-  'list_templates', // 32
-  'get_template_coverage', // 33
-  'get_template_gaps', // 34
-  'show_coverage_matrix', // 35
-  'show_bid_dashboard', // 36
-  'show_reorient_me', // 37
-  'show_intelligence_feed', // 38
-  'delete_content_item', // 39
-  'update_governance_status', // 40
-  'get_intelligence_summary', // 41
-  'search_content_chunks', // 42
-  'list_guides', // 43
-  'get_guide', // 44
-  'create_guide', // 45
-  'update_guide', // 46
-  'trigger_intelligence_poll', // 47
+  'bulk_assign_owner', // 19
+  'get_document_versions', // 20
+  'get_document_diff', // 21
+  'get_quality_summary', // 22
+  'get_coverage_gaps', // 23
+  'audit_content', // 24
+  'find_all_duplicates', // 25
+  'suggest_content_creation', // 26
+  'get_quality_briefing', // 27
+  'get_quality_actions', // 28
+  'classify_content', // 29
+  'generate_summary', // 30
+  'get_entity_relationships', // 31
+  'get_certification_status', // 32
+  'list_templates', // 33
+  'get_template_coverage', // 34
+  'get_template_gaps', // 35
+  'show_coverage_matrix', // 36
+  'show_bid_dashboard', // 37
+  'show_reorient_me', // 38
+  'show_intelligence_feed', // 39
+  'delete_content_item', // 40
+  'update_governance_status', // 41
+  'get_intelligence_summary', // 42
+  'search_content_chunks', // 43
+  'list_guides', // 44
+  'get_guide', // 45
+  'create_guide', // 46
+  'update_guide', // 47
+  'trigger_intelligence_poll', // 48
   // S180 P0-23 — review + governance additions (5 new tools, 47 → 52).
-  'get_governance_queue', // 48
-  'review_governance_item', // 49
-  'get_review_queue', // 50
-  'get_assignments_for_user', // 51
-  'create_review_assignment', // 52
+  'get_governance_queue', // 49
+  'review_governance_item', // 50
+  'get_review_queue', // 51
+  'get_assignments_for_user', // 52
+  'create_review_assignment', // 53
   // S180 P1-35 — change-report tool (WP6, 52 → 53).
-  'get_change_report', // 53
+  'get_change_report', // 54
   // S186 WP-B.4 — supersession model (53 → 54).
-  'supersede_content_item', // 54
+  'supersede_content_item', // 55
+  // S194 UI-simp WP4.2 — P1-34 workspace resolution helper (55 → 56).
+  'list_user_workspaces', // 56
 ] as const;
 
-export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 54
+export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 56
 
 /** Read-only tools (no side effects). */
 export const READ_ONLY_TOOLS = new Set([
@@ -185,6 +188,8 @@ export const READ_ONLY_TOOLS = new Set([
   'get_assignments_for_user',
   // S180 P1-35
   'get_change_report',
+  // S194 UI-simp WP4.2 — P1-34
+  'list_user_workspaces',
 ]);
 
 /** Write tools that modify data. */
@@ -197,6 +202,7 @@ export const WRITE_TOOLS = new Set([
   'delete_content_item', // 25
   'update_governance_status', // 30
   'assign_content_owner', // 31
+  'bulk_assign_owner', // 32
   'create_guide',
   'update_guide',
   'trigger_intelligence_poll',

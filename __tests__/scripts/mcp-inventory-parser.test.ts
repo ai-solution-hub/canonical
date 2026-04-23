@@ -53,10 +53,12 @@ const CATEGORY_ORDER = [
   'templates.ts',
   'apps.ts',
   'governance.ts',
+  'supersession.ts',
   'review.ts',
   'intelligence.ts',
   'guides.ts',
   'change-report.ts',
+  'workspaces.ts',
 ];
 const SKIP_FILES = new Set(['index.ts', 'shared.ts']);
 
@@ -520,10 +522,11 @@ describe('Integration: full codebase extraction', () => {
         }
       }
 
-      // 53 = 43 pre-S180 + 2 governance additions + 3 review tools +
+      // 56 = 43 pre-S180 + 2 governance additions + 3 review tools +
       // 4 guides (added to CATEGORY_ORDER in WP6 — was a pre-S180 oversight)
-      // + 1 change-report tool.
-      expect(allTools.length).toBe(53);
+      // + 1 change-report + 1 supersession (S186) + 1 bulk_assign_owner (S194)
+      // + 1 list_user_workspaces (S194).
+      expect(allTools.length).toBe(56);
 
       // Every tool should have a non-empty name
       for (const tool of allTools) {

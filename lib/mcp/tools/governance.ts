@@ -696,7 +696,7 @@ export async function registerGovernanceTools(
   // (approve / request_changes / revert) on an item currently in the
   // `pending` review state. Distinct from `update_governance_status` which
   // handles publish/draft transitions — this tool handles the review verdict
-  // workflow used by the P1-33 change-management skill.
+  // workflow used by the P1-33 governance-review skill.
   // -------------------------------------------------------------------------
   defineTool(
     server,

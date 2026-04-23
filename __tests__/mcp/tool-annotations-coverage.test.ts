@@ -48,11 +48,13 @@ import { registerAITools } from '@/lib/mcp/tools/ai';
 import { registerEntityTools } from '@/lib/mcp/tools/entities';
 import { registerTemplateTools } from '@/lib/mcp/tools/templates';
 import { registerGovernanceTools } from '@/lib/mcp/tools/governance';
+import { registerSupersessionTools } from '@/lib/mcp/tools/supersession';
 import { registerReviewTools } from '@/lib/mcp/tools/review';
 import { registerIntelligenceTools } from '@/lib/mcp/tools/intelligence';
 import { registerAppTools } from '@/lib/mcp/tools/apps';
 import { registerGuideTools } from '@/lib/mcp/tools/guides';
 import { registerChangeReportTools } from '@/lib/mcp/tools/change-report';
+import { registerWorkspaceTools } from '@/lib/mcp/tools/workspaces';
 
 // ---------------------------------------------------------------------------
 // Mock server — captures (name, config) from every registerTool call
@@ -87,7 +89,8 @@ async function collectAllTools(): Promise<ToolRegistration[]> {
 
   // Registration order matches `tools/index.ts` for completeness. The
   // `registerAppTool` path in apps.ts delegates internally to
-  // `server.registerTool`, so the single mock catches all 47 tools.
+  // `server.registerTool`, so the single mock catches every tool including
+  // the 4 app tools.
   await registerSearchTools(server);
   await registerDashboardTools(server);
   await registerBidTools(server);
@@ -98,10 +101,12 @@ async function collectAllTools(): Promise<ToolRegistration[]> {
   await registerTemplateTools(server);
   await registerAppTools(server);
   await registerGovernanceTools(server);
+  await registerSupersessionTools(server);
   await registerReviewTools(server);
   await registerIntelligenceTools(server);
   await registerGuideTools(server);
   await registerChangeReportTools(server);
+  await registerWorkspaceTools(server);
 
   return registered;
 }
@@ -118,10 +123,10 @@ describe('MCP tool annotation coverage (P0-19 regression guard)', () => {
     tools = await collectAllTools();
   });
 
-  it('registers exactly 53 tools across all 14 modules', () => {
+  it('registers exactly 56 tools across all 16 modules', () => {
     // This guards against accidental duplicate registrations or a module
     // silently no-oping (e.g. a lazy-import failure inside registerAppTools).
-    expect(tools.length).toBe(53);
+    expect(tools.length).toBe(56);
   });
 
   it('every registered tool declares all four ToolAnnotations fields', () => {
@@ -160,10 +165,15 @@ describe('MCP tool annotation coverage (P0-19 regression guard)', () => {
     }
   });
 
-  it('delete_content_item is the only tool with destructiveHint=true', () => {
+  it('only delete_content_item and supersede_content_item have destructiveHint=true', () => {
+    // Both tools retire a live row: delete_content_item removes it,
+    // supersede_content_item hides it behind a successor version.
     const destructive = tools.filter(
       (t) => t.config.annotations?.destructiveHint === true,
     );
-    expect(destructive.map((t) => t.name)).toEqual(['delete_content_item']);
+    expect(destructive.map((t) => t.name).sort()).toEqual([
+      'delete_content_item',
+      'supersede_content_item',
+    ]);
   });
 });

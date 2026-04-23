@@ -264,6 +264,9 @@ export function useBrowseFilters() {
 
   const setSearchQuery = useCallback(
     (query: string | undefined) => {
+      // from_bid persistence (SD-5): cloning URLSearchParams from the
+      // current URL preserves every existing param, so from_bid rides
+      // through both set and clear cases without explicit handling.
       const params = new URLSearchParams(searchParams.toString());
       if (query) {
         params.set('q', query);
@@ -281,10 +284,16 @@ export function useBrowseFilters() {
     setSearchQuery(undefined);
   }, [setSearchQuery]);
 
-  // Delegate clearFilters to shared hook (navigates to bare pathname)
+  // Preserve from_bid as a sticky URL param — it represents bid context,
+  // not a filter. Only cleared on navigating away from /browse (SD-5).
   const clearFilters = useCallback(() => {
-    router.push(pathname);
-  }, [router, pathname]);
+    const fromBid = searchParams.get('from_bid');
+    if (fromBid) {
+      router.push(`${pathname}?from_bid=${encodeURIComponent(fromBid)}`);
+    } else {
+      router.push(pathname);
+    }
+  }, [router, pathname, searchParams]);
 
   const removeFilter = useCallback(
     (key: keyof BrowseFilters) => {
