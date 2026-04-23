@@ -151,7 +151,7 @@ describe('NotificationPreferences', () => {
     expect(screen.getByLabelText('Review assignments')).toBeInTheDocument();
     expect(screen.getByLabelText('Owned content flags')).toBeInTheDocument();
     expect(
-      screen.getByLabelText('Auto-generate weekly reports'),
+      screen.getByLabelText('Auto-generate weekly Change Reports'),
     ).toBeInTheDocument();
   });
 
@@ -180,7 +180,7 @@ describe('NotificationPreferences', () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        'Automatically generate a weekly change report on your first visit to the page',
+        'Automatically generate a weekly Change Report on your first visit to Change Reports',
       ),
     ).toBeInTheDocument();
   });
@@ -202,7 +202,7 @@ describe('NotificationPreferences', () => {
       name: 'Owned content flags',
     });
     const autoGenSwitch = screen.getByRole('switch', {
-      name: 'Auto-generate weekly reports',
+      name: 'Auto-generate weekly Change Reports',
     });
 
     expect(weeklySwitch).toHaveAttribute('data-state', 'checked');

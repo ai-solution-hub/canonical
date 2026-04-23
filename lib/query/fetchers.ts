@@ -5,16 +5,23 @@
  * to repeat the pattern.
  */
 
-/** API error with optional error code for differentiated handling. */
+/** API error with optional code + structured payload for differentiated handling. */
 export class ApiError extends Error {
   readonly code: string | undefined;
   readonly status: number;
+  readonly data: Record<string, unknown> | undefined;
 
-  constructor(message: string, status: number, code?: string) {
+  constructor(
+    message: string,
+    status: number,
+    code?: string,
+    data?: Record<string, unknown>,
+  ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+    this.data = data;
   }
 }
 
@@ -27,9 +34,12 @@ export async function fetchJson<T>(
   if (!res.ok) {
     const body = await res.json().catch((_err) => ({}));
     const data = body as Record<string, unknown>;
-    const message = (data.error as string) ?? `Request failed: ${res.status}`;
+    const message =
+      (data.error as string) ??
+      (data.message as string) ??
+      `Request failed: ${res.status}`;
     const code = data.code as string | undefined;
-    throw new ApiError(message, res.status, code);
+    throw new ApiError(message, res.status, code, data);
   }
   return res.json() as Promise<T>;
 }
@@ -118,13 +128,14 @@ export async function mutationFetchJson<T>(
   if (!res.ok) {
     const data = await res.json().catch((_err) => ({}));
     const record = data as Record<string, unknown>;
-    // OPS-23: propagate structured error codes (e.g. DIGEST_TOO_MANY_ITEMS)
+    // OPS-23: propagate structured error code + payload (e.g. DIGEST_TOO_MANY_ITEMS
+    // carries item_count + max in `data` — clients read typed fields, not regex).
     const code = record.code as string | undefined;
     const message =
       (record.error as string) ??
       (record.message as string) ??
       `Request failed: ${res.status}`;
-    throw new ApiError(message, res.status, code);
+    throw new ApiError(message, res.status, code, record);
   }
   return res.json() as Promise<T>;
 }

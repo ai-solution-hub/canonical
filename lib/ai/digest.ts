@@ -236,18 +236,18 @@ export async function generateDigest(
   }
 
   // Pre-flight cost guard (OPS-23): reject before calling Claude when
-  // the item count exceeds the threshold. The API route catches the 413
-  // and returns a structured error the client can render as actionable UX.
-  if (typedItems.length > DIGEST_AUTO_GEN_MAX_ITEMS) {
-    throw new AIServiceError(
-      JSON.stringify({
-        code: 'DIGEST_TOO_MANY_ITEMS',
+  // the item count reaches the threshold. The API route catches the 413
+  // and returns a structured error the client renders as actionable UX.
+  // `DIGEST_AUTO_GEN_MAX_ITEMS` is the first rejected value (>= not >).
+  if (typedItems.length >= DIGEST_AUTO_GEN_MAX_ITEMS) {
+    const message = `Your KB has ${typedItems.length} items in the selected period — that reaches the ${DIGEST_AUTO_GEN_MAX_ITEMS}-item limit for automatic summaries. Use Custom filter to narrow the date range or apply a domain filter.`;
+    throw new AIServiceError(message, 413, {
+      code: 'DIGEST_TOO_MANY_ITEMS',
+      data: {
         item_count: typedItems.length,
         max: DIGEST_AUTO_GEN_MAX_ITEMS,
-        message: `Your KB has ${typedItems.length} items in the selected period — that exceeds the ${DIGEST_AUTO_GEN_MAX_ITEMS}-item limit for automatic summaries. Use Custom filter to narrow the date range or apply a domain filter.`,
-      }),
-      413,
-    );
+      },
+    });
   }
 
   // Group items by domain

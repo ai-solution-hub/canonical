@@ -2421,6 +2421,7 @@ export type Database = {
       }
       user_notification_prefs: {
         Row: {
+          auto_generate_change_reports: boolean
           created_at: string
           email_owned_content_flagged: boolean
           email_review_assigned: boolean
@@ -2429,6 +2430,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          auto_generate_change_reports?: boolean
           created_at?: string
           email_owned_content_flagged?: boolean
           email_review_assigned?: boolean
@@ -2437,6 +2439,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          auto_generate_change_reports?: boolean
           created_at?: string
           email_owned_content_flagged?: boolean
           email_review_assigned?: boolean
@@ -3596,3 +3599,5 @@ export const Constants = {
     Enums: {},
   },
 } as const
+A new version of Supabase CLI is available: v2.90.0 (currently installed v2.84.2)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli

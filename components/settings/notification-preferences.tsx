@@ -47,9 +47,9 @@ const PREF_SWITCHES: PrefSwitch[] = [
   },
   {
     key: 'auto_generate_change_reports',
-    label: 'Auto-generate weekly reports',
+    label: 'Auto-generate weekly Change Reports',
     description:
-      'Automatically generate a weekly change report on your first visit to the page',
+      'Automatically generate a weekly Change Report on your first visit to Change Reports',
   },
 ];
 

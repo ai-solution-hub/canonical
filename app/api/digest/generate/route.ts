@@ -49,16 +49,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result);
   } catch (err) {
     if (err instanceof AIServiceError) {
-      // OPS-23: structured 413 body for the cost guard
-      if (err.status === 413) {
-        try {
-          const parsed = JSON.parse(err.message);
-          if (parsed.code === 'DIGEST_TOO_MANY_ITEMS') {
-            return NextResponse.json(parsed, { status: 413 });
-          }
-        } catch {
-          // Not JSON — fall through to generic path
-        }
+      // OPS-23: pass structured code + data straight through when present
+      // (cost-guard 413 carries DIGEST_TOO_MANY_ITEMS with item_count + max).
+      if (err.code) {
+        return NextResponse.json(
+          {
+            error: safeErrorMessage(err, err.message),
+            message: err.message,
+            code: err.code,
+            ...(err.data ?? {}),
+          },
+          { status: err.status },
+        );
       }
       return NextResponse.json(
         { error: safeErrorMessage(err, err.message) },

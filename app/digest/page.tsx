@@ -369,21 +369,23 @@ export default function DigestPage() {
     queryFn: fetchNotificationPreferences,
   });
 
-  // OPS-23: Detect the "too many items" 413 response
+  // OPS-23: Detect the "too many items" 413 response and read the
+  // structured payload from `error.data` (item_count + max). Falls back
+  // to zero/150 defaults if the API shape drifts.
   const tooManyItems =
     generateError instanceof ApiError &&
     generateError.code === 'DIGEST_TOO_MANY_ITEMS';
 
-  // Parse the structured error for item count
   let tooManyItemCount = 0;
   let tooManyItemMax = 150;
   if (tooManyItems && generateError instanceof ApiError) {
-    // The error message is the human-readable message from the API
-    // The code carries the structured data — we need to extract count from message
-    const match = generateError.message.match(/has (\d+) items/);
-    if (match) tooManyItemCount = parseInt(match[1], 10);
-    const maxMatch = generateError.message.match(/(\d+)-item limit/);
-    if (maxMatch) tooManyItemMax = parseInt(maxMatch[1], 10);
+    const data = generateError.data;
+    if (typeof data?.item_count === 'number') {
+      tooManyItemCount = data.item_count;
+    }
+    if (typeof data?.max === 'number') {
+      tooManyItemMax = data.max;
+    }
   }
 
   // Trigger lazy loading of read marks for this page

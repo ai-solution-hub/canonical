@@ -98,7 +98,7 @@ describe('Digest cost guard (OPS-23)', () => {
     expect(DIGEST_AUTO_GEN_MAX_ITEMS).toBe(150);
   });
 
-  it('throws AIServiceError(413) when item count exceeds threshold', async () => {
+  it('throws AIServiceError(413) when item count reaches or exceeds threshold', async () => {
     const supabase = createMockSupabase(200);
 
     await expect(
@@ -122,19 +122,20 @@ describe('Digest cost guard (OPS-23)', () => {
       const aiErr = err as AIServiceError;
       expect(aiErr.status).toBe(413);
 
-      // Parse the JSON message
-      const body = JSON.parse(aiErr.message);
-      expect(body.code).toBe('DIGEST_TOO_MANY_ITEMS');
-      expect(body.item_count).toBe(200);
-      expect(body.max).toBe(DIGEST_AUTO_GEN_MAX_ITEMS);
-      expect(body.message).toContain('200 items');
+      // Structured code + data carry payload (S191 Wave 3 fix — no more
+      // JSON-inside-message). Human-readable message on `message`.
+      expect(aiErr.code).toBe('DIGEST_TOO_MANY_ITEMS');
+      expect(aiErr.data?.item_count).toBe(200);
+      expect(aiErr.data?.max).toBe(DIGEST_AUTO_GEN_MAX_ITEMS);
+      expect(aiErr.message).toContain('200 items');
     }
   });
 
-  it('does not throw when item count is at the threshold', async () => {
+  it('throws 413 when item count is exactly at the threshold (>= boundary)', async () => {
+    // S191 Wave 3 fix: guard uses `>=` not `>`, so DIGEST_AUTO_GEN_MAX_ITEMS
+    // is the first rejected value, not the last accepted one.
     const supabase = createMockSupabase(DIGEST_AUTO_GEN_MAX_ITEMS);
 
-    // This will fail later (missing Claude mock) but should NOT throw 413
     try {
       await generateDigest({
         supabase,
@@ -142,12 +143,13 @@ describe('Digest cost guard (OPS-23)', () => {
         digestType: 'weekly',
         userId: '00000000-0000-4000-8000-000000000001',
       });
+      throw new Error('generateDigest should have thrown');
     } catch (err) {
-      // We expect an error — but it should NOT be the cost guard error
-      if (err instanceof AIServiceError) {
-        expect(err.status).not.toBe(413);
-      }
-      // Any other error (e.g. from unmocked Claude call) is acceptable
+      expect(err).toBeInstanceOf(AIServiceError);
+      const aiErr = err as AIServiceError;
+      expect(aiErr.status).toBe(413);
+      expect(aiErr.code).toBe('DIGEST_TOO_MANY_ITEMS');
+      expect(aiErr.data?.item_count).toBe(DIGEST_AUTO_GEN_MAX_ITEMS);
     }
   });
 
@@ -204,10 +206,12 @@ describe('Digest cost guard (OPS-23)', () => {
         digestType: 'weekly',
         userId: '00000000-0000-4000-8000-000000000001',
       });
+      throw new Error('generateDigest should have thrown');
     } catch (err) {
-      const body = JSON.parse((err as AIServiceError).message);
-      expect(body.message).toContain('Custom filter');
-      expect(body.message).toContain('domain filter');
+      expect(err).toBeInstanceOf(AIServiceError);
+      const aiErr = err as AIServiceError;
+      expect(aiErr.message).toContain('Custom filter');
+      expect(aiErr.message).toContain('domain filter');
     }
   });
 });
