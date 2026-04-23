@@ -26,12 +26,12 @@ import { FilterBar, type SortOption } from '@/components/browse/filter-bar';
 import { BulkActions } from '@/components/browse/bulk-actions';
 import { LoadingSkeleton, EmptyState } from '@/components/browse/browse-states';
 import { PresetBar } from '@/components/browse/preset-bar';
+import { SearchBar } from '@/components/browse/search-bar';
 import { SearchPromptCards } from '@/components/browse/search-prompt-cards';
 import { shouldShowColdStartPrompts } from '@/lib/browse-cold-start';
 import { SavePresetDialog } from '@/components/browse/save-preset-dialog';
 import { ManagePresetsDialog } from '@/components/browse/manage-presets-dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -154,32 +154,25 @@ export function BrowseContent() {
     return false;
   });
 
-  // Browse search input
+  // Browse search input ref (forwarded to SearchBar inline variant)
   const browseSearchRef = useRef<HTMLInputElement>(null);
-  const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery ?? '');
 
-  // Sync local input when URL search query changes externally
-  useEffect(() => {
-    setLocalSearchQuery(searchQuery ?? '');
-  }, [searchQuery]);
-
-  const handleSearchSubmit = useCallback(
-    (e: React.FormEvent) => {
-      e.preventDefault();
-      const trimmed = localSearchQuery.trim();
-      if (trimmed) {
-        setSearchQuery(trimmed);
-      } else {
-        setSearchQuery(undefined);
-      }
+  // Search handler for inline SearchBar — triggers semantic search
+  const handleInlineSearch = useCallback(
+    (query: string) => {
+      setSearchQuery(query);
     },
-    [localSearchQuery, setSearchQuery],
+    [setSearchQuery],
   );
 
-  // Prompt card click: set both local input state and trigger search
+  // Clear handler for inline SearchBar
+  const handleInlineClear = useCallback(() => {
+    setSearchQuery(undefined);
+  }, [setSearchQuery]);
+
+  // Prompt card click: trigger search (SearchBar syncs via defaultValue)
   const handlePromptCardSelect = useCallback(
     (query: string) => {
-      setLocalSearchQuery(query);
       setSearchQuery(query);
     },
     [setSearchQuery],
@@ -471,24 +464,13 @@ export function BrowseContent() {
 
       {/* Browse search bar */}
       <div className="mt-4">
-        <form
-          onSubmit={handleSearchSubmit}
-          role="search"
-          aria-label="Search content"
-        >
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              ref={browseSearchRef}
-              type="search"
-              placeholder="Search your knowledge..."
-              value={localSearchQuery}
-              onChange={(e) => setLocalSearchQuery(e.target.value)}
-              className="h-10 border bg-white pl-10 pr-4 shadow-sm dark:bg-input/30"
-              aria-label="Search the knowledge base"
-            />
-          </div>
-        </form>
+        <SearchBar
+          variant="inline"
+          defaultValue={searchQuery ?? ''}
+          onSearch={handleInlineSearch}
+          onClear={handleInlineClear}
+          inputRef={browseSearchRef}
+        />
       </div>
 
       {/* Search error */}

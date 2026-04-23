@@ -202,6 +202,17 @@ vi.mock('@/components/browse/preset-bar', () => ({
   PresetBar: () => null,
 }));
 
+vi.mock('@/components/browse/search-bar', () => ({
+  SearchBar: (props: Record<string, unknown>) => (
+    <input
+      data-testid="search-bar-inline"
+      data-variant={props.variant as string}
+      data-default-value={props.defaultValue as string}
+      aria-label="Search the knowledge base"
+    />
+  ),
+}));
+
 vi.mock('@/components/browse/save-preset-dialog', () => ({
   SavePresetDialog: () => null,
 }));
@@ -264,5 +275,26 @@ describe('BrowseContent — from_bid URL parameter', () => {
     const grid = screen.getByTestId('content-grid');
     expect(grid).toHaveAttribute('data-from-bid-id', 'ws-2');
     expect(capturedGridProps.fromBidId).toBe('ws-2');
+  });
+
+  it('renders inline SearchBar variant on browse page', () => {
+    mockSearchParams.current = new URLSearchParams();
+
+    render(<BrowseContent />);
+
+    const searchBar = screen.getByTestId('search-bar-inline');
+    expect(searchBar).toBeInTheDocument();
+    expect(searchBar).toHaveAttribute('data-variant', 'inline');
+  });
+
+  it('passes search query as defaultValue to SearchBar', () => {
+    mockSearchParams.current = new URLSearchParams('q=test+search');
+    mockBrowseData.searchQuery = 'test search';
+    mockBrowseData.isSearchMode = true;
+
+    render(<BrowseContent />);
+
+    const searchBar = screen.getByTestId('search-bar-inline');
+    expect(searchBar).toHaveAttribute('data-default-value', 'test search');
   });
 });

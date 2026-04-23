@@ -9,6 +9,12 @@
  * `tags.duplicates`, etc.
  */
 export const queryKeys = {
+  // Search (lexical preview — distinct from contentItems.search which is semantic)
+  search: {
+    all: ['search'] as const,
+    preview: (q: string) => ['search', 'preview', q] as const,
+  },
+
   // Content items
   contentItems: {
     all: ['content-items'] as const,

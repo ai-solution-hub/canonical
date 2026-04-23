@@ -8,19 +8,29 @@ import { useModifierKey } from '@/hooks/ui/use-modifier-key';
 import { addRecentSearch, getRecentSearches } from '@/lib/search-history';
 
 interface SearchBarProps {
-  variant?: 'hero' | 'compact';
+  variant?: 'hero' | 'compact' | 'inline';
   defaultValue?: string;
   autoFocus?: boolean;
+  /** inline variant: called instead of navigation on submit */
+  onSearch?: (query: string) => void;
+  /** inline variant: called when search is cleared */
+  onClear?: () => void;
+  /** Ref forwarded to the underlying <input> */
+  inputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
 export function SearchBar({
   variant = 'compact',
   defaultValue = '',
   autoFocus = false,
+  onSearch,
+  onClear,
+  inputRef: externalInputRef,
 }: SearchBarProps) {
   const router = useRouter();
   const mod = useModifierKey();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const internalInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = externalInputRef ?? internalInputRef;
   const [query, setQuery] = useState(defaultValue);
   const [showRecent, setShowRecent] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
@@ -30,6 +40,14 @@ export function SearchBar({
   const containerRef = useRef<HTMLDivElement>(null);
   const isAutoFocusing = useRef(autoFocus);
 
+  // Sync internal query state when defaultValue changes externally
+  // (e.g. prompt card selection in Browse, or URL param change).
+  // Using key={defaultValue} at call site would reset dropdown state,
+  // so we sync explicitly for the inline variant.
+  useEffect(() => {
+    setQuery(defaultValue);
+  }, [defaultValue]);
+
   useEffect(() => {
     if (autoFocus && window.matchMedia('(pointer: fine)').matches) {
       inputRef.current?.focus();
@@ -37,7 +55,7 @@ export function SearchBar({
     } else {
       isAutoFocusing.current = false;
     }
-  }, [autoFocus]);
+  }, [autoFocus, inputRef]);
 
   const loadRecent = useCallback(() => {
     setRecentSearches(getRecentSearches());
@@ -69,6 +87,19 @@ export function SearchBar({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = query.trim();
+    if (variant === 'inline') {
+      if (trimmed) {
+        addRecentSearch(trimmed);
+        setShowRecent(false);
+        setActiveIndex(-1);
+        onSearch?.(trimmed);
+      } else {
+        setShowRecent(false);
+        setActiveIndex(-1);
+        onClear?.();
+      }
+      return;
+    }
     if (trimmed) {
       addRecentSearch(trimmed);
       setShowRecent(false);
@@ -82,7 +113,11 @@ export function SearchBar({
     setShowRecent(false);
     setActiveIndex(-1);
     addRecentSearch(search);
-    router.push(`/browse?q=${encodeURIComponent(search)}`);
+    if (variant === 'inline') {
+      onSearch?.(search);
+    } else {
+      router.push(`/browse?q=${encodeURIComponent(search)}`);
+    }
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -136,7 +171,11 @@ export function SearchBar({
   }, []);
 
   const placeholder =
-    variant === 'hero' ? 'Search your knowledge base...' : 'Search...';
+    variant === 'hero'
+      ? 'Search your knowledge base...'
+      : variant === 'inline'
+        ? 'Search your knowledge...'
+        : 'Search...';
 
   const activeDescendantId =
     activeIndex >= 0 ? `search-option-${activeIndex}` : undefined;
@@ -256,6 +295,54 @@ export function SearchBar({
     );
   }
 
+  // Inline variant (browse page in-page search)
+  if (variant === 'inline') {
+    return (
+      <div ref={containerRef} className="relative">
+        <form
+          onSubmit={handleSubmit}
+          role="search"
+          aria-label="Search content"
+        >
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              ref={inputRef}
+              type="search"
+              placeholder={placeholder}
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                // Fire onClear when input is emptied (e.g. native clear button)
+                if (e.target.value === '' && query !== '') {
+                  onClear?.();
+                }
+              }}
+              onFocus={() => {
+                loadRecent();
+                loadSuggestions();
+                setShowRecent(true);
+              }}
+              onKeyDown={handleKeyDown}
+              role="combobox"
+              aria-label="Search the knowledge base"
+              aria-expanded={dropdownVisible}
+              aria-controls={listboxId}
+              aria-autocomplete="list"
+              aria-activedescendant={activeDescendantId}
+              className="h-10 border bg-white pl-10 pr-4 shadow-sm dark:bg-input/30"
+            />
+          </div>
+        </form>
+        {dropdownVisible && (
+          <div className="absolute top-full z-50 mt-1 w-full rounded-lg border border-border bg-popover p-2 shadow-lg ring-1 ring-border backdrop-blur-sm">
+            {renderDropdown(recentSearches, suggestions)}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // Compact variant (header)
   return (
     <div ref={containerRef} className="relative">
@@ -270,6 +357,7 @@ export function SearchBar({
             onChange={(e) => setQuery(e.target.value)}
             onFocus={() => {
               loadRecent();
+              loadSuggestions();
               setShowRecent(true);
             }}
             onKeyDown={handleKeyDown}

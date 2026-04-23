@@ -374,3 +374,31 @@ test.describe('Bid session role gating', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// 5. from_bid Persistence (P1-30)
+// ---------------------------------------------------------------------------
+
+test.describe('from_bid URL parameter persistence', () => {
+  test('from_bid persists after navigating from bid session to browse', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
+    await gotoSession(page, workerData.bidId);
+
+    // Click "Browse for content" link
+    const browseLink = page.getByRole('link', { name: /Browse for content/i });
+    await expect(browseLink).toBeVisible();
+    await browseLink.click();
+
+    // Should navigate to /browse with from_bid param
+    await expect(page).toHaveURL(
+      new RegExp(`/browse\\?from_bid=${workerData.bidId}`),
+      { timeout: 10000 },
+    );
+
+    // Verify from_bid is in the URL
+    const url = new URL(page.url());
+    expect(url.searchParams.get('from_bid')).toBe(workerData.bidId);
+  });
+});
