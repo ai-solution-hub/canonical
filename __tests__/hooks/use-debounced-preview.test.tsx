@@ -329,16 +329,57 @@ describe('useDebouncedPreview', () => {
   });
 
   // -----------------------------------------------------------------------
-  // maxResults
+  // External `enabled` gate
   // -----------------------------------------------------------------------
 
-  it('passes custom maxResults to the API', async () => {
+  it('does not fire when enabled=false even with a valid query', async () => {
     const { Wrapper } = createQueryWrapper();
 
-    renderHook(
-      () => useDebouncedPreview('risk assessment', { maxResults: 5 }),
+    const { result } = renderHook(
+      () => useDebouncedPreview('risk assessment', { enabled: false }),
       { wrapper: Wrapper },
     );
+
+    await advanceAndFlush(500);
+
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(result.current.results).toEqual([]);
+    expect(result.current.isLoading).toBe(false);
+  });
+
+  it('resumes firing when enabled flips from false to true', async () => {
+    const { Wrapper } = createQueryWrapper();
+
+    const { rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) =>
+        useDebouncedPreview('risk assessment', { enabled }),
+      {
+        wrapper: Wrapper,
+        initialProps: { enabled: false },
+      },
+    );
+
+    await advanceAndFlush(500);
+    expect(mockFetch).not.toHaveBeenCalled();
+
+    rerender({ enabled: true });
+    await advanceAndFlush(350);
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Request URL shape
+  // -----------------------------------------------------------------------
+
+  it('always requests PREVIEW_MAX_RESULTS (canonical key — no custom limit)', async () => {
+    const { Wrapper } = createQueryWrapper();
+
+    renderHook(() => useDebouncedPreview('risk assessment'), {
+      wrapper: Wrapper,
+    });
 
     await advanceAndFlush(350);
 
@@ -347,6 +388,6 @@ describe('useDebouncedPreview', () => {
     });
 
     const fetchUrl = mockFetch.mock.calls[0][0];
-    expect(fetchUrl).toContain('limit=5');
+    expect(fetchUrl).toContain('limit=8');
   });
 });

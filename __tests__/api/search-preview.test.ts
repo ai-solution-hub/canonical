@@ -285,16 +285,20 @@ describe('GET /api/search/preview', () => {
   // Rate limit
   // -----------------------------------------------------------------------
 
-  it('returns 429 when rate limit is exceeded', async () => {
-    // Exhaust the rate limit (60 requests per minute)
+  it('returns 429 when rate limit is exceeded (boundary: 60 allowed, 61 denied)', async () => {
+    // Fire 60 requests — all must succeed (window is exactly 60, not 59).
+    let lastStatusInWindow = 0;
     for (let i = 0; i < 60; i++) {
       const req = createTestRequest('/api/search/preview', {
         searchParams: { q: 'test' },
       });
-      await GET(req);
+      const res = await GET(req);
+      lastStatusInWindow = res.status;
     }
+    // 60th response must NOT have been rate-limited.
+    expect(lastStatusInWindow).not.toBe(429);
 
-    // 61st request should be rate-limited
+    // 61st request crosses the boundary.
     const req = createTestRequest('/api/search/preview', {
       searchParams: { q: 'test' },
     });

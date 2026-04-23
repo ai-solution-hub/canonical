@@ -54,9 +54,10 @@ export async function GET(request: NextRequest) {
     // Escape ilike wildcards
     const escaped = escapeIlike(q);
 
-    // Query content_items with ilike on title + content
-    // Select layer for potential Phase 3 use, but exclude from response
-    const results = await sb(
+    // Query content_items with ilike on title + content.
+    // `layer` is selected for potential Phase 3 use but stripped from the response.
+    // `sb()` throws on any Postgres error, so `items` is always the array on success.
+    const items = await sb(
       supabase
         .from('content_items')
         .select('id, title, content_type, primary_domain, layer')
@@ -64,8 +65,6 @@ export async function GET(request: NextRequest) {
         .limit(limit),
       'content_items.preview',
     );
-
-    const items = results ?? [];
 
     // Sort: title matches first, then content-only matches
     const lowerQ = q.toLowerCase();

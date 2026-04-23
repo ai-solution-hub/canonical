@@ -26,8 +26,12 @@ export interface UseDebouncedPreviewOptions {
   minLength?: number;
   /** Debounce interval in ms. Default: PREVIEW_DEBOUNCE_MS (300) */
   debounceMs?: number;
-  /** Max results to request. Default: PREVIEW_MAX_RESULTS (8) */
-  maxResults?: number;
+  /**
+   * External gate. When `false`, the hook never fetches regardless of
+   * `query.length >= minLength`. Used by the SearchBar to tie preview
+   * lifecycle to focus + variant (inline-only). Default: `true`.
+   */
+  enabled?: boolean;
 }
 
 /**
@@ -48,7 +52,7 @@ export function useDebouncedPreview(
 ) {
   const minLength = options?.minLength ?? PREVIEW_MIN_QUERY_LENGTH;
   const debounceMs = options?.debounceMs ?? PREVIEW_DEBOUNCE_MS;
-  const maxResults = options?.maxResults ?? PREVIEW_MAX_RESULTS;
+  const externallyEnabled = options?.enabled ?? true;
 
   // Debounce the query string via useEffect + setTimeout
   const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -72,15 +76,12 @@ export function useDebouncedPreview(
     };
   }, [query, minLength, debounceMs]);
 
-  const enabled = debouncedQuery.length >= minLength;
+  const enabled = externallyEnabled && debouncedQuery.length >= minLength;
 
-  /* eslint-disable @tanstack/query/exhaustive-deps -- maxResults is
-     intentionally excluded; canonical key is queryKeys.search.preview(q) per
-     spec §4.1. maxResults defaults to PREVIEW_MAX_RESULTS (8) in production. */
   const { data, isLoading: tanstackIsLoading } = useQuery<PreviewResponse>({
     queryKey: queryKeys.search.preview(debouncedQuery),
     queryFn: async ({ signal }) => {
-      const url = `/api/search/preview?q=${encodeURIComponent(debouncedQuery)}&limit=${maxResults}`;
+      const url = `/api/search/preview?q=${encodeURIComponent(debouncedQuery)}&limit=${PREVIEW_MAX_RESULTS}`;
       const res = await fetch(url, { signal });
       if (!res.ok) {
         throw new Error(`Preview fetch failed: ${res.status}`);
@@ -90,7 +91,6 @@ export function useDebouncedPreview(
     enabled,
     staleTime: 30_000,
   });
-  /* eslint-enable @tanstack/query/exhaustive-deps */
 
   return {
     results: enabled && data ? data.results : [],
