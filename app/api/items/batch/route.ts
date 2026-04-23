@@ -28,6 +28,8 @@ const BatchItemSchema = z.object({
   contentType: z.enum(['q_a_pair']).default('q_a_pair'),
   /** Section name from document headings, if detected. */
   sectionName: z.string().max(500).optional().default(''),
+  /** Standard answer text, if present (explicit split avoids re-parsing composite). */
+  answerStandard: z.string().max(500_000).optional(),
   /** Advanced answer text, if present. */
   answerAdvanced: z.string().max(500_000).optional().default(''),
   /** Detection source (table, list, heading, text). */
@@ -227,9 +229,10 @@ export async function POST(request: NextRequest) {
             dedup_status: dedupStamp.dedup_status,
             // P0-BM Phase 3 spec ss4.6 Path 2: populate answer_standard for
             // q_a_pair so first PATCH edit does not destroy creation content
-            // (bug B2 fix). Content arrives as composite "Q: {q}\n\n{answer}";
-            // extract the answer portion only to avoid double-prefix on rebuild.
-            answer_standard: extractAnswerFromContent(item.content),
+            // (bug B2 fix). Prefer explicit answerStandard field when provided
+            // (Option A — avoids redundant composite→extract round-trip);
+            // fall back to extractAnswerFromContent for backward compatibility.
+            answer_standard: item.answerStandard ?? extractAnswerFromContent(item.content),
             ...(source_document_id ? { source_document_id } : {}),
             ...(item.answerAdvanced
               ? { answer_advanced: item.answerAdvanced }

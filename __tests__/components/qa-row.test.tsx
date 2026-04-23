@@ -306,4 +306,53 @@ describe('QARow', () => {
       }),
     ).not.toBeInTheDocument();
   });
+
+  // -------------------------------------------------------------------------
+  // Markdown rendering (Phase 3 ContentRenderer swap — AC5)
+  // -------------------------------------------------------------------------
+
+  it('renders markdown in expanded standard answer via ContentRenderer', async () => {
+    const user = userEvent.setup();
+    const item = createQAItem({
+      answer_standard: 'We have **comprehensive** quality policies.',
+    });
+    render(<QARow item={item} />);
+
+    const toggleBtn = screen.getByRole('button', { expanded: false });
+    await user.click(toggleBtn);
+
+    const strong = document.querySelector('strong');
+    expect(strong).toBeInTheDocument();
+    expect(strong).toHaveTextContent('comprehensive');
+  });
+
+  it('renders markdown in expanded advanced answer via ContentRenderer', async () => {
+    const user = userEvent.setup();
+    const item = createQAItem({
+      answer_advanced: 'Our approach includes:\n\n- Regular audits\n- Staff training\n- Documentation review',
+    });
+    render(<QARow item={item} />);
+
+    const toggleBtn = screen.getByRole('button', { expanded: false });
+    await user.click(toggleBtn);
+
+    const listItems = document.querySelectorAll('li');
+    expect(listItems.length).toBe(3);
+    expect(listItems[0]).toHaveTextContent('Regular audits');
+  });
+
+  it('renders plain text answer identically to pre-Phase-3 display', async () => {
+    const user = userEvent.setup();
+    const item = createQAItem({
+      answer_standard: 'Plain text answer without markdown.',
+    });
+    render(<QARow item={item} />);
+
+    const toggleBtn = screen.getByRole('button', { expanded: false });
+    await user.click(toggleBtn);
+
+    expect(
+      screen.getByText('Plain text answer without markdown.'),
+    ).toBeInTheDocument();
+  });
 });

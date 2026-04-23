@@ -195,9 +195,9 @@ export function QARow({ item, selected, onToggleSelect }: QARowProps) {
                     </kbd>
                   </Button>
                 </div>
-                <p className="text-sm text-foreground whitespace-pre-line leading-relaxed">
-                  {item.answer_standard}
-                </p>
+                <div className="text-sm text-foreground leading-relaxed">
+                  <ContentRenderer content={item.answer_standard!} />
+                </div>
               </div>
             )}
             {hasAdvanced && (
@@ -232,9 +232,9 @@ export function QARow({ item, selected, onToggleSelect }: QARowProps) {
                     )}
                   </Button>
                 </div>
-                <p className="text-sm text-foreground whitespace-pre-line leading-relaxed">
-                  {item.answer_advanced}
-                </p>
+                <div className="text-sm text-foreground leading-relaxed">
+                  <ContentRenderer content={item.answer_advanced!} />
+                </div>
               </div>
             )}
             {!hasStandard && !hasAdvanced && item.content && (

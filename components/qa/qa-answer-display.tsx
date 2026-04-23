@@ -216,9 +216,9 @@ export function QAAnswerDisplay({
                 onCancel={inlineEdit.cancelEdit}
               />
             ) : (
-              <p className="text-sm leading-relaxed whitespace-pre-line">
-                {item.answer_standard}
-              </p>
+              <div className="text-sm leading-relaxed">
+                <ContentRenderer content={item.answer_standard ?? ''} />
+              </div>
             )}
           </div>
         </div>
@@ -285,9 +285,9 @@ export function QAAnswerDisplay({
                 onCancel={inlineEdit.cancelEdit}
               />
             ) : (
-              <p className="text-sm leading-relaxed whitespace-pre-line">
-                {item.answer_advanced}
-              </p>
+              <div className="text-sm leading-relaxed">
+                <ContentRenderer content={item.answer_advanced ?? ''} />
+              </div>
             )}
           </div>
         </div>

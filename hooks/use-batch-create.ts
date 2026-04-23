@@ -106,6 +106,9 @@ export function useBatchCreate(): UseBatchCreateReturn {
           title: pair.question,
           content: formatQAContent(pair),
           contentType: 'q_a_pair' as const,
+          // Option A (P0-BM Phase 3 WP1 Part 3): send answer explicitly so
+          // the server does not need to re-parse from the composite content.
+          answerStandard: pair.answer,
         }));
 
         const body: Record<string, unknown> = { items };

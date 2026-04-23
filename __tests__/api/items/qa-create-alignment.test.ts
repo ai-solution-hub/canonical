@@ -324,6 +324,72 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
       // not the full composite "Q: {q}\n\n{answer}" content
       expect((contentInsert![0] as Record<string, unknown>).answer_standard).toBe('We follow best practice.');
     });
+
+    it('prefers explicit answerStandard over extracting from composite (Option A)', async () => {
+      configureRole(mockSupabase, 'editor');
+
+      const compositeContent = 'Q: What is our policy?\n\nWe follow best practice.';
+      const explicitAnswer = 'We follow best practice.';
+
+      // Pipeline run insert
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: { id: 'pipeline-run-id' },
+        error: null,
+      });
+
+      // Item insert
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: { id: VALID_UUID, title: 'What is our policy?' },
+        error: null,
+      });
+
+      // Classification fetch (topic suggestion)
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: { primary_domain: null, primary_subtopic: null },
+        error: null,
+      });
+
+      // Quality score fetch
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: {
+          freshness: 'current',
+          classification_confidence: 0.9,
+          brief: null,
+          detail: null,
+          reference: null,
+          summary: null,
+          citation_count: 0,
+        },
+        error: null,
+      });
+
+      const req = createTestRequest('/api/items/batch', {
+        method: 'POST',
+        body: {
+          items: [
+            {
+              title: 'What is our policy?',
+              content: compositeContent,
+              contentType: 'q_a_pair',
+              answerStandard: explicitAnswer,
+            },
+          ],
+        },
+      });
+
+      const res = await batchCreate(req);
+      expect(res.status).toBe(201);
+
+      // Find the content_items insert call
+      const insertCalls = mockSupabase._chain.insert.mock.calls;
+      const contentInsert = insertCalls.find(
+        (call: unknown[]) =>
+          (call[0] as Record<string, unknown>).content_type === 'q_a_pair',
+      );
+      expect(contentInsert).toBeDefined();
+      // Explicit answerStandard should be used directly, not extracted
+      expect((contentInsert![0] as Record<string, unknown>).answer_standard).toBe(explicitAnswer);
+    });
   });
 
   // -------------------------------------------------------------------------

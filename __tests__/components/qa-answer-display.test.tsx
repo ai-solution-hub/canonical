@@ -587,3 +587,79 @@ describe('QAAnswerDisplay — answer card labels', () => {
     ).toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Markdown rendering (Phase 3 ContentRenderer swap — AC5)
+// ---------------------------------------------------------------------------
+
+describe('QAAnswerDisplay — markdown rendering via ContentRenderer', () => {
+  it('renders bold markdown in standard answer', () => {
+    const item = makeItem({
+      answer_standard: 'We have **comprehensive** quality policies.',
+    });
+    render(<QAAnswerDisplay {...makeProps({ item })} />);
+
+    const strong = document.querySelector('strong');
+    expect(strong).toBeInTheDocument();
+    expect(strong).toHaveTextContent('comprehensive');
+  });
+
+  it('renders bold markdown in advanced answer', () => {
+    const item = makeItem({
+      answer_advanced: 'Our **advanced** approach exceeds requirements.',
+    });
+    render(<QAAnswerDisplay {...makeProps({ item })} />);
+
+    const strong = document.querySelector('strong');
+    expect(strong).toBeInTheDocument();
+    expect(strong).toHaveTextContent('advanced');
+  });
+
+  it('renders unordered list markdown in answers', () => {
+    const item = makeItem({
+      answer_standard: 'Key policies:\n\n- Quality management\n- Environmental management\n- Health and safety',
+      answer_advanced: null,
+    });
+    render(<QAAnswerDisplay {...makeProps({ item })} />);
+
+    const listItems = document.querySelectorAll('li');
+    expect(listItems.length).toBe(3);
+    expect(listItems[0]).toHaveTextContent('Quality management');
+  });
+
+  it('renders table markdown in answers via remark-gfm', () => {
+    const item = makeItem({
+      answer_standard: '| Certification | Year |\n|---|---|\n| ISO 9001 | 2024 |\n| ISO 14001 | 2023 |',
+      answer_advanced: null,
+    });
+    render(<QAAnswerDisplay {...makeProps({ item })} />);
+
+    const table = document.querySelector('table');
+    expect(table).toBeInTheDocument();
+    const cells = document.querySelectorAll('td');
+    expect(cells.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('renders plain text identically to pre-Phase-3 display', () => {
+    // Plain text with no markdown syntax — should render as simple paragraphs
+    const item = makeItem({
+      answer_standard: 'This is a plain text answer.',
+      answer_advanced: 'This is a plain advanced answer.',
+    });
+    render(<QAAnswerDisplay {...makeProps({ item })} />);
+
+    expect(screen.getByText('This is a plain text answer.')).toBeInTheDocument();
+    expect(screen.getByText('This is a plain advanced answer.')).toBeInTheDocument();
+  });
+
+  it('preserves UK English text through ContentRenderer', () => {
+    const item = makeItem({
+      answer_standard: 'Our organisation follows colour-coded procedures for behaviour management.',
+    });
+    render(<QAAnswerDisplay {...makeProps({ item })} />);
+
+    expect(
+      screen.getByText('Our organisation follows colour-coded procedures for behaviour management.'),
+    ).toBeInTheDocument();
+  });
+});
