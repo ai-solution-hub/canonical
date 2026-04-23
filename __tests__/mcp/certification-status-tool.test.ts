@@ -2,12 +2,17 @@
  * MCP Tool: get_certification_status
  *
  * Tests the certification status tool formatter, report data assembly,
- * and the Claude prompt generator.
+ * the Claude prompt generator, and holder-coverage paths (OPS-24).
  *
  * Pattern follows __tests__/mcp/get-document-versions.test.ts — tests
  * the formatter output rather than the live MCP server.
+ *
+ * The OPS-24 holder-coverage section (bottom of file) exercises the
+ * tool handler directly via a mock MCP server, testing the holder
+ * filtering logic in entities.ts lines 155-318.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import {
   formatCertificationReport,
   type CertificationReportData,
@@ -15,6 +20,118 @@ import {
 } from '@/lib/mcp/formatters/entities';
 import { deriveExpiryStatus } from '@/lib/certification-status';
 import { generateCertificationReviewPrompt } from '@/lib/claude-prompts';
+
+// ---------------------------------------------------------------------------
+// Hoisted mocks for OPS-24 handler tests
+// ---------------------------------------------------------------------------
+
+const mocks = vi.hoisted(() => {
+  // Build a chainable mock that mimics the Supabase query builder.
+  // Each chainable method returns the chain itself; `.then()` is the
+  // terminal awaitable that resolves with `{ data, error }`.
+  function buildChain() {
+    const chain: Record<string, ReturnType<typeof vi.fn>> = {};
+    const chainable = [
+      'select',
+      'insert',
+      'update',
+      'upsert',
+      'delete',
+      'eq',
+      'neq',
+      'in',
+      'is',
+      'not',
+      'ilike',
+      'contains',
+      'gte',
+      'lte',
+      'gt',
+      'lt',
+      'or',
+      'order',
+      'limit',
+      'range',
+    ];
+    for (const m of chainable) {
+      chain[m] = vi.fn();
+    }
+    chain.single = vi.fn().mockResolvedValue({ data: null, error: null });
+    chain.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+    chain.then = vi.fn((resolve: (v: unknown) => void) =>
+      resolve({ data: [], error: null }),
+    );
+    for (const m of chainable) {
+      chain[m].mockReturnValue(chain);
+    }
+    return chain;
+  }
+
+  const chain1 = buildChain();
+  const chain2 = buildChain();
+
+  // fromCalls tracks the sequence of .from() calls so we can return
+  // a different chain for entity_relationships vs entity_mentions.
+  let fromCallIndex = 0;
+  const chains = [chain1, chain2];
+
+  const mockFrom = vi.fn((_table: string) => {
+    const c = chains[fromCallIndex] ?? chain2;
+    fromCallIndex++;
+    return c;
+  });
+
+  return {
+    chain1,
+    chain2,
+    mockFrom,
+    resetFromIndex: () => {
+      fromCallIndex = 0;
+    },
+    createMcpClient: vi.fn().mockReturnValue({ from: mockFrom, rpc: vi.fn() }),
+    getMcpUserId: vi.fn().mockReturnValue('user-123'),
+    getMcpUserRole: vi.fn().mockResolvedValue('editor'),
+    checkMcpRole: vi.fn().mockResolvedValue('editor'),
+  };
+});
+
+vi.mock('@/lib/mcp/auth', () => ({
+  createMcpClient: mocks.createMcpClient,
+  getMcpUserId: mocks.getMcpUserId,
+  getMcpUserRole: mocks.getMcpUserRole,
+  checkMcpRole: mocks.checkMcpRole,
+}));
+
+// Mock lazy-loaded modules that entity tools may import
+vi.mock('@/lib/ai/embed', () => ({
+  generateEmbedding: vi.fn().mockResolvedValue(new Array(1024).fill(0)),
+}));
+vi.mock('@/lib/ai/classify', () => ({
+  classifyContent: vi.fn(),
+}));
+vi.mock('@/lib/ai/summarise', () => ({
+  generateSummary: vi.fn(),
+}));
+vi.mock('@/lib/ai/errors', () => ({
+  AIServiceError: class AIServiceError extends Error {
+    status: number;
+    constructor(message: string, status: number) {
+      super(message);
+      this.status = status;
+    }
+  },
+}));
+vi.mock('@/lib/dashboard', () => ({
+  fetchUnifiedDashboardData: vi.fn(),
+  unifiedToDashboardData: vi.fn((d: unknown) => d),
+}));
+vi.mock('@/lib/bid/bid-queries', () => ({
+  getBidDetail: vi.fn(),
+  getBidQuestion: vi.fn(),
+}));
+vi.mock('@/lib/reorient', () => ({
+  getReorientData: vi.fn(),
+}));
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -327,5 +444,409 @@ describe('generateCertificationReviewPrompt', () => {
   it('uses singular in description for 1 cert', () => {
     const result = generateCertificationReviewPrompt(1, 0);
     expect(result.description).toBe('1 certification, 0 expiring');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// OPS-24 — Holder coverage tests (tool handler via mock MCP server)
+// ---------------------------------------------------------------------------
+
+type ToolHandler = (
+  args: Record<string, unknown>,
+  extra: Record<string, unknown>,
+) => Promise<unknown>;
+
+interface RegisteredTool {
+  name: string;
+  config: Record<string, unknown>;
+  handler: ToolHandler;
+}
+
+function createMockMcpServer() {
+  const tools: Record<string, RegisteredTool> = {};
+
+  return {
+    tools,
+    registerTool(
+      name: string,
+      config: Record<string, unknown>,
+      handler: ToolHandler,
+    ) {
+      tools[name] = { name, config, handler };
+    },
+    getHandler(name: string): ToolHandler | undefined {
+      return tools[name]?.handler;
+    },
+  };
+}
+
+function makeAuthExtra(authInfo?: Partial<AuthInfo>) {
+  return {
+    authInfo: {
+      token: 'test-token',
+      clientId: 'test-client',
+      scopes: ['read', 'write'],
+      extra: { userId: 'user-123', role: 'editor' },
+      ...authInfo,
+    },
+  };
+}
+
+// v4-compliant UUIDs for strict Zod validation
+const UUID_CONTENT_1 = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
+const UUID_CONTENT_2 = 'b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e';
+
+describe('get_certification_status — holder coverage (OPS-24)', () => {
+  let mockServer: ReturnType<typeof createMockMcpServer>;
+  const extra = makeAuthExtra();
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    mocks.resetFromIndex();
+    mockServer = createMockMcpServer();
+
+    // Import and register all tools
+    const { registerTools } = await import('@/lib/mcp/tools');
+    await registerTools(mockServer as never);
+  });
+
+  /**
+   * Helper: configure the two .from() calls that get_certification_status
+   * makes — first for entity_relationships, second for entity_mentions.
+   *
+   * entity_relationships query: .from('entity_relationships').select(...).eq('relationship_type','holds').eq('source_entity', orgNameLower)
+   * entity_mentions query: .from('entity_mentions').select(...).in('canonical_name', targetNames)
+   */
+  function configureChains(
+    relationships: Array<{
+      source_entity: string;
+      target_entity: string;
+    }>,
+    mentions: Array<{
+      canonical_name: string;
+      entity_type: string;
+      entity_type_override: string | null;
+      metadata: Record<string, unknown>;
+      content_item_id: string | null;
+    }>,
+  ) {
+    // First .from() call → entity_relationships
+    mocks.chain1.then.mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({ data: relationships, error: null }),
+    );
+    // Second .from() call → entity_mentions
+    mocks.chain2.then.mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({ data: mentions, error: null }),
+    );
+  }
+
+  // 1. Self-held: source_entity matches BRANDING + metadata.holder='self'
+  it('surfaces self-held cert in certifications[] with holder=self', async () => {
+    const handler = mockServer.getHandler('get_certification_status')!;
+
+    configureChains(
+      [
+        {
+          source_entity: 'knowledge hub',
+          target_entity: 'iso 27001',
+        },
+      ],
+      [
+        {
+          canonical_name: 'iso 27001',
+          entity_type: 'certification',
+          entity_type_override: null,
+          metadata: { holder: 'self', version: '2022' },
+          content_item_id: UUID_CONTENT_1,
+        },
+      ],
+    );
+
+    const result = (await handler({}, extra)) as {
+      content: Array<{ type: string; text: string }>;
+      structuredContent: {
+        certifications: Array<{
+          canonical_name: string;
+          holder?: string;
+          supplier_name?: string;
+        }>;
+      };
+    };
+
+    expect(result.content[0].text).toContain('Certification Status Report');
+    expect(result.structuredContent.certifications).toHaveLength(1);
+    expect(result.structuredContent.certifications[0].canonical_name).toBe(
+      'iso 27001',
+    );
+    expect(result.structuredContent.certifications[0].holder).toBe('self');
+    expect(
+      result.structuredContent.certifications[0].supplier_name,
+    ).toBeUndefined();
+  });
+
+  // 2. Supplier-held: appears in supplier_certifications[] when include_suppliers=true,
+  //    absent when include_suppliers is false/omitted
+  it('surfaces supplier-held cert only when include_suppliers=true', async () => {
+    const handler = mockServer.getHandler('get_certification_status')!;
+
+    configureChains(
+      [
+        {
+          source_entity: 'knowledge hub',
+          target_entity: 'iso 9001',
+        },
+      ],
+      [
+        {
+          canonical_name: 'iso 9001',
+          entity_type: 'certification',
+          entity_type_override: null,
+          metadata: {
+            holder: 'supplier',
+            supplier_name: 'example-datacentre london docklands',
+            version: '2015',
+          },
+          content_item_id: UUID_CONTENT_1,
+        },
+      ],
+    );
+
+    // With include_suppliers=true: supplier cert in markdown report
+    const resultWithSuppliers = (await handler(
+      { include_suppliers: true },
+      extra,
+    )) as {
+      content: Array<{ type: string; text: string }>;
+      structuredContent: {
+        certifications: Array<{
+          canonical_name: string;
+          holder?: string;
+          supplier_name?: string;
+        }>;
+      };
+    };
+
+    expect(resultWithSuppliers.content[0].text).toContain(
+      'Supplier Certifications',
+    );
+    expect(
+      resultWithSuppliers.structuredContent.certifications[0].holder,
+    ).toBe('supplier');
+    expect(
+      resultWithSuppliers.structuredContent.certifications[0].supplier_name,
+    ).toBe('example-datacentre london docklands');
+
+    // Reset chain mock indices for second call
+    vi.clearAllMocks();
+    mocks.resetFromIndex();
+
+    // Reconfigure chains for the second invocation
+    configureChains(
+      [
+        {
+          source_entity: 'knowledge hub',
+          target_entity: 'iso 9001',
+        },
+      ],
+      [
+        {
+          canonical_name: 'iso 9001',
+          entity_type: 'certification',
+          entity_type_override: null,
+          metadata: {
+            holder: 'supplier',
+            supplier_name: 'example-datacentre london docklands',
+            version: '2015',
+          },
+          content_item_id: UUID_CONTENT_1,
+        },
+      ],
+    );
+
+    // Without include_suppliers (default false): no supplier section
+    const resultWithout = (await handler({}, extra)) as {
+      content: Array<{ type: string; text: string }>;
+    };
+
+    expect(resultWithout.content[0].text).not.toContain(
+      'Supplier Certifications',
+    );
+  });
+
+  // 3. Unset holder (metadata empty {}): excluded by strict-holder gate
+  it('excludes mentions with unset holder (empty metadata)', async () => {
+    const handler = mockServer.getHandler('get_certification_status')!;
+
+    configureChains(
+      [
+        {
+          source_entity: 'knowledge hub',
+          target_entity: 'cyber essentials',
+        },
+      ],
+      [
+        {
+          canonical_name: 'cyber essentials',
+          entity_type: 'certification',
+          entity_type_override: null,
+          metadata: {},
+          content_item_id: UUID_CONTENT_1,
+        },
+      ],
+    );
+
+    const result = (await handler({}, extra)) as {
+      structuredContent: {
+        certifications: Array<{
+          canonical_name: string;
+          holder?: string;
+        }>;
+      };
+    };
+
+    // The cert appears in the report (it has an entity_relationships 'holds'
+    // row) but has NO holder assigned since metadata.holder is absent and the
+    // holderMap skips it (lines 304-306 continue when not 'self'|'supplier').
+    for (const cert of result.structuredContent.certifications) {
+      expect(cert.holder).toBeUndefined();
+    }
+  });
+
+  // 4. Bogus holder value (e.g. 'unknown'): rejected at line 303-306
+  it('rejects bogus holder value in metadata (e.g. "unknown")', async () => {
+    const handler = mockServer.getHandler('get_certification_status')!;
+
+    configureChains(
+      [
+        {
+          source_entity: 'knowledge hub',
+          target_entity: 'iso 14001',
+        },
+      ],
+      [
+        {
+          canonical_name: 'iso 14001',
+          entity_type: 'certification',
+          entity_type_override: null,
+          metadata: { holder: 'unknown', version: '2015' },
+          content_item_id: UUID_CONTENT_1,
+        },
+      ],
+    );
+
+    const result = (await handler({}, extra)) as {
+      structuredContent: {
+        certifications: Array<{
+          canonical_name: string;
+          holder?: string;
+        }>;
+      };
+    };
+
+    // holderMap should not contain an entry for this cert because
+    // 'unknown' !== 'self' && 'unknown' !== 'supplier' → continue
+    expect(result.structuredContent.certifications).toHaveLength(1);
+    expect(result.structuredContent.certifications[0].holder).toBeUndefined();
+  });
+
+  // 5. Mixed per-cert: one self mention + one supplier mention for same canonical_name
+  //    The tool merges metadata from multiple mentions (later overwrites).
+  //    The holderMap picks up the LAST merged metadata.holder value.
+  it('aggregation with mixed self+supplier mentions picks last metadata value', async () => {
+    const handler = mockServer.getHandler('get_certification_status')!;
+
+    configureChains(
+      [
+        {
+          source_entity: 'knowledge hub',
+          target_entity: 'iso 27001',
+        },
+      ],
+      [
+        // First mention: holder='self'
+        {
+          canonical_name: 'iso 27001',
+          entity_type: 'certification',
+          entity_type_override: null,
+          metadata: { holder: 'self', version: '2022' },
+          content_item_id: UUID_CONTENT_1,
+        },
+        // Second mention: holder='supplier' — metadata merge overwrites holder
+        {
+          canonical_name: 'iso 27001',
+          entity_type: 'certification',
+          entity_type_override: null,
+          metadata: {
+            holder: 'supplier',
+            supplier_name: 'acme hosting',
+          },
+          content_item_id: UUID_CONTENT_2,
+        },
+      ],
+    );
+
+    const result = (await handler({ include_suppliers: true }, extra)) as {
+      structuredContent: {
+        certifications: Array<{
+          canonical_name: string;
+          holder?: string;
+          supplier_name?: string;
+        }>;
+      };
+    };
+
+    // The second mention's metadata.holder='supplier' overwrites the first
+    // during the metadata merge loop (line 268: existing.metadata[key] = value).
+    // The holderMap then picks up 'supplier' from the merged entityData.
+    expect(result.structuredContent.certifications).toHaveLength(1);
+    const cert = result.structuredContent.certifications[0];
+    expect(cert.holder).toBe('supplier');
+    expect(cert.supplier_name).toBe('acme hosting');
+  });
+
+  // 6. Source-entity case mismatch: mixed-case still matches after lowercasing
+  it('matches source_entity case-insensitively via BRANDING lowercase filter', async () => {
+    const handler = mockServer.getHandler('get_certification_status')!;
+
+    // The tool queries .eq('source_entity', orgNameLower) where
+    // orgNameLower = BRANDING.organisationName.toLowerCase().
+    // In the default branding config, organisationName = 'Knowledge Hub',
+    // so source_entity in the DB must already be lowercase 'knowledge hub'
+    // for the .eq() filter to match. This test verifies the tool sends the
+    // lowercased query and gets results back.
+    configureChains(
+      [
+        {
+          source_entity: 'knowledge hub',
+          target_entity: 'iso 27001',
+        },
+      ],
+      [
+        {
+          canonical_name: 'iso 27001',
+          entity_type: 'certification',
+          entity_type_override: null,
+          metadata: { holder: 'self' },
+          content_item_id: UUID_CONTENT_1,
+        },
+      ],
+    );
+
+    const result = (await handler({}, extra)) as {
+      content: Array<{ type: string; text: string }>;
+      structuredContent: {
+        certifications: Array<{ canonical_name: string; holder?: string }>;
+      };
+    };
+
+    // Verify the query was sent with the lowercased org name
+    expect(mocks.chain1.eq).toHaveBeenCalledWith(
+      'source_entity',
+      'knowledge hub',
+    );
+
+    // Cert should appear in the report
+    expect(result.structuredContent.certifications).toHaveLength(1);
+    expect(result.structuredContent.certifications[0].holder).toBe('self');
   });
 });

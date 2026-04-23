@@ -223,17 +223,17 @@ function CertificationMetadataForm({
             Holder
           </Label>
           <Select
-            value={metadata.holder ?? 'self'}
+            value={metadata.holder ?? ''}
             onValueChange={(value) =>
               onChange({ holder: value as 'self' | 'supplier' })
             }
           >
             <SelectTrigger id="cert-holder" className="h-8 text-sm">
-              <SelectValue />
+              <SelectValue placeholder="Choose holder…" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="self">Self (our organisation)</SelectItem>
-              <SelectItem value="supplier">Supplier</SelectItem>
+              <SelectItem value="self">Self-held</SelectItem>
+              <SelectItem value="supplier">Supplier-held</SelectItem>
             </SelectContent>
           </Select>
         </div>
