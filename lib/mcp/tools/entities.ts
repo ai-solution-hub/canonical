@@ -6,6 +6,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createMcpClient } from '@/lib/mcp/auth';
+import { BRANDING } from '@/lib/client-config';
 import { formatEntitySummary, truncateResponse } from '@/lib/mcp/formatters';
 import type {
   EntitySummaryResult,
@@ -172,11 +173,15 @@ export async function registerEntityTools(server: McpServer): Promise<void> {
       try {
         const supabase = createMcpClient(extra.authInfo);
 
-        // Query entity_relationships for 'holds' relationships
+        // Query entity_relationships for 'holds' relationships sourced by
+        // the client organisation only — supplier-sourced 'holds' rels
+        // (Bug A in cert audit) must not surface as client-held.
+        const orgNameLower = BRANDING.organisationName.toLowerCase();
         const { data: relationships, error: relError } = await supabase
           .from('entity_relationships')
           .select('source_entity, target_entity')
-          .eq('relationship_type', 'holds');
+          .eq('relationship_type', 'holds')
+          .eq('source_entity', orgNameLower);
 
         if (relError) {
           return {
@@ -295,7 +300,11 @@ export async function registerEntityTools(server: McpServer): Promise<void> {
           const entityData = entityMap.get(target);
           if (entityData) {
             const meta = entityData.metadata;
-            const holder = (meta.holder as string) ?? 'self';
+            const rawHolder = meta.holder;
+            if (rawHolder !== 'self' && rawHolder !== 'supplier') {
+              continue;
+            }
+            const holder = rawHolder;
             holderMap.set(target, {
               holder,
               supplier_name:
