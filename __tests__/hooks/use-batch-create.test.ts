@@ -129,10 +129,14 @@ describe('useBatchCreate', () => {
       const fetchCall = vi.mocked(global.fetch).mock.calls[0];
       const body = JSON.parse(fetchCall[1]?.body as string);
       expect(body.items).toHaveLength(2);
+      // Post-S193 WP1 Part 3: canonical payload includes explicit
+      // `answerStandard` alongside composite `content`, so the server can
+      // skip the `extractAnswerFromContent` round-trip.
       expect(body.items[0]).toEqual({
         title: 'What is X?',
         content: 'Q: What is X?\n\nX is a thing',
         contentType: 'q_a_pair',
+        answerStandard: 'X is a thing',
       });
 
       // Verify result
