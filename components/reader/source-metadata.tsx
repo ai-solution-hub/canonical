@@ -6,6 +6,14 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
+import { formatDateUK } from '@/lib/format';
+import {
+  detectMarkdownIngest,
+  formatConfidencePercent,
+  getIngestionSourceLabel,
+  parseImportBatchDate,
+  truncateUrl,
+} from '@/components/reader/source-metadata-helpers';
 
 /**
  * Shape of a feed-articles + feed-sources join row, as returned by the
@@ -55,6 +63,10 @@ function MetadataRow({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Type-specific field blocks
+// ---------------------------------------------------------------------------
+
 function EmailFields({ metadata }: { metadata: Record<string, unknown> }) {
   const newsletterName = metadata?.newsletter_name as string | undefined;
   const emailSubject = metadata?.email_subject as string | undefined;
@@ -78,33 +90,83 @@ function EmailFields({ metadata }: { metadata: Record<string, unknown> }) {
 
 function PdfFields({ metadata }: { metadata: Record<string, unknown> }) {
   const pageCount = metadata?.page_count as number | undefined;
-
   if (pageCount == null) return null;
-
   return <MetadataRow label="Pages">{pageCount}</MetadataRow>;
 }
 
-function GenericWebFields({
+function QAPairFields({
+  sourceFile,
+  sectionName,
+  answerStandard,
+  answerAdvanced,
+  importBatch,
+}: {
+  sourceFile: string | null;
+  sectionName: string | null;
+  answerStandard: string | null;
+  answerAdvanced: string | null;
+  importBatch: string | null;
+}) {
+  const hasStandard = !!answerStandard;
+  const hasAdvanced = !!answerAdvanced;
+  let answerVariants: string;
+  if (hasStandard && hasAdvanced) answerVariants = 'Standard + Advanced';
+  else if (hasAdvanced) answerVariants = 'Advanced only';
+  else answerVariants = 'Standard only';
+
+  const importedDate = parseImportBatchDate(importBatch);
+  const importedDateUk = importedDate
+    ? formatDateUK(importedDate.toISOString())
+    : null;
+
+  return (
+    <>
+      {sourceFile && (
+        <MetadataRow label="Source document">{sourceFile}</MetadataRow>
+      )}
+      {sectionName && <MetadataRow label="Section">{sectionName}</MetadataRow>}
+      <MetadataRow label="Answer variants">{answerVariants}</MetadataRow>
+      {importedDateUk && (
+        <MetadataRow label="Imported on">{importedDateUk}</MetadataRow>
+      )}
+    </>
+  );
+}
+
+function MarkdownFields({
+  sourceFile,
+  sourceFolder,
+  createdAt,
+}: {
+  sourceFile: string | null;
+  sourceFolder: string | null;
+  createdAt: string | null;
+}) {
+  const ingestionDate = createdAt ? formatDateUK(createdAt) : null;
+  return (
+    <>
+      {sourceFile && <MetadataRow label="Source file">{sourceFile}</MetadataRow>}
+      {sourceFolder && (
+        <MetadataRow label="Source folder">{sourceFolder}</MetadataRow>
+      )}
+      {ingestionDate && (
+        <MetadataRow label="Ingestion date">{ingestionDate}</MetadataRow>
+      )}
+    </>
+  );
+}
+
+function GenericArticleFields({
   metadata,
-  content,
 }: {
   metadata: Record<string, unknown>;
-  content?: string | null;
 }) {
   const extractionSource = metadata?.extraction_source as string | undefined;
   const ogDescription = metadata?.og_description as string | undefined;
   const ogType = metadata?.og_type as string | undefined;
   const hasReaderHtml = !!metadata?.reader_html;
-  const wordCount = content
-    ? content.trim().split(/\s+/).filter(Boolean).length
-    : null;
 
-  const hasFields =
-    extractionSource ||
-    ogDescription ||
-    ogType ||
-    hasReaderHtml ||
-    (wordCount && wordCount > 0);
+  const hasFields = extractionSource || ogDescription || ogType || hasReaderHtml;
   if (!hasFields) return null;
 
   return (
@@ -121,55 +183,172 @@ function GenericWebFields({
       {hasReaderHtml && (
         <MetadataRow label="Reader view">Available</MetadataRow>
       )}
-      {wordCount != null && wordCount > 0 && (
-        <MetadataRow label="Word count">
-          {wordCount.toLocaleString('en-GB')}
-        </MetadataRow>
-      )}
     </>
   );
 }
 
-function IngestionRow({ metadata }: { metadata: Record<string, unknown> }) {
-  const ingestionSource = metadata?.ingestion_source as string | undefined;
-  if (!ingestionSource) return null;
+// ---------------------------------------------------------------------------
+// Shared row primitives
+// ---------------------------------------------------------------------------
 
-  return <MetadataRow label="Ingestion source">{ingestionSource}</MetadataRow>;
+function IngestionSourceRow({
+  rawSource,
+  hasFeedArticle,
+}: {
+  rawSource: string | null | undefined;
+  hasFeedArticle: boolean;
+}) {
+  const label = getIngestionSourceLabel(rawSource, hasFeedArticle);
+  if (!label) return null;
+  return <MetadataRow label="Ingestion source">{label}</MetadataRow>;
 }
 
+function SourceUrlRow({
+  sourceUrl,
+  contentType,
+}: {
+  sourceUrl: string | null | undefined;
+  contentType: string | null;
+}) {
+  const empty = !sourceUrl || sourceUrl.trim() === '';
+  if (empty && contentType !== 'q_a_pair') return null;
+  if (empty) {
+    return (
+      <MetadataRow label="Source URL">
+        <span className="text-muted-foreground italic">No source URL</span>
+      </MetadataRow>
+    );
+  }
+  return (
+    <MetadataRow label="Source URL">
+      <a
+        href={sourceUrl as string}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-primary underline underline-offset-2 hover:no-underline break-all"
+      >
+        {truncateUrl(sourceUrl as string, 60)}
+      </a>
+    </MetadataRow>
+  );
+}
+
+function WordCountRow({ content }: { content: string | null | undefined }) {
+  const wordCount = content
+    ? content.trim().split(/\s+/).filter(Boolean).length
+    : 0;
+  if (wordCount <= 0) return null;
+  return (
+    <MetadataRow label="Word count">
+      {wordCount.toLocaleString('en-GB')}
+    </MetadataRow>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
+
+/**
+ * Dispatch resolution order (spec §6.4):
+ * 1. platform === 'email'           → EmailFields
+ * 2. contentType === 'pdf'          → PdfFields
+ * 3. contentType === 'q_a_pair'     → QAPairFields
+ * 4. feedArticle != null            → FeedArticleFields (Phase 5)
+ * 5. detectMarkdownIngest()         → MarkdownFields
+ * 6. default                        → GenericArticleFields
+ *
+ * Edge cases: contentType more specific than platform for Q&A×email; PDF
+ * beats feed (not possible under current ingestion); feed beats markdown.
+ */
 export function SourceMetadata({
   contentType,
   platform,
   metadata,
   content,
+  sourceFile,
+  sourceUrl,
+  createdAt,
+  answerStandard,
+  answerAdvanced,
+  feedArticle,
 }: SourceMetadataProps) {
-  if (!metadata) return null;
+  const meta = metadata ?? {};
+
+  const sectionName = (meta?.section_name as string | undefined) ?? null;
+  const sourceFolder = (meta?.source_folder as string | undefined) ?? null;
+  const importBatch = (meta?.import_batch as string | undefined) ?? null;
+  const ingestionSourceRaw =
+    (meta?.ingestion_source as string | undefined) ?? null;
+  const hasFeedArticle = feedArticle != null;
 
   let platformFields: React.ReactNode = null;
+  let typeBlockRendersSourceUrl = false;
 
   if (platform === 'email') {
-    platformFields = <EmailFields metadata={metadata} />;
+    platformFields = <EmailFields metadata={meta} />;
   } else if (contentType === 'pdf') {
-    platformFields = <PdfFields metadata={metadata} />;
+    platformFields = <PdfFields metadata={meta} />;
+  } else if (contentType === 'q_a_pair') {
+    platformFields = (
+      <QAPairFields
+        sourceFile={sourceFile ?? null}
+        sectionName={sectionName}
+        answerStandard={answerStandard ?? null}
+        answerAdvanced={answerAdvanced ?? null}
+        importBatch={importBatch}
+      />
+    );
+  } else if (detectMarkdownIngest(meta)) {
+    platformFields = (
+      <MarkdownFields
+        sourceFile={sourceFile ?? null}
+        sourceFolder={sourceFolder}
+        createdAt={createdAt ?? null}
+      />
+    );
   } else {
-    platformFields = <GenericWebFields metadata={metadata} content={content} />;
+    platformFields = <GenericArticleFields metadata={meta} />;
   }
 
-  const ingestionRow = <IngestionRow metadata={metadata} />;
+  // Empty-accordion rule (§4.5). Phase 4 adds the `canEdit &&
+  // classificationConfidence != null` clause; Phase 5 the feedArticle clause.
+  const hasAnyRow =
+    !!sourceFile ||
+    !!sourceUrl ||
+    contentType === 'q_a_pair' ||
+    !!ingestionSourceRaw ||
+    !!sectionName ||
+    !!importBatch ||
+    !!meta?.feed_source_name ||
+    !!sourceFolder ||
+    !!meta?.newsletter_name ||
+    !!meta?.page_count ||
+    (content != null && content.trim().length > 0) ||
+    hasFeedArticle;
 
-  // Don't render the accordion if there are no fields to show
-  if (!platformFields && !metadata?.ingestion_source) return null;
+  if (!hasAnyRow) return null;
 
   return (
     <Accordion type="single" collapsible className="mt-2">
       <AccordionItem value="source" className="border-t border-border">
         <AccordionTrigger className="text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:no-underline py-3">
-          Source Details
+          Source Information
         </AccordionTrigger>
         <AccordionContent className="pb-2">
           <dl className="flex flex-col gap-3 text-sm">
             {platformFields}
-            {ingestionRow}
+            {!typeBlockRendersSourceUrl && (
+              <SourceUrlRow
+                sourceUrl={sourceUrl}
+                contentType={contentType}
+              />
+            )}
+            <IngestionSourceRow
+              rawSource={ingestionSourceRaw}
+              hasFeedArticle={hasFeedArticle}
+            />
+            <WordCountRow content={content} />
           </dl>
         </AccordionContent>
       </AccordionItem>
