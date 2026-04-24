@@ -43,6 +43,46 @@ test.describe('§1.20 Browse Cards cold-start interactions', () => {
     await expect(page).toHaveURL(/include_qa=true/);
   });
 
+  test('test 14b (AC-10 reverse): Q&A card → panel checkbox checked → uncheck → URL drops include_qa', async ({
+    authenticatedPage: page,
+  }) => {
+    // (a) Click Q&A card on a fresh /browse → URL carries include_qa=true.
+    const qaCard = page
+      .getByRole('button', { name: /^Q&A library$/ })
+      .first();
+    await expect(qaCard).toBeVisible();
+    await qaCard.click();
+    await expect(page).toHaveURL(/include_qa=true/);
+
+    // (b) Open the filter panel via the "Filters" button on the
+    // FilterBar — the Advanced "Include Q&A pairs" checkbox must
+    // reflect the URL state (`draft.include_qa = true`).
+    const filtersBtn = page.getByRole('button', { name: /^Filters/ });
+    await expect(filtersBtn).toBeVisible();
+    await filtersBtn.click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+
+    // The Advanced checkbox lives inside the "Q&A Pairs" collapsible
+    // section. Open it if collapsed (defaultOpen={false}).
+    const qaSection = page.getByRole('button', { name: /Q&A Pairs/ });
+    if (await qaSection.isVisible()) {
+      await qaSection.click();
+    }
+    const includeQaCheckbox = page.getByRole('checkbox', {
+      name: /Include Q&A pairs/,
+    });
+    await expect(includeQaCheckbox).toBeVisible();
+    await expect(includeQaCheckbox).toBeChecked();
+
+    // (c) Uncheck and apply — URL must drop include_qa.
+    await includeQaCheckbox.click();
+    await expect(includeQaCheckbox).not.toBeChecked();
+    const applyBtn = page.getByRole('button', { name: /Apply filters/ });
+    await applyBtn.click();
+    await expect(page.getByRole('dialog')).not.toBeVisible();
+    expect(page.url()).not.toContain('include_qa');
+  });
+
   test('test 18: click a domain chip → ?domain=<slug>', async ({
     authenticatedPage: page,
   }) => {
@@ -107,7 +147,7 @@ test.describe('§1.20 Browse Cards cold-start interactions', () => {
     expect(url).not.toMatch(/[?&]domain=/);
   });
 
-  test('test 19b: outside-click dismisses panel, cards return', async ({
+  test('test 19b: outside-click dismisses panel via Escape (keyboard a11y)', async ({
     authenticatedPage: page,
   }) => {
     const chipCard = page.getByTestId('prompt-card-chip-composite');
@@ -123,10 +163,8 @@ test.describe('§1.20 Browse Cards cold-start interactions', () => {
     await moreBtn.click();
     await expect(page.getByRole('dialog')).toBeVisible();
 
-    // Dismiss via Escape (functional equivalent of backdrop click —
-    // Radix Sheet handles both). Deliberate choice: `page.keyboard.press`
-    // is deterministic across viewports, whereas a backdrop-click
-    // co-ordinate needs measuring and is flaky.
+    // Keyboard-a11y dismiss path. Backdrop-click dismiss is covered
+    // separately in test 19c.
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog')).not.toBeVisible();
 
@@ -134,6 +172,39 @@ test.describe('§1.20 Browse Cards cold-start interactions', () => {
     await expect(page.getByTestId('search-prompt-cards')).toBeVisible();
     const url = page.url();
     expect(url).not.toMatch(/[?&]domain=/);
+  });
+
+  test('test 19c (L-A): backdrop click dismisses panel, cards return', async ({
+    authenticatedPage: page,
+  }) => {
+    // Spec §11.4 test 19b mandates a click on the backdrop outside the
+    // panel — distinct from the keyboard-Escape path covered in 19b.
+    // Radix Sheet's overlay element carries `data-slot="sheet-overlay"`
+    // (see `components/ui/sheet.tsx:37`).
+    const chipCard = page.getByTestId('prompt-card-chip-composite');
+    const chipCardExists = await chipCard.isVisible().catch(() => false);
+    test.skip(
+      !chipCardExists,
+      'ChipComposite only renders in fallback persona set',
+    );
+
+    const moreBtn = chipCard.getByRole('button', {
+      name: /open filter panel to choose a different domain/i,
+    });
+    await moreBtn.click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+
+    // Locate the backdrop overlay and click it. The overlay covers the
+    // entire viewport; click at (10, 10) so we land OUTSIDE the panel
+    // content (which sits to the right by default).
+    const overlay = page.locator('[data-slot="sheet-overlay"]');
+    await expect(overlay).toBeVisible();
+    await overlay.click({ position: { x: 10, y: 10 } });
+
+    // Panel closes; cards re-appear.
+    await expect(page.getByRole('dialog')).not.toBeVisible();
+    await expect(page.getByTestId('search-prompt-cards')).toBeVisible();
+    expect(page.url()).not.toMatch(/[?&]domain=/);
   });
 
   test('test 20: click a SEARCH card → ?q=<exampleQuery>', async ({

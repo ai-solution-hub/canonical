@@ -15,11 +15,24 @@
  * Integration tests (round-trip, outside-click dismiss) and E2E coverage
  * live in their dedicated files per spec §11.3–§11.4.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  expectTypeOf,
+  vi,
+  beforeEach,
+  afterEach,
+} from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SearchPromptCards } from '@/components/browse/search-prompt-cards';
+import type {
+  AllowedFilterPreset,
+  PromptCard,
+} from '@/components/browse/search-prompt-cards';
+import type { BrowseFilters } from '@/types/content';
 import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
 
 // Mock search-history so we can assert addRecentSearch is only called for
@@ -92,6 +105,88 @@ describe('SearchPromptCards', () => {
       { wrapper: Wrapper },
     );
   }
+
+  // ---------------------------------------------------------------------
+  // Test 1 (L-B) — `expectTypeOf` AC-1 type gate
+  //
+  // The build-time gate is `as const satisfies ReadonlyArray<PromptCard>`
+  // on each persona array (see `components/browse/search-prompt-cards.tsx`
+  // §"Per-persona card data"). These assertions make the gate explicit
+  // at the test level so a regression that loosens the discriminator,
+  // widens `AllowedFilterPreset`, or accepts an `exampleQuery` on a
+  // FILTER card breaks the test compile (and thus CI) — not just the
+  // implicit production build.
+  // ---------------------------------------------------------------------
+  describe('AC-1 type gate (test 1, L-B)', () => {
+    it('AllowedFilterPreset only accepts the whitelisted Pick-keys', () => {
+      // Compile-time assertion: the published type IS a Pick of
+      // BrowseFilters over the seven whitelisted keys (spec §4.4).
+      // This cross-checks the export against the spec's enumeration.
+      expectTypeOf<AllowedFilterPreset>().toEqualTypeOf<
+        Pick<
+          BrowseFilters,
+          | 'domain'
+          | 'content_type'
+          | 'include_qa'
+          | 'source'
+          | 'date_from'
+          | 'freshness'
+          | 'layer'
+        >
+      >();
+    });
+
+    it('FilterPromptCard rejects exampleQuery; SearchPromptCard rejects filterPreset', () => {
+      // A `filter`-kind card with an exampleQuery is a compile error.
+      const _filterWithQuery: PromptCard = {
+        id: 'x',
+        kind: 'filter',
+        title: 't',
+        description: 'd',
+        filterPreset: { content_type: ['policy'] },
+        // @ts-expect-error — kind: 'filter' must not carry exampleQuery
+        exampleQuery: 'should not compile',
+      };
+      void _filterWithQuery;
+
+      // A `search`-kind card with a filterPreset is a compile error.
+      const _searchWithPreset: PromptCard = {
+        id: 'y',
+        kind: 'search',
+        title: 't',
+        description: 'd',
+        exampleQuery: 'q',
+        // @ts-expect-error — kind: 'search' must not carry filterPreset
+        filterPreset: { content_type: ['policy'] },
+      };
+      void _searchWithPreset;
+
+      // A `filter`-kind card MISSING filterPreset is a compile error
+      // because the discriminated union narrows to FilterPromptCard
+      // when kind === 'filter', and FilterPromptCard requires
+      // `filterPreset`. The @ts-expect-error attaches to the missing
+      // property location — the assertion is the only place where the
+      // type checker has a chance to flag the gap.
+      // @ts-expect-error — kind: 'filter' requires filterPreset
+      const _filterNoPreset: PromptCard = {
+        id: 'z',
+        kind: 'filter',
+        title: 't',
+        description: 'd',
+      };
+      void _filterNoPreset;
+    });
+
+    it('AllowedFilterPreset rejects keys outside the whitelist', () => {
+      // Disallowed key `keywords` (a real BrowseFilters key, but NOT
+      // in the whitelist) triggers the type-gate.
+      const _withDisallowed: AllowedFilterPreset = {
+        // @ts-expect-error — `keywords` is not part of AllowedFilterPreset
+        keywords: ['x'],
+      };
+      void _withDisallowed;
+    });
+  });
 
   // ---------------------------------------------------------------------
   // Test 2 / 21 — persona-branch + all-persona-set coverage
