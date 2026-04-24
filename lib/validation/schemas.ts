@@ -1139,6 +1139,53 @@ export const TagBulkMergeBodySchema = z.object({
 });
 
 // ──────────────────────────────────────────
+// Tag morphology drift flags (§1.17 / S197 WP3)
+// ──────────────────────────────────────────
+
+export const TAG_MORPHOLOGY_DECISION_VALUES = [
+  'pending',
+  'accept',
+  'add_override',
+  'dismiss',
+] as const;
+
+/** GET /api/admin/tag-morphology/flags?decision=pending&limit=...&offset=... */
+export const TagMorphologyFlagsQuerySchema = z.object({
+  decision: z.enum(TAG_MORPHOLOGY_DECISION_VALUES).optional(),
+  limit: z.coerce
+    .number()
+    .int()
+    .optional()
+    .transform((v) => (v != null ? Math.max(1, Math.min(500, v)) : v)),
+  offset: z.coerce
+    .number()
+    .int()
+    .optional()
+    .transform((v) => (v != null ? Math.max(0, v) : v)),
+});
+
+/** POST /api/admin/tag-morphology/flags — bulk insert from dry-run eval output */
+export const TagMorphologyFlagsBulkInsertSchema = z.object({
+  flags: z
+    .array(
+      z.object({
+        stored_tag: z.string().trim().min(1).max(200),
+        proposed_canonical: z.string().trim().min(1).max(200),
+        usage_count: z.number().int().min(0),
+        affected_content_ids: z.array(z.string().uuid()).max(10000),
+      }),
+    )
+    .min(1, 'At least one flag is required')
+    .max(2000),
+});
+
+/** PATCH /api/admin/tag-morphology/flags/[id] — disposition a flag */
+export const TagMorphologyFlagDecisionSchema = z.object({
+  decision: z.enum(['accept', 'add_override', 'dismiss']),
+  decision_rationale: z.string().trim().max(2000).optional(),
+});
+
+// ──────────────────────────────────────────
 // Taxonomy Admin Schemas
 // ──────────────────────────────────────────
 
