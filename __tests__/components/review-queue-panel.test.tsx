@@ -10,12 +10,13 @@ import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import { ReviewQueuePanel } from '@/components/review/review-queue-panel';
 import type { ReviewQueueItem } from '@/types/review';
+import { installRadixPointerShims } from '@/__tests__/helpers/radix-pointer-shims';
 
 // ---------------------------------------------------------------------------
 // jsdom polyfills
 // ---------------------------------------------------------------------------
 
-Element.prototype.scrollIntoView = vi.fn();
+installRadixPointerShims();
 
 // ---------------------------------------------------------------------------
 // Mocks

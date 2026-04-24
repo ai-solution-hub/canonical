@@ -14,16 +14,10 @@ import userEvent from '@testing-library/user-event';
 // Radix Select jsdom shims (per feedback_radix_select_jsdom_shims)
 // ---------------------------------------------------------------------------
 
+import { installRadixPointerShims } from '@/__tests__/helpers/radix-pointer-shims';
+
 beforeEach(() => {
-  if (!Element.prototype.hasPointerCapture) {
-    Element.prototype.hasPointerCapture = vi.fn(() => false);
-  }
-  if (!Element.prototype.releasePointerCapture) {
-    Element.prototype.releasePointerCapture = vi.fn();
-  }
-  if (!Element.prototype.scrollIntoView) {
-    Element.prototype.scrollIntoView = vi.fn();
-  }
+  installRadixPointerShims();
 });
 
 // ---------------------------------------------------------------------------

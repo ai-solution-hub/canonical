@@ -148,16 +148,10 @@ import { within } from '@testing-library/react';
 // Helpers
 // ---------------------------------------------------------------------------
 
+import { installRadixPointerShims } from '@/__tests__/helpers/radix-pointer-shims';
+
 function patchJsdom() {
-  if (!Element.prototype.hasPointerCapture) {
-    Element.prototype.hasPointerCapture = () => false;
-  }
-  if (!Element.prototype.setPointerCapture) {
-    Element.prototype.setPointerCapture = () => {};
-  }
-  if (!Element.prototype.releasePointerCapture) {
-    Element.prototype.releasePointerCapture = () => {};
-  }
+  installRadixPointerShims();
 }
 
 /**

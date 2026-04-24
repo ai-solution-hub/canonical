@@ -12,6 +12,7 @@ import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TeamSection } from '@/components/settings/team-section';
+import { installRadixPointerShims } from '@/__tests__/helpers/radix-pointer-shims';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -75,9 +76,7 @@ let fetchMock: Mock;
 
 // Radix Select needs these pointer shims in jsdom
 beforeEach(() => {
-  Element.prototype.hasPointerCapture = vi.fn(() => false);
-  Element.prototype.releasePointerCapture = vi.fn();
-  Element.prototype.scrollIntoView = vi.fn();
+  installRadixPointerShims();
 });
 
 beforeEach(() => {

@@ -104,6 +104,7 @@ vi.mock('lucide-react', () => ({
 
 // Import AFTER mocks
 import { TemplateFieldReview } from '@/components/bid/template-field-review';
+import { installRadixPointerShims } from '@/__tests__/helpers/radix-pointer-shims';
 import type { TemplateField, TemplateSummary } from '@/types/template';
 
 // ---------------------------------------------------------------------------
@@ -213,7 +214,7 @@ function defaultProps(overrides: Record<string, unknown> = {}) {
 describe('TemplateFieldReview', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    HTMLElement.prototype.scrollIntoView = vi.fn();
+    installRadixPointerShims();
   });
 
   // ---- Summary header ----

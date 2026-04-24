@@ -63,6 +63,7 @@ vi.mock('@/components/settings/notification-preferences', () => ({
 }));
 
 import { ProfileSection } from '@/components/settings/profile-section';
+import { installRadixPointerShims } from '@/__tests__/helpers/radix-pointer-shims';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -88,10 +89,7 @@ describe('ProfileSection', () => {
     mockUseUserRole.loading = false;
     mockGetUser.mockResolvedValue({ data: { user: createMockUser() } });
     mockUpdateUser.mockResolvedValue({ error: null });
-    // Radix Select jsdom shims — feedback_radix_select_jsdom_shims.md
-    Element.prototype.hasPointerCapture = vi.fn(() => false);
-    Element.prototype.releasePointerCapture = vi.fn();
-    Element.prototype.scrollIntoView = vi.fn();
+    installRadixPointerShims();
   });
 
   afterEach(() => {

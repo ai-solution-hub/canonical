@@ -58,10 +58,9 @@ vi.mock('motion/react', () => ({
   },
 }));
 
-// Polyfill scrollIntoView for jsdom (used by cmdk)
-if (!Element.prototype.scrollIntoView) {
-  Element.prototype.scrollIntoView = vi.fn();
-}
+// Polyfill pointer + scrollIntoView for jsdom (used by cmdk + Radix)
+import { installRadixPointerShims } from '@/__tests__/helpers/radix-pointer-shims';
+installRadixPointerShims();
 
 import { CommandPalette } from '@/components/shell/command-palette';
 

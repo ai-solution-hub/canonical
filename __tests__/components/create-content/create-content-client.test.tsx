@@ -138,19 +138,13 @@ import { CreateContentClient } from '@/app/item/new/create-content-client';
 // Helpers
 // ---------------------------------------------------------------------------
 
+import { installRadixPointerShims } from '@/__tests__/helpers/radix-pointer-shims';
+
 /**
  * Patch jsdom for Radix pointer capture methods that jsdom doesn't support.
  */
 function patchJsdom() {
-  if (!Element.prototype.hasPointerCapture) {
-    Element.prototype.hasPointerCapture = () => false;
-  }
-  if (!Element.prototype.setPointerCapture) {
-    Element.prototype.setPointerCapture = () => {};
-  }
-  if (!Element.prototype.releasePointerCapture) {
-    Element.prototype.releasePointerCapture = () => {};
-  }
+  installRadixPointerShims();
 }
 
 /**
