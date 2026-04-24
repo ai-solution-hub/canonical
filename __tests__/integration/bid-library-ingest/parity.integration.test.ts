@@ -8,6 +8,14 @@
  *   - Same question text per pair
  *   - Same markdown on answer_standard / answer_advanced per pair
  *
+ * KNOWN PARITY GAP (scripts/extract_docx_tables.py `_cell_markdown` docstring):
+ * The Python cell converter preserves bold+italic only, while the TS path
+ * preserves links, lists, and nested tables via mammoth+Turndown. Fixtures
+ * in `__tests__/fixtures/qa-docx-parity/` are simple enough to keep parity.
+ * If a future fixture introduces hyperlinks, lists, or nested tables, the
+ * test will correctly fail — either enhance `_cell_markdown` or downgrade
+ * the fixture.
+ *
  * Gated behind KH_RUN_INTEGRATION=1 (skip otherwise).
  *
  * Spec: docs/specs/p0-bm-phase3-qa-library-importer-markdown-spec.md ss6.4, ss10.3.

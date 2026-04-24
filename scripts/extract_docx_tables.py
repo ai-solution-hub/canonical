@@ -273,8 +273,18 @@ def _cell_markdown(cell) -> str:
     """Extract cell content as GFM markdown via pandoc.
 
     Builds a minimal HTML representation of the cell's paragraphs (preserving
-    bold/italic/links from OOXML runs), then converts to markdown via pandoc.
+    bold/italic ONLY from OOXML runs), then converts to markdown via pandoc.
     Falls back to plain text if pandoc is unavailable.
+
+    KNOWN PARITY GAP vs TS extractor (`lib/bid-library-ingest/extract-qa-pairs.ts`):
+    The TS path uses mammoth HTML -> Turndown which preserves links, lists,
+    and nested table structure in addition to bold/italic. This Python path
+    only preserves bold + italic from the OOXML run properties. For any cell
+    containing a hyperlink, list, or nested table, the two paths produce
+    different markdown. Fixtures in `__tests__/fixtures/qa-docx-parity/` are
+    intentionally simple enough to avoid this divergence. Tracked as a
+    documented gap for a follow-up session — see
+    `docs/specs/p0-bm-phase3-qa-library-importer-markdown-spec.md` follow-ups.
 
     This is the Phase 3 markdown-emitting path. The existing _cell_text()
     is retained for question text (which stays plain text) and for header

@@ -13,12 +13,6 @@ import mammoth from 'mammoth';
 import TurndownService from 'turndown';
 import { gfm } from 'turndown-plugin-gfm';
 
-/**
- * Create a pre-configured Turndown instance with GFM support.
- *
- * Includes the GFM plugin for tables, strikethrough, and task lists.
- * Configured for clean markdown output suitable for ContentRenderer.
- */
 function createTurndownService(): TurndownService {
   const turndown = new TurndownService({
     headingStyle: 'atx',
@@ -28,6 +22,8 @@ function createTurndownService(): TurndownService {
   turndown.use(gfm);
   return turndown;
 }
+
+const sharedTurndown = createTurndownService();
 
 /**
  * Convert a DOCX file buffer to full-document markdown.
@@ -43,8 +39,7 @@ export async function docxBufferToMarkdown(
   buffer: Buffer | ArrayBuffer,
 ): Promise<string> {
   const { value: html } = await mammoth.convertToHtml({ buffer });
-  const turndown = createTurndownService();
-  return turndown.turndown(html).trim();
+  return sharedTurndown.turndown(html).trim();
 }
 
 /**
@@ -58,8 +53,7 @@ export async function docxBufferToMarkdown(
  */
 export function htmlToMarkdown(html: string): string {
   if (!html || !html.trim()) return '';
-  const turndown = createTurndownService();
-  return turndown.turndown(html).trim();
+  return sharedTurndown.turndown(html).trim();
 }
 
 /**

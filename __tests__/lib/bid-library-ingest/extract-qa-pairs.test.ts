@@ -344,17 +344,9 @@ describe('extractQaPairs', () => {
   });
 
   describe('empty/edge cases', () => {
-    it('returns empty array for non-DOCX buffer', async () => {
+    it('rejects when passed a non-DOCX buffer', async () => {
       const buffer = Buffer.from('not a docx file');
-      // mammoth should handle gracefully — either returns empty pairs
-      // or throws (we catch both)
-      try {
-        const pairs = await extractQaPairs(buffer, 'invalid.docx');
-        expect(pairs).toEqual([]);
-      } catch {
-        // Expected — mammoth may throw on invalid buffers
-        expect(true).toBe(true);
-      }
+      await expect(extractQaPairs(buffer, 'invalid.docx')).rejects.toThrow();
     });
   });
 });

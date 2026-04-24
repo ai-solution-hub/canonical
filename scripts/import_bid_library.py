@@ -212,17 +212,18 @@ def build_content_record(pair: dict, batch_name: str) -> dict:
     # Canonical shape: "Q: {question}\n\n{answer_standard}\n\n{answer_advanced}"
     # with \n\n (double newline / paragraph boundary) between each segment.
     # Spec: p0-bm-phase3 ss4.1 + ss6.1.
-    content_parts = []
-    content_parts.append(f"Q: {pair['question_text']}")
-    content_parts.append("")  # blank line separator (\n\n) after question
-    if pair.get("answer_standard"):
-        content_parts.append(pair["answer_standard"])
-    if pair.get("answer_advanced"):
-        # Empty string between answers produces \n\n when joined
-        if pair.get("answer_standard"):
-            content_parts.append("")
-        content_parts.append(pair["answer_advanced"])
-    content = "\n".join(content_parts) if content_parts else ""
+    content_parts = [f"Q: {pair['question_text']}"]
+    has_standard = bool(pair.get("answer_standard"))
+    has_advanced = bool(pair.get("answer_advanced"))
+    if has_standard or has_advanced:
+        content_parts.append("")  # blank line separator (\n\n) after question
+        if has_standard:
+            content_parts.append(pair["answer_standard"])
+        if has_advanced:
+            if has_standard:
+                content_parts.append("")
+            content_parts.append(pair["answer_advanced"])
+    content = "\n".join(content_parts)
 
     # Build a concise title from the question (word-boundary-aware)
     title = truncate_at_word_boundary(pair["question_text"], 120)
