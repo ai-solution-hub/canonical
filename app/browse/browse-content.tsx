@@ -28,6 +28,7 @@ import { LoadingSkeleton, EmptyState } from '@/components/browse/browse-states';
 import { PresetBar } from '@/components/browse/preset-bar';
 import { SearchBar } from '@/components/browse/search-bar';
 import { SearchPromptCards } from '@/components/browse/search-prompt-cards';
+import type { BrowseFilters } from '@/types/content';
 import { shouldShowColdStartPrompts } from '@/lib/browse-cold-start';
 import { SavePresetDialog } from '@/components/browse/save-preset-dialog';
 import { ManagePresetsDialog } from '@/components/browse/manage-presets-dialog';
@@ -170,13 +171,33 @@ export function BrowseContent() {
     setSearchQuery(undefined);
   }, [setSearchQuery]);
 
-  // Prompt card click: trigger search (SearchBar syncs via defaultValue)
+  // Prompt card click: trigger search (SearchBar syncs via defaultValue).
+  // Fires for SEARCH cards only (§1.20 §9.2).
   const handlePromptCardSelect = useCallback(
     (query: string) => {
       setSearchQuery(query);
     },
     [setSearchQuery],
   );
+
+  // Prompt card click: apply filter (§1.20 §9.2). Fires for FILTER cards
+  // and for chip clicks inside the chipComposite card. Writes to URL via
+  // `setFilters` — this is the same ingress as the filter panel Apply,
+  // so the URL-param round-trip is identical (AC-10).
+  const handlePromptCardApplyFilter = useCallback(
+    (preset: Partial<BrowseFilters>) => {
+      setFilters(preset);
+    },
+    [setFilters],
+  );
+
+  // Prompt card click: open filter panel at a named section (§1.20 §9.2).
+  // Fires only for the chipComposite "More domains…" button. Does NOT
+  // mutate URL — `activeFilterCount` stays 0 and cards remain visible
+  // behind the panel (spec §6.5).
+  const handlePromptCardOpenFilters = useCallback((_target: 'domain') => {
+    setFilterPanelOpen(true);
+  }, []);
 
   // Reset activeIndex when items change (new filter/sort/data)
   useEffect(() => {
@@ -503,6 +524,8 @@ export function BrowseContent() {
           primaryFocus={primaryFocus}
           role={(role as 'admin' | 'editor' | 'viewer') ?? 'viewer'}
           onSelectQuery={handlePromptCardSelect}
+          onApplyFilter={handlePromptCardApplyFilter}
+          onOpenFilterPanel={handlePromptCardOpenFilters}
         />
       )}
 
