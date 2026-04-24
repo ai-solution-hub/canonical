@@ -32,8 +32,8 @@ If they exist, read the most recent file in full. This provides:
 ## Step 1b: Identify Active Parallel Tracks (Conditional)
 
 The project sometimes runs parallel work tracks on separate top-level git
-worktrees (e.g. a UI simplification wave on
-`/Users/liamj/Documents/development/knowledge-hub-ui-ux-simplification`
+worktrees (e.g. the knowledge-platform track on
+`/Users/liamj/Documents/development/knowledge-hub-knowledge-platform`
 alongside main-track work on the primary repo `/knowledge-hub`). These are **long-lived
 worktrees** — distinct from the ephemeral `isolation: "worktree"` agent
 worktrees created during sessions under `.claude/worktrees/`.
@@ -62,7 +62,8 @@ Parse the highest session number from existing files and add 1.
 with a track identifier to avoid confusion:
 
 - Main track: `continuation-prompt-kh-s{NNN}-main-{purpose}.md`
-- UI simp track: `continuation-prompt-kh-s{NNN}-uisimp-{purpose}.md`
+- kh-knowledge-platform track: `continuation-prompt-kh-kpf-s{N}-{purpose}.md` (track-local counter)
+- production-readiness track: `continuation-prompt-kh-prod-readiness-s{N}-{purpose}.md` (track-local counter)
 
 When only one track is active, the track suffix is optional:
 `continuation-prompt-kh-s{NNN}-{purpose}.md`.

@@ -9,8 +9,6 @@ allowed-tools: Read, Write, Edit, Bash, Grep, Glob, Skill
 Updates roadmap, state-of-the-product, auto-generated stats, product-functionality, and product backlog docs to reflect the current session's work, then auto-chains to `/handoff` to
 generate the continuation prompt. The user reviews the continuation prompt at the end.
 
-If you are on the `knowledge-hub-ui-ux-simplification` repo, STATUS.md also requires updating.
-
 ## Document Roles (READ FIRST)
 
 The planning documents have distinct, non-overlapping roles. Future agents
@@ -23,24 +21,28 @@ must respect this distinction or the docs will drift back into chaos:
 | **Product backlog** | `docs/reference/product-backlog.md` | It's unlikely that product backlog items will have been completed during the session as the roadmap drives implementation priorities, but it's possible that new items may have been identified during the session, which will need to be added to the backlog, awaiting promotion to the roadmap. |
 | **State of the product — history** | `docs/reference/state-of-the-product-history.md` | **Frozen historical archive** of per-session "what shipped in session N" narrative blocks (S53→S152A), split out of the canonical doc in S152B WP10 (commit `3e3eccc5`) to keep the canonical doc under control. 
 | **Backlog completed archive** | `docs/reference/product-backlog-completed.md` | Frozen historical record of completed backlog items. |
-| **Wave status ledgers** | `docs/audits/*/STATUS.md` (e.g. `ui-simplification-2026-04/STATUS.md`) | **Single-page status tracker** for a multi-session wave. Views over DECISIONS/SPEC-SEQUENCE/DEFERRED rather than a new source — shows per-item `Status` / `Artefact` / `Shipped in` / `Notes`. Maintained live at close-out for any active wave the session touched. |
+| **Wave status ledgers** | `docs/audits/*/STATUS.md` (e.g. `{wave-name}-{yyyy-mm}/STATUS.md`) | **Single-page status tracker** for a multi-session wave. Views over DECISIONS/SPEC-SEQUENCE/DEFERRED rather than a new source — shows per-item `Status` / `Artefact` / `Shipped in` / `Notes`. Maintained live at close-out for any active wave the session touched. |
 
 ---
 
 ## Step 1: Regenerate Auto-Generated Stats
 
-Run both stats scripts to ensure the generated files reflect the current
+Run all stats scripts to ensure the generated files reflect the current
 session's changes.
 
 ```bash
+# Anchor to the current repo root (defensive: CWD can drift into agent
+# worktrees mid-session).
+ROOT="$(git rev-parse --show-toplevel)"
+
 # Regenerate codebase statistics
-cd /Users/liamj/Documents/development/knowledge-hub && bun run stats
+cd "$ROOT" && bun run stats
 
 # Regenerate MCP tool/resource/prompt inventory
-cd /Users/liamj/Documents/development/knowledge-hub && bun run generate:mcp-inventory
+cd "$ROOT" && bun run generate:mcp-inventory
 ```
 
-If either script fails, report the error but do not block the rest of the
+If any script fails, report the error but do not block the rest of the
 update.
 
 Check if anything changed and commit if so:
@@ -212,7 +214,7 @@ Read the file, then for each item that was identified in this session:
 **Directory:** `docs/audits/*/STATUS.md`
 
 If the session touched items in an active multi-session wave that maintains
-a `STATUS.md` ledger (for example `docs/audits/ui-simplification-2026-04/STATUS.md`),
+a `STATUS.md` ledger (for example `docs/audits/{wave-name}-{yyyy-mm}/STATUS.md`),
 update the ledger to reflect shipped state. One ledger per wave.
 
 **When to update:**
@@ -226,7 +228,7 @@ update the ledger to reflect shipped state. One ledger per wave.
 
 **What to update:**
 
-1. **Per-item rows (§4 P0 / §5 P1 in ui-simplification).** Flip the
+1. **Per-item rows (numbered sections in the ledger).** Flip the
    `Status` column, populate `Shipped` with `S{NNN} • {short_sha}` (first
    commit only — session prompt captures the full SHA range), update
    `Artefact` if the spec was written or archived, and append a one-line

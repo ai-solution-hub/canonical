@@ -180,16 +180,21 @@ Three concurrent long-lived worktrees on this project (shared filesystem via
 `git worktree`):
 
 - **main** (`/Users/liamj/Documents/development/knowledge-hub`, branch `main`)
-  — client bid/SI product + second re-ingestion. Global session counter `kh-sN`.
-- **UI simp** (`/Users/liamj/Documents/development/knowledge-hub-ui-ux-simplification`,
-  branch `knowledge-hub-ui-ux-simplification`) — UI simplification WP3-series;
-  merges back to main.
+  — client bid/SI product. Global session counter `kh-sN`.
 - **kh-knowledge-platform** (`/Users/liamj/Documents/development/knowledge-hub-knowledge-platform`,
   branch `kh-knowledge-platform`) — engineering-docs dogfood + productisation
   validation. Track-local counter `kh-kpf-sN`. One-way references only (does
   NOT merge back to main). Supabase project: `ztiztwqlyqcsuyhtjoya`
   (shared dev-KB `kb-aish-product-dev`, hosts multiple future dev projects).
   Primer: `docs/tracks/kh-knowledge-platform.md`.
+- **production-readiness** (`/Users/liamj/Documents/development/knowledge-hub-production-readiness`,
+  branch `production-readiness`) — CI/CD, staging DB, structured logging,
+  handover infra. Track-local counter `kh-prod-readiness-sN`. One-way
+  references only (does NOT merge back to main). Primer:
+  `docs/tracks/production-readiness.md`.
+
+Closed tracks: UI simplification (`knowledge-hub-ui-ux-simplification`, closed
+24/04/2026 after S196 merge-back).
 
 Memory reference: `reference_parallel_tracks_overview.md` — naming conventions,
 hook isolation, cross-track hygiene rules. Continuation-prompt filename
