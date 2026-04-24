@@ -13,7 +13,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
-import { sb } from '@/lib/supabase/safe';
+import { sb, SupabaseError } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody, parseSearchParams } from '@/lib/validation';
 import {
@@ -67,14 +67,19 @@ export async function GET(request: NextRequest) {
       query = query.eq('decision', decision);
     }
 
-    const { data, error, count } = await query;
-    if (error) {
-      throw new Error(`tag_morphology_drift_flags.select: ${error.message}`);
+    // `sb()` extracts only `data`; this route also needs `count` (for paginated
+    // total). We invoke the query once, throw `SupabaseError` on failure (same
+    // error class `sb()` throws — see `lib/supabase/safe.ts`), and read both
+    // `data` and `count` from the resolved response. POST below uses `sb()`
+    // directly because it does not need `count`.
+    const result = await query;
+    if (result.error) {
+      throw new SupabaseError(result.error, 'tag_morphology_drift_flags.select');
     }
 
     return NextResponse.json({
-      flags: (data ?? []) as DriftFlag[],
-      total: count ?? 0,
+      flags: (result.data ?? []) as DriftFlag[],
+      total: result.count ?? 0,
       limit,
       offset,
     });
