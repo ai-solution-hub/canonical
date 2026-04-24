@@ -107,6 +107,12 @@ export const queryKeys = {
     entities: ['filters', 'entities'] as const,
   },
 
+  // Browse cold-start (spec §1.20 Browse Cards)
+  browse: {
+    all: ['browse'] as const,
+    topDomains: ['browse', 'top-domains'] as const,
+  },
+
   // Source documents
   sourceDocuments: {
     all: ['source-documents'] as const,

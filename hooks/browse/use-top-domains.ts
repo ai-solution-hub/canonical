@@ -27,6 +27,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { parseJsonb, FilterCountsSchema } from '@/lib/validation/jsonb';
+import { queryKeys } from '@/lib/query/query-keys';
 
 /**
  * Minimum item count for a domain to qualify as a chip. Below this, the
@@ -39,9 +40,6 @@ const MIN_DOMAIN_COUNT = 20;
  * Extracted as a constant for test override via the TanStack Query wrapper.
  */
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
-
-/** Shared query key for the top-domains aggregate (mirrors `filters.counts`). */
-const TOP_DOMAINS_QUERY_KEY = ['browse', 'top-domains'] as const;
 
 function getSupabase() {
   return createClient();
@@ -85,7 +83,7 @@ interface UseTopDomainsResult {
  */
 export function useTopDomains(limit: number): UseTopDomainsResult {
   const query = useQuery({
-    queryKey: TOP_DOMAINS_QUERY_KEY,
+    queryKey: queryKeys.browse.topDomains,
     queryFn: fetchTopDomains,
     staleTime: TWENTY_FOUR_HOURS_MS,
     gcTime: TWENTY_FOUR_HOURS_MS,
