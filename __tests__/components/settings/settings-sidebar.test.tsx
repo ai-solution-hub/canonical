@@ -59,7 +59,7 @@ describe('getValidSection — developer-setup legacy redirect', () => {
 // ---------------------------------------------------------------------------
 
 describe('SettingsSidebar — nav entry count', () => {
-  it('renders 11 nav entries for admin users (no Developer Setup; includes Organisation)', () => {
+  it('renders 12 nav entries for admin users (no Developer Setup; includes Organisation + Tag Morphology)', () => {
     render(
       <SettingsSidebar
         isAdmin
@@ -71,7 +71,7 @@ describe('SettingsSidebar — nav entry count', () => {
       name: 'Settings navigation',
     });
     const buttons = nav.querySelectorAll('button');
-    expect(buttons).toHaveLength(11);
+    expect(buttons).toHaveLength(12);
   });
 
   it('renders 2 nav entries for non-admin users (Profile + Connections)', () => {
