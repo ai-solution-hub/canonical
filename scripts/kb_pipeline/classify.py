@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Optional, List
 
 import anthropic
+import inflect
 
 from .config import (
     get_env,
@@ -541,63 +542,68 @@ _PLURAL_LOOKING_SINGULARS = frozenset([
     "statistics",
 ])
 
+# ──────────────────────────────────────────
+# Tag morphology engine (S197 / §1.17)
+# ──────────────────────────────────────────
+# Single module-level engine instance. `inflect.engine()` is thread-safe
+# for read operations (singular_noun, plural_noun, etc.). Domain
+# uncountable overrides via `defnoun(word, word)` are defence-in-depth
+# so any downstream code calling the engine directly (outside
+# `_to_singular`) gets consistent behaviour for our domain words.
+#
+# Spec: docs/specs/p1-tag-morphology-library-adoption-spec.md §3.2.3
+_INFLECT_ENGINE = inflect.engine()
+
+_DOMAIN_UNCOUNTABLES = [
+    "economics",
+    "ethics",
+    "genetics",
+    "linguistics",
+    "logistics",
+    "mathematics",
+    "physics",
+    "politics",
+    "robotics",
+    "statistics",
+    "means",
+]
+
+for _word in _DOMAIN_UNCOUNTABLES:
+    _INFLECT_ENGINE.defnoun(_word, _word)
+
 
 def _to_singular(kw: str) -> str:
     """Convert an English plural word to its singular form.
 
-    Handles:
-      - Short words (len <= 3): left unchanged ('bus', 'gas')
-      - Plural-looking singulars ('news', 'means', 'series', 'species'): unchanged
-      - '-sses' → strip 'es' ('addresses' → 'address', 'classes' → 'class')
-      - '-ss' / '-us' / '-sis' / '-ous': unchanged ('access', 'status', 'analysis', 'continuous')
-      - '-ies' (len > 4) → '-y' ('policies' → 'policy', 'companies' → 'company')
-      - '-ches' / '-shes' / '-xes' / '-zes' → strip 'es' ('breaches' → 'breach',
-        'dishes' → 'dish', 'boxes' → 'box', 'quizzes' → 'quiz')
-      - default trailing 's' → strip ('audits' → 'audit', 'systems' → 'system')
+    Layered guards (in order):
+      1. Short-word guard (len <= 3): 'bus', 'gas' etc. kept as-is.
+      2. Override set: _PLURAL_LOOKING_SINGULARS (domain carve-outs).
+      3. Suffix guards: -ss, -us, -sis, -ous — REQUIRED because inflect
+         mis-singularises these (access→acces, process→proces, class→clas,
+         analysis→analysi, continuous→continuou). TS pluralize handles
+         these correctly so does not need the equivalent guards.
+         See spec §3.2.2 for the library-asymmetry table.
+      4. Library fallback: inflect.singular_noun().
+         Returns False when the word is recognised as already singular
+         or uncountable — we fall back to the input in that case.
 
-    Does NOT handle '-ves' → '-f' (knives → knife), '-oes' (heroes, potatoes),
-    or other irregular forms. Add carve-outs to _PLURAL_LOOKING_SINGULARS if
-    regressions surface.
+    Spec: docs/specs/p1-tag-morphology-library-adoption-spec.md §3.2.3
     """
     if len(kw) <= 3:
         return kw
     if kw in _PLURAL_LOOKING_SINGULARS:
         return kw
 
-    # -sses → strip 'es' first, before the bare 'ss' guard
-    if kw.endswith("sses"):
-        return kw[:-2]
-
-    # Guards: unchanged endings
-    if kw.endswith("ss"):
-        return kw
-    if kw.endswith("us"):
-        return kw
-    if kw.endswith("sis"):
-        return kw
-    if kw.endswith("ous"):
+    # Library-asymmetry guard — Python-only compensation for inflect's
+    # aggressive rule-based fallback that strips trailing 's' from
+    # `-ss`, `-us`, `-sis`, `-ous` words the TS pluralize library
+    # preserves. Keep until inflect matches pluralize or until every
+    # affected word is in the override set (impractical at corpus scale).
+    if kw.endswith(("ss", "us", "sis", "ous")):
         return kw
 
-    # -ies (len > 4) → -y
-    if kw.endswith("ies") and len(kw) > 4:
-        return kw[:-3] + "y"
-
-    # -ches/shes/xes → strip 'es'
-    # NOTE: -zes is NOT included — most -ze words pluralise with +s only
-    # ('size', 'prize', 'freeze'), so default strip-s handles them. Irregular
-    # doubled-consonant plurals like 'quizzes' → 'quizz' are an accepted
-    # edge case; add to _PLURAL_LOOKING_SINGULARS if they surface.
-    if (
-        kw.endswith("ches")
-        or kw.endswith("shes")
-        or kw.endswith("xes")
-    ):
-        return kw[:-2]
-
-    # Default: strip trailing 's'
-    if kw.endswith("s"):
-        return kw[:-1]
-    return kw
+    result = _INFLECT_ENGINE.singular_noun(kw)
+    return result if result is not False else kw
 
 
 def normalise_keyword(kw: str) -> str:

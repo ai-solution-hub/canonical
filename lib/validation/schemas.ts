@@ -1,5 +1,36 @@
 import { z } from 'zod';
+import pluralize from 'pluralize';
 import { getValidTypeValues } from '@/lib/workspace-types';
+
+// ──────────────────────────────────────────
+// Tag morphology — domain uncountable registration
+// ──────────────────────────────────────────
+// The `pluralize` library handles most English singular/plural morphology
+// (including irregulars like children/child, knives/knife, heroes/hero,
+// quizzes/quiz) but it strips the trailing 's' from several `-ics` fields
+// of study that are treated as mass nouns in our domain. Register these
+// as uncountable so direct library calls outside `toSingular` behave
+// consistently. The TAG_PLURAL_LOOKING_SINGULARS override set is the
+// primary protection — these registrations are defence-in-depth.
+//
+// Spec: docs/specs/p1-tag-morphology-library-adoption-spec.md §3.1.2
+const DOMAIN_UNCOUNTABLES = [
+  'economics',
+  'ethics',
+  'genetics',
+  'linguistics',
+  'logistics',
+  'mathematics',
+  'physics',
+  'politics',
+  'robotics',
+  'statistics',
+  'means',
+] as const;
+
+for (const word of DOMAIN_UNCOUNTABLES) {
+  pluralize.addUncountableRule(word);
+}
 
 // ──────────────────────────────────────────
 // Shared enums / constants
@@ -966,54 +997,28 @@ const TAG_PLURAL_LOOKING_SINGULARS: ReadonlySet<string> = new Set([
 /**
  * Convert an English plural word to its singular form.
  *
- * Handles:
- *   - Short words (len <= 3): left unchanged (bus, gas)
- *   - Plural-looking singulars (news, means, series, species): left unchanged
- *   - -sses -> strip 'es' (addresses -> address, classes -> class)
- *   - -ss / -us / -sis / -ous: left unchanged (access, status, analysis, continuous)
- *   - -ies (len > 4) -> -y (policies -> policy, companies -> company, libraries -> library)
- *   - -ches/shes/xes/zes -> strip 'es' (breaches -> breach, dishes -> dish, boxes -> box, quizzes -> quiz)
- *   - default trailing 's' -> strip (audits -> audit, systems -> system)
+ * Layered guards (in order):
+ *   1. Short-word guard (len <= 3): 'bus', 'gas' etc. kept as-is (fast path
+ *      + matches Python behaviour).
+ *   2. Override set: TAG_PLURAL_LOOKING_SINGULARS (domain carve-outs) —
+ *      the primary protection for `-ics` fields of study + invariant nouns.
+ *   3. Library fallback: pluralize.singular() handles regular + irregular
+ *      English morphology including -ies → -y, -ves → -f, -oes → -o,
+ *      quizzes → quiz, men → man, children → child, mice → mouse, etc.
  *
- * Does NOT handle: -ves -> -f (knives -> knife), -oes (heroes, potatoes),
- * or other irregular forms. Add carve-outs to TAG_PLURAL_LOOKING_SINGULARS
- * if regressions surface.
+ * Spec: docs/specs/p1-tag-morphology-library-adoption-spec.md §3.1.2
+ *
+ * Historical note: prior to S197 this function used hand-rolled suffix
+ * rules that could not handle irregular forms (heroes → hero, knives → knife,
+ * quizzes → quiz, men → man). The pluralize library ships with 500+ rules
+ * including all of those. Domain uncountables that pluralize does not know
+ * about (10 `-ics` fields + 'means') are registered at module load above.
  */
 function toSingular(tag: string): string {
   if (tag.length <= 3) return tag;
   if (TAG_PLURAL_LOOKING_SINGULARS.has(tag)) return tag;
 
-  // -sses -> strip 'es' first, before the bare 'ss' guard
-  if (tag.endsWith('sses')) return tag.slice(0, -2);
-
-  // Guards: unchanged endings
-  if (tag.endsWith('ss')) return tag;
-  if (tag.endsWith('us')) return tag;
-  if (tag.endsWith('sis')) return tag;
-  if (tag.endsWith('ous')) return tag;
-
-  // -ies (len > 4) -> -y
-  if (tag.endsWith('ies') && tag.length > 4) {
-    return tag.slice(0, -3) + 'y';
-  }
-
-  // -ches/shes/xes -> strip 'es'
-  // NOTE: -zes is NOT included — most -ze words pluralise with +s only
-  // (size, prize, freeze), so default strip-s handles them. Irregular
-  // doubled-consonant plurals like 'quizzes' -> 'quizz' are an accepted
-  // edge case; add to TAG_PLURAL_LOOKING_SINGULARS if they surface.
-  if (
-    tag.endsWith('ches') ||
-    tag.endsWith('shes') ||
-    tag.endsWith('xes')
-  ) {
-    return tag.slice(0, -2);
-  }
-
-  // Default: strip trailing 's'
-  if (tag.endsWith('s')) return tag.slice(0, -1);
-
-  return tag;
+  return pluralize.singular(tag);
 }
 
 /**
