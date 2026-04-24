@@ -16,7 +16,7 @@ import { resolveAlias, loadAliases } from '@/lib/entities/entity-aliases';
 import { extractEntityContext } from '@/lib/entities/entity-context';
 import { bridgeTemporalReferencesToEntities } from '@/lib/entities/entity-metadata-bridge';
 import { normaliseTag } from '@/lib/validation/schemas';
-import { CLIENT_CONFIG, buildDisambiguationBlock } from '@/lib/client-config';
+import { CLIENT_CONFIG, BRANDING, buildDisambiguationBlock } from '@/lib/client-config';
 import { sb } from '@/lib/supabase/safe';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 
@@ -404,6 +404,7 @@ export interface EntityMentionRow {
   canonical_name: string;
   confidence: number;
   context_snippet: string | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 /**
@@ -452,11 +453,77 @@ export function dedupeEntityMentionRows(
     if (existing.context_snippet === null && row.context_snippet !== null) {
       existing.context_snippet = row.context_snippet;
     }
+    // Shallow-merge metadata: later row keys win on collision; disjoint
+    // keys from both sides survive.  Do not create an empty {} when both
+    // are null/undefined — leave merged.metadata as-is (undefined).
+    if (existing.metadata || row.metadata) {
+      existing.metadata = {
+        ...(existing.metadata ?? {}),
+        ...(row.metadata ?? {}),
+      };
+    }
     // entity_name / content_item_id / entity_type / canonical_name:
     // first-wins — already set from the initial row.
   }
 
   return order.map((k) => byKey.get(k) as EntityMentionRow);
+}
+
+/**
+ * Derive `metadata.holder` for certification entity mentions from
+ * `holds` relationships in the classifier output.
+ *
+ * For each certification row, look up its `canonical_name` in the
+ * `holdsRelsByTarget` map (built from `holds` relationships).  If a
+ * match exists, compare the source entity against the client org name
+ * (`BRANDING.organisationName`) to determine whether the cert is
+ * self-held or supplier-held.
+ *
+ * Mutates `rows` in place (same pattern as the ISO override loop in
+ * Step 15b).  Rows without a matching `holds` relationship are left
+ * untouched — metadata remains unset.
+ *
+ * @param rows - filteredEntityRows (post-canonicalise, post-filter).
+ * @param relationships - classifier-emitted relationships.
+ * @returns the number of rows that received holder metadata.
+ */
+export function deriveHolderMetadata(
+  rows: EntityMentionRow[],
+  relationships: ExtractedRelationship[],
+): number {
+  const clientOrgLower = BRANDING.organisationName.toLowerCase();
+  const holdsRelsByTarget = new Map<string, string>();
+
+  for (const rel of relationships) {
+    if (rel.relationship === 'holds') {
+      const targetLower = resolveAlias(
+        canonicalise(rel.target),
+      ).toLowerCase();
+      const sourceLower = resolveAlias(
+        canonicalise(rel.source),
+      ).toLowerCase();
+      holdsRelsByTarget.set(targetLower, sourceLower);
+    }
+  }
+
+  let derived = 0;
+  for (const row of rows) {
+    if (row.entity_type === 'certification') {
+      const holdsSource = holdsRelsByTarget.get(row.canonical_name);
+      if (holdsSource) {
+        if (holdsSource === clientOrgLower) {
+          row.metadata = { holder: 'self' };
+        } else {
+          row.metadata = {
+            holder: 'supplier',
+            supplier_name: holdsSource,
+          };
+        }
+        derived++;
+      }
+    }
+  }
+  return derived;
 }
 
 // ──────────────────────────────────────────
@@ -1494,6 +1561,35 @@ ${contentForClassification}`,
             },
           );
           row.entity_type = 'certification';
+        }
+      }
+
+      // Step 15b2: Derive metadata.holder for certification entity mentions
+      // from holds relationships.  Mirrors the Python holder-disambiguation
+      // mechanism where holder is inferred from source_entity vs client org.
+      // See cert-classifier-holder-rule-spec.md §11.2–11.3.
+      if (result.relationships?.length) {
+        const holderCount = deriveHolderMetadata(
+          filteredEntityRows,
+          result.relationships,
+        );
+        if (holderCount > 0) {
+          logBestEffortWarn(
+            'classify.entity.holder_derivation',
+            `Derived holder metadata for ${holderCount} certification mention(s)`,
+            {
+              itemId,
+              holderCount,
+              certRows: filteredEntityRows
+                .filter((r) => r.metadata)
+                .map((r) => ({
+                  canonicalName: r.canonical_name,
+                  holder: (r.metadata as Record<string, unknown>).holder,
+                  supplierName: (r.metadata as Record<string, unknown>)
+                    .supplier_name,
+                })),
+            },
+          );
         }
       }
 
