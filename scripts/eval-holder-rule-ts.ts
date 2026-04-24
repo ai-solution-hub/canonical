@@ -648,6 +648,27 @@ async function runEvaluation(
   // parse time (the import depends on path aliases resolved by Bun).
   const { classifyContent } = await import('@/lib/ai/classify');
 
+  // SAFETY GUARD: `deriveHolderMetadata` reads `BRANDING.organisationName`
+  // for the self-vs-supplier split. When `NEXT_PUBLIC_CLIENT_ID` is not
+  // set in the shell/env, BRANDING falls back to the `default` client
+  // config ("Knowledge Hub") — which would mis-derive every holds rel
+  // as `holder: 'supplier'` with supplier_name=<actual client org>. Fail
+  // fast before a destructive run would corrupt prod entity_mentions.
+  const { BRANDING } = await import('@/lib/client-config');
+  const brandingOrg = BRANDING.organisationName.toLowerCase();
+  if (brandingOrg !== CLIENT_ORG_LOWER) {
+    logError(
+      `BRANDING mismatch: BRANDING.organisationName = "${BRANDING.organisationName}" ` +
+        `(lowercase "${brandingOrg}") does not match the hardcoded ` +
+        `CLIENT_ORG_LOWER ("${CLIENT_ORG_LOWER}"). This means the classifier ` +
+        `would derive holder metadata against the wrong client org and ` +
+        `corrupt every cert mention in the target set. Set ` +
+        `NEXT_PUBLIC_CLIENT_ID=example-client in your shell or .env.local and retry.`,
+    );
+    process.exit(2);
+  }
+  log(`✓ BRANDING.organisationName matches CLIENT_ORG_LOWER: "${brandingOrg}"`);
+
   const perItem: RunItemResult[] = [];
   let totalCertMentionsWithHolds = 0;
   let totalCertMentionsWithHolderMetadata = 0;
