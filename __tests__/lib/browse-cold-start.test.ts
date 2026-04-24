@@ -67,4 +67,48 @@ describe('shouldShowColdStartPrompts', () => {
       }),
     ).toBe(false);
   });
+
+  // -----------------------------------------------------------------
+  // §1.20 Browse Cards (S197) — post-click gate coverage.
+  // Tests 11/12/13 per spec §11.2. Existing base-gate cases above are
+  // NOT duplicated; these augment them with the new card-kind-specific
+  // interaction semantics.
+  // -----------------------------------------------------------------
+
+  describe('§1.20 Browse Cards post-click gate (tests 11, 12, 13)', () => {
+    it('test 11: post-FILTER-click → activeFilterCount ≥ 1 → hides cards', () => {
+      // F-2/F-3/F-4 + B-2/B-3 + A-3 + M-1/M-3 all apply a filter; any
+      // single filter incrementing activeFilterCount must hide cards.
+      expect(
+        shouldShowColdStartPrompts({
+          ...COLD_START_BASELINE,
+          activeFilterCount: 1,
+        }),
+      ).toBe(false);
+    });
+
+    it('test 12: post-CHIP-click → same gate as filter-click (separate assertion for log clarity)', () => {
+      // A domain chip click writes `?domain=<slug>` which increments
+      // activeFilterCount. Tested separately so chip-vs-filter paths
+      // are distinguishable in the test log.
+      expect(
+        shouldShowColdStartPrompts({
+          ...COLD_START_BASELINE,
+          activeFilterCount: 1,
+        }),
+      ).toBe(false);
+    });
+
+    it('test 13: More-button no-op → activeFilterCount stays 0 → cards remain visible', () => {
+      // Clicking "More domains…" opens the filter panel but does NOT
+      // mutate the URL. activeFilterCount stays at 0, so cards remain
+      // visible behind the open panel (spec §6.5 backdrop behaviour).
+      expect(
+        shouldShowColdStartPrompts({
+          ...COLD_START_BASELINE,
+          activeFilterCount: 0,
+        }),
+      ).toBe(true);
+    });
+  });
 });
