@@ -191,9 +191,14 @@ describe('deriveHolderMetadata', () => {
     expect(rows[0].metadata).toEqual({ holder: 'self' });
   });
 
-  it('accepts synonym for supplier-held certs too', () => {
+  it('accepts synonym for supplier-held certs when supplier is extracted as org', () => {
+    // Supplier case requires the supplier to be extracted as an
+    // organisation entity in the same batch — the tightened rule
+    // prevents garbage rels like "ISO 27001 complies_with X" from
+    // deriving cert-held-by-cert metadata.
     const rows: EntityMentionRow[] = [
       row({ canonical_name: 'iso 27001' }),
+      row({ entity_type: 'organisation', canonical_name: 'example-datacentre europe' }),
     ];
     const rels: ExtractedRelationship[] = [
       {
@@ -210,6 +215,31 @@ describe('deriveHolderMetadata', () => {
       holder: 'supplier',
       supplier_name: 'example-datacentre europe',
     });
+  });
+
+  it('rejects synonym when source is a cert (prevents cert-to-cert garbage rels)', () => {
+    // S196 prod case: classifier emitted "ISO 27001 complies_with
+    // Cyber Essentials Plus" on item 7e511dbc. Without the source-is-org
+    // filter, synonym fallback produced holder='supplier',
+    // supplier_name='iso 27001' — nonsense. Tightened rule requires
+    // source to match clientOrgLower OR be extracted as organisation.
+    const rows: EntityMentionRow[] = [
+      row({ canonical_name: 'iso 27001' }),
+      row({ canonical_name: 'cyber essentials plus' }),
+    ];
+    const rels: ExtractedRelationship[] = [
+      {
+        source: 'ISO 27001',
+        relationship: 'complies_with',
+        target: 'Cyber Essentials Plus',
+      },
+    ];
+
+    const count = deriveHolderMetadata(rows, rels);
+
+    expect(count).toBe(0);
+    expect(rows[0].metadata).toBeUndefined();
+    expect(rows[1].metadata).toBeUndefined();
   });
 
   it('does NOT accept `complies_with` for non-certification targets', () => {

@@ -56,27 +56,12 @@ function loadEnvFile(path: string): void {
 loadEnvFile('.env.local');
 loadEnvFile('.env');
 
-// Corrupted item IDs extracted from /tmp/ts-eval-output.log (items 1-18).
-const CORRUPTED_ITEM_IDS = [
-  '6d576583-65c0-4338-a8e7-35351b4fe1ab',
-  '95b1d533-e5e6-416f-8a9a-49e6848af15e',
-  '32335dbd-b81d-4fb0-9c5c-41340e1d56c6',
-  '9ff409e8-62a7-450e-842b-ba1c32bca5f9',
-  '83387a7f-110e-450e-ac80-7ceff75c5f0f',
-  '1ec3f741-86cd-415f-aaa7-d260c4be6f5b',
-  'cabe62a5-86e0-49e8-873c-b2b44ffc10ae',
-  'fa544a64-7cdc-4c34-b3c0-f989606359a1',
-  '5344e4d3-90e7-4ea1-b39e-37cbd68ccfba',
-  '9b1f008e-8c7e-4462-b8f5-6e0866d93a40',
-  '4b8cbae1-a04d-461f-a6bc-ee00abb3a498',
-  '5877ef3e-01da-40f5-af25-a0d1801ed876',
-  '4d8f39a0-852b-404f-8670-863f7486daa0',
-  '98b398e8-36fe-4173-bcad-8a96c41b5464',
-  'a5ae53c1-8314-41d1-925e-49cb8b12c360',
-  '1ea53ca9-a6b4-4306-beee-d8f4be860583',
-  'a069c9f9-038f-4f2c-a74b-45f5c35578a1',
-  '22715573-779b-4cef-9589-787dcd89e863',
-];
+// Restore the full eval target set. First eval run (wrong BRANDING)
+// overwrote items 1-18; second retry run (correct BRANDING but eval
+// design is non-deterministic) overwrote items 1-17/18 again + some
+// new ones. Safer to restore ALL 52 items the snapshot captured —
+// covers both runs, is idempotent, returns prod to pre-eval baseline.
+const CORRUPTED_ITEM_IDS = 'ALL' as const;
 
 const SNAPSHOT_PATH = 'docs/audits/ts-eval-preflight-2026-04-25.json';
 
@@ -129,11 +114,17 @@ async function main(): Promise<void> {
 
   const snapshot: Snapshot = JSON.parse(readFileSync(SNAPSHOT_PATH, 'utf-8'));
 
+  const targetItemIds =
+    CORRUPTED_ITEM_IDS === 'ALL'
+      ? Object.keys(snapshot.items)
+      : CORRUPTED_ITEM_IDS;
+  console.log(`[restore] Restoring ${targetItemIds.length} items from snapshot`);
+
   let restoredItems = 0;
   let restoredMentions = 0;
   let restoredRels = 0;
 
-  for (const itemId of CORRUPTED_ITEM_IDS) {
+  for (const itemId of targetItemIds) {
     const item = snapshot.items[itemId];
     if (!item) {
       console.warn(`[restore] ${itemId}: NOT in snapshot, skipping`);
@@ -225,7 +216,7 @@ async function main(): Promise<void> {
 
   console.log('');
   console.log(
-    `[restore] Done. Items: ${restoredItems}/${CORRUPTED_ITEM_IDS.length}, mentions: ${restoredMentions}, holds rels: ${restoredRels}`,
+    `[restore] Done. Items: ${restoredItems}/${targetItemIds.length}, mentions: ${restoredMentions}, holds rels: ${restoredRels}`,
   );
 }
 
