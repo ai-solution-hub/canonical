@@ -157,6 +157,60 @@ function MarkdownFields({
   );
 }
 
+function FeedArticleFields({
+  feedArticle,
+  feedSourceNameFallback,
+  publishedFallback,
+  sourceUrl,
+  canEdit,
+}: {
+  feedArticle: FeedArticleJoin | null;
+  feedSourceNameFallback: string | null;
+  publishedFallback: string | null;
+  sourceUrl: string | null | undefined;
+  canEdit: boolean;
+}) {
+  // Canonical source: join result. Fallback: JSONB keys when the join
+  // returned nothing (§3.1.2 fallback rule).
+  const feedName =
+    feedArticle?.feed_source?.name ?? feedSourceNameFallback ?? null;
+  const feedUrl = feedArticle?.feed_source?.url ?? null;
+  const publishedIso =
+    feedArticle?.published_at ?? publishedFallback ?? null;
+  const publishedUk = publishedIso ? formatDateUK(publishedIso) : null;
+
+  const empty = !sourceUrl || sourceUrl.trim() === '';
+
+  return (
+    <>
+      {feedName && <MetadataRow label="Feed source">{feedName}</MetadataRow>}
+      {canEdit && feedUrl && (
+        <MetadataRow label="Feed URL">
+          <span className="break-all">{feedUrl}</span>
+        </MetadataRow>
+      )}
+      {publishedUk && (
+        <MetadataRow label="Published">{publishedUk}</MetadataRow>
+      )}
+      {/* Feed-article block owns its source URL row (renders a clickable
+          link when populated, hides when empty — no Q&A "No source URL"
+          fallback for articles). */}
+      {!empty && (
+        <MetadataRow label="Source URL">
+          <a
+            href={sourceUrl as string}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary underline underline-offset-2 hover:no-underline break-all"
+          >
+            {truncateUrl(sourceUrl as string, 60)}
+          </a>
+        </MetadataRow>
+      )}
+    </>
+  );
+}
+
 function GenericArticleFields({
   metadata,
 }: {
@@ -330,6 +384,27 @@ export function SourceMetadata({
         importBatch={importBatch}
       />
     );
+  } else if (
+    hasFeedArticle ||
+    (meta?.feed_source_name as string | undefined) ||
+    (meta?.published_at as string | undefined)
+  ) {
+    // Feed-article dispatch: prefer the canonical join; fall back to JSONB
+    // keys for legacy items that have denormalised metadata but no FK row.
+    platformFields = (
+      <FeedArticleFields
+        feedArticle={feedArticle ?? null}
+        feedSourceNameFallback={
+          (meta?.feed_source_name as string | undefined) ?? null
+        }
+        publishedFallback={
+          (meta?.published_at as string | undefined) ?? null
+        }
+        sourceUrl={sourceUrl}
+        canEdit={effectiveCanEdit}
+      />
+    );
+    typeBlockRendersSourceUrl = true;
   } else if (detectMarkdownIngest(meta)) {
     platformFields = (
       <MarkdownFields

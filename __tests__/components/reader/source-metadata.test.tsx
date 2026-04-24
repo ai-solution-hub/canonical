@@ -467,6 +467,116 @@ describe('SourceMetadata — classification_confidence role-gate (AC-5)', () => 
 });
 
 // ---------------------------------------------------------------------------
+// Phase 5 — RSS feed article rendering (AC-4)
+// ---------------------------------------------------------------------------
+
+describe('SourceMetadata — RSS feed article (Phase 5, AC-4)', () => {
+  const feedArticle = {
+    published_at: '2026-04-23T14:17:23.000Z',
+    feed_source: {
+      name: 'DfE Guidance',
+      url: 'https://example.gov.uk/rss.xml',
+      source_type: 'rss' as const,
+    },
+  };
+
+  it('viewer: renders Feed source, Published, clickable Source URL, Ingestion source "RSS feed"; hides Feed URL', async () => {
+    useUserRoleMock.mockReturnValue({
+      role: 'viewer',
+      loading: false,
+      canEdit: false,
+      canAdmin: false,
+    });
+    renderWithProviders(
+      <SourceMetadata
+        contentType="article"
+        platform={null}
+        metadata={{}}
+        sourceUrl="https://example.gov.uk/article"
+        feedArticle={feedArticle}
+      />,
+    );
+    await openAccordion();
+    expect(screen.getByText('Feed source')).toBeInTheDocument();
+    expect(screen.getByText('DfE Guidance')).toBeInTheDocument();
+    expect(screen.getByText('Published')).toBeInTheDocument();
+    expect(screen.getByText('23/04/2026')).toBeInTheDocument();
+    // Source URL as clickable link.
+    const link = screen.getByRole('link', {
+      name: 'https://example.gov.uk/article',
+    });
+    expect(link).toHaveAttribute('href', 'https://example.gov.uk/article');
+    // Ingestion source fallback "RSS feed" (ingestion_source raw is null,
+    // hasFeedArticle true).
+    expect(screen.getByText('Ingestion source')).toBeInTheDocument();
+    expect(screen.getByText('RSS feed')).toBeInTheDocument();
+    // Feed URL row hidden for viewer.
+    expect(screen.queryByText('Feed URL')).toBeNull();
+    expect(screen.queryByText('https://example.gov.uk/rss.xml')).toBeNull();
+  });
+
+  it('editor: renders Feed URL and Classification confidence', async () => {
+    useUserRoleMock.mockReturnValue({
+      role: 'editor',
+      loading: false,
+      canEdit: true,
+      canAdmin: false,
+    });
+    renderWithProviders(
+      <SourceMetadata
+        contentType="article"
+        platform={null}
+        metadata={{}}
+        sourceUrl="https://example.gov.uk/article"
+        feedArticle={feedArticle}
+        classificationConfidence={0.85}
+      />,
+    );
+    await openAccordion();
+    expect(screen.getByText('Feed URL')).toBeInTheDocument();
+    expect(screen.getByText('https://example.gov.uk/rss.xml')).toBeInTheDocument();
+    expect(screen.getByText('85%')).toBeInTheDocument();
+  });
+
+  it('falls back to JSONB feed_source_name when feedArticle join is null', async () => {
+    renderWithProviders(
+      <SourceMetadata
+        contentType="article"
+        platform={null}
+        metadata={{
+          feed_source_name: 'Legacy Feed',
+          published_at: '2026-03-15T10:00:00Z',
+        }}
+        sourceUrl="https://example.com/legacy"
+        feedArticle={null}
+      />,
+    );
+    await openAccordion();
+    expect(screen.getByText('Feed source')).toBeInTheDocument();
+    expect(screen.getByText('Legacy Feed')).toBeInTheDocument();
+    expect(screen.getByText('Published')).toBeInTheDocument();
+    expect(screen.getByText('15/03/2026')).toBeInTheDocument();
+  });
+
+  it('routes through generic dispatch when feedArticle is null and no JSONB feed keys', async () => {
+    renderWithProviders(
+      <SourceMetadata
+        contentType="article"
+        platform={null}
+        metadata={{ extraction_source: 'readability' }}
+        sourceUrl="https://example.com/plain-web"
+        feedArticle={null}
+      />,
+    );
+    await openAccordion();
+    // Extraction method is a generic-article block row.
+    expect(screen.getByText('Extraction method')).toBeInTheDocument();
+    // No Feed source row because nothing identifies this as a feed.
+    expect(screen.queryByText('Feed source')).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Phase 4 — AI-mechanism leakage regression (AC-7) and sidebar-duplication
 // regression (AC-8). Kitchen-sink prop set, both role states.
 // Spec §8.3.9.
