@@ -7,6 +7,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { formatDateUK } from '@/lib/format';
+import { useUserRole } from '@/hooks/use-user-role';
 import {
   detectMarkdownIngest,
   formatConfidencePercent,
@@ -233,6 +234,29 @@ function SourceUrlRow({
   );
 }
 
+/**
+ * Role-gated classification confidence row.
+ *
+ * Renders only for `admin` and `editor` roles (`canEdit === true`). Never
+ * for viewers, anonymous users, or during role-hook loading state. Plain
+ * text percentage — no badge, no icon, no colour coding — per the AI-
+ * visibility policy "Editor+admin Source Information surface" amendment.
+ */
+function ConfidenceRow({
+  confidence,
+  canEdit,
+}: {
+  confidence: number | null | undefined;
+  canEdit: boolean;
+}) {
+  if (!canEdit) return null;
+  const formatted = formatConfidencePercent(confidence);
+  if (formatted == null) return null;
+  return (
+    <MetadataRow label="Classification confidence">{formatted}</MetadataRow>
+  );
+}
+
 function WordCountRow({ content }: { content: string | null | undefined }) {
   const wordCount = content
     ? content.trim().split(/\s+/).filter(Boolean).length
@@ -268,11 +292,18 @@ export function SourceMetadata({
   content,
   sourceFile,
   sourceUrl,
+  classificationConfidence,
   createdAt,
   answerStandard,
   answerAdvanced,
   feedArticle,
 }: SourceMetadataProps) {
+  // Single hook call per render; `canEdit` passed down as prop to keep
+  // subcomponents pure (spec §7.5). During initial fetch `loading === true`
+  // and we suppress role-gated rows entirely to avoid flicker + leakage.
+  const { canEdit, loading: roleLoading } = useUserRole();
+  const effectiveCanEdit = !roleLoading && canEdit;
+
   const meta = metadata ?? {};
 
   const sectionName = (meta?.section_name as string | undefined) ?? null;
@@ -311,8 +342,8 @@ export function SourceMetadata({
     platformFields = <GenericArticleFields metadata={meta} />;
   }
 
-  // Empty-accordion rule (§4.5). Phase 4 adds the `canEdit &&
-  // classificationConfidence != null` clause; Phase 5 the feedArticle clause.
+  // Empty-accordion rule (§4.5). Phase 5 adds the feedArticle dispatch
+  // branch; the feedArticle clause below is already present.
   const hasAnyRow =
     !!sourceFile ||
     !!sourceUrl ||
@@ -325,6 +356,7 @@ export function SourceMetadata({
     !!meta?.newsletter_name ||
     !!meta?.page_count ||
     (content != null && content.trim().length > 0) ||
+    (effectiveCanEdit && classificationConfidence != null) ||
     hasFeedArticle;
 
   if (!hasAnyRow) return null;
@@ -347,6 +379,10 @@ export function SourceMetadata({
             <IngestionSourceRow
               rawSource={ingestionSourceRaw}
               hasFeedArticle={hasFeedArticle}
+            />
+            <ConfidenceRow
+              confidence={classificationConfidence}
+              canEdit={effectiveCanEdit}
             />
             <WordCountRow content={content} />
           </dl>
