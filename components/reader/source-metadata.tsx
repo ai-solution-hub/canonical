@@ -6,11 +6,38 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
+
+/**
+ * Shape of a feed-articles + feed-sources join row, as returned by the
+ * `app/item/[id]/page.tsx` fetcher. `null` when the item is not from a feed.
+ *
+ * Spec: `docs/specs/source-information-spec.md` §5.1.
+ */
+export interface FeedArticleJoin {
+  /** `feed_articles.published_at` (timestamptz → ISO string). */
+  published_at: string | null;
+  feed_source: {
+    name: string;
+    url: string;
+    source_type: 'rss' | 'web' | 'api';
+  } | null;
+}
+
 interface SourceMetadataProps {
   contentType: string | null;
   platform: string | null;
   metadata: Record<string, unknown> | null;
   content?: string | null;
+
+  // New additive props — all optional to preserve backwards compatibility
+  // with the single existing call-site in `metadata-sidebar.tsx`.
+  sourceFile?: string | null;
+  sourceUrl?: string | null;
+  classificationConfidence?: number | null;
+  createdAt?: string | null;
+  answerStandard?: string | null;
+  answerAdvanced?: string | null;
+  feedArticle?: FeedArticleJoin | null;
 }
 
 function MetadataRow({

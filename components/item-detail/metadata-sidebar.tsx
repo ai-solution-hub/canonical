@@ -562,6 +562,13 @@ export function MetadataSidebar({
         platform={item.platform as string}
         metadata={item.metadata}
         content={item.content as string | null}
+        sourceFile={item.source_file ?? null}
+        sourceUrl={item.source_url ?? null}
+        classificationConfidence={item.classification_confidence ?? null}
+        createdAt={item.created_at ?? null}
+        answerStandard={item.answer_standard ?? null}
+        answerAdvanced={item.answer_advanced ?? null}
+        feedArticle={item.feed_article ?? null}
       />
     </div>
   );
