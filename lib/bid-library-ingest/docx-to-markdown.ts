@@ -38,7 +38,8 @@ const sharedTurndown = createTurndownService();
 export async function docxBufferToMarkdown(
   buffer: Buffer | ArrayBuffer,
 ): Promise<string> {
-  const { value: html } = await mammoth.convertToHtml({ buffer });
+  const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+  const { value: html } = await mammoth.convertToHtml({ buffer: buf });
   return sharedTurndown.turndown(html).trim();
 }
 
@@ -68,6 +69,7 @@ export function htmlToMarkdown(html: string): string {
 export async function docxBufferToHtml(
   buffer: Buffer | ArrayBuffer,
 ): Promise<string> {
-  const { value: html } = await mammoth.convertToHtml({ buffer });
+  const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+  const { value: html } = await mammoth.convertToHtml({ buffer: buf });
   return html;
 }

@@ -189,8 +189,11 @@ Three concurrent long-lived worktrees on this project (shared filesystem via
   Primer: `docs/tracks/kh-knowledge-platform.md`.
 - **production-readiness** (`/Users/liamj/Documents/development/knowledge-hub-production-readiness`,
   branch `production-readiness`) — CI/CD, staging DB, structured logging,
-  handover infra. Track-local counter `kh-prod-readiness-sN`. One-way
-  references only (does NOT merge back to main). Primer:
+  handover infra. Track-local counter `kh-prod-readiness-sN`.
+  **Bidirectional merge with main** (corrected S1 closeout 24/04/2026
+  — kickoff primer wrongly said one-way). Roadmap + runbook + handover
+  artefacts land here and merge to main; main fixes also merge in.
+  Unlike kh-knowledge-platform (which IS one-way). Primer:
   `docs/tracks/production-readiness.md`.
 
 Closed tracks: UI simplification (`knowledge-hub-ui-ux-simplification`, closed

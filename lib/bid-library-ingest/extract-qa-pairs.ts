@@ -473,7 +473,8 @@ export async function extractQaPairs(
   sourceFile: string = '',
 ): Promise<QaPair[]> {
   // Step 1: Convert DOCX to HTML via mammoth
-  const { value: html } = await mammoth.convertToHtml({ buffer });
+  const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+  const { value: html } = await mammoth.convertToHtml({ buffer: buf });
 
   // Step 2: Extract heading context for each table
   const headingMap = extractHeadingsBeforeTables(html);

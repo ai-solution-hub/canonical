@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
         title: string;
         content_type: string;
         primary_domain: string | null;
-        layer?: string;
+        layer: string | null;
       }) => ({
         id: item.id,
         title: item.title,
