@@ -19,6 +19,7 @@ from extract_docx_tables import (
     normalize_header,
     detect_table_format,
     extract_qa_from_docx,
+    _cell_markdown,
 )
 
 
@@ -194,3 +195,93 @@ class TestExtractQaFromDocxTrackChanges:
             with pytest.raises(RuntimeError, match="test error"):
                 extract_qa_from_docx("/fake/path/test.docx")
             mock_unlink.assert_called_once_with(temp_path)
+
+
+# ── _cell_markdown (Phase 3 markdown emission) ──────────────────────────
+
+
+class TestCellMarkdown:
+    """Tests for the markdown-emitting cell extraction function."""
+
+    def test_converts_bold_runs(self):
+        """Bold runs in a cell become **bold** markdown."""
+        mock_cell = MagicMock()
+        mock_para = MagicMock()
+        mock_para.text = "Important text"
+        mock_run = MagicMock()
+        mock_run.text = "Important text"
+        mock_run.bold = True
+        mock_run.italic = False
+        mock_para.runs = [mock_run]
+        mock_cell.paragraphs = [mock_para]
+
+        result = _cell_markdown(mock_cell)
+        assert "**Important text**" in result
+
+    def test_converts_italic_runs(self):
+        """Italic runs in a cell become *italic* markdown."""
+        mock_cell = MagicMock()
+        mock_para = MagicMock()
+        mock_para.text = "Emphasised text"
+        mock_run = MagicMock()
+        mock_run.text = "Emphasised text"
+        mock_run.bold = False
+        mock_run.italic = True
+        mock_para.runs = [mock_run]
+        mock_cell.paragraphs = [mock_para]
+
+        result = _cell_markdown(mock_cell)
+        assert "*Emphasised text*" in result
+
+    def test_plain_text_fallback(self):
+        """Cells with no formatted runs fall back to plain text."""
+        mock_cell = MagicMock()
+        mock_para = MagicMock()
+        mock_para.text = "Plain paragraph"
+        mock_para.runs = []
+        mock_cell.paragraphs = [mock_para]
+
+        result = _cell_markdown(mock_cell)
+        assert "Plain paragraph" in result
+
+    def test_empty_cell_returns_empty(self):
+        """Empty cells return an empty string."""
+        mock_cell = MagicMock()
+        mock_para = MagicMock()
+        mock_para.text = ""
+        mock_para.runs = []
+        mock_cell.paragraphs = [mock_para]
+
+        result = _cell_markdown(mock_cell)
+        assert result == ""
+
+
+# ── emit_markdown parameter ──────────────────────────────────────────────
+
+
+class TestEmitMarkdownParameter:
+    """Tests that the emit_markdown flag is passed through correctly."""
+
+    @patch("extract_docx_tables.os.path.exists", return_value=True)
+    @patch("extract_docx_tables.open_document_safe")
+    def test_emit_markdown_parameter_accepted(self, mock_open_safe, mock_exists):
+        """extract_qa_from_docx accepts emit_markdown parameter without error."""
+        mock_doc = MagicMock()
+        mock_doc.element.body = []
+        mock_open_safe.return_value = (mock_doc, None)
+
+        # Should not raise
+        result = extract_qa_from_docx("/fake/path/test.docx", emit_markdown=True)
+        assert result == []
+
+    @patch("extract_docx_tables.os.path.exists", return_value=True)
+    @patch("extract_docx_tables.open_document_safe")
+    def test_emit_markdown_default_false(self, mock_open_safe, mock_exists):
+        """emit_markdown defaults to False for backwards compatibility."""
+        mock_doc = MagicMock()
+        mock_doc.element.body = []
+        mock_open_safe.return_value = (mock_doc, None)
+
+        # Default call should work (backwards-compatible)
+        result = extract_qa_from_docx("/fake/path/test.docx")
+        assert result == []

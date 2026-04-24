@@ -269,8 +269,48 @@ def _cell_text(cell) -> str:
     return "\n".join(paragraphs)
 
 
+def _cell_markdown(cell) -> str:
+    """Extract cell content as GFM markdown via pandoc.
+
+    Builds a minimal HTML representation of the cell's paragraphs (preserving
+    bold/italic/links from OOXML runs), then converts to markdown via pandoc.
+    Falls back to plain text if pandoc is unavailable.
+
+    This is the Phase 3 markdown-emitting path. The existing _cell_text()
+    is retained for question text (which stays plain text) and for header
+    detection.
+    """
+    from docx_cell_to_markdown import html_cell_to_markdown, plain_text_to_markdown
+
+    # Build HTML from the cell's OOXML paragraph runs to preserve formatting
+    html_parts = []
+    for paragraph in cell.paragraphs:
+        if not paragraph.text.strip():
+            continue
+        run_html = []
+        for run in paragraph.runs:
+            text = run.text
+            if not text:
+                continue
+            # Preserve bold and italic from OOXML run properties
+            if run.bold:
+                text = f"<strong>{text}</strong>"
+            if run.italic:
+                text = f"<em>{text}</em>"
+            run_html.append(text)
+        if run_html:
+            html_parts.append(f"<p>{''.join(run_html)}</p>")
+
+    if not html_parts:
+        # No formatted content — fall back to plain text extraction
+        return plain_text_to_markdown(_cell_text(cell))
+
+    html = "\n".join(html_parts)
+    return html_cell_to_markdown(html)
+
+
 def extract_qa_from_table(table, section_name: str = "", table_index: int = 0,
-                          source_file: str = "") -> list[dict]:
+                          source_file: str = "", emit_markdown: bool = False) -> list[dict]:
     """Extract Q&A pairs from a single Word table.
 
     Args:
@@ -334,8 +374,12 @@ def extract_qa_from_table(table, section_name: str = "", table_index: int = 0,
         if len(cells) <= max(q_idx, std_idx):
             continue
 
+        # Question always extracted as plain text
         question = _cell_text(cells[q_idx])
-        standard = _cell_text(cells[std_idx])
+
+        # Answer fields: markdown or plain text depending on emit_markdown flag
+        cell_fn = _cell_markdown if emit_markdown else _cell_text
+        standard = cell_fn(cells[std_idx])
 
         # Skip empty question rows (spacing/formatting rows)
         if not question.strip():
@@ -343,7 +387,7 @@ def extract_qa_from_table(table, section_name: str = "", table_index: int = 0,
 
         advanced = ""
         if adv_idx is not None and adv_idx < len(cells):
-            advanced = _cell_text(cells[adv_idx])
+            advanced = cell_fn(cells[adv_idx])
 
         # Use section from column if present, otherwise fall back to heading-based section
         row_section = section_name
@@ -367,7 +411,7 @@ def extract_qa_from_table(table, section_name: str = "", table_index: int = 0,
 
 # ── Main extraction from a DOCX file ────────────────────────────────────
 
-def extract_qa_from_docx(file_path: str) -> list[dict]:
+def extract_qa_from_docx(file_path: str, emit_markdown: bool = False) -> list[dict]:
     """Extract all Q&A pairs from a Word document.
 
     Walks through the document, tracking section headings (Heading 1/2/3)
@@ -375,6 +419,9 @@ def extract_qa_from_docx(file_path: str) -> list[dict]:
 
     Args:
         file_path: Path to the .docx file
+        emit_markdown: When True, answer fields are emitted as GFM markdown
+            via pandoc conversion. When False (default), plain text is emitted
+            (backwards-compatible with pre-Phase-3 behaviour).
 
     Returns:
         List of dicts, each containing a Q&A pair with metadata
@@ -427,6 +474,7 @@ def extract_qa_from_docx(file_path: str) -> list[dict]:
                         section_name=current_section,
                         table_index=table_index,
                         source_file=source_file,
+                        emit_markdown=emit_markdown,
                     )
                     all_pairs.extend(pairs)
                 table_index += 1

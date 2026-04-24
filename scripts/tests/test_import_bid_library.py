@@ -484,7 +484,7 @@ class TestMainIntegrationCrossFileDedup:
             "row_index": 8,
         }
 
-        def fake_extract(filepath):
+        def fake_extract(filepath, emit_markdown=False):
             if filepath.endswith("a-final.docx"):
                 return [pair_a]
             return [pair_b_dup, pair_b_unique]
@@ -590,3 +590,61 @@ class TestChunkOnIngest:
         finally:
             for p in patches:
                 p.stop()
+
+
+# ── Phase 3 content shape: \n\n between answers ──────────────────────────
+
+
+class TestContentShapeDoubleNewline:
+    """Phase 3: canonical content shape uses \\n\\n between answers.
+
+    Spec: p0-bm-phase3 ss4.1 + ss6.1.
+    """
+
+    def _make_pair(self, **overrides):
+        pair = {
+            "question_text": "What is your data protection policy?",
+            "answer_standard": "We follow GDPR best practices.",
+            "answer_advanced": "Our advanced data protection includes encryption at rest.",
+            "section_name": "Security",
+            "source_file": "test.docx",
+            "table_index": 0,
+            "row_index": 1,
+            "primary_domain": "security",
+            "primary_subtopic": "data-protection",
+            "classification_confidence": 0.7,
+        }
+        pair.update(overrides)
+        return pair
+
+    def test_both_answers_double_newline_separator(self):
+        """When both answers present, content uses \\n\\n between them."""
+        pair = self._make_pair()
+        record = build_content_record(pair, "test-batch")
+        content = record["content"]
+        # Shape: "Q: {q}\n\n{a_s}\n\n{a_a}"
+        assert content.startswith("Q: What is your data protection policy?")
+        assert "We follow GDPR best practices.\n\nOur advanced" in content
+
+    def test_standard_only_no_trailing_newlines(self):
+        """When only standard answer, no trailing blank lines."""
+        pair = self._make_pair(answer_advanced="")
+        record = build_content_record(pair, "test-batch")
+        content = record["content"]
+        assert content == "Q: What is your data protection policy?\n\nWe follow GDPR best practices."
+
+    def test_advanced_only(self):
+        """When only advanced answer, it follows question directly."""
+        pair = self._make_pair(answer_standard="")
+        record = build_content_record(pair, "test-batch")
+        content = record["content"]
+        assert content == "Q: What is your data protection policy?\n\nOur advanced data protection includes encryption at rest."
+
+    def test_neither_answer(self):
+        """When both answers empty, content is question + blank separator."""
+        pair = self._make_pair(answer_standard="", answer_advanced="")
+        record = build_content_record(pair, "test-batch")
+        content = record["content"]
+        # The blank line separator ("") is always added after question,
+        # producing "Q: ...\n" (join of ["Q: ...", ""])
+        assert content.startswith("Q: What is your data protection policy?")

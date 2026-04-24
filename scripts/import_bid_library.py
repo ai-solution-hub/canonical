@@ -209,12 +209,18 @@ def extract_keywords(
 def build_content_record(pair: dict, batch_name: str) -> dict:
     """Convert a classified Q&A pair dict into a Supabase content_items record."""
     # Build the content field: question + answer text for search indexing
+    # Canonical shape: "Q: {question}\n\n{answer_standard}\n\n{answer_advanced}"
+    # with \n\n (double newline / paragraph boundary) between each segment.
+    # Spec: p0-bm-phase3 ss4.1 + ss6.1.
     content_parts = []
     content_parts.append(f"Q: {pair['question_text']}")
-    content_parts.append("")  # blank line separator
+    content_parts.append("")  # blank line separator (\n\n) after question
     if pair.get("answer_standard"):
         content_parts.append(pair["answer_standard"])
     if pair.get("answer_advanced"):
+        # Empty string between answers produces \n\n when joined
+        if pair.get("answer_standard"):
+            content_parts.append("")
         content_parts.append(pair["answer_advanced"])
     content = "\n".join(content_parts) if content_parts else ""
 
@@ -419,7 +425,7 @@ def main():
     total_extracted = 0
     for filepath in files:
         try:
-            pairs = extract_qa_from_docx(filepath)
+            pairs = extract_qa_from_docx(filepath, emit_markdown=True)
             # Attach TC status and batch tag to each pair
             for pair in pairs:
                 pair["has_tracked_changes"] = tc_map.get(filepath, False)
