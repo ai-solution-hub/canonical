@@ -9,6 +9,22 @@ import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import { createQueryWrapper } from '../helpers/query-wrapper';
 
+// Cold-start gate transitively renders `PromptCardChipComposite` which
+// reads `useTaxonomy` + `useTopDomains` (Supabase RPC). Stub both so
+// non-search-mode tests don't need a TaxonomyProvider chain.
+vi.mock('@/contexts/taxonomy-context', () => ({
+  useTaxonomy: () => ({
+    getDomainNames: () => [] as string[],
+    formatDomainName: (name: string) => name,
+  }),
+}));
+
+vi.mock('@/lib/supabase/client', () => ({
+  createClient: () => ({
+    rpc: vi.fn(async () => ({ data: { domain: {} }, error: null })),
+  }),
+}));
+
 // ---------------------------------------------------------------------------
 // Hoisted mocks — must be defined before vi.mock() factories
 // ---------------------------------------------------------------------------
