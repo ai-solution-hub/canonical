@@ -1,7 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 
 const mockPush = vi.fn();
 vi.mock('next/navigation', () => ({
@@ -15,34 +17,100 @@ vi.mock('next/navigation', () => ({
   }),
 }));
 
+// Mock the taxonomy context used by DomainBadge
+vi.mock('@/contexts/taxonomy-context', () => ({
+  useTaxonomy: () => ({
+    getDomainColourKey: (domain: string) => domain.toLowerCase(),
+    formatDomainName: (domain: string) =>
+      domain.replace(/-/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+  }),
+}));
+
 import { SearchBar } from '@/components/browse/search-bar';
+
+// ---------------------------------------------------------------------------
+// Test helpers
+// ---------------------------------------------------------------------------
+
+function createQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, refetchOnWindowFocus: false, gcTime: 0 },
+      mutations: { retry: false },
+    },
+  });
+}
+
+/** Wraps children in a QueryClientProvider (needed because SearchBar
+ *  now calls useDebouncedPreview which uses TanStack Query). */
+function TestWrapper({ children }: { children: ReactNode }) {
+  const qc = createQueryClient();
+  return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+}
+
+function renderSearchBar(props: Parameters<typeof SearchBar>[0] = {}) {
+  return render(<SearchBar {...props} />, { wrapper: TestWrapper });
+}
+
+/** Mock preview API response shape. */
+function createPreviewResponse(
+  results: Array<{
+    id: string;
+    title: string;
+    content_type: string;
+    primary_domain: string | null;
+  }>,
+) {
+  return new Response(JSON.stringify({ results, count: results.length }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
 
 describe('SearchBar', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    // Default: suggestions returns empty, preview returns empty
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+      const urlStr = typeof url === 'string' ? url : url.toString();
+      if (urlStr.includes('/api/search/suggestions')) {
+        return new Response(JSON.stringify({ keywords: [] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (urlStr.includes('/api/search/preview')) {
+        return createPreviewResponse([]);
+      }
+      return new Response('{}', { status: 200 });
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('renders with default placeholder', () => {
-    render(<SearchBar />);
+    renderSearchBar();
     expect(screen.getByPlaceholderText('Search...')).toBeInTheDocument();
   });
 
   it('shows full placeholder for hero variant', () => {
-    render(<SearchBar variant="hero" />);
+    renderSearchBar({ variant: 'hero' });
     expect(
       screen.getByPlaceholderText('Search your knowledge base...'),
     ).toBeInTheDocument();
   });
 
   it('renders with default value', () => {
-    render(<SearchBar defaultValue="test query" />);
+    renderSearchBar({ defaultValue: 'test query' });
     expect(screen.getByDisplayValue('test query')).toBeInTheDocument();
   });
 
   it('navigates to search page on form submit', async () => {
     const user = userEvent.setup();
-    render(<SearchBar />);
+    renderSearchBar();
     const input = screen.getByRole('combobox');
     await user.type(input, 'knowledge base');
     await user.keyboard('{Enter}');
@@ -51,7 +119,7 @@ describe('SearchBar', () => {
 
   it('does not navigate on empty query submit', async () => {
     const user = userEvent.setup();
-    render(<SearchBar />);
+    renderSearchBar();
     const input = screen.getByRole('combobox');
     await user.click(input);
     await user.keyboard('{Enter}');
@@ -60,7 +128,7 @@ describe('SearchBar', () => {
 
   it('stores recent searches in localStorage', async () => {
     const user = userEvent.setup();
-    render(<SearchBar />);
+    renderSearchBar();
     const input = screen.getByRole('combobox');
     await user.type(input, 'my search');
     await user.keyboard('{Enter}');
@@ -71,30 +139,30 @@ describe('SearchBar', () => {
   });
 
   it('has combobox role for accessibility', () => {
-    render(<SearchBar />);
+    renderSearchBar();
     expect(screen.getByRole('combobox')).toBeInTheDocument();
   });
 
   it('has search form role', () => {
-    render(<SearchBar />);
+    renderSearchBar();
     expect(screen.getByRole('search')).toBeInTheDocument();
   });
 
   it('renders hero variant with larger input', () => {
-    render(<SearchBar variant="hero" />);
+    renderSearchBar({ variant: 'hero' });
     const input = screen.getByRole('combobox');
     expect(input.className).toContain('h-12');
   });
 
   it('renders compact variant by default', () => {
-    render(<SearchBar />);
+    renderSearchBar();
     const input = screen.getByRole('combobox');
     expect(input.className).toContain('h-9');
   });
 
   it('trims whitespace from search queries', async () => {
     const user = userEvent.setup();
-    render(<SearchBar />);
+    renderSearchBar();
     const input = screen.getByRole('combobox');
     await user.type(input, '  trimmed search  ');
     await user.keyboard('{Enter}');
@@ -106,20 +174,20 @@ describe('SearchBar', () => {
   // ---------------------------------------------------------------------------
   describe('inline variant', () => {
     it('renders with inline placeholder', () => {
-      render(<SearchBar variant="inline" />);
+      renderSearchBar({ variant: 'inline' });
       expect(
         screen.getByPlaceholderText('Search your knowledge...'),
       ).toBeInTheDocument();
     });
 
     it('renders inline input with correct height class', () => {
-      render(<SearchBar variant="inline" />);
+      renderSearchBar({ variant: 'inline' });
       const input = screen.getByRole('combobox');
       expect(input.className).toContain('h-10');
     });
 
     it('does not show keyboard shortcut badge', () => {
-      render(<SearchBar variant="inline" />);
+      renderSearchBar({ variant: 'inline' });
       // Compact variant shows Cmd+K / Ctrl+K badge — inline should not
       const kbd = document.querySelector('kbd');
       expect(kbd).toBeNull();
@@ -128,7 +196,7 @@ describe('SearchBar', () => {
     it('calls onSearch on submit instead of navigating', async () => {
       const onSearch = vi.fn();
       const user = userEvent.setup();
-      render(<SearchBar variant="inline" onSearch={onSearch} />);
+      renderSearchBar({ variant: 'inline', onSearch });
       const input = screen.getByRole('combobox');
       await user.type(input, 'test query');
       await user.keyboard('{Enter}');
@@ -140,9 +208,7 @@ describe('SearchBar', () => {
       const onClear = vi.fn();
       const onSearch = vi.fn();
       const user = userEvent.setup();
-      render(
-        <SearchBar variant="inline" onSearch={onSearch} onClear={onClear} />,
-      );
+      renderSearchBar({ variant: 'inline', onSearch, onClear });
       const input = screen.getByRole('combobox');
       await user.click(input);
       await user.keyboard('{Enter}');
@@ -154,7 +220,7 @@ describe('SearchBar', () => {
     it('does not navigate on submit', async () => {
       const onSearch = vi.fn();
       const user = userEvent.setup();
-      render(<SearchBar variant="inline" onSearch={onSearch} />);
+      renderSearchBar({ variant: 'inline', onSearch });
       const input = screen.getByRole('combobox');
       await user.type(input, 'some query');
       await user.keyboard('{Enter}');
@@ -163,30 +229,30 @@ describe('SearchBar', () => {
 
     it('forwards inputRef to the underlying input element', () => {
       const ref = { current: null } as React.RefObject<HTMLInputElement | null>;
-      render(<SearchBar variant="inline" inputRef={ref} />);
+      renderSearchBar({ variant: 'inline', inputRef: ref });
       expect(ref.current).toBeInstanceOf(HTMLInputElement);
     });
 
     it('renders with defaultValue', () => {
-      render(<SearchBar variant="inline" defaultValue="initial search" />);
+      renderSearchBar({ variant: 'inline', defaultValue: 'initial search' });
       expect(screen.getByDisplayValue('initial search')).toBeInTheDocument();
     });
 
     it('has search form role with search content label', () => {
-      render(<SearchBar variant="inline" />);
+      renderSearchBar({ variant: 'inline' });
       const form = screen.getByRole('search');
       expect(form).toHaveAttribute('aria-label', 'Search content');
     });
 
     it('has combobox role for accessibility', () => {
-      render(<SearchBar variant="inline" />);
+      renderSearchBar({ variant: 'inline' });
       expect(screen.getByRole('combobox')).toBeInTheDocument();
     });
 
     it('stores recent searches in localStorage on submit', async () => {
       const onSearch = vi.fn();
       const user = userEvent.setup();
-      render(<SearchBar variant="inline" onSearch={onSearch} />);
+      renderSearchBar({ variant: 'inline', onSearch });
       const input = screen.getByRole('combobox');
       await user.type(input, 'inline search');
       await user.keyboard('{Enter}');
@@ -199,7 +265,7 @@ describe('SearchBar', () => {
     it('trims whitespace from inline search queries', async () => {
       const onSearch = vi.fn();
       const user = userEvent.setup();
-      render(<SearchBar variant="inline" onSearch={onSearch} />);
+      renderSearchBar({ variant: 'inline', onSearch });
       const input = screen.getByRole('combobox');
       await user.type(input, '  trimmed inline  ');
       await user.keyboard('{Enter}');
@@ -214,19 +280,256 @@ describe('SearchBar', () => {
     it('calls loadSuggestions on focus (parity with hero)', async () => {
       // Both hero and compact should call loadSuggestions on focus.
       // We verify this by checking that fetch is called when focusing compact.
-      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-        new Response(JSON.stringify({ keywords: ['topic1'] }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
-      );
       const user = userEvent.setup();
-      render(<SearchBar variant="compact" />);
+      renderSearchBar({ variant: 'compact' });
       const input = screen.getByRole('combobox');
       await user.click(input);
       // loadSuggestions should have been triggered by focus
-      expect(fetchSpy).toHaveBeenCalledWith('/api/search/suggestions');
-      fetchSpy.mockRestore();
+      expect(globalThis.fetch).toHaveBeenCalledWith('/api/search/suggestions');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Preview dropdown tests (P1-30 Phase 3)
+  // ---------------------------------------------------------------------------
+  describe('preview dropdown (inline variant)', () => {
+    const MOCK_PREVIEW_RESULTS = [
+      {
+        id: 'item-001',
+        title: 'Risk Assessment Guide',
+        content_type: 'article',
+        primary_domain: 'Corporate',
+      },
+      {
+        id: 'item-002',
+        title: 'Risk Management Policy',
+        content_type: 'policy',
+        primary_domain: 'Technical',
+      },
+    ];
+
+    function mockPreviewFetch(results = MOCK_PREVIEW_RESULTS) {
+      vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+        const urlStr = typeof url === 'string' ? url : url.toString();
+        if (urlStr.includes('/api/search/suggestions')) {
+          return new Response(
+            JSON.stringify({ keywords: ['topic1', 'topic2'] }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          );
+        }
+        if (urlStr.includes('/api/search/preview')) {
+          return createPreviewResponse(results);
+        }
+        return new Response('{}', { status: 200 });
+      });
+    }
+
+    it('only renders preview section in inline variant', async () => {
+      mockPreviewFetch();
+      const user = userEvent.setup();
+      renderSearchBar({ variant: 'hero' });
+      const input = screen.getByRole('combobox');
+      await user.click(input);
+      await user.type(input, 'risk assess');
+      // Wait for any async updates
+      await act(async () => {});
+      // Preview region should NOT exist for hero variant
+      expect(screen.queryByTestId('preview-results-region')).toBeNull();
+    });
+
+    it('does not show preview when query is below PREVIEW_MIN_QUERY_LENGTH', async () => {
+      mockPreviewFetch();
+      const user = userEvent.setup();
+      renderSearchBar({ variant: 'inline' });
+      const input = screen.getByRole('combobox');
+      await user.click(input);
+      // Type only 2 characters (below threshold of 3)
+      await user.type(input, 'ri');
+      await act(async () => {});
+      // Preview region should not exist
+      expect(screen.queryByTestId('preview-results-region')).toBeNull();
+      // Popular topics should still be visible (suggestions loaded on focus)
+      await waitFor(() => {
+        expect(screen.queryByText('Popular topics')).toBeInTheDocument();
+      });
+    });
+
+    it('shows preview when query meets PREVIEW_MIN_QUERY_LENGTH and hides popular topics', async () => {
+      mockPreviewFetch();
+      const user = userEvent.setup();
+      renderSearchBar({ variant: 'inline' });
+      const input = screen.getByRole('combobox');
+      await user.click(input);
+      // Type exactly 3 characters (meets threshold)
+      await user.type(input, 'ris');
+      // Wait for debounce + fetch to resolve
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('preview-results-region')).toBeInTheDocument();
+        },
+        { timeout: 2000 },
+      );
+      // Popular topics should be hidden when preview is showing
+      expect(screen.queryByText('Popular topics')).toBeNull();
+    });
+
+    it('renders preview results as <a> elements with correct href', async () => {
+      mockPreviewFetch();
+      const user = userEvent.setup();
+      renderSearchBar({ variant: 'inline' });
+      const input = screen.getByRole('combobox');
+      await user.click(input);
+      await user.type(input, 'risk assess');
+      await waitFor(
+        () => {
+          expect(screen.getByText('Risk Assessment Guide')).toBeInTheDocument();
+        },
+        { timeout: 2000 },
+      );
+      // Check that results are <a> tags with correct hrefs
+      const link1 = screen.getByText('Risk Assessment Guide').closest('a');
+      expect(link1).not.toBeNull();
+      expect(link1).toHaveAttribute('href', '/item/item-001');
+
+      const link2 = screen.getByText('Risk Management Policy').closest('a');
+      expect(link2).not.toBeNull();
+      expect(link2).toHaveAttribute('href', '/item/item-002');
+    });
+
+    it('has aria-live="polite" on the preview region', async () => {
+      mockPreviewFetch();
+      const user = userEvent.setup();
+      renderSearchBar({ variant: 'inline' });
+      const input = screen.getByRole('combobox');
+      await user.click(input);
+      await user.type(input, 'risk assess');
+      await waitFor(
+        () => {
+          const region = screen.getByTestId('preview-results-region');
+          expect(region).toHaveAttribute('aria-live', 'polite');
+        },
+        { timeout: 2000 },
+      );
+    });
+
+    it('has aria-busy="false" when preview is settled', async () => {
+      mockPreviewFetch();
+      const user = userEvent.setup();
+      renderSearchBar({ variant: 'inline' });
+      const input = screen.getByRole('combobox');
+      await user.click(input);
+      await user.type(input, 'risk assess');
+      await waitFor(
+        () => {
+          const region = screen.getByTestId('preview-results-region');
+          expect(region).toHaveAttribute('aria-busy', 'false');
+        },
+        { timeout: 2000 },
+      );
+    });
+
+    it('renders "See all results" button in preview section', async () => {
+      mockPreviewFetch();
+      const user = userEvent.setup();
+      renderSearchBar({ variant: 'inline' });
+      const input = screen.getByRole('combobox');
+      await user.click(input);
+      await user.type(input, 'risk assess');
+      await waitFor(
+        () => {
+          expect(screen.getByText('See all results')).toBeInTheDocument();
+        },
+        { timeout: 2000 },
+      );
+    });
+
+    it('"See all results" button triggers full search via onSearch', async () => {
+      mockPreviewFetch();
+      const onSearch = vi.fn();
+      const user = userEvent.setup();
+      renderSearchBar({ variant: 'inline', onSearch });
+      const input = screen.getByRole('combobox');
+      await user.click(input);
+      await user.type(input, 'risk assess');
+      await waitFor(
+        () => {
+          expect(screen.getByText('See all results')).toBeInTheDocument();
+        },
+        { timeout: 2000 },
+      );
+      await user.click(screen.getByText('See all results'));
+      expect(onSearch).toHaveBeenCalledWith('risk assess');
+    });
+
+    it('clicking a preview result navigates to /item/{id}', async () => {
+      mockPreviewFetch();
+      const user = userEvent.setup();
+      renderSearchBar({ variant: 'inline' });
+      const input = screen.getByRole('combobox');
+      await user.click(input);
+      await user.type(input, 'risk assess');
+      await waitFor(
+        () => {
+          expect(screen.getByText('Risk Assessment Guide')).toBeInTheDocument();
+        },
+        { timeout: 2000 },
+      );
+      await user.click(screen.getByText('Risk Assessment Guide'));
+      expect(mockPush).toHaveBeenCalledWith('/item/item-001');
+    });
+
+    it('does not show preview for compact variant', async () => {
+      mockPreviewFetch();
+      const user = userEvent.setup();
+      renderSearchBar({ variant: 'compact' });
+      const input = screen.getByRole('combobox');
+      await user.click(input);
+      await user.type(input, 'risk assess');
+      await act(async () => {});
+      expect(screen.queryByTestId('preview-results-region')).toBeNull();
+    });
+
+    it('existing inline tests still work — Enter on input runs onSearch', async () => {
+      mockPreviewFetch();
+      const onSearch = vi.fn();
+      const user = userEvent.setup();
+      renderSearchBar({ variant: 'inline', onSearch });
+      const input = screen.getByRole('combobox');
+      await user.type(input, 'risk assessment');
+      // Enter on the input (not on a preview result) runs full semantic search
+      await user.keyboard('{Enter}');
+      expect(onSearch).toHaveBeenCalledWith('risk assessment');
+    });
+
+    it('ArrowDown keyboard nav extends into preview results (spec §4.1)', async () => {
+      mockPreviewFetch();
+      const user = userEvent.setup();
+      renderSearchBar({ variant: 'inline' });
+      const input = screen.getByRole('combobox');
+      await user.click(input);
+      await user.type(input, 'risk assess');
+      // Wait for the preview section to render with at least the first result
+      await waitFor(
+        () => {
+          expect(screen.getByText('Risk Assessment Guide')).toBeInTheDocument();
+        },
+        { timeout: 2000 },
+      );
+      // Before ArrowDown, no active descendant (or -1 index semantics).
+      // Press ArrowDown once — should point at the first navigable item.
+      // With no recent searches persisted in this test, the first item is
+      // the first preview result (Risk Assessment Guide, id='item-001').
+      await user.keyboard('{ArrowDown}');
+      const activeDescendant = input.getAttribute('aria-activedescendant');
+      expect(activeDescendant).not.toBeNull();
+      // The activeDescendant should point at an option associated with the
+      // first preview result — its <a> has href="/item/item-001" so the
+      // option id encodes the item id.
+      const firstPreviewLink = screen
+        .getByText('Risk Assessment Guide')
+        .closest('a');
+      expect(firstPreviewLink).not.toBeNull();
+      expect(activeDescendant).toBe(firstPreviewLink!.getAttribute('id'));
     });
   });
 });

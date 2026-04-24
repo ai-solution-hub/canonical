@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
+import { createQueryWrapper } from '../helpers/query-wrapper';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks — must be defined before vi.mock() factories
@@ -202,7 +203,7 @@ describe('BrowseContent — accessibility', () => {
 
   describe('aria-label on results container', () => {
     it('uses "Browse content" aria-label when not in search mode', () => {
-      render(<BrowseContent />);
+      render(<BrowseContent />, { wrapper: createQueryWrapper().Wrapper });
       expect(
         screen.getByRole('region', { name: 'Browse content' }),
       ).toBeInTheDocument();
@@ -212,7 +213,7 @@ describe('BrowseContent — accessibility', () => {
       mockBrowseData.isSearchMode = true;
       mockBrowseData.searchQuery = 'data protection';
       mockBrowseData.totalCount = 5;
-      render(<BrowseContent />);
+      render(<BrowseContent />, { wrapper: createQueryWrapper().Wrapper });
       expect(
         screen.getByRole('region', { name: 'Browse and search results' }),
       ).toBeInTheDocument();
@@ -225,7 +226,7 @@ describe('BrowseContent — accessibility', () => {
       mockBrowseData.searchQuery = 'data protection';
       mockBrowseData.totalCount = 5;
       mockBrowseData.isLoading = false;
-      render(<BrowseContent />);
+      render(<BrowseContent />, { wrapper: createQueryWrapper().Wrapper });
 
       screen.getByRole('status', { name: '' });
       // The sr-only div with aria-live="polite"
@@ -244,7 +245,7 @@ describe('BrowseContent — accessibility', () => {
       mockBrowseData.searchQuery = 'specific query';
       mockBrowseData.totalCount = 1;
       mockBrowseData.isLoading = false;
-      render(<BrowseContent />);
+      render(<BrowseContent />, { wrapper: createQueryWrapper().Wrapper });
 
       const srOnlyDivs = document.querySelectorAll('[aria-live="polite"]');
       const announcementDiv = Array.from(srOnlyDivs).find((el) =>
@@ -258,7 +259,7 @@ describe('BrowseContent — accessibility', () => {
       mockBrowseData.isSearchMode = false;
       mockBrowseData.searchQuery = undefined;
       mockBrowseData.totalCount = 42;
-      render(<BrowseContent />);
+      render(<BrowseContent />, { wrapper: createQueryWrapper().Wrapper });
 
       const srOnlyDivs = document.querySelectorAll('[aria-live="polite"]');
       const announcementDiv = Array.from(srOnlyDivs).find((el) =>
@@ -273,7 +274,7 @@ describe('BrowseContent — accessibility', () => {
       mockBrowseData.searchQuery = 'loading query';
       mockBrowseData.totalCount = null;
       mockBrowseData.isLoading = true;
-      render(<BrowseContent />);
+      render(<BrowseContent />, { wrapper: createQueryWrapper().Wrapper });
 
       const srOnlyDivs = document.querySelectorAll('[aria-live="polite"]');
       const announcementDiv = Array.from(srOnlyDivs).find((el) =>

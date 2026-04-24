@@ -1,11 +1,21 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Search, Clock } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { Search, Clock, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useModifierKey } from '@/hooks/ui/use-modifier-key';
-import { addRecentSearch, getRecentSearches } from '@/lib/search-history';
+import {
+  addRecentSearch,
+  getRecentSearches,
+  PREVIEW_MIN_QUERY_LENGTH,
+} from '@/lib/search-history';
+import {
+  useDebouncedPreview,
+  type PreviewResult,
+} from '@/hooks/browse/use-debounced-preview';
+import { ContentTypeIcon } from '@/components/shared/content-type-icon';
+import { DomainBadge } from '@/components/shared/domain-badge';
 
 interface SearchBarProps {
   variant?: 'hero' | 'compact' | 'inline';
@@ -18,6 +28,14 @@ interface SearchBarProps {
   /** Ref forwarded to the underlying <input> */
   inputRef?: React.RefObject<HTMLInputElement | null>;
 }
+
+// Flat dropdown item list used for ArrowUp/ArrowDown keyboard nav across
+// the Recent / Preview / See-all / Suggestion sections (spec §4.1).
+type DropdownItem =
+  | { type: 'recent'; value: string }
+  | { type: 'preview'; result: PreviewResult }
+  | { type: 'see-all' }
+  | { type: 'suggestion'; value: string };
 
 export function SearchBar({
   variant = 'compact',
@@ -39,6 +57,29 @@ export function SearchBar({
   const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const isAutoFocusing = useRef(autoFocus);
+
+  // Live preview — inline variant only (SD-7). The `enabled` gate
+  // ensures the hook never fetches for hero/compact variants and only
+  // fetches while the dropdown is visible (focus-gated via showRecent).
+  const isInline = variant === 'inline';
+  const { results: rawPreviewResults, isLoading: previewLoading } =
+    useDebouncedPreview(query, {
+      enabled: isInline && showRecent,
+    });
+
+  // Stable reference for empty preview results to avoid downstream
+  // re-renders from inline `?? []` (see CLAUDE.md gotcha).
+  const previewResults = useMemo(
+    () => rawPreviewResults,
+    [rawPreviewResults],
+  );
+
+  // Whether the preview section should render: inline variant, dropdown
+  // open, and query meets minimum length threshold.
+  const showPreview =
+    isInline &&
+    showRecent &&
+    query.trim().length >= PREVIEW_MIN_QUERY_LENGTH;
 
   // Sync internal query state when defaultValue changes externally
   // (e.g. prompt card selection in Browse, or URL param change).
@@ -79,13 +120,37 @@ export function SearchBar({
     setSuggestionsLoaded(true);
   }, [suggestionsLoaded]);
 
-  // Build flat list of all dropdown items for keyboard navigation
-  const allItems: string[] = [];
+  // Build flat list of all dropdown items for keyboard navigation.
+  // Preview results and the "See all results" button are interleaved
+  // between recent searches and popular topics (spec §4.1).
+  // `DropdownItem` type is declared at module level.
+  const allItems: DropdownItem[] = [];
   if (showRecent) {
-    allItems.push(...recentSearches);
-    allItems.push(...suggestions);
+    // Section 1: Recent searches
+    for (const s of recentSearches) {
+      allItems.push({ type: 'recent', value: s });
+    }
+    // Section 2: Preview results (inline-only, when query >= 3 chars)
+    if (showPreview) {
+      for (const r of previewResults) {
+        allItems.push({ type: 'preview', result: r });
+      }
+      // "See all results" footer counts as a navigable item
+      if (previewResults.length > 0 || previewLoading) {
+        allItems.push({ type: 'see-all' });
+      }
+    }
+    // Section 3: Popular topics (hidden when preview is showing per spec)
+    if (!showPreview) {
+      for (const kw of suggestions) {
+        allItems.push({ type: 'suggestion', value: kw });
+      }
+    }
   }
-  const dropdownVisible = showRecent && allItems.length > 0;
+  // Dropdown is visible when there are navigable items OR preview is loading
+  // (the loading spinner still needs to show even with 0 cached results).
+  const dropdownVisible =
+    showRecent && (allItems.length > 0 || (showPreview && previewLoading));
   const listboxId = 'search-listbox';
 
   function handleSubmit(e: React.FormEvent) {
@@ -124,6 +189,39 @@ export function SearchBar({
     }
   }
 
+  /** Submit the full semantic search (triggered by "See all results"). */
+  function handleSeeAllResults() {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    addRecentSearch(trimmed);
+    setShowRecent(false);
+    setActiveIndex(-1);
+    if (variant === 'inline') {
+      onSearch?.(trimmed);
+    } else {
+      router.push(`/browse?q=${encodeURIComponent(trimmed)}`);
+    }
+  }
+
+  /** Dispatch Enter on a focused dropdown item based on its type. */
+  function handleDropdownItemActivate(item: DropdownItem) {
+    switch (item.type) {
+      case 'recent':
+      case 'suggestion':
+        handleSelectRecent(item.value);
+        break;
+      case 'preview':
+        // Navigate to item detail — use router.push for SPA nav
+        setShowRecent(false);
+        setActiveIndex(-1);
+        router.push(`/item/${item.result.id}`);
+        break;
+      case 'see-all':
+        handleSeeAllResults();
+        break;
+    }
+  }
+
   function handleKeyDown(e: React.KeyboardEvent) {
     if (!dropdownVisible) return;
 
@@ -141,7 +239,7 @@ export function SearchBar({
       case 'Enter': {
         if (activeIndex >= 0 && activeIndex < allItems.length) {
           e.preventDefault();
-          handleSelectRecent(allItems[activeIndex]);
+          handleDropdownItemActivate(allItems[activeIndex]);
         }
         break;
       }
@@ -157,7 +255,7 @@ export function SearchBar({
   // Reset activeIndex when dropdown items change
   useEffect(() => {
     setActiveIndex(-1);
-  }, [recentSearches, suggestions]);
+  }, [recentSearches, suggestions, previewResults]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -189,6 +287,7 @@ export function SearchBar({
 
     return (
       <div id={listboxId} role="listbox" aria-label="Search suggestions">
+        {/* Section 1: Recent searches */}
         {recentList.length > 0 && (
           <>
             <p className="mb-1 px-2 text-xs font-medium text-muted-foreground">
@@ -217,7 +316,89 @@ export function SearchBar({
             })}
           </>
         )}
-        {suggestionList.length > 0 && (
+
+        {/* Section 2: Preview results (inline variant only, query >= 3 chars) */}
+        {showPreview && (
+          <>
+            {recentList.length > 0 && (
+              <div className="my-1.5 border-t border-border" />
+            )}
+            <div
+              aria-live="polite"
+              aria-busy={previewLoading}
+              data-testid="preview-results-region"
+            >
+              {previewLoading && previewResults.length === 0 && (
+                <div className="flex items-center gap-2 px-2 py-2 text-xs text-muted-foreground">
+                  <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                  Searching...
+                </div>
+              )}
+              {previewResults.length > 0 && (
+                <>
+                  <p className="mb-1 px-2 text-xs font-medium text-muted-foreground">
+                    Preview results ({previewResults.length})
+                  </p>
+                  {previewResults.map((result) => {
+                    itemIndex++;
+                    const idx = itemIndex;
+                    return (
+                      <a
+                        key={`preview-${result.id}`}
+                        id={`search-option-${idx}`}
+                        href={`/item/${result.id}`}
+                        role="option"
+                        tabIndex={-1}
+                        aria-selected={activeIndex === idx}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setShowRecent(false);
+                          setActiveIndex(-1);
+                          router.push(`/item/${result.id}`);
+                        }}
+                        onMouseEnter={() => setActiveIndex(idx)}
+                        className={`flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-foreground transition-colors ${
+                          activeIndex === idx ? 'bg-accent' : 'hover:bg-accent'
+                        }`}
+                      >
+                        <ContentTypeIcon contentType={result.content_type} size="size-3.5" />
+                        <span className="min-w-0 flex-1 truncate">{result.title}</span>
+                        {result.primary_domain && (
+                          <DomainBadge domain={result.primary_domain} />
+                        )}
+                      </a>
+                    );
+                  })}
+                </>
+              )}
+              {/* "See all results" footer */}
+              {(previewResults.length > 0 || previewLoading) && (() => {
+                itemIndex++;
+                const idx = itemIndex;
+                return (
+                  <button
+                    key="see-all-results"
+                    id={`search-option-${idx}`}
+                    type="button"
+                    role="option"
+                    tabIndex={-1}
+                    aria-selected={activeIndex === idx}
+                    onClick={handleSeeAllResults}
+                    onMouseEnter={() => setActiveIndex(idx)}
+                    className={`mt-1 flex w-full cursor-pointer items-center justify-center rounded-md px-2 py-1.5 text-xs font-medium text-primary transition-colors ${
+                      activeIndex === idx ? 'bg-accent' : 'hover:bg-accent'
+                    }`}
+                  >
+                    See all results
+                  </button>
+                );
+              })()}
+            </div>
+          </>
+        )}
+
+        {/* Section 3: Popular topics (hidden when preview is showing) */}
+        {!showPreview && suggestionList.length > 0 && (
           <>
             {recentList.length > 0 && (
               <div className="my-1.5 border-t border-border" />
