@@ -84,6 +84,26 @@ def fetch_content_item(item_id):
     return data[0]
 
 
+def fetch_entity_mentions_for_item(item_id):
+    """Fetch entity_mentions rows for a given content_item_id.
+
+    Returns list of dicts with canonical_name, entity_type, metadata fields.
+    Used by the metadata-mismatch assertion to verify that store_entities
+    wrote holder metadata correctly.
+    """
+    path = (
+        f"entity_mentions?content_item_id=eq.{item_id}"
+        "&select=canonical_name,entity_type,metadata"
+    )
+    status, data = _request("GET", path)
+    if status not in (200, 206):
+        logger.warning(
+            "Failed to fetch entity_mentions for %s: %s", item_id, status
+        )
+        return []
+    return data or []
+
+
 # ------------------------------------------
 # Diff logic
 # ------------------------------------------
@@ -235,8 +255,11 @@ def run_evaluation(limit=None, dry_run=True):
     total_changed_holder = 0
     total_precision_regressions = 0
     total_recall_new_supplier = 0
+    metadata_mismatch_count = 0
+    metadata_checked_count = 0
     positive_controls_changed = []
     per_item_diffs = []
+    metadata_mismatches = []
 
     # Known positive controls (example-datacentre false positives from spec section 4.3)
     positive_control_targets = frozenset([
@@ -300,6 +323,56 @@ def run_evaluation(limit=None, dry_run=True):
                 if change["target"] in positive_control_targets:
                     positive_controls_changed.append(change)
 
+        # ── Metadata-mismatch check (§1.18 WP3) ──────────────────────
+        # Verify that entity_mentions.metadata.holder matches the expected
+        # derivation from the existing holds relationships for this item.
+        item_metadata_mismatches = []
+        mentions = fetch_entity_mentions_for_item(item_id)
+        cert_mentions = [
+            m for m in mentions if m.get("entity_type") == "certification"
+        ]
+
+        # Build expected holder map from EXISTING relationships (already
+        # in the DB), not from the re-classification output.
+        expected_holders = {}
+        for rel in existing_holds:
+            target_lower = rel.get("target_entity", "").lower().strip()
+            source_lower = rel.get("source_entity", "").lower().strip()
+            if target_lower and source_lower:
+                expected_holders[target_lower] = source_lower
+
+        for mention in cert_mentions:
+            canonical = (mention.get("canonical_name") or "").lower().strip()
+            if canonical not in expected_holders:
+                continue
+
+            metadata_checked_count += 1
+            expected_source = expected_holders[canonical]
+            stored_meta = mention.get("metadata") or {}
+            stored_holder = stored_meta.get("holder")
+
+            if expected_source == CLIENT_ORG_LOWER:
+                expected_holder = "self"
+            else:
+                expected_holder = "supplier"
+
+            if stored_holder != expected_holder:
+                mismatch = {
+                    "content_item_id": item_id,
+                    "canonical_name": canonical,
+                    "expected_holder": expected_holder,
+                    "expected_source": expected_source,
+                    "stored_metadata": stored_meta,
+                }
+                item_metadata_mismatches.append(mismatch)
+                metadata_mismatches.append(mismatch)
+                metadata_mismatch_count += 1
+                logger.warning(
+                    "  Metadata mismatch: %s expected holder=%s, "
+                    "got metadata=%s",
+                    canonical, expected_holder, stored_meta,
+                )
+
         item_diff = {
             "source_item_id": item_id,
             "title": content_item.get("title", ""),
@@ -326,17 +399,19 @@ def run_evaluation(limit=None, dry_run=True):
                 "changed_holder": diff["changed_holder"],
                 "precision_regressions": diff["precision_regressions"],
             },
+            "metadata_mismatches": item_metadata_mismatches,
         }
         per_item_diffs.append(item_diff)
 
         logger.info(
             "  -> %d unchanged, %d removed, %d added, "
-            "%d holder changes, %d regressions",
+            "%d holder changes, %d regressions, %d metadata mismatches",
             len(diff["unchanged"]),
             len(diff["removed"]),
             len(diff["added"]),
             len(diff["changed_holder"]),
             len(diff["precision_regressions"]),
+            len(item_metadata_mismatches),
         )
 
     # Precision regressions exclude the known example-datacentre positive controls
@@ -373,6 +448,12 @@ def run_evaluation(limit=None, dry_run=True):
         "recall_new_supplier_detections": total_recall_new_supplier,
         "total_unchanged": total_unchanged,
         "total_changed_holder": total_changed_holder,
+        # §1.18 WP3: metadata-mismatch assertion.
+        # Checks that entity_mentions.metadata.holder matches the expected
+        # derivation from holds relationships. Fail if > 0.
+        "metadata_checked": metadata_checked_count,
+        "metadata_mismatch_count": metadata_mismatch_count,
+        "metadata_mismatches": metadata_mismatches,
         "per_item_diff": per_item_diffs,
     }
 
@@ -443,6 +524,9 @@ def main():
         f"{report['recall_new_supplier_detections']}\n"
         f"Total holder changes: {report['total_changed_holder']}\n"
         f"Total unchanged: {report['total_unchanged']}\n"
+        f"Metadata checked: {report['metadata_checked']}\n"
+        f"Metadata mismatches (threshold=0): "
+        f"{report['metadata_mismatch_count']}\n"
         f"---\n"
     )
 

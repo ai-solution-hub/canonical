@@ -1114,22 +1114,120 @@ def _merge_entities(
 
 
 # ──────────────────────────────────────────
+# Holder metadata derivation
+# ──────────────────────────────────────────
+
+# Client organisation name (lowercased) for holder attribution.
+# Matches BRANDING.organisationName.toLowerCase() in production TS code
+# and CLIENT_CONFIG.entity_examples.organisation_name in the classifier prompt.
+_CLIENT_ORG_LOWER = "Example Client Ltd"
+
+
+def derive_holder_metadata(
+    entities: List[dict],
+    relationships: List[dict],
+    client_org_lower: str = _CLIENT_ORG_LOWER,
+) -> dict:
+    """Derive ``metadata.holder`` for certification entity mentions from
+    ``holds`` relationships in the classifier output.
+
+    Mirrors the TS ``deriveHolderMetadata`` helper in ``lib/ai/classify.ts``.
+    For each certification entity, looks up its canonical_name in a map built
+    from ``holds`` relationships.  If a match exists, compares the source entity
+    against the client organisation name to determine whether the cert is
+    self-held or supplier-held.
+
+    Args:
+        entities: List of entity dicts (must have ``canonical_name`` and
+            ``entity_type`` keys).
+        relationships: List of relationship dicts from classifier output
+            (keys: ``source``, ``relationship_type``, ``target``).
+        client_org_lower: Lowercased client organisation name for comparison.
+
+    Returns:
+        Dict mapping lowercased canonical_name to metadata dict for
+        certification entities that have a matching ``holds`` relationship.
+        Possible values: ``{"holder": "self"}`` or
+        ``{"holder": "supplier", "supplier_name": "<source_lower>"}``.
+    """
+    holds_source_by_target: dict[str, str] = {}
+
+    for rel in relationships:
+        rel_type = rel.get("relationship_type", "")
+        if rel_type != "holds":
+            continue
+
+        target_raw = rel.get("target", "")
+        source_raw = rel.get("source", "")
+        if not target_raw or not source_raw:
+            continue
+
+        # Apply the same canonicalisation + alias resolution pipeline
+        # that store_entities applies to entity canonical_names, so the
+        # lookup keys will match.
+        target_lower = resolve_entity_alias(
+            canonicalise(target_raw)
+        ).lower()
+        source_lower = resolve_entity_alias(
+            canonicalise(source_raw)
+        ).lower()
+
+        # Last-wins on collision: mirrors TS helper behaviour.
+        holds_source_by_target[target_lower] = source_lower
+
+    # Build the metadata map for certification entities.
+    metadata_by_canonical: dict[str, dict] = {}
+    for ent in entities:
+        if ent.get("entity_type") != "certification":
+            continue
+
+        canonical_raw = ent.get("canonical_name", ent.get("entity_name", ""))
+        if not canonical_raw:
+            continue
+
+        canonical_lower = resolve_entity_alias(
+            canonicalise(canonical_raw)
+        ).lower()
+        holds_source = holds_source_by_target.get(canonical_lower)
+        if holds_source is None:
+            continue
+
+        if holds_source == client_org_lower:
+            metadata_by_canonical[canonical_lower] = {"holder": "self"}
+        else:
+            metadata_by_canonical[canonical_lower] = {
+                "holder": "supplier",
+                "supplier_name": holds_source,
+            }
+
+    return metadata_by_canonical
+
+
+# ──────────────────────────────────────────
 # Entity storage
 # ──────────────────────────────────────────
 
 def store_entities(
     content_item_id: str,
     entities: List[dict],
+    relationships: Optional[List[dict]] = None,
 ) -> tuple:
     """Store extracted entities in entity_mentions table.
 
     Uses Supabase REST API to insert entity mentions, skipping duplicates
     (UNIQUE constraint on canonical_name + entity_type + content_item_id).
 
+    When ``relationships`` is provided, certification entity mentions are
+    enriched with ``metadata.holder`` derived from ``holds`` relationships,
+    mirroring the TS ``deriveHolderMetadata`` helper.
+
     Args:
         content_item_id: UUID of the content item.
         entities: List of dicts with entity_name, entity_type,
                   canonical_name, confidence.
+        relationships: Optional list of relationship dicts from classifier
+            output.  When provided, holder metadata is derived for
+            certification entities.
 
     Returns:
         Tuple of (stored_count, skipped_count).
@@ -1138,6 +1236,12 @@ def store_entities(
 
     if not entities:
         return (0, 0)
+
+    # Pre-compute holder metadata map when relationships are available.
+    # This mirrors the TS deriveHolderMetadata step (lib/ai/classify.ts).
+    holder_metadata: dict[str, dict] = {}
+    if relationships:
+        holder_metadata = derive_holder_metadata(entities, relationships)
 
     stored = 0
     skipped = 0
@@ -1184,6 +1288,13 @@ def store_entities(
             "canonical_name": canonical,
             "confidence": ent.get("confidence", 0.9),
         }
+
+        # Enrich certification rows with holder metadata when available.
+        # Metadata is passed as a dict — Supabase REST serialises it
+        # (do NOT json.dumps; see CLAUDE.md "Metadata double-serialisation").
+        meta = holder_metadata.get(canonical)
+        if meta is not None:
+            record["metadata"] = meta
 
         status, response = _request("POST", "entity_mentions", record)
 

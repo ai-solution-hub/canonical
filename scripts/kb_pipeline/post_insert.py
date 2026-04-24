@@ -202,11 +202,16 @@ def run_post_insert(
 
     if store_entities_flag and classification is not None:
         entities = getattr(classification, "entities", None) or []
+        relationships = getattr(classification, "relationships", None) or []
         if entities:
             try:
                 from .classify import store_entities
 
-                stored, skipped = store_entities(item_id, entities)
+                # Pass relationships so store_entities can derive holder
+                # metadata for certification entity mentions (§1.18 parity).
+                stored, skipped = store_entities(
+                    item_id, entities, relationships=relationships or None,
+                )
                 result.entities_stored = stored
                 result.entities_skipped = skipped
                 log(
@@ -216,8 +221,6 @@ def run_post_insert(
                 msg = f"entities: {e}"
                 result.errors.append(msg)
                 log(f"{log_prefix}[Entities] ERROR (non-blocking): {e}")
-
-        relationships = getattr(classification, "relationships", None) or []
         if relationships:
             try:
                 from .classify import store_relationships
