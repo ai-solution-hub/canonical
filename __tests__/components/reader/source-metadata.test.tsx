@@ -11,11 +11,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createQueryWrapper } from '../../helpers/query-wrapper';
+import type { useUserRole as useUserRoleType } from '@/hooks/use-user-role';
 
 // Role mock — default to viewer (canEdit: false). Tests that need editor
-// override by mutating `useUserRoleMock.mockReturnValue(...)`.
-const useUserRoleMock = vi.fn(() => ({
-  role: 'viewer' as 'viewer' | 'editor' | 'admin' | null,
+// override by mutating `useUserRoleMock.mockReturnValue(...)`. Typed against
+// the live hook signature so future shape drift fails at compile time.
+type UserRoleResult = ReturnType<typeof useUserRoleType>;
+
+const useUserRoleMock = vi.fn<() => UserRoleResult>(() => ({
+  role: 'viewer',
   loading: false,
   canEdit: false,
   canAdmin: false,
@@ -599,7 +603,10 @@ describe('SourceMetadata — AI-mechanism leakage regression (AC-7 + AC-8)', () 
     // AC-8 anti-duplication (sidebar-owned fields; must NOT leak into accordion):
     author_name: 'Alice Example',
     source_domain: 'example.com',
-    captured_date: '2026-04-22',
+    // Picked deliberately to NOT collide with the import_batch-derived
+    // "Imported on" date (22/04/2026), so the spec's literal
+    // `queryByText(/31\/12\/2025/)` absence assertion is meaningful.
+    captured_date: '2025-12-31',
   };
 
   const kitchenSinkProps = {
@@ -640,14 +647,11 @@ describe('SourceMetadata — AI-mechanism leakage regression (AC-7 + AC-8)', () 
     // AC-8: sidebar-duplication assertions.
     expect(screen.queryByText(/Alice Example/)).toBeNull();
     expect(screen.queryByText(/example\.com/)).toBeNull();
-    expect(screen.queryByText(/22\/04\/2026/)).not.toBeNull(); // import-batch
-    // The import_batch "Imported on" row DOES show "22/04/2026" — that's
-    // correct (it's derived, not the raw captured_date). AC-8 is about
-    // author_name, source_domain, captured_date being absent, not the
-    // rendered date string per se. Captured_date value is "2026-04-22"
-    // ISO string — different text than the rendered DD/MM/YYYY from
-    // import_batch. The positive-test above uses import_batch parse;
-    // a stricter AC-8 assertion is the sidebar-field labels are absent:
+    // captured_date ('2025-12-31' → 31/12/2025) chosen to NOT collide with
+    // import_batch's derived "Imported on" date (22/04/2026), so the
+    // spec's literal-text absence assertion (§8.3.9) is meaningful.
+    expect(screen.queryByText(/31\/12\/2025/)).toBeNull();
+    // Belt-and-braces: sidebar-field labels also absent.
     expect(screen.queryByText('Author')).toBeNull();
     expect(screen.queryByText('Source domain')).toBeNull();
     expect(screen.queryByText('Captured date')).toBeNull();
@@ -682,6 +686,8 @@ describe('SourceMetadata — AI-mechanism leakage regression (AC-7 + AC-8)', () 
     // AC-8: sidebar-duplication assertions.
     expect(screen.queryByText(/Alice Example/)).toBeNull();
     expect(screen.queryByText(/example\.com/)).toBeNull();
+    expect(screen.queryByText(/31\/12\/2025/)).toBeNull();
+    // Belt-and-braces: sidebar-field labels also absent.
     expect(screen.queryByText('Author')).toBeNull();
     expect(screen.queryByText('Source domain')).toBeNull();
     expect(screen.queryByText('Captured date')).toBeNull();
