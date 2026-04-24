@@ -86,7 +86,7 @@ export function AssignmentManager({ className }: AssignmentManagerProps) {
   useEffect(() => {
     async function loadMembers() {
       try {
-        const res = await fetch('/api/entities/users');
+        const res = await fetch('/api/admin/users');
         if (!res.ok) throw new Error('Failed to fetch team members');
         const data = await res.json();
         setTeamMembers(

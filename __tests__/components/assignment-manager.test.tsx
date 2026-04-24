@@ -41,7 +41,7 @@ beforeEach(() => {
 
   // Default mocks for initial loads
   fetchMock.mockImplementation(async (url: string) => {
-    if (typeof url === 'string' && url.includes('/api/entities/users')) {
+    if (typeof url === 'string' && url.includes('/api/admin/users')) {
       return new Response(
         JSON.stringify([
           {
@@ -161,7 +161,7 @@ describe('AssignmentManager', () => {
 
   it('displays active assignments section when assignments exist', async () => {
     fetchMock.mockImplementation(async (url: string) => {
-      if (typeof url === 'string' && url.includes('/api/entities/users')) {
+      if (typeof url === 'string' && url.includes('/api/admin/users')) {
         return new Response(
           JSON.stringify([
             { id: 'user-1', email: 'alice@example.com', display_name: 'Alice' },
@@ -225,7 +225,7 @@ describe('AssignmentManager', () => {
     const user = userEvent.setup();
 
     fetchMock.mockImplementation(async (url: string, options?: RequestInit) => {
-      if (typeof url === 'string' && url.includes('/api/entities/users')) {
+      if (typeof url === 'string' && url.includes('/api/admin/users')) {
         return new Response(
           JSON.stringify([
             { id: 'user-1', email: 'alice@example.com', display_name: 'Alice' },
