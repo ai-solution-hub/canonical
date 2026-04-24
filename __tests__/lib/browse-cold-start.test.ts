@@ -70,45 +70,66 @@ describe('shouldShowColdStartPrompts', () => {
 
   // -----------------------------------------------------------------
   // §1.20 Browse Cards (S197) — post-click gate coverage.
-  // Tests 11/12/13 per spec §11.2. Existing base-gate cases above are
-  // NOT duplicated; these augment them with the new card-kind-specific
-  // interaction semantics.
+  //
+  // The original spec §11.2 tests 11/12/13 duplicated existing baseline
+  // and "hides when any filter is active" cases (M-C in
+  // `inv-2-spec-verification.md`). Replaced with genuinely uncovered
+  // combinations that exercise multi-criteria gate logic introduced
+  // by the post-click card-interaction semantics.
+  //
+  // - "More-button no-op" (former test 13) is already covered by the
+  //   baseline test above — clicking "More domains…" leaves
+  //   `activeFilterCount === 0` and `searchQuery === ''`, which IS the
+  //   baseline. Documented here rather than re-asserted.
+  // - "Post-FILTER click" (former test 11) is the same input shape as
+  //   "hides when any filter is active" above (activeFilterCount: 1).
+  // - "Post-CHIP click" (former test 12) is the same input shape too.
+  //
+  // The cases below cover combinations not previously asserted.
   // -----------------------------------------------------------------
 
-  describe('§1.20 Browse Cards post-click gate (tests 11, 12, 13)', () => {
-    it('test 11: post-FILTER-click → activeFilterCount ≥ 1 → hides cards', () => {
-      // F-2/F-3/F-4 + B-2/B-3 + A-3 + M-1/M-3 all apply a filter; any
-      // single filter incrementing activeFilterCount must hide cards.
+  describe('§1.20 Browse Cards multi-criteria gate (replaces tests 11–13 per M-C)', () => {
+    it('hides when search-query AND activeFilterCount are BOTH active (defence-in-depth)', () => {
+      // After clicking a SEARCH card (writes ?q=) and then applying
+      // a FILTER card preset (increments activeFilterCount), both
+      // gate inputs are truthy. The gate must remain false; this
+      // proves the gate is "all of N" (AND) rather than masking by
+      // the first hit.
       expect(
         shouldShowColdStartPrompts({
           ...COLD_START_BASELINE,
+          searchQuery: 'social value',
           activeFilterCount: 1,
         }),
       ).toBe(false);
     });
 
-    it('test 12: post-CHIP-click → same gate as filter-click (separate assertion for log clarity)', () => {
-      // A domain chip click writes `?domain=<slug>` which increments
-      // activeFilterCount. Tested separately so chip-vs-filter paths
-      // are distinguishable in the test log.
+    it('hides when activeFilterCount > 1 (multi-filter case)', () => {
+      // Existing coverage asserts activeFilterCount === 1 hides. This
+      // case proves the gate uses `=== 0` semantics (i.e. any positive
+      // count hides), not `< 1` or `=== 1`. Real-world: user applies
+      // a domain chip THEN opens the panel and adds a content type.
       expect(
         shouldShowColdStartPrompts({
           ...COLD_START_BASELINE,
-          activeFilterCount: 1,
+          activeFilterCount: 2,
         }),
       ).toBe(false);
     });
 
-    it('test 13: More-button no-op → activeFilterCount stays 0 → cards remain visible', () => {
-      // Clicking "More domains…" opens the filter panel but does NOT
-      // mutate the URL. activeFilterCount stays at 0, so cards remain
-      // visible behind the open panel (spec §6.5 backdrop behaviour).
+    it('hides when ALL gate inputs are simultaneously triggered', () => {
+      // Belt-and-braces: every gate variable triggered at once must
+      // hide. Guards against an accidental `||` → `&&` regression in
+      // the gate body.
       expect(
         shouldShowColdStartPrompts({
-          ...COLD_START_BASELINE,
-          activeFilterCount: 0,
+          searchQuery: 'pricing',
+          activeFilterCount: 3,
+          showUnreadOnly: true,
+          isLoading: true,
+          totalCount: 0,
         }),
-      ).toBe(true);
+      ).toBe(false);
     });
   });
 });
