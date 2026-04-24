@@ -306,3 +306,18 @@ describe('MCP Resource Templates Fixture Sync', () => {
     ).toBe(sourceTemplateUris.size);
   });
 });
+
+describe('Classification Skill Inlined Content', () => {
+  const INLINED_FILE = join(
+    PROJECT_ROOT,
+    'lib/ai/skills/inlined.generated.ts',
+  );
+
+  it('inlined skills bundle should contain Holder Disambiguation rule', () => {
+    const content = readFileSync(INLINED_FILE, 'utf8');
+    expect(
+      content,
+      'inlined.generated.ts must contain the Holder Disambiguation rule ported from classification-prompt.md',
+    ).toContain('Holder Disambiguation');
+  });
+});

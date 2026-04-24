@@ -751,6 +751,68 @@ clearly stated or strongly implied. Use these relationship types:
 Only include relationships that are clearly stated or strongly implied in the
 content. If none are found, omit the array.
 
+### Holder Disambiguation for `holds` Relationships
+
+When extracting `holds` relationships for certifications, you MUST check whether
+the content attributes the certification to the document's author organisation
+or to a third party (supplier, partner, landlord, data centre operator).
+
+**Trigger phrases (sentence-level):** If the certification mention appears in
+the same sentence or immediately adjacent paragraph as any of these phrases,
+attribute the `holds` relationship to the named third party, not the author
+organisation:
+
+- "held by [party]"
+- "managed by [party]"
+- "maintained by [party]"
+- "via supplier [party]" / "via [party]"
+- "delivered through [party]"
+- "outsourced to [party]"
+- "provided by [party]" (when [party] is not the document author)
+- "operated by [party]"
+
+**Disclaimer paragraphs (content-level):** If the content contains an explicit
+disclaimer such as:
+
+- "Note: Certifications ... are held by [party], not [author]"
+- "The following certifications are held by [party]"
+- "Certifications listed ... belong to [party]"
+- "These accreditations are maintained by [party]"
+
+then ALL certification `holds` relationships following the disclaimer (or within
+its stated scope) must use [party] as the `source` entity, not the author
+organisation.
+
+**When a supplier/third-party holder is detected:**
+
+1. Set `source` to the third-party organisation name (canonicalised).
+2. Set `target` to the certification name.
+3. Set `relationship` to `holds`.
+
+The downstream system will infer holder attribution from `source_entity` vs
+the configured client organisation name. Do NOT fabricate a `holds` relationship
+with the author organisation as source when the content explicitly attributes
+the certification to another party.
+
+**When no supplier signal is present** and the author organisation is clearly
+described as holding the certification ("We hold ISO 27001",
+"{CLIENT_ORGANISATION_NAME} is certified to ISO 9001"), extract the relationship
+normally with the author organisation as `source`.
+
+**Example (supplier attribution):**
+
+Content: "Note: Certifications and security measures below are held by
+example-datacentre, not {CLIENT_ORGANISATION_NAME}. ISO 27001, ISO 14001, Cyber
+Essentials Plus."
+
+Correct extraction:
+- source: "example-datacentre", relationship: "holds", target: "ISO 27001"
+- source: "example-datacentre", relationship: "holds", target: "ISO 14001"
+- source: "example-datacentre", relationship: "holds", target: "Cyber Essentials Plus"
+
+Incorrect extraction (what happens without this rule):
+- source: "{CLIENT_ORGANISATION_NAME}", relationship: "holds", target: "ISO 27001"
+
 ---
 
 ## Temporal Reference Extraction
