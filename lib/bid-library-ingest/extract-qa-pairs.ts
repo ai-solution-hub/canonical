@@ -201,7 +201,7 @@ export function detectTableFormat(
 ): TableFormat | null {
   let normalised = headers.map((h) => normaliseHeader(h));
 
-  let hasQuestion = normalised.includes('question');
+  const hasQuestion = normalised.includes('question');
   let hasStandard = normalised.includes('standard');
   let hasAdvanced = normalised.includes('advanced');
   const hasSection = normalised.includes('section');
