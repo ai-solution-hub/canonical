@@ -46,8 +46,7 @@
  * hangs behind the sandbox SOCKS proxy on Supabase reads.
  */
 
-import { readFileSync } from 'fs';
-import { writeFileSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
 import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -477,30 +476,33 @@ async function resolveResidualItemIds(
  * We identify positive-control source_item_ids by finding items where
  * source_entity matches the client org AND target_entity is one of the
  * 3 known example-datacentre-attributed certs AND the item is known to contain
- * self-held certs (i.e. the client genuinely holds these certs on
- * other content items).
+ * SUPPLIER-held false-positive items that the skill-port must flip from
+ * self -> supplier.  Per spec §12.3: "Positive control recall | 3/3 | all
+ * 3 known false positives must flip."  The three known false positives
+ * are the example-datacentre disclaimer items documented in spec §1.1 (example-client-Bid-
+ * Library-2026-v4_4.md §1349: "Note: Certifications and security
+ * measures below are held by example-datacentre, not example-client Design Ltd").
  *
- * Selection logic: query entity_relationships for items where
- * source_entity = client org (case-insensitive) and the relationship
- * represents a genuine self-held cert. Limit to 3 distinct
- * source_item_ids as positive controls.
+ * Selection logic: items whose current `holds` relationships attribute a
+ * cert to example-datacentre (post-S192 SQL backfill).  Re-classification under
+ * the new skill port must continue producing supplier attribution.
+ * Returns up to 3 distinct source_item_ids.
  */
 function identifyPositiveControlItems(
   holdsByItem: Map<string, HoldsRelationship[]>,
 ): string[] {
-  const selfHeldItemIds = new Set<string>();
+  const supplierHeldItemIds = new Set<string>();
 
   for (const [itemId, rels] of holdsByItem) {
-    const hasSelfHeld = rels.some(
-      r => r.source_entity.toLowerCase() === CLIENT_ORG_LOWER,
+    const hasexample-datacentre = rels.some((r) =>
+      r.source_entity.toLowerCase().includes('example-datacentre'),
     );
-    if (hasSelfHeld) {
-      selfHeldItemIds.add(itemId);
+    if (hasexample-datacentre) {
+      supplierHeldItemIds.add(itemId);
     }
   }
 
-  // Return first 3 distinct item IDs with self-held certs as positive controls
-  return Array.from(selfHeldItemIds).slice(0, 3);
+  return Array.from(supplierHeldItemIds).slice(0, 3);
 }
 
 // ──────────────────────────────────────────
@@ -651,7 +653,9 @@ async function runEvaluation(
   let totalCertMentionsWithHolderMetadata = 0;
   let totalPrecisionRegressions = 0;
   let positiveControlsPassed = 0;
-  let residualsCorrected = 0;
+  // Track by item-id to guard against over-counting when a residual item
+  // has multiple ISO 27001 mentions (e.g. chunked content).
+  const residualItemsCorrected = new Set<string>();
 
   for (let i = 0; i < targetItemIds.length; i++) {
     const itemId = targetItemIds[i];
@@ -761,16 +765,18 @@ async function runEvaluation(
       if (isResidual && certMentionsLinkedToHolds.length === 0) {
         // Check all cert mentions for this residual item
         const isoCerts = certMentions.filter(
-          m => m.canonical_name.toLowerCase() === 'iso 27001',
+          (m) => m.canonical_name.toLowerCase() === 'iso 27001',
         );
         for (const isoCert of isoCerts) {
           const metadata = isoCert.metadata as Record<string, unknown> | null;
           const holder = metadata?.holder as string | null | undefined;
           if (holder === 'self') {
-            residualsCorrected++;
+            residualItemsCorrected.add(itemId);
             log(`  Residual item ${itemId}: ISO 27001 has holder='self' (PASS)`);
           } else {
-            log(`  Residual item ${itemId}: ISO 27001 holder='${holder ?? 'null'}' (FAIL — expected 'self')`);
+            log(
+              `  Residual item ${itemId}: ISO 27001 holder='${holder ?? 'null'}' (FAIL — expected 'self')`,
+            );
           }
         }
         if (isoCerts.length === 0) {
@@ -781,29 +787,43 @@ async function runEvaluation(
       // Aggregate for residual items that DO have holds relationships
       if (isResidual && certMentionsLinkedToHolds.length > 0) {
         const isoCerts = certMentionsLinkedToHolds.filter(
-          m => m.canonical_name.toLowerCase() === 'iso 27001',
+          (m) => m.canonical_name.toLowerCase() === 'iso 27001',
         );
         for (const isoCert of isoCerts) {
           const metadata = isoCert.metadata as Record<string, unknown> | null;
           const holder = metadata?.holder as string | null | undefined;
           if (holder === 'self') {
-            residualsCorrected++;
-            log(`  Residual item ${itemId}: ISO 27001 has holder='self' via holds (PASS)`);
+            residualItemsCorrected.add(itemId);
+            log(
+              `  Residual item ${itemId}: ISO 27001 has holder='self' via holds (PASS)`,
+            );
           }
         }
       }
 
-      // Positive control check
+      // Positive control check: example-datacentre false-positive items must
+      // produce holder='supplier' with supplier_name containing 'example-datacentre'
+      // after re-classification (spec §12.3 row 2).
       if (isPositiveControl) {
-        const allSelf = certMentionsLinkedToHolds.every(m => {
+        const allSupplierexample-datacentre = certMentionsLinkedToHolds.every((m) => {
           const md = m.metadata as Record<string, unknown> | null;
-          return md?.holder === 'self';
+          const supplierName =
+            typeof md?.supplier_name === 'string'
+              ? md.supplier_name.toLowerCase()
+              : '';
+          return (
+            md?.holder === 'supplier' && supplierName.includes('example-datacentre')
+          );
         });
-        if (allSelf && certMentionsLinkedToHolds.length > 0) {
+        if (allSupplierexample-datacentre && certMentionsLinkedToHolds.length > 0) {
           positiveControlsPassed++;
-          log(`  Positive control ${itemId}: all certs holder='self' (PASS)`);
+          log(
+            `  Positive control ${itemId}: all certs holder='supplier'+example-datacentre (PASS)`,
+          );
         } else {
-          log(`  Positive control ${itemId}: NOT all certs holder='self' (FAIL)`);
+          log(
+            `  Positive control ${itemId}: NOT all certs attributed to example-datacentre supplier (FAIL)`,
+          );
         }
       }
 
@@ -884,8 +904,8 @@ async function runEvaluation(
     },
     residual_correction: {
       expected: expectedResiduals,
-      actual: residualsCorrected,
-      passed: residualsCorrected >= expectedResiduals,
+      actual: residualItemsCorrected.size,
+      passed: residualItemsCorrected.size >= expectedResiduals,
     },
   };
 
@@ -908,7 +928,7 @@ async function runEvaluation(
   // Write structured report
   const today = new Date().toISOString().split('T')[0];
   const reportPath =
-    args.output ?? `docs/audits/ts-eval-s195-run-${today}.json`;
+    args.output ?? `docs/audits/ts-eval-run-${today}.json`;
 
   const json = JSON.stringify(output, null, 2);
   mkdirSync(dirname(reportPath), { recursive: true });
@@ -924,7 +944,7 @@ With holder metadata:   ${totalCertMentionsWithHolderMetadata}
 Holder coverage:        ${(holderCoverage * 100).toFixed(1)}% (threshold: 100%)  ${thresholds.holder_coverage.passed ? 'PASS' : 'FAIL'}
 Positive controls:      ${positiveControlsPassed}/${expectedPositiveControls} (threshold: ${expectedPositiveControls}/${expectedPositiveControls})  ${thresholds.positive_control_recall.passed ? 'PASS' : 'FAIL'}
 Precision regressions:  ${totalPrecisionRegressions} (threshold: 0)  ${thresholds.precision.passed ? 'PASS' : 'FAIL'}
-Residuals corrected:    ${residualsCorrected}/${expectedResiduals} (threshold: ${expectedResiduals}/${expectedResiduals})  ${thresholds.residual_correction.passed ? 'PASS' : 'FAIL'}
+Residuals corrected:    ${residualItemsCorrected.size}/${expectedResiduals} (threshold: ${expectedResiduals}/${expectedResiduals})  ${thresholds.residual_correction.passed ? 'PASS' : 'FAIL'}
 Overall:                ${allPassed ? 'ALL PASSED' : 'FAILED'}
 ---
 `);

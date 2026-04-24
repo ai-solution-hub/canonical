@@ -404,7 +404,7 @@ export interface EntityMentionRow {
   canonical_name: string;
   confidence: number;
   context_snippet: string | null;
-  metadata?: Record<string, unknown> | null;
+  metadata?: Json | null;
 }
 
 /**
@@ -433,6 +433,24 @@ export interface EntityMentionRow {
  * @param rows - pre-upsert entity mention rows (may contain duplicates).
  * @returns new array with duplicate triples merged; input is not mutated.
  */
+/**
+ * Narrow a Json-typed value to a plain object for spreading.
+ * Returns `{}` for null/undefined/primitive/array cases.
+ */
+function toPlainObject(
+  value: Json | null | undefined,
+): Record<string, Json | undefined> {
+  if (
+    value !== null &&
+    value !== undefined &&
+    typeof value === 'object' &&
+    !Array.isArray(value)
+  ) {
+    return value as Record<string, Json | undefined>;
+  }
+  return {};
+}
+
 export function dedupeEntityMentionRows(
   rows: EntityMentionRow[],
 ): EntityMentionRow[] {
@@ -456,11 +474,13 @@ export function dedupeEntityMentionRows(
     // Shallow-merge metadata: later row keys win on collision; disjoint
     // keys from both sides survive.  Do not create an empty {} when both
     // are null/undefined — leave merged.metadata as-is (undefined).
+    // Narrow Json-typed metadata to a plain object before spreading
+    // (Json can be primitives or arrays; only object-shaped metadata is
+    // valid for our derivation output).
     if (existing.metadata || row.metadata) {
-      existing.metadata = {
-        ...(existing.metadata ?? {}),
-        ...(row.metadata ?? {}),
-      };
+      const existingObj = toPlainObject(existing.metadata);
+      const rowObj = toPlainObject(row.metadata);
+      existing.metadata = { ...existingObj, ...rowObj };
     }
     // entity_name / content_item_id / entity_type / canonical_name:
     // first-wins — already set from the initial row.
@@ -502,6 +522,11 @@ export function deriveHolderMetadata(
       const sourceLower = resolveAlias(
         canonicalise(rel.source),
       ).toLowerCase();
+      // Last-wins on collision: if multiple holders claim the same cert
+      // (e.g. two suppliers both assert `holds iso 27001`), the final
+      // mapping wins. Mirrors the Python classifier's single-source
+      // assumption — upstream dedup at classifier output is the intended
+      // safeguard, not this map.
       holdsRelsByTarget.set(targetLower, sourceLower);
     }
   }
@@ -1477,7 +1502,7 @@ ${contentForClassification}`,
       }
 
       // Step 15: Store entity mentions using finalEntities
-      const entityRows = finalEntities.map((e) => {
+      const entityRows: EntityMentionRow[] = finalEntities.map((e) => {
         // Strip parenthetical role/company descriptions from person names
         const name =
           e.type === 'person' ? stripPersonDescriptors(e.name) : e.name;
@@ -1519,7 +1544,7 @@ ${contentForClassification}`,
       const filteredEntityRows = entityRows.filter((row) => {
         const excluded = shouldExcludeEntity({
           name: row.entity_name,
-          type: row.entity_type,
+          type: row.entity_type as ExtractedEntity['type'],
           canonical_name: row.canonical_name,
         });
         if (excluded) {
