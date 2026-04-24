@@ -540,6 +540,14 @@ _PLURAL_LOOKING_SINGULARS = frozenset([
     "politics",
     "robotics",
     "statistics",
+    # Latin/Greek singulars that the morphology library would otherwise
+    # mis-singularise (data→datum, basis→basi, axis→axi, oasis→oasi).
+    # Keeps TS↔Python parity. Surfaced by the §1.17 corpus eval; preserved
+    # here to avoid regressing existing tags.
+    "data",
+    "basis",
+    "axis",
+    "oasis",
 ])
 
 # ──────────────────────────────────────────
@@ -577,13 +585,17 @@ def _to_singular(kw: str) -> str:
 
     Layered guards (in order):
       1. Short-word guard (len <= 3): 'bus', 'gas' etc. kept as-is.
-      2. Override set: _PLURAL_LOOKING_SINGULARS (domain carve-outs).
-      3. Suffix guards: -ss, -us, -sis, -ous — REQUIRED because inflect
+      2. Whole-input override: _PLURAL_LOOKING_SINGULARS exact match.
+      3. Last-token override: for compound tags ('inspection data',
+         'school data'), preserve when the last whitespace-delimited
+         token is in the override set — inflect would otherwise convert
+         'inspection data' → 'inspection datum'.
+      4. Suffix guards: -ss, -us, -sis, -ous — REQUIRED because inflect
          mis-singularises these (access→acces, process→proces, class→clas,
          analysis→analysi, continuous→continuou). TS pluralize handles
          these correctly so does not need the equivalent guards.
          See spec §3.2.2 for the library-asymmetry table.
-      4. Library fallback: inflect.singular_noun().
+      5. Library fallback: inflect.singular_noun().
          Returns False when the word is recognised as already singular
          or uncountable — we fall back to the input in that case.
 
@@ -593,6 +605,13 @@ def _to_singular(kw: str) -> str:
         return kw
     if kw in _PLURAL_LOOKING_SINGULARS:
         return kw
+
+    # Compound tag: protect the final token if it is in the override set.
+    space_idx = kw.rfind(" ")
+    if space_idx > 0:
+        last_token = kw[space_idx + 1:]
+        if last_token in _PLURAL_LOOKING_SINGULARS:
+            return kw
 
     # Library-asymmetry guard — Python-only compensation for inflect's
     # aggressive rule-based fallback that strips trailing 's' from

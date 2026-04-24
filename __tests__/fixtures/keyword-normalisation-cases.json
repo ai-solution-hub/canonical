@@ -66,5 +66,11 @@
   { "input": "physics", "expected": "physics", "description": "-ics field preserved (physics)" },
   { "input": "politics", "expected": "politics", "description": "-ics field preserved (politics)" },
   { "input": "robotics", "expected": "robotics", "description": "-ics field preserved (robotics)" },
-  { "input": "statistics", "expected": "statistics", "description": "-ics field preserved (statistics)" }
+  { "input": "statistics", "expected": "statistics", "description": "-ics field preserved (statistics)" },
+  { "input": "data", "expected": "data", "description": "Latin singular preserved (would otherwise become 'datum')" },
+  { "input": "basis", "expected": "basis", "description": "Greek singular preserved (would otherwise become 'basi')" },
+  { "input": "axis", "expected": "axis", "description": "Greek singular preserved (would otherwise become 'axi')" },
+  { "input": "oasis", "expected": "oasis", "description": "Greek singular preserved (would otherwise become 'oasi')" },
+  { "input": "inspection data", "expected": "inspection data", "description": "Compound tag — last-token override preserves 'data'" },
+  { "input": "school data", "expected": "school data", "description": "Compound tag — last-token override preserves 'data'" }
 ]

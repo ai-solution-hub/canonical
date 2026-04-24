@@ -992,6 +992,14 @@ const TAG_PLURAL_LOOKING_SINGULARS: ReadonlySet<string> = new Set([
   'politics',
   'robotics',
   'statistics',
+  // Latin/Greek singulars that the morphology library would otherwise
+  // mis-singularise (data→datum, basis→basi, axis→axi, oasis→oasi).
+  // Keeps TS↔Python parity. Surfaced by the §1.17 corpus eval; preserved
+  // here to avoid regressing existing tags.
+  'data',
+  'basis',
+  'axis',
+  'oasis',
 ]);
 
 /**
@@ -1000,23 +1008,40 @@ const TAG_PLURAL_LOOKING_SINGULARS: ReadonlySet<string> = new Set([
  * Layered guards (in order):
  *   1. Short-word guard (len <= 3): 'bus', 'gas' etc. kept as-is (fast path
  *      + matches Python behaviour).
- *   2. Override set: TAG_PLURAL_LOOKING_SINGULARS (domain carve-outs) —
- *      the primary protection for `-ics` fields of study + invariant nouns.
- *   3. Library fallback: pluralize.singular() handles regular + irregular
+ *   2. Whole-input override: TAG_PLURAL_LOOKING_SINGULARS exact match.
+ *   3. Last-token override: for compound tags ('inspection data',
+ *      'school data'), the override layer protects the final whitespace-
+ *      delimited token. pluralize.singular operates on the last token
+ *      regardless of trailing characters, so without this layer the
+ *      `data` → `datum` conversion would surface in compounds even
+ *      though `data` alone is preserved.
+ *   4. Library fallback: pluralize.singular() handles regular + irregular
  *      English morphology including -ies → -y, -ves → -f, -oes → -o,
- *      quizzes → quiz, men → man, children → child, mice → mouse, etc.
+ *      quizzes → quiz, children → child, mice → mouse, etc.
  *
  * Spec: docs/specs/p1-tag-morphology-library-adoption-spec.md §3.1.2
  *
  * Historical note: prior to S197 this function used hand-rolled suffix
- * rules that could not handle irregular forms (heroes → hero, knives → knife,
- * quizzes → quiz, men → man). The pluralize library ships with 500+ rules
- * including all of those. Domain uncountables that pluralize does not know
- * about (10 `-ics` fields + 'means') are registered at module load above.
+ * rules that could not handle irregular forms. The pluralize library ships
+ * with 500+ rules including all of those. Domain uncountables that
+ * pluralize does not know about (10 `-ics` fields + 'means') are
+ * registered at module load above.
  */
 function toSingular(tag: string): string {
   if (tag.length <= 3) return tag;
   if (TAG_PLURAL_LOOKING_SINGULARS.has(tag)) return tag;
+
+  // For compound tags, protect the final token if it is in the override
+  // set. pluralize would otherwise apply morphology to the last token
+  // (e.g. 'inspection data' → 'inspection datum'). Splitting on a single
+  // ASCII space keeps parity with the Python re.ASCII whitespace path.
+  const spaceIdx = tag.lastIndexOf(' ');
+  if (spaceIdx > 0) {
+    const lastToken = tag.slice(spaceIdx + 1);
+    if (TAG_PLURAL_LOOKING_SINGULARS.has(lastToken)) {
+      return tag;
+    }
+  }
 
   return pluralize.singular(tag);
 }
