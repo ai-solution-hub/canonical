@@ -244,6 +244,14 @@ conventions: `docs/continuation-prompts/README.md`.
 - **Agent escalation rule:** Test agents encountering unexpected production
   behaviour (wrong renders, dead code, tests that can only pass by not testing
   real logic) **MUST escalate to the main session**.
+- **SearchBar transitive renders need `QueryClientProvider`:** any test that
+  transitively renders SearchBar requires `createQueryWrapper().Wrapper` from
+  `__tests__/helpers/query-wrapper.tsx`.
+- **Verifier diff on long-lived branches:** use `git show --stat <commit>`, not
+  `git diff main..<commit>` — the latter returns multi-session deltas and
+  produces false-positive "commit contamination" reports.
+- **Radix Select in jsdom needs pointer shims:** call `installRadixPointerShims()`
+  from `@/__tests__/helpers/radix-pointer-shims` in `beforeEach`.
 
 ### E2E / Playwright
 
@@ -255,6 +263,7 @@ conventions: `docs/continuation-prompts/README.md`.
   login inputs.
 - **Browser testing:** Never use `mcp__playwright__*` for parallel testing. Use
   `agent-browser` skill with `--session` for isolated sessions.
+- **Conditional fallbacks silently pass on empty DBs:** `if (await X.isVisible().catch(() => false))` skips assertions — use hard `expect(X).toBeVisible()` so missing fixtures fail honestly.
 
 ### Plugin / MCP
 
@@ -353,6 +362,11 @@ conventions: `docs/continuation-prompts/README.md`.
   - **Sub-agent instructions must always use relative paths** — absolute paths
     resolve to main repo, not the worktree. If rescuing, check `git status` in
     main first to detect leaked files.
+  - **Anthropic plugin files invisible to worktree agents:** `.claude/plugins/*`
+    gitignored except `knowledge-hub/`; agents needing other plugins must `cp`
+    from parent repo after `git reset --hard main`.
+  - **Bash CWD drifts into worktree dirs after `Read`:** prefix git operations
+    with `cd <main-repo-path> &&` after any Read on worktree files.
 - **Sub-agents are hard-limited to 200K tokens — NOT the parent session's 1M.**
   Split large tasks across multiple sub-agents. Common failure: agent runs out
   of budget during final `git commit` — always check worktree `git status`
