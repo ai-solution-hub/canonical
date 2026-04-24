@@ -727,6 +727,66 @@ describe('useBrowseData', () => {
       expect(result.current.setSearchQuery).toBe(mockSetSearchQuery);
       expect(result.current.clearSearchQuery).toBe(mockClearSearchQuery);
     });
+
+    // -------------------------------------------------------------------
+    // §1.20 Browse Cards — AC-9 / D-8 regression: search mode does NOT
+    // exclude Q&A by default (spec §11.6 test 22).
+    // -------------------------------------------------------------------
+    it('returns Q&A pairs in search results without an include_qa filter (AC-9 / D-8: search mode does not exclude Q&A by default)', async () => {
+      mockSearchQuery.value = 'social value';
+      // No include_qa filter set — search must still return q_a_pair items.
+      const MIXED_RESULTS = [
+        {
+          id: 'qa-1',
+          title: 'Reusable Q&A pair on social value',
+          captured_date: '2026-02-10',
+          primary_domain: 'social-value',
+          content_type: 'q_a_pair',
+          freshness: 'fresh',
+          similarity: 0.91,
+        },
+        {
+          id: 'art-1',
+          title: 'Article on social value commitments',
+          captured_date: '2026-02-11',
+          primary_domain: 'social-value',
+          content_type: 'article',
+          freshness: 'fresh',
+          similarity: 0.87,
+        },
+        {
+          id: 'qa-2',
+          title: 'Another Q&A pair',
+          captured_date: '2026-02-09',
+          primary_domain: 'social-value',
+          content_type: 'q_a_pair',
+          freshness: 'aging',
+          similarity: 0.83,
+        },
+      ];
+      mockFetchSuccess(MIXED_RESULTS);
+
+      const { Wrapper } = createQueryWrapper();
+      const { result } = renderHook(() => useBrowseData(), {
+        wrapper: Wrapper,
+      });
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      // applyPostFilters does NOT gate on include_qa — q_a_pair items
+      // must remain in the result set when the user has not opted in.
+      // This is the search-mode regression guard for spec D-8 / AC-9.
+      const ids = result.current.items.map((i) => i.id);
+      expect(ids).toContain('qa-1');
+      expect(ids).toContain('qa-2');
+      expect(ids).toContain('art-1');
+      expect(result.current.items).toHaveLength(3);
+      expect(
+        result.current.items.some((i) => i.content_type === 'q_a_pair'),
+      ).toBe(true);
+    });
   });
 
   // -----------------------------------------------------------------------
