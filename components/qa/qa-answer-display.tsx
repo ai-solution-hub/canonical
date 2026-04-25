@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Copy, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
+import type { Editor } from '@tiptap/react';
 import { Button } from '@/components/ui/button';
 import { VerificationBadge } from '@/components/shared/verification-badge';
 import { cn } from '@/lib/utils';
@@ -79,6 +80,14 @@ export interface QAAnswerDisplayProps {
   /** Whether editing is permitted (canEdit) */
   canEdit?: boolean;
   handleCopyAnswer: (variant?: 'standard' | 'advanced') => void;
+  /**
+   * @internal Test-only hook. Forwarded to the underlying `ContentEditor` so
+   * tests can drive the Tiptap editor instance directly (e.g.
+   * `editor.commands.insertContent`). Mirrors the same `@internal` JSDoc
+   * pattern already used on `ContentEditor.onEditorReady` — not intended for
+   * production use; keyed edits should go via `inlineEdit.setEditValue`.
+   */
+  onEditorReady?: (editor: Editor) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -112,6 +121,7 @@ function QAInlineEditor({
   onValueChange,
   onSave,
   onCancel,
+  onEditorReady,
 }: {
   field: 'answer_standard' | 'answer_advanced';
   /** Stable id of the answer-section label (`<span id={labelId}>`) — wired
@@ -132,6 +142,8 @@ function QAInlineEditor({
     extras?: { regenerate_embedding?: boolean },
   ) => void;
   onCancel: () => void;
+  /** @internal Test-only hook — forwarded to `ContentEditor.onEditorReady`. */
+  onEditorReady?: (editor: Editor) => void;
 }) {
   const [changeReason, setChangeReason] = useState('');
 
@@ -177,6 +189,7 @@ function QAInlineEditor({
         minHeight="120px"
         labelId={labelId}
         autofocus
+        onEditorReady={onEditorReady}
       />
       {setRegenerateEmbedding && (
         <div className="flex flex-wrap items-center gap-4">
@@ -236,6 +249,7 @@ export function QAAnswerDisplay({
   inlineEdit,
   canEdit = false,
   handleCopyAnswer,
+  onEditorReady,
 }: QAAnswerDisplayProps) {
   const isVerified = !!item.verified_at;
   const borderClass = isVerified
@@ -348,6 +362,7 @@ export function QAAnswerDisplay({
                 onValueChange={inlineEdit.setEditValue}
                 onSave={handleSave}
                 onCancel={inlineEdit.cancelEdit}
+                onEditorReady={onEditorReady}
               />
             ) : (
               <QAPairRenderer answerStandard={item.answer_standard} />
@@ -421,6 +436,7 @@ export function QAAnswerDisplay({
                 onValueChange={inlineEdit.setEditValue}
                 onSave={handleSave}
                 onCancel={inlineEdit.cancelEdit}
+                onEditorReady={onEditorReady}
               />
             ) : (
               <QAPairRenderer answerAdvanced={item.answer_advanced} />

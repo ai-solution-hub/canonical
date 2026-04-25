@@ -416,25 +416,48 @@ describe('QAAnswerDisplay — inline editing data flow', () => {
     expect(screen.getByText('Edited advanced answer')).toBeInTheDocument();
   });
 
-  // S198 §1.5 WP4: Tiptap's contenteditable doesn't accept user.type() reliably
-  // in jsdom (see memory `feedback_agent_browser_tiptap_typing`). Wave 3 (WP6)
-  // will rewrite this using the `onEditorReady` test hook on `ContentEditor`
-  // to drive `editor.commands.insertContent()` directly. Skipping for now to
-  // unblock the textarea→editor swap commit.
-  it.skip('calls setEditValue when editor content changes (Wave 3)', async () => {
-    const user = userEvent.setup();
+  // S198 §1.5 WP6 (un-skipped from WP4): drives the Tiptap editor instance
+  // directly via the `@internal onEditorReady` test hook on `ContentEditor`,
+  // forwarded through `QAAnswerDisplay` → `QAInlineEditor` → `ContentEditor`.
+  // Per memory `feedback_agent_browser_tiptap_typing`, simulated keystrokes
+  // (`user.type()`) are unreliable in jsdom — calling
+  // `editor.commands.insertContent()` directly is the canonical pattern.
+  // The editor's `onUpdate` then fires with `e.getMarkdown()`, which
+  // `ContentEditor` forwards as `onChange(markdown)` — wired here to the
+  // parent's `inlineEdit.setEditValue`.
+  it('calls setEditValue when editor content changes (Wave 3 / WP6)', async () => {
     const inlineEdit = makeInlineEdit({
       editingField: 'answer_standard',
       editValue: '',
     });
+    let capturedEditor: import('@tiptap/react').Editor | null = null;
     render(
       <QAAnswerDisplay
         {...makeProps({ canEdit: true, inlineEdit })}
+        onEditorReady={(editor) => {
+          capturedEditor = editor;
+        }}
       />,
     );
-    const editorBody = screen.getByRole('textbox', { name: /standard answer/i });
-    await user.type(editorBody, 'A');
-    expect(inlineEdit.setEditValue).toHaveBeenCalled();
+
+    // Wait for the dynamically-imported editor to mount and the test hook
+    // to capture the instance.
+    await screen.findByRole('textbox', { name: /standard answer/i });
+    await waitFor(() => {
+      expect(capturedEditor).not.toBeNull();
+    });
+
+    // Drive the editor directly. `insertContent` triggers `onUpdate`, which
+    // fires `onChange(getMarkdown())` upstream to `setEditValue`.
+    capturedEditor!.commands.insertContent('typed text');
+
+    await waitFor(() => {
+      expect(inlineEdit.setEditValue).toHaveBeenCalled();
+    });
+    // Verify the markdown content was forwarded (not just a no-op call).
+    const lastCall = (inlineEdit.setEditValue as ReturnType<typeof vi.fn>).mock
+      .calls.at(-1);
+    expect(lastCall?.[0]).toContain('typed text');
   });
 
   it('shows "Why change?" input in inline editor', () => {
@@ -1030,5 +1053,78 @@ describe('QAAnswerDisplay — markdown rendering via ContentRenderer', () => {
     expect(
       screen.getByText('Our organisation follows colour-coded procedures for behaviour management.'),
     ).toBeInTheDocument();
+  });
+
+  // S198 §1.5 WP6 — AC3: read mode for both fields routes through
+  // `QAPairRenderer` → `ContentRenderer` → react-markdown + remark-gfm.
+  // These tests prove the heading-level markdown structure (`<h2>`) is
+  // emitted alongside inline marks (`<strong>`), distinct from the existing
+  // bold/list/table cases above.
+  it('renders heading + inline bold markdown in standard answer (AC3)', () => {
+    const item = makeItem({
+      answer_standard: '## Heading\n\n**bold** text',
+      answer_advanced: null,
+    });
+    render(<QAAnswerDisplay {...makeProps({ item })} />);
+
+    const h2 = document.querySelector('h2');
+    expect(h2).toBeInTheDocument();
+    expect(h2).toHaveTextContent('Heading');
+
+    const strong = document.querySelector('strong');
+    expect(strong).toBeInTheDocument();
+    expect(strong).toHaveTextContent('bold');
+  });
+
+  it('renders heading + inline bold markdown in advanced answer (AC3)', () => {
+    const item = makeItem({
+      answer_standard: null,
+      answer_advanced: '## Heading\n\n**bold** text',
+    });
+    render(<QAAnswerDisplay {...makeProps({ item })} />);
+
+    const h2 = document.querySelector('h2');
+    expect(h2).toBeInTheDocument();
+    expect(h2).toHaveTextContent('Heading');
+
+    const strong = document.querySelector('strong');
+    expect(strong).toBeInTheDocument();
+    expect(strong).toHaveTextContent('bold');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Copy-button raw-markdown regression (§7.1)
+// ---------------------------------------------------------------------------
+//
+// Spec §7.1 (line 1144): "Export / copy button: outputs raw markdown."
+// The copy button calls `handleCopyAnswer(variant)` with the variant only —
+// the parent (`item-detail-client.tsx`) is responsible for reading
+// `item.answer_standard` / `item.answer_advanced` from state and writing
+// the raw markdown string to the clipboard. This regression test guards
+// that the variant arg is forwarded unchanged when the source content
+// contains markdown syntax (i.e. the copy plumbing isn't accidentally
+// re-routed through `ContentRenderer`'s rendered HTML).
+describe('QAAnswerDisplay — copy button raw-markdown regression (§7.1)', () => {
+  it('forwards "standard" variant unchanged when answer_standard contains markdown', () => {
+    const handleCopyAnswer = vi.fn();
+    const markdown = '**Bold** content with [link](http://example.com)';
+    const item = makeItem({ answer_standard: markdown });
+    render(<QAAnswerDisplay {...makeProps({ item, handleCopyAnswer })} />);
+
+    const copyButtons = screen.getAllByRole('button', { name: /copy/i });
+    fireEvent.click(copyButtons[0]);
+
+    // Variant arg only — no auto-extracted HTML or rendered DOM string.
+    expect(handleCopyAnswer).toHaveBeenCalledTimes(1);
+    expect(handleCopyAnswer).toHaveBeenCalledWith('standard');
+    // Confirm read-mode rendered the markdown (proves the source IS markdown,
+    // not pre-rendered HTML in the prop), so the parent reading
+    // `item.answer_standard` will get the raw markdown shown above.
+    expect(document.querySelector('strong')).toHaveTextContent('Bold');
+    expect(document.querySelector('a')).toHaveAttribute(
+      'href',
+      'http://example.com',
+    );
   });
 });
