@@ -31,19 +31,33 @@ export interface UseInlineFieldEditReturn {
    * S153 WP3(a): optional `changeReason` propagates to PATCH body as
    * `change_reason`, captured on the server into `content_history.change_reason`.
    * NULL-acceptable — admin UI may or may not supply a reason.
+   *
+   * S198 §1.5 WP4: optional `extras.regenerate_embedding` is forwarded to the
+   * PATCH body when truthy. When omitted, the hook also reads the internal
+   * `regenerateEmbedding` state below as a fallback so consumers can drive the
+   * flag via either path.
    */
   saveEdit: (
     field: string,
     value: unknown,
     changeReason?: string | null,
+    extras?: { regenerate_embedding?: boolean },
   ) => Promise<void>;
   setEditValue: (value: string) => void;
+  /**
+   * S198 §1.5 WP4: per-edit "Re-generate embedding" toggle. Optional in the
+   * return shape so unit-test fixtures and historical consumers that don't set
+   * it via `setRegenerateEmbedding` continue to work unchanged.
+   */
+  regenerateEmbedding: boolean;
+  setRegenerateEmbedding: (value: boolean) => void;
 }
 
 interface SaveEditVariables {
   field: string;
   value: unknown;
   changeReason?: string | null;
+  regenerateEmbedding?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -59,6 +73,11 @@ export function useInlineFieldEdit<T extends object = Record<string, unknown>>({
   const [editValue, setEditValue] = useState('');
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [saveAnnouncement, setSaveAnnouncement] = useState('');
+  // S198 §1.5 WP4: per-edit "Re-generate embedding" flag. Owned here so the
+  // QA edit panel (and other inline-edit consumers) can ride a single
+  // checkbox without each parent re-implementing the wiring. Reset to false
+  // after every successful save so it does not leak across fields.
+  const [regenerateEmbedding, setRegenerateEmbedding] = useState(false);
 
   const mutation = useMutation<
     void,
@@ -66,7 +85,12 @@ export function useInlineFieldEdit<T extends object = Record<string, unknown>>({
     SaveEditVariables,
     { previousValue: unknown }
   >({
-    mutationFn: async ({ field, value, changeReason }) => {
+    mutationFn: async ({
+      field,
+      value,
+      changeReason,
+      regenerateEmbedding: regenFlag,
+    }) => {
       if (!validateEditableField(field)) {
         throw new Error(`Field "${field}" is not editable`);
       }
@@ -78,6 +102,10 @@ export function useInlineFieldEdit<T extends object = Record<string, unknown>>({
         typeof changeReason === 'string' ? changeReason.trim() : '';
       const body: Record<string, unknown> = { field, value };
       if (trimmedReason.length > 0) body.change_reason = trimmedReason;
+      // S198 §1.5 WP4: forward regen-embedding only when truthy. Server-side
+      // schema (`lib/validation/schemas.ts:294`) accepts the boolean; PATCH
+      // route (`app/api/items/[id]/route.ts:55,563`) consumes it.
+      if (regenFlag) body.regenerate_embedding = true;
 
       const res = await fetch(`/api/items/${itemId}`, {
         method: 'PATCH',
@@ -103,6 +131,9 @@ export function useInlineFieldEdit<T extends object = Record<string, unknown>>({
     onSuccess: (_data, { field }) => {
       setSaveSuccess(field);
       setSaveAnnouncement('Title saved');
+      // S198 §1.5 WP4: reset the per-edit regen-embedding toggle after a
+      // successful save so it does not silently apply to the next field.
+      setRegenerateEmbedding(false);
       setTimeout(() => {
         setSaveSuccess(null);
         setSaveAnnouncement('');
@@ -141,6 +172,7 @@ export function useInlineFieldEdit<T extends object = Record<string, unknown>>({
       field: string,
       value: unknown,
       changeReason?: string | null,
+      extras?: { regenerate_embedding?: boolean },
     ) => {
       if (!validateEditableField(field)) {
         console.error(`Field "${field}" is not editable`);
@@ -149,12 +181,25 @@ export function useInlineFieldEdit<T extends object = Record<string, unknown>>({
       }
 
       try {
-        await fieldMutateAsync({ field, value, changeReason });
+        // S198 §1.5 WP4: precedence — explicit caller `extras` wins over the
+        // hook-internal `regenerateEmbedding` state, so call sites that pre-
+        // date the internal state continue to behave deterministically.
+        const explicitRegen = extras?.regenerate_embedding;
+        const regenFlag =
+          typeof explicitRegen === 'boolean'
+            ? explicitRegen
+            : regenerateEmbedding;
+        await fieldMutateAsync({
+          field,
+          value,
+          changeReason,
+          regenerateEmbedding: regenFlag,
+        });
       } catch {
         // Error already handled via onError callback
       }
     },
-    [fieldMutateAsync],
+    [fieldMutateAsync, regenerateEmbedding],
   );
 
   return {
@@ -167,5 +212,7 @@ export function useInlineFieldEdit<T extends object = Record<string, unknown>>({
     cancelEdit,
     saveEdit,
     setEditValue,
+    regenerateEmbedding,
+    setRegenerateEmbedding,
   };
 }
