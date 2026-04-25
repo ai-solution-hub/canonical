@@ -427,7 +427,7 @@ export interface FeedArticleShape {
   external_url: string;
   relevance_score: number;
   relevance_category: string;
-  summary: string | null;
+  ai_summary: string | null;
   matched_categories: string[];
   passed: boolean;
   published_at: string;
@@ -642,7 +642,7 @@ export function buildIntelligenceFeedArticles(
       external_url: 'https://example.com/articles/cyber-regulation',
       relevance_score: 0.92,
       relevance_category: 'high',
-      summary: 'New regulations requiring enhanced security measures for UK public sector contractors.',
+      ai_summary: 'New regulations requiring enhanced security measures for UK public sector contractors.',
       matched_categories: ['Cyber Security', 'Regulation'],
       passed: true,
       published_at: now,
@@ -653,7 +653,7 @@ export function buildIntelligenceFeedArticles(
       external_url: 'https://example.com/articles/cloud-trends',
       relevance_score: 0.78,
       relevance_category: 'medium',
-      summary: 'Analysis of cloud infrastructure spending trends among UK SMBs.',
+      ai_summary: 'Analysis of cloud infrastructure spending trends among UK SMBs.',
       matched_categories: ['Cloud Infrastructure', 'Market Analysis'],
       passed: true,
       published_at: now,
@@ -664,7 +664,7 @@ export function buildIntelligenceFeedArticles(
       external_url: 'https://example.com/articles/sports-news',
       relevance_score: 0.15,
       relevance_category: 'irrelevant',
-      summary: null,
+      ai_summary: null,
       matched_categories: [],
       passed: false,
       published_at: now,
