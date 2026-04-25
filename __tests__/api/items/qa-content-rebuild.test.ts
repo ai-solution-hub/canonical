@@ -284,6 +284,39 @@ describe('PATCH /api/items/[id] — Q&A content rebuild', () => {
     expect(updateCall.content).toBe('Q: What is ISO 27001?');
   });
 
+  it('omits "Q: " prefix entirely when question resolves to empty (§1.5 spec §4.1 H2)', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Both content and title null → resolveQuestionForRebuild returns ''.
+    // Per spec §4.1 H2 the prefix must be omitted (no `Q: \n\n` stub).
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: qaCurrentItem({
+        title: null,
+        content: '',
+        answer_standard: 'Old answer.',
+        answer_advanced: null,
+      }),
+      error: null,
+    });
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: { version: 1 },
+      error: null,
+    });
+
+    const req = createTestRequest(`/api/items/${VALID_UUID}`, {
+      method: 'PATCH',
+      body: { field: 'answer_standard', value: 'Updated answer.' },
+    });
+
+    const res = await PATCH(req, { params });
+    expect(res.status).toBe(200);
+
+    const updateCall = mockSupabase._chain.update.mock.calls[0][0];
+    // No `Q: ` prefix, no leading whitespace — just the answer body.
+    expect(updateCall.content).toBe('Updated answer.');
+    expect(updateCall.content).not.toContain('Q: ');
+  });
+
   it('extracts full question from content Q: prefix, not truncated title', async () => {
     configureRole(mockSupabase, 'editor');
 
