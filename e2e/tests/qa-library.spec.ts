@@ -746,6 +746,7 @@ test.describe('Q&A Library page', () => {
 
 const QA_STANDARD_LABEL_ID = 'qa-answer-standard-label';
 const QA_STANDARD_TEXTBOX = `[aria-labelledby="${QA_STANDARD_LABEL_ID}"][role="textbox"]`;
+const QA_STANDARD_PANEL = '[data-testid="qa-answer-panel-standard"]';
 
 /** ≥200 chars of prose — used by Scenario C as the save-safety baseline. */
 const SAVE_GUARD_BASELINE_ANSWER =
@@ -813,12 +814,10 @@ test.describe('Q&A ContentEditor (Tiptap) — §1.5 WP8', () => {
     });
 
     // Open the standard-answer inline editor. Scope to the standard-answer
-    // panel via the label `<span id=...>` and walk to the rounded-xl panel
-    // ancestor that wraps both the header (Edit button) and the body
-    // (editor / renderer). Disambiguates from any action-bar Edit.
-    const standardPanel = page
-      .locator(`#${QA_STANDARD_LABEL_ID}`)
-      .locator('xpath=ancestor::div[contains(@class, "rounded-xl")][1]');
+    // panel via stable data-testid (added S198 verifier M1 fix); the panel
+    // wraps both the header (Edit button) and body (editor / renderer),
+    // disambiguating from any action-bar Edit.
+    const standardPanel = page.locator(QA_STANDARD_PANEL);
     await expect(standardPanel).toBeVisible({ timeout: 15000 });
     await standardPanel.getByRole('button', { name: 'Edit' }).click();
 
@@ -903,12 +902,9 @@ test.describe('Q&A ContentEditor (Tiptap) — §1.5 WP8', () => {
       timeout: 15000,
     });
 
-    // Scope to the standard-answer panel via the label `<span id=...>` and
-    // walk to the rounded-xl panel ancestor that wraps both the header
-    // (Edit button) and the body (editor / renderer).
-    const standardPanel = page
-      .locator(`#${QA_STANDARD_LABEL_ID}`)
-      .locator('xpath=ancestor::div[contains(@class, "rounded-xl")][1]');
+    // Scope to the standard-answer panel via stable data-testid; the panel
+    // wraps both the header (Edit button) and the body (editor / renderer).
+    const standardPanel = page.locator(QA_STANDARD_PANEL);
     await expect(standardPanel).toBeVisible({ timeout: 15000 });
     await standardPanel.getByRole('button', { name: 'Edit' }).click();
 
@@ -956,10 +952,8 @@ test.describe('Q&A ContentEditor (Tiptap) — §1.5 WP8', () => {
     });
 
     // Read-mode <table> rendered by remark-gfm. Scope to the standard-
-    // answer panel via the label-id ancestor walk.
-    const standardPanelAfter = page
-      .locator(`#${QA_STANDARD_LABEL_ID}`)
-      .locator('xpath=ancestor::div[contains(@class, "rounded-xl")][1]');
+    // answer panel via stable data-testid.
+    const standardPanelAfter = page.locator(QA_STANDARD_PANEL);
     await expect(standardPanelAfter).toBeVisible();
     const table = standardPanelAfter.locator('table').first();
     await expect(table).toBeVisible();
@@ -998,12 +992,9 @@ test.describe('Q&A ContentEditor (Tiptap) — §1.5 WP8', () => {
       timeout: 15000,
     });
 
-    // Scope to the standard-answer panel via the label `<span id=...>` and
-    // walk to the rounded-xl panel ancestor that wraps both the header
-    // (Edit button) and the body (editor / renderer).
-    const standardPanel = page
-      .locator(`#${QA_STANDARD_LABEL_ID}`)
-      .locator('xpath=ancestor::div[contains(@class, "rounded-xl")][1]');
+    // Scope to the standard-answer panel via stable data-testid; the panel
+    // wraps both the header (Edit button) and the body (editor / renderer).
+    const standardPanel = page.locator(QA_STANDARD_PANEL);
     await expect(standardPanel).toBeVisible({ timeout: 15000 });
     await standardPanel.getByRole('button', { name: 'Edit' }).click();
 

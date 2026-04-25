@@ -378,8 +378,9 @@ describe('QAAnswerDisplay — inline editing data flow', () => {
   // body now has role="textbox" and aria-labelledby pointing at the section
   // label ("Standard Answer" / "Advanced Answer"). Tiptap is dynamically
   // imported (`ssr: false`) so we use findByRole to await the chunk load.
-  // Wave 3 (WP6) will rewrite these into editor-aware tests using the
-  // `onEditorReady` test hook on `ContentEditor`.
+  // The two read-mode tests below are structural (mount-shape) checks; the
+  // editor-driven onChange path is covered by the un-skipped Wave 3 (WP6)
+  // test further below using the @internal `onEditorReady` hook.
   it('renders editor textbox when editing answer_standard', async () => {
     const inlineEdit = makeInlineEdit({
       editingField: 'answer_standard',

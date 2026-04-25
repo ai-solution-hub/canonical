@@ -298,6 +298,7 @@ export function QAAnswerDisplay({
     <div className="mb-6 space-y-4">
       {(item.answer_standard || isEditingStandard) && (
         <div
+          data-testid="qa-answer-panel-standard"
           className={cn(
             'rounded-xl border border-[var(--color-highlight-border)] bg-[var(--color-highlight-bg)]',
             borderClass,
@@ -372,6 +373,7 @@ export function QAAnswerDisplay({
       )}
       {(item.answer_advanced || isEditingAdvanced) && (
         <div
+          data-testid="qa-answer-panel-advanced"
           className={cn(
             'rounded-xl border border-[var(--color-highlight-border)] bg-[var(--color-highlight-bg)]',
             borderClass,
