@@ -27,8 +27,9 @@ import {
   ChevronUp,
   RotateCcw,
 } from 'lucide-react';
-import DOMPurify from 'dompurify';
 import { toast } from 'sonner';
+import { ContentRenderer } from '@/components/item-detail/content-renderer';
+import { htmlToMarkdown } from '@/lib/content/html-to-markdown';
 import type { BidResponseVersion } from '@/types/bid';
 
 interface ResponseVersionHistoryProps {
@@ -249,12 +250,12 @@ export function ResponseVersionHistory({
                           className="border-t px-3 py-3"
                         >
                           {v.response_text ? (
-                            <div
-                              className="prose prose-sm max-h-64 max-w-none overflow-y-auto rounded bg-muted/50 p-3 text-sm"
-                              dangerouslySetInnerHTML={{
-                                __html: DOMPurify.sanitize(v.response_text),
-                              }}
-                            />
+                            <div className="max-h-64 overflow-y-auto rounded bg-muted/50 p-3 text-sm">
+                              <ContentRenderer
+                                content={htmlToMarkdown(v.response_text)}
+                                className="max-w-none"
+                              />
+                            </div>
                           ) : (
                             <p className="text-sm italic text-muted-foreground">
                               No response text in this version.

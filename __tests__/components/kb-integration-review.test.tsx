@@ -14,12 +14,12 @@ import userEvent from '@testing-library/user-event';
 // vi.hoisted() — mocks referenced in vi.mock() factories
 // ---------------------------------------------------------------------------
 
-const { mockToast, mockHtmlToPlainText } = vi.hoisted(() => ({
+const { mockToast, mockStripMarkdown } = vi.hoisted(() => ({
   mockToast: {
     success: vi.fn(),
     error: vi.fn(),
   },
-  mockHtmlToPlainText: vi.fn((html: string) => html),
+  mockStripMarkdown: vi.fn((text: string) => text),
 }));
 
 // ---------------------------------------------------------------------------
@@ -34,8 +34,8 @@ vi.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 
-vi.mock('@/lib/editor-utils', () => ({
-  htmlToPlainText: (html: string) => mockHtmlToPlainText(html),
+vi.mock('@/lib/content/strip-markdown', () => ({
+  stripMarkdown: (text: string) => mockStripMarkdown(text),
 }));
 
 // Import AFTER mocks
@@ -86,8 +86,10 @@ describe('KBIntegrationReview', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal('fetch', vi.fn());
-    mockHtmlToPlainText.mockImplementation((html: string) =>
-      html.replace(/<[^>]*>/g, ''),
+    // Mock stripMarkdown: strip both HTML tags (for legacy fixture data) and
+    // common markdown syntax (`*`, `_`, `#`) for assertion stability.
+    mockStripMarkdown.mockImplementation((text: string) =>
+      text.replace(/<[^>]*>/g, '').replace(/[*_`#]/g, ''),
     );
   });
 
@@ -465,7 +467,7 @@ describe('KBIntegrationReview', () => {
 
   it('truncates long response text in preview', () => {
     const longText = 'A'.repeat(200);
-    mockHtmlToPlainText.mockReturnValue(longText);
+    mockStripMarkdown.mockReturnValue(longText);
 
     renderReview({
       candidates: [makeCandidate({ response_text: longText })],
