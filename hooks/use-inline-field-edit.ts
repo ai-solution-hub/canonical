@@ -158,11 +158,22 @@ export function useInlineFieldEdit<T extends object = Record<string, unknown>>({
   const startEdit = useCallback((field: string, currentValue: unknown) => {
     setEditingField(field);
     setEditValue(String(currentValue ?? ''));
+    // S198 §1.5 WP4 — H1 fix: reset the per-edit regen-embedding toggle when
+    // entering a fresh edit so the flag does not leak from a prior cancelled
+    // edit on a different field. Same hook instance is shared by every
+    // inline-edit consumer; a sticky `true` here would silently fire
+    // regenerate_embedding on subsequent unrelated saves.
+    setRegenerateEmbedding(false);
   }, []);
 
   const cancelEdit = useCallback(() => {
     setEditingField(null);
     setEditValue('');
+    // S198 §1.5 WP4 — H1 fix: same rationale as `startEdit`. Cancelling an
+    // edit must clear the per-edit regen-embedding toggle so the next save
+    // (potentially on a different field via the same hook instance) does
+    // not silently regenerate the embedding.
+    setRegenerateEmbedding(false);
   }, []);
 
   const { mutateAsync: fieldMutateAsync } = mutation;

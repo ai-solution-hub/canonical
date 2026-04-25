@@ -202,4 +202,129 @@ describe('useInlineFieldEdit', () => {
 
     expect(result.current.editValue).toBe('manual value');
   });
+
+  // -------------------------------------------------------------------------
+  // S198 §1.5 WP4 — regen-embedding plumbing (M4)
+  //
+  // Three behaviours under test:
+  //   1. Caller `extras.regenerate_embedding` overrides the hook-internal
+  //      `regenerateEmbedding` state, regardless of which is set.
+  //   2. When `extras` is omitted, the hook falls back to its internal state.
+  //   3. The internal state resets to `false` on:
+  //        a) successful save (existing behaviour)
+  //        b) startEdit (H1 fix — was sticky pre-fix)
+  //        c) cancelEdit (H1 fix — was sticky pre-fix)
+  // -------------------------------------------------------------------------
+
+  it('honours extras.regenerate_embedding=false even when internal state is true', async () => {
+    const { result } = renderHook(
+      () => useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }),
+      { wrapper: createQueryWrapper().Wrapper },
+    );
+
+    act(() => {
+      result.current.setRegenerateEmbedding(true);
+    });
+
+    await act(async () => {
+      await result.current.saveEdit('suggested_title', 'New Title', null, {
+        regenerate_embedding: false,
+      });
+    });
+
+    // Explicit extras wins — body MUST NOT contain regenerate_embedding (the
+    // hook only forwards the field when `regenFlag` is truthy, see
+    // hooks/use-inline-field-edit.ts:108).
+    expect(mockFetch).toHaveBeenCalledWith('/api/items/item-1', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ field: 'suggested_title', value: 'New Title' }),
+    });
+  });
+
+  it('falls back to internal regenerateEmbedding state when extras is omitted', async () => {
+    const { result } = renderHook(
+      () => useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }),
+      { wrapper: createQueryWrapper().Wrapper },
+    );
+
+    act(() => {
+      result.current.setRegenerateEmbedding(true);
+    });
+
+    await act(async () => {
+      // No 4th arg → hook reads internal state (true).
+      await result.current.saveEdit('suggested_title', 'New Title');
+    });
+
+    expect(mockFetch).toHaveBeenCalledWith('/api/items/item-1', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        field: 'suggested_title',
+        value: 'New Title',
+        regenerate_embedding: true,
+      }),
+    });
+  });
+
+  it('resets regenerateEmbedding to false after a successful save', async () => {
+    const { result } = renderHook(
+      () => useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }),
+      { wrapper: createQueryWrapper().Wrapper },
+    );
+
+    act(() => {
+      result.current.setRegenerateEmbedding(true);
+    });
+    expect(result.current.regenerateEmbedding).toBe(true);
+
+    await act(async () => {
+      await result.current.saveEdit('suggested_title', 'New Title');
+    });
+
+    // mutation.onSuccess clears the flag — see hooks/use-inline-field-edit.ts:136.
+    expect(result.current.regenerateEmbedding).toBe(false);
+  });
+
+  it('resets regenerateEmbedding to false on startEdit (H1 fix)', () => {
+    const { result } = renderHook(
+      () => useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }),
+      { wrapper: createQueryWrapper().Wrapper },
+    );
+
+    act(() => {
+      result.current.setRegenerateEmbedding(true);
+    });
+    expect(result.current.regenerateEmbedding).toBe(true);
+
+    // Pre-H1 fix this leaked across consumers — confirms the per-edit toggle
+    // is wiped when entering a fresh edit on any field.
+    act(() => {
+      result.current.startEdit('suggested_title', 'Fresh');
+    });
+
+    expect(result.current.regenerateEmbedding).toBe(false);
+  });
+
+  it('resets regenerateEmbedding to false on cancelEdit (H1 fix)', () => {
+    const { result } = renderHook(
+      () => useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }),
+      { wrapper: createQueryWrapper().Wrapper },
+    );
+
+    act(() => {
+      result.current.startEdit('suggested_title', 'Initial');
+      result.current.setRegenerateEmbedding(true);
+    });
+    expect(result.current.regenerateEmbedding).toBe(true);
+
+    // Pre-H1 fix the toggle stayed sticky here, silently applying to the next
+    // save on a different field via the same shared hook instance.
+    act(() => {
+      result.current.cancelEdit();
+    });
+
+    expect(result.current.regenerateEmbedding).toBe(false);
+  });
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Copy, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
@@ -260,16 +260,25 @@ export function QAAnswerDisplay({
   const standardBaselineLength = item.answer_standard?.length ?? 0;
   const advancedBaselineLength = item.answer_advanced?.length ?? 0;
 
-  const handleSave = async (
-    field: string,
-    value: string,
-    changeReason: string | null,
-    extras?: { regenerate_embedding?: boolean },
-  ) => {
-    if (inlineEdit) {
-      await inlineEdit.saveEdit(field, value, changeReason, extras);
-    }
-  };
+  // S198 §1.5 WP4 — L2 fix: memoise so the prop reference passed into
+  // `QAInlineEditor` (and onward to `ContentEditor.onSave`) is stable across
+  // renders. Per CLAUDE.md react-compiler guidance, destructure the nested
+  // `inlineEdit.saveEdit` first so the dep array tracks the inner function
+  // identity instead of the outer object reference.
+  const { saveEdit: inlineSaveEdit } = inlineEdit ?? {};
+  const handleSave = useCallback(
+    async (
+      field: string,
+      value: string,
+      changeReason: string | null,
+      extras?: { regenerate_embedding?: boolean },
+    ) => {
+      if (inlineSaveEdit) {
+        await inlineSaveEdit(field, value, changeReason, extras);
+      }
+    },
+    [inlineSaveEdit],
+  );
 
   return (
     <div className="mb-6 space-y-4">

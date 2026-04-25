@@ -10,6 +10,20 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+
+// S198 §1.5 WP4 — M1/M2/M3: AC8 (save-safety guard) surfaces a toast and
+// blocks the saveEdit call; we need to assert on `toast.error` from sonner.
+// Hoist via `vi.hoisted` so the mock is set up before the QAAnswerDisplay
+// import is resolved (Vitest hoisting rules).
+const { mockToast } = vi.hoisted(() => ({
+  mockToast: {
+    error: vi.fn(),
+    success: vi.fn(),
+    info: vi.fn(),
+  },
+}));
+vi.mock('sonner', () => ({ toast: mockToast }));
+
 import { QAAnswerDisplay } from '@/components/qa/qa-answer-display';
 import type {
   QAAnswerDisplayProps,
@@ -579,6 +593,287 @@ describe('QAAnswerDisplay — inline editing data flow', () => {
     expect(
       screen.getByText('This is the advanced answer with more detail.'),
     ).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC8 — Save-safety guard (M1)
+// ---------------------------------------------------------------------------
+//
+// Spec AC8: when the in-flight `editValue` length drops below 80% of the
+// last-persisted baseline (`item.answer_standard?.length` or equivalent for
+// advanced), the Save-button path MUST surface the canonical block toast and
+// MUST NOT call `inlineEdit.saveEdit`. The Save-button guard lives in
+// `QAInlineEditor.handleSaveClick` (qa-answer-display.tsx:142). The same
+// guard runs inside `ContentEditor.handleSave` for the Cmd/Ctrl+S path.
+//
+// Reproduction conditions per field:
+//   baseline = 50 → threshold = 50 × 0.8 = 40
+//   editValue length 3 < 40 → guard fires
+//
+// Both fields are tested independently because each card owns its own
+// `QAInlineEditor` instance with its own `baselineLength` prop derived
+// from the corresponding persisted field value.
+describe('QAAnswerDisplay — AC8 save-safety guard', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    Element.prototype.scrollIntoView = vi.fn();
+    if (!Element.prototype.getClientRects) {
+      Element.prototype.getClientRects = vi.fn(
+        () => [] as unknown as DOMRectList,
+      );
+    }
+    if (!Range.prototype.getClientRects) {
+      Range.prototype.getClientRects = vi.fn(
+        () => [] as unknown as DOMRectList,
+      );
+    }
+    if (!Range.prototype.getBoundingClientRect) {
+      Range.prototype.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+            toJSON: () => ({}),
+          }) as DOMRect,
+      );
+    }
+  });
+
+  it('blocks save and surfaces canonical toast when answer_standard shrinks ≥ 20%', async () => {
+    const user = userEvent.setup();
+    const item = makeItem({
+      // Baseline = 50 chars → threshold = 40. editValue length 3 < 40.
+      answer_standard: 'a'.repeat(50),
+    });
+    const inlineEdit = makeInlineEdit({
+      editingField: 'answer_standard',
+      editValue: 'aaa',
+    });
+    render(
+      <QAAnswerDisplay
+        {...makeProps({ item, canEdit: true, inlineEdit })}
+      />,
+    );
+
+    await screen.findByRole('textbox', { name: /standard answer/i });
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+
+    // Canonical block message from `lib/editor/save-safety.ts`.
+    expect(mockToast.error).toHaveBeenCalledWith(
+      expect.stringContaining('Save blocked'),
+    );
+    // No PATCH mutation fired.
+    expect(inlineEdit.saveEdit).not.toHaveBeenCalled();
+  });
+
+  it('blocks save and surfaces canonical toast when answer_advanced shrinks ≥ 20%', async () => {
+    const user = userEvent.setup();
+    const item = makeItem({
+      answer_advanced: 'b'.repeat(50),
+    });
+    const inlineEdit = makeInlineEdit({
+      editingField: 'answer_advanced',
+      editValue: 'bbb',
+    });
+    render(
+      <QAAnswerDisplay
+        {...makeProps({ item, canEdit: true, inlineEdit })}
+      />,
+    );
+
+    await screen.findByRole('textbox', { name: /advanced answer/i });
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+
+    expect(mockToast.error).toHaveBeenCalledWith(
+      expect.stringContaining('Save blocked'),
+    );
+    expect(inlineEdit.saveEdit).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC9b — Re-generate embedding flag in PATCH body (M2)
+// ---------------------------------------------------------------------------
+//
+// Spec AC9b: when the per-edit "Re-generate embedding" checkbox is ticked,
+// the Save click forwards `extras: { regenerate_embedding: true }` as the
+// 4th positional argument to `inlineEdit.saveEdit`. The hook then writes
+// `regenerate_embedding: true` into the PATCH body. The hook-level wiring
+// is exercised separately in `use-inline-field-edit.test.ts`; here we only
+// verify the prop-to-callback contract on the component side.
+describe('QAAnswerDisplay — AC9b regen-embedding flag forwarded', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    Element.prototype.scrollIntoView = vi.fn();
+    if (!Element.prototype.getClientRects) {
+      Element.prototype.getClientRects = vi.fn(
+        () => [] as unknown as DOMRectList,
+      );
+    }
+    if (!Range.prototype.getClientRects) {
+      Range.prototype.getClientRects = vi.fn(
+        () => [] as unknown as DOMRectList,
+      );
+    }
+    if (!Range.prototype.getBoundingClientRect) {
+      Range.prototype.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+            toJSON: () => ({}),
+          }) as DOMRect,
+      );
+    }
+  });
+
+  it('forwards regenerate_embedding:true in extras when checkbox is ticked', async () => {
+    const user = userEvent.setup();
+    // Baseline length 27 → threshold = 21.6. editValue length 27 ≥ 22 → guard
+    // does not fire on the Save-button path.
+    const inlineEdit = makeInlineEdit({
+      editingField: 'answer_standard',
+      editValue: 'This is the updated answer.',
+      regenerateEmbedding: true,
+      setRegenerateEmbedding: vi.fn(),
+    });
+    render(
+      <QAAnswerDisplay
+        {...makeProps({ canEdit: true, inlineEdit })}
+      />,
+    );
+
+    await screen.findByRole('textbox', { name: /standard answer/i });
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+
+    await waitFor(() => {
+      expect(inlineEdit.saveEdit).toHaveBeenCalledWith(
+        'answer_standard',
+        'This is the updated answer.',
+        null,
+        { regenerate_embedding: true },
+      );
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC13 — Cmd/Ctrl+S keyboard shortcut (M3)
+// ---------------------------------------------------------------------------
+//
+// Spec AC13: pressing Cmd+S (or Ctrl+S) while editing a Q&A answer field
+// MUST trigger exactly ONE PATCH mutation for the active field. The
+// shortcut handler lives in `ContentEditor.handleKeyDown`
+// (content-editor.tsx:165) which is registered on `document` so we can
+// dispatch the event globally. The handler invokes `onSave(markdown)`
+// which is the same callback the Save button calls — so success means a
+// single `inlineEdit.saveEdit` call.
+//
+// Both fields are tested independently because each editor instance
+// registers its own document listener; mounting the wrong field shouldn't
+// cause the other field's editor to react.
+describe('QAAnswerDisplay — AC13 Cmd/Ctrl+S triggers single PATCH', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    Element.prototype.scrollIntoView = vi.fn();
+    if (!Element.prototype.getClientRects) {
+      Element.prototype.getClientRects = vi.fn(
+        () => [] as unknown as DOMRectList,
+      );
+    }
+    if (!Range.prototype.getClientRects) {
+      Range.prototype.getClientRects = vi.fn(
+        () => [] as unknown as DOMRectList,
+      );
+    }
+    if (!Range.prototype.getBoundingClientRect) {
+      Range.prototype.getBoundingClientRect = vi.fn(
+        () =>
+          ({
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+            toJSON: () => ({}),
+          }) as DOMRect,
+      );
+    }
+  });
+
+  it('fires a single saveEdit for answer_standard on Cmd+S', async () => {
+    // Baseline length 27 → threshold = 21.6. editValue length 27 clears the
+    // guard inside `ContentEditor.handleSave`.
+    const inlineEdit = makeInlineEdit({
+      editingField: 'answer_standard',
+      editValue: 'This is the updated answer.',
+    });
+    render(
+      <QAAnswerDisplay
+        {...makeProps({ canEdit: true, inlineEdit })}
+      />,
+    );
+
+    // Wait for the dynamically-imported editor to mount + register its
+    // document keydown listener.
+    await screen.findByRole('textbox', { name: /standard answer/i });
+
+    // Dispatch directly on `document` because the handler is attached there
+    // (content-editor.tsx:172). `metaKey` covers macOS; `ctrlKey` would also
+    // match the same handler, but a single keydown is the AC13 contract.
+    fireEvent.keyDown(document, { key: 's', metaKey: true });
+
+    await waitFor(() => {
+      expect(inlineEdit.saveEdit).toHaveBeenCalledTimes(1);
+    });
+    expect(inlineEdit.saveEdit).toHaveBeenCalledWith(
+      'answer_standard',
+      'This is the updated answer.',
+      null,
+      undefined,
+    );
+  });
+
+  it('fires a single saveEdit for answer_advanced on Cmd+S', async () => {
+    const inlineEdit = makeInlineEdit({
+      editingField: 'answer_advanced',
+      editValue: 'This is the updated advanced answer.',
+    });
+    render(
+      <QAAnswerDisplay
+        {...makeProps({ canEdit: true, inlineEdit })}
+      />,
+    );
+
+    await screen.findByRole('textbox', { name: /advanced answer/i });
+
+    fireEvent.keyDown(document, { key: 's', metaKey: true });
+
+    await waitFor(() => {
+      expect(inlineEdit.saveEdit).toHaveBeenCalledTimes(1);
+    });
+    expect(inlineEdit.saveEdit).toHaveBeenCalledWith(
+      'answer_advanced',
+      'This is the updated advanced answer.',
+      null,
+      undefined,
+    );
   });
 });
 
