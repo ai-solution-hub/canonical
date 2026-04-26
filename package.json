@@ -43,7 +43,7 @@
     "eval:all": "bun run eval:classification && bun run eval:summarisation && bun run eval:search && bun run eval:bid-drafting && bun run eval:entity",
     "dev:clean": "rm -rf .next && next dev --turbopack",
     "analyze": "ANALYZE=true next build",
-    "vercel-build": "bun run build:mcp-apps && next build"
+    "build:vercel": "bun run build:mcp-apps && next build"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.78.0",
