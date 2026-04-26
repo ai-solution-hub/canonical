@@ -49,8 +49,7 @@ types of worktrees:
   - `/Users/liamj/Documents/development/knowledge-hub-production-readiness`
     (branch `production-readiness`) — CI/CD, staging DB, structured
     logging, handover infra; track-local session counter
-    `kh-prod-readiness-sN`; does NOT merge back to main (one-way
-    references only). Primer: `docs/tracks/production-readiness.md`.
+    `kh-prod-readiness-sN`; Primer: `docs/tracks/production-readiness.md`.
 - **Agent worktrees** under `.claude/worktrees/` — ephemeral worktrees
   created by `isolation: "worktree"` during sessions. These SHOULD be
   cleaned up (prune + delete merged branches).
