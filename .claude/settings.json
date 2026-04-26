@@ -3,7 +3,6 @@
     "playground@claude-plugins-official": false,
     "asana@claude-plugins-official": false,
     "firecrawl@claude-plugins-official": true,
-    "knowledge-hub@local": false,
-    "knowledge-hub-kpf@local": false
+    "knowledge-hub@local": true
   }
 }
