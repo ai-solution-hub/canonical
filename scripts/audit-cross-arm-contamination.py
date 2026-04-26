@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
 """
-Audit a Claude Code sub-agent jsonl for cross-arm file access.
+Audit a Claude Code session jsonl (top-level or sub-agent) for cross-arm file
+access.
 
 Scans EVERY tool_use block for input strings matching the cross-arm filename
 pattern. Detects cross-arm reads via Read, Bash (cat/head/tail/grep/awk/sed/
 less/more/find/xargs), Glob, Grep, and Edit tools.
+
+Under v4/v5 the audit ran against sub-agent JSONLs (parent-dispatched
+worktree-isolation children at `~/.claude/projects/<slug>/<session>/subagents/agent-<id>.jsonl`).
+Under v6 (kh-s199b top-level worktree per arm) the audit runs against
+top-level session JSONLs at `~/.claude/projects/<arm-worktree-slug>/<session-uuid>.jsonl`.
+Both have the same `tool_use` block structure — script logic unchanged.
 
 Used by the WP-S11-2 cross-arm contamination check (spec §11 #14, §10 risk #6).
 
