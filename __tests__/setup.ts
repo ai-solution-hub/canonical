@@ -20,11 +20,11 @@
  */
 const TEST_ENV_DEFAULTS: Record<string, string> = {
   NEXT_PUBLIC_SUPABASE_URL: 'https://test.supabase.co',
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: 'sb_publishable_test_anon_key',
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test_anon_key',
   NEXT_PUBLIC_APP_URL: 'https://test.vercel.app',
   NEXT_PUBLIC_CLIENT_ID: 'default',
-  SUPABASE_SECRET_KEY: 'sb_secret_test_service_key',
-  SUPABASE_DBPASSWORD: 'test-db-password',
+  SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_test_service_key',
+  POSTGRES_PASSWORD: 'test-db-password',
   ANTHROPIC_API_KEY: 'sk-ant-test',
   OPENAI_API_KEY: 'sk-test',
   CRON_SECRET: 'test-cron-secret',

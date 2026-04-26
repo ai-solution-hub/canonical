@@ -1,5 +1,5 @@
 /**
- * Tests for `lib/env.ts` Zod-validated env exports.
+ * Tests for `lib/env.ts` and `lib/env-client.ts` Zod-validated env exports.
  *
  * @vitest-environment node
  *
@@ -21,12 +21,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const VALID_ENV: Record<string, string> = {
   // client (NEXT_PUBLIC_*)
   NEXT_PUBLIC_SUPABASE_URL: 'https://example.supabase.co',
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: 'sb_publishable_test_anon_key',
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test_anon_key',
   NEXT_PUBLIC_APP_URL: 'https://example.vercel.app',
   NEXT_PUBLIC_CLIENT_ID: 'example-client',
   // server
-  SUPABASE_SECRET_KEY: 'sb_secret_test_service_key',
-  SUPABASE_DBPASSWORD: 'test-db-password',
+  SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_test_service_key',
+  POSTGRES_PASSWORD: 'test-db-password',
   ANTHROPIC_API_KEY: 'sk-ant-test',
   OPENAI_API_KEY: 'sk-test',
   CRON_SECRET: 'test-cron-secret',
@@ -53,7 +53,7 @@ describe('lib/env.ts boot-time env validation', () => {
     expect(clientEnv.NEXT_PUBLIC_SUPABASE_URL).toBe(
       'https://example.supabase.co',
     );
-    expect(clientEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY).toBe(
+    expect(clientEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY).toBe(
       'sb_publishable_test_anon_key',
     );
     expect(clientEnv.NEXT_PUBLIC_APP_URL).toBe('https://example.vercel.app');
@@ -63,7 +63,9 @@ describe('lib/env.ts boot-time env validation', () => {
   it('exposes typed serverEnv with coerced numeric defaults', async () => {
     applyEnv(VALID_ENV);
     const { serverEnv } = await import('@/lib/env');
-    expect(serverEnv.SUPABASE_SECRET_KEY).toBe('sb_secret_test_service_key');
+    expect(serverEnv.SUPABASE_SERVICE_ROLE_KEY).toBe(
+      'sb_secret_test_service_key',
+    );
     expect(serverEnv.ANTHROPIC_API_KEY).toBe('sk-ant-test');
     // CLASSIFICATION_BATCH_SIZE has a default of 25 when unset
     expect(serverEnv.CLASSIFICATION_BATCH_SIZE).toBe(25);
@@ -96,14 +98,14 @@ describe('lib/env.ts boot-time env validation', () => {
     );
   });
 
-  it('REJECTS missing SUPABASE_SECRET_KEY (server-side)', async () => {
+  it('REJECTS missing SUPABASE_SERVICE_ROLE_KEY (server-side)', async () => {
     const incomplete = { ...VALID_ENV };
-    delete incomplete.SUPABASE_SECRET_KEY;
+    delete incomplete.SUPABASE_SERVICE_ROLE_KEY;
     applyEnv(incomplete);
-    vi.stubEnv('SUPABASE_SECRET_KEY', '');
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');
 
     await expect(import('@/lib/env')).rejects.toThrow(
-      /SUPABASE_SECRET_KEY.*required/,
+      /SUPABASE_SERVICE_ROLE_KEY.*required/,
     );
   });
 
@@ -116,16 +118,16 @@ describe('lib/env.ts boot-time env validation', () => {
     await expect(import('@/lib/env')).rejects.toThrow(/CRON_SECRET.*required/);
   });
 
-  it('accepts optional NEXT_PUBLIC_OBSERVABILITY_SENTRY_DSN as empty string', async () => {
+  it('accepts optional NEXT_PUBLIC_SENTRY_DSN as empty string', async () => {
     applyEnv({
       ...VALID_ENV,
-      NEXT_PUBLIC_OBSERVABILITY_SENTRY_DSN: '',
+      NEXT_PUBLIC_SENTRY_DSN: '',
     });
     const { clientEnv } = await import('@/lib/env');
     // empty-string passthrough or undefined — both indicate "not set"
     expect(
-      clientEnv.NEXT_PUBLIC_OBSERVABILITY_SENTRY_DSN === '' ||
-        clientEnv.NEXT_PUBLIC_OBSERVABILITY_SENTRY_DSN === undefined,
+      clientEnv.NEXT_PUBLIC_SENTRY_DSN === '' ||
+        clientEnv.NEXT_PUBLIC_SENTRY_DSN === undefined,
     ).toBe(true);
   });
 });
