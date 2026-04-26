@@ -36,6 +36,9 @@ export default withBundleAnalyzer(withSentryConfig(nextConfig, {
   org: process.env.OBSERVABILITY_SENTRY_ORG,
   project: process.env.OBSERVABILITY_SENTRY_PROJECT,
   authToken: process.env.OBSERVABILITY_SENTRY_AUTH_TOKEN,
+  release: {
+    name: process.env.VERCEL_GIT_COMMIT_SHA,
+  },
   sourcemaps: {
     disable: !process.env.OBSERVABILITY_SENTRY_AUTH_TOKEN,
   },
