@@ -31,15 +31,23 @@ const nextConfig: NextConfig = {
   },
 };
 
+// Sentry release/upload config. Bare SENTRY_* names match the Vercel→Sentry
+// integration's default outputs — no translation layer needed in CI. These
+// are optional at build time (lib/env.ts marks them all `.optional()`); when
+// unset, source-map upload is disabled and release tagging falls back to the
+// commit SHA only. We read them via process.env (not serverEnv) because
+// next.config.ts runs at build orchestration time and importing serverEnv
+// would force a Zod parse of every required server var just to construct
+// the Next config — needlessly tight coupling for optional Sentry knobs.
 export default withBundleAnalyzer(withSentryConfig(nextConfig, {
   silent: true,
-  org: process.env.OBSERVABILITY_SENTRY_ORG,
-  project: process.env.OBSERVABILITY_SENTRY_PROJECT,
-  authToken: process.env.OBSERVABILITY_SENTRY_AUTH_TOKEN,
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
   release: {
     name: process.env.VERCEL_GIT_COMMIT_SHA,
   },
   sourcemaps: {
-    disable: !process.env.OBSERVABILITY_SENTRY_AUTH_TOKEN,
+    disable: !process.env.SENTRY_AUTH_TOKEN,
   },
 }));
