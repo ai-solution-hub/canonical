@@ -5,7 +5,7 @@
  */
 export function safeErrorMessage(err: unknown, fallback: string): string {
   console.error(fallback, err);
-  if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
+  if (process.env.NEXT_PUBLIC_OBSERVABILITY_SENTRY_DSN) {
     import('@sentry/nextjs')
       .then(({ captureException }) => captureException(err))
       .catch((_err) => undefined);

@@ -33,10 +33,10 @@ const nextConfig: NextConfig = {
 
 export default withBundleAnalyzer(withSentryConfig(nextConfig, {
   silent: true,
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
-  authToken: process.env.SENTRY_AUTH_TOKEN,
+  org: process.env.OBSERVABILITY_SENTRY_ORG,
+  project: process.env.OBSERVABILITY_SENTRY_PROJECT,
+  authToken: process.env.OBSERVABILITY_SENTRY_AUTH_TOKEN,
   sourcemaps: {
-    disable: !process.env.SENTRY_AUTH_TOKEN,
+    disable: !process.env.OBSERVABILITY_SENTRY_AUTH_TOKEN,
   },
 }));
