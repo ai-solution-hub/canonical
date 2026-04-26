@@ -67,6 +67,13 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
 }));
 
+// SourceMetadata now calls useUserRole() internally (S197 §1.19 Phase 4);
+// mock it out for this test to avoid needing a QueryClientProvider. Matches
+// the pattern in __tests__/components/item-detail/metadata-sidebar.test.tsx.
+vi.mock('@/components/reader/source-metadata', () => ({
+  SourceMetadata: () => <div />,
+}));
+
 import { MetadataSidebar } from '@/components/item-detail/metadata-sidebar';
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
 

@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { htmlToPlainText } from '@/lib/editor-utils';
+import { stripMarkdown } from '@/lib/content/strip-markdown';
 
 // ──────────────────────────────────────────
 // Types
@@ -284,7 +284,7 @@ export function KBIntegrationReview({
               candidate.source_content_ids.length > 0;
             const ActionIcon = ACTION_ICONS[action];
             const previewText = candidate.response_text
-              ? truncateText(htmlToPlainText(candidate.response_text), 150)
+              ? truncateText(stripMarkdown(candidate.response_text), 150)
               : null;
 
             return (

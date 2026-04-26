@@ -13,6 +13,7 @@ import {
   Fingerprint,
   ClipboardCheck,
   Building2,
+  Tags,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
@@ -39,6 +40,7 @@ export type SettingsSection =
   | 'content-owners'
   | 'entities'
   | 'guides'
+  | 'tag-morphology'
   | 'team'
   | 'governance'
   | 'reviewer-assignments'
@@ -78,6 +80,13 @@ const ALL_SECTIONS: SectionDef[] = [
     group: 'content',
   },
   { id: 'guides', label: 'Guides', icon: BookOpen, group: 'content' },
+  {
+    id: 'tag-morphology',
+    label: 'Tag Morphology',
+    icon: Tags,
+    group: 'content',
+    adminOrEditorOnly: true,
+  },
   { id: 'team', label: 'Team', icon: Users, group: 'system' },
   {
     id: 'governance',

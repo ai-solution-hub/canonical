@@ -287,9 +287,14 @@ export async function PATCH(
     );
 
     // For Q&A answer fields, auto-rebuild the content field from Standard + Advanced.
-    // Canonical shape per P0-BM Phase 3 spec ss4.1:
+    // Canonical shape per §1.5 spec §4.1 H2 / P0-BM Phase 3 spec ss4.1:
     //   Q: {question}\n\n{answer_standard}\n\n{answer_advanced}
-    // Question sourced via resolveQuestionForRebuild (spec ss6.2 Option B).
+    // Question sourced via resolveQuestionForRebuild (P0-BM Phase 3 spec ss6.2
+    // Option B — `content_items.question_text` does not exist; the resolver
+    // parses the leading `Q: ` line of currentItem.content with title fallback).
+    // Null/empty handling per §1.5 spec §4.1 H2:
+    //   - empty question → omit the `Q: ` prefix entirely (no `Q: \n\n` stub)
+    //   - empty standard, non-empty advanced → no leading blank line
     const updateData: Record<string, unknown> = {
       [field]: effectiveValue,
       updated_by: user.id,
@@ -307,7 +312,8 @@ export async function PATCH(
         field === 'answer_standard' ? value : currentItem.answer_standard;
       const advanced =
         field === 'answer_advanced' ? value : currentItem.answer_advanced;
-      const parts: string[] = [`Q: ${question}`];
+      const parts: string[] = [];
+      if (question) parts.push(`Q: ${question}`);
       if (standard) parts.push(String(standard));
       if (advanced) parts.push(String(advanced));
       const joined = parts.join('\n\n');

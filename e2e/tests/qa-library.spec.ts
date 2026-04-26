@@ -725,3 +725,326 @@ test.describe('Q&A Library page', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// S198 §1.5 WP8 — Q&A ContentEditor (Tiptap) round-trip / table integrity /
+// save-safety guard scenarios. Covers AC11, AC8, AC6 from
+// docs/specs/qa-contenteditor-upgrade-spec.md.
+//
+// Selectors target stable accessibility hooks shipped by WP4:
+//   - `aria-labelledby="qa-answer-standard-label"` on the editor textbox
+//     (mirrors `<span id="qa-answer-standard-label">Standard Answer</span>`)
+//   - `aria-labelledby="qa-answer-advanced-label"` on the advanced textbox
+// (constants live at `components/qa/qa-answer-display.tsx:253-254`).
+//
+// Tiptap content injection drives `editor.commands.insertContentAt` /
+// `setContent` against `dom.editor` (the `TiptapEditorHTMLElement.editor`
+// expando set by Tiptap core in `Editor.ts:563-565`). This is the
+// `pm.editor` pattern from MEMORY `feedback_agent_browser_tiptap_typing` —
+// keystroke simulation is intentionally not used.
+// ---------------------------------------------------------------------------
+
+const QA_STANDARD_LABEL_ID = 'qa-answer-standard-label';
+const QA_STANDARD_TEXTBOX = `[aria-labelledby="${QA_STANDARD_LABEL_ID}"][role="textbox"]`;
+const QA_STANDARD_PANEL = '[data-testid="qa-answer-panel-standard"]';
+
+/** ≥200 chars of prose — used by Scenario C as the save-safety baseline. */
+const SAVE_GUARD_BASELINE_ANSWER =
+  'Our incident response process follows the NIST Cybersecurity Framework, ' +
+  'with a 24/7 SOC team triaging alerts within 15 minutes. We maintain ' +
+  'documented playbooks for ransomware, phishing, data exfiltration, and ' +
+  'insider threat scenarios, reviewed quarterly with tabletop exercises and ' +
+  'after-action reports shared across the engineering organisation.';
+
+test.describe('Q&A ContentEditor (Tiptap) — §1.5 WP8', () => {
+  let wp8RoundtripId: string;
+  let wp8TableId: string;
+  let wp8GuardId: string;
+
+  test.beforeAll(async ({ workerData }) => {
+    const prefix = workerData.prefix;
+    [wp8RoundtripId, wp8TableId, wp8GuardId] = await Promise.all([
+      // Scenario A item — round-trip target. Seed with a baseline answer
+      // long enough that the WP8 round-trip insert won't trip the
+      // save-safety 80% floor; the inserted markdown adds well over 100
+      // chars so the new total stays above the baseline.
+      createTestQAPair(prefix, 'Service Delivery', {
+        title: `${prefix} WP8 Round-trip Q&A`,
+        answer_standard:
+          'Baseline answer prior to round-trip edit. Replaced inline by the ' +
+          'WP8 round-trip scenario; the post-save read-mode DOM is asserted ' +
+          'against react-markdown output for ## headings, **bold**, and bullet ' +
+          'lists. Sufficient length to stay above the save-safety floor.',
+      }),
+      // Scenario B item — GFM table round-trip target. Same length-floor
+      // consideration as Scenario A.
+      createTestQAPair(prefix, 'Service Delivery', {
+        title: `${prefix} WP8 Table Q&A`,
+        answer_standard:
+          'Baseline answer prior to GFM table round-trip. The Tiptap schema ' +
+          'registers the four Table* extensions (Table, TableRow, TableHeader, ' +
+          'TableCell) so a 2x3 table round-trips to <table>/<tr>/<td> via ' +
+          'react-markdown + remark-gfm; this baseline is replaced wholesale.',
+      }),
+      // Scenario C item — save-safety guard target. Baseline ≥200 chars so
+      // shrinking to a 5-char string trips the 20%-loss block.
+      createTestQAPair(prefix, 'Service Delivery', {
+        title: `${prefix} WP8 Save-Guard Q&A`,
+        answer_standard: SAVE_GUARD_BASELINE_ANSWER,
+      }),
+    ]);
+  });
+
+  test.afterAll(async () => {
+    const ids = [wp8RoundtripId, wp8TableId, wp8GuardId].filter(Boolean);
+    if (ids.length > 0) {
+      const supabase = createServiceClient();
+      await supabase.from('content_items').delete().in('id', ids);
+    }
+  });
+
+  test('Scenario A — markdown round-trip via Tiptap insertContentAt + Cmd/Ctrl+S (AC11)', async ({
+    editorPage: page,
+  }) => {
+    await page.goto(`/item/${wp8RoundtripId}`);
+
+    // Baseline read-mode label rendered before edit.
+    await expect(page.getByText('Standard Answer')).toBeVisible({
+      timeout: 15000,
+    });
+
+    // Open the standard-answer inline editor. Scope to the standard-answer
+    // panel via stable data-testid (added S198 verifier M1 fix); the panel
+    // wraps both the header (Edit button) and body (editor / renderer),
+    // disambiguating from any action-bar Edit.
+    const standardPanel = page.locator(QA_STANDARD_PANEL);
+    await expect(standardPanel).toBeVisible({ timeout: 15000 });
+    await standardPanel.getByRole('button', { name: 'Edit' }).click();
+
+    // Wait for the Tiptap editor textbox to mount and become interactive.
+    const editorTextbox = page.locator(QA_STANDARD_TEXTBOX);
+    await editorTextbox.waitFor({ state: 'visible', timeout: 10000 });
+
+    // Inject markdown via the Tiptap editor instance attached to the
+    // ProseMirror DOM root (`dom.editor`). insertContentAt(0, ...) prepends
+    // so the resulting answer length stays above the save-safety floor.
+    await page.evaluate((selector) => {
+      const dom = document.querySelector(selector) as
+        | (HTMLElement & {
+            editor?: {
+              commands: {
+                insertContentAt: (pos: number, content: string) => boolean;
+                focus: () => boolean;
+              };
+            };
+          })
+        | null;
+      if (!dom?.editor) {
+        throw new Error(`Tiptap editor not found on ${selector}`);
+      }
+      dom.editor.commands.focus();
+      dom.editor.commands.insertContentAt(
+        0,
+        '## Section\n\n**Bold phrase** in the intro.\n\n' +
+          '- First bullet\n- Second bullet\n- Third bullet\n\n',
+      );
+    }, QA_STANDARD_TEXTBOX);
+
+    // Save via Cmd+S (macOS) / Ctrl+S (others). The Tiptap editor handler
+    // reads metaKey || ctrlKey, so Meta+S is portable across platforms.
+    await editorTextbox.focus();
+    await page.keyboard.press('Meta+S');
+
+    // Editor closes on success → "Edit" button reappears in the panel header
+    // (cancelEdit + setEditingField(null) on the success path).
+    await expect(
+      standardPanel.getByRole('button', { name: 'Edit' }),
+    ).toBeVisible({ timeout: 15000 });
+    await expect(editorTextbox).toHaveCount(0);
+
+    // Reload to assert the persisted markdown round-trips through the
+    // read-mode renderer (react-markdown + remark-gfm).
+    await page.reload();
+    await expect(page.getByText('Standard Answer')).toBeVisible({
+      timeout: 15000,
+    });
+
+    // <h2> heading rendered by react-markdown. Heading text is slugified to
+    // an id by `createHeadingComponents` — the visible text is "Section".
+    await expect(
+      page.getByRole('heading', { level: 2, name: 'Section' }),
+    ).toBeVisible();
+
+    // <strong> for the bold phrase — semantic role is "strong" (no role
+    // mapping in ARIA), so locate by tag + text.
+    await expect(
+      page.locator('strong', { hasText: 'Bold phrase' }),
+    ).toHaveCount(1);
+
+    // <ul> with three <li> children. Scope to the standard-answer panel
+    // because the page may render unrelated lists elsewhere.
+    const bulletList = standardPanel.locator('ul').first();
+    await expect(bulletList).toBeVisible();
+    await expect(bulletList.locator('li')).toHaveCount(3);
+    await expect(bulletList.locator('li').nth(0)).toContainText('First bullet');
+    await expect(bulletList.locator('li').nth(1)).toContainText(
+      'Second bullet',
+    );
+    await expect(bulletList.locator('li').nth(2)).toContainText('Third bullet');
+  });
+
+  test('Scenario B — GFM table round-trip preserves rows + columns (AC6, AC8b)', async ({
+    editorPage: page,
+  }) => {
+    await page.goto(`/item/${wp8TableId}`);
+
+    await expect(page.getByText('Standard Answer')).toBeVisible({
+      timeout: 15000,
+    });
+
+    // Scope to the standard-answer panel via stable data-testid; the panel
+    // wraps both the header (Edit button) and the body (editor / renderer).
+    const standardPanel = page.locator(QA_STANDARD_PANEL);
+    await expect(standardPanel).toBeVisible({ timeout: 15000 });
+    await standardPanel.getByRole('button', { name: 'Edit' }).click();
+
+    const editorTextbox = page.locator(QA_STANDARD_TEXTBOX);
+    await editorTextbox.waitFor({ state: 'visible', timeout: 10000 });
+
+    // Insert a 2-column × 3-data-row GFM table (plus 1 header row). Inserted
+    // at pos 0 so the baseline answer remains and the post-edit length stays
+    // above the save-safety floor.
+    await page.evaluate((selector) => {
+      const dom = document.querySelector(selector) as
+        | (HTMLElement & {
+            editor?: {
+              commands: {
+                insertContentAt: (pos: number, content: string) => boolean;
+                focus: () => boolean;
+              };
+            };
+          })
+        | null;
+      if (!dom?.editor) {
+        throw new Error(`Tiptap editor not found on ${selector}`);
+      }
+      dom.editor.commands.focus();
+      dom.editor.commands.insertContentAt(
+        0,
+        '| Service | Response |\n' +
+          '| --- | --- |\n' +
+          '| Critical | 15 minutes |\n' +
+          '| High | 1 hour |\n' +
+          '| Standard | 4 hours |\n\n',
+      );
+    }, QA_STANDARD_TEXTBOX);
+
+    await editorTextbox.focus();
+    await page.keyboard.press('Meta+S');
+
+    await expect(
+      standardPanel.getByRole('button', { name: 'Edit' }),
+    ).toBeVisible({ timeout: 15000 });
+
+    await page.reload();
+    await expect(page.getByText('Standard Answer')).toBeVisible({
+      timeout: 15000,
+    });
+
+    // Read-mode <table> rendered by remark-gfm. Scope to the standard-
+    // answer panel via stable data-testid.
+    const standardPanelAfter = page.locator(QA_STANDARD_PANEL);
+    await expect(standardPanelAfter).toBeVisible();
+    const table = standardPanelAfter.locator('table').first();
+    await expect(table).toBeVisible();
+
+    // Header row: 1 <thead><tr> with 2 <th>.
+    await expect(table.locator('thead tr')).toHaveCount(1);
+    await expect(table.locator('thead tr th')).toHaveCount(2);
+    await expect(table.locator('thead tr th').nth(0)).toContainText('Service');
+    await expect(table.locator('thead tr th').nth(1)).toContainText('Response');
+
+    // Data rows: 3 <tbody><tr> with 2 <td> each.
+    await expect(table.locator('tbody tr')).toHaveCount(3);
+    await expect(table.locator('tbody tr').nth(0).locator('td')).toHaveCount(2);
+    await expect(table.locator('tbody tr').nth(0)).toContainText('Critical');
+    await expect(table.locator('tbody tr').nth(0)).toContainText('15 minutes');
+    await expect(table.locator('tbody tr').nth(2)).toContainText('Standard');
+    await expect(table.locator('tbody tr').nth(2)).toContainText('4 hours');
+  });
+
+  test('Scenario C — save-safety guard blocks <80% shrink and never PATCHes (AC8)', async ({
+    editorPage: page,
+  }) => {
+    // Track whether any PATCH /api/items/<id> was issued during the
+    // attempted save. Per AC8 the guard must short-circuit BEFORE the
+    // mutation runs, so this stays false.
+    let patchObserved = false;
+    await page.route(`**/api/items/${wp8GuardId}**`, async (route) => {
+      if (route.request().method() === 'PATCH') {
+        patchObserved = true;
+      }
+      return route.continue();
+    });
+
+    await page.goto(`/item/${wp8GuardId}`);
+    await expect(page.getByText('Standard Answer')).toBeVisible({
+      timeout: 15000,
+    });
+
+    // Scope to the standard-answer panel via stable data-testid; the panel
+    // wraps both the header (Edit button) and the body (editor / renderer).
+    const standardPanel = page.locator(QA_STANDARD_PANEL);
+    await expect(standardPanel).toBeVisible({ timeout: 15000 });
+    await standardPanel.getByRole('button', { name: 'Edit' }).click();
+
+    const editorTextbox = page.locator(QA_STANDARD_TEXTBOX);
+    await editorTextbox.waitFor({ state: 'visible', timeout: 10000 });
+
+    // Programmatically replace the content with a string well below 80% of
+    // the baseline (baseline ≥200 chars; "short" = 5 chars → 0.025 × baseline).
+    await page.evaluate((selector) => {
+      const dom = document.querySelector(selector) as
+        | (HTMLElement & {
+            editor?: {
+              commands: {
+                setContent: (
+                  content: string,
+                  options?: { contentType?: 'markdown' | 'html' },
+                ) => boolean;
+                focus: () => boolean;
+              };
+            };
+          })
+        | null;
+      if (!dom?.editor) {
+        throw new Error(`Tiptap editor not found on ${selector}`);
+      }
+      dom.editor.commands.focus();
+      dom.editor.commands.setContent('short', { contentType: 'markdown' });
+    }, QA_STANDARD_TEXTBOX);
+
+    // Trigger save via Cmd+S; the guard inside ContentEditor.handleSave
+    // (and the parallel guard in QAInlineEditor.handleSaveClick) fires
+    // toast.error(SAVE_SAFETY_BLOCK_MESSAGE) and returns early.
+    await editorTextbox.focus();
+    await page.keyboard.press('Meta+S');
+
+    // Sonner renders toasts inside the [data-sonner-toaster] root with each
+    // toast carrying the `data-sonner-toast` attribute. Match on the
+    // canonical "Save blocked" prefix from `lib/editor/save-safety.ts:55-56`.
+    await expect(
+      page.locator('[data-sonner-toast]').filter({ hasText: /Save blocked/ }),
+    ).toBeVisible({ timeout: 5000 });
+
+    // Editor stays open (Edit button does not reappear) — confirms the save
+    // path was short-circuited rather than completing successfully.
+    await expect(editorTextbox).toBeVisible();
+
+    // Final assertion: no PATCH ever fired during the attempted save. Wait
+    // a beat to give any in-flight request time to surface before checking.
+    // (If the guard regressed and a PATCH did fire, this would flip true.)
+    await page.waitForTimeout(500);
+    expect(patchObserved).toBe(false);
+  });
+});

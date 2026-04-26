@@ -148,6 +148,169 @@ describe('deriveHolderMetadata', () => {
 
     expect(count).toBe(0);
   });
+
+  // ---------------------------------------------------------------------
+  // S196 synonym fallback: `complies_with` / `evidences` accepted as
+  // `holds` ONLY when target is a certification entity AND no canonical
+  // `holds` rel exists for that target.
+  // ---------------------------------------------------------------------
+
+  it('accepts `complies_with` as holds-synonym for cert targets (self)', () => {
+    const rows: EntityMentionRow[] = [
+      row({ canonical_name: 'iso 27001' }),
+    ];
+    const rels: ExtractedRelationship[] = [
+      {
+        source: selfOrgName,
+        relationship: 'complies_with',
+        target: 'ISO 27001',
+      },
+    ];
+
+    const count = deriveHolderMetadata(rows, rels);
+
+    expect(count).toBe(1);
+    expect(rows[0].metadata).toEqual({ holder: 'self' });
+  });
+
+  it('accepts `evidences` as holds-synonym for cert targets (self)', () => {
+    const rows: EntityMentionRow[] = [
+      row({ canonical_name: 'cyber essentials plus' }),
+    ];
+    const rels: ExtractedRelationship[] = [
+      {
+        source: selfOrgName,
+        relationship: 'evidences',
+        target: 'Cyber Essentials Plus',
+      },
+    ];
+
+    const count = deriveHolderMetadata(rows, rels);
+
+    expect(count).toBe(1);
+    expect(rows[0].metadata).toEqual({ holder: 'self' });
+  });
+
+  it('accepts synonym for supplier-held certs when supplier is extracted as org', () => {
+    // Supplier case requires the supplier to be extracted as an
+    // organisation entity in the same batch — the tightened rule
+    // prevents garbage rels like "ISO 27001 complies_with X" from
+    // deriving cert-held-by-cert metadata.
+    const rows: EntityMentionRow[] = [
+      row({ canonical_name: 'iso 27001' }),
+      row({ entity_type: 'organisation', canonical_name: 'example-datacentre europe' }),
+    ];
+    const rels: ExtractedRelationship[] = [
+      {
+        source: 'example-datacentre Europe',
+        relationship: 'complies_with',
+        target: 'ISO 27001',
+      },
+    ];
+
+    const count = deriveHolderMetadata(rows, rels);
+
+    expect(count).toBe(1);
+    expect(rows[0].metadata).toEqual({
+      holder: 'supplier',
+      supplier_name: 'example-datacentre europe',
+    });
+  });
+
+  it('rejects synonym when source is a cert (prevents cert-to-cert garbage rels)', () => {
+    // S196 prod case: classifier emitted "ISO 27001 complies_with
+    // Cyber Essentials Plus" on item 7e511dbc. Without the source-is-org
+    // filter, synonym fallback produced holder='supplier',
+    // supplier_name='iso 27001' — nonsense. Tightened rule requires
+    // source to match clientOrgLower OR be extracted as organisation.
+    const rows: EntityMentionRow[] = [
+      row({ canonical_name: 'iso 27001' }),
+      row({ canonical_name: 'cyber essentials plus' }),
+    ];
+    const rels: ExtractedRelationship[] = [
+      {
+        source: 'ISO 27001',
+        relationship: 'complies_with',
+        target: 'Cyber Essentials Plus',
+      },
+    ];
+
+    const count = deriveHolderMetadata(rows, rels);
+
+    expect(count).toBe(0);
+    expect(rows[0].metadata).toBeUndefined();
+    expect(rows[1].metadata).toBeUndefined();
+  });
+
+  it('does NOT accept `complies_with` for non-certification targets', () => {
+    // Only regulation rows in the batch — `complies_with GDPR` should
+    // NOT trigger holder derivation because GDPR is not a certification
+    // (semantically, complying with a regulation ≠ holding a cert).
+    const rows: EntityMentionRow[] = [
+      row({ entity_type: 'regulation', canonical_name: 'gdpr' }),
+    ];
+    const rels: ExtractedRelationship[] = [
+      { source: selfOrgName, relationship: 'complies_with', target: 'GDPR' },
+    ];
+
+    const count = deriveHolderMetadata(rows, rels);
+
+    expect(count).toBe(0);
+    expect(rows[0].metadata).toBeUndefined();
+  });
+
+  it('prefers `holds` over synonyms when both exist for the same cert', () => {
+    // Two rels for ISO 27001: a canonical `holds` (self) + a synonym
+    // `complies_with` (different source). Holds must win — synonyms are
+    // only a fallback when no canonical holds exists.
+    const rows: EntityMentionRow[] = [
+      row({ canonical_name: 'iso 27001' }),
+    ];
+    const rels: ExtractedRelationship[] = [
+      { source: selfOrgName, relationship: 'holds', target: 'ISO 27001' },
+      {
+        source: 'Contoso Ltd',
+        relationship: 'complies_with',
+        target: 'ISO 27001',
+      },
+    ];
+
+    const count = deriveHolderMetadata(rows, rels);
+
+    expect(count).toBe(1);
+    expect(rows[0].metadata).toEqual({ holder: 'self' });
+  });
+
+  it('ignores non-synonym rel_types for cert targets', () => {
+    // `delivers_to`, `uses`, `supersedes` etc. must never derive holder
+    // metadata regardless of target.
+    const rows: EntityMentionRow[] = [
+      row({ canonical_name: 'iso 27001' }),
+    ];
+    const rels: ExtractedRelationship[] = [
+      { source: selfOrgName, relationship: 'references', target: 'ISO 27001' },
+      { source: selfOrgName, relationship: 'requires', target: 'ISO 27001' },
+    ];
+
+    const count = deriveHolderMetadata(rows, rels);
+
+    expect(count).toBe(0);
+    expect(rows[0].metadata).toBeUndefined();
+  });
+
+  it('synonym resolves target via canonicalise + resolveAlias', () => {
+    const rows: EntityMentionRow[] = [
+      row({ canonical_name: 'iso 27001' }),
+    ];
+    const rels: ExtractedRelationship[] = [
+      { source: selfOrgName, relationship: 'evidences', target: 'iso27001' },
+    ];
+
+    const count = deriveHolderMetadata(rows, rels);
+
+    expect(count).toBe(1);
+    expect(rows[0].metadata).toEqual({ holder: 'self' });
+  });
 });
 
 // ---------------------------------------------------------------------------

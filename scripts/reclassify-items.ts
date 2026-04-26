@@ -118,6 +118,22 @@ async function main(): Promise<void> {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
+  // SAFETY GUARD: if NEXT_PUBLIC_CLIENT_ID is not set, BRANDING falls
+  // back to default ("Knowledge Hub"), which would corrupt holder
+  // derivation on every cert. Fail fast — same guard as eval-holder-
+  // rule-ts.ts. See S196 handoff for incident context.
+  const { BRANDING } = await import('@/lib/client-config');
+  if (BRANDING.organisationName === 'Knowledge Hub') {
+    console.error(
+      `[reclassify] BRANDING.organisationName = "Knowledge Hub" (default ` +
+        `fallback). This means NEXT_PUBLIC_CLIENT_ID is not set. Running ` +
+        `classifyContent would derive holder metadata against the wrong ` +
+        `client org. Set NEXT_PUBLIC_CLIENT_ID=example-client in your shell or ` +
+        `.env.local and retry.`,
+    );
+    process.exit(2);
+  }
+
   const prefixes = parseItemIds();
   const ids = await resolveIds(supabase, prefixes);
   console.error(`Resolved ${ids.length} item(s) for re-classify.`);

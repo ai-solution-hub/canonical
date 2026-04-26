@@ -41,12 +41,45 @@ export default async function ItemDetailPage({
     notFound();
   }
 
-  // Fetch related items server-side (single RPC — no embedding round-trip)
-  const { data: relatedItems } = await supabase.rpc('find_related_items', {
-    p_item_id: id,
-    p_similarity_threshold: 0.6,
-    p_limit_count: 6,
-  });
+  // Fetch related items (RPC) + RSS feed-article linkage in parallel so the
+  // item-detail page load does not serialise on two independent reads.
+  // S197 §1.19 Phase 5: feed_articles → feed_sources lookup becomes the
+  // canonical source for RSS-ingested article metadata in the Source
+  // Information accordion. `maybeSingle()` returns `null` cleanly for items
+  // that did not come from a feed.
+  const [relatedResult, feedArticleResult] = await Promise.all([
+    supabase.rpc('find_related_items', {
+      p_item_id: id,
+      p_similarity_threshold: 0.6,
+      p_limit_count: 6,
+    }),
+    supabase
+      .from('feed_articles')
+      .select(
+        'published_at, feed_sources:feed_source_id (name, url, source_type)',
+      )
+      .eq('content_item_id', id)
+      .maybeSingle(),
+  ]);
+
+  const { data: relatedItems } = relatedResult;
+  const { data: feedArticleRaw } = feedArticleResult;
+
+  // PostgREST returns nested relations as either an object or (historically)
+  // a one-element array depending on the FK shape. Normalise to object|null.
+  const feedArticle =
+    feedArticleRaw != null
+      ? {
+          published_at: feedArticleRaw.published_at ?? null,
+          feed_source: Array.isArray(feedArticleRaw.feed_sources)
+            ? (feedArticleRaw.feed_sources[0] ?? null)
+            : ((feedArticleRaw.feed_sources as {
+                name: string;
+                url: string;
+                source_type: 'rss' | 'web' | 'api';
+              } | null) ?? null),
+        }
+      : null;
 
   // Parse JSONB columns with runtime validation
   // Scalar fields match between Supabase row and ItemData; only JSONB columns
@@ -54,6 +87,7 @@ export default async function ItemDetailPage({
   const itemData: ItemData = {
     ...(item as ItemData),
     summary_data: parseJsonb(SummaryDataSchema, item.summary_data),
+    feed_article: feedArticle,
   };
 
   return (

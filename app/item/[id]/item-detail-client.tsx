@@ -21,6 +21,7 @@ import { DetailModeToggle } from '@/components/item-detail/detail-mode-toggle';
 
 import type { ContentListItem, SummaryData } from '@/types/content';
 import type { Layout } from 'react-resizable-panels';
+import type { FeedArticleJoin } from '@/components/reader/source-metadata';
 
 export interface ItemData {
   id: string;
@@ -74,6 +75,18 @@ export interface ItemData {
   starred?: boolean;
   /** Citation count for quality score calculation */
   citation_count?: number | null;
+  /**
+   * Source filename (e.g. `"Foo Bar.docx"` for Q&As, `"foo.md"` for markdown).
+   * Already selected by `CONTENT_LIST_COLUMNS` / `CONTENT_DETAIL_COLUMNS`;
+   * this field fixes the existing typing gap surfaced by S197 §1.19.
+   */
+  source_file?: string | null;
+  /**
+   * Result of the `feed_articles` + `feed_sources` join fetched by
+   * `app/item/[id]/page.tsx`. `null` for non-RSS items. See
+   * `docs/specs/source-information-spec.md` §5.2.
+   */
+  feed_article?: FeedArticleJoin | null;
 }
 
 export interface ItemDetailClientProps {

@@ -27,21 +27,22 @@ export interface InlineContentEditorProps {
   isEditing: boolean;
   /** The current persisted content value (used as baseline for save-safety) */
   currentContent: string | null | undefined;
-  /** Whether this is a Q&A pair (affects placeholder copy) */
-  isQAPair: boolean;
 }
 
 /**
- * TipTap-based rich content editor for the "Full Text / Full Answer" tab.
+ * TipTap-based rich content editor for the canonical `content` tab.
  * Includes save-safety guard, re-generate embedding / re-classify checkboxes,
  * "Why change?" reason input, and save/cancel buttons.
  * Shows a per-field save hint below the editor.
+ *
+ * Q&A items edit `answer_standard` / `answer_advanced` via
+ * `qa-answer-display.tsx` (single-field-at-a-time), NOT this component —
+ * so the previous `isQAPair` placeholder branch was dead and is removed.
  */
 export function InlineContentEditor({
   editConfig,
   isEditing,
   currentContent,
-  isQAPair,
 }: InlineContentEditorProps) {
   if (!isEditing) return null;
 
@@ -72,7 +73,7 @@ export function InlineContentEditor({
         // Explicit baseline -- `content` here is the two-way-bound edit
         // buffer, so the ContentEditor can't fall back to it safely.
         baselineLength={baselineLength}
-        placeholder={isQAPair ? 'Write the answer\u2026' : 'Edit content\u2026'}
+        placeholder="Edit content\u2026"
         minHeight="200px"
       />
       <div className="flex flex-wrap items-center gap-4">

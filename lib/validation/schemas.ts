@@ -1,5 +1,36 @@
 import { z } from 'zod';
+import pluralize from 'pluralize';
 import { getValidTypeValues } from '@/lib/workspace-types';
+
+// ──────────────────────────────────────────
+// Tag morphology — domain uncountable registration
+// ──────────────────────────────────────────
+// The `pluralize` library handles most English singular/plural morphology
+// (including irregulars like children/child, knives/knife, heroes/hero,
+// quizzes/quiz) but it strips the trailing 's' from several `-ics` fields
+// of study that are treated as mass nouns in our domain. Register these
+// as uncountable so direct library calls outside `toSingular` behave
+// consistently. The TAG_PLURAL_LOOKING_SINGULARS override set is the
+// primary protection — these registrations are defence-in-depth.
+//
+// Spec: docs/specs/p1-tag-morphology-library-adoption-spec.md §3.1.2
+const DOMAIN_UNCOUNTABLES = [
+  'economics',
+  'ethics',
+  'genetics',
+  'linguistics',
+  'logistics',
+  'mathematics',
+  'physics',
+  'politics',
+  'robotics',
+  'statistics',
+  'means',
+] as const;
+
+for (const word of DOMAIN_UNCOUNTABLES) {
+  pluralize.addUncountableRule(word);
+}
 
 // ──────────────────────────────────────────
 // Shared enums / constants
@@ -961,59 +992,58 @@ const TAG_PLURAL_LOOKING_SINGULARS: ReadonlySet<string> = new Set([
   'politics',
   'robotics',
   'statistics',
+  // Latin/Greek singulars that the morphology library would otherwise
+  // mis-singularise (data→datum, basis→basi, axis→axi, oasis→oasi).
+  // Keeps TS↔Python parity. Surfaced by the §1.17 corpus eval; preserved
+  // here to avoid regressing existing tags.
+  'data',
+  'basis',
+  'axis',
+  'oasis',
 ]);
 
 /**
  * Convert an English plural word to its singular form.
  *
- * Handles:
- *   - Short words (len <= 3): left unchanged (bus, gas)
- *   - Plural-looking singulars (news, means, series, species): left unchanged
- *   - -sses -> strip 'es' (addresses -> address, classes -> class)
- *   - -ss / -us / -sis / -ous: left unchanged (access, status, analysis, continuous)
- *   - -ies (len > 4) -> -y (policies -> policy, companies -> company, libraries -> library)
- *   - -ches/shes/xes/zes -> strip 'es' (breaches -> breach, dishes -> dish, boxes -> box, quizzes -> quiz)
- *   - default trailing 's' -> strip (audits -> audit, systems -> system)
+ * Layered guards (in order):
+ *   1. Short-word guard (len <= 3): 'bus', 'gas' etc. kept as-is (fast path
+ *      + matches Python behaviour).
+ *   2. Whole-input override: TAG_PLURAL_LOOKING_SINGULARS exact match.
+ *   3. Last-token override: for compound tags ('inspection data',
+ *      'school data'), the override layer protects the final whitespace-
+ *      delimited token. pluralize.singular operates on the last token
+ *      regardless of trailing characters, so without this layer the
+ *      `data` → `datum` conversion would surface in compounds even
+ *      though `data` alone is preserved.
+ *   4. Library fallback: pluralize.singular() handles regular + irregular
+ *      English morphology including -ies → -y, -ves → -f, -oes → -o,
+ *      quizzes → quiz, children → child, mice → mouse, etc.
  *
- * Does NOT handle: -ves -> -f (knives -> knife), -oes (heroes, potatoes),
- * or other irregular forms. Add carve-outs to TAG_PLURAL_LOOKING_SINGULARS
- * if regressions surface.
+ * Spec: docs/specs/p1-tag-morphology-library-adoption-spec.md §3.1.2
+ *
+ * Historical note: prior to S197 this function used hand-rolled suffix
+ * rules that could not handle irregular forms. The pluralize library ships
+ * with 500+ rules including all of those. Domain uncountables that
+ * pluralize does not know about (10 `-ics` fields + 'means') are
+ * registered at module load above.
  */
 function toSingular(tag: string): string {
   if (tag.length <= 3) return tag;
   if (TAG_PLURAL_LOOKING_SINGULARS.has(tag)) return tag;
 
-  // -sses -> strip 'es' first, before the bare 'ss' guard
-  if (tag.endsWith('sses')) return tag.slice(0, -2);
-
-  // Guards: unchanged endings
-  if (tag.endsWith('ss')) return tag;
-  if (tag.endsWith('us')) return tag;
-  if (tag.endsWith('sis')) return tag;
-  if (tag.endsWith('ous')) return tag;
-
-  // -ies (len > 4) -> -y
-  if (tag.endsWith('ies') && tag.length > 4) {
-    return tag.slice(0, -3) + 'y';
+  // For compound tags, protect the final token if it is in the override
+  // set. pluralize would otherwise apply morphology to the last token
+  // (e.g. 'inspection data' → 'inspection datum'). Splitting on a single
+  // ASCII space keeps parity with the Python re.ASCII whitespace path.
+  const spaceIdx = tag.lastIndexOf(' ');
+  if (spaceIdx > 0) {
+    const lastToken = tag.slice(spaceIdx + 1);
+    if (TAG_PLURAL_LOOKING_SINGULARS.has(lastToken)) {
+      return tag;
+    }
   }
 
-  // -ches/shes/xes -> strip 'es'
-  // NOTE: -zes is NOT included — most -ze words pluralise with +s only
-  // (size, prize, freeze), so default strip-s handles them. Irregular
-  // doubled-consonant plurals like 'quizzes' -> 'quizz' are an accepted
-  // edge case; add to TAG_PLURAL_LOOKING_SINGULARS if they surface.
-  if (
-    tag.endsWith('ches') ||
-    tag.endsWith('shes') ||
-    tag.endsWith('xes')
-  ) {
-    return tag.slice(0, -2);
-  }
-
-  // Default: strip trailing 's'
-  if (tag.endsWith('s')) return tag.slice(0, -1);
-
-  return tag;
+  return pluralize.singular(tag);
 }
 
 /**
@@ -1131,6 +1161,53 @@ export const TagBulkMergeBodySchema = z.object({
     .max(100)
     .transform(normaliseTag),
   type: z.enum(VALID_TAG_TYPES),
+});
+
+// ──────────────────────────────────────────
+// Tag morphology drift flags (§1.17 / S197 WP3)
+// ──────────────────────────────────────────
+
+export const TAG_MORPHOLOGY_DECISION_VALUES = [
+  'pending',
+  'accept',
+  'add_override',
+  'dismiss',
+] as const;
+
+/** GET /api/admin/tag-morphology/flags?decision=pending&limit=...&offset=... */
+export const TagMorphologyFlagsQuerySchema = z.object({
+  decision: z.enum(TAG_MORPHOLOGY_DECISION_VALUES).optional(),
+  limit: z.coerce
+    .number()
+    .int()
+    .optional()
+    .transform((v) => (v != null ? Math.max(1, Math.min(500, v)) : v)),
+  offset: z.coerce
+    .number()
+    .int()
+    .optional()
+    .transform((v) => (v != null ? Math.max(0, v) : v)),
+});
+
+/** POST /api/admin/tag-morphology/flags — bulk insert from dry-run eval output */
+export const TagMorphologyFlagsBulkInsertSchema = z.object({
+  flags: z
+    .array(
+      z.object({
+        stored_tag: z.string().trim().min(1).max(200),
+        proposed_canonical: z.string().trim().min(1).max(200),
+        usage_count: z.number().int().min(0),
+        affected_content_ids: z.array(z.string().uuid()).max(10000),
+      }),
+    )
+    .min(1, 'At least one flag is required')
+    .max(2000),
+});
+
+/** PATCH /api/admin/tag-morphology/flags/[id] — disposition a flag */
+export const TagMorphologyFlagDecisionSchema = z.object({
+  decision: z.enum(['accept', 'add_override', 'dismiss']),
+  decision_rationale: z.string().trim().max(2000).optional(),
 });
 
 // ──────────────────────────────────────────

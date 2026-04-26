@@ -507,6 +507,16 @@ export function dedupeEntityMentionRows(
  * @param relationships - classifier-emitted relationships.
  * @returns the number of rows that received holder metadata.
  */
+// Certification-context synonyms for `holds`. The classifier sometimes
+// emits `complies_with` or `evidences` when the content phrases a
+// certification differently (e.g. "our ISO 27001 compliance", "evidenced
+// by our DBS check"). Both are valid enum members but our holder
+// derivation only acts on `holds`. S196 fix: accept these synonyms ONLY
+// when the target is a certification entity AND no canonical `holds` rel
+// exists for that target (holds wins over synonyms on tie).
+const HOLDS_SYNONYMS: ReadonlySet<ExtractedRelationship['relationship']> =
+  new Set(['complies_with', 'evidences']);
+
 export function deriveHolderMetadata(
   rows: EntityMentionRow[],
   relationships: ExtractedRelationship[],
@@ -514,6 +524,10 @@ export function deriveHolderMetadata(
   const clientOrgLower = BRANDING.organisationName.toLowerCase();
   const holdsRelsByTarget = new Map<string, string>();
 
+  // Pass 1: canonical `holds` relationships. Last-wins on collision
+  // (e.g. two suppliers both assert `holds iso 27001`) — this mirrors
+  // the Python classifier's single-source assumption; upstream dedup at
+  // classifier output is the intended safeguard, not this map.
   for (const rel of relationships) {
     if (rel.relationship === 'holds') {
       const targetLower = resolveAlias(
@@ -522,11 +536,44 @@ export function deriveHolderMetadata(
       const sourceLower = resolveAlias(
         canonicalise(rel.source),
       ).toLowerCase();
-      // Last-wins on collision: if multiple holders claim the same cert
-      // (e.g. two suppliers both assert `holds iso 27001`), the final
-      // mapping wins. Mirrors the Python classifier's single-source
-      // assumption — upstream dedup at classifier output is the intended
-      // safeguard, not this map.
+      holdsRelsByTarget.set(targetLower, sourceLower);
+    }
+  }
+
+  // Pass 2: synonym fallback. Only accept when:
+  //   (a) target is a certification entity (preserves semantic meaning
+  //       of `complies_with`/`evidences` in non-cert contexts — e.g.
+  //       "our org complies_with GDPR" where GDPR is a regulation), AND
+  //   (b) source is the client organisation OR an extracted
+  //       organisation entity in this batch (prevents garbage rels like
+  //       "ISO 27001 complies_with Cyber Essentials Plus" from being
+  //       mis-derived as cert-held-by-cert), AND
+  //   (c) no canonical `holds` rel already exists for that target
+  //       (holds wins over synonyms on tie).
+  const certTargets = new Set<string>();
+  const orgSources = new Set<string>();
+  for (const row of rows) {
+    if (row.entity_type === 'certification') {
+      certTargets.add(row.canonical_name);
+    } else if (row.entity_type === 'organisation') {
+      orgSources.add(row.canonical_name);
+    }
+  }
+  for (const rel of relationships) {
+    if (HOLDS_SYNONYMS.has(rel.relationship)) {
+      const targetLower = resolveAlias(
+        canonicalise(rel.target),
+      ).toLowerCase();
+      if (holdsRelsByTarget.has(targetLower)) continue;
+      if (!certTargets.has(targetLower)) continue;
+
+      const sourceLower = resolveAlias(
+        canonicalise(rel.source),
+      ).toLowerCase();
+      const sourceIsClientOrg = sourceLower === clientOrgLower;
+      const sourceIsExtractedOrg = orgSources.has(sourceLower);
+      if (!sourceIsClientOrg && !sourceIsExtractedOrg) continue;
+
       holdsRelsByTarget.set(targetLower, sourceLower);
     }
   }

@@ -55,6 +55,11 @@ const LazyContentOwnerManagement = lazy(() =>
     default: m.ContentOwnerManagement,
   })),
 );
+const LazyTagMorphologySection = lazy(() =>
+  import('@/components/settings/tag-morphology-section').then((m) => ({
+    default: m.TagMorphologySection,
+  })),
+);
 const LazyReviewerAssignments = lazy(() =>
   import('@/components/review/assignment-manager').then((m) => ({
     default: m.AssignmentManager,
@@ -117,6 +122,12 @@ function SectionContent({ section }: { section: SettingsSection }) {
       return (
         <Suspense fallback={<SectionSkeleton />}>
           <LazyGuidesSection />
+        </Suspense>
+      );
+    case 'tag-morphology':
+      return (
+        <Suspense fallback={<SectionSkeleton />}>
+          <LazyTagMorphologySection />
         </Suspense>
       );
     case 'team':

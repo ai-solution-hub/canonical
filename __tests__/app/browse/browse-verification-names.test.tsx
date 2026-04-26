@@ -10,6 +10,22 @@ import '@testing-library/jest-dom/vitest';
 import { render } from '@testing-library/react';
 import { createQueryWrapper } from '../../helpers/query-wrapper';
 
+// Cold-start gate renders SearchPromptCards → PromptCardChipComposite
+// which reads `useTaxonomy` + `useTopDomains`. Stub both to a benign
+// empty state.
+vi.mock('@/contexts/taxonomy-context', () => ({
+  useTaxonomy: () => ({
+    getDomainNames: () => [] as string[],
+    formatDomainName: (name: string) => name,
+  }),
+}));
+
+vi.mock('@/lib/supabase/client', () => ({
+  createClient: () => ({
+    rpc: vi.fn(async () => ({ data: { domain: {} }, error: null })),
+  }),
+}));
+
 // ---------------------------------------------------------------------------
 // Hoisted mocks — must be declared before vi.mock() factories reference them
 // ---------------------------------------------------------------------------

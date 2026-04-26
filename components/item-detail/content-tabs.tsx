@@ -507,7 +507,6 @@ export function ContentTabs({
                 editConfig={editConfig}
                 isEditing
                 currentContent={content}
-                isQAPair={isQAPair}
               />
             ) : (
               <>

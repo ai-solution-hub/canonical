@@ -7,6 +7,30 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
+import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
+
+// Cold-start prompt cards transitively render `useTopDomains` + `useTaxonomy`.
+// Per CLAUDE.md `feedback_searchbar_query_provider`, tests rendering
+// BrowseContent need `createQueryWrapper().Wrapper` for TanStack Query.
+const { Wrapper: QueryWrapper } = createQueryWrapper();
+
+// Stub taxonomy-context — BrowseContent doesn't depend on it directly,
+// but `PromptCardChipComposite` (rendered via SearchPromptCards in the
+// cold-start gate) calls `useTaxonomy().getDomainNames()` for chip
+// fallbacks. Return an empty list to exercise the empty-DB path.
+vi.mock('@/contexts/taxonomy-context', () => ({
+  useTaxonomy: () => ({
+    getDomainNames: () => [] as string[],
+    formatDomainName: (name: string) => name,
+  }),
+}));
+
+// Stub Supabase client used by the chipComposite's `useTopDomains` RPC.
+vi.mock('@/lib/supabase/client', () => ({
+  createClient: () => ({
+    rpc: vi.fn(async () => ({ data: { domain: {} }, error: null })),
+  }),
+}));
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks — must be defined before vi.mock() factories
@@ -248,7 +272,7 @@ describe('BrowseContent — from_bid URL parameter', () => {
   it('passes fromBidId to ContentGrid when ?from_bid is present', () => {
     mockSearchParams.current = new URLSearchParams('from_bid=ws-1');
 
-    render(<BrowseContent />);
+    render(<BrowseContent />, { wrapper: QueryWrapper });
 
     const grid = screen.getByTestId('content-grid');
     expect(grid).toHaveAttribute('data-from-bid-id', 'ws-1');
@@ -258,7 +282,7 @@ describe('BrowseContent — from_bid URL parameter', () => {
   it('does not pass fromBidId when ?from_bid is absent', () => {
     mockSearchParams.current = new URLSearchParams();
 
-    render(<BrowseContent />);
+    render(<BrowseContent />, { wrapper: QueryWrapper });
 
     const grid = screen.getByTestId('content-grid');
     expect(grid).toHaveAttribute('data-from-bid-id', '');
@@ -270,7 +294,7 @@ describe('BrowseContent — from_bid URL parameter', () => {
       'from_bid=ws-2&domain=security',
     );
 
-    render(<BrowseContent />);
+    render(<BrowseContent />, { wrapper: QueryWrapper });
 
     const grid = screen.getByTestId('content-grid');
     expect(grid).toHaveAttribute('data-from-bid-id', 'ws-2');
@@ -280,7 +304,7 @@ describe('BrowseContent — from_bid URL parameter', () => {
   it('renders inline SearchBar variant on browse page', () => {
     mockSearchParams.current = new URLSearchParams();
 
-    render(<BrowseContent />);
+    render(<BrowseContent />, { wrapper: QueryWrapper });
 
     const searchBar = screen.getByTestId('search-bar-inline');
     expect(searchBar).toBeInTheDocument();
@@ -292,7 +316,7 @@ describe('BrowseContent — from_bid URL parameter', () => {
     mockBrowseData.searchQuery = 'test search';
     mockBrowseData.isSearchMode = true;
 
-    render(<BrowseContent />);
+    render(<BrowseContent />, { wrapper: QueryWrapper });
 
     const searchBar = screen.getByTestId('search-bar-inline');
     expect(searchBar).toHaveAttribute('data-default-value', 'test search');

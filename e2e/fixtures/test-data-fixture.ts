@@ -420,9 +420,9 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         title: `${prefix} ${shape.title}`,
         content_type: 'article' as const,
         primary_domain: 'Market Intelligence',
-        summary: shape.summary ?? '',
+        summary: shape.ai_summary ?? '',
         platform: 'web',
-        content: shape.summary ?? '',
+        content: shape.ai_summary ?? '',
         source_url: shape.external_url,
       }));
 

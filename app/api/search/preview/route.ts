@@ -76,20 +76,12 @@ export async function GET(request: NextRequest) {
     });
 
     // Map to response shape — exclude `layer` per spec §4.1
-    const mapped = sorted.map(
-      (item: {
-        id: string;
-        title: string;
-        content_type: string;
-        primary_domain: string | null;
-        layer: string | null;
-      }) => ({
-        id: item.id,
-        title: item.title,
-        content_type: item.content_type,
-        primary_domain: item.primary_domain,
-      }),
-    );
+    const mapped = sorted.map((item) => ({
+      id: item.id,
+      title: item.title,
+      content_type: item.content_type,
+      primary_domain: item.primary_domain,
+    }));
 
     return NextResponse.json({
       results: mapped,
