@@ -85,11 +85,11 @@ async function main(): Promise<void> {
   // Validate env
   const supabaseUrl =
     process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SECRET_KEY;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
-    console.error('Missing SUPABASE_URL / SUPABASE_SECRET_KEY in environment');
+    console.error('Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY in environment');
     process.exit(1);
   }
   if (!anthropicKey) {

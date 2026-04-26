@@ -378,7 +378,7 @@ def main() -> int:
         return 0
 
     url = os.environ["NEXT_PUBLIC_SUPABASE_URL"]
-    key = os.environ["SUPABASE_SECRET_KEY"]
+    key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
     sb = create_client(url, key)
 
     print(f"\nIngesting into {url} with batch_tag='{BATCH_TAG}'...", flush=True)

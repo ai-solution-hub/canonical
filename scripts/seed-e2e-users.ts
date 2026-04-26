@@ -30,7 +30,7 @@
  *
  * **Environment variables required:**
  *   - SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL
- *   - SUPABASE_SECRET_KEY (service role — NOT the anon key)
+ *   - SUPABASE_SERVICE_ROLE_KEY (service role — NOT the anon key)
  *   - TEST_USER_1_PASSWORD, TEST_USER_2_PASSWORD, TEST_USER_3_PASSWORD
  *
  * **Usage:**
@@ -147,7 +147,7 @@ Exit codes:
 
 Required env vars:
   SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL)
-  SUPABASE_SECRET_KEY
+  SUPABASE_SERVICE_ROLE_KEY
   TEST_USER_1_PASSWORD, TEST_USER_2_PASSWORD, TEST_USER_3_PASSWORD
 `);
   process.exit(0);
@@ -160,11 +160,11 @@ const checkOnly = values.check ?? false;
 
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SECRET_KEY;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
   console.error(
-    '❌ Missing NEXT_PUBLIC_SUPABASE_URL/SUPABASE_URL or SUPABASE_SECRET_KEY',
+    '❌ Missing NEXT_PUBLIC_SUPABASE_URL/SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY',
   );
   process.exit(EXIT_GENERIC_ERROR);
 }

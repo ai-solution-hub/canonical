@@ -106,13 +106,13 @@ const APPLY = args.apply!;
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const supabaseKey =
-  process.env.SUPABASE_SECRET_KEY ||
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
   process.env.SUPABASE_ANON_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
   console.error(
-    'ERROR: Missing SUPABASE_URL or SUPABASE_SECRET_KEY in environment',
+    'ERROR: Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment',
   );
   process.exit(1);
 }

@@ -89,7 +89,7 @@ const SKIP_DELAY = args.yes!;
 // ── Supabase client ────────────────────────────────────────────────────────
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SECRET_KEY;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl) {
   console.error(
@@ -100,7 +100,7 @@ if (!supabaseUrl) {
 
 if (!supabaseKey) {
   console.error(
-    'ERROR: Missing SUPABASE_SECRET_KEY in environment. This script requires the service-role key, not the anon key.',
+    'ERROR: Missing SUPABASE_SERVICE_ROLE_KEY in environment. This script requires the service-role key, not the anon key.',
   );
   process.exit(1);
 }

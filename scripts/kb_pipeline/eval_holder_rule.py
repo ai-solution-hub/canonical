@@ -14,7 +14,7 @@ Usage:
 NOTE: When running from Claude Code, invoke with dangerouslyDisableSandbox: true
 because the Anthropic SDK's httpx transport hangs behind the sandbox SOCKS proxy.
 
-Requires ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SECRET_KEY in .env.
+Requires ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY in .env.
 """
 
 import argparse

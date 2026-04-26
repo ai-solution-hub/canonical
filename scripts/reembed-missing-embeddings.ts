@@ -11,7 +11,7 @@
  *     does not auto-embed. See `docs/operations/cutover-report-s182.md` §8.1.
  *
  * Usage:
- *   SUPABASE_SECRET_KEY=... OPENAI_API_KEY=... \
+ *   SUPABASE_SERVICE_ROLE_KEY=... OPENAI_API_KEY=... \
  *     bun run scripts/reembed-missing-embeddings.ts [--include-unclassified]
  *
  * Runs with `dangerouslyDisableSandbox: true` per the Bun fetch 204
@@ -36,11 +36,11 @@ interface OrphanRow {
 
 async function main(): Promise<void> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SECRET_KEY;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
     console.error(
-      'Error: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY must be set.',
+      'Error: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.',
     );
     process.exit(1);
   }

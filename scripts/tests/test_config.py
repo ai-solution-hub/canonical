@@ -225,14 +225,14 @@ class TestSupabaseCredentialGetters:
     @patch("kb_pipeline.config.load_env")
     def test_get_supabase_secret_key_returns_value(self, mock_load):
         """get_supabase_secret_key returns the key when set."""
-        mock_load.return_value = {"SUPABASE_SECRET_KEY": "secret-123"}
+        mock_load.return_value = {"SUPABASE_SERVICE_ROLE_KEY": "secret-123"}
         assert get_supabase_secret_key() == "secret-123"
 
     @patch("kb_pipeline.config.load_env")
     def test_get_supabase_secret_key_raises_when_missing(self, mock_load):
         """get_supabase_secret_key raises RuntimeError when not set."""
         mock_load.return_value = {}
-        with pytest.raises(RuntimeError, match="SUPABASE_SECRET_KEY"):
+        with pytest.raises(RuntimeError, match="SUPABASE_SERVICE_ROLE_KEY"):
             get_supabase_secret_key()
 
     @patch("kb_pipeline.config.load_env")
@@ -243,8 +243,8 @@ class TestSupabaseCredentialGetters:
 
     @patch("kb_pipeline.config.load_env")
     def test_get_supabase_anon_key_falls_back_to_next_public(self, mock_load):
-        """get_supabase_anon_key falls back to NEXT_PUBLIC_SUPABASE_ANON_KEY."""
-        mock_load.return_value = {"NEXT_PUBLIC_SUPABASE_ANON_KEY": "next-pub-789"}
+        """get_supabase_anon_key falls back to NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY."""
+        mock_load.return_value = {"NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "next-pub-789"}
         assert get_supabase_anon_key() == "next-pub-789"
 
     @patch("kb_pipeline.config.load_env")
