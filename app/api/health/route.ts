@@ -1,36 +1,46 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
-import { clientEnv } from '@/lib/env-client';
-import { serverEnv } from '@/lib/env';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 10;
 
+/**
+ * /api/health is the runtime drift-detector for env validation.
+ *
+ * In normal operation, boot-time Zod validation in lib/env*.ts already
+ * guarantees these vars are present — the build fails if any required
+ * one is missing. But if a future deployment ever bypasses validation
+ * (e.g. someone marks a previously-required field optional or stubs the
+ * parse for a debug build), this route is the only place that surfaces
+ * that drift to monitoring dashboards. That is why this route reads
+ * process.env directly by literal name — substituting clientEnv.X here
+ * would defeat the purpose of the check.
+ *
+ * Variable names match the new schema (post-WP-FU.1 rename): publishable
+ * key not anon key, service-role key not secret key.
+ */
 export async function GET() {
   const timestamp = new Date().toISOString();
 
-  // Boot-time Zod validation in lib/env*.ts already guarantees that all
-  // required vars are present — if we got here, they're all set. Keep the
-  // runtime check anyway so /api/health continues to surface "degraded"
-  // (rather than 500) if any future optional field is added and unset.
-  const requiredVars = {
-    NEXT_PUBLIC_SUPABASE_URL: clientEnv.NEXT_PUBLIC_SUPABASE_URL,
-    ANTHROPIC_API_KEY: serverEnv.ANTHROPIC_API_KEY,
-    OPENAI_API_KEY: serverEnv.OPENAI_API_KEY,
-  };
-  const envOk = Object.values(requiredVars).every((v) => Boolean(v));
+  const requiredEnvVars = [
+    'NEXT_PUBLIC_SUPABASE_URL',
+    'ANTHROPIC_API_KEY',
+    'OPENAI_API_KEY',
+  ];
+  const missingEnvVars = requiredEnvVars.filter((v) => !process.env[v]);
+  const envOk = missingEnvVars.length === 0;
 
-  // Check Supabase connectivity
   let supabaseOk = false;
   try {
-    const supabase = createClient(
-      clientEnv.NEXT_PUBLIC_SUPABASE_URL,
-      clientEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
-    );
-    const { count, error } = await supabase
-      .from('content_items')
-      .select('*', { count: 'exact', head: true });
-    supabaseOk = !error && count !== null;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    if (supabaseUrl && supabaseKey) {
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      const { count, error } = await supabase
+        .from('content_items')
+        .select('*', { count: 'exact', head: true });
+      supabaseOk = !error && count !== null;
+    }
   } catch {
     supabaseOk = false;
   }
