@@ -159,10 +159,10 @@ const VIEWER_PASSWORD = process.env.TEST_USER_3_PASSWORD ?? '';
 
 async function getViewerUserId(): Promise<string> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !anon) {
     throw new Error(
-      'Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY env vars.',
+      'Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY env vars.',
     );
   }
   if (!VIEWER_EMAIL || !VIEWER_PASSWORD) {

@@ -2,7 +2,7 @@
  * Real DB Service Client for Phase 3b Integration Tests
  *
  * Loads env vars from .env using dotenv and creates a Supabase service client
- * using SUPABASE_SECRET_KEY (bypasses RLS). This is the foundation for real DB
+ * using SUPABASE_SERVICE_ROLE_KEY (bypasses RLS). This is the foundation for real DB
  * integration tests that verify end-to-end data flow.
  *
  * This differs from supabase-client.ts (Phase 3a) in that it eagerly loads
@@ -39,11 +39,11 @@ config({ path: resolve(projectRoot, '.env') });
 config({ path: resolve(projectRoot, '.env.local') });
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.SUPABASE_SECRET_KEY;
+const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!url || !key) {
   throw new Error(
-    'Real DB integration tests require NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY in .env',
+    'Real DB integration tests require NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env',
   );
 }
 

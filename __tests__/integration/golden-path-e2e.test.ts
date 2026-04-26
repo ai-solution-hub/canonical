@@ -9,7 +9,7 @@
  * These verify the DATA FLOW logic between components using in-memory stores.
  *
  * NEXT SESSION (Phase 3b): Replace with real DB integration tests using
- * SUPABASE_SECRET_KEY service client, as the spec requires. The spec mandates
+ * SUPABASE_SERVICE_ROLE_KEY service client, as the spec requires. The spec mandates
  * "Real database required. Mocking would defeat the purpose." (Section 4).
  * See docs/specs/data-flow-golden-path-e2e-spec.md for the full requirements.
  *
@@ -1238,11 +1238,11 @@ describe('GP10: Cross-feature data integrity', () => {
 // Phase 3b: Real DB integration tests (next session)
 // ---------------------------------------------------------------------------
 // These stubs document the spec-required tests that need a live Supabase
-// connection via SUPABASE_SECRET_KEY service client. See spec Section 4:
+// connection via SUPABASE_SERVICE_ROLE_KEY service client. See spec Section 4:
 // "Real database required. Mocking would defeat the purpose."
 //
 // Implementation requires:
-// - Service client using SUPABASE_SECRET_KEY from .env
+// - Service client using SUPABASE_SERVICE_ROLE_KEY from .env
 // - GOLDEN-PATH-{timestamp} prefix for test data isolation
 // - afterAll cleanup with FK-ordered deletion
 // - vitest.integration.config.ts with 120s timeout
@@ -1250,4 +1250,4 @@ describe('GP10: Cross-feature data integrity', () => {
 
 // Phase 3b IMPLEMENTED — see __tests__/integration/golden-path-real-db.integration.test.ts
 // Run via: bun run test:integration
-// 10 real DB tests using SUPABASE_SECRET_KEY service client (S131)
+// 10 real DB tests using SUPABASE_SERVICE_ROLE_KEY service client (S131)

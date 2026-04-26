@@ -10,7 +10,7 @@
  * and write to the real Supabase database. No mocks.
  *
  * Prerequisites:
- *   - .env with NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SECRET_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY
+ *   - .env with NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY
  *   - Run: INTEGRATION_INTELLIGENCE=1 bun run test __tests__/integration/intelligence-golden-path
  *
  * Spec: docs/specs/si-integration-tests-spec.md
@@ -978,7 +978,7 @@ describe.skipIf(!ENABLED || !hasViewerCredentials)(
     it('Authenticate as viewer', async () => {
       viewerClient = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
       );
 
       const { error } = await viewerClient.auth.signInWithPassword({

@@ -9,7 +9,7 @@
  * derivation works correctly against real DB data.
  *
  * Prerequisites:
- *   - .env with NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY
+ *   - .env with NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY
  *   - Run: bun run test:integration
  *
  * @vitest-environment node

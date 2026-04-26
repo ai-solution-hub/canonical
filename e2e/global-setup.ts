@@ -16,8 +16,8 @@ async function globalSetup(): Promise<void> {
   // --- Step 1: Environment variables ---
   const required = [
     'NEXT_PUBLIC_SUPABASE_URL',
-    'NEXT_PUBLIC_SUPABASE_ANON_KEY',
-    'SUPABASE_SECRET_KEY',
+    'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
+    'SUPABASE_SERVICE_ROLE_KEY',
   ];
 
   const missing = required.filter((key) => !process.env[key]);
@@ -52,7 +52,7 @@ async function globalSetup(): Promise<void> {
   if (rolesError) {
     throw new Error(
       `E2E setup: failed to query user_roles: ${rolesError.message}. ` +
-        'Ensure the SUPABASE_SECRET_KEY has service_role permissions.',
+        'Ensure the SUPABASE_SERVICE_ROLE_KEY has service_role permissions.',
     );
   }
 
@@ -75,7 +75,7 @@ async function globalSetup(): Promise<void> {
   // preceded this block — see docs/audits/s156-auth-admin-sweep.md
   // Finding 5.3.
   const anonUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
   const anonClient = createClient(anonUrl, anonKey);
 
   const passwordEnvByLabel: Record<string, string> = {

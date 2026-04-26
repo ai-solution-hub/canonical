@@ -21,8 +21,8 @@
  * `vi.mock('@/lib/users/display-names')`, it stops doing its job.
  *
  * Prereqs:
- *   - `.env` with NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
- *     SUPABASE_SECRET_KEY, TEST_USER_{1,2,3}_PASSWORD
+ *   - `.env` with NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+ *     SUPABASE_SERVICE_ROLE_KEY, TEST_USER_{1,2,3}_PASSWORD
  *   - `bun run seed:e2e-users` has been run against the target DB
  *   - The WP-2 migration `20260408223728_create_get_user_display_names.sql`
  *     has been applied

@@ -17,7 +17,7 @@
  *    driving `unnest(user_ids)` table, not `u.id` from the LEFT JOIN.
  *
  * Prereqs:
- *   - `.env` with `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SECRET_KEY`
+ *   - `.env` with `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
  *   - `bun run seed:e2e-users` has been run (so TEST_USER_1 exists)
  *   - The WP-2 migration `20260408223728_create_get_user_display_names.sql`
  *     has been applied to the target DB

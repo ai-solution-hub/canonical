@@ -25,7 +25,7 @@
  *   - `bun run seed:e2e-users` has been run against the target DB so
  *     `test.user{1,2,3}@test-kb-aish.co.uk` exist with the expected
  *     passwords in `.env`.
- *   - `.env` has `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+ *   - `.env` has `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
  *     `TEST_USER_{1,2,3}_PASSWORD`.
  *   - The test file loads `./service-client` first (for dotenv).
  *
@@ -119,11 +119,11 @@ export async function signInAsTestUser(
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !anonKey) {
     throw new Error(
       'signInAsTestUser: NEXT_PUBLIC_SUPABASE_URL and ' +
-        'NEXT_PUBLIC_SUPABASE_ANON_KEY must be set in .env.',
+        'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY must be set in .env.',
     );
   }
 
@@ -204,10 +204,10 @@ export async function getTestUserIds(): Promise<
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SECRET_KEY;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !serviceKey) {
     throw new Error(
-      'getTestUserIds: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY ' +
+      'getTestUserIds: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY ' +
         'must be set in .env.',
     );
   }

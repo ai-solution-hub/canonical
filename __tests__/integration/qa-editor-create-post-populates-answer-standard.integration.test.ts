@@ -15,8 +15,8 @@
  * Plan:  docs/plans/qa-contenteditor-upgrade-plan.md WP7 (Wave 3)
  *
  * Prereqs:
- *   - .env with NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
- *     SUPABASE_SECRET_KEY, OPENAI_API_KEY, TEST_USER_{1,2,3}_PASSWORD
+ *   - .env with NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+ *     SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY, TEST_USER_{1,2,3}_PASSWORD
  *   - `bun run seed:e2e-users` has been run against the target DB
  *
  * Run: `bun run test:integration __tests__/integration/qa-editor-create-post-populates-answer-standard`
