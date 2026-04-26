@@ -1,5 +1,6 @@
 'use client';
 
+import * as Sentry from '@sentry/nextjs';
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { Library } from 'lucide-react';
@@ -14,6 +15,7 @@ export default function BrowseError({
 }) {
   useEffect(() => {
     console.error('Browse error:', error);
+    Sentry.captureException(error);
   }, [error]);
 
   return (

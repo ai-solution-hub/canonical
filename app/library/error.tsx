@@ -1,5 +1,6 @@
 'use client';
 
+import * as Sentry from '@sentry/nextjs';
 import { useEffect } from 'react';
 import { BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,7 @@ export default function LibraryError({
 }) {
   useEffect(() => {
     console.error('Q&A Library error:', error);
+    Sentry.captureException(error);
   }, [error]);
 
   return (

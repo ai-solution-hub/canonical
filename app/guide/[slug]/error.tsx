@@ -1,5 +1,6 @@
 'use client';
 
+import * as Sentry from '@sentry/nextjs';
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { BookOpen } from 'lucide-react';
@@ -14,6 +15,7 @@ export default function GuideDetailError({
 }) {
   useEffect(() => {
     console.error('Guide detail error:', error);
+    Sentry.captureException(error);
   }, [error]);
 
   return (

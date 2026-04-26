@@ -1,5 +1,6 @@
 'use client';
 
+import * as Sentry from '@sentry/nextjs';
 import { useEffect } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,7 @@ export default function WorkspaceError({
 }) {
   useEffect(() => {
     console.error('Workspace error:', error);
+    Sentry.captureException(error);
   }, [error]);
 
   return (

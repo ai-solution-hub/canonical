@@ -1,5 +1,6 @@
 'use client';
 
+import * as Sentry from '@sentry/nextjs';
 import { useEffect } from 'react';
 import { KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -15,6 +16,7 @@ export default function LoginError({
 }) {
   useEffect(() => {
     console.error('Login error:', error);
+    Sentry.captureException(error);
   }, [error]);
 
   return (
