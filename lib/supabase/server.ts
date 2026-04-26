@@ -2,39 +2,41 @@ import { createServerClient as createSupabaseServerClient } from '@supabase/ssr'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import type { Database } from '@/supabase/types/database.types';
+import { clientEnv, serverEnv } from '@/lib/env';
 
-/** Server-side Supabase client for API routes and Server Components (with cookie-based auth) */
+/**
+ * Server-side Supabase client for API routes and Server Components (with
+ * cookie-based auth).
+ *
+ * Reads `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` from
+ * `clientEnv`, which is Zod-validated at boot in `lib/env.ts` — guarantees
+ * non-empty values, so the previous defensive `if (!supabaseUrl)` checks
+ * are redundant here.
+ */
 export async function createClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!supabaseUrl) {
-    throw new Error('NEXT_PUBLIC_SUPABASE_URL environment variable is not set');
-  }
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseAnonKey) {
-    throw new Error(
-      'NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable is not set',
-    );
-  }
-
   const cookieStore = await cookies();
 
-  return createSupabaseServerClient<Database>(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll() {
-        return cookieStore.getAll();
-      },
-      setAll(cookiesToSet) {
-        try {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options),
-          );
-        } catch {
-          // The `setAll` method is called from a Server Component.
-          // This is safe — proxy.ts refreshes sessions on every request.
-        }
+  return createSupabaseServerClient<Database>(
+    clientEnv.NEXT_PUBLIC_SUPABASE_URL,
+    clientEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options),
+            );
+          } catch {
+            // The `setAll` method is called from a Server Component.
+            // This is safe — proxy.ts refreshes sessions on every request.
+          }
+        },
       },
     },
-  });
+  );
 }
 
 /**
@@ -48,21 +50,19 @@ export async function createClient() {
  * from `lib/auth.ts` instead, which respects RLS.
  *
  * Audited S102: all 17 call sites verified as properly guarded.
+ *
+ * Reads URL from `clientEnv.NEXT_PUBLIC_SUPABASE_URL` and the secret key
+ * from `serverEnv.SUPABASE_SECRET_KEY` — both validated at boot.
  */
 export function createServiceClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!supabaseUrl) {
-    throw new Error('NEXT_PUBLIC_SUPABASE_URL environment variable is not set');
-  }
-  const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY;
-  if (!supabaseSecretKey) {
-    throw new Error('SUPABASE_SECRET_KEY environment variable is not set');
-  }
-
-  return createSupabaseClient<Database>(supabaseUrl, supabaseSecretKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
+  return createSupabaseClient<Database>(
+    clientEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.SUPABASE_SECRET_KEY,
+    {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
     },
-  });
+  );
 }

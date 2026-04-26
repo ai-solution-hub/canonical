@@ -580,6 +580,7 @@ export function derivePrimaryForeground(primary: string): string {
 // NEXT_PUBLIC_CLIENT_ID in the Vercel project.
 import defaultBranding from '@/lib/branding/clients/default.json';
 import example-clientBranding from '@/lib/branding/clients/example-client.json';
+import { clientEnv } from '@/lib/env';
 
 const CLIENT_BRANDING_MAP: Record<string, unknown> = {
   default: defaultBranding,
@@ -588,17 +589,22 @@ const CLIENT_BRANDING_MAP: Record<string, unknown> = {
 
 /**
  * Resolve the active branding config by explicit id OR from
- * `NEXT_PUBLIC_CLIENT_ID` when no id is supplied.
+ * `clientEnv.NEXT_PUBLIC_CLIENT_ID` when no id is supplied.
+ *
+ * `clientEnv` is validated at boot in `lib/env.ts`; `NEXT_PUBLIC_CLIENT_ID`
+ * is REQUIRED there so the previous silent fallback to "Knowledge Hub"
+ * (S196 incident — 35 corrupted entity_mention rows) is no longer
+ * reachable in production builds.
  *
  * Exported so tests can pass an explicit id without relying on env-var
  * mocking (NEXT_PUBLIC_* env vars are inlined by SWC at build time).
  *
- * Falls back to 'default' if the supplied / env-derived id is not in the
- * lookup map. Throws if the selected JSON fails schema validation or if
- * the contrast Tier 2 check reports any errors.
+ * Falls back to 'default' only if the supplied / env-derived id is not in
+ * the lookup map. Throws if the selected JSON fails schema validation or
+ * if the contrast Tier 2 check reports any errors.
  */
 export function loadBranding(idOverride?: string): BrandingConfig {
-  const id = idOverride ?? process.env.NEXT_PUBLIC_CLIENT_ID ?? 'default';
+  const id = idOverride ?? clientEnv.NEXT_PUBLIC_CLIENT_ID;
   const raw = CLIENT_BRANDING_MAP[id] ?? CLIENT_BRANDING_MAP.default;
 
   if (!raw) {

@@ -9,6 +9,9 @@ import {
 
 describe('loadBranding', () => {
   it('resolves default branding with no argument', () => {
+    // __tests__/setup.ts sets NEXT_PUBLIC_CLIENT_ID='default' as a
+    // deterministic test default; the silent ?? 'default' fallback was
+    // removed in WP6 (lib/env.ts) because it caused the S196 incident.
     const branding = loadBranding();
     expect(branding.clientId).toBe('default');
     expect(branding.productName).toBe('Knowledge Hub');
