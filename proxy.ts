@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { PUBLIC_ROUTES } from '@/lib/routes';
+import { clientEnv } from '@/lib/env-client';
 
 // Public routes from shared constant, plus /.well-known which is an
 // API-like route that only needs the proxy bypass (no UI guard needed).
@@ -10,40 +11,34 @@ const publicRoutes = [
 ];
 
 export async function proxy(request: NextRequest) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return NextResponse.json(
-      {
-        error:
-          'Server misconfiguration — missing Supabase environment variables',
-      },
-      { status: 500 },
-    );
-  }
+  // URL + PUBLISHABLE_KEY are validated at boot in lib/env-client.ts —
+  // missing values fail the build, so no defensive fallback is needed here.
 
   // Pass pathname to layout so it can render minimal chrome for share routes
   request.headers.set('x-pathname', request.nextUrl.pathname);
 
   let supabaseResponse = NextResponse.next({ request });
 
-  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value }) =>
-          request.cookies.set(name, value),
-        );
-        supabaseResponse = NextResponse.next({ request });
-        cookiesToSet.forEach(({ name, value, options }) =>
-          supabaseResponse.cookies.set(name, value, options),
-        );
+  const supabase = createServerClient(
+    clientEnv.NEXT_PUBLIC_SUPABASE_URL,
+    clientEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value),
+          );
+          supabaseResponse = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options),
+          );
+        },
       },
     },
-  });
+  );
 
   // IMPORTANT: Do NOT use supabase.auth.getSession() — it reads from cookies
   // without validation. Use getUser() which contacts the auth server.

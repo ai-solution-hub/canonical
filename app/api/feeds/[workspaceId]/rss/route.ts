@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createServiceClient } from '@/lib/supabase/server';
 import { parseSearchParams } from '@/lib/validation';
 import { generateRss, toRfc2822 } from '@/lib/intelligence/rss-generator';
+import { clientEnv } from '@/lib/env-client';
 
 type RouteContext = { params: Promise<{ workspaceId: string }> };
 
@@ -65,9 +66,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     // Build RSS
-    const baseUrl =
-      process.env.NEXT_PUBLIC_APP_URL ??
-      'https://knowledge-hub-seven-kappa.vercel.app';
+    const baseUrl = clientEnv.NEXT_PUBLIC_APP_URL;
 
     const channel = {
       title: `${workspace.name} — Intelligence Feed`,

@@ -8,14 +8,11 @@ import {
   protectedResourceHandler,
   metadataCorsOptionsRequestHandler,
 } from 'mcp-handler';
-
-const RESOURCE_URL =
-  process.env.NEXT_PUBLIC_APP_URL ??
-  'https://knowledge-hub-seven-kappa.vercel.app';
+import { clientEnv } from '@/lib/env-client';
 
 const handler = protectedResourceHandler({
-  authServerUrls: [`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1`],
-  resourceUrl: RESOURCE_URL,
+  authServerUrls: [`${clientEnv.NEXT_PUBLIC_SUPABASE_URL}/auth/v1`],
+  resourceUrl: clientEnv.NEXT_PUBLIC_APP_URL,
 });
 
 const corsHandler = metadataCorsOptionsRequestHandler();

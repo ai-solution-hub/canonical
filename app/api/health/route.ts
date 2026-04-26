@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { clientEnv } from '@/lib/env-client';
+import { serverEnv } from '@/lib/env';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 10;
@@ -7,27 +9,28 @@ export const maxDuration = 10;
 export async function GET() {
   const timestamp = new Date().toISOString();
 
-  // Check required env vars
-  const requiredEnvVars = [
-    'NEXT_PUBLIC_SUPABASE_URL',
-    'ANTHROPIC_API_KEY',
-    'OPENAI_API_KEY',
-  ];
-  const missingEnvVars = requiredEnvVars.filter((v) => !process.env[v]);
-  const envOk = missingEnvVars.length === 0;
+  // Boot-time Zod validation in lib/env*.ts already guarantees that all
+  // required vars are present — if we got here, they're all set. Keep the
+  // runtime check anyway so /api/health continues to surface "degraded"
+  // (rather than 500) if any future optional field is added and unset.
+  const requiredVars = {
+    NEXT_PUBLIC_SUPABASE_URL: clientEnv.NEXT_PUBLIC_SUPABASE_URL,
+    ANTHROPIC_API_KEY: serverEnv.ANTHROPIC_API_KEY,
+    OPENAI_API_KEY: serverEnv.OPENAI_API_KEY,
+  };
+  const envOk = Object.values(requiredVars).every((v) => Boolean(v));
 
   // Check Supabase connectivity
   let supabaseOk = false;
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (supabaseUrl && supabaseKey) {
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      const { count, error } = await supabase
-        .from('content_items')
-        .select('*', { count: 'exact', head: true });
-      supabaseOk = !error && count !== null;
-    }
+    const supabase = createClient(
+      clientEnv.NEXT_PUBLIC_SUPABASE_URL,
+      clientEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    );
+    const { count, error } = await supabase
+      .from('content_items')
+      .select('*', { count: 'exact', head: true });
+    supabaseOk = !error && count !== null;
   } catch {
     supabaseOk = false;
   }
