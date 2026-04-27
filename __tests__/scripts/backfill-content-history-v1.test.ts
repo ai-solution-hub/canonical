@@ -75,6 +75,10 @@ describe('parseCliArgs', () => {
     expect(parseCliArgs(['--env=prod']).env).toBe('prod');
   });
 
+  it('parses --env prod (space form, L-3 fix)', () => {
+    expect(parseCliArgs(['--env', 'prod']).env).toBe('prod');
+  });
+
   it('rejects negative --limit (via --limit= syntax that bypasses util parseArgs ambiguity)', () => {
     expect(() => parseCliArgs(['--limit=-1'])).toThrow(/non-negative/);
   });

@@ -114,7 +114,7 @@ Options:
                     bun run scripts/backfill-content-history-v1.ts --env=prod
   --help            Show this help.
 
-Target DB is read from NEXT_PUBLIC_SUPABASE_URL in .env.local.
+Target DB is read from SUPABASE_URL ?? NEXT_PUBLIC_SUPABASE_URL in .env.local.
 Script aborts if the URL points at the legacy retired project
 \`mgrmucazfiibsomdmndh\` (paused/about-to-delete per S187 cutover).
 `;
@@ -138,7 +138,7 @@ export function assertNotRetiredProject(url: string | undefined): void {
   if (!url) return; // env validation raises elsewhere
   if (url.includes(RETIRED_PROJECT_REF)) {
     console.error(
-      `Refusing to run: NEXT_PUBLIC_SUPABASE_URL points at the legacy retired project (${RETIRED_PROJECT_REF}). Update .env.local to the current production project (${PROD_PROJECT_REF}) before retrying.`,
+      `Refusing to run: SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL points at the legacy retired project (${RETIRED_PROJECT_REF}). Update .env.local to the current production project (${PROD_PROJECT_REF}) before retrying.`,
     );
     process.exit(1);
   }
@@ -171,7 +171,7 @@ export function assertEnvComplete(
 ): void {
   if (!url || !key) {
     console.error(
-      'Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment. Populate .env.local before retrying.',
+      'Missing SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment. Populate .env.local before retrying.',
     );
     process.exit(1);
   }
@@ -255,7 +255,9 @@ async function main() {
 
   loadEnv();
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  // v1.1 W3e M-1 fix: prefer SUPABASE_URL (matches spec §7.1/§7.3 override pattern); fall back to
+  // NEXT_PUBLIC_SUPABASE_URL when only the publishable-side is set.
+  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   assertEnvComplete(supabaseUrl, supabaseKey);

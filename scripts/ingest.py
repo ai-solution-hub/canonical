@@ -68,7 +68,11 @@ def main():
         "--env",
         choices=["prod", "staging", "auto"],
         default="auto",
-        help="Asserts SUPABASE_URL matches the named env. Default 'auto' = trust env.",
+        help=(
+            "With --env=prod, asserts SUPABASE_URL points at prod and "
+            "refuses to run otherwise. --env=staging and --env=auto "
+            "are non-asserting (trust env). Default 'auto'."
+        ),
     )
 
     args = parser.parse_args()

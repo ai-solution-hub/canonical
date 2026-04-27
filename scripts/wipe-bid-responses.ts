@@ -115,12 +115,14 @@ const STAGING_PROJECT_REF = 'turayklvaunphgbgscat';
 
 // ── Supabase client ────────────────────────────────────────────────────────
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+// v1.1 W3e M-1 fix: read SUPABASE_URL ?? NEXT_PUBLIC_SUPABASE_URL so spec §7.1/§7.3 override examples
+// (`SUPABASE_URL=<prod-url> bun run ...`) match the resolved variable.
+const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl) {
   console.error(
-    'ERROR: Missing NEXT_PUBLIC_SUPABASE_URL in environment. Check .env or .env.local.',
+    'ERROR: Missing SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL in environment. Check .env.local.',
   );
   process.exit(1);
 }
