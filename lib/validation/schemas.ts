@@ -280,6 +280,12 @@ export const ItemUpdateBodySchema = z
       'governance_review_status',
       'expiry_date',
       'lifecycle_type',
+      // S200 WP5 §5.5 Phase 1 — review cadence governance fields. Both are
+      // nullable in the DB and grouped with the lifecycle/governance cluster.
+      // `next_review_date` is an ISO-8601 date string; `review_cadence_days`
+      // is an integer in [1, 1095] mirroring the DB CHECK constraint.
+      'next_review_date',
+      'review_cadence_days',
       // S186 WP-B.5 — supersession. Admin-only; the route branches
       // before the generic update and calls setSupersession() instead.
       // Value is the NEW item's UUID (successor), or null to un-supersede.
@@ -348,6 +354,67 @@ export const ItemUpdateBodySchema = z
           message: 'superseded_by value must be a valid UUID',
           path: ['value'],
         });
+      }
+    }
+    // S200 WP5 §5.5 Phase 1 — next_review_date must be NULL or an ISO-8601
+    // date string (YYYY-MM-DD). The DB column is `date` so the time-of-day
+    // portion is not relevant; we accept the calendar-date shape only.
+    if (data.field === 'next_review_date') {
+      if (data.value === null) {
+        // OK — explicit clear.
+      } else if (typeof data.value !== 'string') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'next_review_date value must be an ISO-8601 date string or null',
+          path: ['value'],
+        });
+      } else {
+        const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+        const parsed = Date.parse(data.value);
+        // Round-trip check defends against logically-invalid dates that JS
+        // silently rolls over (e.g. '2026-02-30' → '2026-03-02'). The DB
+        // would reject the rolled value; rejecting here gives the user a
+        // clear Zod error instead of a delayed CHECK violation.
+        const roundTripValid =
+          ISO_DATE_RE.test(data.value) &&
+          !Number.isNaN(parsed) &&
+          new Date(parsed).toISOString().slice(0, 10) === data.value;
+        if (!roundTripValid) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'next_review_date value must be a valid ISO-8601 calendar date (YYYY-MM-DD)',
+            path: ['value'],
+          });
+        }
+      }
+    }
+    // S200 WP5 §5.5 Phase 1 — review_cadence_days must be NULL or an integer
+    // between 1 and 1095 (inclusive), mirroring the DB CHECK constraint.
+    // The schema's `value` union types this as string|string[]|null, so we
+    // coerce a numeric string and verify integer + range.
+    if (data.field === 'review_cadence_days') {
+      if (data.value === null) {
+        // OK — explicit clear.
+      } else if (typeof data.value !== 'string') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'review_cadence_days value must be an integer string or null',
+          path: ['value'],
+        });
+      } else {
+        const trimmed = data.value.trim();
+        // Reject empty strings, non-integer shapes, leading zeros are OK
+        // for parsing but only integer literals are accepted.
+        const INT_RE = /^-?\d+$/;
+        const n = INT_RE.test(trimmed) ? parseInt(trimmed, 10) : Number.NaN;
+        if (Number.isNaN(n) || !Number.isInteger(n) || n < 1 || n > 1095) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              'review_cadence_days value must be an integer between 1 and 1095',
+            path: ['value'],
+          });
+        }
       }
     }
   });
@@ -468,6 +535,9 @@ export const EDITABLE_FIELDS = new Set([
   'expiry_date',
   'lifecycle_type',
   'governance_review_status',
+  // S200 WP5 §5.5 Phase 1 — review cadence governance fields.
+  'next_review_date',
+  'review_cadence_days',
 ] as const);
 
 export type EditableField =
@@ -491,7 +561,10 @@ export type EditableField =
   | 'answer_advanced'
   | 'expiry_date'
   | 'lifecycle_type'
-  | 'governance_review_status';
+  | 'governance_review_status'
+  // S200 WP5 §5.5 Phase 1 — review cadence governance fields.
+  | 'next_review_date'
+  | 'review_cadence_days';
 
 export function validateEditableField(field: string): field is EditableField {
   return EDITABLE_FIELDS.has(field as EditableField);

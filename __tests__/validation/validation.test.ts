@@ -8,20 +8,13 @@ import {
 } from '@/lib/validation/schemas';
 
 describe('validateEditableField', () => {
-  it('should return true for all fields in EDITABLE_FIELDS set', () => {
-    const editableFields = [
-      'suggested_title',
-      'ai_keywords',
-      'primary_domain',
-      'primary_subtopic',
-      'secondary_domain',
-      'secondary_subtopic',
-      'summary',
-      'author_name',
-      'content_type',
-      'platform',
-    ];
-    for (const field of editableFields) {
+  it('should return true for every field in EDITABLE_FIELDS set (full iteration)', () => {
+    // Drive the assertion from EDITABLE_FIELDS itself rather than a
+    // hand-maintained list — prevents the silent-drift pattern flagged by
+    // `feedback_guard_test_iteration_list_drift`. If a field is added to the
+    // Set, this test exercises it automatically.
+    expect(EDITABLE_FIELDS.size).toBeGreaterThan(0);
+    for (const field of EDITABLE_FIELDS) {
       expect(validateEditableField(field)).toBe(true);
     }
   });
@@ -52,12 +45,17 @@ describe('validateEditableField', () => {
 });
 
 describe('EDITABLE_FIELDS set', () => {
-  it('should contain exactly 21 fields', () => {
-    expect(EDITABLE_FIELDS.size).toBe(21);
+  it('should contain exactly 23 fields', () => {
+    expect(EDITABLE_FIELDS.size).toBe(23);
   });
 
   it('should be a Set instance', () => {
     expect(EDITABLE_FIELDS).toBeInstanceOf(Set);
+  });
+
+  it('should include the §5.5 Phase 1 review-cadence fields', () => {
+    expect(validateEditableField('next_review_date')).toBe(true);
+    expect(validateEditableField('review_cadence_days')).toBe(true);
   });
 });
 

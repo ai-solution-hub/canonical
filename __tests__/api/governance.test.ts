@@ -796,4 +796,73 @@ describe('POST /api/governance/review', () => {
       'Item not found or governance review update failed',
     );
   });
+
+  // ──────────────────────────────────────────
+  // S200 WP5 §5.5 Phase 1 / §6.5.1 — guard widening
+  // ──────────────────────────────────────────
+
+  it('approves an item already in review_overdue (Phase 2 cron path)', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Item lookup: review_overdue (set by Phase 2 cron in real life)
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID, governance_review_status: 'review_overdue' },
+      error: null,
+    });
+
+    // Update return: .update().eq().select('id').single() succeeds
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+    );
+
+    // Notification itemDetail lookup
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: { updated_by: 'other-user-id' },
+      error: null,
+    });
+
+    const req = createTestRequest('/api/governance/review', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'approve' },
+    });
+    const res = await postReview(req);
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.action).toBe('approve');
+
+    expect(mockSupabase._chain.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        governance_review_status: 'approved',
+        governance_reviewer_id: 'test-user-id',
+        governance_review_due: null,
+      }),
+    );
+  });
+
+  it('continues to reject items in draft (regression check)', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Item exists but is in draft — should still be rejected
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID, governance_review_status: 'draft' },
+      error: null,
+    });
+
+    const req = createTestRequest('/api/governance/review', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'approve' },
+    });
+    const res = await postReview(req);
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe('Item is not pending governance review');
+  });
 });

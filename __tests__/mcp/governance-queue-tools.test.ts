@@ -407,4 +407,69 @@ describe('review_governance_item MCP tool', () => {
       expect(res.structuredContent?.new_status).toBe(newStatus);
     }
   });
+
+  // ──────────────────────────────────────────
+  // S200 WP5 §5.5 Phase 1 / §6.5.1 — guard widening
+  // ──────────────────────────────────────────
+
+  it('accepts items in review_overdue (Phase 2 cron path)', async () => {
+    let step = 0;
+    const itemRow = {
+      id: '11111111-1111-4111-8111-111111111111',
+      title: 'Overdue review',
+      suggested_title: null,
+      governance_review_status: 'review_overdue',
+      content_owner_id: null,
+      updated_by: null,
+    };
+    const fromMock = vi.fn(() => {
+      step += 1;
+      if (step === 1) {
+        // initial fetch — `.maybeSingle`
+        return chain({ data: itemRow, error: null });
+      }
+      if (step === 2) {
+        // update — chain awaited directly via then
+        return chain({ data: { id: itemRow.id }, error: null });
+      }
+      // Notification inserts — return empty success
+      return chain({ data: null, error: null });
+    });
+    mocks.createMcpClient.mockReturnValue({ from: fromMock });
+
+    const tool = findTool(tools, 'review_governance_item');
+    const res = await callTool(tool, {
+      item_id: itemRow.id,
+      action: 'approve',
+    });
+
+    expect(res.isError).toBeUndefined();
+    expect(res.structuredContent?.new_status).toBe('approved');
+    expect(res.structuredContent?.action).toBe('approve');
+  });
+
+  it('continues to reject items in draft (regression check)', async () => {
+    const fromMock = vi.fn((_table: string) => {
+      return chain({
+        data: {
+          id: 'x',
+          title: 'In draft',
+          suggested_title: null,
+          governance_review_status: 'draft',
+          content_owner_id: null,
+          updated_by: null,
+        },
+        error: null,
+      });
+    });
+    mocks.createMcpClient.mockReturnValue({ from: fromMock });
+    const tool = findTool(tools, 'review_governance_item');
+    const res = await callTool(tool, {
+      item_id: '11111111-1111-4111-8111-111111111111',
+      action: 'approve',
+    });
+    expect(res.isError).toBe(true);
+    expect(res.content[0]?.text).toContain('not pending governance review');
+    expect(res.content[0]?.text).toContain('draft');
+  });
 });

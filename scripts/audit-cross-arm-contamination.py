@@ -65,13 +65,53 @@ WILDCARD_PATTERNS = [
 ]
 
 
+# Per-tool fields that represent actual file/path/command access. Only these
+# are scanned for cross-arm patterns. Excluded by design (kh-s199b 2026-04-26
+# fix-pass-2 patch): Bash `description` (agent's stated intent, not access);
+# Edit/Write `old_string` / `new_string` (content not access — may mention
+# arm-* legitimately when the file under edit references both arms by name);
+# anything else not in this allowlist.
+TOOL_ACCESS_FIELDS = {
+    "Read":         {"file_path"},
+    "Edit":         {"file_path"},
+    "Write":        {"file_path"},
+    "NotebookEdit": {"notebook_path"},
+    "Glob":         {"pattern", "path"},
+    "Grep":         {"pattern", "path", "include"},
+    "Bash":         {"command"},
+    "WebFetch":     {"url"},
+}
+# Tools not in the allowlist fall back to this generic access-field set
+# (still excludes description / content fields).
+GENERIC_ACCESS_FIELDS = {"file_path", "path", "pattern", "command", "notebook_path", "url"}
+
+
 def stringify(obj) -> str:
-    """Recursively flatten a tool_use input dict/list/scalar into a string for matching."""
+    """Recursively flatten a value (used for nested patterns/paths) into a string for matching."""
     if isinstance(obj, dict):
         return " ".join(stringify(v) for v in obj.values())
     if isinstance(obj, list):
         return " ".join(stringify(v) for v in obj)
     return str(obj) if obj is not None else ""
+
+
+def extract_access_string(tool_name: str, tool_input: dict) -> str:
+    """Extract only fields that represent actual file/path/command access.
+
+    Replaces the previous behaviour of flattening every input field, which
+    produced false positives when the cross-arm substring appeared in
+    non-access fields (e.g. Bash `description` containing the agent's stated
+    intent like 'check no arm-a path leaked').
+    """
+    if not isinstance(tool_input, dict):
+        return stringify(tool_input)
+    fields = TOOL_ACCESS_FIELDS.get(tool_name, GENERIC_ACCESS_FIELDS)
+    parts = []
+    for field in fields:
+        if field not in tool_input:
+            continue
+        parts.append(stringify(tool_input[field]))
+    return " ".join(parts)
 
 
 def audit(jsonl_path: Path, own_arm: str) -> list[dict]:
@@ -105,7 +145,7 @@ def audit(jsonl_path: Path, own_arm: str) -> list[dict]:
                     continue
                 tool_name = block.get("name", "")
                 tool_input = block.get("input", {})
-                input_str = stringify(tool_input)
+                input_str = extract_access_string(tool_name, tool_input)
                 if pattern_re.search(input_str):
                     findings.append({
                         "line": line_num,

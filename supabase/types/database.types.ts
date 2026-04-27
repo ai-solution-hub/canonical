@@ -562,6 +562,7 @@ export type Database = {
           layer: string | null
           lifecycle_type: string | null
           metadata: Json | null
+          next_review_date: string | null
           notes: string | null
           parent_id: string | null
           platform: string | null
@@ -573,6 +574,7 @@ export type Database = {
           quality_score: number | null
           quality_score_updated_at: string | null
           reference: string | null
+          review_cadence_days: number | null
           secondary_domain: string | null
           secondary_subtopic: string | null
           source_bid: string | null
@@ -635,6 +637,7 @@ export type Database = {
           layer?: string | null
           lifecycle_type?: string | null
           metadata?: Json | null
+          next_review_date?: string | null
           notes?: string | null
           parent_id?: string | null
           platform?: string | null
@@ -646,6 +649,7 @@ export type Database = {
           quality_score?: number | null
           quality_score_updated_at?: string | null
           reference?: string | null
+          review_cadence_days?: number | null
           secondary_domain?: string | null
           secondary_subtopic?: string | null
           source_bid?: string | null
@@ -708,6 +712,7 @@ export type Database = {
           layer?: string | null
           lifecycle_type?: string | null
           metadata?: Json | null
+          next_review_date?: string | null
           notes?: string | null
           parent_id?: string | null
           platform?: string | null
@@ -719,6 +724,7 @@ export type Database = {
           quality_score?: number | null
           quality_score_updated_at?: string | null
           reference?: string | null
+          review_cadence_days?: number | null
           secondary_domain?: string | null
           secondary_subtopic?: string | null
           source_bid?: string | null
@@ -2019,6 +2025,45 @@ export type Database = {
           },
         ]
       }
+      tag_morphology_drift_flags: {
+        Row: {
+          affected_content_ids: string[]
+          decided_at: string | null
+          decided_by: string | null
+          decision: string
+          decision_rationale: string | null
+          detected_at: string
+          id: string
+          proposed_canonical: string
+          stored_tag: string
+          usage_count: number
+        }
+        Insert: {
+          affected_content_ids: string[]
+          decided_at?: string | null
+          decided_by?: string | null
+          decision?: string
+          decision_rationale?: string | null
+          detected_at?: string
+          id?: string
+          proposed_canonical: string
+          stored_tag: string
+          usage_count: number
+        }
+        Update: {
+          affected_content_ids?: string[]
+          decided_at?: string | null
+          decided_by?: string | null
+          decision?: string
+          decision_rationale?: string | null
+          detected_at?: string
+          id?: string
+          proposed_canonical?: string
+          stored_tag?: string
+          usage_count?: number
+        }
+        Relationships: []
+      }
       taxonomy_domains: {
         Row: {
           accepted_at: string | null
@@ -2710,6 +2755,7 @@ export type Database = {
               layer: string | null
               lifecycle_type: string | null
               metadata: Json | null
+              next_review_date: string | null
               notes: string | null
               parent_id: string | null
               platform: string | null
@@ -2721,6 +2767,7 @@ export type Database = {
               quality_score: number | null
               quality_score_updated_at: string | null
               reference: string | null
+              review_cadence_days: number | null
               secondary_domain: string | null
               secondary_subtopic: string | null
               source_bid: string | null
@@ -3288,6 +3335,10 @@ export type Database = {
           last_activity: string
           workspace_id: string
         }[]
+      }
+      hook_restrict_signup_to_example-client_domain: {
+        Args: { event: Json }
+        Returns: Json
       }
       hybrid_search: {
         Args: {
