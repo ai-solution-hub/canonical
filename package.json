@@ -30,6 +30,7 @@
     "test:mcp-eval:fc": "bun run scripts/mcp-eval/functional-correctness.ts",
     "test:mcp-eval:fc:skip-ai": "bun run scripts/mcp-eval/functional-correctness.ts --skip-ai",
     "seed:e2e-users": "bun run scripts/seed-e2e-users.ts",
+    "kb-search": "bun run scripts/kb-search.ts",
     "stats": "bun run scripts/generate-codebase-stats.ts",
     "generate:mcp-inventory": "bun run scripts/generate-mcp-inventory.ts",
     "knip": "knip --no-config-hints",
