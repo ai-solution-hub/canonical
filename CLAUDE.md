@@ -239,6 +239,10 @@ conventions: `docs/continuation-prompts/README.md`.
   db push` may push to the WRONG project (looks like silent-fail on intended
   project). Always `cat supabase/.temp/project-ref` before any push; relink via
   `supabase link --project-ref <correct>` if drift detected.
+- **`mcp__supabase__reset_branch` is a NO-OP on protected persistent branches.**
+  Skips destructive re-apply per Supabase design (logs `Skipping configuration for
+  protected branch...` + `Skipping seed data...`). Use `supabase db push --linked`
+  from local migration files for migration repair on protected branches.
 
 ### Testing
 
