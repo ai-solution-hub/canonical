@@ -59,6 +59,10 @@
       "schedule": "15 3 * * *"
     },
     {
+      "path": "/api/cron/review-cadence",
+      "schedule": "45 3 * * *"
+    },
+    {
       "path": "/api/cron/classification-quality",
       "schedule": "0 4 * * 0"
     },
