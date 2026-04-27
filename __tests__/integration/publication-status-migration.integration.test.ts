@@ -40,15 +40,15 @@ import { serviceClient } from './helpers/service-client';
 // Pre-flight cohort counts captured 27/04/2026 against `rovrymhhffssilaftdwd`
 // before T2 ran. The migration steps (in spec §10.1 SQL order, draft wins
 // over archived/superseded):
-//   Step 1 governance_review_status='draft'  → 'draft'   :    0 rows
-//   Step 2 archived_at IS NOT NULL           → 'archived':   10 rows
-//   Step 3 superseded_by IS NOT NULL         → 'archived':    0 rows (no overlap)
-//   Step 4 remaining                         → 'published': 594 rows
-//   Total                                                  : 604 rows
+//   Step 1 governance_review_status='draft'  → 'draft'   :    0 rows  (immutable post-backfill — no draft rows existed)
+//   Step 2 archived_at IS NOT NULL           → 'archived':   10 rows  (immutable post-backfill — archived_at fixed at backfill time)
+//   Step 3 superseded_by IS NOT NULL         → 'archived':    0 rows  (no overlap with step 2 cohort)
+//   Step 4 remaining                         → 'published': 594 rows  (BASELINE — new items added post-backfill default to 'published' so this grows)
+//   Total                                                  : 604 rows  (also grows with new items)
 const EXPECTED_DRAFT_ROWS = 0;
 const EXPECTED_ARCHIVED_ROWS = 10;
-const EXPECTED_PUBLISHED_ROWS = 594;
-const EXPECTED_TOTAL_ROWS = 604;
+const PUBLISHED_BASELINE = 594;
+const TOTAL_BASELINE = 604;
 
 const VALID_PUBLICATION_STATUSES = [
   'draft',
@@ -230,8 +230,8 @@ describe('publication_status migration (T1 + T2) — live DB', () => {
 
     expect(draftRes.count).toBe(EXPECTED_DRAFT_ROWS);
     expect(archivedRes.count).toBe(EXPECTED_ARCHIVED_ROWS);
-    expect(publishedRes.count).toBe(EXPECTED_PUBLISHED_ROWS);
-    expect(totalRes.count).toBe(EXPECTED_TOTAL_ROWS);
+    expect(publishedRes.count).toBeGreaterThanOrEqual(PUBLISHED_BASELINE);
+    expect(totalRes.count).toBeGreaterThanOrEqual(TOTAL_BASELINE);
   });
 
   it('every non-NULL publication_status is a member of the spec enum', async () => {
