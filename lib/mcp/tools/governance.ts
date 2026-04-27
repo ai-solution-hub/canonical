@@ -41,6 +41,10 @@ import {
   READ_ONLY_ANNOTATIONS,
   SAFE_WRITE_ANNOTATIONS,
 } from './shared';
+import {
+  ALLOWED_REVIEW_INPUT_STATUSES,
+  type AllowedReviewInputStatus,
+} from '@/lib/governance/review-input-statuses';
 
 export async function registerGovernanceTools(
   server: McpServer,
@@ -775,7 +779,11 @@ export async function registerGovernanceTools(
           };
         }
 
-        if (item.governance_review_status !== 'pending') {
+        if (
+          !ALLOWED_REVIEW_INPUT_STATUSES.includes(
+            item.governance_review_status as AllowedReviewInputStatus,
+          )
+        ) {
           return {
             content: [
               {

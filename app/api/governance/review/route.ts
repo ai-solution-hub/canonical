@@ -8,6 +8,10 @@ import {
   GovernanceReviewBodySchema,
   GovernanceReviewParamsSchema,
 } from '@/lib/validation/schemas';
+import {
+  ALLOWED_REVIEW_INPUT_STATUSES,
+  type AllowedReviewInputStatus,
+} from '@/lib/governance/review-input-statuses';
 
 export const maxDuration = 30;
 
@@ -100,7 +104,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Item not found' }, { status: 404 });
     }
 
-    if (item.governance_review_status !== 'pending') {
+    if (
+      !ALLOWED_REVIEW_INPUT_STATUSES.includes(
+        item.governance_review_status as AllowedReviewInputStatus,
+      )
+    ) {
       return NextResponse.json(
         { error: 'Item is not pending governance review' },
         { status: 400 },

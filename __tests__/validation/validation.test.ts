@@ -52,12 +52,17 @@ describe('validateEditableField', () => {
 });
 
 describe('EDITABLE_FIELDS set', () => {
-  it('should contain exactly 21 fields', () => {
-    expect(EDITABLE_FIELDS.size).toBe(21);
+  it('should contain exactly 23 fields', () => {
+    expect(EDITABLE_FIELDS.size).toBe(23);
   });
 
   it('should be a Set instance', () => {
     expect(EDITABLE_FIELDS).toBeInstanceOf(Set);
+  });
+
+  it('should include the §5.5 Phase 1 review-cadence fields', () => {
+    expect(validateEditableField('next_review_date')).toBe(true);
+    expect(validateEditableField('review_cadence_days')).toBe(true);
   });
 });
 

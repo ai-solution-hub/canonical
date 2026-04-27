@@ -572,6 +572,66 @@ describe('ItemUpdateBodySchema', () => {
     });
     expect(result.success).toBe(true);
   });
+
+  // ──────────────────────────────────────────
+  // S200 WP5 §5.5 Phase 1 — review cadence fields
+  // ──────────────────────────────────────────
+
+  it('should accept next_review_date with a valid ISO-8601 date string', () => {
+    const result = ItemUpdateBodySchema.safeParse({
+      field: 'next_review_date',
+      value: '2027-04-27',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject next_review_date with a non-date string', () => {
+    const result = ItemUpdateBodySchema.safeParse({
+      field: 'next_review_date',
+      value: 'not-a-date',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should accept next_review_date with null (explicit clear)', () => {
+    const result = ItemUpdateBodySchema.safeParse({
+      field: 'next_review_date',
+      value: null,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject review_cadence_days below the minimum (0)', () => {
+    const result = ItemUpdateBodySchema.safeParse({
+      field: 'review_cadence_days',
+      value: '0',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject review_cadence_days above the maximum (1096)', () => {
+    const result = ItemUpdateBodySchema.safeParse({
+      field: 'review_cadence_days',
+      value: '1096',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should accept review_cadence_days with null (explicit clear)', () => {
+    const result = ItemUpdateBodySchema.safeParse({
+      field: 'review_cadence_days',
+      value: null,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should accept review_cadence_days with a valid integer string (180)', () => {
+    const result = ItemUpdateBodySchema.safeParse({
+      field: 'review_cadence_days',
+      value: '180',
+    });
+    expect(result.success).toBe(true);
+  });
 });
 
 // ──────────────────────────────────────────
