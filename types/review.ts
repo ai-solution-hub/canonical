@@ -90,6 +90,13 @@ export interface ReviewStatsResponse {
   flagged: number;
   unverified: number;
   draft: number;
+  /**
+   * Count of non-archived content_items where governance_review_status =
+   * 'review_overdue'. Surfaced by the §5.5 Phase 3 review-cadence UI
+   * (overdue filter pill count badge in `components/review/review-filters.tsx`).
+   * Source: `get_review_breakdown_stats()` RPC, S204 WP-E T0 extension.
+   */
+  overdue: number;
   by_domain: Record<string, { total: number; verified: number }>;
   by_content_type: Record<string, { total: number; verified: number }>;
   by_source_file: Record<string, { total: number; verified: number }>;

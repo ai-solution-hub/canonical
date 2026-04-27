@@ -14,6 +14,75 @@ export type Database = {
   }
   public: {
     Tables: {
+      _backup_taxonomy_financial_merge_20260427: {
+        Row: {
+          old_value: string | null
+          primary_domain: string | null
+          row_id: string | null
+          source_table_column: string | null
+          title: string | null
+        }
+        Insert: {
+          old_value?: string | null
+          primary_domain?: string | null
+          row_id?: string | null
+          source_table_column?: string | null
+          title?: string | null
+        }
+        Update: {
+          old_value?: string | null
+          primary_domain?: string | null
+          row_id?: string | null
+          source_table_column?: string | null
+          title?: string | null
+        }
+        Relationships: []
+      }
+      _backup_taxonomy_subtopics_financial_20260427: {
+        Row: {
+          accepted_at: string | null
+          created_at: string | null
+          description: string | null
+          display_name: string | null
+          display_order: number | null
+          domain_id: string | null
+          id: string | null
+          is_active: boolean | null
+          name: string | null
+          provenance: string | null
+          recommended_at: string | null
+          recommended_by: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string | null
+          description?: string | null
+          display_name?: string | null
+          display_order?: number | null
+          domain_id?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          name?: string | null
+          provenance?: string | null
+          recommended_at?: string | null
+          recommended_by?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string | null
+          description?: string | null
+          display_name?: string | null
+          display_order?: number | null
+          domain_id?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          name?: string | null
+          provenance?: string | null
+          recommended_at?: string | null
+          recommended_by?: string | null
+        }
+        Relationships: []
+      }
       bid_questions: {
         Row: {
           assigned_to: string | null
