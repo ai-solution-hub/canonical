@@ -658,7 +658,10 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           content: [{ type: 'text' as const, text: markdown }],
           structuredContent: toStructuredContent({
             ...created,
-            publication_status: isDraft ? 'draft' : null,
+            // V2-L2 fix: non-draft creates default to 'published' via the
+            // content_items.publication_status DB DEFAULT. Returning 'null'
+            // misled the LLM caller about post-create state.
+            publication_status: isDraft ? 'draft' : 'published',
             batch_tag: args.batch_tag ?? null,
             source_document: args.source_document ?? null,
             suggested_layer: suggestedLayerKey ?? null,

@@ -28,6 +28,7 @@ import {
   VALID_PUBLICATION_STATUSES,
   type PublicationStatus,
 } from '@/lib/governance/publication-transitions';
+import type { Database } from '@/supabase/types/database.types';
 
 export const maxDuration = 60;
 
@@ -275,25 +276,53 @@ export async function PATCH(
         archiveReason,
       );
 
-      // Persist the state change. `sb()` is fail-fast — any DB error
-      // surfaces as SupabaseError, caught by the outer try/catch and
-      // converted to a 500 via safeErrorMessage. Per CLAUDE.md
-      // `silent-failure-prevention`.
-      await sb(
-        supabase
-          .from('content_items')
-          .update(updatePayload)
-          .eq('id', id),
-        'items.patch.publication_status.update',
-      );
+      // Persist the state change with an optimistic concurrency guard
+      // (V1-M4 fix). The `.eq('publication_status', fromStatus)` filter
+      // ensures we only update the row if its current state still matches
+      // what we read above. If a concurrent writer raced ahead and changed
+      // the state, this UPDATE matches zero rows — `.single()` then returns
+      // a PGRST116 error, which we map to 409 Conflict so the client can
+      // retry from a fresh fetch.
+      //
+      // We use the explicit destructure (rather than `sb()`) because we
+      // must distinguish the no-rows-matched race from genuine DB errors.
+      const { data: updatedRow, error: updateError } = await supabase
+        .from('content_items')
+        .update(updatePayload)
+        .eq('id', id)
+        .eq('publication_status', fromStatus)
+        .select(
+          'id, publication_status, archived_at, archived_by, archive_reason, updated_at',
+        )
+        .single();
+      if (updateError) {
+        // PGRST116 = "Cannot coerce the result to a single JSON object"
+        // (zero rows). When the row exists but the publication_status
+        // filter excluded it, this is the optimistic-concurrency loss.
+        if (updateError.code === 'PGRST116') {
+          return NextResponse.json(
+            { error: 'Concurrent state change detected; please retry.' },
+            { status: 409 },
+          );
+        }
+        throw new SupabaseError(
+          updateError,
+          'items.patch.publication_status.update',
+        );
+      }
+      void updatedRow; // future-use: surface in response if needed.
 
       // Write a content_history row capturing the transition. Per
       // CLAUDE.md `feedback_content_history_change_reason_mandatory`, the
       // canonical phrasing is `Transition from ${from} to ${to}` (+
-      // optional `(reason: ${archive_reason})` suffix). The auto-version
-      // trigger handles the `version` increment; we still need to provide
-      // a value because the column is NOT NULL — read the current max and
-      // bump by 1, matching the existing pattern at lines ~520 below.
+      // optional `(reason: ${archive_reason})` suffix). The
+      // `auto_version_content_history` BEFORE INSERT trigger
+      // (migration 20260416102457 §150-160) sets `NEW.version` via
+      // `COALESCE(MAX(version), 0) + 1`, so we OMIT `version` from the
+      // payload — V1-M3 fix: relying on the trigger removes a redundant
+      // DB roundtrip per transition. The Insert TS type marks `version`
+      // as required (number), so we cast the payload to the Insert shape
+      // — the trigger fills it transactionally.
       // `change_type='publication_state'` was added to the CHECK enum in
       // commit eeb8ae25 (verified in pre-flight against `rovrymhhffssilaftdwd`
       // and `turayklvaunphgbgscat`).
@@ -301,24 +330,9 @@ export async function PATCH(
         `Transition from ${fromStatus} to ${newStatus}` +
         (archiveReason ? ` (reason: ${archiveReason})` : '');
 
-      const maxVersionRes = await tryQuery(
-        supabase
-          .from('content_history')
-          .select('version')
-          .eq('content_item_id', id)
-          .order('version', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-        'items.patch.publication_status.history_version_lookup',
-      );
-      const nextVersion = isOk(maxVersionRes)
-        ? (maxVersionRes.data?.version ?? 0) + 1
-        : 1;
-
       await sb(
         supabase.from('content_history').insert({
           content_item_id: id,
-          version: nextVersion,
           title: current.title ?? '',
           content: current.content ?? '',
           brief: current.brief ?? null,
@@ -328,7 +342,7 @@ export async function PATCH(
           change_reason: changeReasonText,
           change_type: 'publication_state',
           created_by: user.id,
-        }),
+        } as Database['public']['Tables']['content_history']['Insert']),
         'items.patch.publication_status.history_insert',
       );
 

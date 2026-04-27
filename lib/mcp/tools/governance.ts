@@ -334,11 +334,14 @@ export async function registerGovernanceTools(
         const userId = getMcpUserId(extra.authInfo);
         const items: GovernanceStatusItemResult[] = [];
 
-        // Fetch all items in one query
+        // Fetch all items in one query. `publication_status` is selected so
+        // the `'publish'` branch can be row-state-aware (V2-H1 fix): promote
+        // `'draft' → 'published'` symmetrically with the T8a `'draft'` rewire,
+        // refuse on `'archived'`, no-op for already-published / `'in_review'`.
         const { data: rows, error: fetchError } = await supabase
           .from('content_items')
           .select(
-            'id, title, suggested_title, content, governance_review_status, classified_at',
+            'id, title, suggested_title, content, governance_review_status, publication_status, classified_at',
           )
           .in('id', args.item_ids);
 
@@ -362,6 +365,7 @@ export async function registerGovernanceTools(
               suggested_title: string | null;
               content: string | null;
               governance_review_status: string | null;
+              publication_status: string | null;
               classified_at: string | null;
             }>
           ).map((r) => [r.id, r]),
@@ -384,6 +388,27 @@ export async function registerGovernanceTools(
 
           try {
             if (args.status === 'publish') {
+              // V2-H1 fix: row-state-aware publication_status promotion to
+              // restore symmetry with the T8a `'draft'` rewire below.
+              //   - `'archived'`: refuse — caller must use
+              //     `update_publication_status` to un-archive first.
+              //   - `'draft'`: promote to `'published'` alongside the
+              //     governance_review_status clear (matches T8a draft writer
+              //     so publish-then-draft round-trips correctly).
+              //   - `'published'` / `'in_review'`: no `publication_status`
+                // mutation — clear governance_review_status only (legacy
+              //     change-management semantics).
+              if (row.publication_status === 'archived') {
+                items.push({
+                  id: itemId,
+                  title: displayTitle,
+                  success: false,
+                  error:
+                    'Cannot publish an archived item; use update_publication_status to restore first.',
+                });
+                continue;
+              }
+
               // CRITICAL: embed-then-commit ordering
               // Generate embedding BEFORE clearing governance_review_status
               // to prevent items appearing in search without embeddings
@@ -409,12 +434,19 @@ export async function registerGovernanceTools(
                 continue;
               }
 
-              // Update: set embedding and clear governance_review_status in one operation
+              // Update: set embedding, clear governance_review_status, and
+              // (when row is currently `'draft'`) promote
+              // publication_status='published'. Conditional spread ensures
+              // already-published / in_review rows are NOT touched on
+              // publication_status (no-op for those branches).
               const { error: updateError } = await supabase
                 .from('content_items')
                 .update({
                   embedding: JSON.stringify(embedding),
                   governance_review_status: null,
+                  ...(row.publication_status === 'draft' && {
+                    publication_status: 'published',
+                  }),
                   updated_by: userId,
                 } satisfies Database['public']['Tables']['content_items']['Update'])
                 .eq('id', itemId);
