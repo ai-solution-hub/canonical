@@ -45,6 +45,7 @@ import {
   ALLOWED_REVIEW_INPUT_STATUSES,
   type AllowedReviewInputStatus,
 } from '@/lib/governance/review-input-statuses';
+import { computeNextReviewDate } from '@/lib/governance/cadence-renewal';
 
 export async function registerGovernanceTools(
   server: McpServer,
@@ -432,12 +433,10 @@ export async function registerGovernanceTools(
               // requires admin RLS — editor-role callers would silently
               // no-op the delete otherwise.
               if (!row.classified_at && row.content) {
-                const { createServiceClient } = await import(
-                  '@/lib/supabase/server'
-                );
-                const { recordPipelineRun } = await import(
-                  '@/lib/pipeline/record-run'
-                );
+                const { createServiceClient } =
+                  await import('@/lib/supabase/server');
+                const { recordPipelineRun } =
+                  await import('@/lib/pipeline/record-run');
                 const publishServiceClient = createServiceClient();
 
                 let classifyStatus: 'completed' | 'failed' = 'completed';
@@ -470,9 +469,8 @@ export async function registerGovernanceTools(
                 });
 
                 try {
-                  const { regenerateChunks } = await import(
-                    '@/lib/content/chunk-store'
-                  );
+                  const { regenerateChunks } =
+                    await import('@/lib/content/chunk-store');
                   await regenerateChunks(
                     publishServiceClient,
                     itemId,
@@ -747,10 +745,14 @@ export async function registerGovernanceTools(
         const supabase = createMcpClient(extra.authInfo);
         const userId = getMcpUserId(extra.authInfo);
 
+        // §5.5 Phase 2 T2: extend the fetch to include `next_review_date` +
+        // `review_cadence_days` so the `approve` branch can compute auto-
+        // renewal symmetrically with the API route. `verified_at` is
+        // selected to keep the SELECT shape stable for future extension.
         const { data: item, error: fetchError } = await supabase
           .from('content_items')
           .select(
-            'id, title, suggested_title, governance_review_status, content_owner_id, updated_by',
+            'id, title, suggested_title, governance_review_status, content_owner_id, updated_by, next_review_date, review_cadence_days, verified_at',
           )
           .eq('id', args.item_id)
           .maybeSingle();
@@ -800,14 +802,26 @@ export async function registerGovernanceTools(
         let updateData: Database['public']['Tables']['content_items']['Update'];
 
         switch (action) {
-          case 'approve':
+          case 'approve': {
+            // §5.5 Phase 2 T2: cadence-driven auto-renewal — symmetric with
+            // app/api/governance/review/route.ts. Advance `next_review_date`
+            // to GREATEST(current, today) + cadence and stamp `verified_at`.
+            // Spec §6.5 + §6.9 AC8.
+            const nextReviewDate = computeNextReviewDate(
+              (item as { next_review_date: string | null }).next_review_date,
+              (item as { review_cadence_days: number | null })
+                .review_cadence_days,
+            );
             newStatus = 'approved';
             updateData = {
               governance_review_status: 'approved',
               governance_reviewer_id: userId,
               governance_review_due: null,
+              verified_at: new Date().toISOString(),
+              ...(nextReviewDate && { next_review_date: nextReviewDate }),
             };
             break;
+          }
           case 'request_changes':
             newStatus = 'changes_requested';
             updateData = {
@@ -885,8 +899,7 @@ export async function registerGovernanceTools(
           );
         }
 
-        const displayTitle =
-          item.title ?? item.suggested_title ?? '(untitled)';
+        const displayTitle = item.title ?? item.suggested_title ?? '(untitled)';
         const result: GovernanceReviewActionResult = {
           item_id: args.item_id,
           title: displayTitle,

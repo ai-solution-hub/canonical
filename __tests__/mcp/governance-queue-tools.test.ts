@@ -7,7 +7,7 @@
  * Mocks auth + supabase client at the module boundary and asserts the tool
  * callbacks drive the right queries, role gates, and notification paths.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks
@@ -329,6 +329,11 @@ describe('review_governance_item MCP tool', () => {
       governance_review_status: 'pending',
       content_owner_id: 'user-owner',
       updated_by: 'user-editor',
+      // §5.5 Phase 2 T2: handler now reads next_review_date +
+      // review_cadence_days. Item without cadence: renewal is skipped.
+      next_review_date: null,
+      review_cadence_days: null,
+      verified_at: null,
     };
     const fromMock = vi.fn(() => {
       step += 1;
@@ -386,6 +391,9 @@ describe('review_governance_item MCP tool', () => {
               governance_review_status: 'pending',
               content_owner_id: null,
               updated_by: null,
+              next_review_date: null,
+              review_cadence_days: null,
+              verified_at: null,
             },
             error: null,
           });
@@ -421,6 +429,9 @@ describe('review_governance_item MCP tool', () => {
       governance_review_status: 'review_overdue',
       content_owner_id: null,
       updated_by: null,
+      next_review_date: null,
+      review_cadence_days: null,
+      verified_at: null,
     };
     const fromMock = vi.fn(() => {
       step += 1;
@@ -458,6 +469,9 @@ describe('review_governance_item MCP tool', () => {
           governance_review_status: 'draft',
           content_owner_id: null,
           updated_by: null,
+          next_review_date: null,
+          review_cadence_days: null,
+          verified_at: null,
         },
         error: null,
       });
@@ -471,5 +485,272 @@ describe('review_governance_item MCP tool', () => {
     expect(res.isError).toBe(true);
     expect(res.content[0]?.text).toContain('not pending governance review');
     expect(res.content[0]?.text).toContain('draft');
+  });
+
+  // ──────────────────────────────────────────
+  // S201 §5.5 Phase 2 T2 — auto-renewal in MCP review_governance_item
+  // Plan: docs/plans/§5.5-phase-2-cron-plan.md T2
+  // Spec: docs/specs/p0-document-control-lifecycle-spec.md §6.5 + §6.9 AC8
+  // (Mirrors __tests__/api/governance.test.ts T2 block to keep API + MCP
+  // handlers symmetric — see plan T2 gotcha "both handlers must stay
+  // symmetric".)
+  // ──────────────────────────────────────────
+
+  describe('§5.5 Phase 2 T2 — auto-renewal on approve', () => {
+    // Pinned-time: pin both `Date.now()` (used by `verified_at` ISO call)
+    // AND the constructor-default-arg `new Date()` (used inside the helper)
+    // by switching to `useFakeTimers`. Pin to 15/04/2026 12:00 UTC.
+    const PINNED_DATE = new Date('2026-04-15T12:00:00.000Z');
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(PINNED_DATE);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    /**
+     * Run an approve through the MCP tool with the given item-row state and
+     * return the captured update payload for assertions.
+     */
+    async function approveAndCaptureUpdate(
+      itemRow: Record<string, unknown>,
+    ): Promise<{
+      res: Awaited<ReturnType<typeof callTool>>;
+      updatePayload: Record<string, unknown> | undefined;
+    }> {
+      let step = 0;
+      let updateChain: ReturnType<typeof chain> | null = null;
+      const fromMock = vi.fn(() => {
+        step += 1;
+        if (step === 1) {
+          return chain({ data: itemRow, error: null });
+        }
+        if (step === 2) {
+          updateChain = chain({
+            data: { id: itemRow.id },
+            error: null,
+          });
+          return updateChain;
+        }
+        return chain({ data: null, error: null });
+      });
+      mocks.createMcpClient.mockReturnValue({ from: fromMock });
+
+      const mock = createMockServer();
+      const localTools = mock.tools;
+      await registerGovernanceTools(mock.server);
+      const tool = findTool(localTools, 'review_governance_item');
+
+      const res = await callTool(tool, {
+        item_id: itemRow.id as string,
+        action: 'approve',
+      });
+
+      const updateMockFn = (
+        updateChain as unknown as { update: ReturnType<typeof vi.fn> } | null
+      )?.update;
+      const updatePayload = updateMockFn?.mock.calls[0]?.[0] as
+        | Record<string, unknown>
+        | undefined;
+      return { res, updatePayload };
+    }
+
+    it('[spec row 6] approves overdue item with cadence + past next_review_date — advances to today + cadence', async () => {
+      const itemRow = {
+        id: '11111111-1111-4111-8111-111111111111',
+        title: 'Overdue policy',
+        suggested_title: null,
+        governance_review_status: 'review_overdue',
+        content_owner_id: null,
+        updated_by: null,
+        next_review_date: '2025-12-01',
+        review_cadence_days: 180,
+        verified_at: null,
+      };
+
+      const { res, updatePayload } = await approveAndCaptureUpdate(itemRow);
+
+      expect(res.isError).toBeUndefined();
+      expect(updatePayload).toMatchObject({
+        governance_review_status: 'approved',
+        next_review_date: '2026-10-12',
+      });
+    });
+
+    it('[spec row 7] approves item with future next_review_date — GREATEST picks the future date', async () => {
+      const itemRow = {
+        id: '11111111-1111-4111-8111-111111111111',
+        title: 'Forward-dated policy',
+        suggested_title: null,
+        governance_review_status: 'pending',
+        content_owner_id: null,
+        updated_by: null,
+        next_review_date: '2027-12-31',
+        review_cadence_days: 180,
+        verified_at: null,
+      };
+
+      const { res, updatePayload } = await approveAndCaptureUpdate(itemRow);
+
+      expect(res.isError).toBeUndefined();
+      expect(updatePayload).toMatchObject({
+        governance_review_status: 'approved',
+        next_review_date: '2028-06-28',
+      });
+    });
+
+    it('[plan-additional] approves item with null cadence — does NOT touch next_review_date', async () => {
+      const itemRow = {
+        id: '11111111-1111-4111-8111-111111111111',
+        title: 'No cadence configured',
+        suggested_title: null,
+        governance_review_status: 'pending',
+        content_owner_id: null,
+        updated_by: null,
+        next_review_date: null,
+        review_cadence_days: null,
+        verified_at: null,
+      };
+
+      const { res, updatePayload } = await approveAndCaptureUpdate(itemRow);
+
+      expect(res.isError).toBeUndefined();
+      expect(updatePayload).toBeDefined();
+      expect(updatePayload).not.toHaveProperty('next_review_date');
+    });
+
+    it('[plan-additional] approves overdue item — UPDATE includes verified_at as a fresh ISO timestamp', async () => {
+      const itemRow = {
+        id: '11111111-1111-4111-8111-111111111111',
+        title: 'Overdue policy',
+        suggested_title: null,
+        governance_review_status: 'review_overdue',
+        content_owner_id: null,
+        updated_by: null,
+        next_review_date: '2025-12-01',
+        review_cadence_days: 180,
+        verified_at: null,
+      };
+
+      const { res, updatePayload } = await approveAndCaptureUpdate(itemRow);
+
+      expect(res.isError).toBeUndefined();
+      expect(updatePayload).toBeDefined();
+      expect(updatePayload).toHaveProperty('verified_at');
+      expect(typeof updatePayload?.verified_at).toBe('string');
+      // ISO 8601 timestamp shape: YYYY-MM-DDTHH:MM:SS.sssZ
+      expect(updatePayload?.verified_at).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
+      );
+    });
+
+    it('[untouched-other-branches] request_changes does NOT touch next_review_date', async () => {
+      const itemRow = {
+        id: '11111111-1111-4111-8111-111111111111',
+        title: 'Item',
+        suggested_title: null,
+        governance_review_status: 'pending',
+        content_owner_id: null,
+        updated_by: null,
+        next_review_date: '2026-12-01',
+        review_cadence_days: 180,
+        verified_at: null,
+      };
+
+      let step = 0;
+      let updateChain: ReturnType<typeof chain> | null = null;
+      const fromMock = vi.fn(() => {
+        step += 1;
+        if (step === 1) {
+          return chain({ data: itemRow, error: null });
+        }
+        if (step === 2) {
+          updateChain = chain({
+            data: { id: itemRow.id },
+            error: null,
+          });
+          return updateChain;
+        }
+        return chain({ data: null, error: null });
+      });
+      mocks.createMcpClient.mockReturnValue({ from: fromMock });
+
+      const mock = createMockServer();
+      const localTools = mock.tools;
+      await registerGovernanceTools(mock.server);
+      const tool = findTool(localTools, 'review_governance_item');
+
+      const res = await callTool(tool, {
+        item_id: itemRow.id,
+        action: 'request_changes',
+      });
+
+      expect(res.isError).toBeUndefined();
+      const updateMockFn = (
+        updateChain as unknown as { update: ReturnType<typeof vi.fn> } | null
+      )?.update;
+      const updatePayload = updateMockFn?.mock.calls[0]?.[0] as
+        | Record<string, unknown>
+        | undefined;
+      expect(updatePayload).toBeDefined();
+      expect(updatePayload).not.toHaveProperty('next_review_date');
+      expect(updatePayload).not.toHaveProperty('verified_at');
+    });
+
+    it('[untouched-other-branches] revert does NOT touch next_review_date', async () => {
+      const itemRow = {
+        id: '11111111-1111-4111-8111-111111111111',
+        title: 'Item',
+        suggested_title: null,
+        governance_review_status: 'pending',
+        content_owner_id: null,
+        updated_by: null,
+        next_review_date: '2026-12-01',
+        review_cadence_days: 180,
+        verified_at: null,
+      };
+
+      let step = 0;
+      let updateChain: ReturnType<typeof chain> | null = null;
+      const fromMock = vi.fn(() => {
+        step += 1;
+        if (step === 1) {
+          return chain({ data: itemRow, error: null });
+        }
+        if (step === 2) {
+          updateChain = chain({
+            data: { id: itemRow.id },
+            error: null,
+          });
+          return updateChain;
+        }
+        return chain({ data: null, error: null });
+      });
+      mocks.createMcpClient.mockReturnValue({ from: fromMock });
+
+      const mock = createMockServer();
+      const localTools = mock.tools;
+      await registerGovernanceTools(mock.server);
+      const tool = findTool(localTools, 'review_governance_item');
+
+      const res = await callTool(tool, {
+        item_id: itemRow.id,
+        action: 'revert',
+      });
+
+      expect(res.isError).toBeUndefined();
+      const updateMockFn = (
+        updateChain as unknown as { update: ReturnType<typeof vi.fn> } | null
+      )?.update;
+      const updatePayload = updateMockFn?.mock.calls[0]?.[0] as
+        | Record<string, unknown>
+        | undefined;
+      expect(updatePayload).toBeDefined();
+      expect(updatePayload).not.toHaveProperty('next_review_date');
+      expect(updatePayload).not.toHaveProperty('verified_at');
+    });
   });
 });

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   createMockSupabaseClient,
   configureRole,
@@ -632,9 +632,17 @@ describe('POST /api/governance/review', () => {
   it('approves a pending item successfully', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Item lookup: pending
+    // Item lookup: pending. §5.5 Phase 2 T2: fetch now includes
+    // next_review_date + review_cadence_days. Item without cadence: renewal
+    // is skipped (covered by the dedicated null-cadence test below).
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, governance_review_status: 'pending' },
+      data: {
+        id: VALID_UUID,
+        governance_review_status: 'pending',
+        next_review_date: null,
+        review_cadence_days: null,
+        verified_at: null,
+      },
       error: null,
     });
 
@@ -682,7 +690,13 @@ describe('POST /api/governance/review', () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, governance_review_status: 'pending' },
+      data: {
+        id: VALID_UUID,
+        governance_review_status: 'pending',
+        next_review_date: '2026-12-01',
+        review_cadence_days: 180,
+        verified_at: null,
+      },
       error: null,
     });
 
@@ -729,7 +743,13 @@ describe('POST /api/governance/review', () => {
     configureRole(mockSupabase, 'admin');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, governance_review_status: 'pending' },
+      data: {
+        id: VALID_UUID,
+        governance_review_status: 'pending',
+        next_review_date: '2026-12-01',
+        review_cadence_days: 180,
+        verified_at: null,
+      },
       error: null,
     });
 
@@ -774,7 +794,13 @@ describe('POST /api/governance/review', () => {
 
     // First .single() — fetch current item (succeeds)
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, governance_review_status: 'pending' },
+      data: {
+        id: VALID_UUID,
+        governance_review_status: 'pending',
+        next_review_date: null,
+        review_cadence_days: null,
+        verified_at: null,
+      },
       error: null,
     });
 
@@ -804,9 +830,19 @@ describe('POST /api/governance/review', () => {
   it('approves an item already in review_overdue (Phase 2 cron path)', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Item lookup: review_overdue (set by Phase 2 cron in real life)
+    // Item lookup: review_overdue (set by Phase 2 cron in real life).
+    // §5.5 Phase 2 T2: cron-flipped items always have a configured cadence
+    // (the cron only flips items where `next_review_date < CURRENT_DATE`,
+    // which requires a populated cadence). The renewal assertion lives in
+    // the dedicated T2 cadence test rows below.
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, governance_review_status: 'review_overdue' },
+      data: {
+        id: VALID_UUID,
+        governance_review_status: 'review_overdue',
+        next_review_date: null,
+        review_cadence_days: null,
+        verified_at: null,
+      },
       error: null,
     });
 
@@ -851,7 +887,13 @@ describe('POST /api/governance/review', () => {
 
     // Item exists but is in draft — should still be rejected
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, governance_review_status: 'draft' },
+      data: {
+        id: VALID_UUID,
+        governance_review_status: 'draft',
+        next_review_date: null,
+        review_cadence_days: null,
+        verified_at: null,
+      },
       error: null,
     });
 
@@ -864,5 +906,296 @@ describe('POST /api/governance/review', () => {
     expect(res.status).toBe(400);
     const json = await res.json();
     expect(json.error).toBe('Item is not pending governance review');
+  });
+
+  // ──────────────────────────────────────────
+  // S201 §5.5 Phase 2 T2 — auto-renewal in approve handler
+  // Plan: docs/plans/§5.5-phase-2-cron-plan.md T2
+  // Spec: docs/specs/p0-document-control-lifecycle-spec.md §6.5 + §6.9 AC8
+  //       (test rows 6 + 7 from §13.2 + 2 plan-additional rows)
+  // ──────────────────────────────────────────
+
+  describe('§5.5 Phase 2 T2 — auto-renewal on approve', () => {
+    // Pinned-time pattern (CLAUDE.md gotcha): `setDate()` rounding can flip
+    // around midnight UTC. We use `useFakeTimers` here (not the
+    // `vi.spyOn(Date, 'now')` shorthand) because the cadence-renewal helper
+    // takes its default "today" as `new Date()`, and Vitest fake timers
+    // intercept the constructor as well as `Date.now`. Pin to 15/04/2026
+    // 12:00 UTC.
+    const PINNED_DATE = new Date('2026-04-15T12:00:00.000Z');
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(PINNED_DATE);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('[spec row 6] approves overdue item with cadence + past next_review_date — advances to today + cadence', async () => {
+      configureRole(mockSupabase, 'editor');
+
+      // Overdue item: next_review_date in past (2025-12-01), cadence 180.
+      // Today=2026-04-15. GREATEST(past, today)=today → today + 180d
+      // = 2026-10-12.
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: {
+          id: VALID_UUID,
+          governance_review_status: 'review_overdue',
+          next_review_date: '2025-12-01',
+          review_cadence_days: 180,
+          verified_at: null,
+        },
+        error: null,
+      });
+
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: { id: VALID_UUID },
+        error: null,
+      });
+
+      mockSupabase._chain.then.mockImplementation(
+        (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+      );
+
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+        data: { updated_by: 'other-user-id' },
+        error: null,
+      });
+
+      const req = createTestRequest('/api/governance/review', {
+        method: 'POST',
+        body: { item_id: VALID_UUID, action: 'approve' },
+      });
+      const res = await postReview(req);
+
+      expect(res.status).toBe(200);
+      expect(mockSupabase._chain.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          governance_review_status: 'approved',
+          next_review_date: '2026-10-12',
+        }),
+      );
+    });
+
+    it('[spec row 7] approves item with future next_review_date — GREATEST picks the future date', async () => {
+      configureRole(mockSupabase, 'editor');
+
+      // Future next_review_date: 2027-12-31 + 180d = 2028-06-28.
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: {
+          id: VALID_UUID,
+          governance_review_status: 'pending',
+          next_review_date: '2027-12-31',
+          review_cadence_days: 180,
+          verified_at: null,
+        },
+        error: null,
+      });
+
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: { id: VALID_UUID },
+        error: null,
+      });
+
+      mockSupabase._chain.then.mockImplementation(
+        (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+      );
+
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+        data: { updated_by: 'other-user-id' },
+        error: null,
+      });
+
+      const req = createTestRequest('/api/governance/review', {
+        method: 'POST',
+        body: { item_id: VALID_UUID, action: 'approve' },
+      });
+      const res = await postReview(req);
+
+      expect(res.status).toBe(200);
+      expect(mockSupabase._chain.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          governance_review_status: 'approved',
+          next_review_date: '2028-06-28',
+        }),
+      );
+    });
+
+    it('[plan-additional] approves item with null cadence — does NOT touch next_review_date', async () => {
+      configureRole(mockSupabase, 'editor');
+
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: {
+          id: VALID_UUID,
+          governance_review_status: 'pending',
+          next_review_date: null,
+          review_cadence_days: null,
+          verified_at: null,
+        },
+        error: null,
+      });
+
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: { id: VALID_UUID },
+        error: null,
+      });
+
+      mockSupabase._chain.then.mockImplementation(
+        (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+      );
+
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+        data: { updated_by: 'other-user-id' },
+        error: null,
+      });
+
+      const req = createTestRequest('/api/governance/review', {
+        method: 'POST',
+        body: { item_id: VALID_UUID, action: 'approve' },
+      });
+      const res = await postReview(req);
+
+      expect(res.status).toBe(200);
+      const updateCall = mockSupabase._chain.update.mock.calls[0]?.[0] as
+        | Record<string, unknown>
+        | undefined;
+      expect(updateCall).toBeDefined();
+      expect(updateCall).not.toHaveProperty('next_review_date');
+    });
+
+    it('[plan-additional] approves overdue item — UPDATE includes verified_at as a fresh ISO timestamp', async () => {
+      configureRole(mockSupabase, 'editor');
+
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: {
+          id: VALID_UUID,
+          governance_review_status: 'review_overdue',
+          next_review_date: '2025-12-01',
+          review_cadence_days: 180,
+          verified_at: null,
+        },
+        error: null,
+      });
+
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: { id: VALID_UUID },
+        error: null,
+      });
+
+      mockSupabase._chain.then.mockImplementation(
+        (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+      );
+
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+        data: { updated_by: 'other-user-id' },
+        error: null,
+      });
+
+      const req = createTestRequest('/api/governance/review', {
+        method: 'POST',
+        body: { item_id: VALID_UUID, action: 'approve' },
+      });
+      const res = await postReview(req);
+
+      expect(res.status).toBe(200);
+      const updateCall = mockSupabase._chain.update.mock.calls[0]?.[0] as
+        | Record<string, unknown>
+        | undefined;
+      expect(updateCall).toBeDefined();
+      expect(updateCall).toHaveProperty('verified_at');
+      expect(typeof updateCall?.verified_at).toBe('string');
+      // ISO 8601 timestamp shape: YYYY-MM-DDTHH:MM:SS.sssZ
+      expect(updateCall?.verified_at).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
+      );
+    });
+
+    it('[untouched-other-branches] request_changes does NOT touch next_review_date', async () => {
+      configureRole(mockSupabase, 'editor');
+
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: {
+          id: VALID_UUID,
+          governance_review_status: 'pending',
+          next_review_date: '2026-12-01',
+          review_cadence_days: 180,
+          verified_at: null,
+        },
+        error: null,
+      });
+
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: { id: VALID_UUID },
+        error: null,
+      });
+
+      mockSupabase._chain.then.mockImplementation(
+        (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+      );
+
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+        data: { updated_by: 'other-user-id' },
+        error: null,
+      });
+
+      const req = createTestRequest('/api/governance/review', {
+        method: 'POST',
+        body: { item_id: VALID_UUID, action: 'request_changes' },
+      });
+      const res = await postReview(req);
+
+      expect(res.status).toBe(200);
+      const updateCall = mockSupabase._chain.update.mock.calls[0]?.[0] as
+        | Record<string, unknown>
+        | undefined;
+      expect(updateCall).toBeDefined();
+      expect(updateCall).not.toHaveProperty('next_review_date');
+      expect(updateCall).not.toHaveProperty('verified_at');
+    });
+
+    it('[untouched-other-branches] revert does NOT touch next_review_date', async () => {
+      configureRole(mockSupabase, 'admin');
+
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: {
+          id: VALID_UUID,
+          governance_review_status: 'pending',
+          next_review_date: '2026-12-01',
+          review_cadence_days: 180,
+          verified_at: null,
+        },
+        error: null,
+      });
+
+      mockSupabase._chain.single.mockResolvedValueOnce({
+        data: { id: VALID_UUID },
+        error: null,
+      });
+
+      mockSupabase._chain.then.mockImplementation(
+        (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+      );
+
+      mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+        data: { updated_by: 'other-user-id' },
+        error: null,
+      });
+
+      const req = createTestRequest('/api/governance/review', {
+        method: 'POST',
+        body: { item_id: VALID_UUID, action: 'revert' },
+      });
+      const res = await postReview(req);
+
+      expect(res.status).toBe(200);
+      const updateCall = mockSupabase._chain.update.mock.calls[0]?.[0] as
+        | Record<string, unknown>
+        | undefined;
+      expect(updateCall).toBeDefined();
+      expect(updateCall).not.toHaveProperty('next_review_date');
+      expect(updateCall).not.toHaveProperty('verified_at');
+    });
   });
 });

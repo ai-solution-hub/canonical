@@ -12,6 +12,7 @@ import {
   ALLOWED_REVIEW_INPUT_STATUSES,
   type AllowedReviewInputStatus,
 } from '@/lib/governance/review-input-statuses';
+import { computeNextReviewDate } from '@/lib/governance/cadence-renewal';
 
 export const maxDuration = 30;
 
@@ -93,10 +94,16 @@ export async function POST(request: NextRequest) {
 
     const { item_id, action, notes } = parsed.data;
 
-    // Verify the item exists and is pending review
+    // Verify the item exists and is pending review.
+    // §5.5 Phase 2 T2: also fetch `next_review_date` + `review_cadence_days`
+    // (read by the `approve` branch below to compute auto-renewal). The
+    // `verified_at` column is selected only to keep the SELECT shape stable
+    // for future extension.
     const { data: item, error: fetchError } = await supabase
       .from('content_items')
-      .select('id, governance_review_status')
+      .select(
+        'id, governance_review_status, next_review_date, review_cadence_days, verified_at',
+      )
       .eq('id', item_id)
       .single();
 
@@ -118,13 +125,25 @@ export async function POST(request: NextRequest) {
     let updateData: Record<string, unknown>;
 
     switch (action) {
-      case 'approve':
+      case 'approve': {
+        // §5.5 Phase 2 T2: when an item with a configured cadence is approved,
+        // advance `next_review_date` to GREATEST(current, today) + cadence
+        // and stamp `verified_at = NOW()`. Items without a cadence
+        // (review_cadence_days IS NULL) leave `next_review_date` untouched.
+        // Spec §6.5 + §6.9 AC8.
+        const nextReviewDate = computeNextReviewDate(
+          (item as { next_review_date: string | null }).next_review_date,
+          (item as { review_cadence_days: number | null }).review_cadence_days,
+        );
         updateData = {
           governance_review_status: 'approved',
           governance_reviewer_id: user.id,
           governance_review_due: null,
+          verified_at: new Date().toISOString(),
+          ...(nextReviewDate && { next_review_date: nextReviewDate }),
         };
         break;
+      }
 
       case 'request_changes':
         updateData = {
