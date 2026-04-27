@@ -233,6 +233,15 @@ export const ItemCreateBodySchema = z.object({
 
   // Governance
   governance_review_status: z.enum(['draft']).optional(),
+  // S202 §5.2 Phase 2.5 (T8b) — UI client (post-T8a rewire) submits
+  // `publication_status: 'draft'` for save-as-draft. Without this field on
+  // the schema, Zod would silently strip the property and the API would
+  // create the item as published. Literal array mirrors
+  // `VALID_PUBLICATION_STATUSES` in `lib/governance/publication-transitions.ts`
+  // (drift pinned by `__tests__/lib/governance/publication-transitions.test.ts`).
+  publication_status: z
+    .enum(['draft', 'in_review', 'published', 'archived'])
+    .optional(),
 
   // Ingestion source tracking
   ingestion_source: z

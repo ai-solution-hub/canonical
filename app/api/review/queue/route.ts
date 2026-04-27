@@ -167,12 +167,14 @@ export async function GET(request: NextRequest) {
       .select(REVIEW_COLUMNS, { count: 'exact' });
 
     // Draft filter: show only drafts. All other filters exclude drafts.
+    // S202 §5.2 Phase 2.5 (T8b) — read from publication_status (NOT NULL
+    // post-S201) instead of legacy governance_review_status. The legacy
+    // column will be NULLed by Phase 1f migration; SELECT clause keeps it
+    // for response-shape continuity until then.
     if (status === 'draft') {
-      query = query.eq('governance_review_status', 'draft');
+      query = query.eq('publication_status', 'draft');
     } else {
-      query = query.or(
-        'governance_review_status.is.null,governance_review_status.neq.draft',
-      );
+      query = query.neq('publication_status', 'draft');
     }
 
     // Apply verification status filter
