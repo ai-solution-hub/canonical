@@ -14,6 +14,15 @@
  * from `.env.local` (which would make assertions on alt text / product
  * name flaky across machines).
  *
+ * Class C tests (integration / e2e tests that read env values directly to
+ * construct fixtures) intentionally stay on `process.env.X` rather than
+ * routing through `clientEnv` / `serverEnv` — see WP-S5.1 spec §13.9 for
+ * the reasoning (Zod parses at module load; `vi.stubEnv` after import has
+ * no retroactive effect; integration tests reading values for fixtures
+ * gain nothing from the boundary). Production runtime uses
+ * `clientEnv` / `serverEnv` to enforce the type-system boundary; test
+ * setup uses `process.env` for flexibility.
+ *
  * Registers jest-dom matchers and provides polyfills for jsdom.
  * Skips browser polyfills when running in node environment (e.g. real DB
  * integration tests).
