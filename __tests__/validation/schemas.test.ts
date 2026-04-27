@@ -591,6 +591,25 @@ describe('ItemUpdateBodySchema', () => {
       value: 'not-a-date',
     });
     expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.path).toEqual(['value']);
+      expect(result.error.issues[0]?.message).toContain('ISO-8601');
+    }
+  });
+
+  it('should reject next_review_date with a logically-invalid calendar date (2026-02-30)', () => {
+    // JS Date.parse('2026-02-30') silently rolls to 2026-03-02; the round-trip
+    // check should reject this so the user gets a Zod error (not a delayed
+    // Postgres CHECK violation).
+    const result = ItemUpdateBodySchema.safeParse({
+      field: 'next_review_date',
+      value: '2026-02-30',
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.path).toEqual(['value']);
+      expect(result.error.issues[0]?.message).toContain('calendar date');
+    }
   });
 
   it('should accept next_review_date with null (explicit clear)', () => {
@@ -607,6 +626,10 @@ describe('ItemUpdateBodySchema', () => {
       value: '0',
     });
     expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.path).toEqual(['value']);
+      expect(result.error.issues[0]?.message).toContain('1 and 1095');
+    }
   });
 
   it('should reject review_cadence_days above the maximum (1096)', () => {
@@ -615,6 +638,32 @@ describe('ItemUpdateBodySchema', () => {
       value: '1096',
     });
     expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.path).toEqual(['value']);
+      expect(result.error.issues[0]?.message).toContain('1 and 1095');
+    }
+  });
+
+  it('should reject review_cadence_days with a negative value', () => {
+    const result = ItemUpdateBodySchema.safeParse({
+      field: 'review_cadence_days',
+      value: '-5',
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.path).toEqual(['value']);
+    }
+  });
+
+  it('should reject review_cadence_days with a decimal value', () => {
+    const result = ItemUpdateBodySchema.safeParse({
+      field: 'review_cadence_days',
+      value: '180.5',
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.path).toEqual(['value']);
+    }
   });
 
   it('should accept review_cadence_days with null (explicit clear)', () => {

@@ -371,10 +371,18 @@ export const ItemUpdateBodySchema = z
       } else {
         const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
         const parsed = Date.parse(data.value);
-        if (!ISO_DATE_RE.test(data.value) || Number.isNaN(parsed)) {
+        // Round-trip check defends against logically-invalid dates that JS
+        // silently rolls over (e.g. '2026-02-30' → '2026-03-02'). The DB
+        // would reject the rolled value; rejecting here gives the user a
+        // clear Zod error instead of a delayed CHECK violation.
+        const roundTripValid =
+          ISO_DATE_RE.test(data.value) &&
+          !Number.isNaN(parsed) &&
+          new Date(parsed).toISOString().slice(0, 10) === data.value;
+        if (!roundTripValid) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: 'next_review_date value must be a valid ISO-8601 date (YYYY-MM-DD)',
+            message: 'next_review_date value must be a valid ISO-8601 calendar date (YYYY-MM-DD)',
             path: ['value'],
           });
         }

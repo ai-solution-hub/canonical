@@ -8,20 +8,13 @@ import {
 } from '@/lib/validation/schemas';
 
 describe('validateEditableField', () => {
-  it('should return true for all fields in EDITABLE_FIELDS set', () => {
-    const editableFields = [
-      'suggested_title',
-      'ai_keywords',
-      'primary_domain',
-      'primary_subtopic',
-      'secondary_domain',
-      'secondary_subtopic',
-      'summary',
-      'author_name',
-      'content_type',
-      'platform',
-    ];
-    for (const field of editableFields) {
+  it('should return true for every field in EDITABLE_FIELDS set (full iteration)', () => {
+    // Drive the assertion from EDITABLE_FIELDS itself rather than a
+    // hand-maintained list — prevents the silent-drift pattern flagged by
+    // `feedback_guard_test_iteration_list_drift`. If a field is added to the
+    // Set, this test exercises it automatically.
+    expect(EDITABLE_FIELDS.size).toBeGreaterThan(0);
+    for (const field of EDITABLE_FIELDS) {
       expect(validateEditableField(field)).toBe(true);
     }
   });
