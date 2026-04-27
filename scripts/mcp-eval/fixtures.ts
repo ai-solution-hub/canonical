@@ -265,13 +265,13 @@ export async function getAuthToken(): Promise<{
   supabase: SupabaseClient;
 }> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   const email = process.env.TEST_USER_1_EMAIL;
   const password = process.env.TEST_USER_1_PASSWORD;
 
   if (!url || !anonKey) {
     throw new Error(
-      'Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY',
+      'Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
     );
   }
   if (!email || !password) {

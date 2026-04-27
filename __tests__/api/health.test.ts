@@ -42,7 +42,7 @@ const ORIGINAL_ENV = { ...process.env };
 function setEnvVars(overrides: Record<string, string | undefined> = {}) {
   const defaults: Record<string, string> = {
     NEXT_PUBLIC_SUPABASE_URL: 'https://test.supabase.co',
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-anon-key',
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'test-anon-key',
     ANTHROPIC_API_KEY: 'sk-ant-test',
     OPENAI_API_KEY: 'sk-test',
   };
@@ -58,7 +58,7 @@ function setEnvVars(overrides: Record<string, string | undefined> = {}) {
 function resetEnv() {
   // Remove any test keys
   delete process.env.NEXT_PUBLIC_SUPABASE_URL;
-  delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.OPENAI_API_KEY;
   // Restore originals
@@ -178,7 +178,7 @@ describe('GET /api/health', () => {
   it('returns supabase: false when Supabase env vars are not set', async () => {
     setEnvVars({
       NEXT_PUBLIC_SUPABASE_URL: undefined,
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: undefined,
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: undefined,
     });
 
     const response = await healthGET();

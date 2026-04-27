@@ -20,10 +20,10 @@ export function createMcpUserClient(bearerToken: string) {
   if (!supabaseUrl) {
     throw new Error('NEXT_PUBLIC_SUPABASE_URL environment variable is not set');
   }
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!supabaseAnonKey) {
     throw new Error(
-      'NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable is not set',
+      'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY environment variable is not set',
     );
   }
 

@@ -25,7 +25,7 @@
  * Plan: docs/plans/qa-contenteditor-upgrade-plan.md WP7 (Wave 3)
  *
  * Prereqs:
- *   - .env with NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
+ *   - .env with NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
  *     SUPABASE_SECRET_KEY, OPENAI_API_KEY, TEST_USER_{1,2,3}_PASSWORD
  *   - `bun run seed:e2e-users` has been run against the target DB
  *

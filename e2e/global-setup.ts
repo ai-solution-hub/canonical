@@ -16,7 +16,7 @@ async function globalSetup(): Promise<void> {
   // --- Step 1: Environment variables ---
   const required = [
     'NEXT_PUBLIC_SUPABASE_URL',
-    'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+    'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
     'SUPABASE_SECRET_KEY',
   ];
 
@@ -75,7 +75,7 @@ async function globalSetup(): Promise<void> {
   // preceded this block — see docs/audits/s156-auth-admin-sweep.md
   // Finding 5.3.
   const anonUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
   const anonClient = createClient(anonUrl, anonKey);
 
   const passwordEnvByLabel: Record<string, string> = {

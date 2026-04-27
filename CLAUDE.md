@@ -212,7 +212,7 @@ conventions: `docs/continuation-prompts/README.md`.
   Always verify updates by re-querying.
 - **RLS requires user_roles entry:** New users cannot write until seeded.
 - **CLI in Claude Code sandbox:** Run `supabase migration new`, `db push`, and
-  `gen types` with `dangerouslyDisableSandbox: true`. `SUPABASE_DB_PASSWORD`
+  `gen types` with `dangerouslyDisableSandbox: true`. `POSTGRES_PASSWORD`
   must be set as a shell env var.
 - **Empty migration files from worktree cherry-picks:** Migration files may
   arrive as 0-byte. Supabase CLI marks them "applied" anyway. Always verify

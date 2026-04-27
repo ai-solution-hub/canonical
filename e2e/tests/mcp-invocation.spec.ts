@@ -140,7 +140,7 @@ import { createClient } from '@supabase/supabase-js';
 import precomputedEmbeddings from '../fixtures/embeddings.json';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
 const TEST_USER_EMAIL =
   process.env.TEST_USER_1_EMAIL || 'test.user1@test-kb-aish.co.uk';
 const TEST_USER_PASSWORD =

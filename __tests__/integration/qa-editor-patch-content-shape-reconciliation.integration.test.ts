@@ -17,7 +17,7 @@
  *   - lib/bid-library-ingest/resolve-question.ts (Q-line vs title fallback)
  *
  * Prereqs:
- *   - .env with NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
+ *   - .env with NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
  *     SUPABASE_SECRET_KEY, TEST_USER_{1,2,3}_PASSWORD
  *   - `bun run seed:e2e-users` has been run against the target DB
  *

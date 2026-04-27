@@ -23,7 +23,7 @@ export function createClient(): SupabaseClient<Database> {
   if (!browserClient) {
     browserClient = createBrowserClient<Database>(
       process.env.NEXT_PUBLIC_SUPABASE_URL || PLACEHOLDER_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || PLACEHOLDER_KEY,
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || PLACEHOLDER_KEY,
     );
   }
   return browserClient;
