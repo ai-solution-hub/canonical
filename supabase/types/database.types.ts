@@ -571,6 +571,7 @@ export type Database = {
           primary_domain: string | null
           primary_subtopic: string | null
           priority: string | null
+          publication_status: string | null
           quality_score: number | null
           quality_score_updated_at: string | null
           reference: string | null
@@ -646,6 +647,7 @@ export type Database = {
           primary_domain?: string | null
           primary_subtopic?: string | null
           priority?: string | null
+          publication_status?: string | null
           quality_score?: number | null
           quality_score_updated_at?: string | null
           reference?: string | null
@@ -721,6 +723,7 @@ export type Database = {
           primary_domain?: string | null
           primary_subtopic?: string | null
           priority?: string | null
+          publication_status?: string | null
           quality_score?: number | null
           quality_score_updated_at?: string | null
           reference?: string | null
@@ -2764,6 +2767,7 @@ export type Database = {
               primary_domain: string | null
               primary_subtopic: string | null
               priority: string | null
+              publication_status: string | null
               quality_score: number | null
               quality_score_updated_at: string | null
               reference: string | null
