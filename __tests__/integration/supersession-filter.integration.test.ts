@@ -10,7 +10,7 @@
  * Plan: docs/plans/supersession-model-plan.md §B.3 acceptance
  *
  * Prerequisites:
- *   - .env with NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SECRET_KEY, OPENAI_API_KEY
+ *   - .env with NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY
  *
  * @vitest-environment node
  */

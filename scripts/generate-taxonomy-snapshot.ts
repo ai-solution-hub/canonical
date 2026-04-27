@@ -43,7 +43,7 @@ async function main() {
       'Missing required environment variable: SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL',
     );
   }
-  const supabaseKey = getEnvVar('SUPABASE_SECRET_KEY');
+  const supabaseKey = getEnvVar('SUPABASE_SERVICE_ROLE_KEY');
 
   const supabase = createClient(supabaseUrl, supabaseKey);
 

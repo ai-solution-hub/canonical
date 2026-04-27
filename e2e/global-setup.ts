@@ -17,7 +17,7 @@ async function globalSetup(): Promise<void> {
   const required = [
     'NEXT_PUBLIC_SUPABASE_URL',
     'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
-    'SUPABASE_SECRET_KEY',
+    'SUPABASE_SERVICE_ROLE_KEY',
   ];
 
   const missing = required.filter((key) => !process.env[key]);
@@ -52,7 +52,7 @@ async function globalSetup(): Promise<void> {
   if (rolesError) {
     throw new Error(
       `E2E setup: failed to query user_roles: ${rolesError.message}. ` +
-        'Ensure the SUPABASE_SECRET_KEY has service_role permissions.',
+        'Ensure the SUPABASE_SERVICE_ROLE_KEY has service_role permissions.',
     );
   }
 

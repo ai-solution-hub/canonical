@@ -56,7 +56,7 @@
  *
  * Prereqs:
  *   - `.env` with NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
- *     SUPABASE_SECRET_KEY, TEST_USER_{1,2,3}_PASSWORD
+ *     SUPABASE_SERVICE_ROLE_KEY, TEST_USER_{1,2,3}_PASSWORD
  *   - `bun run seed:e2e-users` has been run against the target DB
  *   - The WP-2 migration has been applied (`20260408223728_create_get_user_display_names`)
  *

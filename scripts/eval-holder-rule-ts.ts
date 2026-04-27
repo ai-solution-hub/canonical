@@ -296,14 +296,14 @@ function logError(message: string): void {
 
 function createServiceRoleClient(): SupabaseClient<Database> {
   const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SECRET_KEY;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url) {
     logError('SUPABASE_URL is not set. Check .env or .env.local.');
     process.exit(2);
   }
   if (!key) {
-    logError('SUPABASE_SECRET_KEY is not set. Check .env or .env.local.');
+    logError('SUPABASE_SERVICE_ROLE_KEY is not set. Check .env or .env.local.');
     process.exit(2);
   }
 

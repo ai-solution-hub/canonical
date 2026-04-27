@@ -55,7 +55,7 @@ def main() -> int:
     args = parser.parse_args()
 
     url = os.environ["NEXT_PUBLIC_SUPABASE_URL"]
-    key = os.environ["SUPABASE_SECRET_KEY"]
+    key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
     sb = create_client(url, key)
 
     # Load items of target content_type (paginate — 222 items fits one page

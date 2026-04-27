@@ -278,7 +278,7 @@ async function loadTaxonomy(
   if (dErr) {
     console.error(`Failed to fetch taxonomy domains: ${dErr.message}`);
     console.error(
-      'Ensure SUPABASE_SECRET_KEY is set (service role key bypasses RLS).',
+      'Ensure SUPABASE_SERVICE_ROLE_KEY is set (service role key bypasses RLS).',
     );
     process.exit(1);
   }
@@ -296,7 +296,7 @@ async function loadTaxonomy(
 
   if (!domains?.length) {
     console.error(
-      'Taxonomy query returned empty. Check SUPABASE_SECRET_KEY is set.',
+      'Taxonomy query returned empty. Check SUPABASE_SERVICE_ROLE_KEY is set.',
     );
     process.exit(1);
   }
@@ -481,14 +481,14 @@ async function main(): Promise<void> {
   const supabaseUrl =
     process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey =
-    process.env.SUPABASE_SECRET_KEY ??
+    process.env.SUPABASE_SERVICE_ROLE_KEY ??
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-    process.env.SUPABASE_ANON_KEY;
+    process.env.SUPABASE_PUBLISHABLE_KEY;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
     console.error(
-      'Missing SUPABASE_URL / SUPABASE_SECRET_KEY (or SUPABASE_ANON_KEY) in environment',
+      'Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_PUBLISHABLE_KEY) in environment',
     );
     process.exit(1);
   }
@@ -497,7 +497,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const usingServiceRole = !!process.env.SUPABASE_SECRET_KEY;
+  const usingServiceRole = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
   const model = process.env.AI_SUMMARY_MODEL || 'claude-sonnet-4-6';
   const supabase = createClient<Database>(supabaseUrl, supabaseKey);
   const anthropic = new Anthropic({ apiKey: anthropicKey });
@@ -519,13 +519,13 @@ async function main(): Promise<void> {
       console.log('Authenticated successfully.');
     } else {
       console.warn(
-        'WARNING: No SUPABASE_SECRET_KEY and no SUPABASE_AUTH_EMAIL/SUPABASE_AUTH_PASSWORD.',
+        'WARNING: No SUPABASE_SERVICE_ROLE_KEY and no SUPABASE_AUTH_EMAIL/SUPABASE_AUTH_PASSWORD.',
       );
       console.warn(
         'The script may not be able to read/write data due to RLS policies.',
       );
       console.warn(
-        'Set SUPABASE_SECRET_KEY in .env or SUPABASE_AUTH_EMAIL/SUPABASE_AUTH_PASSWORD in .env.local.',
+        'Set SUPABASE_SERVICE_ROLE_KEY in .env or SUPABASE_AUTH_EMAIL/SUPABASE_AUTH_PASSWORD in .env.local.',
       );
     }
   }

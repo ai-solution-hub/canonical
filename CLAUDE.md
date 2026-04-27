@@ -83,8 +83,8 @@ Current counts (routes, components, hooks, tools, migrations, tests):
 Env vars in `.env` and `.env.local` — full template in `.env.example`.
 
 Required: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `SUPABASE_URL`,
-`SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SUPABASE_URL`,
-`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SECRET_KEY`.
+`SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
 
 Optional model overrides:
 - `AI_SUMMARY_MODEL` — `claude-sonnet-4-6`

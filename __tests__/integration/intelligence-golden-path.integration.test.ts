@@ -10,7 +10,7 @@
  * and write to the real Supabase database. No mocks.
  *
  * Prerequisites:
- *   - .env with NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SECRET_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY
+ *   - .env with NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY
  *   - Run: INTEGRATION_INTELLIGENCE=1 bun run test __tests__/integration/intelligence-golden-path
  *
  * Spec: docs/specs/si-integration-tests-spec.md

@@ -162,7 +162,7 @@ import { createClient } from '@supabase/supabase-js';
 import crypto from 'node:crypto';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
+const SUPABASE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
 const TEST_USER_EMAIL =
   process.env.TEST_USER_1_EMAIL || 'test.user1@test-kb-aish.co.uk';
 const TEST_USER_PASSWORD =
@@ -229,7 +229,7 @@ async function initOAuthFlow(
     `${SUPABASE_URL}/auth/v1/oauth/authorize?${params.toString()}`,
     {
       headers: {
-        apikey: SUPABASE_ANON_KEY,
+        apikey: SUPABASE_PUBLISHABLE_KEY,
         Authorization: `Bearer ${accessToken}`,
       },
       redirect: 'manual',
@@ -249,7 +249,7 @@ async function initOAuthFlow(
 }
 
 async function getUserAccessToken(): Promise<string> {
-  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
   const { data, error } = await supabase.auth.signInWithPassword({
     email: TEST_USER_EMAIL,
     password: TEST_USER_PASSWORD,
@@ -285,7 +285,7 @@ test.describe('8.0.1 OAuth consent flow', () => {
         Authorization:
           'Basic ' +
           Buffer.from(`${clientId}:${clientSecret}`).toString('base64'),
-        apikey: SUPABASE_ANON_KEY,
+        apikey: SUPABASE_PUBLISHABLE_KEY,
       },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
@@ -325,7 +325,7 @@ test.describe('8.0.1 OAuth consent flow', () => {
     // Best-effort revoke any lingering grant for this client by the test user,
     // then delete the OAuth client. Both are idempotent.
     try {
-      const userSupabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const userSupabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
       await userSupabase.auth.signInWithPassword({
         email: TEST_USER_EMAIL,
         password: TEST_USER_PASSWORD,

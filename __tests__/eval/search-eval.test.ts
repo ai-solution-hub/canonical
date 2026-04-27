@@ -10,7 +10,7 @@
  * Or skip in normal test runs (default behaviour — describe.skipIf).
  *
  * Note: This test requires OPENAI_API_KEY for embedding generation and
- * SUPABASE_SECRET_KEY for DB access.
+ * SUPABASE_SERVICE_ROLE_KEY for DB access.
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
@@ -71,12 +71,12 @@ describe.skipIf(!isEvalEnabled)(
 
       const url =
         process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-      const key = process.env.SUPABASE_SECRET_KEY;
+      const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
       const openaiKey = process.env.OPENAI_API_KEY;
 
       if (!url || !key) {
         throw new Error(
-          'Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY for eval',
+          'Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY for eval',
         );
       }
       if (!openaiKey) {

@@ -33,7 +33,7 @@
  * constraint is the load-bearing piece; the test must hit a real DB.
  *
  * Prerequisites:
- *   - .env with NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY
+ *   - .env with NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY
  *   - Run with: INTEGRATION_INTELLIGENCE=1 bun run test \
  *               __tests__/integration/si-google-news-dedup.integration.test.ts
  *

@@ -24,7 +24,7 @@
  *   1 — gate failed
  *   2 — operational failure (DB unreachable, invalid flags, missing config)
  *
- * Sandbox: read-only supabase-js queries use SUPABASE_SECRET_KEY. Runs
+ * Sandbox: read-only supabase-js queries use SUPABASE_SERVICE_ROLE_KEY. Runs
  * fine inside the sandbox — no .update() / .insert() / .delete() calls.
  */
 
@@ -234,7 +234,7 @@ bun run scripts/quality-gate.ts
 
 Env:
   SUPABASE_URL                  Target Supabase project (required).
-  SUPABASE_SECRET_KEY           Service role key (required — bypasses RLS).
+  SUPABASE_SERVICE_ROLE_KEY           Service role key (required — bypasses RLS).
 
 Examples:
   bun run scripts/quality-gate.ts --threshold=re-ingest
@@ -320,10 +320,10 @@ export function severityFor(
 
 export function createSb(): { sb: SupabaseClient; projectId: string } {
   const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SECRET_KEY;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
     throw new Error(
-      'Both SUPABASE_URL and SUPABASE_SECRET_KEY env vars are required.',
+      'Both SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY env vars are required.',
     );
   }
 

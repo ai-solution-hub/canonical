@@ -61,7 +61,7 @@ def _mock_table_update(mock_supabase):
 class TestGetSupabase:
     """get_supabase creates a Supabase client from env vars."""
 
-    @patch.dict(os.environ, {"SUPABASE_URL": "", "SUPABASE_SECRET_KEY": ""}, clear=False)
+    @patch.dict(os.environ, {"SUPABASE_URL": "", "SUPABASE_SERVICE_ROLE_KEY": ""}, clear=False)
     def test_missing_env_vars_exits(self):
         """Missing SUPABASE_URL exits with error."""
         # Must import after patching to avoid cached module state
@@ -72,7 +72,7 @@ class TestGetSupabase:
     @patch("bid_worker.create_client")
     @patch.dict(os.environ, {
         "SUPABASE_URL": "https://test.supabase.co",
-        "SUPABASE_SECRET_KEY": "test-secret-key",
+        "SUPABASE_SERVICE_ROLE_KEY": "test-secret-key",
     }, clear=False)
     def test_creates_client_with_env_vars(self, mock_create):
         """Creates Supabase client with URL and key from environment."""
