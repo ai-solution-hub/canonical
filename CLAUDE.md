@@ -80,7 +80,9 @@ Current counts (routes, components, hooks, tools, migrations, tests):
 
 ## Environment
 
-Env vars in `.env` and `.env.local` — full template in `.env.example`.
+Env vars in `.env.local` — full template in `.env.example`. (`.env`
+retired kh-prod-readiness-S6 27/04/2026 per WP-S5.2 D-20=α; `.env.local`
+is now the single source of truth for both TS and Python pipelines.)
 
 Required: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `SUPABASE_URL`,
 `SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`,
