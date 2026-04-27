@@ -125,18 +125,40 @@ function getTier(contentType: string): 1 | 2 {
   return TIER_1_TYPES.has(contentType) ? 1 : 2;
 }
 
-// ── DB Access ───────────────────────────────────────────────────────
+// ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
 
-function createServiceClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
 
-  if (!url || !key) {
+function parseEnvFlag(argv: string[]): string {
+  const eqArg = argv.find((a) => a.startsWith('--env='));
+  if (eqArg) return eqArg.slice('--env='.length);
+  const idx = argv.indexOf('--env');
+  if (idx >= 0 && argv[idx + 1]) return argv[idx + 1];
+  return '';
+}
+
+function assertEnvFlag(env: string, url: string | undefined): void {
+  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
     console.error(
-      'Missing NEXT_PUBLIC_SUPABASE_URL/SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY',
+      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/eval-summarisation.ts --env=prod`,
     );
     process.exit(1);
   }
+}
+
+// ── DB Access ───────────────────────────────────────────────────────
+
+function createServiceClient(env: string) {
+  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !key) {
+    console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+    process.exit(1);
+  }
+
+  assertEnvFlag(env, url);
 
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -396,6 +418,7 @@ async function main() {
   const jsonOutput = args.includes('--json');
   const doSaveBaseline = args.includes('--save-baseline');
   const runBERTScore = args.includes('--bertscore');
+  const envFlag = parseEnvFlag(args);
 
   // Load gold standard
   const fixturePath = resolve(
@@ -420,7 +443,7 @@ async function main() {
   );
 
   // Fetch from DB
-  const supabase = createServiceClient();
+  const supabase = createServiceClient(envFlag);
   const itemIds = goldStandard.map((g) => g.content_item_id);
   const dbMap = await fetchSummaries(supabase, itemIds);
 
