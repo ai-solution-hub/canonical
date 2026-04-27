@@ -80,6 +80,7 @@ interface RuntimeConfig {
   contentTypeFilter: string;
   outputPath: string;
   verbose: boolean;
+  env: string;
 }
 
 function parseRuntimeArgs(): RuntimeConfig {
@@ -91,6 +92,7 @@ function parseRuntimeArgs(): RuntimeConfig {
       output: { type: 'string', default: '' },
       verbose: { type: 'boolean', default: false },
       help: { type: 'boolean', default: false },
+      env: { type: 'string', default: '' },
     },
     strict: true,
   });
@@ -105,6 +107,7 @@ Options:
   --content-type TYPE    Restrict to one content_type bucket
   --output PATH          Write per-item JSONL results to the given path
   --verbose              Show content diffs for items below threshold
+  --env=prod             Asserts SUPABASE_URL points at prod ('rovrymhhffssilaftdwd')
   --help                 Show this help
 `);
     process.exit(0);
@@ -116,13 +119,29 @@ Options:
     contentTypeFilter: values['content-type']!.trim(),
     outputPath: values.output!.trim(),
     verbose: values.verbose!,
+    env: values.env ?? '',
   };
+}
+
+// ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
+
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+
+function assertEnvFlag(env: string, url: string | undefined): void {
+  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+    console.error(
+      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/embedding-smoke-test.ts --env=prod`,
+    );
+    process.exit(1);
+  }
 }
 
 type SupabaseScriptClient = ReturnType<typeof createClient>;
 
-function getSupabaseClient(): SupabaseScriptClient {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+function getSupabaseClient(env: string): SupabaseScriptClient {
+  const supabaseUrl =
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.SUPABASE_PUBLISHABLE_KEY ||
@@ -130,10 +149,13 @@ function getSupabaseClient(): SupabaseScriptClient {
 
   if (!supabaseUrl || !supabaseKey) {
     console.error(
-      'Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment',
+      'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment',
     );
     process.exit(1);
   }
+
+  assertEnvFlag(env, supabaseUrl);
+
   return createClient(supabaseUrl, supabaseKey);
 }
 
@@ -417,7 +439,7 @@ function median(values: number[]): number {
 async function main() {
   loadEnv();
   const config = parseRuntimeArgs();
-  const supabase = getSupabaseClient();
+  const supabase = getSupabaseClient(config.env);
 
   console.log('='.repeat(60));
   console.log('Embedding Quality Smoke Test');
