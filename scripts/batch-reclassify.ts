@@ -69,6 +69,7 @@ interface CliArgs {
   force: boolean;
   entitiesOnly: boolean;
   domain: string | null;
+  env: string;
 }
 
 function parseArgs(): CliArgs {
@@ -79,6 +80,7 @@ function parseArgs(): CliArgs {
   let force = false;
   let entitiesOnly = false;
   let domain: string | null = null;
+  let env = '';
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--limit' && args[i + 1]) {
@@ -99,6 +101,11 @@ function parseArgs(): CliArgs {
     } else if (args[i] === '--domain' && args[i + 1]) {
       domain = args[i + 1];
       i++;
+    } else if (args[i] === '--env' && args[i + 1]) {
+      env = args[i + 1];
+      i++;
+    } else if (args[i].startsWith('--env=')) {
+      env = args[i].slice('--env='.length);
     }
   }
 
@@ -107,7 +114,21 @@ function parseArgs(): CliArgs {
   // Cap concurrent requests at 3 to respect rate limits
   if (batchSize > 3) batchSize = 3;
 
-  return { limit, execute, batchSize, force, entitiesOnly, domain };
+  return { limit, execute, batchSize, force, entitiesOnly, domain, env };
+}
+
+// ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
+
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+
+function assertEnvFlag(env: string, url: string | undefined): void {
+  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+    console.error(
+      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/batch-reclassify.ts --env=prod`,
+    );
+    process.exit(1);
+  }
 }
 
 // ── Constants ──
@@ -473,7 +494,7 @@ const CLASSIFICATION_TOOL: Anthropic.Tool = {
 // ── Main ──
 
 async function main(): Promise<void> {
-  const { limit, execute, batchSize, force, entitiesOnly, domain } =
+  const { limit, execute, batchSize, force, entitiesOnly, domain, env } =
     parseArgs();
   const dryRun = !execute;
 
@@ -496,6 +517,8 @@ async function main(): Promise<void> {
     console.error('Missing ANTHROPIC_API_KEY in environment');
     process.exit(1);
   }
+
+  assertEnvFlag(env, supabaseUrl);
 
   const usingServiceRole = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
   const model = process.env.AI_SUMMARY_MODEL || 'claude-sonnet-4-6';

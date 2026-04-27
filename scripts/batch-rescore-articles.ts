@@ -42,10 +42,11 @@ loadEnvFile(`${PROJECT_ROOT}.env`);
 
 // ── CLI args ──
 
-function parseArgs(): { limit: number; dryRun: boolean } {
+function parseArgs(): { limit: number; dryRun: boolean; env: string } {
   const args = process.argv.slice(2);
   let limit = 0; // 0 = no limit
   let dryRun = false;
+  let env = '';
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--limit' && args[i + 1]) {
@@ -53,26 +54,48 @@ function parseArgs(): { limit: number; dryRun: boolean } {
       i++;
     } else if (args[i] === '--dry-run') {
       dryRun = true;
+    } else if (args[i] === '--env' && args[i + 1]) {
+      env = args[i + 1];
+      i++;
+    } else if (args[i].startsWith('--env=')) {
+      env = args[i].slice('--env='.length);
     }
   }
 
-  return { limit, dryRun };
+  return { limit, dryRun, env };
+}
+
+// ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
+
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+
+function assertEnvFlag(env: string, url: string | undefined): void {
+  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+    console.error(
+      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/batch-rescore-articles.ts --env=prod`,
+    );
+    process.exit(1);
+  }
 }
 
 // ── Main ──
 
 async function main() {
-  const { limit, dryRun } = parseArgs();
+  const { limit, dryRun, env } = parseArgs();
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl =
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
     console.error(
-      'Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env vars',
+      'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env vars',
     );
     process.exit(1);
   }
+
+  assertEnvFlag(env, supabaseUrl);
 
   if (!process.env.ANTHROPIC_API_KEY) {
     console.error('Missing ANTHROPIC_API_KEY env var');
