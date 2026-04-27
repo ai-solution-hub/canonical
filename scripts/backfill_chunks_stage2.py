@@ -47,7 +47,7 @@ log = logging.getLogger(__name__)
 
 def get_supabase_client():
     url = os.environ["SUPABASE_URL"]
-    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ["SUPABASE_ANON_KEY"]
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ["SUPABASE_PUBLISHABLE_KEY"]
     return create_client(url, key)
 
 
