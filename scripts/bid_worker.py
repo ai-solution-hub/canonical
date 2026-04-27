@@ -12,7 +12,7 @@ Usage:
   PYTHONUNBUFFERED=1 python3 scripts/bid_worker.py
 
 Environment:
-  SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_PUBLISHABLE_KEY)
+  SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_ANON_KEY)
 """
 
 import json
@@ -40,7 +40,7 @@ def get_supabase() -> Client:
     """Create and return a Supabase client using environment variables."""
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get(
-        "SUPABASE_PUBLISHABLE_KEY"
+        "SUPABASE_ANON_KEY"
     )
     if not url or not key:
         print(

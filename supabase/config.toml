@@ -62,6 +62,12 @@ enabled = true
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
 sql_paths = ["./seed.sql"]
 
+[remotes.staging]
+project_id = "turayklvaunphgbgscat"
+
+[remotes.staging.db.seed]
+sql_paths = ["./seed.sql"]
+
 [db.network_restrictions]
 # Enable management of network restrictions.
 enabled = false

@@ -25,6 +25,10 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    # Resolve secrets from the Production GitHub Environment scope (per WP-G3.8
+    # canonical cleanup, kh-prod-readiness-S4). Production-scoped secrets point
+    # at the prod Supabase project + production callback URL.
+    environment: Production
     permissions:
       contents: write
 
@@ -54,8 +58,8 @@ jobs:
         id: sync
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           AI_EMBEDDING_MODEL: ${{ secrets.AI_EMBEDDING_MODEL }}
           AI_EMBEDDING_DIMS: ${{ secrets.AI_EMBEDDING_DIMS }}
         run: bun run sync:taxonomy

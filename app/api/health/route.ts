@@ -4,10 +4,24 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 10;
 
+/**
+ * /api/health is the runtime drift-detector for env validation.
+ *
+ * In normal operation, boot-time Zod validation in lib/env*.ts already
+ * guarantees these vars are present — the build fails if any required
+ * one is missing. But if a future deployment ever bypasses validation
+ * (e.g. someone marks a previously-required field optional or stubs the
+ * parse for a debug build), this route is the only place that surfaces
+ * that drift to monitoring dashboards. That is why this route reads
+ * process.env directly by literal name — substituting clientEnv.X here
+ * would defeat the purpose of the check.
+ *
+ * Variable names match the new schema (post-WP-FU.1 rename): publishable
+ * key not anon key, service-role key not secret key.
+ */
 export async function GET() {
   const timestamp = new Date().toISOString();
 
-  // Check required env vars
   const requiredEnvVars = [
     'NEXT_PUBLIC_SUPABASE_URL',
     'ANTHROPIC_API_KEY',
@@ -16,7 +30,6 @@ export async function GET() {
   const missingEnvVars = requiredEnvVars.filter((v) => !process.env[v]);
   const envOk = missingEnvVars.length === 0;
 
-  // Check Supabase connectivity
   let supabaseOk = false;
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;

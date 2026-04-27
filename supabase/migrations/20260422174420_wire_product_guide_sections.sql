@@ -69,11 +69,28 @@
 --
 -- IDEMPOTENCY: Uses WHERE subtopic_filter IS NULL guard on each UPDATE
 -- to prevent overwriting any filters set by a later migration or manual edit.
+--
+-- POST-S4 EDIT 2026-04-27: Wrapped body in DO block gated by EXISTS check
+-- on the 3 Product Guide parent rows. Documents the runtime-data assumption
+-- that was implicit in the original migration.
+-- Already applied on prod (schema_migrations records this version) — no re-apply.
+-- On data-empty branches: DO block body skips because parents don't exist yet.
+--
 
 -- Update all 3 Product Guides in a single pass using a joined UPDATE.
 -- The section_name + expected_layer combination is unique within each guide
 -- and identical across all 3 guides, so we can target by guide_id + section_name.
 
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM guides
+     WHERE id IN (
+       'f216848e-decf-4a86-a19f-f9907b6b55c8'::uuid,
+       'ff2b9333-80f7-41a7-88d8-82baeb65b20e'::uuid,
+       'a4cfe046-9a6c-4e3f-b0ff-2d4f0d958687'::uuid
+     )
+  ) THEN
 UPDATE guide_sections
 SET subtopic_filter = 'functionality',
     updated_at = NOW()
@@ -282,3 +299,6 @@ WHERE guide_id IN (
 )
 AND section_name = 'Certifications'
 AND subtopic_filter IS NULL;
+
+  END IF;
+END $$;

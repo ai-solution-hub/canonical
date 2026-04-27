@@ -146,12 +146,12 @@ def get_supabase_secret_key():
 def get_supabase_anon_key():
     """Get Supabase anon key from .env.
 
-    Checks SUPABASE_PUBLISHABLE_KEY first, then falls back to
+    Checks SUPABASE_ANON_KEY first, then falls back to
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY for compatibility with the Next.js
     environment.
     """
     env = get_env()
-    key = env.get('SUPABASE_PUBLISHABLE_KEY', '') or env.get('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', '')
+    key = env.get('SUPABASE_ANON_KEY', '') or env.get('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', '')
     if not key:
-        raise RuntimeError("SUPABASE_PUBLISHABLE_KEY not set in .env")
+        raise RuntimeError("SUPABASE_ANON_KEY not set in .env")
     return key

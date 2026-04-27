@@ -9,33 +9,30 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import type { Database } from '@/supabase/types/database.types';
 import { sb } from '@/lib/supabase/safe';
+import { clientEnv } from '@/lib/env-client';
 
 /**
  * Creates a per-user Supabase client from an OAuth bearer token.
  * The token is passed in the Authorization header so that RLS policies
  * are applied based on the authenticated user.
+ *
+ * URL + PUBLISHABLE_KEY are validated at boot in `lib/env-client.ts` —
+ * the previous defensive `if (!supabaseUrl) throw` checks are unreachable.
  */
 export function createMcpUserClient(bearerToken: string) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!supabaseUrl) {
-    throw new Error('NEXT_PUBLIC_SUPABASE_URL environment variable is not set');
-  }
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!supabaseAnonKey) {
-    throw new Error(
-      'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY environment variable is not set',
-    );
-  }
-
-  return createSupabaseClient<Database>(supabaseUrl, supabaseAnonKey, {
-    global: {
-      headers: { Authorization: `Bearer ${bearerToken}` },
+  return createSupabaseClient<Database>(
+    clientEnv.NEXT_PUBLIC_SUPABASE_URL,
+    clientEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    {
+      global: {
+        headers: { Authorization: `Bearer ${bearerToken}` },
+      },
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
     },
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
+  );
 }
 
 /**

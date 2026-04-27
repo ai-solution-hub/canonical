@@ -1,0 +1,54 @@
+-- supabase/seed.sql
+-- ----------------------------------------------------------------------
+-- Knowledge Hub — branch + local-DB seeding script.
+--
+-- This file runs ONCE per branch creation, AFTER all migrations apply.
+-- Re-run requires destroying and recreating (or resetting) the branch.
+-- See: https://supabase.com/docs/guides/local-development/seeding-your-database
+--
+-- CONTRACT
+-- --------
+-- 1. SCHEMA-ONLY DATA: only data that is true across ALL client deployments.
+--    Per-client data (example-client Product Guides, example-client Sector Guides, client-specific
+--    taxonomy customisations, real bid Q&A, company profiles) lives elsewhere
+--    — see `docs/runbooks/staging-refresh.md` "Per-client seeding" section.
+--
+-- 2. IDEMPOTENT: every INSERT uses `ON CONFLICT … DO NOTHING` or the
+--    `INSERT … SELECT … WHERE NOT EXISTS …` pattern, so re-running this file
+--    against an already-seeded DB is a no-op.
+--
+-- 3. SCHEMA-VERSION-AWARE: when a migration adds a NOT NULL column to a table
+--    seeded here, this file must update too. Add a checklist item to
+--    `docs/runbooks/staging-refresh.md` to keep this in lockstep.
+--
+-- 4. NO PII: this file is committed to git. Do NOT include real client
+--    content, real personal emails, real Q&A, real company profiles.
+--    Synthetic test users only.
+--
+-- 5. NO AUTH-USERS via raw SQL: `auth.users` rows are seeded by
+--    `scripts/seed-e2e-users.ts` post-reset (uses Supabase admin API).
+--    See "Post-reset sequence" in the staging-refresh runbook.
+--
+-- 6. BRANCH-SCOPED CONFIG: per Supabase docs, persistent branches use the
+--    `[remotes.<branch-name>]` block in `config.toml` for branch-specific
+--    config. See `supabase/config.toml` `[remotes.staging.db.seed]` for the
+--    explicit declaration that the staging persistent branch loads this file.
+
+-- ----------------------------------------------------------------------
+-- TODO (W5 handover wave) — populate as canonical pattern matures:
+--
+--   * Default `taxonomy_domains` + `taxonomy_subtopics` baseline (currently
+--     populated by `bun run sync:taxonomy` against prod; for branch
+--     parity, capture as seed).
+--
+--   * Default seed: schema-baseline rows that EVERY client deployment needs
+--     to be functional from cold (e.g. system-default templates, default
+--     content_types if these are config-row-driven).
+--
+-- For example-client-specific data (Product Guides, Sector Guides, client-specific
+-- taxonomy adjustments, MAT Auditing Intelligence Guide overrides), use
+-- the per-client seed pattern documented in the staging-refresh runbook.
+-- ----------------------------------------------------------------------
+
+-- Currently empty. See TODO above. The file's existence + contract
+-- sets the canonical pattern for future expansion.

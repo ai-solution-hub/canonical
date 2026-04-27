@@ -27,6 +27,7 @@ import {
   ShoppingBag,
 } from 'lucide-react';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
+import { clientEnv } from '@/lib/env-client';
 
 const ICON_MAP: Record<string, React.ElementType> = {
   post: MessageSquare,
@@ -56,7 +57,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   product_description: ShoppingBag,
 };
 
-const SUPABASE_STORAGE_HOST = `${process.env.NEXT_PUBLIC_SUPABASE_URL?.replace('https://', '')}/storage`;
+const SUPABASE_STORAGE_HOST = `${clientEnv.NEXT_PUBLIC_SUPABASE_URL.replace('https://', '')}/storage`;
 
 /**
  * For small fixed-size thumbnails (list rows), use Supabase render transforms

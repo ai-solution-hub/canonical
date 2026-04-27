@@ -1,5 +1,6 @@
 'use client';
 
+import * as Sentry from '@sentry/nextjs';
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { Briefcase } from 'lucide-react';
@@ -14,6 +15,7 @@ export default function BidError({
 }) {
   useEffect(() => {
     console.error('Bid error:', error);
+    Sentry.captureException(error);
   }, [error]);
 
   return (

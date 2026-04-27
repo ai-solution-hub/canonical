@@ -84,7 +84,7 @@ describe('Product Guide Research Feed migration', () => {
       it(`has idempotent WHERE NOT EXISTS guard for ${guideName}`, () => {
         const guideBlock = extractGuideBlock(migrationSql, guideId);
         expect(guideBlock).toBeTruthy();
-        expect(guideBlock).toMatch(/WHERE\s+NOT\s+EXISTS/i);
+        expect(guideBlock).toMatch(/(?:WHERE|AND)\s+NOT\s+EXISTS/i);
         // The guard checks the same guide_id
         expect(guideBlock).toContain(guideId);
       });

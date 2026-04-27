@@ -1,5 +1,6 @@
 'use client';
 
+import * as Sentry from '@sentry/nextjs';
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { ClipboardList } from 'lucide-react';
@@ -14,6 +15,7 @@ export default function BatchCreateError({
 }) {
   useEffect(() => {
     console.error('Batch creation error:', error);
+    Sentry.captureException(error);
   }, [error]);
 
   return (

@@ -20,10 +20,9 @@ import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import { createMcpUserClient } from '@/lib/mcp/auth';
 import { registerTools } from '@/lib/mcp/tools';
 import { registerResources, registerPrompts } from '@/lib/mcp/resources';
+import { clientEnv } from '@/lib/env-client';
 
-const RESOURCE_URL =
-  process.env.NEXT_PUBLIC_APP_URL ??
-  'https://knowledge-hub-seven-kappa.vercel.app';
+const RESOURCE_URL = clientEnv.NEXT_PUBLIC_APP_URL;
 
 // ---------------------------------------------------------------------------
 // Auth — verify Supabase OAuth bearer tokens
