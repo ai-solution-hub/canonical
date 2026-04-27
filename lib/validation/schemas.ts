@@ -290,6 +290,11 @@ export const ItemUpdateBodySchema = z
       // before the generic update and calls setSupersession() instead.
       // Value is the NEW item's UUID (successor), or null to un-supersede.
       'superseded_by',
+      // S202 §5.2 Phase 2 (T6) — publication lifecycle. Editor + admin per
+      // §3.4 role-gate matrix; the route branches before the generic update
+      // and consumes `lib/governance/publication-transitions.ts`.
+      // Value is one of 'draft' | 'in_review' | 'published' | 'archived'.
+      'publication_status',
     ]),
     value: z.union([
       z.string().max(500_000),
@@ -306,6 +311,14 @@ export const ItemUpdateBodySchema = z
     // values (`initial_ingest`, `reclassify`, etc.) are set by the
     // pipeline, not by this route.
     change_reason: z.string().max(500).optional().nullable(),
+    // S202 §5.2 Phase 2 (T6) — optional human-readable reason stamped onto
+    // `content_items.archive_reason` when transitioning `published →
+    // archived`. Peer field (not part of the discriminated `value`) so it
+    // can flow through alongside `field='publication_status'`. Other
+    // transitions ignore the value (the helper at
+    // `lib/governance/publication-transitions.ts` only stamps it on the
+    // archive path).
+    archive_reason: z.string().max(500).optional(),
   })
   .superRefine((data, ctx) => {
     // Reject null for NOT NULL columns
@@ -386,6 +399,32 @@ export const ItemUpdateBodySchema = z
             path: ['value'],
           });
         }
+      }
+    }
+    // S202 §5.2 Phase 2 (T6) — publication_status must be one of the four
+    // CHECK-enforced values. Null is rejected — the column is NOT NULL post
+    // S201/§5.2 Phase 1 (DEFAULT 'published'). Imported lazily as a literal
+    // array (mirroring `VALID_PUBLICATION_STATUSES` from
+    // `lib/governance/publication-transitions.ts`) so this schema file
+    // remains free of cross-module imports — the runtime drift guard lives
+    // in `__tests__/lib/governance/publication-transitions.test.ts`.
+    if (data.field === 'publication_status') {
+      if (data.value === null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "publication_status cannot be null",
+          path: ['value'],
+        });
+      } else if (
+        typeof data.value !== 'string' ||
+        !['draft', 'in_review', 'published', 'archived'].includes(data.value)
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            "publication_status must be one of 'draft', 'in_review', 'published', 'archived'",
+          path: ['value'],
+        });
       }
     }
     // S200 WP5 §5.5 Phase 1 — review_cadence_days must be NULL or an integer
@@ -538,6 +577,8 @@ export const EDITABLE_FIELDS = new Set([
   // S200 WP5 §5.5 Phase 1 — review cadence governance fields.
   'next_review_date',
   'review_cadence_days',
+  // S202 §5.2 Phase 2 (T6) — publication lifecycle.
+  'publication_status',
 ] as const);
 
 export type EditableField =
@@ -564,7 +605,9 @@ export type EditableField =
   | 'governance_review_status'
   // S200 WP5 §5.5 Phase 1 — review cadence governance fields.
   | 'next_review_date'
-  | 'review_cadence_days';
+  | 'review_cadence_days'
+  // S202 §5.2 Phase 2 (T6) — publication lifecycle.
+  | 'publication_status';
 
 export function validateEditableField(field: string): field is EditableField {
   return EDITABLE_FIELDS.has(field as EditableField);
