@@ -37,6 +37,10 @@ from kb_pipeline.chunk import store_chunks
 
 BATCH_TAG = "client-new-markdown-2026"
 
+# Per WP-S5.3 D-21 F-1: --env=prod flag asserts SUPABASE_URL contains
+# the prod project ref before any DB writes.
+PROD_PROJECT_URL_FRAGMENT = "rovrymhhffssilaftdwd"
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
@@ -82,7 +86,27 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true", help="List items, do not chunk")
     parser.add_argument("--limit", type=int, default=None, help="Process at most N items")
+    parser.add_argument(
+        "--env",
+        choices=["prod", "staging", "auto"],
+        default="auto",
+        help=(
+            "With --env=prod, asserts SUPABASE_URL points at prod and "
+            "refuses to run otherwise. --env=staging and --env=auto "
+            "are non-asserting (trust env). Default 'auto'."
+        ),
+    )
     args = parser.parse_args()
+
+    if args.env == "prod":
+        url = os.environ.get("SUPABASE_URL", "")
+        if PROD_PROJECT_URL_FRAGMENT not in url:
+            sys.exit(
+                f"--env=prod set but SUPABASE_URL does not contain "
+                f"'{PROD_PROJECT_URL_FRAGMENT}'. Run with explicit override:\n"
+                f"  SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> "
+                f"python3 scripts/backfill_chunks_stage2.py"
+            )
 
     client = get_supabase_client()
     items = fetch_stage2_items(client, args.limit)

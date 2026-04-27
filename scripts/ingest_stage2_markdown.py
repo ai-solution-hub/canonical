@@ -52,6 +52,10 @@ from import_bid_library import extract_keywords, truncate_at_word_boundary
 BATCH_TAG = "client-new-markdown-2026"
 STAGE2_DIR = Path("docs/client-documentation/stage2-markdown")
 
+# Per WP-S5.3 D-21 F-1: --env=prod flag asserts SUPABASE_URL contains
+# the prod project ref before any DB writes.
+PROD_PROJECT_URL_FRAGMENT = "rovrymhhffssilaftdwd"
+
 
 @dataclass
 class Entry:
@@ -305,6 +309,16 @@ def main() -> int:
         choices=["aud", "lms", "website", "example-client"],
         help="Process only one file (debug)",
     )
+    parser.add_argument(
+        "--env",
+        choices=["prod", "staging", "auto"],
+        default="auto",
+        help=(
+            "With --env=prod, asserts SUPABASE_URL points at prod and "
+            "refuses to run otherwise. --env=staging and --env=auto "
+            "are non-asserting (trust env). Default 'auto'."
+        ),
+    )
 
     # S186 WP-B.6 — mutually exclusive supersession flags. Off by default.
     # Stage 2 batch source_files (Advanced_Audits_v5, LMS_v2.2 etc.) do not
@@ -330,6 +344,18 @@ def main() -> int:
     )
 
     args = parser.parse_args()
+
+    if args.env == "prod":
+        url = os.environ.get("SUPABASE_URL") or os.environ.get(
+            "NEXT_PUBLIC_SUPABASE_URL", ""
+        )
+        if PROD_PROJECT_URL_FRAGMENT not in url:
+            sys.exit(
+                f"--env=prod set but SUPABASE_URL does not contain "
+                f"'{PROD_PROJECT_URL_FRAGMENT}'. Run with explicit override:\n"
+                f"  SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> "
+                f"python3 scripts/ingest_stage2_markdown.py"
+            )
 
     files = {
         "aud": (STAGE2_DIR / "Advanced_Audits_Bid_Library_v5.md", parse_advanced_audits),
@@ -377,7 +403,7 @@ def main() -> int:
         print("\n[dry-run] Stopping before DB writes.")
         return 0
 
-    url = os.environ["NEXT_PUBLIC_SUPABASE_URL"]
+    url = os.environ.get("SUPABASE_URL") or os.environ["NEXT_PUBLIC_SUPABASE_URL"]
     key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
     sb = create_client(url, key)
 

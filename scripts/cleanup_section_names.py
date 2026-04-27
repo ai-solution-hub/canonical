@@ -26,6 +26,10 @@ if SCRIPTS_DIR not in sys.path:
 
 from kb_pipeline.config import get_supabase_url, get_supabase_secret_key
 
+# Per WP-S5.3 D-21 F-1: --env=prod flag asserts SUPABASE_URL contains
+# the prod project ref before any DB writes.
+PROD_PROJECT_URL_FRAGMENT = "rovrymhhffssilaftdwd"
+
 
 def deduplicate_repeated_text(text: str) -> str:
     """Remove repeated heading text caused by Track Changes artefacts.
@@ -100,7 +104,27 @@ def main():
         description="Clean up tripled metadata.section_name values"
     )
     parser.add_argument("--dry-run", action="store_true", help="Show changes without applying")
+    parser.add_argument(
+        "--env",
+        choices=["prod", "staging", "auto"],
+        default="auto",
+        help=(
+            "With --env=prod, asserts SUPABASE_URL points at prod and "
+            "refuses to run otherwise. --env=staging and --env=auto "
+            "are non-asserting (trust env). Default 'auto'."
+        ),
+    )
     args = parser.parse_args()
+
+    if args.env == "prod":
+        url = get_supabase_url()
+        if PROD_PROJECT_URL_FRAGMENT not in url:
+            sys.exit(
+                f"--env=prod set but SUPABASE_URL does not contain "
+                f"'{PROD_PROJECT_URL_FRAGMENT}'. Run with explicit override:\n"
+                f"  SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> "
+                f"python3 scripts/cleanup_section_names.py"
+            )
 
     print("Fetching items with section_name metadata...")
     items = fetch_items_with_section_names()
