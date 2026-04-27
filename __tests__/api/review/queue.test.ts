@@ -569,3 +569,88 @@ describe('GET /api/review/queue — assigned_to_me filter', () => {
     expect(ctInCall).toBeUndefined();
   });
 });
+
+// ===========================================================================
+// V2-M5 (S202 §5.2 / Wave 3) — orthogonality between publication_status and
+// governance_review_status.
+//
+// Spec §3.1 declares these two columns as ORTHOGONAL axes — a row may sit in
+// `publication_status='draft'` AND simultaneously have
+// `governance_review_status='pending'`. The queue read paths must surface
+// the row independently in both filter modes:
+//
+//   1. The /api/review/queue "drafts only" filter (status='draft') reads
+//      `publication_status='draft'` post-T8b row 11 rewire — surfaces the
+//      row when filtered by publication state.
+//   2. The MCP `get_governance_queue` tool reads
+//      `governance_review_status='pending'` — surfaces the same row when
+//      filtered by change-management review state.
+//
+// No precedence collision: setting one filter does not exclude the other.
+// MCP-side coverage lives in __tests__/mcp/update-publication-status.test.ts
+// ("get_governance_queue — publication_status filter (S202 §5.2 T7)").
+// This test owns the queue-route side of the orthogonality assertion.
+// ===========================================================================
+
+describe('GET /api/review/queue — orthogonality with governance_review_status (V2-M5)', () => {
+  beforeEach(resetMocks);
+
+  it('publication_status="draft" + governance_review_status="pending" row surfaces in drafts-only filter, queue does NOT add a governance_review_status filter', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Fixture row that sits in BOTH axes simultaneously per spec §3.1.
+    const orthogonalRow = makeMockItem({
+      governance_review_status: 'pending',
+    });
+
+    let thenCallCount = 0;
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) {
+          return resolve({ data: [orthogonalRow], error: null, count: 1 });
+        }
+        return resolve({ data: null, error: null, count: 0 });
+      },
+    );
+
+    // /api/review/queue?status=draft — drafts-only filter mode.
+    // Per app/api/review/queue/route.ts:174 (T8b row 11 rewire):
+    //   if (status === 'draft') query = query.eq('publication_status', 'draft');
+    const req = createTestRequest('/api/review/queue', {
+      searchParams: { status: 'draft' },
+    });
+    const res = await getQueue(req);
+    expect(res.status).toBe(200);
+
+    // (a) The .eq filter MUST target publication_status='draft' (T8b read
+    //     path). This is the "drafts only" filter mode.
+    const eqCalls = mockSupabase._chain.eq.mock.calls as Array<
+      [string, unknown]
+    >;
+    const pubFilter = eqCalls.find(
+      ([col, val]) => col === 'publication_status' && val === 'draft',
+    );
+    expect(pubFilter).toBeDefined();
+
+    // (b) Crucially: the queue route MUST NOT add a
+    //     .eq('governance_review_status', ...) filter — surfacing rows in
+    //     this mode is purely about publication_status. So a row with
+    //     governance_review_status='pending' is neither hidden nor
+    //     double-filtered. The two axes compose orthogonally.
+    const govFilter = eqCalls.find(
+      ([col]) => col === 'governance_review_status',
+    );
+    expect(govFilter).toBeUndefined();
+
+    // (c) The orthogonal row appears in the response and its pending
+    //     governance_review_status surfaces through unmodified. This
+    //     confirms the queue surfaces governance review state as data
+    //     even when not filtering on it — proving the axes are
+    //     independent within a single result row.
+    const json = await res.json();
+    expect(json.items).toHaveLength(1);
+    expect(json.items[0].id).toBe(orthogonalRow.id);
+    expect(json.items[0].governance_review_status).toBe('pending');
+  });
+});

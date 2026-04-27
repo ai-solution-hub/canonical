@@ -57,7 +57,10 @@ import { PATCH } from '@/app/api/items/[id]/route';
 // ---------------------------------------------------------------------------
 
 const ITEM_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-const USER_ID = 'test-user-id';
+// V1-L1: v4-compliant UUID per CLAUDE.md "Zod UUID validation is strict"
+// gotcha; consistent with items-patch-publication-status.test.ts and the
+// helper test at __tests__/lib/governance/publication-transitions.test.ts:35.
+const USER_ID = 'a0000000-0000-4000-8000-000000000001';
 
 const PINNED_NOW_ISO = '2026-04-27T12:00:00.000Z';
 
@@ -178,6 +181,12 @@ describe('PATCH /api/items/[id] — publication_status role-gate / AC4.1 viewer'
       configureRole(mockSupabase, 'viewer');
       const res = await PATCH(makePatchRequest(target), { params });
       expect(res.status).toBe(403);
+      // V1-L2: assert the response body carries the route-level
+      // `Forbidden` message (per `lib/auth.ts` `forbiddenResponse()`).
+      // A regression returning 403 with empty/wrong body would otherwise
+      // pass on status-code only.
+      const body = await res.json();
+      expect(body.error).toMatch(/forbidden/i);
       // Branch must NOT have fetched the item.
       expect(mockSupabase._chain.update).not.toHaveBeenCalled();
     });
@@ -225,12 +234,24 @@ describe('PATCH /api/items/[id] — publication_status role-gate / AC4.2 editor'
     arrangeRoleAndItem('editor', 'draft');
     const res = await PATCH(makePatchRequest('published'), { params });
     expect(res.status).toBe(409);
+    // V1-L2: assert the route's `Transition not allowed: 'X' -> 'Y' for
+    // role 'Z'.` body message — see app/api/items/[id]/route.ts:256. The
+    // regex pins both states + the role so a regression returning 409 with
+    // a generic message would fail loudly.
+    const body = await res.json();
+    expect(body.error).toMatch(/transition not allowed.*draft.*published.*editor/i);
   });
 
   it('editor PATCH published → archived → 403 (editor cannot leave published)', async () => {
     arrangeRoleAndItem('editor', 'published');
     const res = await PATCH(makePatchRequest('archived'), { params });
     expect(res.status).toBe(403);
+    // V1-L2: assert the branch's `Role 'X' cannot transition out of 'Y'.`
+    // body message — see app/api/items/[id]/route.ts:248. Distinct from the
+    // route-level `Forbidden` 403 returned for viewers — this 403 is
+    // emitted by the branch's own role-fan-out logic.
+    const body = await res.json();
+    expect(body.error).toMatch(/role.*editor.*cannot transition out.*published/i);
     expect(mockSupabase._chain.update).not.toHaveBeenCalled();
   });
 
@@ -238,6 +259,10 @@ describe('PATCH /api/items/[id] — publication_status role-gate / AC4.2 editor'
     arrangeRoleAndItem('editor', 'archived');
     const res = await PATCH(makePatchRequest('published'), { params });
     expect(res.status).toBe(403);
+    // V1-L2: branch-emitted `Role 'editor' cannot transition out of
+    // 'archived'.` body assertion.
+    const body = await res.json();
+    expect(body.error).toMatch(/role.*editor.*cannot transition out.*archived/i);
     expect(mockSupabase._chain.update).not.toHaveBeenCalled();
   });
 
@@ -245,6 +270,9 @@ describe('PATCH /api/items/[id] — publication_status role-gate / AC4.2 editor'
     arrangeRoleAndItem('editor', 'archived');
     const res = await PATCH(makePatchRequest('draft'), { params });
     expect(res.status).toBe(403);
+    // V1-L2: same branch-emitted message — target-state independent.
+    const body = await res.json();
+    expect(body.error).toMatch(/role.*editor.*cannot transition out.*archived/i);
     expect(mockSupabase._chain.update).not.toHaveBeenCalled();
   });
 });

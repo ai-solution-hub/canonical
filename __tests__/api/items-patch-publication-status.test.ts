@@ -66,7 +66,12 @@ import { PATCH } from '@/app/api/items/[id]/route';
 // pair starts '8'/'9'/'a'/'b' (variant). Per CLAUDE.md "Zod UUID validation
 // is strict".
 const ITEM_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-const USER_ID = 'test-user-id'; // matches createMockSupabaseClient() default
+// V1-L1: v4-compliant UUID per CLAUDE.md "Zod UUID validation is strict"
+// gotcha; matches the helper test convention at
+// __tests__/lib/governance/publication-transitions.test.ts:35.
+// Overrides createMockSupabaseClient()'s default ('test-user-id') via the
+// auth.getUser stub in beforeEach below.
+const USER_ID = 'a0000000-0000-4000-8000-000000000001';
 
 // Pinned timestamp for archived_at assertions. Chosen as a midday UTC value
 // so DST and midnight-boundary rounding don't confound the ISO comparison.
