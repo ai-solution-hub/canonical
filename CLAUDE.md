@@ -84,9 +84,19 @@ Env vars in `.env.local` — full template in `.env.example`. (`.env`
 retired kh-prod-readiness-S6 27/04/2026 per WP-S5.2 D-20=α; `.env.local`
 is now the single source of truth for both TS and Python pipelines.)
 
+**Default target: staging.** Post-WP-S5.2 `.env.local` points at the
+persistent staging Supabase branch (`turayklvaunphgbgscat`). Prod-targeted
+CLI work opts in via `--env=prod` (top-10 scripts) or explicit env
+override. Full guidance: `docs/runbooks/local-development.md`.
+
 Required: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `SUPABASE_URL`,
 `SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`,
-`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
+`POSTGRES_PASSWORD`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_CLIENT_ID`
+(missing → BRANDING corrupts entity metadata), `CRON_SECRET`,
+`FIRECRAWL_API_KEY`. Sentry: `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`,
+`SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`. Taxonomy sync:
+`GITHUB_SYNC_TOKEN`, `TAXONOMY_SYNC_CALLBACK_SECRET`.
 
 Optional model overrides:
 - `AI_SUMMARY_MODEL` — `claude-sonnet-4-6`
@@ -97,6 +107,9 @@ Optional model overrides:
 ## Supabase & Schema
 
 - **Project ID:** `rovrymhhffssilaftdwd` (eu-west-2 London), pgvector 0.8.0
+- **Staging:** persistent branch `turayklvaunphgbgscat` (provisioned
+  kh-prod-readiness-S3 26/04/2026; Vercel Preview target). Refresh
+  procedure: `docs/runbooks/staging-refresh.md`.
 - **CLI:** `/opt/homebrew/bin/supabase`
 - **DDL via CLI only** (`supabase migration new` + `db push`), never MCP
   `execute_sql`. MCP tools for queries and quick DML only.
@@ -107,6 +120,11 @@ Optional model overrides:
 - **Schema reference:** `docs/reference/SCHEMA-QUICK-REFERENCE.md`
 - RLS: role-based via `get_user_role()`. Embeddings: `vector(1024)`
   (text-embedding-3-large). Canonical constants: `lib/validation/schemas.ts`.
+- **Publication lifecycle (S202 §5.2):** `content_items.publication_status`
+  is NOT NULL, CHECK enum (`draft|in_review|published|archived`), paired
+  with `archived_at` via `enforce_archive_state_consistency` trigger.
+  `'draft'` removed from `governance_review_status` (S202 T9) — draft is
+  now a publication state exclusively. MCP tool: `update_publication_status`.
 
 ## Testing
 
@@ -122,8 +140,12 @@ Optional model overrides:
 
 - **Platform:** Vercel
 - **URL:** https://knowledge-hub-seven-kappa.vercel.app
+- **Staging URL:** https://knowledge-hub-git-staging-tw-group.vercel.app
+  (Vercel Preview target, branch `staging`)
 - **GitHub:** https://github.com/liam-jons/knowledge-hub (private)
 - **Region:** eu-west-2 (London) — matches Supabase region
+- **GitHub Environments:** `Production` + `Staging` (case-sensitive).
+  Setup: `docs/runbooks/github-environments.md`.
 
 ## Key Product Design Principles
 
@@ -157,6 +179,7 @@ Consult when adding or modifying UI elements.
 | Session handoffs          | `docs/continuation-prompts/`                                          |
 | Codebase mapping (7 docs) | `.planning/codebase/`                                                 |
 | Quality checks (11 files) | `.claude/checks/`                                                     |
+| Runbooks                  | `docs/runbooks/` — local-development, staging-refresh, github-environments |
 
 Full inventory of all reference docs: `docs/reference/documentation-inventory.md`
 
@@ -239,10 +262,6 @@ conventions: `docs/continuation-prompts/README.md`.
   db push` may push to the WRONG project (looks like silent-fail on intended
   project). Always `cat supabase/.temp/project-ref` before any push; relink via
   `supabase link --project-ref <correct>` if drift detected.
-- **`mcp__supabase__reset_branch` is a NO-OP on protected persistent branches.**
-  Skips destructive re-apply per Supabase design (logs `Skipping configuration for
-  protected branch...` + `Skipping seed data...`). Use `supabase db push --linked`
-  from local migration files for migration repair on protected branches.
 
 ### Testing
 
@@ -395,5 +414,11 @@ conventions: `docs/continuation-prompts/README.md`.
 - **Proxy blocks non-API public routes:** New public endpoints must be added to
   `publicRoutes` in `proxy.ts` (project root) or they silently redirect to
   `/login`.
+- **Default target is staging — prod CLI scripts return empty unless opted-in.**
+  Post-WP-S5.2 `.env.local` points at staging. Top-10 scripts (kb-search,
+  ingest.py, batch-generate-summaries, eval-*, normalise-entities,
+  import_bid_library, wipe-bid-responses) accept `--env=prod`; remaining
+  always-prod scripts use Pattern B (explicit `SUPABASE_URL=<prod> …` at
+  invocation). Full table: `docs/runbooks/local-development.md` §3.
 - **Dev server memory:** If OOM, run `bun run dev:clean`. Monitor with `btm`.
 - **Node 24 has V8 memory regressions:** `.node-version` pins to 22 LTS.
