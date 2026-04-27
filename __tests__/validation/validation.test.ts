@@ -45,8 +45,11 @@ describe('validateEditableField', () => {
 });
 
 describe('EDITABLE_FIELDS set', () => {
-  it('should contain exactly 23 fields', () => {
-    expect(EDITABLE_FIELDS.size).toBe(23);
+  // 23 baseline (S200 §5.5 Phase 1) + 1 (S202 §5.2 Phase 2 / T6:
+  // `publication_status`) = 24. Update this count when adding/removing
+  // fields from the Set in `lib/validation/schemas.ts`.
+  it('should contain exactly 24 fields', () => {
+    expect(EDITABLE_FIELDS.size).toBe(24);
   });
 
   it('should be a Set instance', () => {
@@ -56,6 +59,10 @@ describe('EDITABLE_FIELDS set', () => {
   it('should include the §5.5 Phase 1 review-cadence fields', () => {
     expect(validateEditableField('next_review_date')).toBe(true);
     expect(validateEditableField('review_cadence_days')).toBe(true);
+  });
+
+  it('should include the §5.2 Phase 2 publication_status field', () => {
+    expect(validateEditableField('publication_status')).toBe(true);
   });
 });
 

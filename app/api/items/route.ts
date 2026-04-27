@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
       auto_summarise,
       auto_embed,
       governance_review_status,
+      publication_status,
       ingestion_source,
       source_document_id,
       skip_dedup,
@@ -155,6 +156,11 @@ export async function POST(request: NextRequest) {
         ...(reference && { reference }),
         ...(embeddingValue && { embedding: embeddingValue }),
         ...(governance_review_status && { governance_review_status }),
+        // S202 §5.2 Phase 2.5 (T8b) — accept publication_status from the
+        // create body so the T8a UI rewire (web form sets
+        // publication_status='draft') actually persists. Per spec §4.2.3
+        // the canonical save-as-draft writer is publication_status='draft'.
+        ...(publication_status && { publication_status }),
         ...(source_document_id && { source_document_id }),
         // P0-BM Phase 3 spec ss4.6 Path 1: populate answer_standard for q_a_pair
         // so first PATCH edit does not destroy creation content (bug B2 fix).
@@ -203,7 +209,13 @@ export async function POST(request: NextRequest) {
     // Chunking — split markdown into heading-based chunks with embeddings.
     // Skips drafts (drafts stay private; chunks become searchable once published).
     // Uses service client because the chunks insert needs RLS bypass.
-    const isDraft = governance_review_status === 'draft';
+    // S202 §5.2 Phase 2.5 / T8b: read both columns for back-compat during the
+    // rewire window. publication_status is the new canonical column; the
+    // legacy governance_review_status='draft' read remains until Phase 1f
+    // NULLs the legacy column.
+    const isDraft =
+      publication_status === 'draft' ||
+      governance_review_status === 'draft';
     if (!isDraft) {
       try {
         const { regenerateChunks } = await import('@/lib/content/chunk-store');

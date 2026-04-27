@@ -34,9 +34,13 @@ function findProjectRoot(): string {
 }
 
 const projectRoot = findProjectRoot();
-// Load both .env and .env.local (Next.js convention)
+// Load .env then .env.local with override (Next.js convention — .env.local wins).
+// Without override:true the second load is a no-op for keys already set by .env,
+// so stale .env values silently win. Surfaced post-S201 SUPABASE_SERVICE_ROLE_KEY
+// rotation when .env carried the old value and integration tests called
+// auth.admin.listUsers against the wrong project.
 config({ path: resolve(projectRoot, '.env') });
-config({ path: resolve(projectRoot, '.env.local') });
+config({ path: resolve(projectRoot, '.env.local'), override: true });
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;

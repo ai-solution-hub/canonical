@@ -128,12 +128,14 @@ export async function registerReviewTools(server: McpServer): Promise<void> {
           .from('content_items')
           .select(selectCols, { count: 'exact' });
 
+        // S202 §5.2 Phase 2.5 (T8b) — read filters target the new
+        // publication_status (NOT NULL post-S201). SELECT clause + response
+        // shape (lines 125, 191, 246) intentionally retain
+        // governance_review_status until Phase 1f NULLs the legacy column.
         if (args.status === 'draft') {
-          query = query.eq('governance_review_status', 'draft');
+          query = query.eq('publication_status', 'draft');
         } else {
-          query = query.or(
-            'governance_review_status.is.null,governance_review_status.neq.draft',
-          );
+          query = query.neq('publication_status', 'draft');
         }
 
         if (args.status === 'unverified') {

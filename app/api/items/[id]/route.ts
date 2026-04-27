@@ -20,8 +20,15 @@ import {
   setSupersession,
   SupersessionError,
 } from '@/lib/supersession/set';
-import { SupabaseError } from '@/lib/supabase/safe';
+import { SupabaseError, sb, tryQuery, isOk } from '@/lib/supabase/safe';
 import { resolveQuestionForRebuild } from '@/lib/bid-library-ingest/resolve-question';
+import {
+  computeAllowedTransitions,
+  applyTransitionSideEffects,
+  VALID_PUBLICATION_STATUSES,
+  type PublicationStatus,
+} from '@/lib/governance/publication-transitions';
+import type { Database } from '@/supabase/types/database.types';
 
 export const maxDuration = 60;
 
@@ -36,7 +43,7 @@ export async function PATCH(
     // Auth + role check
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth.success) return authFailureResponse(auth);
-    const { user, supabase } = auth;
+    const { user, supabase, role } = auth;
 
     const { id } = await params;
 
@@ -163,6 +170,188 @@ export async function PATCH(
           { status: 500 },
         );
       }
+    }
+
+    // --------------------------------------------------------------------
+    // Publication-status branch (S202 §5.2 Phase 2 / T6). Editor + admin
+    // (matching the route-level gate); transition + role-gate matrix
+    // enforced via the T5 helper at
+    // `lib/governance/publication-transitions.ts`. This branch sits
+    // BEFORE the generic field-specific validation block and BEFORE the
+    // generic update — its semantics are different (state-machine
+    // transition rather than free-form column write), so it short-
+    // circuits and never falls through to the shared update flow.
+    //
+    // Spec: docs/specs/publication-lifecycle-state-machine-spec.md
+    //   §3.2 (transition matrix), §3.4 (role-gate matrix), §8.3 (handler
+    //   sample). ACs: AC3.7–AC3.10 + AC4.1–AC4.3.
+    // --------------------------------------------------------------------
+    if (field === 'publication_status') {
+      // Defensive double-guard. Zod superRefine already constrains `value`
+      // to one of the four enum strings, but PublicationStatus is a TS
+      // narrowing not a runtime guarantee — so re-check before passing to
+      // the T5 helper. Reaching this branch with a non-enum value would
+      // mean the Zod schema is out of sync with the helper's enum, which
+      // is exactly the drift case `feedback_check_constraint_app_enum_drift`
+      // warns against.
+      if (
+        typeof value !== 'string' ||
+        !(VALID_PUBLICATION_STATUSES as readonly string[]).includes(value)
+      ) {
+        return NextResponse.json(
+          { error: `Invalid publication_status: ${String(value)}` },
+          { status: 400 },
+        );
+      }
+      const newStatus = value as PublicationStatus;
+
+      // Fetch current state for transition validation + content_history
+      // before-snapshot. `.maybeSingle()` returns `data: null` for missing
+      // UUIDs (per CLAUDE.md "REST PATCH on wrong UUID"); we surface 404
+      // explicitly per AC3.10. We also need `title`/`content` because the
+      // content_history INSERT requires them as NOT NULL columns and the
+      // auto-version trigger expects a valid snapshot.
+      const currentRes = await tryQuery(
+        supabase
+          .from('content_items')
+          .select(
+            'id, publication_status, archived_at, archived_by, archive_reason, title, content, brief, detail, reference',
+          )
+          .eq('id', id)
+          .maybeSingle(),
+        'items.patch.publication_status.fetch',
+      );
+      if (!isOk(currentRes) || !currentRes.data) {
+        return NextResponse.json({ error: 'Item not found' }, { status: 404 });
+      }
+      const current = currentRes.data;
+      const fromStatus = current.publication_status as PublicationStatus;
+
+      // Validate transition + role gate per §3.2 + §3.4. The helper returns
+      // the role's allowed `newStatus` array out of `fromStatus`. An empty
+      // array (or non-membership) means the requested transition is not
+      // allowed for this caller.
+      //
+      // Status-code policy matches spec §8.3:
+      //   - 403 when the role has NO allowed transitions out of the current
+      //     state (e.g. viewer everywhere, editor on `'published'` /
+      //     `'archived'` rows).
+      //   - 409 when the role CAN transition out of the current state but
+      //     not to the requested target (e.g. editor `'draft' → 'archived'`
+      //     — editor has [`'in_review'`] available, just not `'archived'`).
+      //
+      // This split — 403 vs 409 — matches the spec semantics ("Conflict"
+      // for a state-machine refusal vs "Forbidden" for a role refusal).
+      const allowedTransitions = computeAllowedTransitions(fromStatus, role);
+      if (allowedTransitions.length === 0) {
+        return NextResponse.json(
+          {
+            error: `Role '${role}' cannot transition out of '${fromStatus}'.`,
+          },
+          { status: 403 },
+        );
+      }
+      if (!allowedTransitions.includes(newStatus)) {
+        return NextResponse.json(
+          {
+            error: `Transition not allowed: '${fromStatus}' -> '${newStatus}' for role '${role}'.`,
+          },
+          { status: 409 },
+        );
+      }
+
+      // Assemble the side-effect payload per §3.2 mutation table. The
+      // helper handles archive metadata correctly (stamps archived_at/by/
+      // reason on the archive path; clears archived_at on un-archive paths
+      // while preserving the audit trail).
+      const archiveReason = parsed.data.archive_reason;
+      const updatePayload = applyTransitionSideEffects(
+        {
+          publication_status: newStatus,
+          updated_by: user.id,
+        },
+        fromStatus,
+        newStatus,
+        user.id,
+        archiveReason,
+      );
+
+      // Persist the state change with an optimistic concurrency guard
+      // (V1-M4 fix). The `.eq('publication_status', fromStatus)` filter
+      // ensures we only update the row if its current state still matches
+      // what we read above. If a concurrent writer raced ahead and changed
+      // the state, this UPDATE matches zero rows — `.single()` then returns
+      // a PGRST116 error, which we map to 409 Conflict so the client can
+      // retry from a fresh fetch.
+      //
+      // We use the explicit destructure (rather than `sb()`) because we
+      // must distinguish the no-rows-matched race from genuine DB errors.
+      const { data: updatedRow, error: updateError } = await supabase
+        .from('content_items')
+        .update(updatePayload)
+        .eq('id', id)
+        .eq('publication_status', fromStatus)
+        .select(
+          'id, publication_status, archived_at, archived_by, archive_reason, updated_at',
+        )
+        .single();
+      if (updateError) {
+        // PGRST116 = "Cannot coerce the result to a single JSON object"
+        // (zero rows). When the row exists but the publication_status
+        // filter excluded it, this is the optimistic-concurrency loss.
+        if (updateError.code === 'PGRST116') {
+          return NextResponse.json(
+            { error: 'Concurrent state change detected; please retry.' },
+            { status: 409 },
+          );
+        }
+        throw new SupabaseError(
+          updateError,
+          'items.patch.publication_status.update',
+        );
+      }
+      void updatedRow; // future-use: surface in response if needed.
+
+      // Write a content_history row capturing the transition. Per
+      // CLAUDE.md `feedback_content_history_change_reason_mandatory`, the
+      // canonical phrasing is `Transition from ${from} to ${to}` (+
+      // optional `(reason: ${archive_reason})` suffix). The
+      // `auto_version_content_history` BEFORE INSERT trigger
+      // (migration 20260416102457 §150-160) sets `NEW.version` via
+      // `COALESCE(MAX(version), 0) + 1`, so we OMIT `version` from the
+      // payload — V1-M3 fix: relying on the trigger removes a redundant
+      // DB roundtrip per transition. The Insert TS type marks `version`
+      // as required (number), so we cast the payload to the Insert shape
+      // — the trigger fills it transactionally.
+      // `change_type='publication_state'` was added to the CHECK enum in
+      // commit eeb8ae25 (verified in pre-flight against `rovrymhhffssilaftdwd`
+      // and `turayklvaunphgbgscat`).
+      const changeReasonText =
+        `Transition from ${fromStatus} to ${newStatus}` +
+        (archiveReason ? ` (reason: ${archiveReason})` : '');
+
+      await sb(
+        supabase.from('content_history').insert({
+          content_item_id: id,
+          title: current.title ?? '',
+          content: current.content ?? '',
+          brief: current.brief ?? null,
+          detail: current.detail ?? null,
+          reference: current.reference ?? null,
+          change_summary: `Publication status: ${fromStatus} -> ${newStatus}`,
+          change_reason: changeReasonText,
+          change_type: 'publication_state',
+          created_by: user.id,
+        } as Database['public']['Tables']['content_history']['Insert']),
+        'items.patch.publication_status.history_insert',
+      );
+
+      return NextResponse.json({
+        success: true,
+        previousStatus: fromStatus,
+        newStatus,
+        transition: `${fromStatus} -> ${newStatus}`,
+      });
     }
 
     // Additional field-specific validation

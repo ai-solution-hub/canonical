@@ -276,7 +276,7 @@ export function CreateContentClient() {
         if (data.brief?.trim()) body.brief = data.brief.trim();
         if (data.detail?.trim()) body.detail = data.detail.trim();
         if (data.reference?.trim()) body.reference = data.reference.trim();
-        if (data.save_as_draft) body.governance_review_status = 'draft';
+        if (data.save_as_draft) body.publication_status = 'draft';
 
         const res = await fetch('/api/items', {
           method: 'POST',

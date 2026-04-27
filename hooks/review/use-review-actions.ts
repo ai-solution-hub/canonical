@@ -478,7 +478,17 @@ export function useReviewActions(
 
   const handlePublish = useCallback(async () => {
     if (!currentItem || isPublishPending) return;
-    if (currentItem.governance_review_status !== 'draft') return;
+    // S202 §5.2 Phase 2.5 (T8b) — accept either column to identify drafts
+    // during the rewire window. ReviewQueueItem currently exposes
+    // governance_review_status (legacy); widening the SELECT/type chain to
+    // surface publication_status is deferred to a follow-up. Phase 1f will
+    // NULL the legacy column, at which point this back-compat collapses.
+    const itemRecord = currentItem as ReviewQueueItem & {
+      publication_status?: string | null;
+    };
+    const draftStatus =
+      itemRecord.publication_status ?? currentItem.governance_review_status;
+    if (draftStatus !== 'draft') return;
 
     const itemTitle =
       currentItem.title ?? currentItem.suggested_title ?? 'Item';
