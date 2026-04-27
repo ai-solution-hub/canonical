@@ -133,23 +133,22 @@ function configureDetailedMock(options: {
     id: string;
   }> = [];
 
+  // Hoisted so tests can assert filter-chain shape (per spec §6.3 exclusion table).
+  // Without these spies the (b)/(c)/(d)/(e) exclusion tests would tautologically pass
+  // even if the route's PostgREST filter chain were deleted.
+  const selectChain = {
+    lt: vi.fn().mockReturnThis() as unknown,
+    is: vi.fn().mockReturnThis() as unknown,
+    or: vi.fn().mockReturnThis() as unknown,
+    then: (resolve: (v: unknown) => unknown) =>
+      resolve({ data: candidates, error: null }),
+  };
+  (selectChain.lt as ReturnType<typeof vi.fn>).mockReturnValue(selectChain);
+  (selectChain.is as ReturnType<typeof vi.fn>).mockReturnValue(selectChain);
+  (selectChain.or as ReturnType<typeof vi.fn>).mockReturnValue(selectChain);
+
   mockSupabase.from.mockImplementation((table: string) => {
     if (table === 'content_items') {
-      // Build a thenable that returns `candidates` regardless of which
-      // chain method awaited it. PostgREST chain ends with .or(...) which
-      // is awaitable; we need the chain itself to be thenable AND chainable.
-      const selectChain = {
-        lt: vi.fn().mockReturnThis() as unknown,
-        is: vi.fn().mockReturnThis() as unknown,
-        or: vi.fn().mockReturnThis() as unknown,
-        then: (resolve: (v: unknown) => unknown) =>
-          resolve({ data: candidates, error: null }),
-      };
-      // Re-bind chainables to the same object so they all return selectChain.
-      (selectChain.lt as ReturnType<typeof vi.fn>).mockReturnValue(selectChain);
-      (selectChain.is as ReturnType<typeof vi.fn>).mockReturnValue(selectChain);
-      (selectChain.or as ReturnType<typeof vi.fn>).mockReturnValue(selectChain);
-
       return {
         select: vi.fn().mockReturnValue(selectChain),
         update: vi.fn().mockImplementation((data: Record<string, unknown>) => ({
@@ -169,7 +168,7 @@ function configureDetailedMock(options: {
     return mockSupabase._chain;
   });
 
-  return { updateCalls };
+  return { updateCalls, selectChain };
 }
 
 function resetMocks() {
@@ -269,13 +268,26 @@ describe('GET /api/cron/review-cadence — spec §13.2 cron rows', () => {
       content_owner_id: OWNER_ID,
     });
 
-    const { updateCalls } = configureDetailedMock({ candidates: [item] });
+    const { updateCalls, selectChain } = configureDetailedMock({ candidates: [item] });
 
     const res = await GET(createCronRequest() as never);
     expect(res.status).toBe(200);
 
     const body = await res.json();
     expect(body.items_flagged).toBe(1);
+
+    // SQL filter-chain shape (spec §6.3 exclusion table) — without these
+    // assertions, tests (b)/(c)/(d)/(e) would tautologically pass even if
+    // the production route's PostgREST filter chain were deleted.
+    expect(selectChain.lt).toHaveBeenCalledWith(
+      'next_review_date',
+      expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+    );
+    expect(selectChain.is).toHaveBeenNthCalledWith(1, 'superseded_by', null);
+    expect(selectChain.is).toHaveBeenNthCalledWith(2, 'archived_at', null);
+    expect(selectChain.or).toHaveBeenCalledWith(
+      'governance_review_status.is.null,governance_review_status.eq.approved',
+    );
 
     // UPDATE call sets the right fields
     expect(updateCalls).toHaveLength(1);

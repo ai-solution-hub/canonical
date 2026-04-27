@@ -22,10 +22,15 @@ const PINNED_TODAY_MS = PINNED_TODAY.getTime();
 
 describe('computeNextReviewDate', () => {
   beforeEach(() => {
-    vi.spyOn(Date, 'now').mockReturnValue(PINNED_TODAY_MS);
+    // `vi.useFakeTimers()` intercepts both `Date.now()` AND `new Date()`
+    // constructor on Bun/V8. `vi.spyOn(Date, 'now')` alone misses the
+    // constructor — see plan v1.1 T2 deviation note.
+    vi.useFakeTimers();
+    vi.setSystemTime(PINNED_TODAY);
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -81,12 +86,12 @@ describe('computeNextReviewDate', () => {
     expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
-  it('returns a YYYY-MM-DD-shaped string when third arg is omitted (default today=new Date())', () => {
-    // Smoke check — the default-arg branch at least produces a valid ISO date
-    // string. We don't pin against the wall clock (`new Date()` ignores
-    // `Date.now` spies on V8/Bun) — explicit-today coverage above is the
-    // load-bearing assertion for the formula.
+  it('uses pinned system time on default-arg path (formula validated end-to-end)', () => {
+    // With vi.useFakeTimers() + vi.setSystemTime(), `new Date()` inside the
+    // helper is pinned to PINNED_TODAY (15/04/2026). currentNextReviewDate
+    // ('2026-04-01') is in the past relative to PINNED_TODAY, so the GREATEST
+    // branch picks today. Today + 30d = 2026-05-15.
     const result = computeNextReviewDate('2026-04-01', 30);
-    expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(result).toBe('2026-05-15');
   });
 });

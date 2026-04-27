@@ -22,7 +22,8 @@ export type NotificationType =
   | 'owner_content_updated'
   | 'owner_assignment'
   | 'source_document_updated'
-  | 'date_expiry_approaching';
+  | 'date_expiry_approaching'
+  | 'review_overdue';
 
 export interface CreateNotificationParams {
   supabase: SupabaseClient<Database>;
