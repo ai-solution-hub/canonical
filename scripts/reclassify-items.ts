@@ -23,8 +23,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 import { classifyContent } from '@/lib/ai/classify';
 
-const PIPELINE_SERVICE_ACCOUNT_USER_ID =
-  'a0000000-0000-4000-8000-000000000001';
+const PIPELINE_SERVICE_ACCOUNT_USER_ID = 'a0000000-0000-4000-8000-000000000001';
 
 function loadEnvFile(path: string): void {
   try {
@@ -71,9 +70,7 @@ async function resolveIds(
   supabase: ReturnType<typeof createClient<Database>>,
   prefixes: string[],
 ): Promise<string[]> {
-  const { data, error } = await supabase
-    .from('content_items')
-    .select('id');
+  const { data, error } = await supabase.from('content_items').select('id');
   if (error) {
     throw new Error(`Failed to fetch content_items: ${error.message}`);
   }
@@ -92,9 +89,7 @@ async function resolveIds(
 async function fetchHolderMetadata(
   supabase: ReturnType<typeof createClient<Database>>,
   itemId: string,
-): Promise<
-  Array<{ canonical_name: string; metadata: unknown }>
-> {
+): Promise<Array<{ canonical_name: string; metadata: unknown }>> {
   const { data, error } = await supabase
     .from('entity_mentions')
     .select('canonical_name, metadata')

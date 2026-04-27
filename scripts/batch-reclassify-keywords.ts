@@ -89,7 +89,9 @@ async function main(): Promise<void> {
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
-    console.error('Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY in environment');
+    console.error(
+      'Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY in environment',
+    );
     process.exit(1);
   }
   if (!anthropicKey) {

@@ -87,7 +87,6 @@ export function ContentBody({
         authorName={item.author_name}
       />
 
-
       {/* Content display — Q&A pair gets dedicated layout, others get tabs */}
       {isQAPair && qaAnswerElement ? qaAnswerElement : contentTabsElement}
 

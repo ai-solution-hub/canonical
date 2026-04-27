@@ -37,7 +37,10 @@ vi.mock('@/lib/intelligence/summary', () => ({
 // Import after mocks
 // ---------------------------------------------------------------------------
 
-import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type {
+  McpServer,
+  RegisteredTool,
+} from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerIntelligenceTools } from '@/lib/mcp/tools/intelligence';
 
 // ---------------------------------------------------------------------------
@@ -54,7 +57,11 @@ function createMockServer(): { server: McpServer; tools: CapturedTool[] } {
   const tools: CapturedTool[] = [];
   const server = {
     registerTool: vi.fn(
-      (name: string, config: Record<string, unknown>, cb: (...args: unknown[]) => unknown) => {
+      (
+        name: string,
+        config: Record<string, unknown>,
+        cb: (...args: unknown[]) => unknown,
+      ) => {
         tools.push({ name, config, callback: cb });
         return { enabled: true } as unknown as RegisteredTool;
       },
@@ -118,7 +125,9 @@ describe('trigger_intelligence_poll MCP tool', () => {
   }
 
   it('registers the trigger_intelligence_poll tool', () => {
-    expect(tools.some((t) => t.name === 'trigger_intelligence_poll')).toBe(true);
+    expect(tools.some((t) => t.name === 'trigger_intelligence_poll')).toBe(
+      true,
+    );
   });
 
   it('has NON_IDEMPOTENT_OPEN_WORLD_WRITE_ANNOTATIONS', () => {
@@ -144,7 +153,9 @@ describe('trigger_intelligence_poll MCP tool', () => {
       structuredContent: Record<string, unknown>;
     };
 
-    expect(typedResult.content[0].text).toContain('Intelligence Poll Triggered');
+    expect(typedResult.content[0].text).toContain(
+      'Intelligence Poll Triggered',
+    );
     expect(typedResult.content[0].text).toContain('run-abc-123');
     expect(typedResult.content[0].text).toContain('Sources processed:** 3');
     expect(typedResult.structuredContent).toEqual({
@@ -166,7 +177,7 @@ describe('trigger_intelligence_poll MCP tool', () => {
     });
 
     const tool = getTriggerTool();
-    const result = await tool.callback({}, MOCK_EXTRA) as {
+    const result = (await tool.callback({}, MOCK_EXTRA)) as {
       content: Array<{ type: string; text: string }>;
       structuredContent: Record<string, unknown>;
     };
@@ -174,16 +185,14 @@ describe('trigger_intelligence_poll MCP tool', () => {
     expect(result.content[0].text).toContain('### Errors');
     expect(result.content[0].text).toContain('Source xyz timed out');
     expect(result.content[0].text).toContain('Feed parse error on abc');
-    expect(
-      (result.structuredContent.errors as string[]).length,
-    ).toBe(2);
+    expect((result.structuredContent.errors as string[]).length).toBe(2);
   });
 
   it('rejects non-admin users', async () => {
     mocks.checkMcpRole.mockResolvedValue(null);
 
     const tool = getTriggerTool();
-    const result = await tool.callback({}, MOCK_EXTRA) as {
+    const result = (await tool.callback({}, MOCK_EXTRA)) as {
       content: Array<{ type: string; text: string }>;
       isError: boolean;
     };
@@ -198,7 +207,7 @@ describe('trigger_intelligence_poll MCP tool', () => {
     mocks.runPipeline.mockRejectedValue(new Error('Database connection lost'));
 
     const tool = getTriggerTool();
-    const result = await tool.callback({}, MOCK_EXTRA) as {
+    const result = (await tool.callback({}, MOCK_EXTRA)) as {
       content: Array<{ type: string; text: string }>;
       isError: boolean;
     };

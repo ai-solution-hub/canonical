@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { buildItemMetadataUpdateSchema } from '@/lib/validation/schemas';
 
-const TEST_LAYER_KEYS = ['sales_brief', 'bid_detail', 'company_reference', 'research'];
+const TEST_LAYER_KEYS = [
+  'sales_brief',
+  'bid_detail',
+  'company_reference',
+  'research',
+];
 
 describe('buildItemMetadataUpdateSchema', () => {
   it('accepts layer key in list', () => {
@@ -48,7 +53,10 @@ describe('buildItemMetadataUpdateSchema', () => {
   });
 
   it('accepts a custom layer key added by admin', () => {
-    const schema = buildItemMetadataUpdateSchema([...TEST_LAYER_KEYS, 'custom_layer']);
+    const schema = buildItemMetadataUpdateSchema([
+      ...TEST_LAYER_KEYS,
+      'custom_layer',
+    ]);
     const result = schema.safeParse({
       layer: 'custom_layer',
     });

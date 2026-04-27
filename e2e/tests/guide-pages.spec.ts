@@ -52,11 +52,7 @@ test.describe('Guide detail page', () => {
 
     await expect(guideLink.or(emptyState)).toBeVisible({ timeout: 15000 });
 
-    if (
-      !(await guideLink
-        .isVisible({ timeout: 2000 })
-        .catch(() => false))
-    ) {
+    if (!(await guideLink.isVisible({ timeout: 2000 }).catch(() => false))) {
       test.skip();
       return;
     }
@@ -99,11 +95,7 @@ test.describe('Guide detail page', () => {
 
     await expect(guideLink.or(emptyState)).toBeVisible({ timeout: 15000 });
 
-    if (
-      !(await guideLink
-        .isVisible({ timeout: 2000 })
-        .catch(() => false))
-    ) {
+    if (!(await guideLink.isVisible({ timeout: 2000 }).catch(() => false))) {
       test.skip();
       return;
     }
@@ -139,11 +131,7 @@ test.describe('Guide detail page', () => {
 
     await expect(guideLink.or(emptyState)).toBeVisible({ timeout: 15000 });
 
-    if (
-      !(await guideLink
-        .isVisible({ timeout: 2000 })
-        .catch(() => false))
-    ) {
+    if (!(await guideLink.isVisible({ timeout: 2000 }).catch(() => false))) {
       test.skip();
       return;
     }

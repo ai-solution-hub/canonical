@@ -12,34 +12,32 @@ import { render, screen } from '@testing-library/react';
 // vi.hoisted() -- mocks referenced in vi.mock() factories
 // ---------------------------------------------------------------------------
 
-const { mockReplace, mockUserRole, mockSearchParamsStore } = vi.hoisted(
-  () => ({
-    mockReplace: vi.fn(),
-    mockUserRole: {
-      role: 'editor' as string | null,
-      loading: false,
-      canEdit: true,
-      canAdmin: false,
+const { mockReplace, mockUserRole, mockSearchParamsStore } = vi.hoisted(() => ({
+  mockReplace: vi.fn(),
+  mockUserRole: {
+    role: 'editor' as string | null,
+    loading: false,
+    canEdit: true,
+    canAdmin: false,
+  },
+  mockSearchParamsStore: {
+    store: new Map<string, string>(),
+    get(key: string) {
+      return this.store.get(key) ?? null;
     },
-    mockSearchParamsStore: {
-      store: new Map<string, string>(),
-      get(key: string) {
-        return this.store.get(key) ?? null;
-      },
-      toString() {
-        const params = new URLSearchParams();
-        this.store.forEach((v: string, k: string) => params.set(k, v));
-        return params.toString();
-      },
-      set(key: string, value: string) {
-        this.store.set(key, value);
-      },
-      clear() {
-        this.store.clear();
-      },
+    toString() {
+      const params = new URLSearchParams();
+      this.store.forEach((v: string, k: string) => params.set(k, v));
+      return params.toString();
     },
-  }),
-);
+    set(key: string, value: string) {
+      this.store.set(key, value);
+    },
+    clear() {
+      this.store.clear();
+    },
+  },
+}));
 
 vi.mock('next/navigation', () => ({
   useSearchParams: () => mockSearchParamsStore,

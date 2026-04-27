@@ -13,9 +13,7 @@ import {
   READ_ONLY_ANNOTATIONS,
 } from './shared';
 
-export async function registerWorkspaceTools(
-  server: McpServer,
-): Promise<void> {
+export async function registerWorkspaceTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // list_user_workspaces
   // -------------------------------------------------------------------------

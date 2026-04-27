@@ -28,7 +28,9 @@ vi.mock('@/lib/ai/classify', () => ({
   classifyContent: vi.fn(),
 }));
 vi.mock('@/lib/intelligence/article-summariser', () => ({
-  generateArticleSummary: vi.fn().mockResolvedValue('A concise article summary.'),
+  generateArticleSummary: vi
+    .fn()
+    .mockResolvedValue('A concise article summary.'),
 }));
 
 describe('getDueFeedSources', () => {
@@ -137,13 +139,11 @@ describe('processFeedSource', () => {
         insert: vi.fn().mockImplementation((data: any) => {
           insertCalls.push({ table, data });
           return {
-            select: vi
-              .fn()
-              .mockReturnValue({
-                single: vi
-                  .fn()
-                  .mockResolvedValue({ data: { id: 'fa-1' }, error: null }),
-              }),
+            select: vi.fn().mockReturnValue({
+              single: vi
+                .fn()
+                .mockResolvedValue({ data: { id: 'fa-1' }, error: null }),
+            }),
             error: null,
           };
         }),
@@ -228,13 +228,11 @@ describe('processFeedSource', () => {
         insert: vi.fn().mockImplementation((data: any) => {
           insertCalls.push({ table, data });
           return {
-            select: vi
-              .fn()
-              .mockReturnValue({
-                single: vi
-                  .fn()
-                  .mockResolvedValue({ data: { id: 'fa-1' }, error: null }),
-              }),
+            select: vi.fn().mockReturnValue({
+              single: vi
+                .fn()
+                .mockResolvedValue({ data: { id: 'fa-1' }, error: null }),
+            }),
             error: null,
           };
         }),
@@ -313,13 +311,11 @@ describe('processFeedSource', () => {
         insert: vi.fn().mockImplementation((data: any) => {
           insertCalls.push({ table, data });
           return {
-            select: vi
-              .fn()
-              .mockReturnValue({
-                single: vi
-                  .fn()
-                  .mockResolvedValue({ data: { id: 'fa-1' }, error: null }),
-              }),
+            select: vi.fn().mockReturnValue({
+              single: vi
+                .fn()
+                .mockResolvedValue({ data: { id: 'fa-1' }, error: null }),
+            }),
             error: null,
           };
         }),
@@ -370,11 +366,14 @@ describe('processFeedSource', () => {
   it('uses extraction.resolvedUrl as content_items.source_url when present (S189 WP1)', async () => {
     vi.clearAllMocks();
     const { pollFeed } = await import('@/lib/intelligence/feed-poller');
-    const { extractContent } = await import('@/lib/intelligence/content-extractor');
-    const { embeddingPreFilter, scoreRelevance } = await import('@/lib/intelligence/relevance-scorer');
+    const { extractContent } =
+      await import('@/lib/intelligence/content-extractor');
+    const { embeddingPreFilter, scoreRelevance } =
+      await import('@/lib/intelligence/relevance-scorer');
 
     const googleNewsUrl = 'https://news.google.com/rss/articles/CBMiX2h0dHBz';
-    const publisherUrl = 'https://www.farrer.co.uk/news/kcsie-2026-proposed-changes';
+    const publisherUrl =
+      'https://www.farrer.co.uk/news/kcsie-2026-proposed-changes';
 
     vi.mocked(pollFeed).mockResolvedValue({
       feedSourceId: 'source-1',
@@ -418,8 +417,13 @@ describe('processFeedSource', () => {
     });
 
     // Track all inserts and updates
-    const insertCalls: Array<{ table: string; data: Record<string, unknown> }> = [];
-    const updateCalls: Array<{ table: string; data: Record<string, unknown>; filters: Record<string, unknown> }> = [];
+    const insertCalls: Array<{ table: string; data: Record<string, unknown> }> =
+      [];
+    const updateCalls: Array<{
+      table: string;
+      data: Record<string, unknown>;
+      filters: Record<string, unknown>;
+    }> = [];
 
     // Mock dedup module
     vi.doMock('@/lib/dedup', () => ({
@@ -437,39 +441,49 @@ describe('processFeedSource', () => {
             }),
             is: vi.fn().mockReturnValue({
               limit: vi.fn().mockReturnValue({
-                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                maybeSingle: vi
+                  .fn()
+                  .mockResolvedValue({ data: null, error: null }),
               }),
             }),
             single: vi.fn().mockResolvedValue({ data: null, error: null }),
             maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
           }),
         });
-        builder.insert = vi.fn().mockImplementation((data: Record<string, unknown>) => {
-          insertCalls.push({ table, data });
-          return {
-            select: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
-                data: { id: `${table}-id-1` },
-                error: null,
+        builder.insert = vi
+          .fn()
+          .mockImplementation((data: Record<string, unknown>) => {
+            insertCalls.push({ table, data });
+            return {
+              select: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: { id: `${table}-id-1` },
+                  error: null,
+                }),
               }),
-            }),
-            error: null,
-          };
-        });
-        builder.update = vi.fn().mockImplementation((data: Record<string, unknown>) => {
-          const eqFn = vi.fn().mockImplementation((col: string, val: unknown) => {
-            const innerEq = vi.fn().mockImplementation((col2: string, val2: unknown) => {
-              updateCalls.push({
-                table,
-                data,
-                filters: { [col]: val, [col2]: val2 },
-              });
-              return Promise.resolve({ error: null });
-            });
-            return { eq: innerEq };
+              error: null,
+            };
           });
-          return { eq: eqFn };
-        });
+        builder.update = vi
+          .fn()
+          .mockImplementation((data: Record<string, unknown>) => {
+            const eqFn = vi
+              .fn()
+              .mockImplementation((col: string, val: unknown) => {
+                const innerEq = vi
+                  .fn()
+                  .mockImplementation((col2: string, val2: unknown) => {
+                    updateCalls.push({
+                      table,
+                      data,
+                      filters: { [col]: val, [col2]: val2 },
+                    });
+                    return Promise.resolve({ error: null });
+                  });
+                return { eq: innerEq };
+              });
+            return { eq: eqFn };
+          });
         return builder;
       }),
     } as any;
@@ -495,25 +509,39 @@ describe('processFeedSource', () => {
       valueProposition: 'Safeguarding support',
     };
 
-    await processFeedSource(mockSupabase, source, companyContext, [0.1, 0.2], null);
+    await processFeedSource(
+      mockSupabase,
+      source,
+      companyContext,
+      [0.1, 0.2],
+      null,
+    );
 
     // Verify content_items was inserted with the PUBLISHER URL, not the Google News URL
-    const contentItemInsert = insertCalls.find((c) => c.table === 'content_items');
+    const contentItemInsert = insertCalls.find(
+      (c) => c.table === 'content_items',
+    );
     expect(contentItemInsert).toBeDefined();
     expect(contentItemInsert!.data.source_url).toBe(publisherUrl);
     expect(contentItemInsert!.data.source_url).not.toContain('news.google.com');
 
     // Verify feed_articles was inserted with the ORIGINAL RSS URL (normalised)
-    const feedArticleInsert = insertCalls.find((c) => c.table === 'feed_articles');
+    const feedArticleInsert = insertCalls.find(
+      (c) => c.table === 'feed_articles',
+    );
     expect(feedArticleInsert).toBeDefined();
-    expect((feedArticleInsert!.data.external_url as string)).toContain('news.google.com');
+    expect(feedArticleInsert!.data.external_url as string).toContain(
+      'news.google.com',
+    );
   });
 
   it('falls back to raw RSS URL for content_items when extraction has no resolvedUrl (S189 WP1)', async () => {
     vi.clearAllMocks();
     const { pollFeed } = await import('@/lib/intelligence/feed-poller');
-    const { extractContent } = await import('@/lib/intelligence/content-extractor');
-    const { embeddingPreFilter, scoreRelevance } = await import('@/lib/intelligence/relevance-scorer');
+    const { extractContent } =
+      await import('@/lib/intelligence/content-extractor');
+    const { embeddingPreFilter, scoreRelevance } =
+      await import('@/lib/intelligence/relevance-scorer');
 
     const govUkUrl = 'https://www.gov.uk/government/news/article-123';
 
@@ -564,7 +592,8 @@ describe('processFeedSource', () => {
       resolveDedupStamp: vi.fn().mockReturnValue({ dedup_status: 'clean' }),
     }));
 
-    const insertCalls: Array<{ table: string; data: Record<string, unknown> }> = [];
+    const insertCalls: Array<{ table: string; data: Record<string, unknown> }> =
+      [];
 
     const mockSupabase = {
       from: vi.fn().mockImplementation((table: string) => {
@@ -576,25 +605,29 @@ describe('processFeedSource', () => {
             }),
             is: vi.fn().mockReturnValue({
               limit: vi.fn().mockReturnValue({
-                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                maybeSingle: vi
+                  .fn()
+                  .mockResolvedValue({ data: null, error: null }),
               }),
             }),
             single: vi.fn().mockResolvedValue({ data: null, error: null }),
             maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
           }),
         });
-        builder.insert = vi.fn().mockImplementation((data: Record<string, unknown>) => {
-          insertCalls.push({ table, data });
-          return {
-            select: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
-                data: { id: `${table}-id-1` },
-                error: null,
+        builder.insert = vi
+          .fn()
+          .mockImplementation((data: Record<string, unknown>) => {
+            insertCalls.push({ table, data });
+            return {
+              select: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: { id: `${table}-id-1` },
+                  error: null,
+                }),
               }),
-            }),
-            error: null,
-          };
-        });
+              error: null,
+            };
+          });
         builder.update = vi.fn().mockImplementation(() => ({
           eq: vi.fn().mockReturnValue({
             eq: vi.fn().mockResolvedValue({ error: null }),
@@ -625,26 +658,35 @@ describe('processFeedSource', () => {
       valueProposition: 'Policy support',
     };
 
-    await processFeedSource(mockSupabase, source, companyContext, [0.1, 0.2], null);
+    await processFeedSource(
+      mockSupabase,
+      source,
+      companyContext,
+      [0.1, 0.2],
+      null,
+    );
 
     // content_items should use the original gov.uk URL (no resolvedUrl available)
-    const contentItemInsert = insertCalls.find((c) => c.table === 'content_items');
+    const contentItemInsert = insertCalls.find(
+      (c) => c.table === 'content_items',
+    );
     expect(contentItemInsert).toBeDefined();
     expect(contentItemInsert!.data.source_url).toBe(govUkUrl);
 
     // feed_articles also uses the same URL
-    const feedArticleInsert = insertCalls.find((c) => c.table === 'feed_articles');
+    const feedArticleInsert = insertCalls.find(
+      (c) => c.table === 'feed_articles',
+    );
     expect(feedArticleInsert).toBeDefined();
-    expect((feedArticleInsert!.data.external_url as string)).toContain('gov.uk');
+    expect(feedArticleInsert!.data.external_url as string).toContain('gov.uk');
   });
 
   // ── source_type branching (P0-WEB / WP3B) ──
 
   it('calls pollWebSource (not pollFeed) when source_type is "web" (T12)', async () => {
     vi.clearAllMocks();
-    const { pollFeed, pollWebSource } = await import(
-      '@/lib/intelligence/feed-poller'
-    );
+    const { pollFeed, pollWebSource } =
+      await import('@/lib/intelligence/feed-poller');
     vi.mocked(pollWebSource).mockResolvedValue({
       feedSourceId: 'web-source-1',
       status: 'success',
@@ -668,7 +710,9 @@ describe('processFeedSource', () => {
         }),
         insert: vi.fn().mockReturnValue({
           select: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: { id: 'fa-1' }, error: null }),
+            single: vi
+              .fn()
+              .mockResolvedValue({ data: { id: 'fa-1' }, error: null }),
           }),
           error: null,
         }),
@@ -691,7 +735,10 @@ describe('processFeedSource', () => {
     await processFeedSource(mockSupabase, webSource, null, null);
 
     expect(vi.mocked(pollWebSource)).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'web-source-1', url: 'https://example.com/page' }),
+      expect.objectContaining({
+        id: 'web-source-1',
+        url: 'https://example.com/page',
+      }),
     );
     expect(vi.mocked(pollFeed)).not.toHaveBeenCalled();
   });
@@ -699,12 +746,14 @@ describe('processFeedSource', () => {
   it('does not double-escape markdown when web source content flows through extractContent (C-1)', async () => {
     vi.clearAllMocks();
     const { pollWebSource } = await import('@/lib/intelligence/feed-poller');
-    const { extractContent } = await import('@/lib/intelligence/content-extractor');
+    const { extractContent } =
+      await import('@/lib/intelligence/content-extractor');
 
     // The HTML that Firecrawl returns (and pollWebSource now stores as-is
     // in contentEncoded per Option C — pollers produce HTML, extractContent
     // does the single Turndown conversion).
-    const firecrawlHtml = '<h1>Heading</h1><p>Some text</p><a href="/x">link</a>';
+    const firecrawlHtml =
+      '<h1>Heading</h1><p>Some text</p><a href="/x">link</a>';
 
     vi.mocked(pollWebSource).mockResolvedValue({
       feedSourceId: 'web-source-c1',
@@ -732,7 +781,7 @@ describe('processFeedSource', () => {
     vi.mocked(extractContent).mockImplementation(async (item) => {
       const content = item.contentEncoded
         ? turndown.turndown(item.contentEncoded).trim()
-        : item.summary ?? item.title;
+        : (item.summary ?? item.title);
       return {
         content,
         title: item.title,
@@ -743,7 +792,8 @@ describe('processFeedSource', () => {
       };
     });
 
-    const insertCalls: Array<{ table: string; data: Record<string, unknown> }> = [];
+    const insertCalls: Array<{ table: string; data: Record<string, unknown> }> =
+      [];
     const mockSupabase = {
       from: vi.fn().mockImplementation((table: string) => ({
         select: vi.fn().mockReturnValue({
@@ -761,7 +811,9 @@ describe('processFeedSource', () => {
           insertCalls.push({ table, data });
           return {
             select: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({ data: { id: 'fa-c1' }, error: null }),
+              single: vi
+                .fn()
+                .mockResolvedValue({ data: { id: 'fa-c1' }, error: null }),
             }),
             error: null,
           };
@@ -785,7 +837,9 @@ describe('processFeedSource', () => {
     await processFeedSource(mockSupabase, webSource, null, null);
 
     // The stored content in feed_articles must not have double-escaped headings
-    const feedArticleInsert = insertCalls.find((c) => c.table === 'feed_articles');
+    const feedArticleInsert = insertCalls.find(
+      (c) => c.table === 'feed_articles',
+    );
     expect(feedArticleInsert).toBeDefined();
     const storedContent = feedArticleInsert!.data.raw_content as string;
     expect(storedContent).toContain('# Heading');
@@ -798,9 +852,8 @@ describe('processFeedSource', () => {
 
   it('calls pollFeed (not pollWebSource) when source_type is "rss" (T13)', async () => {
     vi.clearAllMocks();
-    const { pollFeed, pollWebSource } = await import(
-      '@/lib/intelligence/feed-poller'
-    );
+    const { pollFeed, pollWebSource } =
+      await import('@/lib/intelligence/feed-poller');
     vi.mocked(pollFeed).mockResolvedValue({
       feedSourceId: 'rss-source-1',
       status: 'success',
@@ -824,7 +877,9 @@ describe('processFeedSource', () => {
         }),
         insert: vi.fn().mockReturnValue({
           select: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: { id: 'fa-1' }, error: null }),
+            single: vi
+              .fn()
+              .mockResolvedValue({ data: { id: 'fa-1' }, error: null }),
           }),
           error: null,
         }),
@@ -847,7 +902,10 @@ describe('processFeedSource', () => {
     await processFeedSource(mockSupabase, rssSource, null, null);
 
     expect(vi.mocked(pollFeed)).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'rss-source-1', url: 'https://example.com/feed.atom' }),
+      expect.objectContaining({
+        id: 'rss-source-1',
+        url: 'https://example.com/feed.atom',
+      }),
     );
     expect(vi.mocked(pollWebSource)).not.toHaveBeenCalled();
   });
@@ -988,11 +1046,16 @@ function buildRunPipelineMock(options: MockBuildOptions): {
           }
           if (table === 'company_profiles') {
             // Distinguish context load from embedding load by columns selected
-            if (selectedColumns && selectedColumns.includes('company_embedding')) {
+            if (
+              selectedColumns &&
+              selectedColumns.includes('company_embedding')
+            ) {
               tracking.companyEmbeddingLoads++;
               const profileId = eqFilters.id as string;
               return Promise.resolve({
-                data: { company_embedding: cachedEmbeddings[profileId] ?? null },
+                data: {
+                  company_embedding: cachedEmbeddings[profileId] ?? null,
+                },
                 error: null,
               });
             }

@@ -79,7 +79,9 @@ export function useCreateFeedSource(workspaceId: string) {
       const articleCount = response.initial_article_count;
       if (title && typeof articleCount === 'number') {
         const articleLabel = articleCount === 1 ? 'article' : 'articles';
-        toast.success(`Added "${title}" (${articleCount} ${articleLabel} available)`);
+        toast.success(
+          `Added "${title}" (${articleCount} ${articleLabel} available)`,
+        );
       } else if (title) {
         toast.success(`Added "${title}"`);
       } else {

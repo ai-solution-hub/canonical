@@ -200,7 +200,10 @@ describe('dedupeEntityMentionRows', () => {
     const result = dedupeEntityMentionRows(input);
 
     expect(result).toHaveLength(2);
-    expect(result.map((r) => r.entity_type)).toEqual(['organisation', 'project']);
+    expect(result.map((r) => r.entity_type)).toEqual([
+      'organisation',
+      'project',
+    ]);
   });
 
   it('rows with same canonical_name + type but different content_item_id are NOT collapsed', () => {

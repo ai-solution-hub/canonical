@@ -162,8 +162,9 @@ function ReviewHistoryItem({ entry }: { entry: ReviewHistoryEntry }) {
         {entry.resolved && entry.resolved_at && (
           <p className="mt-0.5 text-muted-foreground">
             Resolved
-            {entry.resolved_by_name ? ` by ${entry.resolved_by_name}` : ''} on{' '}
-            {formatDateUK(entry.resolved_at)}
+            {entry.resolved_by_name
+              ? ` by ${entry.resolved_by_name}`
+              : ''} on {formatDateUK(entry.resolved_at)}
             {entry.resolution_notes && (
               <span>: &ldquo;{entry.resolution_notes}&rdquo;</span>
             )}

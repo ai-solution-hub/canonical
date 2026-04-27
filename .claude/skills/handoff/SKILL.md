@@ -1,6 +1,10 @@
 ---
 name: handoff
-description: Generate a continuation prompt for the current session. Triggers on "handoff", "continuation prompt", "session handoff", "wrap up session", "create handoff". Automates the structured document that enables seamless session-to-session context transfer.
+description:
+  Generate a continuation prompt for the current session. Triggers on "handoff",
+  "continuation prompt", "session handoff", "wrap up session", "create handoff".
+  Automates the structured document that enables seamless session-to-session
+  context transfer.
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
@@ -11,7 +15,10 @@ template and style conventions. The output is a markdown file that a future
 Claude Code session can consume to pick up exactly where this session left off.
 
 **Pre-requisite:** `/update-docs` should have run before this skill. It
-regenerates stats, updates the roadmap/state-of-the-product/product-functionality/backlog documents, and gathers git context — all of which are already in the conversation. If `/update-docs` has not been run, remind the user before proceeding.
+regenerates stats, updates the
+roadmap/state-of-the-product/product-functionality/backlog documents, and
+gathers git context — all of which are already in the conversation. If
+`/update-docs` has not been run, remind the user before proceeding.
 
 ---
 
@@ -24,6 +31,7 @@ ls -1 docs/continuation-prompts/continuation-prompt-kh-*.md 2>/dev/null | sort -
 ```
 
 If they exist, read the most recent file in full. This provides:
+
 - The cumulative "Completed Work" section to compress further
 - The previous session's objectives (to confirm what was done)
 
@@ -33,8 +41,8 @@ If they exist, read the most recent file in full. This provides:
 
 The project sometimes runs parallel work tracks on separate top-level git
 worktrees (e.g. the knowledge-platform track on
-`/Users/liamj/Documents/development/knowledge-hub-knowledge-platform`
-alongside main-track work on the primary repo `/knowledge-hub`). These are **long-lived
+`/Users/liamj/Documents/development/knowledge-hub-knowledge-platform` alongside
+main-track work on the primary repo `/knowledge-hub`). These are **long-lived
 worktrees** — distinct from the ephemeral `isolation: "worktree"` agent
 worktrees created during sessions under `.claude/worktrees/`.
 
@@ -45,11 +53,12 @@ git worktree list
 ```
 
 If a top-level worktree exists outside `.claude/worktrees/`:
+
 - Note which branch it tracks and its current HEAD.
-- This session's continuation prompt is for **this track only** — do not
-  write objectives for the other track.
-- Include a "Parallel track note" section (see Section 1) pointing to the
-  other track's continuation prompt so a future session knows both exist.
+- This session's continuation prompt is for **this track only** — do not write
+  objectives for the other track.
+- Include a "Parallel track note" section (see Section 1) pointing to the other
+  track's continuation prompt so a future session knows both exist.
 - Use the track-suffixed filename convention (see Step 2).
 
 ---
@@ -62,8 +71,11 @@ Parse the highest session number from existing files and add 1.
 with a track identifier to avoid confusion:
 
 - Main track: `continuation-prompt-kh-s{NNN}-main-{purpose}.md`
-- kh-knowledge-platform track: `continuation-prompt-kh-kpf-s{N}-{purpose}.md` (track-local counter)
-- production-readiness track: `continuation-prompt-kh-prod-readiness-s{N}-{purpose}.md` (track-local counter)
+- kh-knowledge-platform track: `continuation-prompt-kh-kpf-s{N}-{purpose}.md`
+  (track-local counter)
+- production-readiness track:
+  `continuation-prompt-kh-prod-readiness-s{N}-{purpose}.md` (track-local
+  counter)
 
 When only one track is active, the track suffix is optional:
 `continuation-prompt-kh-s{NNN}-{purpose}.md`.
@@ -87,23 +99,34 @@ cd /Users/liamj/Documents/development/{repo-name} && bun lint 2>&1 | tail -10
 
 ## Step 4: Determine Next Session Context
 
-Before generating the continuation prompt, assess whether you can confidently answer the following questions, based on reference documentation, git history and the conversation context. If you can answer the questions confidently, proceed to step 5.
+Before generating the continuation prompt, assess whether you can confidently
+answer the following questions, based on reference documentation, git history
+and the conversation context. If you can answer the questions confidently,
+proceed to step 5.
 
-Key information required to allow creation of the next session's continuation prompt:
+Key information required to allow creation of the next session's continuation
+prompt:
 
- 1. **Was there work that was started but not completed**, or items that were planned but skipped?
+1.  **Was there work that was started but not completed**, or items that were
+    planned but skipped?
 
- 2. **Was there work that was completed** which opens up capacity to focus on the next priority item(s) from the roadmap? Our workflow allows us to focus on 3-4 areas per session.
+2.  **Was there work that was completed** which opens up capacity to focus on
+    the next priority item(s) from the roadmap? Our workflow allows us to focus
+    on 3-4 areas per session.
 
- 3. **Session purpose (for the NEXT session):** Based on points 1 and 2, and your interactions during the session, what should the next session focus on?
+3.  **Session purpose (for the NEXT session):** Based on points 1 and 2, and
+    your interactions during the session, what should the next session focus on?
 
- 4. **Key decisions made this session:** Have any architectural decisions,
-    design choices, or direction changes already been captured in the relevant document(s)?
+4.  **Key decisions made this session:** Have any architectural decisions,
+    design choices, or direction changes already been captured in the relevant
+    document(s)?
 
- 5. **Anything to flag for next session:** Gotchas discovered, things that
-    almost broke, or important context the next session needs and which isn't already documented?
+5.  **Anything to flag for next session:** Gotchas discovered, things that
+    almost broke, or important context the next session needs and which isn't
+    already documented?
 
-If you are unsure on what the next session's focus should be, ask Liam to confirm.
+If you are unsure on what the next session's focus should be, ask Liam to
+confirm.
 
 ---
 
@@ -120,8 +143,8 @@ Write the full continuation prompt following these rules:
 
 Knowledge Hub is a knowledge base platform where the core value is high-quality,
 structured data accessible by AI. The first domain applications are bid
-management and sector intelligence for UK SMBs. The knowledge base
-is the foundation for these and future applications.
+management and sector intelligence for UK SMBs. The knowledge base is the
+foundation for these and future applications.
 
 Multi-user with role-based access (admin/editor/viewer).
 
@@ -135,17 +158,22 @@ The Context paragraph should be consistent across all prompts.
 
 ### Section 2: Critical rules from recent sessions
 
-Include **"Critical rules from recent sessions"** only for items that meet ALL of these criteria:
+Include **"Critical rules from recent sessions"** only for items that meet ALL
+of these criteria:
+
 1. Discovered in the last 1-2 sessions (genuinely recent)
 2. NOT already documented in `CLAUDE.md` Gotchas or elsewhere
 3. NOT already captured in memory files
 4. Would cause bugs or confusion if a new session didn't know
 
 **Graduation rule:** If an item has been carried across 3+ continuation prompts,
-it has graduated from "recent session context" to "project knowledge". Move it to `CLAUDE.md` Gotchas (one concise line) and REMOVE it from the continuatio prompt. Do not let this section grow beyond 5 items — if it exceeds 5, the oldest items must either graduate to CLAUDE.md or be dropped.
+it has graduated from "recent session context" to "project knowledge". Move it
+to `CLAUDE.md` Gotchas (one concise line) and REMOVE it from the continuatio
+prompt. Do not let this section grow beyond 5 items — if it exceeds 5, the
+oldest items must either graduate to CLAUDE.md or be dropped.
 
-Before writing the critical rules section, read `CLAUDE.md` Gotchas to check
-for duplicates. Every item already in CLAUDE.md MUST be excluded.
+Before writing the critical rules section, read `CLAUDE.md` Gotchas to check for
+duplicates. Every item already in CLAUDE.md MUST be excluded.
 
 ### Section 3: Completed Work (Cumulative, Recency-Weighted)
 
@@ -153,8 +181,9 @@ Apply **recency-weighted compression**:
 
 - **Older sessions:** Collapse into a single paragraph (1-2 lines).
 - **Recent sessions (N-3 to N-2):** One paragraph each (3-4 lines).
-- **Current session (N-1):** One paragraph (1-3 lines) per WP to provide a concise 
-  update of what was completed, including only genuinely useful context - no fluff.
+- **Current session (N-1):** One paragraph (1-3 lines) per WP to provide a
+  concise update of what was completed, including only genuinely useful
+  context - no fluff.
 
 ## Section 4: Build Status
 
@@ -174,6 +203,7 @@ Structure as numbered work packages (WP1, WP2, etc.) with priority labels:
 - **(COULD)** — Nice to have
 
 Each work package must include:
+
 - **Roadmap ref**
 - **Spec or source file reference**
 - **What** needs to change
@@ -183,7 +213,8 @@ Each work package must include:
 - **Gotchas** or constraints
 - **Estimated effort**
 
-Only include steps/actions to take if these aren't already covered by a specification.
+Only include steps/actions to take if these aren't already covered by a
+specification.
 
 ### Section 6: Agent Allocation
 
@@ -196,20 +227,23 @@ Add this preamble before the table:
 ```markdown
 ## Agent Allocation
 
-Waves execute sequentially. All implementation/spec/plan work packages are verified via adversarial review within the same wave or the next. Where adversarial reviews identify any issues, deploy agent(s) to resolve ALL findings, not just critical/high severity.
+Waves execute sequentially. All implementation/spec/plan work packages are
+verified via adversarial review within the same wave or the next. Where
+adversarial reviews identify any issues, deploy agent(s) to resolve ALL
+findings, not just critical/high severity.
 ```
 
 Then the allocation table:
 
 ```markdown
-| Agent | Work Package | Scope | Type | Wave |
-|---|---|---|---|---|
-| Main session | WP{x} | {Task} | Main | 1 |
-| `wp{1}-{wp-name}` | WP{1} | {Task} | Research-only subagent (no worktree) | 1 |
-| `wp{1}-verification` | WP{1} (verification) | Review of WP{1} | Worktree subagent | 2 |
-| `wp{2}-{wp-name}` | WP{2} | {Task} | Worktree subagent | 2 |
-| `wp{2}-verification` | WP{2} (verification) | Review of WP{2} | Worktree subagent | 3 |
-| ... | ... | ... | ... | ... |
+| Agent                | Work Package         | Scope           | Type                                 | Wave |
+| -------------------- | -------------------- | --------------- | ------------------------------------ | ---- |
+| Main session         | WP{x}                | {Task}          | Main                                 | 1    |
+| `wp{1}-{wp-name}`    | WP{1}                | {Task}          | Research-only subagent (no worktree) | 1    |
+| `wp{1}-verification` | WP{1} (verification) | Review of WP{1} | Worktree subagent                    | 2    |
+| `wp{2}-{wp-name}`    | WP{2}                | {Task}          | Worktree subagent                    | 2    |
+| `wp{2}-verification` | WP{2} (verification) | Review of WP{2} | Worktree subagent                    | 3    |
+| ...                  | ...                  | ...             | ...                                  | ...  |
 
 **File ownership boundaries:**
 
@@ -221,17 +255,18 @@ Every WP must have its file ownership boundaries populated.
 
 ### Section 7: Documents to Read Before Starting
 
-Always include CLAUDE.md, post-mvp-roadmap.md, and state-of-the-product.md. Add additional documents to "Must read first (in order)", as necessary.
+Always include CLAUDE.md, post-mvp-roadmap.md, and state-of-the-product.md. Add
+additional documents to "Must read first (in order)", as necessary.
 
 ```markdown
 **Must read first (in order):**
 
-| Document | Purpose |
-|---|---|
-| `CLAUDE.md` | Project commands, architecture, schema, gotchas |
-| `docs/reference/post-mvp-roadmap.md` | Implementation priorities; Forward-looking only |
-| `docs/reference/state-of-the-product.md` | Canonical product document |
-| `{example file name}` | {Example purpose} |
+| Document                                 | Purpose                                         |
+| ---------------------------------------- | ----------------------------------------------- |
+| `CLAUDE.md`                              | Project commands, architecture, schema, gotchas |
+| `docs/reference/post-mvp-roadmap.md`     | Implementation priorities; Forward-looking only |
+| `docs/reference/state-of-the-product.md` | Canonical product document                      |
+| `{example file name}`                    | {Example purpose}                               |
 ```
 
 Add documents relevant to the next session to "Read per work package".
@@ -239,11 +274,11 @@ Add documents relevant to the next session to "Read per work package".
 ```markdown
 **Read per work package:**
 
-| WP | Documents |
-|---|---|
+| WP    | Documents                                      |
+| ----- | ---------------------------------------------- |
 | WP{N} | `docs/specs/{example file name}` - §{N} + §{I} |
-| WP{N} | `docs/audit/{example file name}` - §{N} |
-| ...   | ... |
+| WP{N} | `docs/audit/{example file name}` - §{N}        |
+| ...   | ...                                            |
 ```
 
 ---
@@ -263,7 +298,8 @@ always include the track suffix (`main-`, `uisimp-`, etc.).
 
 ## Step 7: Commit and Push the Draft Immediately
 
-Commit the file as soon as it is written. Committing first guarantees the work survives a session switch even if Liam cannot review immediately.
+Commit the file as soon as it is written. Committing first guarantees the work
+survives a session switch even if Liam cannot review immediately.
 
 ```bash
 git add docs/continuation-prompts/continuation-prompt-kh-s{NNN}-{track}*.md
@@ -271,16 +307,18 @@ git commit -m "docs: draft session {NNN} continuation prompt"
 git push
 ```
 
-After reviewing, if changes are required, Liam will apply these directly and will create a **new** commit.
+After reviewing, if changes are required, Liam will apply these directly and
+will create a **new** commit.
 
 ---
 
 ## Step 8: Update Memory Files
 
-Update your memory files. 
+Update your memory files.
 
-This step exists because sessions typically end when the handoff is complete and Liam takes the
-continuation prompt to the next session — there is no natural "wrap up" moment for memory updates otherwise.
+This step exists because sessions typically end when the handoff is complete and
+Liam takes the continuation prompt to the next session — there is no natural
+"wrap up" moment for memory updates otherwise.
 
 ---
 
@@ -298,8 +336,8 @@ Before presenting the file to Liam, verify:
 - [ ] Deferred items carried forward correctly
 - [ ] Session number is correct (previous + 1)
 - [ ] No emojis anywhere in the document
-- [ ] The document is COMPLETE — a future Claude session should be able to
-      start working immediately from this prompt alone
+- [ ] The document is COMPLETE — a future Claude session should be able to start
+      working immediately from this prompt alone
 - [ ] Readable by a non-developer (plain English, no unexplained jargon)
 - [ ] "Critical rules" section has max 5 items, none duplicating CLAUDE.md
 - [ ] Items carried 3+ sessions have been graduated to CLAUDE.md or dropped

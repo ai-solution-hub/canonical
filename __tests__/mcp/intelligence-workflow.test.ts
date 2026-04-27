@@ -64,22 +64,22 @@ vi.mock('@/lib/intelligence/summary', () => ({
 // Mock embedding generation
 vi.mock('@/lib/mcp/tools/shared', () => ({
   toStructuredContent: vi.fn((obj: unknown) => ({ json: obj })),
-  getGenerateEmbedding: vi.fn().mockResolvedValue(
-    vi.fn().mockResolvedValue(new Array(1024).fill(0)),
-  ),
+  getGenerateEmbedding: vi
+    .fn()
+    .mockResolvedValue(vi.fn().mockResolvedValue(new Array(1024).fill(0))),
   ToolExtra: {} as unknown,
 }));
 
 // Mock formatters (pass through for response validation)
 vi.mock('@/lib/mcp/formatters', () => ({
-  formatSearchResults: vi.fn((results: unknown) =>
-    `Search results: ${JSON.stringify(results)}`,
+  formatSearchResults: vi.fn(
+    (results: unknown) => `Search results: ${JSON.stringify(results)}`,
   ),
-  formatBatchContentItems: vi.fn((result: unknown) =>
-    `Batch items: ${JSON.stringify(result)}`,
+  formatBatchContentItems: vi.fn(
+    (result: unknown) => `Batch items: ${JSON.stringify(result)}`,
   ),
-  formatIntelligenceSummary: vi.fn((data: unknown) =>
-    `Summary: ${JSON.stringify(data)}`,
+  formatIntelligenceSummary: vi.fn(
+    (data: unknown) => `Summary: ${JSON.stringify(data)}`,
   ),
   truncateResponse: vi.fn((text: string) => text),
   formatQASearchResults: vi.fn(),
@@ -140,7 +140,7 @@ function makeSummaryData(
     total_passed: 20,
     total_filtered: 30,
     filter_ratio: 0.6,
-    by_category: { 'Data Breaches': 12, 'Ransomware': 8 },
+    by_category: { 'Data Breaches': 12, Ransomware: 8 },
     by_source: [
       { source_name: 'Dark Reading', article_count: 30, passed_count: 12 },
     ],
@@ -394,7 +394,7 @@ describe('get_intelligence_summary', () => {
 
     expect(result.by_category).toEqual({
       'Data Breaches': 12,
-      'Ransomware': 8,
+      Ransomware: 8,
     });
   });
 

@@ -17,11 +17,15 @@ describe('DomainRateLimiter', () => {
 
   describe('getHostname', () => {
     it('extracts hostname from a full URL', () => {
-      expect(DomainRateLimiter.getHostname('https://www.gov.uk/publications/foo')).toBe('www.gov.uk');
+      expect(
+        DomainRateLimiter.getHostname('https://www.gov.uk/publications/foo'),
+      ).toBe('www.gov.uk');
     });
 
     it('lowercases the hostname', () => {
-      expect(DomainRateLimiter.getHostname('https://WWW.GOV.UK/path')).toBe('www.gov.uk');
+      expect(DomainRateLimiter.getHostname('https://WWW.GOV.UK/path')).toBe(
+        'www.gov.uk',
+      );
     });
 
     it('returns input for invalid URLs', () => {
@@ -45,8 +49,13 @@ describe('DomainRateLimiter', () => {
 
     it('returns 0 when enough time has passed', () => {
       // Manually set last request time to the past
-      const limiterAny = limiter as unknown as { lastRequestTime: Map<string, number> };
-      limiterAny.lastRequestTime.set('www.gov.uk', Date.now() - MIN_DOMAIN_DELAY_MS - 100);
+      const limiterAny = limiter as unknown as {
+        lastRequestTime: Map<string, number>;
+      };
+      limiterAny.lastRequestTime.set(
+        'www.gov.uk',
+        Date.now() - MIN_DOMAIN_DELAY_MS - 100,
+      );
       expect(limiter.getRequiredDelay('www.gov.uk')).toBe(0);
     });
   });
@@ -101,7 +110,9 @@ describe('DomainRateLimiter', () => {
       // After 1 rate limit: BASE_BACKOFF_DELAY_MS * 2^0 = 3000ms
       limiter.recordRateLimit('https://www.gov.uk/feed');
       // Set lastRequestTime to past so only backoff matters
-      const limiterAny = limiter as unknown as { lastRequestTime: Map<string, number> };
+      const limiterAny = limiter as unknown as {
+        lastRequestTime: Map<string, number>;
+      };
       limiterAny.lastRequestTime.set('www.gov.uk', Date.now() - 2000);
       const delay1 = limiter.getRequiredDelay('www.gov.uk');
       expect(delay1).toBeGreaterThan(0);
@@ -119,7 +130,9 @@ describe('DomainRateLimiter', () => {
       for (let i = 0; i < 20; i++) {
         limiter.recordRateLimit('https://www.gov.uk/feed');
       }
-      const limiterAny = limiter as unknown as { lastRequestTime: Map<string, number> };
+      const limiterAny = limiter as unknown as {
+        lastRequestTime: Map<string, number>;
+      };
       limiterAny.lastRequestTime.set('www.gov.uk', Date.now() - 1);
       const delay = limiter.getRequiredDelay('www.gov.uk');
       expect(delay).toBeLessThanOrEqual(MAX_BACKOFF_DELAY_MS);

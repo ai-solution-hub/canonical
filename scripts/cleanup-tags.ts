@@ -115,9 +115,7 @@ export function processItemKeywords(
   // Step 3: Canonicalise via normaliseTag (spec ss6.6 EP10).
   // Ensures merge outputs (e.g. synonym canonical forms) are in normalised form.
   const afterNormalise = [
-    ...new Set(
-      afterMerge.map(normaliseTag).filter((kw) => kw.length > 0),
-    ),
+    ...new Set(afterMerge.map(normaliseTag).filter((kw) => kw.length > 0)),
   ];
 
   // Check if anything changed

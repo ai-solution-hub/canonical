@@ -14,10 +14,7 @@ import {
   configureRole,
   configureUnauthenticated,
 } from '../../helpers/mock-supabase';
-import {
-  createTestRequest,
-  createTestParams,
-} from '../../helpers/mock-next';
+import { createTestRequest, createTestParams } from '../../helpers/mock-next';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -118,7 +115,8 @@ const ANALYSIS_RESULT = {
       affectedFlags: 1,
     },
   ],
-  proposedPromptText: 'Score articles relevant to UK cybersecurity SMBs (refined).',
+  proposedPromptText:
+    'Score articles relevant to UK cybersecurity SMBs (refined).',
   confidenceNotes: 'Only 1 flag analysed — low confidence.',
   analysedFlagCount: 1,
   truncated: false,

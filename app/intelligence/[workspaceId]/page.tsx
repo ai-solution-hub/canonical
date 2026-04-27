@@ -207,7 +207,8 @@ export default function WorkspaceOverviewPage() {
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">
-              No unresolved flags. No false positives or false negatives flagged.
+              No unresolved flags. No false positives or false negatives
+              flagged.
             </p>
           )}
         </div>
@@ -238,10 +239,7 @@ export default function WorkspaceOverviewPage() {
             />
             No new activity this period — expand for details
           </summary>
-          <div
-            className="space-y-6 px-4 pb-4"
-            data-testid="quiet-week-details"
-          >
+          <div className="space-y-6 px-4 pb-4" data-testid="quiet-week-details">
             {detailSections}
           </div>
         </details>

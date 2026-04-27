@@ -16,10 +16,7 @@ import {
   warningsEnvelope,
 } from '@/lib/supabase/warnings';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
-import {
-  setSupersession,
-  SupersessionError,
-} from '@/lib/supersession/set';
+import { setSupersession, SupersessionError } from '@/lib/supersession/set';
 import { SupabaseError, sb, tryQuery, isOk } from '@/lib/supabase/safe';
 import { resolveQuestionForRebuild } from '@/lib/bid-library-ingest/resolve-question';
 import {
@@ -464,7 +461,11 @@ export async function PATCH(
     // actually stored (WP3 L-1 fix).
     const effectiveValue =
       field === 'ai_keywords' && Array.isArray(value)
-        ? [...new Set(value.map(normaliseTag).filter((k: string) => k.length > 0))]
+        ? [
+            ...new Set(
+              value.map(normaliseTag).filter((k: string) => k.length > 0),
+            ),
+          ]
         : value;
 
     // Generate change summary using the normalised value

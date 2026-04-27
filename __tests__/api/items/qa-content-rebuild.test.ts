@@ -72,7 +72,8 @@ const VALID_UUID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 function qaCurrentItem(overrides: Record<string, unknown> = {}) {
   return {
     title: 'What is ISO 27001?',
-    content: 'Q: What is ISO 27001?\n\nISO 27001 is an information security standard.',
+    content:
+      'Q: What is ISO 27001?\n\nISO 27001 is an information security standard.',
     brief: null,
     detail: null,
     reference: null,
@@ -148,9 +149,8 @@ beforeEach(() => {
     error: null,
   });
   mockSupabase._chain.then.mockReset();
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 
   mockGenerateSingleFieldChangeSummary.mockReturnValue('Field updated');
@@ -326,7 +326,8 @@ describe('PATCH /api/items/[id] — Q&A content rebuild', () => {
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: qaCurrentItem({
         // Title is truncated but content has the full question
-        title: 'What are the key requirements for achieving ISO 27001 certification and maintaining ongoing compliance with the',
+        title:
+          'What are the key requirements for achieving ISO 27001 certification and maintaining ongoing compliance with the',
         content: `Q: ${longQuestion}\n\nOld answer.`,
         answer_standard: 'Old answer.',
         answer_advanced: null,
@@ -348,9 +349,7 @@ describe('PATCH /api/items/[id] — Q&A content rebuild', () => {
 
     const updateCall = mockSupabase._chain.update.mock.calls[0][0];
     // Should use the FULL question from content, not the truncated title
-    expect(updateCall.content).toBe(
-      `Q: ${longQuestion}\n\nUpdated answer.`,
-    );
+    expect(updateCall.content).toBe(`Q: ${longQuestion}\n\nUpdated answer.`);
     // Verify the full question is preserved (not truncated)
     expect(updateCall.content).toContain('multiple business units?');
   });

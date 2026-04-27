@@ -117,7 +117,8 @@ export async function POST() {
         .update({
           status: 'failed',
           completed_at: new Date().toISOString(),
-          error_message: dispatch.error ?? `GitHub API returned ${dispatch.status}`,
+          error_message:
+            dispatch.error ?? `GitHub API returned ${dispatch.status}`,
         })
         .eq('id', runId),
       'taxonomy_sync.pipeline_runs.fail',
@@ -127,7 +128,9 @@ export async function POST() {
     const { error, message } = mapGitHubError(dispatch.status, dispatch.error);
 
     Sentry.captureException(
-      new Error(`Taxonomy sync dispatch failed: ${dispatch.error ?? dispatch.status}`),
+      new Error(
+        `Taxonomy sync dispatch failed: ${dispatch.error ?? dispatch.status}`,
+      ),
       {
         tags: { pipeline: PIPELINE_NAME, github_status: dispatch.status },
         extra: { dispatch },

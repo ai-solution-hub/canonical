@@ -38,9 +38,7 @@ describe('useContentBulkRunner', () => {
   });
 
   it('runs an operation for each id and returns success count', async () => {
-    const { result } = renderHook(
-      () => useContentBulkRunner(queryKey),
-    );
+    const { result } = renderHook(() => useContentBulkRunner(queryKey));
 
     const operation = vi.fn().mockResolvedValue(true);
     let successCount: number | undefined;
@@ -61,9 +59,7 @@ describe('useContentBulkRunner', () => {
   });
 
   it('counts failed operations and shows error toast', async () => {
-    const { result } = renderHook(
-      () => useContentBulkRunner(queryKey),
-    );
+    const { result } = renderHook(() => useContentBulkRunner(queryKey));
 
     const operation = vi
       .fn()
@@ -88,9 +84,7 @@ describe('useContentBulkRunner', () => {
 
   it('handles thrown errors in operations', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const { result } = renderHook(
-      () => useContentBulkRunner(queryKey),
-    );
+    const { result } = renderHook(() => useContentBulkRunner(queryKey));
 
     const operation = vi
       .fn()
@@ -108,16 +102,10 @@ describe('useContentBulkRunner', () => {
   });
 
   it('invalidates queries after completion', async () => {
-    const { result } = renderHook(
-      () => useContentBulkRunner(queryKey),
-    );
+    const { result } = renderHook(() => useContentBulkRunner(queryKey));
 
     await act(async () => {
-      await result.current.runBulkOperation(
-        'Testing',
-        ['a'],
-        async () => true,
-      );
+      await result.current.runBulkOperation('Testing', ['a'], async () => true);
     });
 
     expect(mockInvalidateQueries).toHaveBeenCalledWith({
@@ -126,18 +114,12 @@ describe('useContentBulkRunner', () => {
   });
 
   it('resets bulkOperating to false after completion', async () => {
-    const { result } = renderHook(
-      () => useContentBulkRunner(queryKey),
-    );
+    const { result } = renderHook(() => useContentBulkRunner(queryKey));
 
     expect(result.current.bulkOperating).toBe(false);
 
     await act(async () => {
-      await result.current.runBulkOperation(
-        'Testing',
-        ['a'],
-        async () => true,
-      );
+      await result.current.runBulkOperation('Testing', ['a'], async () => true);
     });
 
     // After completion, bulkOperating should be reset
@@ -145,9 +127,7 @@ describe('useContentBulkRunner', () => {
   });
 
   it('resets progress after completion', async () => {
-    const { result } = renderHook(
-      () => useContentBulkRunner(queryKey),
-    );
+    const { result } = renderHook(() => useContentBulkRunner(queryKey));
 
     await act(async () => {
       await result.current.runBulkOperation(
@@ -165,9 +145,7 @@ describe('useContentBulkRunner', () => {
   });
 
   it('does not show error toast when all operations succeed', async () => {
-    const { result } = renderHook(
-      () => useContentBulkRunner(queryKey),
-    );
+    const { result } = renderHook(() => useContentBulkRunner(queryKey));
 
     await act(async () => {
       await result.current.runBulkOperation(
@@ -190,8 +168,8 @@ describe('useContentBulkRunner', () => {
       tags: string[];
     }
 
-    const { result } = renderHook(
-      () => useContentBulkRunner<TestItem>(queryKey),
+    const { result } = renderHook(() =>
+      useContentBulkRunner<TestItem>(queryKey),
     );
 
     const items: TestItem[] = [
@@ -216,8 +194,8 @@ describe('useContentBulkRunner', () => {
   });
 
   it('skips items not found by itemLookup', async () => {
-    const { result } = renderHook(
-      () => useContentBulkRunner<{ id: string }>(queryKey),
+    const { result } = renderHook(() =>
+      useContentBulkRunner<{ id: string }>(queryKey),
     );
 
     const lookup = (_id: string) => undefined;
@@ -239,9 +217,7 @@ describe('useContentBulkRunner', () => {
 
   it('pluralises error toast for multiple failures', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const { result } = renderHook(
-      () => useContentBulkRunner(queryKey),
-    );
+    const { result } = renderHook(() => useContentBulkRunner(queryKey));
 
     await act(async () => {
       await result.current.runBulkOperation(

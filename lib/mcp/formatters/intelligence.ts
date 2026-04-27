@@ -74,7 +74,13 @@ export function formatIntelligenceSummary(
   // Category breakdown
   const categoryEntries = Object.entries(data.by_category);
   if (categoryEntries.length > 0) {
-    lines.push('', '## By Category', '', '| Category | Count |', '| --- | --- |');
+    lines.push(
+      '',
+      '## By Category',
+      '',
+      '| Category | Count |',
+      '| --- | --- |',
+    );
     for (const [category, count] of categoryEntries) {
       lines.push(`| ${category} | ${count} |`);
     }
@@ -112,7 +118,10 @@ export function formatIntelligenceSummary(
         lines.push('', article.ai_summary);
       }
       if (article.matched_categories.length > 0) {
-        lines.push('', `**Categories:** ${article.matched_categories.join(', ')}`);
+        lines.push(
+          '',
+          `**Categories:** ${article.matched_categories.join(', ')}`,
+        );
       }
       lines.push('', `[Read more](${article.external_url})`, '');
     }

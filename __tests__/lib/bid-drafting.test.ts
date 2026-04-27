@@ -24,36 +24,34 @@ vi.mock('@/lib/anthropic', () => ({
     };
     return map[tier] ?? 'claude-sonnet-4-5';
   },
-  estimateCost: vi
-    .fn()
-    .mockImplementation(
-      (
-        model: string,
-        usage: {
-          input_tokens: number;
-          output_tokens: number;
-          cache_read_input_tokens?: number | null;
-        },
-      ) => {
-        const rates: Record<
-          string,
-          { input: number; output: number; cache_read: number }
-        > = {
-          'claude-opus-4-6': { input: 15, output: 75, cache_read: 1.5 },
-          'claude-sonnet-4-5': { input: 3, output: 15, cache_read: 0.3 },
-          'claude-haiku-4-5': { input: 0.8, output: 4, cache_read: 0.08 },
-        };
-        const r = rates[model] ?? rates['claude-sonnet-4-5'];
-        const inputTokens =
-          usage.input_tokens - (usage.cache_read_input_tokens ?? 0);
-        const cacheReadTokens = usage.cache_read_input_tokens ?? 0;
-        return (
-          (inputTokens / 1_000_000) * r.input +
-          (usage.output_tokens / 1_000_000) * r.output +
-          (cacheReadTokens / 1_000_000) * r.cache_read
-        );
+  estimateCost: vi.fn().mockImplementation(
+    (
+      model: string,
+      usage: {
+        input_tokens: number;
+        output_tokens: number;
+        cache_read_input_tokens?: number | null;
       },
-    ),
+    ) => {
+      const rates: Record<
+        string,
+        { input: number; output: number; cache_read: number }
+      > = {
+        'claude-opus-4-6': { input: 15, output: 75, cache_read: 1.5 },
+        'claude-sonnet-4-5': { input: 3, output: 15, cache_read: 0.3 },
+        'claude-haiku-4-5': { input: 0.8, output: 4, cache_read: 0.08 },
+      };
+      const r = rates[model] ?? rates['claude-sonnet-4-5'];
+      const inputTokens =
+        usage.input_tokens - (usage.cache_read_input_tokens ?? 0);
+      const cacheReadTokens = usage.cache_read_input_tokens ?? 0;
+      return (
+        (inputTokens / 1_000_000) * r.input +
+        (usage.output_tokens / 1_000_000) * r.output +
+        (cacheReadTokens / 1_000_000) * r.cache_read
+      );
+    },
+  ),
 }));
 
 // Mock the quality-check module to isolate Pass 3.

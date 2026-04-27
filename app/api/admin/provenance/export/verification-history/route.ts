@@ -79,7 +79,9 @@ export async function GET(request: NextRequest) {
 
     // Resolve reviewer display names
     const performerIds = [
-      ...new Set(rawRows.map((r: Record<string, unknown>) => r.performed_by as string)),
+      ...new Set(
+        rawRows.map((r: Record<string, unknown>) => r.performed_by as string),
+      ),
     ];
     let displayNames = new Map<string, { display_name: string }>();
     try {
@@ -159,8 +161,7 @@ export async function GET(request: NextRequest) {
       supabase,
       pipelineName: 'provenance_audit_pdf',
       status: 'failed',
-      errorMessage:
-        err instanceof Error ? err.message : 'Unknown export error',
+      errorMessage: err instanceof Error ? err.message : 'Unknown export error',
       result: { from, to, exported_by: user.id },
     });
 

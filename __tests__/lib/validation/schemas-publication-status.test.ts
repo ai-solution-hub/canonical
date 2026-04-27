@@ -67,9 +67,7 @@ describe('ItemUpdateBodySchema — publication_status branch (AC6.3)', () => {
     if (!result.success) {
       const messages = result.error.issues.map((i) => i.message);
       expect(
-        messages.some((m) =>
-          /publication_status must be one of/i.test(m),
-        ),
+        messages.some((m) => /publication_status must be one of/i.test(m)),
       ).toBe(true);
     }
   });

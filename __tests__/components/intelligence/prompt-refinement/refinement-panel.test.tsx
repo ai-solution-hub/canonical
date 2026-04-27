@@ -61,9 +61,11 @@ interface RenderOverrides {
 }
 
 function renderPanel(overrides: RenderOverrides = {}) {
-  const analyse = mockMutation<AnalyseFlagsResponse, Error, AnalyseFlagsRequest>(
-    overrides.analyse ?? {},
-  );
+  const analyse = mockMutation<
+    AnalyseFlagsResponse,
+    Error,
+    AnalyseFlagsRequest
+  >(overrides.analyse ?? {});
   const preview = mockMutation<
     RescoringPreviewResponse,
     Error,
@@ -101,7 +103,9 @@ describe('RefinementPanel', () => {
   it('renders the no-flags empty state when the flag list is empty', () => {
     renderPanel({ flags: [] });
     expect(
-      screen.getByText(/No unresolved flags\. Filter rules are performing well/i),
+      screen.getByText(
+        /No unresolved flags\. Filter rules are performing well/i,
+      ),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: /Analyse flags/i }),
@@ -110,9 +114,7 @@ describe('RefinementPanel', () => {
 
   it('treats undefined flag list as empty', () => {
     renderPanel({ flags: undefined });
-    expect(
-      screen.getByText(/No unresolved flags/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/No unresolved flags/i)).toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------
@@ -209,9 +211,9 @@ describe('RefinementPanel', () => {
       makeWorkspaceFlag({ id: '550e8400-e29b-41d4-a716-446655440082' }),
     ];
     renderPanel({ flags });
-    expect(
-      screen.getByTestId('minimum-flag-warning'),
-    ).toHaveTextContent(/Only 1 flag available/);
+    expect(screen.getByTestId('minimum-flag-warning')).toHaveTextContent(
+      /Only 1 flag available/,
+    );
   });
 
   it('does not render the minimum-flag warning when 3 or more flags exist', () => {
@@ -453,6 +455,8 @@ describe('RefinementPanel', () => {
       container.querySelector('[aria-label="Refine filter rules"]'),
     ).toBeInTheDocument();
     // Three Skeleton elements are rendered while loading.
-    expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThanOrEqual(2);
+    expect(
+      container.querySelectorAll('[data-slot="skeleton"]').length,
+    ).toBeGreaterThanOrEqual(2);
   });
 });

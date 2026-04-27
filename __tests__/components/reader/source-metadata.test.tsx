@@ -538,7 +538,9 @@ describe('SourceMetadata — RSS feed article (Phase 5, AC-4)', () => {
     );
     await openAccordion();
     expect(screen.getByText('Feed URL')).toBeInTheDocument();
-    expect(screen.getByText('https://example.gov.uk/rss.xml')).toBeInTheDocument();
+    expect(
+      screen.getByText('https://example.gov.uk/rss.xml'),
+    ).toBeInTheDocument();
     expect(screen.getByText('85%')).toBeInTheDocument();
   });
 

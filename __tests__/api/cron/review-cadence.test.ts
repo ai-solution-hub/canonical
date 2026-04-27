@@ -268,7 +268,9 @@ describe('GET /api/cron/review-cadence — spec §13.2 cron rows', () => {
       content_owner_id: OWNER_ID,
     });
 
-    const { updateCalls, selectChain } = configureDetailedMock({ candidates: [item] });
+    const { updateCalls, selectChain } = configureDetailedMock({
+      candidates: [item],
+    });
 
     const res = await GET(createCronRequest() as never);
     expect(res.status).toBe(200);
@@ -297,7 +299,8 @@ describe('GET /api/cron/review-cadence — spec §13.2 cron rows', () => {
 
     // Notification created with the spec §6.4 payload shape
     expect(mockCreateBulkNotifications).toHaveBeenCalledOnce();
-    const notifications = mockCreateBulkNotifications.mock.calls[0][1] as Array<{
+    const notifications = mockCreateBulkNotifications.mock
+      .calls[0][1] as Array<{
       userId: string;
       type: string;
       entityType: string;
@@ -425,7 +428,8 @@ describe('GET /api/cron/review-cadence — recipient resolution', () => {
       'admin',
     ]);
 
-    const notifications = mockCreateBulkNotifications.mock.calls[0][1] as Array<{
+    const notifications = mockCreateBulkNotifications.mock
+      .calls[0][1] as Array<{
       userId: string;
       type: string;
     }>;
@@ -453,7 +457,8 @@ describe('GET /api/cron/review-cadence — recipient resolution', () => {
     expect(body.batch_summary_notification).toBe(true);
 
     // Single owner -> single summary notification
-    const notifications = mockCreateBulkNotifications.mock.calls[0][1] as Array<{
+    const notifications = mockCreateBulkNotifications.mock
+      .calls[0][1] as Array<{
       userId: string;
       title: string;
     }>;
@@ -480,7 +485,8 @@ describe('GET /api/cron/review-cadence — recipient resolution', () => {
     expect(body.items_flagged).toBe(20);
     expect(body.batch_summary_notification).toBe(false);
 
-    const notifications = mockCreateBulkNotifications.mock.calls[0][1] as Array<{
+    const notifications = mockCreateBulkNotifications.mock
+      .calls[0][1] as Array<{
       title: string;
     }>;
     // 20 individual notifications, not a single summary

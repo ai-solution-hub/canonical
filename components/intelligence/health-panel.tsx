@@ -66,8 +66,7 @@ function formatDurationAgo(ms: number | null): string {
   if (ms === null) return 'Never';
   const minutes = Math.floor(ms / 60_000);
   if (minutes < 1) return 'Just now';
-  if (minutes < 60)
-    return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
+  if (minutes < 60) return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
   const days = Math.floor(hours / 24);
@@ -106,8 +105,7 @@ const SEVERITY_VISUALS: Record<HealthSeverity, SeverityVisuals> = {
   failing: {
     label: 'Failing',
     icon: XCircle,
-    badgeClass:
-      'border-status-error/30 bg-status-error/10 text-status-error',
+    badgeClass: 'border-status-error/30 bg-status-error/10 text-status-error',
     iconClass: 'text-status-error',
   },
 };
@@ -175,10 +173,7 @@ export function HealthPanel({ workspaceId }: HealthPanelProps) {
               disabled={isFetching}
             >
               <RefreshCw
-                className={cn(
-                  'mr-1.5 size-3.5',
-                  isFetching && 'animate-spin',
-                )}
+                className={cn('mr-1.5 size-3.5', isFetching && 'animate-spin')}
                 aria-hidden="true"
               />
               Retry

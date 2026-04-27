@@ -106,10 +106,7 @@ export async function storeChunks(
   let inserted: { id: string; position: number }[];
   try {
     inserted = await sb<{ id: string; position: number }[]>(
-      supabase
-        .from('content_chunks')
-        .insert(insertRows)
-        .select('id, position'),
+      supabase.from('content_chunks').insert(insertRows).select('id, position'),
       'content_chunks.insert',
     );
   } catch (err) {

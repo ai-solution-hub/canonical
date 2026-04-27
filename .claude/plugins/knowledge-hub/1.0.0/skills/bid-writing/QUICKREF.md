@@ -2,14 +2,14 @@
 
 ## Scoring System (0-5)
 
-| Score | Meaning | What evaluators want |
-|-------|---------|---------------------|
-| 0 | Unacceptable | No response or completely off-topic |
-| 1 | Poor | Vague, generic, no evidence |
-| 2 | Acceptable | Addresses question, lacks specificity |
-| 3 | Good | Solid, some evidence, meets requirements |
-| 4 | Very Good | Detailed, evidence-based, exceeds requirements |
-| 5 | Excellent | Specific, evidence-rich, innovative, measurable |
+| Score | Meaning      | What evaluators want                            |
+| ----- | ------------ | ----------------------------------------------- |
+| 0     | Unacceptable | No response or completely off-topic             |
+| 1     | Poor         | Vague, generic, no evidence                     |
+| 2     | Acceptable   | Addresses question, lacks specificity           |
+| 3     | Good         | Solid, some evidence, meets requirements        |
+| 4     | Very Good    | Detailed, evidence-based, exceeds requirements  |
+| 5     | Excellent    | Specific, evidence-rich, innovative, measurable |
 
 **The difference between 3 and 5 is specificity.**
 
@@ -24,21 +24,21 @@
 
 ## Confidence Postures
 
-| Posture | Meaning | Word limit target |
-|---------|---------|-------------------|
-| **strong_match** | Multiple fresh sources, full coverage | 95% |
-| **partial_match** | Some sources, gaps exist | 85-90% |
-| **needs_sme** | Limited KB coverage, expert input required | 70% |
-| **no_content** | No relevant material — knowledge gap | Placeholder only |
+| Posture           | Meaning                                    | Word limit target |
+| ----------------- | ------------------------------------------ | ----------------- |
+| **strong_match**  | Multiple fresh sources, full coverage      | 95%               |
+| **partial_match** | Some sources, gaps exist                   | 85-90%            |
+| **needs_sme**     | Limited KB coverage, expert input required | 70%               |
+| **no_content**    | No relevant material — knowledge gap       | Placeholder only  |
 
 ## Word Limit Targets
 
-| Limit | Target | Rationale |
-|-------|--------|-----------|
-| <200 words | 90-100% | Short answers must be complete |
-| 200-500 words | 90-95% | Use the space available |
-| 500-1000 words | 85-95% | Slightly more flexibility |
-| >1000 words | 80-95% | Most flexibility |
+| Limit          | Target  | Rationale                      |
+| -------------- | ------- | ------------------------------ |
+| <200 words     | 90-100% | Short answers must be complete |
+| 200-500 words  | 90-95%  | Use the space available        |
+| 500-1000 words | 85-95%  | Slightly more flexibility      |
+| >1000 words    | 80-95%  | Most flexibility               |
 
 **Under-utilising the word limit signals insufficient depth.**
 
@@ -61,18 +61,18 @@
 
 ## UK English Quick Reference
 
-| Use | Not |
-|-----|-----|
-| organisation | organization |
-| colour | color |
-| centre | center |
-| programme | program (except software) |
-| licence (n) / license (v) | license for both |
-| practise (v) / practice (n) | practice for both |
-| analyse | analyze |
-| defence | defense |
-| favour, honour, labour | favor, honor, labor |
-| realise, specialise | realize, specialize |
+| Use                         | Not                       |
+| --------------------------- | ------------------------- |
+| organisation                | organization              |
+| colour                      | color                     |
+| centre                      | center                    |
+| programme                   | program (except software) |
+| licence (n) / license (v)   | license for both          |
+| practise (v) / practice (n) | practice for both         |
+| analyse                     | analyze                   |
+| defence                     | defense                   |
+| favour, honour, labour      | favor, honor, labor       |
+| realise, specialise         | realize, specialize       |
 
-**Dates:** DD/MM/YYYY always. Narrative: "15 March 2026".
-**Numbers:** Spell one to nine; numerals for 10+, percentages, money. **Currency:** GBP/pounds.
+**Dates:** DD/MM/YYYY always. Narrative: "15 March 2026". **Numbers:** Spell one
+to nine; numerals for 10+, percentages, money. **Currency:** GBP/pounds.

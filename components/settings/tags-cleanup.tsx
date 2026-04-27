@@ -41,7 +41,10 @@ export function TagsCleanup({
       {duplicates.length > 0 && (
         <div className="space-y-2">
           <h4 className="flex items-center gap-2 text-sm font-medium">
-            <AlertTriangle className="size-4 text-freshness-aging" aria-hidden="true" />
+            <AlertTriangle
+              className="size-4 text-freshness-aging"
+              aria-hidden="true"
+            />
             Duplicate groups ({duplicates.length})
           </h4>
           <DuplicateReview

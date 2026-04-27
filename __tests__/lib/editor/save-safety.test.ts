@@ -77,7 +77,11 @@ describe('SAVE_SAFETY_BLOCK_MESSAGE', () => {
 
   it('uses UK-English "Save blocked" framing and preserves user work', () => {
     expect(SAVE_SAFETY_BLOCK_MESSAGE).toMatch(/^Save blocked/);
-    expect(SAVE_SAFETY_BLOCK_MESSAGE.toLowerCase()).toContain('copy your edits');
-    expect(SAVE_SAFETY_BLOCK_MESSAGE.toLowerCase()).toContain('contact support');
+    expect(SAVE_SAFETY_BLOCK_MESSAGE.toLowerCase()).toContain(
+      'copy your edits',
+    );
+    expect(SAVE_SAFETY_BLOCK_MESSAGE.toLowerCase()).toContain(
+      'contact support',
+    );
   });
 });

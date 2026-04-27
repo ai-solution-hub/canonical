@@ -232,7 +232,13 @@ export function formatReport(result: VerificationResult): string {
     ([, a], [, b]) => b - a,
   );
   if (domainEntries.length > 0) {
-    lines.push('', '## Domain Distribution', '', '| Domain | Count |', '| --- | --- |');
+    lines.push(
+      '',
+      '## Domain Distribution',
+      '',
+      '| Domain | Count |',
+      '| --- | --- |',
+    );
     for (const [domain, count] of domainEntries) {
       lines.push(`| ${domain} | ${count} |`);
     }
@@ -359,9 +365,8 @@ async function main(): Promise<void> {
     articlesQuery = articlesQuery.eq('workspace_id', workspaceId);
   }
 
-  const { data: feedArticles, error: feedError } = await articlesQuery.limit(
-    limit,
-  );
+  const { data: feedArticles, error: feedError } =
+    await articlesQuery.limit(limit);
 
   if (feedError) {
     console.error(`Failed to query feed_articles: ${feedError.message}`);
@@ -445,7 +450,12 @@ async function main(): Promise<void> {
   );
 
   // 6. Analyse and format report
-  const result = analyseItems(items, validDomains, validSubtopics, entityTypeDist);
+  const result = analyseItems(
+    items,
+    validDomains,
+    validSubtopics,
+    entityTypeDist,
+  );
   const report = formatReport(result);
 
   console.log(report);

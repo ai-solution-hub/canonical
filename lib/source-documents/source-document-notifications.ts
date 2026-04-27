@@ -41,11 +41,10 @@ export async function sendSourceDocumentUpdateNotifications(
     'source-docs.notifications.fetchItems',
   );
   if (!itemsResult.ok) {
-    logBestEffortWarn(
-      'source-docs.notifications.fanout',
-      'skipped on error',
-      { err: itemsResult.error.message, code: itemsResult.error.code },
-    );
+    logBestEffortWarn('source-docs.notifications.fanout', 'skipped on error', {
+      err: itemsResult.error.message,
+      code: itemsResult.error.code,
+    });
     return;
   }
   const items = itemsResult.data;

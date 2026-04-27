@@ -110,7 +110,11 @@ function findInsertSites(): InsertSite[] {
         const window = lines.slice(i, Math.min(i + 6, lines.length)).join('\n');
         if (!INSERT_PATTERN.test(window)) continue;
 
-        sites.push({ file, line: i + 1, hasPairedHistory: fileHasHistoryInsert });
+        sites.push({
+          file,
+          line: i + 1,
+          hasPairedHistory: fileHasHistoryInsert,
+        });
       }
     }
   }
@@ -132,9 +136,7 @@ describe('content_items v1 history guard', () => {
       .filter((s) => !ALLOWLIST.includes(s.file as (typeof ALLOWLIST)[number]));
 
     if (offenders.length > 0) {
-      const msg = offenders
-        .map((s) => `  - ${s.file}:${s.line}`)
-        .join('\n');
+      const msg = offenders.map((s) => `  - ${s.file}:${s.line}`).join('\n');
       throw new Error(
         `Found ${offenders.length} content_items insert site(s) without paired v1 content_history write and not on ALLOWLIST:\n${msg}\n\nFix: add an explicit content_history insert within 80 lines (see app/api/items/route.ts pattern), OR add the file to ALLOWLIST with a justification comment.`,
       );

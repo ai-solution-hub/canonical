@@ -38,7 +38,8 @@ const RECOMMENDATION_BADGE: Record<
 > = {
   add: {
     label: '[+ Add]',
-    className: 'bg-status-success/15 text-status-success border-status-success/30',
+    className:
+      'bg-status-success/15 text-status-success border-status-success/30',
   },
   remove: {
     label: '[- Remove]',
@@ -46,7 +47,8 @@ const RECOMMENDATION_BADGE: Record<
   },
   reword: {
     label: '[↻ Reword]',
-    className: 'bg-status-warning/15 text-status-warning border-status-warning/30',
+    className:
+      'bg-status-warning/15 text-status-warning border-status-warning/30',
   },
 };
 
@@ -156,11 +158,13 @@ export function FlagAnalysisView({ result }: FlagAnalysisViewProps) {
           role="status"
           className="flex items-start gap-2 rounded-md border border-status-warning/30 bg-status-warning/10 p-3 text-sm text-status-warning"
         >
-          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <AlertTriangle
+            className="mt-0.5 size-4 shrink-0"
+            aria-hidden="true"
+          />
           <p>
-            Only the most recent {result.analysedFlagCount} flags were
-            analysed. Re-run the analysis after resolving these to cover older
-            ones.
+            Only the most recent {result.analysedFlagCount} flags were analysed.
+            Re-run the analysis after resolving these to cover older ones.
           </p>
         </div>
       )}
@@ -188,13 +192,14 @@ export function FlagAnalysisView({ result }: FlagAnalysisViewProps) {
         </h3>
         {orderedRecommendations.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No recommended changes. The analysis did not produce any
-            actionable prompt edits.
+            No recommended changes. The analysis did not produce any actionable
+            prompt edits.
           </p>
         ) : (
           <ol className="space-y-3">
             {orderedRecommendations.map((rec, idx) => {
-              const badge = RECOMMENDATION_BADGE[rec.type as RecommendationType];
+              const badge =
+                RECOMMENDATION_BADGE[rec.type as RecommendationType];
               return (
                 <li
                   key={`rec-${idx}`}

@@ -77,10 +77,7 @@ export async function GET(
       .limit(1);
 
     if (diffAsOldError) {
-      console.error(
-        'Failed to look up diff pair (as old):',
-        diffAsOldError,
-      );
+      console.error('Failed to look up diff pair (as old):', diffAsOldError);
       return NextResponse.json(
         {
           error: safeErrorMessage(
@@ -127,10 +124,7 @@ export async function GET(
         .limit(1);
 
       if (diffAsNewError) {
-        console.error(
-          'Failed to look up diff pair (as new):',
-          diffAsNewError,
-        );
+        console.error('Failed to look up diff pair (as new):', diffAsNewError);
         return NextResponse.json(
           {
             error: safeErrorMessage(
@@ -484,11 +478,12 @@ export async function PATCH(
     const entryIds = entries.map((e) => e.id);
 
     // Verify all entry IDs belong to this document's diff pair
-    const { data: matchingEntries, error: matchingEntriesError } = await supabase
-      .from('source_document_diffs')
-      .select('id')
-      .or(`old_document_id.eq.${documentId},new_document_id.eq.${documentId}`)
-      .in('id', entryIds);
+    const { data: matchingEntries, error: matchingEntriesError } =
+      await supabase
+        .from('source_document_diffs')
+        .select('id')
+        .or(`old_document_id.eq.${documentId},new_document_id.eq.${documentId}`)
+        .in('id', entryIds);
 
     if (matchingEntriesError) {
       console.error(

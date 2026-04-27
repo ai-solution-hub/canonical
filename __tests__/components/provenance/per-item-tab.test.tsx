@@ -109,9 +109,7 @@ describe('PerItemTab', () => {
 
   it('shows empty state with UUID input prompt', () => {
     renderWithQuery(<PerItemTab />);
-    expect(
-      screen.getByText(/enter a content item uuid/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/enter a content item uuid/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /look up/i })).toBeDisabled();
   });
 
@@ -200,7 +198,9 @@ describe('PerItemTab', () => {
       // Drafting card
       expect(screen.getByText('Drafting')).toBeInTheDocument();
       expect(screen.getByText(/drafted by knowledge hub/i)).toBeInTheDocument();
-      expect(screen.getByText(/manchester schools refurb/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/manchester schools refurb/i),
+      ).toBeInTheDocument();
     });
   });
 

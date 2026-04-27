@@ -53,9 +53,8 @@ export async function registerIntelligenceTools(
         const articleLimit = Math.min(args.limit ?? 10, 25);
 
         // Lazy import to avoid cold start crashes
-        const { fetchIntelligenceSummary } = await import(
-          '@/lib/intelligence/summary'
-        );
+        const { fetchIntelligenceSummary } =
+          await import('@/lib/intelligence/summary');
 
         const data = await fetchIntelligenceSummary(
           supabase,
@@ -114,9 +113,7 @@ export async function registerIntelligenceTools(
         }
 
         // Lazy import to avoid cold start crashes
-        const { createServiceClient } = await import(
-          '@/lib/supabase/server'
-        );
+        const { createServiceClient } = await import('@/lib/supabase/server');
         const { runPipeline } = await import('@/lib/intelligence/pipeline');
 
         const supabase = createServiceClient();
@@ -133,11 +130,7 @@ export async function registerIntelligenceTools(
           `**New articles:** ${result.totalArticlesNew}`,
           `**Passed filter:** ${result.totalArticlesPassed}`,
           ...(result.errors.length > 0
-            ? [
-                '',
-                '### Errors',
-                ...result.errors.map((e) => `- ${e}`),
-              ]
+            ? ['', '### Errors', ...result.errors.map((e) => `- ${e}`)]
             : []),
         ].join('\n');
 

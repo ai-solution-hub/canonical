@@ -872,11 +872,17 @@ function getStructuralChecks(knownUUIDs: KnownUUIDs): StructuralCheck[] {
       evaluate: (text: string) => {
         // Check for table or list structure — guides should be formatted as a table or consistent list
         const lines = text.split('\n');
-        const tableRows = lines.filter((line) => line.includes('|') && line.trim().startsWith('|'));
+        const tableRows = lines.filter(
+          (line) => line.includes('|') && line.trim().startsWith('|'),
+        );
         const numberedItems = lines.filter((l) => /^\d+\.\s/.test(l.trim()));
         const bulletItems = lines.filter((l) => /^[-*]\s/.test(l.trim()));
 
-        const itemCount = Math.max(tableRows.length, numberedItems.length, bulletItems.length);
+        const itemCount = Math.max(
+          tableRows.length,
+          numberedItems.length,
+          bulletItems.length,
+        );
 
         if (tableRows.length >= 2) {
           return {
@@ -885,7 +891,8 @@ function getStructuralChecks(knownUUIDs: KnownUUIDs): StructuralCheck[] {
           };
         }
         if (itemCount >= 1) {
-          const format = numberedItems.length >= 1 ? 'numbered list' : 'bullet list';
+          const format =
+            numberedItems.length >= 1 ? 'numbered list' : 'bullet list';
           return {
             status: 'PASS',
             detail: `${itemCount} items in ${format} format`,
@@ -916,7 +923,9 @@ function getStructuralChecks(knownUUIDs: KnownUUIDs): StructuralCheck[] {
       args: { slug: 'health-safety' },
       evaluate: (text: string) => {
         // Guide detail should have guide metadata and section listings
-        const hasHeaders = (text.match(/^##\s/gm) ?? []).length + (text.match(/^###\s/gm) ?? []).length;
+        const hasHeaders =
+          (text.match(/^##\s/gm) ?? []).length +
+          (text.match(/^###\s/gm) ?? []).length;
         const hasBoldLabels = (text.match(/\*\*[^*]+\*\*/g) ?? []).length;
 
         // Check for section-like structure (sections should be listed with names)

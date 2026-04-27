@@ -126,11 +126,7 @@ describe('useReviewQueueData', () => {
     });
 
     it('includes assigned_to_me=true when filter is active', () => {
-      const params = buildQueueParams(
-        { assigned_to_me: true },
-        undefined,
-        0,
-      );
+      const params = buildQueueParams({ assigned_to_me: true }, undefined, 0);
       expect(params.get('assigned_to_me')).toBe('true');
     });
 
@@ -299,7 +295,9 @@ describe('useReviewQueueData', () => {
       await waitFor(() => {
         expect(result.current.activeAssignment).not.toBeNull();
         expect(result.current.activeAssignment!.filter_domains).toEqual([]);
-        expect(result.current.activeAssignment!.filter_content_types).toEqual([]);
+        expect(result.current.activeAssignment!.filter_content_types).toEqual(
+          [],
+        );
         expect(result.current.activeAssignment!.filter_freshness).toEqual([]);
         expect(result.current.activeAssignment!.id).toBe('assign-1');
       });
@@ -442,8 +440,7 @@ describe('useReviewQueueData', () => {
 
       const { Wrapper } = createWrapper();
       const { result } = renderHook(
-        () =>
-          useReviewQueueData({ status: 'unverified' }, undefined),
+        () => useReviewQueueData({ status: 'unverified' }, undefined),
         { wrapper: Wrapper },
       );
 

@@ -1,12 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Clock,
-  XCircle,
-} from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, XCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -40,9 +35,7 @@ export function PipelineRunsPanel() {
   const query = useQuery({
     queryKey: queryKeys.admin.pipelineRunsRecent,
     queryFn: () =>
-      fetchJson<PipelineRunsRecentResponse>(
-        '/api/admin/pipeline-runs/recent',
-      ),
+      fetchJson<PipelineRunsRecentResponse>('/api/admin/pipeline-runs/recent'),
     enabled: canAdmin,
     // Poll every 5 minutes — background cron runs are slow-moving
     // enough that a 5-minute refresh is plenty.
@@ -75,8 +68,8 @@ export function PipelineRunsPanel() {
           Pipeline runs (last 24h)
         </h2>
         <p className="mt-2 text-xs text-muted-foreground">
-          Failed to load recent pipeline runs. Check the browser console
-          for details.
+          Failed to load recent pipeline runs. Check the browser console for
+          details.
         </p>
       </section>
     );
@@ -89,15 +82,9 @@ export function PipelineRunsPanel() {
     ? 'border-status-error/30 bg-status-error/5'
     : 'border-border bg-card';
   const headerIcon = data.hasAnyFailures ? (
-    <AlertTriangle
-      className="size-4 text-status-error"
-      aria-hidden="true"
-    />
+    <AlertTriangle className="size-4 text-status-error" aria-hidden="true" />
   ) : (
-    <CheckCircle2
-      className="size-4 text-status-success"
-      aria-hidden="true"
-    />
+    <CheckCircle2 className="size-4 text-status-success" aria-hidden="true" />
   );
 
   return (
@@ -115,11 +102,11 @@ export function PipelineRunsPanel() {
 
       {data.summaries.length === 0 ? (
         <p className="mt-3 text-xs text-muted-foreground">
-          No pipeline runs recorded in the last 24 hours. If any cron job
-          is scheduled to run within that window (content gaps, freshness
-          transitions, quality score, coverage alerts, classification
-          quality, intelligence poll), it may have silently failed to
-          trigger — investigate via the Vercel cron dashboard.
+          No pipeline runs recorded in the last 24 hours. If any cron job is
+          scheduled to run within that window (content gaps, freshness
+          transitions, quality score, coverage alerts, classification quality,
+          intelligence poll), it may have silently failed to trigger —
+          investigate via the Vercel cron dashboard.
         </p>
       ) : (
         <ul className="mt-3 space-y-2 text-xs">

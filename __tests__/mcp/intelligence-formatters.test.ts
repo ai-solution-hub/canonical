@@ -22,7 +22,7 @@ function makeSummaryData(
     total_passed: 20,
     total_filtered: 30,
     filter_ratio: 0.6,
-    by_category: { 'Data Breaches': 12, 'Ransomware': 8 },
+    by_category: { 'Data Breaches': 12, Ransomware: 8 },
     by_source: [
       { source_name: 'Dark Reading', article_count: 30, passed_count: 12 },
       { source_name: 'The Register', article_count: 20, passed_count: 8 },
@@ -97,23 +97,17 @@ describe('formatIntelligenceSummary', () => {
   });
 
   it('handles empty categories gracefully', () => {
-    const md = formatIntelligenceSummary(
-      makeSummaryData({ by_category: {} }),
-    );
+    const md = formatIntelligenceSummary(makeSummaryData({ by_category: {} }));
     expect(md).not.toContain('## By Category');
   });
 
   it('handles empty sources gracefully', () => {
-    const md = formatIntelligenceSummary(
-      makeSummaryData({ by_source: [] }),
-    );
+    const md = formatIntelligenceSummary(makeSummaryData({ by_source: [] }));
     expect(md).not.toContain('## By Source');
   });
 
   it('handles empty top articles with placeholder message', () => {
-    const md = formatIntelligenceSummary(
-      makeSummaryData({ top_articles: [] }),
-    );
+    const md = formatIntelligenceSummary(makeSummaryData({ top_articles: [] }));
     expect(md).toContain(
       'No articles passed the relevance filter in this period.',
     );

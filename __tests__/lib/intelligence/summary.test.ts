@@ -223,7 +223,10 @@ describe('fetchIntelligenceSummary (real logic, mock DB)', () => {
     ];
     configureArticles(client, articles);
 
-    const result = await fetchIntelligenceSummary(client as never, WORKSPACE_ID);
+    const result = await fetchIntelligenceSummary(
+      client as never,
+      WORKSPACE_ID,
+    );
 
     expect(result.total_ingested).toBe(5);
     expect(result.total_passed).toBe(2);
@@ -239,7 +242,10 @@ describe('fetchIntelligenceSummary (real logic, mock DB)', () => {
     ];
     configureArticles(client, articles);
 
-    const result = await fetchIntelligenceSummary(client as never, WORKSPACE_ID);
+    const result = await fetchIntelligenceSummary(
+      client as never,
+      WORKSPACE_ID,
+    );
 
     expect(result.filter_ratio).toBe(0.75); // 3 filtered / 4 total
     expect(result.filter_ratio).toBeGreaterThanOrEqual(0);
@@ -261,7 +267,10 @@ describe('fetchIntelligenceSummary (real logic, mock DB)', () => {
     ];
     configureArticles(client, articles);
 
-    const result = await fetchIntelligenceSummary(client as never, WORKSPACE_ID);
+    const result = await fetchIntelligenceSummary(
+      client as never,
+      WORKSPACE_ID,
+    );
 
     expect(result.by_category).toEqual({
       Ransomware: 2,
@@ -284,7 +293,10 @@ describe('fetchIntelligenceSummary (real logic, mock DB)', () => {
       makeArticle({ id: 'a3', feed_source_id: 'src-2', passed: true }),
     ]);
 
-    const result = await fetchIntelligenceSummary(client as never, WORKSPACE_ID);
+    const result = await fetchIntelligenceSummary(
+      client as never,
+      WORKSPACE_ID,
+    );
 
     expect(result.by_source).toHaveLength(2);
     // Sorted by article_count desc
@@ -335,7 +347,10 @@ describe('fetchIntelligenceSummary (real logic, mock DB)', () => {
       makeArticle({ id: 'a2', passed: true, relevance_score: 0.5 }),
     ]);
 
-    const result = await fetchIntelligenceSummary(client as never, WORKSPACE_ID);
+    const result = await fetchIntelligenceSummary(
+      client as never,
+      WORKSPACE_ID,
+    );
 
     expect(result.top_articles).toHaveLength(1);
     expect(result.top_articles[0].id).toBe('a2');
@@ -356,7 +371,10 @@ describe('fetchIntelligenceSummary (real logic, mock DB)', () => {
       { id: 'flag-3', feed_article_id: 'other-workspace-art' }, // Not in this workspace
     ]);
 
-    const result = await fetchIntelligenceSummary(client as never, WORKSPACE_ID);
+    const result = await fetchIntelligenceSummary(
+      client as never,
+      WORKSPACE_ID,
+    );
 
     expect(result.unresolved_flags).toBe(2); // Only the 2 matching workspace articles
   });
@@ -409,7 +427,10 @@ describe('fetchIntelligenceSummary (real logic, mock DB)', () => {
     configureSources(client, []);
     configureFlags(client, []);
 
-    const result = await fetchIntelligenceSummary(client as never, WORKSPACE_ID);
+    const result = await fetchIntelligenceSummary(
+      client as never,
+      WORKSPACE_ID,
+    );
 
     expect(result.total_ingested).toBe(0);
     expect(result.total_passed).toBe(0);
@@ -431,7 +452,10 @@ describe('fetchIntelligenceSummary (real logic, mock DB)', () => {
       makeArticle({ id: 'a2', passed: true }),
     ]);
 
-    const result = await fetchIntelligenceSummary(client as never, WORKSPACE_ID);
+    const result = await fetchIntelligenceSummary(
+      client as never,
+      WORKSPACE_ID,
+    );
 
     expect(result.filter_ratio).toBe(0);
   });
@@ -442,7 +466,10 @@ describe('fetchIntelligenceSummary (real logic, mock DB)', () => {
       makeArticle({ id: 'a2', passed: false }),
     ]);
 
-    const result = await fetchIntelligenceSummary(client as never, WORKSPACE_ID);
+    const result = await fetchIntelligenceSummary(
+      client as never,
+      WORKSPACE_ID,
+    );
 
     expect(result.filter_ratio).toBe(1);
   });

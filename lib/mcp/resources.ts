@@ -219,7 +219,9 @@ export async function registerResources(server: McpServer): Promise<void> {
         const questions = await sb(
           supabase
             .from('bid_questions')
-            .select('id, question_text, section_name, status, confidence_posture')
+            .select(
+              'id, question_text, section_name, status, confidence_posture',
+            )
             .eq('project_id', bidId)
             .order('section_sequence')
             .order('question_sequence'),
@@ -231,11 +233,7 @@ export async function registerResources(server: McpServer): Promise<void> {
             {
               uri: uri.href,
               mimeType: 'application/json',
-              text: JSON.stringify(
-                { ...workspace, questions },
-                null,
-                2,
-              ),
+              text: JSON.stringify({ ...workspace, questions }, null, 2),
             },
           ],
         };
@@ -483,11 +481,7 @@ export async function registerResources(server: McpServer): Promise<void> {
             {
               uri: uri.href,
               mimeType: 'application/json',
-              text: JSON.stringify(
-                { domains, subtopics },
-                null,
-                2,
-              ),
+              text: JSON.stringify({ domains, subtopics }, null, 2),
             },
           ],
         };

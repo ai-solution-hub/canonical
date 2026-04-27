@@ -312,7 +312,9 @@ describe('ContentCard', () => {
       />,
     );
     expect(screen.getByText('SI')).toBeInTheDocument();
-    expect(screen.getByTitle('From sector intelligence pipeline')).toBeInTheDocument();
+    expect(
+      screen.getByTitle('From sector intelligence pipeline'),
+    ).toBeInTheDocument();
   });
 
   it('does not render SI badge when metadata.source is not intelligence_pipeline', () => {
@@ -356,12 +358,12 @@ describe('ContentCard', () => {
   it('renders LayerBadge with text-xs class (not text-[10px])', () => {
     // Enable content_layers feature for this test
     const { container } = render(
-      <ContentCard
-        item={makeContentItem({ layer: 'sales_brief' })}
-      />,
+      <ContentCard item={makeContentItem({ layer: 'sales_brief' })} />,
     );
     // LayerBadge renders a Badge with the layer label
-    const layerBadge = container.querySelector('.text-xs.border-confidence-needs-sme-border');
+    const layerBadge = container.querySelector(
+      '.text-xs.border-confidence-needs-sme-border',
+    );
     expect(layerBadge).toBeInTheDocument();
     // Ensure old text-[10px] is not present
     expect(layerBadge?.className).not.toContain('text-[10px]');

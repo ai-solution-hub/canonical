@@ -203,10 +203,9 @@ export function RescoringPreview({
           Impact preview
         </h3>
         <p className="text-sm text-muted-foreground">
-          {result.samples}{' '}
-          {result.samples === 1 ? 'article' : 'articles'} re-scored.{' '}
-          {newlyFiltered.length} newly filtered, {newlyPassed.length} newly
-          passed, {unchanged.length} unchanged.
+          {result.samples} {result.samples === 1 ? 'article' : 'articles'}{' '}
+          re-scored. {newlyFiltered.length} newly filtered, {newlyPassed.length}{' '}
+          newly passed, {unchanged.length} unchanged.
         </p>
         <p className="text-xs text-muted-foreground">
           Average score change: {meanDeltaLabel}
@@ -219,7 +218,10 @@ export function RescoringPreview({
           data-testid="catastrophic-change-warning"
           className="flex items-start gap-2 rounded-md border border-status-warning/30 bg-status-warning/10 p-3 text-sm text-status-warning"
         >
-          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <AlertTriangle
+            className="mt-0.5 size-4 shrink-0"
+            aria-hidden="true"
+          />
           <p>
             The proposed prompt is significantly shorter than the current
             version ({catastrophicChange.proposedLength} characters vs{' '}
@@ -235,7 +237,10 @@ export function RescoringPreview({
           role="status"
           className="flex items-start gap-2 rounded-md border border-status-warning/30 bg-status-warning/10 p-3 text-xs text-status-warning"
         >
-          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <AlertTriangle
+            className="mt-0.5 size-4 shrink-0"
+            aria-hidden="true"
+          />
           <div>
             <p className="mb-1 font-semibold">
               Partial preview — some articles could not be re-scored

@@ -193,9 +193,7 @@ describe('ReviewActionBar', () => {
 
   it('renders "Publish draft" button (not "Publish") when isDraft and onPublish are set', () => {
     render(
-      <ReviewActionBar
-        {...makeProps({ isDraft: true, onPublish: vi.fn() })}
-      />,
+      <ReviewActionBar {...makeProps({ isDraft: true, onPublish: vi.fn() })} />,
     );
     expect(
       screen.getByRole('button', { name: /^Publish draft/i }),
@@ -209,11 +207,7 @@ describe('ReviewActionBar', () => {
   it('calls onPublish when "Publish draft" button clicked', async () => {
     const user = userEvent.setup();
     const onPublish = vi.fn();
-    render(
-      <ReviewActionBar
-        {...makeProps({ isDraft: true, onPublish })}
-      />,
-    );
+    render(<ReviewActionBar {...makeProps({ isDraft: true, onPublish })} />);
     await user.click(screen.getByRole('button', { name: /^Publish draft/i }));
     expect(onPublish).toHaveBeenCalledOnce();
   });

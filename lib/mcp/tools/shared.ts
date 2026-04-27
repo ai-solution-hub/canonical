@@ -110,12 +110,13 @@ export const NON_IDEMPOTENT_WRITE_ANNOTATIONS: RequiredToolAnnotations = {
  * pipelines fetching from outside services — clients can warn users about
  * external interactions.
  */
-export const NON_IDEMPOTENT_OPEN_WORLD_WRITE_ANNOTATIONS: RequiredToolAnnotations = {
-  readOnlyHint: false,
-  idempotentHint: false,
-  destructiveHint: false,
-  openWorldHint: true,
-};
+export const NON_IDEMPOTENT_OPEN_WORLD_WRITE_ANNOTATIONS: RequiredToolAnnotations =
+  {
+    readOnlyHint: false,
+    idempotentHint: false,
+    destructiveHint: false,
+    openWorldHint: true,
+  };
 
 /**
  * Tool config shape for `defineTool`. Mirrors the `config` parameter of
@@ -146,10 +147,7 @@ export interface DefineToolConfig<
  */
 export function defineTool<
   OutputArgs extends ZodRawShapeCompat | AnySchema,
-  InputArgs extends
-    | undefined
-    | ZodRawShapeCompat
-    | AnySchema = undefined,
+  InputArgs extends undefined | ZodRawShapeCompat | AnySchema = undefined,
 >(
   server: McpServer,
   name: string,
@@ -177,18 +175,21 @@ export function defineTool<
  */
 export function defineAppTool<
   OutputArgs extends ZodRawShapeCompat | AnySchema,
-  InputArgs extends
-    | undefined
-    | ZodRawShapeCompat
-    | AnySchema = undefined,
+  InputArgs extends undefined | ZodRawShapeCompat | AnySchema = undefined,
 >(
   // ext-apps `McpUiAppToolConfig` has a narrower `_meta` union than the
   // SDK's `ToolConfig['_meta']`; we delegate to the ext-apps runtime and
   // preserve the `RequiredToolAnnotations` contract on our wrapper. The
   // `any` in `config`, `cb`, and the return type are all load-bearing —
   // every narrower type we tried clashed with the ext-apps internals.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  registerAppToolFn: (server: Pick<McpServer, 'registerTool'>, name: string, config: any, cb: any) => any,
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  registerAppToolFn: (
+    server: Pick<McpServer, 'registerTool'>,
+    name: string,
+    config: any,
+    cb: any,
+  ) => any,
+  /* eslint-enable @typescript-eslint/no-explicit-any */
   server: McpServer,
   name: string,
   config: DefineToolConfig<InputArgs, OutputArgs> & {
@@ -273,7 +274,7 @@ export async function fetchBidSections(
   );
 
   // Fetch responses for all questions in this bid (avoids N+1)
-  const questionIds = (questions).map((q: { id: string }) => q.id);
+  const questionIds = questions.map((q: { id: string }) => q.id);
   const { data: responses } =
     questionIds.length > 0
       ? await supabase

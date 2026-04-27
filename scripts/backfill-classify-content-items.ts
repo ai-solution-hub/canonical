@@ -199,9 +199,7 @@ export async function findCandidates(
     .in('content_item_id', allIds);
 
   if (mentionsErr) {
-    throw new Error(
-      `Failed to query entity_mentions: ${mentionsErr.message}`,
-    );
+    throw new Error(`Failed to query entity_mentions: ${mentionsErr.message}`);
   }
 
   const idsWithMentions = new Set(
@@ -231,7 +229,10 @@ export interface BackfillSummary {
   cost_estimate_usd: number;
 }
 
-export function formatSummary(summary: BackfillSummary, dryRun: boolean): string {
+export function formatSummary(
+  summary: BackfillSummary,
+  dryRun: boolean,
+): string {
   const lines = [
     '',
     `--- Backfill ${dryRun ? '(DRY RUN) ' : ''}Summary ---`,
@@ -351,7 +352,8 @@ async function main(): Promise<void> {
   if (args.dryRun) {
     console.log('\nDRY RUN — no classification calls will be made:');
     for (const item of candidates) {
-      const status = item.classified_at === null ? 'unclassified' : 'no-entities';
+      const status =
+        item.classified_at === null ? 'unclassified' : 'no-entities';
       console.log(`  - [${status}] ${item.id} — ${item.title}`);
     }
     console.log(formatSummary(summary, true));

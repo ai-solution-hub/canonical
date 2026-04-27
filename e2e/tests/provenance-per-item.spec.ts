@@ -12,9 +12,9 @@ import { test, expect } from '../fixtures';
 test.describe('Provenance -- Per-item tab', () => {
   test.beforeEach(async ({ authenticatedPage: page }) => {
     await page.goto('/provenance?tab=per-item');
-    await expect(
-      page.getByRole('heading', { name: 'Provenance' }),
-    ).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('heading', { name: 'Provenance' })).toBeVisible(
+      { timeout: 15000 },
+    );
   });
 
   test('renders lookup form when no UUID is provided', async ({
@@ -31,7 +31,9 @@ test.describe('Provenance -- Per-item tab', () => {
 
     // The placeholder prompt should be visible
     await expect(
-      page.getByText('Enter a content item UUID above to view its provenance data.'),
+      page.getByText(
+        'Enter a content item UUID above to view its provenance data.',
+      ),
     ).toBeVisible();
   });
 

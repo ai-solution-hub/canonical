@@ -34,7 +34,9 @@ function makeChunkResult(
   };
 }
 
-function makeItemChunk(overrides: Partial<ContentItemChunk> = {}): ContentItemChunk {
+function makeItemChunk(
+  overrides: Partial<ContentItemChunk> = {},
+): ContentItemChunk {
   return {
     id: 'chunk-001',
     heading_text: 'Overview',
@@ -180,7 +182,11 @@ describe('formatContentItemChunks', () => {
 
   it('renders the "## Document Sections" header and each chunk title', () => {
     const chunks: ContentItemChunk[] = [
-      makeItemChunk({ id: 'c-1', heading_text: 'Introduction', heading_level: 2 }),
+      makeItemChunk({
+        id: 'c-1',
+        heading_text: 'Introduction',
+        heading_level: 2,
+      }),
       makeItemChunk({ id: 'c-2', heading_text: 'Scope', heading_level: 2 }),
     ];
     const result = formatContentItemChunks(chunks);
@@ -202,8 +208,16 @@ describe('formatContentItemChunks', () => {
 
   it('indents H2 with 2 spaces and H3 with 4 spaces', () => {
     const chunks: ContentItemChunk[] = [
-      makeItemChunk({ id: 'c-h2', heading_text: 'H2 Section', heading_level: 2 }),
-      makeItemChunk({ id: 'c-h3', heading_text: 'H3 Section', heading_level: 3 }),
+      makeItemChunk({
+        id: 'c-h2',
+        heading_text: 'H2 Section',
+        heading_level: 2,
+      }),
+      makeItemChunk({
+        id: 'c-h3',
+        heading_text: 'H3 Section',
+        heading_level: 3,
+      }),
     ];
     const result = formatContentItemChunks(chunks);
 

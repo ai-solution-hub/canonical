@@ -88,9 +88,9 @@ describe('generateArticleSummary', () => {
   it('propagates API errors to caller', async () => {
     mockCreate.mockRejectedValue(new Error('API rate limit exceeded'));
 
-    await expect(
-      generateArticleSummary('Title', 'Content'),
-    ).rejects.toThrow('API rate limit exceeded');
+    await expect(generateArticleSummary('Title', 'Content')).rejects.toThrow(
+      'API rate limit exceeded',
+    );
   });
 
   it('sets max_tokens to 200 for cost control', async () => {

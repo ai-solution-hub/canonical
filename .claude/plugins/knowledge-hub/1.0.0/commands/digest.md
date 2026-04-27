@@ -1,11 +1,12 @@
 ---
 description: Generate a digest of recent KB changes and activity
-argument-hint: "[--daily | --weekly]"
+argument-hint: '[--daily | --weekly]'
 ---
 
 # Digest Command
 
-> If you see unfamiliar placeholders or need to check which tools are connected, see [CONNECTORS.md](../CONNECTORS.md).
+> If you see unfamiliar placeholders or need to check which tools are connected,
+> see [CONNECTORS.md](../CONNECTORS.md).
 
 ```
 +---------------------------------------------------------+
@@ -19,10 +20,12 @@ argument-hint: "[--daily | --weekly]"
 +---------------------------------------------------------+
 ```
 
-Generate a summary of recent changes to the knowledge base — new content, freshness shifts, quality issues, and items needing review. Helps you stay on top of KB health and team activity.
+Generate a summary of recent changes to the knowledge base — new content,
+freshness shifts, quality issues, and items needing review. Helps you stay on
+top of KB health and team activity.
 
-$ARGUMENTS: Optional period filter (--daily or --weekly). Defaults to all recent changes.
-If a file is referenced: @$1
+$ARGUMENTS: Optional period filter (--daily or --weekly). Defaults to all recent
+changes. If a file is referenced: @$1
 
 ## Usage
 
@@ -41,13 +44,15 @@ Check for optional period arguments:
 - **No argument or `--daily`**: Focus on changes from the last 24 hours
 - **`--weekly`**: Cover the last 7 days with a broader summary
 
-Use the period to frame the digest scope and set expectations about change volume.
+Use the period to frame the digest scope and set expectations about change
+volume.
 
 ### 2. Fetch Dashboard Data
 
 **If `~~knowledge base` connector is available:**
 
 Call `get_dashboard_summary` to get current KB state including:
+
 - Total item counts and type breakdown
 - Items needing attention
 - Recent activity feed
@@ -68,6 +73,7 @@ and I'll help summarise and prioritise them.
 ### 3. Fetch Freshness Report
 
 Call `get_freshness_report` to understand the current freshness landscape:
+
 - How many items are in each state (fresh, aging, stale, expired)
 - Whether freshness is improving or declining
 - Which domains are most affected
@@ -77,22 +83,26 @@ Call `get_freshness_report` to understand the current freshness landscape:
 Use the @content-governance skill to categorise changes:
 
 **Content Changes:**
+
 - New items added (count, types, domains)
 - Items updated or revised
 - Items re-classified or re-tagged
 
 **Freshness Changes:**
+
 - Items that moved from fresh to aging
 - Items that moved from aging to stale
 - Items that became expired
 - Items refreshed (moved back to fresh)
 
 **Quality Changes:**
+
 - New quality flags raised
 - Quality issues resolved
 - Items added to review queue
 
 **Bid Activity:**
+
 - New bid workspaces created
 - Responses drafted or updated
 - Bids approaching deadline
@@ -100,16 +110,19 @@ Use the @content-governance skill to categorise changes:
 ### 5. Categorise by Urgency
 
 **Requires Action:**
+
 - Expired content in domains used by active bids
 - Quality flags on high-priority items
 - Bid deadlines within 7 days
 
 **Awareness:**
+
 - Content moving from fresh to aging
 - New items added by team
 - Bids progressing (responses completed)
 
 **Positive:**
+
 - Content refreshed or updated
 - Quality issues resolved
 - Bid milestones achieved
@@ -173,6 +186,7 @@ Use the @content-governance skill to categorise changes:
 ### 7. Handle Edge Cases
 
 **No changes since last check:**
+
 ```
 # Knowledge Base Digest — [DD/MM/YYYY]
 
@@ -183,8 +197,9 @@ Current state: [N] items | [N]% fresh | [N] active bids
 Next recommended check: [suggest a timeframe based on activity level]
 ```
 
-**Many changes (busy period):**
-Prioritise and group. Show the top 5-10 most important changes and summarise the rest:
+**Many changes (busy period):** Prioritise and group. Show the top 5-10 most
+important changes and summarise the rest:
+
 ```
 [N] total changes — showing the [M] most significant:
 [Details]
@@ -196,8 +211,10 @@ Other changes: [N] minor updates, [N] routine freshness transitions.
 
 - Use UK date format (DD/MM/YYYY) throughout
 - Compare current state to baseline when possible ("+5 from last digest")
-- Focus on actionable changes — routine freshness transitions can be summarised, not listed individually
+- Focus on actionable changes — routine freshness transitions can be summarised,
+  not listed individually
 - Always end with concrete actions the user can take
-- Link to other commands: `/kb:coverage` for deep analysis, `/kb:bid-status` for bid detail
+- Link to other commands: `/kb:coverage` for deep analysis, `/kb:bid-status` for
+  bid detail
 - Keep the digest scannable — users should get the key information in 30 seconds
 - Use `--daily` for quick morning check-ins, `--weekly` for end-of-week reviews

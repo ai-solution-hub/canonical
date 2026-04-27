@@ -63,9 +63,7 @@ function buildHealthyResponse(): WorkspaceHealthResponse {
           id: 's1',
           name: 'DfE Feed',
           url: 'https://www.gov.uk/dfe.atom',
-          lastPolledAt: new Date(
-            FIXED_NOW - 5 * 60 * 1000,
-          ).toISOString(),
+          lastPolledAt: new Date(FIXED_NOW - 5 * 60 * 1000).toISOString(),
           lastPolledStatus: 'success',
           lastPolledError: null,
           consecutiveFailures: 0,
@@ -98,9 +96,7 @@ function buildDegradedResponse(): WorkspaceHealthResponse {
           id: 's1',
           name: 'Healthy Feed',
           url: 'https://example.com/healthy.rss',
-          lastPolledAt: new Date(
-            FIXED_NOW - 5 * 60 * 1000,
-          ).toISOString(),
+          lastPolledAt: new Date(FIXED_NOW - 5 * 60 * 1000).toISOString(),
           lastPolledStatus: 'success',
           lastPolledError: null,
           consecutiveFailures: 0,
@@ -111,9 +107,7 @@ function buildDegradedResponse(): WorkspaceHealthResponse {
           id: 's2',
           name: 'Flaky Feed',
           url: 'https://example.com/flaky.rss',
-          lastPolledAt: new Date(
-            FIXED_NOW - 30 * 60 * 1000,
-          ).toISOString(),
+          lastPolledAt: new Date(FIXED_NOW - 30 * 60 * 1000).toISOString(),
           lastPolledStatus: 'error',
           lastPolledError: 'Connection timeout',
           consecutiveFailures: 3,
@@ -148,9 +142,7 @@ function buildFailingResponse(): WorkspaceHealthResponse {
           id: 's1',
           name: 'Dead Feed',
           url: 'https://broken.example.com/feed',
-          lastPolledAt: new Date(
-            FIXED_NOW - 4 * 60 * 60 * 1000,
-          ).toISOString(),
+          lastPolledAt: new Date(FIXED_NOW - 4 * 60 * 60 * 1000).toISOString(),
           lastPolledStatus: 'error',
           lastPolledError: 'HTTP 500 Internal Server Error',
           consecutiveFailures: 10,
@@ -168,9 +160,7 @@ function buildFailingResponse(): WorkspaceHealthResponse {
 function buildStaleResponse(): WorkspaceHealthResponse {
   return {
     pipeline: {
-      lastSuccessfulRun: new Date(
-        FIXED_NOW - 90 * 60 * 1000,
-      ).toISOString(),
+      lastSuccessfulRun: new Date(FIXED_NOW - 90 * 60 * 1000).toISOString(),
       // 90 minutes — well over the 30-minute stale threshold but under the
       // 24-hour "unhealthy" threshold so the pipeline still reports healthy.
       timeSinceLastRunMs: 90 * 60 * 1000,
@@ -295,7 +285,9 @@ describe('HealthPanel', () => {
     const failuresLabel = screen.getByText('Sources with failures');
     const failuresCard = failuresLabel.closest('div');
     expect(failuresCard).not.toBeNull();
-    expect(within(failuresCard as HTMLElement).getByText('2')).toBeInTheDocument();
+    expect(
+      within(failuresCard as HTMLElement).getByText('2'),
+    ).toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------

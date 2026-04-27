@@ -1238,7 +1238,9 @@ describe('PATCH /api/items/[id]', () => {
     expect(body.success).toBe(true);
     expect('warnings' in body).toBe(true);
     expect(Array.isArray(body.warnings)).toBe(true);
-    expect(body.warnings).toContain('Version history entry could not be created');
+    expect(body.warnings).toContain(
+      'Version history entry could not be created',
+    );
   });
 });
 

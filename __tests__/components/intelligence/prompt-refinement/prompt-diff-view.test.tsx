@@ -56,23 +56,13 @@ describe('PromptDiffView', () => {
   });
 
   it('exposes the diff block as an accessible log region', () => {
-    render(
-      <PromptDiffView
-        currentText={'Foo'}
-        proposedText={'Bar'}
-      />,
-    );
+    render(<PromptDiffView currentText={'Foo'} proposedText={'Bar'} />);
     const region = screen.getByRole('log', { name: /prompt text diff/i });
     expect(region).toBeInTheDocument();
   });
 
   it('prefixes added and removed lines with [+] and [-] markers', () => {
-    render(
-      <PromptDiffView
-        currentText={'Old'}
-        proposedText={'New'}
-      />,
-    );
+    render(<PromptDiffView currentText={'Old'} proposedText={'New'} />);
     // The prefix is rendered aria-hidden but must still be in the DOM.
     const region = screen.getByRole('log');
     expect(region.textContent).toContain('[+]');

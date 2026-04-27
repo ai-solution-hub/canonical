@@ -66,7 +66,10 @@ import { randomUUID } from 'crypto';
 // ---------------------------------------------------------------------------
 
 const { authCookies, cachedSessions } = vi.hoisted(() => ({
-  authCookies: new Map<string, { name: string; value: string }>() as AuthCookieStore,
+  authCookies: new Map<
+    string,
+    { name: string; value: string }
+  >() as AuthCookieStore,
   cachedSessions: {
     admin: new Map(),
     editor: new Map(),
@@ -88,12 +91,10 @@ vi.mock('next/headers', () => ({
 }));
 
 // Import handlers AFTER the mock is registered.
-const { GET: cronReviewCadenceGET } = await import(
-  '@/app/api/cron/review-cadence/route'
-);
-const { POST: governanceReviewPOST } = await import(
-  '@/app/api/governance/review/route'
-);
+const { GET: cronReviewCadenceGET } =
+  await import('@/app/api/cron/review-cadence/route');
+const { POST: governanceReviewPOST } =
+  await import('@/app/api/governance/review/route');
 
 import { NextRequest } from 'next/server';
 
@@ -114,9 +115,9 @@ let TEST_USER_1_ID = '';
 // elsewhere in the integration suite (e.g. intelligence-golden-path).
 const HAS_REQUIRED_ENV = Boolean(
   process.env.CRON_SECRET &&
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    process.env.SUPABASE_SERVICE_ROLE_KEY &&
-    process.env.TEST_USER_1_PASSWORD,
+  process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  process.env.SUPABASE_SERVICE_ROLE_KEY &&
+  process.env.TEST_USER_1_PASSWORD,
 );
 
 const describeIfEnv = HAS_REQUIRED_ENV ? describe : describe.skip;
@@ -150,10 +151,7 @@ afterAll(async () => {
   // expect(error).toBeNull() inside the test; the afterAll path tolerates
   // missing rows because some steps may not have written notifications.
   for (const itemId of createdItemIds) {
-    await serviceClient
-      .from('notifications')
-      .delete()
-      .eq('entity_id', itemId);
+    await serviceClient.from('notifications').delete().eq('entity_id', itemId);
   }
   // content_history rows are emitted by an AFTER INSERT trigger on
   // content_items; delete them before the parent row to avoid FK blocks.
@@ -161,20 +159,17 @@ afterAll(async () => {
     .from('content_history')
     .delete()
     .in('content_item_id', createdItemIds);
-  await serviceClient
-    .from('content_items')
-    .delete()
-    .in('id', createdItemIds);
+  await serviceClient.from('content_items').delete().in('id', createdItemIds);
 }, 30_000);
 
 // ---------------------------------------------------------------------------
 // Test
 // ---------------------------------------------------------------------------
 
-describeIfEnv('§5.5 Phase 2 T3 — Review-cadence full lifecycle (real DB)', () => {
-  it(
-    'walks insert → cron flip → notification → idempotency → approve → auto-renewal',
-    async () => {
+describeIfEnv(
+  '§5.5 Phase 2 T3 — Review-cadence full lifecycle (real DB)',
+  () => {
+    it('walks insert → cron flip → notification → idempotency → approve → auto-renewal', async () => {
       // ── Step 0: Setup — seed a content item that the cron will catch ────
       // GENERATED ALWAYS column `content_text_hash` MUST be omitted (CLAUDE.md
       // gotcha). Required columns: title, content, content_type. We seed
@@ -328,7 +323,12 @@ describeIfEnv('§5.5 Phase 2 T3 — Review-cadence full lifecycle (real DB)', ()
       const approveAfterMs = Date.now();
 
       const approveBodyText = await approveResponse.text();
-      let approveBody: { success?: boolean; action?: string; item_id?: string; error?: string };
+      let approveBody: {
+        success?: boolean;
+        action?: string;
+        item_id?: string;
+        error?: string;
+      };
       try {
         approveBody = JSON.parse(approveBodyText);
       } catch {
@@ -385,7 +385,6 @@ describeIfEnv('§5.5 Phase 2 T3 — Review-cadence full lifecycle (real DB)', ()
 
       // (e) cadence_days unchanged — the renewal must not mutate the cadence
       expect(postApproveItem!.review_cadence_days).toBe(REVIEW_CADENCE_DAYS);
-    },
-    90_000,
-  );
-});
+    }, 90_000);
+  },
+);

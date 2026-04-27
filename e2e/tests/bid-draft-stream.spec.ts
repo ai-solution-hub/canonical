@@ -318,9 +318,9 @@ test.describe('Bid draft-stream happy path (8.0.7)', () => {
 
     // Wait for the response editor area to mount.
     await expect(
-      page.getByRole('region', { name: 'Response editor' }).or(
-        page.locator('main[aria-label="Response editor"]'),
-      ),
+      page
+        .getByRole('region', { name: 'Response editor' })
+        .or(page.locator('main[aria-label="Response editor"]')),
     ).toBeVisible({ timeout: 15000 });
 
     // The "Redraft" button is the entry point for both creating from
@@ -353,10 +353,7 @@ test.describe('Bid draft-stream happy path (8.0.7)', () => {
     const sseResponse = await ssePromise;
 
     // ASSERTION: SSE handler returned HTTP 200 (NOT 500 mid-stream)
-    expect(
-      sseResponse.status(),
-      'SSE endpoint must return HTTP 200',
-    ).toBe(200);
+    expect(sseResponse.status(), 'SSE endpoint must return HTTP 200').toBe(200);
 
     // body() blocks until the SSE stream finishes.
     const bodyBuf = await sseResponse.body();
@@ -398,7 +395,11 @@ test.describe('Bid draft-stream happy path (8.0.7)', () => {
             .from('bid_responses')
             .select('id, response_text, version')
             .eq('question_id', questionId);
-          if (data && data.length === 1 && (data[0].response_text ?? '').length > 20) {
+          if (
+            data &&
+            data.length === 1 &&
+            (data[0].response_text ?? '').length > 20
+          ) {
             responseRow = data[0];
             return 'ready';
           }
@@ -525,9 +526,9 @@ test.describe('Bid regenerate + restore (8.0.8)', () => {
     // 1. Open the session page.
     await page.goto(`/bid/${workerData.bidId}/session`);
     await expect(
-      page.getByRole('region', { name: 'Response editor' }).or(
-        page.locator('main[aria-label="Response editor"]'),
-      ),
+      page
+        .getByRole('region', { name: 'Response editor' })
+        .or(page.locator('main[aria-label="Response editor"]')),
     ).toBeVisible({ timeout: 15000 });
 
     // The seeded original should appear in the editor.
@@ -608,7 +609,9 @@ test.describe('Bid regenerate + restore (8.0.8)', () => {
     const regeneratedText = (await editor.textContent()) ?? '';
 
     // ASSERTION: regenerated text is different from original (catches no-op)
-    expect(normaliseText(regeneratedText)).not.toBe(normaliseText(originalText));
+    expect(normaliseText(regeneratedText)).not.toBe(
+      normaliseText(originalText),
+    );
 
     // Refetch DB state.
     const { data: postRegenRows, error: prErr } = await supabase
@@ -688,13 +691,10 @@ test.describe('Bid regenerate + restore (8.0.8)', () => {
     // through the sync effect automatically.
     await expect(editor).toBeVisible({ timeout: 15000 });
     await expect
-      .poll(
-        async () => normaliseText((await editor.textContent()) ?? ''),
-        {
-          timeout: 30000,
-          message: 'editor must reflect restored original text within 30s',
-        },
-      )
+      .poll(async () => normaliseText((await editor.textContent()) ?? ''), {
+        timeout: 30000,
+        message: 'editor must reflect restored original text within 30s',
+      })
       .toBe(normaliseText(originalText));
 
     const restoredText = (await editor.textContent()) ?? '';

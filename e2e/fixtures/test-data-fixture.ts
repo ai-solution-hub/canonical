@@ -432,9 +432,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         .select('id')
         .throwOnError();
 
-      const intelItemIds = (intelItems ?? []).map(
-        (i: { id: string }) => i.id,
-      );
+      const intelItemIds = (intelItems ?? []).map((i: { id: string }) => i.id);
 
       // Link content items to intelligence workspace
       if (intelItemIds.length > 0) {
@@ -452,7 +450,11 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         const passedFeedArticleIds = feedArticleIds.filter(
           (_: string, i: number) => articleShapes[i]?.passed,
         );
-        for (let i = 0; i < passedFeedArticleIds.length && i < intelItemIds.length; i++) {
+        for (
+          let i = 0;
+          i < passedFeedArticleIds.length && i < intelItemIds.length;
+          i++
+        ) {
           await supabase
             .from('feed_articles')
             .update({ content_item_id: intelItemIds[i] })

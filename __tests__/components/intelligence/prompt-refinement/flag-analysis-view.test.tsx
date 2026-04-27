@@ -25,9 +25,7 @@ describe('FlagAnalysisView', () => {
   it('does not render a truncation banner when truncated is false', () => {
     const result = makeFlagAnalysisResult({ truncated: false });
     render(<FlagAnalysisView result={result} />);
-    expect(
-      screen.queryByText(/Only the most recent/i),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Only the most recent/i)).not.toBeInTheDocument();
   });
 
   it('renders a truncation banner when truncated is true', () => {
@@ -79,16 +77,15 @@ describe('FlagAnalysisView', () => {
   it('renders an empty-state message when no recommendations are returned', () => {
     const result = makeFlagAnalysisResult({ recommendations: [] });
     render(<FlagAnalysisView result={result} />);
-    expect(
-      screen.getByText(/No recommended changes/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/No recommended changes/i)).toBeInTheDocument();
   });
 
   it('renders confidence notes at the bottom', () => {
     const result = makeFlagAnalysisResult();
     render(<FlagAnalysisView result={result} />);
-    expect(screen.getByText(/High confidence on the false positive/i))
-      .toBeInTheDocument();
+    expect(
+      screen.getByText(/High confidence on the false positive/i),
+    ).toBeInTheDocument();
   });
 
   it('labels the summary region for accessibility', () => {

@@ -6,10 +6,11 @@
  * Spec: docs/specs/p0-tag-canonicalisation-classify-time-spec.md ss10.6 EP4.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { createMockSupabaseClient } from '../../../helpers/mock-supabase';
 import {
-  createMockSupabaseClient,
-} from '../../../helpers/mock-supabase';
-import { createTestRequest, createTestParams } from '../../../helpers/mock-next';
+  createTestRequest,
+  createTestParams,
+} from '../../../helpers/mock-next';
 
 // ---------------------------------------------------------------------------
 // Shared mock client
@@ -141,9 +142,8 @@ beforeEach(() => {
     error: null,
   });
   mockSupabase._chain.then.mockReset();
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 
   mockGenerateSingleFieldChangeSummary.mockReturnValue('Field updated');
@@ -167,8 +167,7 @@ describe('PATCH /api/items/[id] — ai_keywords normalisation (EP4)', () => {
     });
     // 3. Update succeeds
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const request = createTestRequest(`/api/items/${VALID_UUID}`, {
@@ -207,8 +206,7 @@ describe('PATCH /api/items/[id] — ai_keywords normalisation (EP4)', () => {
     });
     // 3. Update succeeds
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const request = createTestRequest(`/api/items/${VALID_UUID}`, {
@@ -248,8 +246,7 @@ describe('PATCH /api/items/[id] — ai_keywords normalisation (EP4)', () => {
     });
     // 3. Update succeeds
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const request = createTestRequest(`/api/items/${VALID_UUID}`, {

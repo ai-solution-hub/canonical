@@ -172,9 +172,7 @@ describe('useBrowseFilters — from_bid persistence', () => {
   // -------------------------------------------------------------------------
   describe('without from_bid', () => {
     it('clearFilters navigates to bare pathname', () => {
-      mockSearchParams.current = new URLSearchParams(
-        'domain=security&q=test',
-      );
+      mockSearchParams.current = new URLSearchParams('domain=security&q=test');
       const { result } = renderHook(() => useBrowseFilters());
 
       act(() => {

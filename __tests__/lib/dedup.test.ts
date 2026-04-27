@@ -477,10 +477,9 @@ describe('resolveDedupStamp', () => {
   });
 
   it('returns clean when skipDedup is true even with a match', () => {
-    const stamp = resolveDedupStamp(
-      '11111111-2222-4333-8444-555555555555',
-      { skipDedup: true },
-    );
+    const stamp = resolveDedupStamp('11111111-2222-4333-8444-555555555555', {
+      skipDedup: true,
+    });
     expect(stamp.dedup_status).toBe('clean');
     expect(stamp.suspected_duplicate_of).toBeUndefined();
   });

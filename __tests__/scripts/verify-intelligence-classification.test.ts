@@ -27,9 +27,7 @@ const VALID_SUBTOPICS = new Set([
   'Compliance Frameworks',
 ]);
 
-function makeItem(
-  overrides: Partial<VerificationItem> = {},
-): VerificationItem {
+function makeItem(overrides: Partial<VerificationItem> = {}): VerificationItem {
   return {
     content_item_id: 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d',
     title: 'Test Article',
@@ -41,7 +39,10 @@ function makeItem(
   };
 }
 
-function makeItems(count: number, overrides: Partial<VerificationItem> = {}): VerificationItem[] {
+function makeItems(
+  count: number,
+  overrides: Partial<VerificationItem> = {},
+): VerificationItem[] {
   return Array.from({ length: count }, (_, i) =>
     makeItem({
       content_item_id: `a1b2c3d4-e5f6-4a7b-8c9d-${String(i).padStart(12, '0')}`,
@@ -80,9 +81,18 @@ describe('safePercent', () => {
 describe('analyseItems', () => {
   it('counts classified items correctly', () => {
     const items = [
-      makeItem({ primary_domain: 'Legislation & Policy', primary_subtopic: 'Regulatory Changes' }),
-      makeItem({ primary_domain: null, primary_subtopic: 'Regulatory Changes' }),
-      makeItem({ primary_domain: 'Market Intelligence', primary_subtopic: null }),
+      makeItem({
+        primary_domain: 'Legislation & Policy',
+        primary_subtopic: 'Regulatory Changes',
+      }),
+      makeItem({
+        primary_domain: null,
+        primary_subtopic: 'Regulatory Changes',
+      }),
+      makeItem({
+        primary_domain: 'Market Intelligence',
+        primary_subtopic: null,
+      }),
       makeItem({ primary_domain: null, primary_subtopic: null }),
     ];
 
@@ -94,7 +104,10 @@ describe('analyseItems', () => {
 
   it('counts items with missing domain as unclassified', () => {
     const items = [
-      makeItem({ primary_domain: null, primary_subtopic: 'Regulatory Changes' }),
+      makeItem({
+        primary_domain: null,
+        primary_subtopic: 'Regulatory Changes',
+      }),
     ];
 
     const result = analyseItems(items, VALID_DOMAINS, VALID_SUBTOPICS, {});
@@ -105,7 +118,10 @@ describe('analyseItems', () => {
 
   it('counts items with missing subtopic as unclassified', () => {
     const items = [
-      makeItem({ primary_domain: 'Legislation & Policy', primary_subtopic: null }),
+      makeItem({
+        primary_domain: 'Legislation & Policy',
+        primary_subtopic: null,
+      }),
     ];
 
     const result = analyseItems(items, VALID_DOMAINS, VALID_SUBTOPICS, {});
@@ -137,28 +153,28 @@ describe('analyseItems', () => {
   });
 
   it('flags invalid domain names as issues', () => {
-    const items = [
-      makeItem({ primary_domain: 'Nonexistent Domain' }),
-    ];
+    const items = [makeItem({ primary_domain: 'Nonexistent Domain' })];
 
     const result = analyseItems(items, VALID_DOMAINS, VALID_SUBTOPICS, {});
 
     expect(result.invalid_domains).toContain('Nonexistent Domain');
     expect(result.issues).toContainEqual(
-      expect.objectContaining({ issue: 'Invalid domain: "Nonexistent Domain"' }),
+      expect.objectContaining({
+        issue: 'Invalid domain: "Nonexistent Domain"',
+      }),
     );
   });
 
   it('flags invalid subtopic names as issues', () => {
-    const items = [
-      makeItem({ primary_subtopic: 'Made Up Subtopic' }),
-    ];
+    const items = [makeItem({ primary_subtopic: 'Made Up Subtopic' })];
 
     const result = analyseItems(items, VALID_DOMAINS, VALID_SUBTOPICS, {});
 
     expect(result.invalid_subtopics).toContain('Made Up Subtopic');
     expect(result.issues).toContainEqual(
-      expect.objectContaining({ issue: 'Invalid subtopic: "Made Up Subtopic"' }),
+      expect.objectContaining({
+        issue: 'Invalid subtopic: "Made Up Subtopic"',
+      }),
     );
   });
 
@@ -245,8 +261,14 @@ describe('analyseItems', () => {
 
   it('does not double-count invalid domains', () => {
     const items = [
-      makeItem({ primary_domain: 'Bad Domain', content_item_id: 'a1b2c3d4-e5f6-4a7b-8c9d-000000000001' }),
-      makeItem({ primary_domain: 'Bad Domain', content_item_id: 'a1b2c3d4-e5f6-4a7b-8c9d-000000000002' }),
+      makeItem({
+        primary_domain: 'Bad Domain',
+        content_item_id: 'a1b2c3d4-e5f6-4a7b-8c9d-000000000001',
+      }),
+      makeItem({
+        primary_domain: 'Bad Domain',
+        content_item_id: 'a1b2c3d4-e5f6-4a7b-8c9d-000000000002',
+      }),
     ];
 
     const result = analyseItems(items, VALID_DOMAINS, VALID_SUBTOPICS, {});
@@ -261,7 +283,9 @@ describe('analyseItems', () => {
 // ---------------------------------------------------------------------------
 
 describe('formatReport', () => {
-  function makeResult(overrides: Partial<VerificationResult> = {}): VerificationResult {
+  function makeResult(
+    overrides: Partial<VerificationResult> = {},
+  ): VerificationResult {
     return {
       total_items: 10,
       classified_count: 8,
@@ -271,7 +295,10 @@ describe('formatReport', () => {
       entity_coverage_rate: 70,
       embedding_coverage_count: 9,
       embedding_coverage_rate: 90,
-      domain_distribution: { 'Legislation & Policy': 5, 'Market Intelligence': 3 },
+      domain_distribution: {
+        'Legislation & Policy': 5,
+        'Market Intelligence': 3,
+      },
       subtopic_distribution: { 'Regulatory Changes': 4, 'Industry Trends': 3 },
       entity_type_distribution: { Organisation: 12, Person: 5 },
       average_entities_per_item: 3.2,
@@ -285,7 +312,9 @@ describe('formatReport', () => {
   it('produces valid Markdown with expected sections', () => {
     const report = formatReport(makeResult());
 
-    expect(report).toContain('# Intelligence Classification Verification Report');
+    expect(report).toContain(
+      '# Intelligence Classification Verification Report',
+    );
     expect(report).toContain('## Coverage Summary');
     expect(report).toContain('## Domain Distribution');
     expect(report).toContain('## Subtopic Distribution');
@@ -300,7 +329,9 @@ describe('formatReport', () => {
   it('renders coverage summary table', () => {
     const report = formatReport(makeResult());
 
-    expect(report).toContain('| Classification (domain + subtopic) | 8/10 | 80% |');
+    expect(report).toContain(
+      '| Classification (domain + subtopic) | 8/10 | 80% |',
+    );
     expect(report).toContain('| Entity extraction | 7/10 | 70% |');
     expect(report).toContain('| Embeddings | 9/10 | 90% |');
   });
@@ -323,7 +354,11 @@ describe('formatReport', () => {
     const report = formatReport(
       makeResult({
         issues: [
-          { item_id: 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d', title: 'Test', issue: 'Missing primary_domain' },
+          {
+            item_id: 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d',
+            title: 'Test',
+            issue: 'Missing primary_domain',
+          },
         ],
       }),
     );

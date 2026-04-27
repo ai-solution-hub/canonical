@@ -20,9 +20,9 @@ test.describe('Provenance -- Audit PDF export', () => {
     );
 
     await page.goto('/provenance?tab=audit');
-    await expect(
-      page.getByRole('heading', { name: 'Provenance' }),
-    ).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('heading', { name: 'Provenance' })).toBeVisible(
+      { timeout: 15000 },
+    );
 
     // Wait for the Export PDF button to appear
     const exportButton = page.getByRole('button', { name: /Export PDF/ });

@@ -365,13 +365,7 @@ export function useStreamCoordination({
       });
       toast.success('Response drafted successfully');
     }
-  }, [
-    stream.phase,
-    stream.text,
-    queryClient,
-    bidId,
-    currentQuestion?.id,
-  ]);
+  }, [stream.phase, stream.text, queryClient, bidId, currentQuestion?.id]);
 
   // ── Stream error toast ──
   useEffect(() => {

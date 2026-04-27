@@ -116,11 +116,16 @@ Examples:
   const DRY_RUN = !values.apply;
   const LIMIT = values.limit ? parseInt(values.limit, 10) : 0;
 
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+  const supabaseUrl =
+    process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_PUBLISHABLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
-    console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY environment variables.');
+    console.error(
+      'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY environment variables.',
+    );
     process.exit(1);
   }
 
@@ -129,7 +134,9 @@ Examples:
   console.log('='.repeat(60));
   console.log('BACKFILL: Canonicalise ai_keywords');
   console.log('='.repeat(60));
-  console.log(`  Mode:  ${DRY_RUN ? 'DRY RUN (no writes)' : 'APPLY (writing changes)'}`);
+  console.log(
+    `  Mode:  ${DRY_RUN ? 'DRY RUN (no writes)' : 'APPLY (writing changes)'}`,
+  );
   if (LIMIT > 0) console.log(`  Limit: ${LIMIT} rows`);
   console.log();
 
@@ -206,7 +213,9 @@ Examples:
   console.log('BACKFILL COMPLETE');
   console.log('='.repeat(60));
   console.log(`  Rows scanned:   ${rows.length}`);
-  console.log(`  Rows updated:   ${updatedCount}${DRY_RUN ? ' (dry run — no writes)' : ''}`);
+  console.log(
+    `  Rows updated:   ${updatedCount}${DRY_RUN ? ' (dry run — no writes)' : ''}`,
+  );
   console.log(`  Rows skipped:   ${skippedCount}`);
   if (errorCount > 0) {
     console.log(`  Errors:         ${errorCount}`);

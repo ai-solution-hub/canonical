@@ -1,11 +1,12 @@
 ---
 description: Analyse coverage gaps and identify thin domains
-argument-hint: ""
+argument-hint: ''
 ---
 
 # Coverage Command
 
-> If you see unfamiliar placeholders or need to check which tools are connected, see [CONNECTORS.md](../CONNECTORS.md).
+> If you see unfamiliar placeholders or need to check which tools are connected,
+> see [CONNECTORS.md](../CONNECTORS.md).
 
 ```
 +---------------------------------------------------------+
@@ -19,10 +20,10 @@ argument-hint: ""
 +---------------------------------------------------------+
 ```
 
-Analyse the knowledge base coverage across domains, identify thin areas, surface freshness and quality issues, and recommend specific content to create.
+Analyse the knowledge base coverage across domains, identify thin areas, surface
+freshness and quality issues, and recommend specific content to create.
 
-$ARGUMENTS: No arguments expected.
-If a file is referenced: @$1
+$ARGUMENTS: No arguments expected. If a file is referenced: @$1
 
 ## Usage
 
@@ -37,6 +38,7 @@ If a file is referenced: @$1
 **If `~~knowledge base` connector is available:**
 
 Call `get_dashboard_summary` to get the overall KB health metrics:
+
 - Total item count and breakdown by content type
 - Items needing attention (stale, expired, quality flagged)
 - Recent activity summary
@@ -57,6 +59,7 @@ you plan content creation priorities.
 ### 2. Fetch Freshness Report
 
 Call `get_freshness_report` to get the freshness breakdown:
+
 - Count of items in each freshness state (fresh, aging, stale, expired)
 - Freshness distribution by domain (if available)
 
@@ -65,6 +68,7 @@ Use the @content-governance skill to interpret freshness states.
 ### 3. Fetch Quality Summary
 
 Call `get_quality_summary` to get quality issue counts:
+
 - Items with quality flags
 - Common quality issue types
 - Overall quality health
@@ -79,6 +83,7 @@ Using the @classification skill, analyse the taxonomy coverage:
 - **Empty domains**: No items at all
 
 For each thin or empty domain, note:
+
 - What content types are present vs missing
 - Whether the domain is important for bid responses
 - Specific subtopics with zero coverage
@@ -88,16 +93,20 @@ For each thin or empty domain, note:
 Based on gaps, generate a prioritised content creation plan:
 
 **Priority 1 — Critical for bids:**
+
 - Q&A pairs for commonly asked bid questions in thin domains
 - Case studies for domains with no evidence
 - Policies that active bids reference but don't exist
 
 **Priority 2 — Strengthen weak areas:**
+
 - Updated versions of stale/expired content
 - Additional Q&A pairs for partially covered subtopics
-- Supporting evidence for domains with only Q&A pairs (no case studies, no articles)
+- Supporting evidence for domains with only Q&A pairs (no case studies, no
+  articles)
 
 **Priority 3 — Build depth:**
+
 - Methodology documents for well-covered domains
 - Capability statements for service areas
 - Additional case studies for strong domains
@@ -160,7 +169,8 @@ Based on gaps, generate a prioritised content creation plan:
 
 ### 7. Cross-Reference with Active Bids
 
-If bid data is available from `get_dashboard_summary`, highlight coverage gaps that directly affect active bids:
+If bid data is available from `get_dashboard_summary`, highlight coverage gaps
+that directly affect active bids:
 
 ```
 ## Impact on Active Bids
@@ -173,8 +183,11 @@ If bid data is available from `get_dashboard_summary`, highlight coverage gaps t
 
 ## Tips
 
-- Use the taxonomy from `kb://taxonomy` resource to understand the full domain structure
-- Health ratings: Good (>20 items, >75% fresh), Adequate (10-20 items, >50% fresh), Thin (<10 items), Critical (<5 items or >50% stale)
-- Always connect coverage gaps to bid impact where possible — this makes the analysis actionable
+- Use the taxonomy from `kb://taxonomy` resource to understand the full domain
+  structure
+- Health ratings: Good (>20 items, >75% fresh), Adequate (10-20 items, >50%
+  fresh), Thin (<10 items), Critical (<5 items or >50% stale)
+- Always connect coverage gaps to bid impact where possible — this makes the
+  analysis actionable
 - Suggest `/kb:search [domain]` to explore existing content in thin areas
 - Suggest `/kb:draft-response` for specific questions exposed by gaps

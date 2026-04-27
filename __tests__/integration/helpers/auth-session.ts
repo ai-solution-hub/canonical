@@ -196,9 +196,7 @@ let cachedTestUserIds: Record<TestUserRole, string> | null = null;
  * Throws if any expected user is missing. Callers should let that
  * propagate: a missing seed is an operator error, not a test failure.
  */
-export async function getTestUserIds(): Promise<
-  Record<TestUserRole, string>
-> {
+export async function getTestUserIds(): Promise<Record<TestUserRole, string>> {
   if (cachedTestUserIds) {
     return cachedTestUserIds;
   }

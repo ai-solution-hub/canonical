@@ -107,7 +107,10 @@ const TEST_PROFILES: ProfilesConfig = {
   profiles: {
     're-ingest': {
       description: 're-ingest',
-      check_severities: { corpus_counts: 'must-pass', history_v1_present: 'should-pass' },
+      check_severities: {
+        corpus_counts: 'must-pass',
+        history_v1_present: 'should-pass',
+      },
     },
     batch: {
       description: 'batch',
@@ -194,9 +197,9 @@ describe('selectChecks', () => {
   });
 
   it('filters to include set only', () => {
-    expect(
-      selectChecks(ALL_CHECKS, ['a', 'c'], []).map((c) => c.name),
-    ).toEqual(['a', 'c']);
+    expect(selectChecks(ALL_CHECKS, ['a', 'c'], []).map((c) => c.name)).toEqual(
+      ['a', 'c'],
+    );
   });
 
   it('excludes named checks', () => {
@@ -272,18 +275,12 @@ describe('overallVerdict', () => {
   });
 
   it('never returns fail when fail-on=never', () => {
-    const v = overallVerdict(
-      [r('a', 'must-pass', 'fail')],
-      'never',
-    );
+    const v = overallVerdict([r('a', 'must-pass', 'fail')], 'never');
     expect(v).toBe('warn');
   });
 
   it('fail-on=never with no failures returns pass', () => {
-    const v = overallVerdict(
-      [r('a', 'must-pass', 'pass')],
-      'never',
-    );
+    const v = overallVerdict([r('a', 'must-pass', 'pass')], 'never');
     expect(v).toBe('pass');
   });
 
@@ -386,9 +383,9 @@ describe('matchFileGroup', () => {
 
   it('is case-insensitive', () => {
     expect(matchFileGroup('DRAFT faqs file.docx', GROUPS)).toBe('faqs');
-    expect(
-      matchFileGroup('SECURITY AND COMPLIANCE notes.docx', GROUPS),
-    ).toBe('security_compliance');
+    expect(matchFileGroup('SECURITY AND COMPLIANCE notes.docx', GROUPS)).toBe(
+      'security_compliance',
+    );
   });
 
   it('returns null for non-matching filenames', () => {
@@ -408,18 +405,30 @@ describe('matchFileGroup', () => {
 
 describe('defaultOutputPath', () => {
   it('uses quality-gate prefix for generic profiles', () => {
-    const p = defaultOutputPath('re-ingest', 'markdown', '2026-04-21T21:00:00.000Z');
+    const p = defaultOutputPath(
+      're-ingest',
+      'markdown',
+      '2026-04-21T21:00:00.000Z',
+    );
     expect(p).toMatch(/quality-gate-re-ingest-2026-04-21T21-00-00-000Z\.md$/);
     expect(p).toMatch(/data\/reports\//);
   });
 
   it('uses audit-content-gate prefix for audit-content', () => {
-    const p = defaultOutputPath('audit-content', 'markdown', '2026-04-21T21:00:00.000Z');
+    const p = defaultOutputPath(
+      'audit-content',
+      'markdown',
+      '2026-04-21T21:00:00.000Z',
+    );
     expect(p).toMatch(/audit-content-gate-2026-04-21T21-00-00-000Z\.md$/);
   });
 
   it('swaps extension per format', () => {
-    const md = defaultOutputPath('batch', 'markdown', '2026-04-21T21:00:00.000Z');
+    const md = defaultOutputPath(
+      'batch',
+      'markdown',
+      '2026-04-21T21:00:00.000Z',
+    );
     const js = defaultOutputPath('batch', 'json', '2026-04-21T21:00:00.000Z');
     expect(md).toMatch(/\.md$/);
     expect(js).toMatch(/\.json$/);

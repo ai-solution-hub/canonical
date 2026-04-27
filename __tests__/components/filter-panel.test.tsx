@@ -130,14 +130,43 @@ vi.mock('@/lib/client-config', () => ({
 vi.mock('@/contexts/layer-vocabulary-context', () => ({
   useLayerVocabulary: () => ({
     layers: [
-      { key: 'sales_brief', label: 'Sales Brief', description: '', display_order: 1, is_active: true },
-      { key: 'bid_detail', label: 'Bid Detail', description: '', display_order: 2, is_active: true },
-      { key: 'company_reference', label: 'Company Reference', description: '', display_order: 3, is_active: true },
-      { key: 'research', label: 'Research', description: '', display_order: 4, is_active: true },
+      {
+        key: 'sales_brief',
+        label: 'Sales Brief',
+        description: '',
+        display_order: 1,
+        is_active: true,
+      },
+      {
+        key: 'bid_detail',
+        label: 'Bid Detail',
+        description: '',
+        display_order: 2,
+        is_active: true,
+      },
+      {
+        key: 'company_reference',
+        label: 'Company Reference',
+        description: '',
+        display_order: 3,
+        is_active: true,
+      },
+      {
+        key: 'research',
+        label: 'Research',
+        description: '',
+        display_order: 4,
+        is_active: true,
+      },
     ],
     loading: false,
     error: null,
-    getLayerKeys: () => ['sales_brief', 'bid_detail', 'company_reference', 'research'],
+    getLayerKeys: () => [
+      'sales_brief',
+      'bid_detail',
+      'company_reference',
+      'research',
+    ],
     getLayerLabel: (key: string) =>
       key.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
     getLayerDescription: () => '',

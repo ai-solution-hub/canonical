@@ -58,7 +58,11 @@ function chainRootsAtPostgrestReceiver(awaitArg) {
     if (callee.type !== 'MemberExpression') return false;
 
     const prop = callee.property;
-    if (prop && prop.type === 'Identifier' && (prop.name === 'from' || prop.name === 'rpc')) {
+    if (
+      prop &&
+      prop.type === 'Identifier' &&
+      (prop.name === 'from' || prop.name === 'rpc')
+    ) {
       // This call IS the `.from(...)` / `.rpc(...)` call. Check the receiver.
       return isReceiver(callee.object);
     }
@@ -189,7 +193,10 @@ module.exports = {
           );
 
           if (hasData && !hasError) {
-            context.report({ node: node.id, messageId: 'missingErrorDestructure' });
+            context.report({
+              node: node.id,
+              messageId: 'missingErrorDestructure',
+            });
           }
           return;
         }

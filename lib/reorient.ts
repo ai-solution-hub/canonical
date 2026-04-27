@@ -549,9 +549,7 @@ export async function resolveDisplayNames(
   const { createServiceClient } = await import('@/lib/supabase/server');
   const serviceClient = createServiceClient();
 
-  const { resolveUserDisplayNames } = await import(
-    '@/lib/users/display-names'
-  );
+  const { resolveUserDisplayNames } = await import('@/lib/users/display-names');
   const map = await resolveUserDisplayNames(serviceClient, uniqueIds);
 
   for (const [id, info] of map) {

@@ -12,9 +12,9 @@ import { test, expect } from '../fixtures';
 test.describe('Provenance -- Pipeline Health tab', () => {
   test.beforeEach(async ({ authenticatedPage: page }) => {
     await page.goto('/provenance?tab=pipeline-health');
-    await expect(
-      page.getByRole('heading', { name: 'Provenance' }),
-    ).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('heading', { name: 'Provenance' })).toBeVisible(
+      { timeout: 15000 },
+    );
 
     // Confirm the Pipeline Health tab is selected
     await expect(
@@ -36,9 +36,10 @@ test.describe('Provenance -- Pipeline Health tab', () => {
     await expect(timeRangeGroup.getByText('30 days')).toBeVisible();
 
     // 24 hours should be the default (aria-pressed="true")
-    await expect(
-      timeRangeGroup.getByText('24 hours'),
-    ).toHaveAttribute('aria-pressed', 'true');
+    await expect(timeRangeGroup.getByText('24 hours')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
   });
 
   test('shows kind filter when pipeline data is available', async ({
@@ -71,27 +72,26 @@ test.describe('Provenance -- Pipeline Health tab', () => {
 test.describe('Provenance -- Audit tab', () => {
   test.beforeEach(async ({ authenticatedPage: page }) => {
     await page.goto('/provenance?tab=audit');
-    await expect(
-      page.getByRole('heading', { name: 'Provenance' }),
-    ).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('heading', { name: 'Provenance' })).toBeVisible(
+      { timeout: 15000 },
+    );
 
     // Confirm the Audit tab is selected
-    await expect(
-      page.getByRole('tab', { name: 'Audit' }),
-    ).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('tab', { name: 'Audit' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
   });
 
   test('shows activity feed', async ({ authenticatedPage: page }) => {
     // The audit tab should show the "Audit" sub-heading
     const main = page.locator('main');
-    await expect(
-      main.getByRole('heading', { name: 'Audit' }),
-    ).toBeVisible({ timeout: 15000 });
+    await expect(main.getByRole('heading', { name: 'Audit' })).toBeVisible({
+      timeout: 15000,
+    });
 
     // Should show the descriptive text
-    await expect(
-      page.getByText('A log of recent changes'),
-    ).toBeVisible();
+    await expect(page.getByText('A log of recent changes')).toBeVisible();
   });
 
   test('shows "Export PDF" button with date range inputs', async ({

@@ -32,7 +32,11 @@ import { resolve } from 'path';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createInterface } from 'readline';
 import { accuracy } from '../lib/eval/metrics';
-import { loadBaseline, saveBaseline, checkRegression } from '../lib/eval/baseline';
+import {
+  loadBaseline,
+  saveBaseline,
+  checkRegression,
+} from '../lib/eval/baseline';
 import { printReport, printJsonReport } from '../lib/eval/reporter';
 import type { EvalResult, RegressionResult } from '../lib/eval/types';
 import { COST_PER_MILLION } from '../lib/ai/pricing';
@@ -50,8 +54,7 @@ import { estimateCost } from '../lib/anthropic';
  *
  * The user has admin role in `user_roles` so RLS allows write access.
  */
-const PIPELINE_SERVICE_ACCOUNT_USER_ID =
-  'a0000000-0000-4000-8000-000000000001';
+const PIPELINE_SERVICE_ACCOUNT_USER_ID = 'a0000000-0000-4000-8000-000000000001';
 
 // ── Env loading ─────────────────────────────────────────────────────
 
@@ -167,7 +170,9 @@ export function parseArgs(args: string[]): ParsedArgs {
     verbose: args.includes('--verbose'),
     jsonOutput: args.includes('--json'),
     doSaveBaseline: args.includes('--save-baseline'),
-    itemFilter: args.includes('--item') ? args[args.indexOf('--item') + 1] ?? null : null,
+    itemFilter: args.includes('--item')
+      ? (args[args.indexOf('--item') + 1] ?? null)
+      : null,
     live: args.includes('--live'),
     confirm: args.includes('--confirm'),
     env,
@@ -220,7 +225,9 @@ async function fetchClassifications(
 ): Promise<Map<string, DbRow>> {
   const { data, error } = await supabase
     .from('content_items')
-    .select('id, primary_domain, primary_subtopic, secondary_domain, classification_confidence, ai_keywords')
+    .select(
+      'id, primary_domain, primary_subtopic, secondary_domain, classification_confidence, ai_keywords',
+    )
     .in('id', itemIds);
 
   if (error) {
@@ -248,7 +255,10 @@ async function fetchClassifications(
  *   - Per-item content: 1 token per ~4 chars (capped at 5000 chars input)
  *   - Output (tool_use response): ~500 tokens
  */
-export function estimateItemCost(item: GoldItem, model: string): {
+export function estimateItemCost(
+  item: GoldItem,
+  model: string,
+): {
   inputTokens: number;
   outputTokens: number;
   costUsd: number;
@@ -318,11 +328,19 @@ async function confirmLiveRun(estimate: {
   console.log('\n--- LIVE MODE COST ESTIMATE ---\n');
   console.log(`  Items to classify:       ${estimate.itemCount}`);
   console.log(`  Model:                   ${estimate.model}`);
-  console.log(`  Est. input tokens:       ${estimate.totalInputTokens.toLocaleString()}`);
-  console.log(`  Est. output tokens:      ${estimate.totalOutputTokens.toLocaleString()}`);
-  console.log(`  Est. cost:               $${estimate.totalCostUsd.toFixed(4)} USD`);
+  console.log(
+    `  Est. input tokens:       ${estimate.totalInputTokens.toLocaleString()}`,
+  );
+  console.log(
+    `  Est. output tokens:      ${estimate.totalOutputTokens.toLocaleString()}`,
+  );
+  console.log(
+    `  Est. cost:               $${estimate.totalCostUsd.toFixed(4)} USD`,
+  );
   console.log(`  Rate limit:              1 req/sec`);
-  console.log(`  Est. time:               ~${Math.ceil(estimate.itemCount * 1.5)} seconds\n`);
+  console.log(
+    `  Est. time:               ~${Math.ceil(estimate.itemCount * 1.5)} seconds\n`,
+  );
 
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   return new Promise((resolveAnswer) => {
@@ -398,9 +416,8 @@ async function classifyFixtureItem(
   // Dynamic imports — avoids loading these modules in cached mode.
   const { getAnthropicClient, getAIModel } = await import('../lib/anthropic');
   const { loadSkill } = await import('../lib/ai/skills/loader');
-  const { CLIENT_CONFIG, buildDisambiguationBlock } = await import(
-    '../lib/client-config'
-  );
+  const { CLIENT_CONFIG, buildDisambiguationBlock } =
+    await import('../lib/client-config');
   const { extractToolResult } = await import('../lib/ai-parse');
 
   // Load the same skill prompts as classifyContent.
@@ -423,7 +440,10 @@ async function classifyFixtureItem(
     .order('display_order');
 
   const domains = (domainsRaw ?? []) as Array<{ id: string; name: string }>;
-  const subtopics = (subtopicsRaw ?? []) as Array<{ name: string; domain_id: string }>;
+  const subtopics = (subtopicsRaw ?? []) as Array<{
+    name: string;
+    domain_id: string;
+  }>;
 
   const taxonomyStr = domains
     .map((d) => {
@@ -438,21 +458,36 @@ async function classifyFixtureItem(
   // eval harness and the production pipeline (lib/ai/classify.ts) now
   // source the rules from lib/client-config.ts via
   // buildDisambiguationBlock() so they cannot drift.
-  const prompt = classificationSkill
-    .replace('{TAXONOMY}', taxonomyStr)
-    .replace('{CLIENT_DISAMBIGUATION}', buildDisambiguationBlock())
-    .replaceAll('{CLIENT_ORGANISATION_NAME}', CLIENT_CONFIG.entity_examples.organisation_name)
-    .replaceAll('{CLIENT_ORGANISATION_SHORT}', CLIENT_CONFIG.entity_examples.organisation_short)
-    .replaceAll('{CLIENT_PRODUCT_NAME}', CLIENT_CONFIG.entity_examples.product_name)
-    .replaceAll('{CLIENT_PRODUCT_SHORT}', CLIENT_CONFIG.entity_examples.product_short)
-    + '\n\n---\n\n' + entityTypesRef;
+  const prompt =
+    classificationSkill
+      .replace('{TAXONOMY}', taxonomyStr)
+      .replace('{CLIENT_DISAMBIGUATION}', buildDisambiguationBlock())
+      .replaceAll(
+        '{CLIENT_ORGANISATION_NAME}',
+        CLIENT_CONFIG.entity_examples.organisation_name,
+      )
+      .replaceAll(
+        '{CLIENT_ORGANISATION_SHORT}',
+        CLIENT_CONFIG.entity_examples.organisation_short,
+      )
+      .replaceAll(
+        '{CLIENT_PRODUCT_NAME}',
+        CLIENT_CONFIG.entity_examples.product_name,
+      )
+      .replaceAll(
+        '{CLIENT_PRODUCT_SHORT}',
+        CLIENT_CONFIG.entity_examples.product_short,
+      ) +
+    '\n\n---\n\n' +
+    entityTypesRef;
 
   // Use the fixture's text/content if present, otherwise fall back to title.
   // Title-only is intentional for fixtures that exercise classification on
   // headline information; the AI prompt is robust enough to classify many
   // items from a descriptive title alone.
   const fixtureText = (item.text ?? item.content ?? '').slice(0, 5000);
-  const contentForClassification = fixtureText.length > 0 ? fixtureText : item.title;
+  const contentForClassification =
+    fixtureText.length > 0 ? fixtureText : item.title;
 
   const client = getAnthropicClient();
   const model = getAIModel();
@@ -535,8 +570,12 @@ function liveToDbRow(itemId: string, live: LiveClassification): DbRow {
 
 // ── Scoring ─────────────────────────────────────────────────────────
 
-function computeKeywordOverlap(dbKeywords: string[] | null, expectedKeywords: string[]): number {
-  if (!dbKeywords || dbKeywords.length === 0 || expectedKeywords.length === 0) return 0;
+function computeKeywordOverlap(
+  dbKeywords: string[] | null,
+  expectedKeywords: string[],
+): number {
+  if (!dbKeywords || dbKeywords.length === 0 || expectedKeywords.length === 0)
+    return 0;
 
   const dbLower = new Set(dbKeywords.map((k) => k.toLowerCase().trim()));
   let matches = 0;
@@ -545,7 +584,11 @@ function computeKeywordOverlap(dbKeywords: string[] | null, expectedKeywords: st
     const expectedLower = expected.toLowerCase().trim();
     // Check for exact match or partial containment
     for (const dbK of dbLower) {
-      if (dbK === expectedLower || dbK.includes(expectedLower) || expectedLower.includes(dbK)) {
+      if (
+        dbK === expectedLower ||
+        dbK.includes(expectedLower) ||
+        expectedLower.includes(dbK)
+      ) {
         matches++;
         break;
       }
@@ -580,17 +623,22 @@ function scoreItem(
 
   const domainMatch = db.primary_domain === gold.expected_domain;
   if (!domainMatch) {
-    details.push(`Domain: expected="${gold.expected_domain}", actual="${db.primary_domain}"`);
+    details.push(
+      `Domain: expected="${gold.expected_domain}", actual="${db.primary_domain}"`,
+    );
   }
 
   const subtopicMatch = db.primary_subtopic === gold.expected_subtopic;
   if (!subtopicMatch) {
-    details.push(`Subtopic: expected="${gold.expected_subtopic}", actual="${db.primary_subtopic}"`);
+    details.push(
+      `Subtopic: expected="${gold.expected_subtopic}", actual="${db.primary_subtopic}"`,
+    );
   }
 
   let secondaryDomainMatch: boolean | null = null;
   if (gold.expected_secondary_domain) {
-    secondaryDomainMatch = db.secondary_domain === gold.expected_secondary_domain;
+    secondaryDomainMatch =
+      db.secondary_domain === gold.expected_secondary_domain;
     if (!secondaryDomainMatch) {
       details.push(
         `Secondary domain: expected="${gold.expected_secondary_domain}", actual="${db.secondary_domain}"`,
@@ -598,9 +646,14 @@ function scoreItem(
     }
   }
 
-  const keywordOverlap = computeKeywordOverlap(db.ai_keywords, gold.expected_keywords);
+  const keywordOverlap = computeKeywordOverlap(
+    db.ai_keywords,
+    gold.expected_keywords,
+  );
   if (keywordOverlap < 1.0 && gold.expected_keywords.length > 0) {
-    details.push(`Keyword overlap: ${(keywordOverlap * 100).toFixed(0)}% (${gold.expected_keywords.join(', ')})`);
+    details.push(
+      `Keyword overlap: ${(keywordOverlap * 100).toFixed(0)}% (${gold.expected_keywords.join(', ')})`,
+    );
   }
 
   return {
@@ -620,14 +673,22 @@ function scoreItem(
 const SUITE_NAME = 'classification';
 
 const THRESHOLDS: Record<string, { min?: number; max_drop?: number }> = {
-  domain_accuracy: { min: 0.70, max_drop: 0.05 },
-  subtopic_accuracy: { min: 0.50, max_drop: 0.10 },
-  keyword_overlap: { min: 0.40, max_drop: 0.10 },
+  domain_accuracy: { min: 0.7, max_drop: 0.05 },
+  subtopic_accuracy: { min: 0.5, max_drop: 0.1 },
+  keyword_overlap: { min: 0.4, max_drop: 0.1 },
 };
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const { verbose, jsonOutput, doSaveBaseline, itemFilter, live, confirm, env } = args;
+  const {
+    verbose,
+    jsonOutput,
+    doSaveBaseline,
+    itemFilter,
+    live,
+    confirm,
+    env,
+  } = args;
 
   // Assert --env=prod when set (per WP-S5.2 spec v1.1 §7.1)
   const envUrl =
@@ -690,10 +751,16 @@ async function main() {
         if (gold.live_only) {
           liveResult = await classifyFixtureItem(supabase, gold);
         } else {
-          liveResult = await classifyExistingItem(supabase, gold.content_item_id);
+          liveResult = await classifyExistingItem(
+            supabase,
+            gold.content_item_id,
+          );
         }
 
-        dbMap.set(gold.content_item_id, liveToDbRow(gold.content_item_id, liveResult));
+        dbMap.set(
+          gold.content_item_id,
+          liveToDbRow(gold.content_item_id, liveResult),
+        );
         completed++;
 
         if (!jsonOutput) {
@@ -749,16 +816,24 @@ async function main() {
   const evaluated = scores.filter((s) => !s.unevaluated);
   const domainCorrect = evaluated.filter((s) => s.domain_match).length;
   const subtopicCorrect = evaluated.filter((s) => s.subtopic_match).length;
-  const secondaryItems = evaluated.filter((s) => s.secondary_domain_match !== null);
-  const secondaryCorrect = secondaryItems.filter((s) => s.secondary_domain_match === true).length;
+  const secondaryItems = evaluated.filter(
+    (s) => s.secondary_domain_match !== null,
+  );
+  const secondaryCorrect = secondaryItems.filter(
+    (s) => s.secondary_domain_match === true,
+  ).length;
   const avgKeywordOverlap =
     evaluated.length > 0
-      ? evaluated.reduce((sum, s) => sum + s.keyword_overlap, 0) / evaluated.length
+      ? evaluated.reduce((sum, s) => sum + s.keyword_overlap, 0) /
+        evaluated.length
       : 0;
 
   const domainAcc = accuracy(domainCorrect, evaluated.length);
   const subtopicAcc = accuracy(subtopicCorrect, evaluated.length);
-  const secondaryAcc = secondaryItems.length > 0 ? accuracy(secondaryCorrect, secondaryItems.length) : 1.0;
+  const secondaryAcc =
+    secondaryItems.length > 0
+      ? accuracy(secondaryCorrect, secondaryItems.length)
+      : 1.0;
 
   const metrics: Record<string, number> = {
     domain_accuracy: domainAcc,
@@ -770,18 +845,26 @@ async function main() {
   // Build failures
   const failures: string[] = [];
   if (domainAcc < (THRESHOLDS.domain_accuracy.min ?? 0)) {
-    failures.push(`domain_accuracy ${(domainAcc * 100).toFixed(1)}% below minimum ${((THRESHOLDS.domain_accuracy.min ?? 0) * 100).toFixed(0)}%`);
+    failures.push(
+      `domain_accuracy ${(domainAcc * 100).toFixed(1)}% below minimum ${((THRESHOLDS.domain_accuracy.min ?? 0) * 100).toFixed(0)}%`,
+    );
   }
   if (subtopicAcc < (THRESHOLDS.subtopic_accuracy.min ?? 0)) {
-    failures.push(`subtopic_accuracy ${(subtopicAcc * 100).toFixed(1)}% below minimum ${((THRESHOLDS.subtopic_accuracy.min ?? 0) * 100).toFixed(0)}%`);
+    failures.push(
+      `subtopic_accuracy ${(subtopicAcc * 100).toFixed(1)}% below minimum ${((THRESHOLDS.subtopic_accuracy.min ?? 0) * 100).toFixed(0)}%`,
+    );
   }
   if (avgKeywordOverlap < (THRESHOLDS.keyword_overlap.min ?? 0)) {
-    failures.push(`keyword_overlap ${(avgKeywordOverlap * 100).toFixed(1)}% below minimum ${((THRESHOLDS.keyword_overlap.min ?? 0) * 100).toFixed(0)}%`);
+    failures.push(
+      `keyword_overlap ${(avgKeywordOverlap * 100).toFixed(1)}% below minimum ${((THRESHOLDS.keyword_overlap.min ?? 0) * 100).toFixed(0)}%`,
+    );
   }
 
   // Surface live failures so they are not silently dropped from the report.
   if (live && liveFailures.size > 0) {
-    failures.push(`${liveFailures.size} live classification(s) failed (see per-item detail)`);
+    failures.push(
+      `${liveFailures.size} live classification(s) failed (see per-item detail)`,
+    );
   }
 
   const result: EvalResult = {
@@ -803,7 +886,9 @@ async function main() {
     if (regressionFailures.length > 0) {
       result.passed = false;
       for (const rf of regressionFailures) {
-        result.failures.push(`Regression: ${rf.metric_name} dropped from ${(rf.baseline_value * 100).toFixed(1)}% to ${(rf.current_value * 100).toFixed(1)}%`);
+        result.failures.push(
+          `Regression: ${rf.metric_name} dropped from ${(rf.baseline_value * 100).toFixed(1)}% to ${(rf.current_value * 100).toFixed(1)}%`,
+        );
       }
     }
   }
@@ -837,12 +922,16 @@ async function main() {
 
     // Per-content-type breakdown
     console.log('--- PER-CONTENT-TYPE BREAKDOWN ---\n');
-    const byType = new Map<string, { total: number; domainOk: number; subtopicOk: number }>();
+    const byType = new Map<
+      string,
+      { total: number; domainOk: number; subtopicOk: number }
+    >();
     for (let i = 0; i < goldStandard.length; i++) {
       const ct = goldStandard[i].content_type;
       const s = scores[i];
       if (s.unevaluated) continue;
-      if (!byType.has(ct)) byType.set(ct, { total: 0, domainOk: 0, subtopicOk: 0 });
+      if (!byType.has(ct))
+        byType.set(ct, { total: 0, domainOk: 0, subtopicOk: 0 });
       const entry = byType.get(ct)!;
       entry.total++;
       if (s.domain_match) entry.domainOk++;

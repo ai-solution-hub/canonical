@@ -143,9 +143,7 @@ export function formatGovernanceQueue(data: GovernanceQueueData): string {
     filterParts.push(`domain: \`${domain_filter}\``);
   }
   if (publication_status_filter) {
-    filterParts.push(
-      `publication_status: \`${publication_status_filter}\``,
-    );
+    filterParts.push(`publication_status: \`${publication_status_filter}\``);
   }
   const scopeNote =
     filterParts.length > 0 ? ` (${filterParts.join(', ')})` : '';

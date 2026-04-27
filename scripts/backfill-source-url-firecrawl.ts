@@ -161,7 +161,9 @@ async function main() {
   console.log('='.repeat(60));
   console.log('Source URL Firecrawl Backfill');
   console.log('='.repeat(60));
-  console.log(`  Mode:     ${APPLY ? 'LIVE (will write)' : 'DRY-RUN (preview only)'}`);
+  console.log(
+    `  Mode:     ${APPLY ? 'LIVE (will write)' : 'DRY-RUN (preview only)'}`,
+  );
   console.log(`  Project:  ${PRODUCTION_PROJECT_ID}`);
   console.log();
 
@@ -185,7 +187,9 @@ async function main() {
     return;
   }
 
-  console.log(`Found ${items.length} content_items with Google News redirect URLs:`);
+  console.log(
+    `Found ${items.length} content_items with Google News redirect URLs:`,
+  );
   console.log();
 
   // Dynamically import Firecrawl
@@ -211,7 +215,9 @@ async function main() {
       const publisherUrl = metadata?.sourceURL;
 
       if (!publisherUrl) {
-        console.log('         SKIP: Firecrawl did not return metadata.sourceURL');
+        console.log(
+          '         SKIP: Firecrawl did not return metadata.sourceURL',
+        );
         skipped++;
         continue;
       }
@@ -285,12 +291,8 @@ async function main() {
 
   if (!APPLY && resolved > 0) {
     console.log();
-    console.log(
-      'To apply these changes, re-run with --apply:',
-    );
-    console.log(
-      '  bun run scripts/backfill-source-url-firecrawl.ts --apply',
-    );
+    console.log('To apply these changes, re-run with --apply:');
+    console.log('  bun run scripts/backfill-source-url-firecrawl.ts --apply');
   }
 }
 

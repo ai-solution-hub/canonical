@@ -112,7 +112,8 @@ Examples:
   const supabaseUrl =
     process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_PUBLISHABLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
     console.error(
@@ -209,10 +210,7 @@ Examples:
   const auditDir = path.join(process.cwd(), 'docs', 'audits');
   fs.mkdirSync(auditDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const outPath = path.join(
-    auditDir,
-    `tag-morphology-eval-${stamp}.json`,
-  );
+  const outPath = path.join(auditDir, `tag-morphology-eval-${stamp}.json`);
   fs.writeFileSync(outPath, JSON.stringify(summary, null, 2), 'utf-8');
 
   console.log('\n' + '─'.repeat(60));

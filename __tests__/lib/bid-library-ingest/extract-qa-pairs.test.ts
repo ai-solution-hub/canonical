@@ -83,17 +83,13 @@ describe('normaliseHeader', () => {
 describe('deduplicateRepeatedText', () => {
   it('deduplicates tripled text', () => {
     expect(
-      deduplicateRepeatedText(
-        'Product SupportProduct SupportProduct Support',
-      ),
+      deduplicateRepeatedText('Product SupportProduct SupportProduct Support'),
     ).toBe('Product Support');
   });
 
   it('deduplicates doubled text', () => {
     expect(
-      deduplicateRepeatedText(
-        'Software developmentSoftware development',
-      ),
+      deduplicateRepeatedText('Software developmentSoftware development'),
     ).toBe('Software development');
   });
 

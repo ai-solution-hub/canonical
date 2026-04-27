@@ -76,7 +76,12 @@ export function estimateClassifyCost(
   if (!pricing) return null;
 
   // Zero tokens is a valid input (e.g. cached-only request) — return 0, not null
-  if (tokensIn === 0 && tokensOut === 0 && cacheCreation === 0 && cacheRead === 0) {
+  if (
+    tokensIn === 0 &&
+    tokensOut === 0 &&
+    cacheCreation === 0 &&
+    cacheRead === 0
+  ) {
     return 0;
   }
 

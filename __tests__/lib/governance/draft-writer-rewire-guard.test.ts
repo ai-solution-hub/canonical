@@ -80,9 +80,7 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-const SOURCE_FILES = INCLUDE_DIRS.flatMap((d) =>
-  walk(path.join(REPO_ROOT, d)),
-);
+const SOURCE_FILES = INCLUDE_DIRS.flatMap((d) => walk(path.join(REPO_ROOT, d)));
 
 /**
  * Write-position pattern. Matches both:
@@ -188,13 +186,13 @@ describe('AC6.5 — draft-writer rewire guard (S202 §5.2 Phase 2.5)', () => {
     expect(
       violations,
       "Production WRITE-site of governance_review_status='draft' found.\n" +
-        'These must be rewired to publication_status=\'draft\' per S202 §5.2 Phase 2.5.\n' +
+        "These must be rewired to publication_status='draft' per S202 §5.2 Phase 2.5.\n" +
         'Hits:\n' +
         violations.join('\n'),
     ).toEqual([]);
   });
 
-  it('canonical writer publication_status=\'draft\' is reachable from at least one production entry point', () => {
+  it("canonical writer publication_status='draft' is reachable from at least one production entry point", () => {
     // Sanity-check the inverse: T8a rewired several entry points to write
     // `publication_status: 'draft'`. If every one of those vanished (e.g. a
     // wholesale deletion), the AC6.5 invariant would still hold trivially
@@ -235,7 +233,7 @@ describe('AC6.5 — draft-writer rewire guard (S202 §5.2 Phase 2.5)', () => {
         label: 'indented single-line key/value with trailing comma',
       },
       {
-        input: 'body.governance_review_status = \'draft\';',
+        input: "body.governance_review_status = 'draft';",
         shouldMatch: true,
         label: 'single-line assignment',
       },
@@ -282,23 +280,21 @@ describe('AC6.5 — draft-writer rewire guard (S202 §5.2 Phase 2.5)', () => {
       },
     ];
 
-    it.each(cases)(
-      '$label — match=$shouldMatch',
-      ({ input, shouldMatch }) => {
-        // Reset lastIndex on the global regex before every test so prior
-        // `test()` calls don't poison the result.
-        WRITE_PATTERN.lastIndex = 0;
-        expect(WRITE_PATTERN.test(input)).toBe(shouldMatch);
-        WRITE_PATTERN.lastIndex = 0;
-      },
-    );
+    it.each(cases)('$label — match=$shouldMatch', ({ input, shouldMatch }) => {
+      // Reset lastIndex on the global regex before every test so prior
+      // `test()` calls don't poison the result.
+      WRITE_PATTERN.lastIndex = 0;
+      expect(WRITE_PATTERN.test(input)).toBe(shouldMatch);
+      WRITE_PATTERN.lastIndex = 0;
+    });
 
     it('comment lines are excluded by isExcluded() even when the regex matches', () => {
       // Comments inside production files would syntactically match the
       // WRITE_PATTERN regex (e.g. a JSDoc example showing the legacy form);
       // the line-level filter in isExcluded() must still drop them so the
       // guard does not false-positive.
-      const commentLine = "// governance_review_status: 'draft' is the legacy form";
+      const commentLine =
+        "// governance_review_status: 'draft' is the legacy form";
       const blockCommentLine = " * governance_review_status: 'draft'";
       const inlineTrailingComment =
         "const x = 1; // governance_review_status: 'draft'";
@@ -349,11 +345,11 @@ describe('AC6.5 — draft-writer rewire guard (S202 §5.2 Phase 2.5)', () => {
       // arithmetic so a future refactor doesn't silently shift to the
       // value-line.
       const synthetic =
-        "/* preamble */\n" +
-        "const payload = {\n" +
-        "  governance_review_status:\n" +
+        '/* preamble */\n' +
+        'const payload = {\n' +
+        '  governance_review_status:\n' +
         "    'draft',\n" +
-        "};\n";
+        '};\n';
       // Re-implement the file-walker's offset → line arithmetic on the
       // synthetic source (we can't easily mock readFileSync here, so we
       // exercise the same algorithm against an in-memory string).

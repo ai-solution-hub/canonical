@@ -135,8 +135,8 @@ export function ConnectedAppsSection() {
           </div>
         ) : grants.length === 0 ? (
           <p className="py-4 text-center text-sm text-muted-foreground">
-            No connected apps. When you authorise an application to access
-            your {BRANDING.productName}, it will appear here.
+            No connected apps. When you authorise an application to access your{' '}
+            {BRANDING.productName}, it will appear here.
           </p>
         ) : (
           <ul className="flex flex-col gap-3" role="list">

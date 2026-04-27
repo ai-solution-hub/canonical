@@ -14,26 +14,38 @@ import { mockTaxonomyContext } from '../helpers/mock-contexts';
 // vi.hoisted() — mock values referenced in vi.mock() factories
 // ---------------------------------------------------------------------------
 
-const { mockFetch, mockTaxonomy, mockUserRole, mockCoverageTargets } = vi.hoisted(() => ({
-  mockFetch: vi.fn(),
-  mockTaxonomy: {
-    value: null as ReturnType<
-      typeof import('../helpers/mock-contexts').mockTaxonomyContext
-    > | null,
-  },
-  mockUserRole: {
-    value: { role: 'admin' as string, canAdmin: true, canEdit: true, loading: false },
-  },
-  mockCoverageTargets: {
-    value: {
-      targets: [] as Array<{ id: string; domain_id: string; metric_name: string; target_value: number; domain_name: string | null }>,
-      loading: false,
-      error: null,
-      saveTargets: vi.fn(),
-      refetch: vi.fn(),
+const { mockFetch, mockTaxonomy, mockUserRole, mockCoverageTargets } =
+  vi.hoisted(() => ({
+    mockFetch: vi.fn(),
+    mockTaxonomy: {
+      value: null as ReturnType<
+        typeof import('../helpers/mock-contexts').mockTaxonomyContext
+      > | null,
     },
-  },
-}));
+    mockUserRole: {
+      value: {
+        role: 'admin' as string,
+        canAdmin: true,
+        canEdit: true,
+        loading: false,
+      },
+    },
+    mockCoverageTargets: {
+      value: {
+        targets: [] as Array<{
+          id: string;
+          domain_id: string;
+          metric_name: string;
+          target_value: number;
+          domain_name: string | null;
+        }>,
+        loading: false,
+        error: null,
+        saveTargets: vi.fn(),
+        refetch: vi.fn(),
+      },
+    },
+  }));
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
@@ -178,7 +190,12 @@ describe('CoverageContent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockTaxonomy.value = mockTaxonomyContext();
-    mockUserRole.value = { role: 'admin', canAdmin: true, canEdit: true, loading: false };
+    mockUserRole.value = {
+      role: 'admin',
+      canAdmin: true,
+      canEdit: true,
+      loading: false,
+    };
     mockCoverageTargets.value = {
       targets: [],
       loading: false,
@@ -247,14 +264,21 @@ describe('CoverageContent', () => {
       ).toBeInTheDocument();
     });
     expect(
-      screen.getByText('Add some content to see coverage broken down by domain.'),
+      screen.getByText(
+        'Add some content to see coverage broken down by domain.',
+      ),
     ).toBeInTheDocument();
     const ctaLink = screen.getByRole('link', { name: 'Add content' });
     expect(ctaLink).toHaveAttribute('href', '/item/new');
   });
 
   it('hides CTA in empty-content state for viewers (canEdit=false)', async () => {
-    mockUserRole.value = { role: 'viewer', canAdmin: false, canEdit: false, loading: false };
+    mockUserRole.value = {
+      role: 'viewer',
+      canAdmin: false,
+      canEdit: false,
+      loading: false,
+    };
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve({ matrix: [], summary: [] }),
@@ -268,9 +292,13 @@ describe('CoverageContent', () => {
       ).toBeInTheDocument();
     });
     expect(
-      screen.getByText('Add some content to see coverage broken down by domain.'),
+      screen.getByText(
+        'Add some content to see coverage broken down by domain.',
+      ),
     ).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Add content' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Add content' }),
+    ).not.toBeInTheDocument();
   });
 
   it('shows no-taxonomy empty state with Settings link when no domains exist', async () => {
@@ -606,7 +634,12 @@ describe('CoverageContent', () => {
 
   describe('coverage targets empty state', () => {
     it('shows admin CTA when no targets exist and user is admin', async () => {
-      mockUserRole.value = { role: 'admin', canAdmin: true, canEdit: true, loading: false };
+      mockUserRole.value = {
+        role: 'admin',
+        canAdmin: true,
+        canEdit: true,
+        loading: false,
+      };
       const data = createCoverageResponse();
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -616,7 +649,9 @@ describe('CoverageContent', () => {
       render(<CoverageContent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('coverage-summary-cards')).toBeInTheDocument();
+        expect(
+          screen.getByTestId('coverage-summary-cards'),
+        ).toBeInTheDocument();
       });
 
       expect(screen.getByText('No coverage targets set')).toBeInTheDocument();
@@ -631,7 +666,12 @@ describe('CoverageContent', () => {
     });
 
     it('shows neutral message for non-admin when no targets exist', async () => {
-      mockUserRole.value = { role: 'editor', canAdmin: false, canEdit: true, loading: false };
+      mockUserRole.value = {
+        role: 'editor',
+        canAdmin: false,
+        canEdit: true,
+        loading: false,
+      };
       const data = createCoverageResponse();
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -641,7 +681,9 @@ describe('CoverageContent', () => {
       render(<CoverageContent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('coverage-summary-cards')).toBeInTheDocument();
+        expect(
+          screen.getByTestId('coverage-summary-cards'),
+        ).toBeInTheDocument();
       });
 
       expect(
@@ -653,7 +695,12 @@ describe('CoverageContent', () => {
     });
 
     it('shows neutral message for viewer when no targets exist', async () => {
-      mockUserRole.value = { role: 'viewer', canAdmin: false, canEdit: false, loading: false };
+      mockUserRole.value = {
+        role: 'viewer',
+        canAdmin: false,
+        canEdit: false,
+        loading: false,
+      };
       const data = createCoverageResponse();
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -663,7 +710,9 @@ describe('CoverageContent', () => {
       render(<CoverageContent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('coverage-summary-cards')).toBeInTheDocument();
+        expect(
+          screen.getByTestId('coverage-summary-cards'),
+        ).toBeInTheDocument();
       });
 
       expect(
@@ -700,7 +749,9 @@ describe('CoverageContent', () => {
       render(<CoverageContent />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('coverage-summary-cards')).toBeInTheDocument();
+        expect(
+          screen.getByTestId('coverage-summary-cards'),
+        ).toBeInTheDocument();
       });
 
       expect(

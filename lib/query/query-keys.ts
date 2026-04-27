@@ -171,13 +171,7 @@ export const queryKeys = {
       all: (workspaceId: string) =>
         ['intelligence', 'flags', workspaceId] as const,
       list: (workspaceId: string, filters?: Record<string, unknown>) =>
-        [
-          'intelligence',
-          'flags',
-          workspaceId,
-          'list',
-          filters ?? {},
-        ] as const,
+        ['intelligence', 'flags', workspaceId, 'list', filters ?? {}] as const,
     },
     metrics: {
       summary: (workspaceId: string, period?: string) =>
@@ -316,10 +310,7 @@ export const queryKeys = {
     pipelineRunsRecent: ['admin', 'pipeline-runs', 'recent'] as const,
     provenance: {
       all: ['admin', 'provenance'] as const,
-      pipelineRuns: (filters: {
-        range: string;
-        kinds?: readonly string[];
-      }) =>
+      pipelineRuns: (filters: { range: string; kinds?: readonly string[] }) =>
         [
           'admin',
           'provenance',

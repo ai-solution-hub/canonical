@@ -133,9 +133,8 @@ beforeEach(() => {
     error: null,
   });
   mockSupabase._chain.then.mockReset();
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: null, error: null, count: 0 }),
   );
 });
 
@@ -239,7 +238,9 @@ describe('PATCH /api/items/[id] — publication_status role-gate / AC4.2 editor'
     // regex pins both states + the role so a regression returning 409 with
     // a generic message would fail loudly.
     const body = await res.json();
-    expect(body.error).toMatch(/transition not allowed.*draft.*published.*editor/i);
+    expect(body.error).toMatch(
+      /transition not allowed.*draft.*published.*editor/i,
+    );
   });
 
   it('editor PATCH published → archived → 403 (editor cannot leave published)', async () => {
@@ -251,7 +252,9 @@ describe('PATCH /api/items/[id] — publication_status role-gate / AC4.2 editor'
     // route-level `Forbidden` 403 returned for viewers — this 403 is
     // emitted by the branch's own role-fan-out logic.
     const body = await res.json();
-    expect(body.error).toMatch(/role.*editor.*cannot transition out.*published/i);
+    expect(body.error).toMatch(
+      /role.*editor.*cannot transition out.*published/i,
+    );
     expect(mockSupabase._chain.update).not.toHaveBeenCalled();
   });
 
@@ -262,7 +265,9 @@ describe('PATCH /api/items/[id] — publication_status role-gate / AC4.2 editor'
     // V1-L2: branch-emitted `Role 'editor' cannot transition out of
     // 'archived'.` body assertion.
     const body = await res.json();
-    expect(body.error).toMatch(/role.*editor.*cannot transition out.*archived/i);
+    expect(body.error).toMatch(
+      /role.*editor.*cannot transition out.*archived/i,
+    );
     expect(mockSupabase._chain.update).not.toHaveBeenCalled();
   });
 
@@ -272,7 +277,9 @@ describe('PATCH /api/items/[id] — publication_status role-gate / AC4.2 editor'
     expect(res.status).toBe(403);
     // V1-L2: same branch-emitted message — target-state independent.
     const body = await res.json();
-    expect(body.error).toMatch(/role.*editor.*cannot transition out.*archived/i);
+    expect(body.error).toMatch(
+      /role.*editor.*cannot transition out.*archived/i,
+    );
     expect(mockSupabase._chain.update).not.toHaveBeenCalled();
   });
 });

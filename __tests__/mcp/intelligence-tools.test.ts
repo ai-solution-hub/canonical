@@ -70,7 +70,7 @@ function makeSummaryData(
     total_passed: 20,
     total_filtered: 30,
     filter_ratio: 0.6,
-    by_category: { 'Data Breaches': 12, 'Ransomware': 8 },
+    by_category: { 'Data Breaches': 12, Ransomware: 8 },
     by_source: [
       { source_name: 'Dark Reading', article_count: 30, passed_count: 12 },
       { source_name: 'The Register', article_count: 20, passed_count: 8 },

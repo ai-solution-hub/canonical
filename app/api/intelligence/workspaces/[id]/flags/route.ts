@@ -105,17 +105,15 @@ export async function GET(request: NextRequest, context: RouteContext) {
     // feed_articles and feed_sources).
     const flags: WorkspaceFlagRow[] = (rows ?? []).map(
       (row: Record<string, unknown>) => {
-        const article = row.feed_articles as
-          | {
-              title: string | null;
-              external_url: string | null;
-              relevance_score: number | null;
-              relevance_reasoning: string | null;
-              relevance_category: string | null;
-              passed: boolean | null;
-              feed_sources: { name: string | null } | null;
-            }
-          | null;
+        const article = row.feed_articles as {
+          title: string | null;
+          external_url: string | null;
+          relevance_score: number | null;
+          relevance_reasoning: string | null;
+          relevance_category: string | null;
+          passed: boolean | null;
+          feed_sources: { name: string | null } | null;
+        } | null;
         const source = article?.feed_sources ?? null;
 
         return {

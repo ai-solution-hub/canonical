@@ -183,9 +183,9 @@ describe('deriveIsQuietWeek', () => {
   });
 
   it('returns false when unresolved_flags > 0', () => {
-    expect(
-      deriveIsQuietWeek({ ...quietMetrics(), unresolved_flags: 1 }),
-    ).toBe(false);
+    expect(deriveIsQuietWeek({ ...quietMetrics(), unresolved_flags: 1 })).toBe(
+      false,
+    );
   });
 
   it('returns false when sources_with_errors > 0', () => {
@@ -210,9 +210,7 @@ describe('WorkspaceOverviewPage — quiet-week collapse (P1-14)', () => {
     expect(details.tagName.toLowerCase()).toBe('details');
 
     // Summary text is visible
-    expect(
-      screen.getByText(/No new activity this period/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/No new activity this period/)).toBeInTheDocument();
 
     // Detail sections are NOT visible (details is closed)
     // MetricsPanel and RssFeedPanel are inside the collapsed region
@@ -224,9 +222,7 @@ describe('WorkspaceOverviewPage — quiet-week collapse (P1-14)', () => {
     render(<WorkspaceOverviewPage />);
 
     // No collapse container
-    expect(
-      screen.queryByTestId('quiet-week-collapse'),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId('quiet-week-collapse')).not.toBeInTheDocument();
 
     // MetricsPanel and RssFeedPanel are directly visible
     expect(screen.getByTestId('metrics-panel')).toBeInTheDocument();
@@ -238,9 +234,7 @@ describe('WorkspaceOverviewPage — quiet-week collapse (P1-14)', () => {
     render(<WorkspaceOverviewPage />);
 
     // No collapse — sources_with_errors > 0 breaks the quiet condition
-    expect(
-      screen.queryByTestId('quiet-week-collapse'),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId('quiet-week-collapse')).not.toBeInTheDocument();
 
     // Full layout shown
     expect(screen.getByTestId('metrics-panel')).toBeInTheDocument();

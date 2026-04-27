@@ -49,7 +49,10 @@ export function SeedStarterPackDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => (v ? setOpen(true) : handleClose())}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => (v ? setOpen(true) : handleClose())}
+    >
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
           <PackagePlus className="mr-1.5 size-4" />

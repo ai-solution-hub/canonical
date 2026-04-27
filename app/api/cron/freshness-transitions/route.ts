@@ -190,9 +190,7 @@ export async function GET(request: NextRequest) {
     const userIds = await getUsersByRole(supabase, ['admin', 'editor']);
     if (userIds.length === 0) {
       console.warn('No admin/editor users found for freshness notifications');
-      cronWarnings.push(
-        'No admin/editor users found — notifications skipped.',
-      );
+      cronWarnings.push('No admin/editor users found — notifications skipped.');
       return NextResponse.json({
         success: false,
         transitions: counts,
@@ -880,10 +878,7 @@ async function cleanupExpiredNotifications(
       .lt('expires_at', thirtyDaysAgo)
       .not('dismissed_at', 'is', null);
     if (deleteError) {
-      console.error(
-        'Failed to clean up expired notifications:',
-        deleteError,
-      );
+      console.error('Failed to clean up expired notifications:', deleteError);
       return {
         warning: `Notification cleanup failed: ${deleteError.message}`,
       };

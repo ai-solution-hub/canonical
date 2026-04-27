@@ -237,7 +237,9 @@ describe('extractContent', () => {
     // Firecrawl returns HTML with a heading
     const { default: Firecrawl } = await import('@mendable/firecrawl-js');
     const htmlWithHeading =
-      '<h1>Important Heading</h1><p>' + 'Substantial body. '.repeat(100) + '</p>';
+      '<h1>Important Heading</h1><p>' +
+      'Substantial body. '.repeat(100) +
+      '</p>';
     const mockScrape = vi.fn().mockResolvedValue({
       html: htmlWithHeading,
       metadata: { title: 'F-1 Test' },
@@ -266,7 +268,8 @@ describe('extractContent — Firecrawl resolvedUrl (S189 WP1)', () => {
 
   it('returns resolvedUrl from Firecrawl metadata.sourceURL when it differs from input URL', async () => {
     const googleNewsUrl = 'https://news.google.com/rss/articles/CBMiX2h0dHBz';
-    const publisherUrl = 'https://www.farrer.co.uk/news/kcsie-2026-proposed-changes';
+    const publisherUrl =
+      'https://www.farrer.co.uk/news/kcsie-2026-proposed-changes';
     const item: ParsedFeedItem = {
       ...baseItem,
       url: googleNewsUrl,
@@ -280,7 +283,8 @@ describe('extractContent — Firecrawl resolvedUrl (S189 WP1)', () => {
 
     // Firecrawl mock returns HTML content with metadata.sourceURL
     const { default: Firecrawl } = await import('@mendable/firecrawl-js');
-    const htmlContent = '<p>' + 'Publisher article content. '.repeat(100) + '</p>';
+    const htmlContent =
+      '<p>' + 'Publisher article content. '.repeat(100) + '</p>';
     const mockScrape = vi.fn().mockResolvedValue({
       html: htmlContent,
       metadata: {
@@ -423,8 +427,7 @@ describe('checkFirecrawlApiKey (SI-H4)', () => {
     // firecrawlKeyMissing) starts fresh.
     const mod = await import('@/lib/intelligence/content-extractor');
     delete process.env.FIRECRAWL_API_KEY;
-    (process.env as Record<string, string | undefined>).NODE_ENV =
-      'production';
+    (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
 
     expect(() => mod.checkFirecrawlApiKey()).toThrow(
       /FIRECRAWL_API_KEY is not set/,
@@ -458,8 +461,7 @@ describe('checkFirecrawlApiKey (SI-H4)', () => {
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const mod = await import('@/lib/intelligence/content-extractor');
     process.env.FIRECRAWL_API_KEY = 'fc-test-key';
-    (process.env as Record<string, string | undefined>).NODE_ENV =
-      'production';
+    (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
 
     expect(() => mod.checkFirecrawlApiKey()).not.toThrow();
     expect(consoleSpy).not.toHaveBeenCalled();
@@ -472,7 +474,8 @@ describe('checkFirecrawlApiKey (SI-H4)', () => {
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const mod = await import('@/lib/intelligence/content-extractor');
     delete process.env.FIRECRAWL_API_KEY;
-    (process.env as Record<string, string | undefined>).NODE_ENV = 'development';
+    (process.env as Record<string, string | undefined>).NODE_ENV =
+      'development';
 
     mod.checkFirecrawlApiKey();
     expect(mod.isFirecrawlConfigured()).toBe(false);
@@ -484,7 +487,8 @@ describe('checkFirecrawlApiKey (SI-H4)', () => {
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const mod = await import('@/lib/intelligence/content-extractor');
     delete process.env.FIRECRAWL_API_KEY;
-    (process.env as Record<string, string | undefined>).NODE_ENV = 'development';
+    (process.env as Record<string, string | undefined>).NODE_ENV =
+      'development';
 
     mod.checkFirecrawlApiKey();
     mod.checkFirecrawlApiKey();

@@ -141,9 +141,7 @@ function getSupabaseClient(): SupabaseScriptClient {
 
 export function cosineSimilarity(a: number[], b: number[]): number {
   if (a.length !== b.length) {
-    throw new Error(
-      `Vector length mismatch: ${a.length} vs ${b.length}`,
-    );
+    throw new Error(`Vector length mismatch: ${a.length} vs ${b.length}`);
   }
   let dot = 0;
   let normA = 0;
@@ -173,7 +171,11 @@ const DEFAULT_BUCKETS: BucketSpec[] = [
   { label: 'blog', target: 3, contentType: 'blog' },
   { label: 'pdf', target: 3, contentType: 'pdf' },
   { label: 'question_answer', target: 3, contentType: 'question_answer' },
-  { label: 'product_description', target: 2, contentType: 'product_description' },
+  {
+    label: 'product_description',
+    target: 2,
+    contentType: 'product_description',
+  },
   { label: 'policy', target: 2, primaryDomainLike: 'policy' },
   { label: 'any', target: 2 },
 ];
@@ -266,7 +268,11 @@ async function selectItems(
     const limit = config.limitOverride > 0 ? config.limitOverride : 20;
     const items = await selectItemsForBucket(
       supabase,
-      { label: config.contentTypeFilter, target: limit, contentType: config.contentTypeFilter },
+      {
+        label: config.contentTypeFilter,
+        target: limit,
+        contentType: config.contentTypeFilter,
+      },
       seen,
       limit,
     );
@@ -382,14 +388,19 @@ interface PerItemResult {
   python_ingested: boolean;
 }
 
-export function isPythonIngested(item: Pick<SelectedItem, 'metadata'>): boolean {
+export function isPythonIngested(
+  item: Pick<SelectedItem, 'metadata'>,
+): boolean {
   const meta = item.metadata;
   if (!meta || typeof meta !== 'object') return false;
   const asRecord = meta as Record<string, unknown>;
-  const src = asRecord.extraction_source ?? asRecord.pipeline ?? asRecord.ingest_source;
+  const src =
+    asRecord.extraction_source ?? asRecord.pipeline ?? asRecord.ingest_source;
   if (typeof src !== 'string') return false;
   const lower = src.toLowerCase();
-  return lower === 'trafilatura' || lower === 'jina_reader' || lower === 'pdfplumber';
+  return (
+    lower === 'trafilatura' || lower === 'jina_reader' || lower === 'pdfplumber'
+  );
 }
 
 function median(values: number[]): number {
@@ -412,8 +423,12 @@ async function main() {
   console.log('Embedding Quality Smoke Test');
   console.log('='.repeat(60));
   console.log(`  Dry run:          ${config.dryRun}`);
-  console.log(`  Limit override:   ${config.limitOverride || '(bucket defaults)'}`);
-  console.log(`  Content-type:     ${config.contentTypeFilter || '(all buckets)'}`);
+  console.log(
+    `  Limit override:   ${config.limitOverride || '(bucket defaults)'}`,
+  );
+  console.log(
+    `  Content-type:     ${config.contentTypeFilter || '(all buckets)'}`,
+  );
   console.log(`  Output:           ${config.outputPath || '(stdout only)'}`);
   console.log();
 
@@ -440,7 +455,11 @@ async function main() {
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     const progress = `[${i + 1}/${items.length}]`;
-    const titleShort = (item.suggested_title ?? item.title ?? '(untitled)').slice(0, 40);
+    const titleShort = (
+      item.suggested_title ??
+      item.title ??
+      '(untitled)'
+    ).slice(0, 40);
     const notes: string[] = [];
 
     if (!item.embedding) {
@@ -597,16 +616,30 @@ async function main() {
   console.log('Summary');
   console.log('='.repeat(60));
   console.log(`  Items tested:     ${results.length}`);
-  console.log(`  Skipped:          ${results.filter((r) => r.status === 'SKIP').length}`);
-  console.log(`  Failed:           ${results.filter((r) => r.status === 'FAIL').length}`);
-  console.log(`  Median similarity (all): ${Number.isNaN(med) ? 'n/a' : med.toFixed(4)}`);
-  console.log(`  Min similarity:          ${Number.isNaN(min) ? 'n/a' : min.toFixed(4)}`);
-  console.log(`  Max similarity:          ${Number.isNaN(max) ? 'n/a' : max.toFixed(4)}`);
+  console.log(
+    `  Skipped:          ${results.filter((r) => r.status === 'SKIP').length}`,
+  );
+  console.log(
+    `  Failed:           ${results.filter((r) => r.status === 'FAIL').length}`,
+  );
+  console.log(
+    `  Median similarity (all): ${Number.isNaN(med) ? 'n/a' : med.toFixed(4)}`,
+  );
+  console.log(
+    `  Min similarity:          ${Number.isNaN(min) ? 'n/a' : min.toFixed(4)}`,
+  );
+  console.log(
+    `  Max similarity:          ${Number.isNaN(max) ? 'n/a' : max.toFixed(4)}`,
+  );
   if (pythonResults.length > 0) {
     const pyMed = median(pythonResults.map((r) => r.similarity));
     const nonPyMed = median(nonPython.map((r) => r.similarity));
-    console.log(`  Python-ingested:         ${pythonResults.length} items, median ${pyMed.toFixed(4)} (expected lower until WP1c closes the 1500-char truncation gap)`);
-    console.log(`  Non-Python ingested:     ${nonPython.length} items, median ${nonPyMed.toFixed(4)}`);
+    console.log(
+      `  Python-ingested:         ${pythonResults.length} items, median ${pyMed.toFixed(4)} (expected lower until WP1c closes the 1500-char truncation gap)`,
+    );
+    console.log(
+      `  Non-Python ingested:     ${nonPython.length} items, median ${nonPyMed.toFixed(4)}`,
+    );
   }
 
   const medianPass = !Number.isNaN(med) && med > 0.95;

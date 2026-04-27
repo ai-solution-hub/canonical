@@ -170,12 +170,12 @@ describe('MetadataSidebar — resolveFlag error handling', () => {
 
     // Wait for flag to appear in DOM
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /resolve/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /resolve/i }),
+      ).toBeInTheDocument();
     });
 
-    await userEvent.click(
-      screen.getByRole('button', { name: /resolve/i }),
-    );
+    await userEvent.click(screen.getByRole('button', { name: /resolve/i }));
 
     await waitFor(() => {
       expect(mockCaptureClientException).toHaveBeenCalledWith(
@@ -189,7 +189,9 @@ describe('MetadataSidebar — resolveFlag error handling', () => {
         }),
       );
     });
-    expect(mockToastError).toHaveBeenCalledWith('Failed to resolve quality flag');
+    expect(mockToastError).toHaveBeenCalledWith(
+      'Failed to resolve quality flag',
+    );
   });
 });
 
@@ -204,9 +206,13 @@ describe('MetadataSidebar — classification details admin-only guard (P1-6 F2)'
   });
 
   it('does not render a "Classification Details" heading or classification_reasoning text even when reasoning is populated', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }),
+    );
 
-    const reasoningText = 'This item was classified as Corporate because of explicit taxonomy signals.';
+    const reasoningText =
+      'This item was classified as Corporate because of explicit taxonomy signals.';
     render(
       <MetadataSidebar
         item={createItem({
@@ -222,8 +228,12 @@ describe('MetadataSidebar — classification details admin-only guard (P1-6 F2)'
       />,
     );
 
-    expect(screen.queryByText('Classification Details')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Classification Details'),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(reasoningText)).not.toBeInTheDocument();
-    expect(screen.queryByText(/classified as Corporate/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/classified as Corporate/i),
+    ).not.toBeInTheDocument();
   });
 });

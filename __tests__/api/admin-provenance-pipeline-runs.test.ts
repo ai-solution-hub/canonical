@@ -19,9 +19,8 @@ import {
 const mockSupabase: MockSupabaseClient = createMockSupabaseClient();
 
 vi.mock('@/lib/auth', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/auth')>(
-    '@/lib/auth',
-  );
+  const actual =
+    await vi.importActual<typeof import('@/lib/auth')>('@/lib/auth');
   return {
     ...actual,
     getAuthorisedClient: vi.fn(),
@@ -125,7 +124,12 @@ function mockListOkRollupError(listRows: PipelineRunRow[]) {
       }
       return resolve({
         data: null,
-        error: { message: 'rollup failed', code: 'PGRST500', details: '', hint: '' },
+        error: {
+          message: 'rollup failed',
+          code: 'PGRST500',
+          details: '',
+          hint: '',
+        },
         count: null,
       });
     },
@@ -164,9 +168,8 @@ beforeEach(() => {
   thenCallCount = 0;
 
   mockSupabase._chain.then.mockReset();
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 
   const chain = mockSupabase._chain;
@@ -354,9 +357,7 @@ describe('GET /api/admin/provenance/pipeline-runs', () => {
         makeRow({
           id: `a0000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
           pipeline_name: 'test_pipeline',
-          started_at: new Date(
-            Date.now() - i * 60_000,
-          ).toISOString(),
+          started_at: new Date(Date.now() - i * 60_000).toISOString(),
         }),
       );
 
@@ -412,9 +413,7 @@ describe('GET /api/admin/provenance/pipeline-runs', () => {
       const body = await res.json();
       expect(body.warnings).toBeDefined();
       expect(body.warnings).toEqual(
-        expect.arrayContaining([
-          expect.stringContaining('truncated'),
-        ]),
+        expect.arrayContaining([expect.stringContaining('truncated')]),
       );
     });
   });

@@ -51,7 +51,8 @@ export function formatReviewQueue(data: ReviewQueueToolData): string {
 
   const filters: string[] = [`status: \`${status}\``];
   if (domain_filter) filters.push(`domain: \`${domain_filter}\``);
-  if (content_type_filter) filters.push(`content_type: \`${content_type_filter}\``);
+  if (content_type_filter)
+    filters.push(`content_type: \`${content_type_filter}\``);
 
   if (items.length === 0 && total === 0) {
     return `# Review Queue\n\nNo items match the filter (${filters.join(', ')}).\n\nVerified across KB: ${verified_count}. Flagged: ${flagged_count}.`;

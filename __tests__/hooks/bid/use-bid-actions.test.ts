@@ -8,8 +8,8 @@ import type { BidState, ExtractionResult } from '@/types/bid';
 // Mocks
 // ---------------------------------------------------------------------------
 
-const { hoistedBidId, hoistedMockSearchParams, hoistedMockRouter } =
-  vi.hoisted(() => {
+const { hoistedBidId, hoistedMockSearchParams, hoistedMockRouter } = vi.hoisted(
+  () => {
     const id = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
     const searchParams = { current: new URLSearchParams() };
     const router = {
@@ -25,7 +25,8 @@ const { hoistedBidId, hoistedMockSearchParams, hoistedMockRouter } =
       hoistedMockSearchParams: searchParams,
       hoistedMockRouter: router,
     };
-  });
+  },
+);
 
 const mockPush = hoistedMockRouter.push;
 const mockReplace = hoistedMockRouter.replace;

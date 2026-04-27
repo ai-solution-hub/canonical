@@ -86,7 +86,7 @@ export function accuracy(correct: number, total: number): number {
  */
 export function rougeL(
   candidate: string,
-  reference: string
+  reference: string,
 ): { precision: number; recall: number; f1: number } {
   const candTokens = tokenise(candidate);
   const refTokens = tokenise(reference);
@@ -110,7 +110,7 @@ export function rougeL(
  */
 export function rouge1(
   candidate: string,
-  reference: string
+  reference: string,
 ): { precision: number; recall: number; f1: number } {
   const candidateTokens = tokenise(candidate);
   const referenceTokens = tokenise(reference);
@@ -164,7 +164,7 @@ export function mrr(results: Array<{ relevant: boolean }[]>): number {
 export function ndcgAtK(
   relevanceScores: number[],
   idealScores: number[],
-  k: number
+  k: number,
 ): number {
   if (k === 0) return 0;
 
@@ -184,7 +184,7 @@ export function ndcgAtK(
  */
 export function precisionAtK(
   results: Array<{ relevant: boolean }>,
-  k: number
+  k: number,
 ): number {
   if (k === 0) return 0;
   const topK = results.slice(0, k);

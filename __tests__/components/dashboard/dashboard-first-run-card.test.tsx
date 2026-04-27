@@ -140,9 +140,7 @@ describe('DashboardFirstRunCard', () => {
   // Test 4: Persona hint row visible
   it('renders persona hint row with three links', () => {
     render(<DashboardFirstRunCard role="admin" />);
-    expect(
-      screen.getByText("I'm primarily here for:"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("I'm primarily here for:")).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Bid writing' }),
     ).toBeInTheDocument();
@@ -217,9 +215,7 @@ describe('DashboardFirstRunCard', () => {
     const user = userEvent.setup();
     render(<DashboardFirstRunCard role="admin" />);
 
-    expect(
-      screen.getByTestId('dashboard-first-run-card'),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId('dashboard-first-run-card')).toBeInTheDocument();
 
     const dismissBtn = screen.getByRole('button', {
       name: /dismiss welcome card/i,
@@ -252,9 +248,7 @@ describe('DashboardFirstRunCard', () => {
     const user = userEvent.setup();
     render(<DashboardFirstRunCard role="editor" />);
 
-    await user.click(
-      screen.getByRole('button', { name: 'Marketing content' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'Marketing content' }));
 
     await waitFor(() => {
       expect(mockToast.success).toHaveBeenCalledWith(
@@ -307,9 +301,7 @@ describe('DashboardFirstRunCard', () => {
   it('renders description with UK English spelling', () => {
     render(<DashboardFirstRunCard role="admin" />);
     expect(
-      screen.getByText(
-        "Let's get your company knowledge organised.",
-      ),
+      screen.getByText("Let's get your company knowledge organised."),
     ).toBeInTheDocument();
   });
 
@@ -327,8 +319,9 @@ describe('DashboardFirstRunCard', () => {
     await waitFor(() => {
       expect(marketing).toHaveAttribute('aria-pressed', 'true');
     });
-    expect(
-      screen.getByRole('button', { name: 'Bid writing' }),
-    ).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'Bid writing' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
   });
 });

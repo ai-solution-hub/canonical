@@ -2,22 +2,22 @@
 
 ## Colour tokens
 
-- [ ] No raw Tailwind colour classes (`text-green-600`, `bg-amber-50`, etc.)
-      in component files — always use semantic tokens
+- [ ] No raw Tailwind colour classes (`text-green-600`, `bg-amber-50`, etc.) in
+      component files — always use semantic tokens
 - [ ] No `dark:` colour prefixes in components — semantic tokens handle
       light/dark automatically via CSS variables
 - [ ] No HSL or RGB fallback values — all colours in OKLCH via CSS variables
-- [ ] New status colours use the correct semantic token prefix:
-      freshness-*, confidence-*, bid-*, governance-*, phase-*, template-*,
-      quality-*, status-*
+- [ ] New status colours use the correct semantic token prefix: freshness-_,
+      confidence-_, bid-_, governance-_, phase-_, template-_, quality-_,
+      status-_
 - [ ] Domain category colours use var(--domain-{name}-bg/text/surface) tokens
 
 ## Signal principle
 
 - [ ] Amber (`--primary`) is reserved for actionable elements only: buttons,
       links, focus rings, active states. It never decorates or fills
-- [ ] Status indicators use teal (success/fresh), sand (warning/aging),
-      rose (error/stale/expired) — never amber for status
+- [ ] Status indicators use teal (success/fresh), sand (warning/aging), rose
+      (error/stale/expired) — never amber for status
 
 ## Typography
 
@@ -36,5 +36,5 @@
 
 - [ ] New CSS variables defined in both `:root` and `.dark` blocks in
       `app/globals.css`
-- [ ] New tokens registered in `@theme inline` block for Tailwind utility
-      access (e.g., `--color-freshness-fresh: var(--color-freshness-fresh)`)
+- [ ] New tokens registered in `@theme inline` block for Tailwind utility access
+      (e.g., `--color-freshness-fresh: var(--color-freshness-fresh)`)

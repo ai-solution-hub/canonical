@@ -80,11 +80,7 @@ const serverSchema = z.object({
     .min(1, 'CRON_SECRET is required for Vercel Cron auth'),
 
   // -- Classification batch sizing (coerced from string env value)
-  CLASSIFICATION_BATCH_SIZE: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(25),
+  CLASSIFICATION_BATCH_SIZE: z.coerce.number().int().positive().default(25),
 
   // -- Taxonomy sync
   GITHUB_SYNC_TOKEN: z.string().min(1).optional().or(z.literal('')),

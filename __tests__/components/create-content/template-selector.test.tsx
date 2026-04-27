@@ -23,7 +23,8 @@ const mockTemplates: ContentTemplate[] = [
     description: 'Company policy with scope and compliance',
     contentType: 'policy',
     titleTemplate: '',
-    contentTemplate: '## Policy Statement\n\nDescribe the policy and its purpose.',
+    contentTemplate:
+      '## Policy Statement\n\nDescribe the policy and its purpose.',
     suggestedDomain: 'Governance & Compliance',
     defaultTags: ['policy'],
   },
@@ -34,7 +35,8 @@ const mockTemplates: ContentTemplate[] = [
     description: 'Client project with outcomes',
     contentType: 'case_study',
     titleTemplate: '',
-    contentTemplate: '## Client and Context\n\nWho was the client and what was the situation?',
+    contentTemplate:
+      '## Client and Context\n\nWho was the client and what was the situation?',
     suggestedDomain: 'Track Record',
     defaultTags: ['case-study'],
   },

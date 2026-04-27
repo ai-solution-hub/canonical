@@ -155,15 +155,21 @@ describe('Entity Classification Eval — Unit Tests', () => {
         domain: 'security',
         content_type: 'article',
         expected_entities: [
-          { name: 'ISO 27001', type: 'certification', canonical_name: 'iso 27001' },
+          {
+            name: 'ISO 27001',
+            type: 'certification',
+            canonical_name: 'iso 27001',
+          },
         ],
-        excluded_entities: [
-          { name: 'encryption', reason: 'generic concept' },
-        ],
+        excluded_entities: [{ name: 'encryption', reason: 'generic concept' }],
       };
 
       const extracted: DbEntity[] = [
-        { entity_type: 'certification', entity_name: 'ISO 27001', canonical_name: 'iso 27001' },
+        {
+          entity_type: 'certification',
+          entity_name: 'ISO 27001',
+          canonical_name: 'iso 27001',
+        },
       ];
 
       const result = scoreItem(gold, extracted);
@@ -180,15 +186,31 @@ describe('Entity Classification Eval — Unit Tests', () => {
         domain: 'security',
         content_type: 'article',
         expected_entities: [
-          { name: 'ISO 27001', type: 'certification', canonical_name: 'iso 27001' },
+          {
+            name: 'ISO 27001',
+            type: 'certification',
+            canonical_name: 'iso 27001',
+          },
         ],
         excluded_entities: [],
       };
 
       const extracted: DbEntity[] = [
-        { entity_type: 'certification', entity_name: 'ISO 27001', canonical_name: 'iso 27001' },
-        { entity_type: 'organisation', entity_name: 'Some Corp', canonical_name: 'some corp' },
-        { entity_type: 'technology', entity_name: 'Cloud Platform', canonical_name: 'cloud platform' },
+        {
+          entity_type: 'certification',
+          entity_name: 'ISO 27001',
+          canonical_name: 'iso 27001',
+        },
+        {
+          entity_type: 'organisation',
+          entity_name: 'Some Corp',
+          canonical_name: 'some corp',
+        },
+        {
+          entity_type: 'technology',
+          entity_name: 'Cloud Platform',
+          canonical_name: 'cloud platform',
+        },
       ];
 
       const result = scoreItem(gold, extracted);
@@ -204,15 +226,27 @@ describe('Entity Classification Eval — Unit Tests', () => {
         domain: 'corporate',
         content_type: 'q_a_pair',
         expected_entities: [
-          { name: 'ISO 27001', type: 'certification', canonical_name: 'iso 27001' },
-          { name: 'Cyber Essentials', type: 'certification', canonical_name: 'cyber essentials' },
+          {
+            name: 'ISO 27001',
+            type: 'certification',
+            canonical_name: 'iso 27001',
+          },
+          {
+            name: 'Cyber Essentials',
+            type: 'certification',
+            canonical_name: 'cyber essentials',
+          },
           { name: 'UK GDPR', type: 'regulation', canonical_name: 'uk gdpr' },
         ],
         excluded_entities: [],
       };
 
       const extracted: DbEntity[] = [
-        { entity_type: 'certification', entity_name: 'ISO 27001', canonical_name: 'iso 27001' },
+        {
+          entity_type: 'certification',
+          entity_name: 'ISO 27001',
+          canonical_name: 'iso 27001',
+        },
       ];
 
       const result = scoreItem(gold, extracted);
@@ -228,13 +262,21 @@ describe('Entity Classification Eval — Unit Tests', () => {
         domain: 'security',
         content_type: 'article',
         expected_entities: [
-          { name: 'ISO 27001', type: 'certification', canonical_name: 'iso 27001' },
+          {
+            name: 'ISO 27001',
+            type: 'certification',
+            canonical_name: 'iso 27001',
+          },
         ],
         excluded_entities: [],
       };
 
       const extracted: DbEntity[] = [
-        { entity_type: 'regulation', entity_name: 'ISO 27001', canonical_name: 'iso 27001' },
+        {
+          entity_type: 'regulation',
+          entity_name: 'ISO 27001',
+          canonical_name: 'iso 27001',
+        },
       ];
 
       const result = scoreItem(gold, extracted);
@@ -256,7 +298,11 @@ describe('Entity Classification Eval — Unit Tests', () => {
       };
 
       const extracted: DbEntity[] = [
-        { entity_type: 'technology', entity_name: 'encryption', canonical_name: 'encryption' },
+        {
+          entity_type: 'technology',
+          entity_name: 'encryption',
+          canonical_name: 'encryption',
+        },
       ];
 
       const result = scoreItem(gold, extracted);
@@ -271,13 +317,21 @@ describe('Entity Classification Eval — Unit Tests', () => {
         domain: 'corporate',
         content_type: 'q_a_pair',
         expected_entities: [
-          { name: 'example-client Design Ltd', type: 'organisation', canonical_name: 'Example Client Ltd' },
+          {
+            name: 'example-client Design Ltd',
+            type: 'organisation',
+            canonical_name: 'Example Client Ltd',
+          },
         ],
         excluded_entities: [],
       };
 
       const extracted: DbEntity[] = [
-        { entity_type: 'organisation', entity_name: 'example-client Design Ltd.', canonical_name: 'Example Client Ltd' },
+        {
+          entity_type: 'organisation',
+          entity_name: 'example-client Design Ltd.',
+          canonical_name: 'Example Client Ltd',
+        },
       ];
 
       const result = scoreItem(gold, extracted);
@@ -303,10 +357,7 @@ describe('Entity Classification Eval — Unit Tests', () => {
 
   describe('baseline save/load via shared infra', () => {
     const testSuiteName = 'entity-classification-test-temp';
-    const baselineDir = resolve(
-      __dirname,
-      '../fixtures/eval-baselines',
-    );
+    const baselineDir = resolve(__dirname, '../fixtures/eval-baselines');
 
     afterAll(() => {
       // Clean up test baseline file
@@ -332,10 +383,10 @@ describe('Entity Classification Eval — Unit Tests', () => {
       };
 
       const thresholds = {
-        precision: { min: 0.40, max_drop: 0.05 },
+        precision: { min: 0.4, max_drop: 0.05 },
         recall: { min: 0.35, max_drop: 0.05 },
         f1: { min: 0.35, max_drop: 0.05 },
-        type_accuracy: { min: 0.80, max_drop: 0.05 },
+        type_accuracy: { min: 0.8, max_drop: 0.05 },
       };
 
       saveBaseline(testSuiteName, metrics, thresholds);
@@ -347,7 +398,10 @@ describe('Entity Classification Eval — Unit Tests', () => {
       expect(loaded!.metrics.recall).toBe(0.789);
       expect(loaded!.metrics.f1).toBe(0.567);
       expect(loaded!.metrics.type_accuracy).toBe(0.923);
-      expect(loaded!.thresholds.precision).toEqual({ min: 0.40, max_drop: 0.05 });
+      expect(loaded!.thresholds.precision).toEqual({
+        min: 0.4,
+        max_drop: 0.05,
+      });
     });
 
     it('should detect regressions when precision drops', () => {
@@ -355,23 +409,25 @@ describe('Entity Classification Eval — Unit Tests', () => {
         suite_name: 'entity-classification',
         created_at: '2026-01-01T00:00:00.000Z',
         metrics: {
-          precision: 0.60,
-          recall: 0.70,
+          precision: 0.6,
+          recall: 0.7,
         },
         thresholds: {
-          precision: { min: 0.40, max_drop: 0.05 },
+          precision: { min: 0.4, max_drop: 0.05 },
           recall: { min: 0.35, max_drop: 0.05 },
         },
       };
 
       const currentMetrics = {
-        precision: 0.50, // dropped 0.10 — exceeds max_drop of 0.05
-        recall: 0.68,    // dropped 0.02 — within max_drop
+        precision: 0.5, // dropped 0.10 — exceeds max_drop of 0.05
+        recall: 0.68, // dropped 0.02 — within max_drop
       };
 
       const results = checkRegression(baseline, currentMetrics);
 
-      const precisionResult = results.find((r) => r.metric_name === 'precision');
+      const precisionResult = results.find(
+        (r) => r.metric_name === 'precision',
+      );
       expect(precisionResult).toBeDefined();
       expect(precisionResult!.passed).toBe(false);
 
@@ -386,22 +442,24 @@ describe('Entity Classification Eval — Unit Tests', () => {
         created_at: '2026-01-01T00:00:00.000Z',
         metrics: {
           precision: 0.45,
-          recall: 0.40,
+          recall: 0.4,
         },
         thresholds: {
-          precision: { min: 0.40 },
+          precision: { min: 0.4 },
           recall: { min: 0.35 },
         },
       };
 
       const currentMetrics = {
         precision: 0.38, // below min of 0.40
-        recall: 0.36,    // above min of 0.35
+        recall: 0.36, // above min of 0.35
       };
 
       const results = checkRegression(baseline, currentMetrics);
 
-      const precisionResult = results.find((r) => r.metric_name === 'precision');
+      const precisionResult = results.find(
+        (r) => r.metric_name === 'precision',
+      );
       expect(precisionResult!.passed).toBe(false);
 
       const recallResult = results.find((r) => r.metric_name === 'recall');

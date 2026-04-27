@@ -53,10 +53,9 @@ vi.mock('@/lib/mcp/auth', () => ({
 }));
 
 vi.mock('@/lib/mcp/tools/shared', async () => {
-  const actual =
-    await vi.importActual<typeof import('@/lib/mcp/tools/shared')>(
-      '@/lib/mcp/tools/shared',
-    );
+  const actual = await vi.importActual<typeof import('@/lib/mcp/tools/shared')>(
+    '@/lib/mcp/tools/shared',
+  );
   return {
     ...actual,
     getGenerateEmbedding: vi.fn().mockResolvedValue(mocks.generateEmbedding),
@@ -105,11 +104,7 @@ function createTestServer(): {
   const tools = new Map<string, RegisteredTool>();
   const server = {
     registerTool: vi.fn(
-      (
-        name: string,
-        _config: unknown,
-        handler: RegisteredTool['handler'],
-      ) => {
+      (name: string, _config: unknown, handler: RegisteredTool['handler']) => {
         tools.set(name, { name, handler });
         return { enabled: true };
       },

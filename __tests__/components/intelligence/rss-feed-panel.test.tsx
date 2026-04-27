@@ -100,9 +100,7 @@ describe('RssFeedPanel', () => {
       />,
     );
 
-    expect(
-      screen.getByText('Public — internal use only'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Public — internal use only')).toBeInTheDocument();
   });
 
   it('does NOT add a warning to the passed feed row', () => {
@@ -148,9 +146,7 @@ describe('RssFeedPanel', () => {
     // Passed: bare "Public"
     expect(screen.getByText('Public')).toBeInTheDocument();
     // Filtered: qualified "Public — internal use only"
-    expect(
-      screen.getByText('Public — internal use only'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Public — internal use only')).toBeInTheDocument();
   });
 
   it('updates the trailing caption to flag the filtered feed as confidential', () => {

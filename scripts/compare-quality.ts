@@ -214,7 +214,11 @@ export function domainDeltas(
     const oldCount = oldDist.get(domain) ?? 0;
     const newCount = newDist.get(domain) ?? 0;
     const deltaPct =
-      oldCount === 0 ? (newCount === 0 ? 0 : Infinity) : (newCount - oldCount) / oldCount;
+      oldCount === 0
+        ? newCount === 0
+          ? 0
+          : Infinity
+        : (newCount - oldCount) / oldCount;
     deltas.push({ domain, oldCount, newCount, deltaPct });
   }
   return deltas.sort((a, b) => b.oldCount - a.oldCount);
@@ -392,7 +396,9 @@ function renderReport(
   lines.push(`Old snapshot: \`${config.oldPath}\``);
   lines.push(`New snapshot: \`${config.newPath}\``);
   lines.push(`Pair key: \`${config.pairKey}\``);
-  lines.push(`Old items: ${oldMap.size}  |  New items: ${newMap.size}  |  Paired: ${pairs.length}`);
+  lines.push(
+    `Old items: ${oldMap.size}  |  New items: ${newMap.size}  |  Paired: ${pairs.length}`,
+  );
   lines.push('');
 
   // Dim 1: Structural fidelity (heading-count ratio)
@@ -415,8 +421,12 @@ function renderReport(
   const contentRatios = pairs
     .map((p) => p.contentRatio)
     .filter((v): v is number => v !== null && Number.isFinite(v));
-  const contentInBand = contentRatios.filter((r) => r >= 0.95 && r <= 1.1).length;
-  const contentInBandPct = contentRatios.length ? contentInBand / contentRatios.length : NaN;
+  const contentInBand = contentRatios.filter(
+    (r) => r >= 0.95 && r <= 1.1,
+  ).length;
+  const contentInBandPct = contentRatios.length
+    ? contentInBand / contentRatios.length
+    : NaN;
   const medianContentRatio = median(contentRatios);
 
   // Dim 3: Embedding stability
@@ -476,7 +486,10 @@ function renderReport(
   }
   const articleAvg = chunkStatsByType.get('article');
   const qaAvg = chunkStatsByType.get('question_answer');
-  const articleAvgVal = articleAvg && articleAvg.count > 0 ? articleAvg.total / articleAvg.count : NaN;
+  const articleAvgVal =
+    articleAvg && articleAvg.count > 0
+      ? articleAvg.total / articleAvg.count
+      : NaN;
   const qaAvgVal = qaAvg && qaAvg.count > 0 ? qaAvg.total / qaAvg.count : NaN;
 
   // ── Dimension table
@@ -522,7 +535,8 @@ function renderReport(
       metric: 'Mean Jaccard of canonical_name sets',
       threshold: '> 0.90',
       value: fmtNum(meanJaccard, 3),
-      status: Number.isFinite(meanJaccard) && meanJaccard > 0.9 ? 'PASS' : 'FAIL',
+      status:
+        Number.isFinite(meanJaccard) && meanJaccard > 0.9 ? 'PASS' : 'FAIL',
     },
     {
       name: 'Coverage equivalence',
@@ -537,7 +551,9 @@ function renderReport(
       threshold: '3–20',
       value: fmtNum(articleAvgVal, 2),
       status:
-        Number.isFinite(articleAvgVal) && articleAvgVal >= 3 && articleAvgVal <= 20
+        Number.isFinite(articleAvgVal) &&
+        articleAvgVal >= 3 &&
+        articleAvgVal <= 20
           ? 'PASS'
           : 'WARN',
     },
@@ -564,7 +580,9 @@ function renderReport(
       threshold: '> 0.60',
       value: fmtNum(meanAiKwJaccard, 3),
       status:
-        Number.isFinite(meanAiKwJaccard) && meanAiKwJaccard > 0.6 ? 'PASS' : 'WARN',
+        Number.isFinite(meanAiKwJaccard) && meanAiKwJaccard > 0.6
+          ? 'PASS'
+          : 'WARN',
     },
     {
       name: 'User tags preserved',
@@ -585,13 +603,19 @@ function renderReport(
   lines.push('| Dimension | Metric | Threshold | Value | Status |');
   lines.push('|---|---|---|---|---|');
   for (const d of dims) {
-    lines.push(`| ${d.name} | ${d.metric} | ${d.threshold} | ${d.value} | ${d.status} |`);
+    lines.push(
+      `| ${d.name} | ${d.metric} | ${d.threshold} | ${d.value} | ${d.status} |`,
+    );
   }
   lines.push('');
 
-  const overallPass = dims.every((d) => d.status === 'PASS' || d.status === 'WARN');
+  const overallPass = dims.every(
+    (d) => d.status === 'PASS' || d.status === 'WARN',
+  );
   const anyFail = dims.some((d) => d.status === 'FAIL');
-  lines.push(`**Overall:** ${anyFail ? 'FAIL' : overallPass ? 'PASS' : 'INCOMPLETE'}`);
+  lines.push(
+    `**Overall:** ${anyFail ? 'FAIL' : overallPass ? 'PASS' : 'INCOMPLETE'}`,
+  );
   lines.push('');
 
   // ── Outliers
@@ -605,7 +629,9 @@ function renderReport(
   if (belowFloor.length > 0) {
     lines.push('### Embedding similarity < 0.90');
     lines.push('');
-    lines.push('| old_id | new_id | content_type | similarity | content_ratio |');
+    lines.push(
+      '| old_id | new_id | content_type | similarity | content_ratio |',
+    );
     lines.push('|---|---|---|---|---|');
     for (const p of belowFloor) {
       lines.push(
@@ -626,7 +652,9 @@ function renderReport(
     for (const p of domainMismatches) {
       const oldD = oldMap.get(p.pairKey)?.primary_domain ?? '(null)';
       const newD = newMap.get(p.pairKey)?.primary_domain ?? '(null)';
-      lines.push(`| ${p.oldId} | ${p.newId} | ${p.content_type} | ${oldD} | ${newD} |`);
+      lines.push(
+        `| ${p.oldId} | ${p.newId} | ${p.content_type} | ${oldD} | ${newD} |`,
+      );
     }
     lines.push('');
   }
@@ -637,7 +665,9 @@ function renderReport(
     lines.push('| domain | old | new | delta |');
     lines.push('|---|---|---|---|');
     for (const d of lostDomains) {
-      lines.push(`| ${d.domain} | ${d.oldCount} | ${d.newCount} | ${fmtPct(d.deltaPct)} |`);
+      lines.push(
+        `| ${d.domain} | ${d.oldCount} | ${d.newCount} | ${fmtPct(d.deltaPct)} |`,
+      );
     }
     lines.push('');
   }
@@ -651,7 +681,9 @@ function renderReport(
     bucket.push(p);
     byType.set(p.content_type, bucket);
   }
-  lines.push('| content_type | items | median_sim | median_content_ratio | avg_chunks_new |');
+  lines.push(
+    '| content_type | items | median_sim | median_content_ratio | avg_chunks_new |',
+  );
   lines.push('|---|---|---|---|---|');
   for (const [ct, ps] of [...byType.entries()].sort(
     (a, b) => b[1].length - a[1].length,
@@ -663,7 +695,10 @@ function renderReport(
       .map((p) => p.contentRatio)
       .filter((v): v is number => v !== null && Number.isFinite(v));
     const chunksAgg = chunkStatsByType.get(ct);
-    const avgChunks = chunksAgg && chunksAgg.count > 0 ? chunksAgg.total / chunksAgg.count : NaN;
+    const avgChunks =
+      chunksAgg && chunksAgg.count > 0
+        ? chunksAgg.total / chunksAgg.count
+        : NaN;
     lines.push(
       `| ${ct} | ${ps.length} | ${fmtNum(median(ctSims), 4)} | ${fmtNum(median(ctRatios), 3)} | ${fmtNum(avgChunks, 2)} |`,
     );

@@ -119,18 +119,19 @@ export function ConnectionsSection() {
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right" className="max-w-xs">
-                Connect {BRANDING.productName} to Claude so you can search, draft, and
-                get briefings from any conversation. Copy the server URL below and
-                paste it into Claude.ai Settings &gt; Connectors. The &ldquo;Connected
-                apps&rdquo; list below shows which Claude instances have access — you
-                can revoke any connection at any time.
+                Connect {BRANDING.productName} to Claude so you can search,
+                draft, and get briefings from any conversation. Copy the server
+                URL below and paste it into Claude.ai Settings &gt; Connectors.
+                The &ldquo;Connected apps&rdquo; list below shows which Claude
+                instances have access — you can revoke any connection at any
+                time.
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </h3>
         <p className="text-sm text-muted-foreground">
-          Connect {BRANDING.productName} to Claude so you can search, draft, and get
-          briefings from any conversation.
+          Connect {BRANDING.productName} to Claude so you can search, draft, and
+          get briefings from any conversation.
         </p>
       </div>
 
@@ -167,7 +168,8 @@ export function ConnectionsSection() {
               <code className="rounded bg-muted px-1 py-0.5 font-mono">
                 /mcp
               </code>{' '}
-              — that&rsquo;s the streamable-HTTP transport identifier, not a typo.
+              — that&rsquo;s the streamable-HTTP transport identifier, not a
+              typo.
             </p>
           </div>
         </CardContent>
@@ -299,9 +301,10 @@ export function ConnectionsSection() {
                     </CardHeader>
                     <CardContent className="flex flex-col gap-4">
                       <p className="text-sm text-muted-foreground">
-                        Download the {BRANDING.productName} plugin for Claude Code or
-                        Cowork. Adds slash commands for searching your knowledge
-                        base, checking bid status, and drafting responses.
+                        Download the {BRANDING.productName} plugin for Claude
+                        Code or Cowork. Adds slash commands for searching your
+                        knowledge base, checking bid status, and drafting
+                        responses.
                       </p>
                       <div className="flex flex-col gap-3">
                         <Button variant="outline" className="w-fit" asChild>
@@ -367,9 +370,10 @@ export function ConnectionsSection() {
                     </CardHeader>
                     <CardContent className="flex flex-col gap-4">
                       <p className="text-sm text-muted-foreground">
-                        Using Claude Code? The MCP connector works there too. Add
-                        it to your project&apos;s MCP configuration to access{' '}
-                        {BRANDING.productName} tools directly from the terminal.
+                        Using Claude Code? The MCP connector works there too.
+                        Add it to your project&apos;s MCP configuration to
+                        access {BRANDING.productName} tools directly from the
+                        terminal.
                       </p>
 
                       <div className="flex flex-col gap-1.5">
@@ -451,7 +455,8 @@ export function ConnectionsSection() {
                                   4
                                 </span>
                                 <span>
-                                  Approve the MCP server connection when prompted
+                                  Approve the MCP server connection when
+                                  prompted
                                 </span>
                               </li>
                               <li className="flex gap-2">
@@ -483,8 +488,8 @@ export function ConnectionsSection() {
 
                       <p className="text-xs text-muted-foreground">
                         Optionally, download the plugin above for slash commands
-                        and bid-writing skills. Place the extracted plugin folder
-                        in{' '}
+                        and bid-writing skills. Place the extracted plugin
+                        folder in{' '}
                         <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
                           ~/.claude/plugins/marketplaces/local/plugins/knowledge-hub/
                         </code>{' '}

@@ -11,9 +11,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import type { z } from 'zod';
 import { registerPrompts } from '@/lib/mcp/resources';
 
-type PromptHandler = (
-  args: Record<string, unknown>,
-) => Promise<{
+type PromptHandler = (args: Record<string, unknown>) => Promise<{
   messages: Array<{
     role: string;
     content: { type: string; text: string };

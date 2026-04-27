@@ -275,7 +275,8 @@ describe('get_change_report MCP tool', () => {
     // The .eq() method should be called with primary_domain for each of the
     // three queries (additions, updates, removals)
     const eqCalls = mocks.chain.eq.mock.calls.filter(
-      (call: unknown[]) => call[0] === 'primary_domain' && call[1] === 'Cyber Security',
+      (call: unknown[]) =>
+        call[0] === 'primary_domain' && call[1] === 'Cyber Security',
     );
     expect(eqCalls.length).toBe(3);
   });
@@ -384,9 +385,10 @@ describe('get_change_report MCP tool', () => {
     const config = tools.get('get_change_report')!.config as {
       inputSchema: {
         period_days: {
-          safeParse: (
-            v: unknown,
-          ) => { success: boolean; error?: { issues: Array<{ code: string }> } };
+          safeParse: (v: unknown) => {
+            success: boolean;
+            error?: { issues: Array<{ code: string }> };
+          };
         };
       };
     };
@@ -399,9 +401,7 @@ describe('get_change_report MCP tool', () => {
     const config = tools.get('get_change_report')!.config as {
       inputSchema: {
         period_days: {
-          safeParse: (
-            v: unknown,
-          ) => { success: boolean };
+          safeParse: (v: unknown) => { success: boolean };
         };
       };
     };

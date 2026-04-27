@@ -1,11 +1,12 @@
 ---
 description: Overview of active bids with progress, gaps, and deadlines
-argument-hint: "[bid name]"
+argument-hint: '[bid name]'
 ---
 
 # Bid Status Command
 
-> If you see unfamiliar placeholders or need to check which tools are connected, see [CONNECTORS.md](../CONNECTORS.md).
+> If you see unfamiliar placeholders or need to check which tools are connected,
+> see [CONNECTORS.md](../CONNECTORS.md).
 
 ```
 +---------------------------------------------------------+
@@ -19,24 +20,28 @@ argument-hint: "[bid name]"
 +---------------------------------------------------------+
 ```
 
-Show an overview of active bids sorted by urgency. Optionally focus on a specific bid for detailed analysis including question-level progress, confidence postures, and response gaps.
+Show an overview of active bids sorted by urgency. Optionally focus on a
+specific bid for detailed analysis including question-level progress, confidence
+postures, and response gaps.
 
-Focus on this bid: $ARGUMENTS
-If a file is referenced: @$1
+Focus on this bid: $ARGUMENTS If a file is referenced: @$1
 
 ## What I Need From You
 
 **Option A — Overview of all bids (connector required):**
+
 ```
 /kb:bid-status
 ```
 
 **Option B — Focus on a specific bid (connector required):**
+
 ```
 /kb:bid-status NHS Digital Framework
 ```
 
 **Option C — Manual input (no connector needed):**
+
 ```
 /kb:bid-status
 [Paste your bid details, question list, or deadline information]
@@ -64,6 +69,7 @@ Determine the scope:
 **If `~~knowledge base` connector is available:**
 
 Call `list_active_bids` to get the full pipeline. This returns:
+
 - Bid name and buyer
 - Submission deadline and days remaining
 - Question count and completion progress
@@ -87,36 +93,43 @@ organise them by urgency and identify gaps.
 
 Rank bids using the @bid-writing skill urgency framework:
 
-| Priority | Criteria |
-|----------|----------|
-| **Critical** | Deadline within 7 days AND completion <80% |
-| **High** | Deadline within 14 days AND completion <60% |
-| **Medium** | Deadline within 30 days OR completion <40% |
-| **On track** | Deadline >30 days AND completion >60% |
+| Priority     | Criteria                                    |
+| ------------ | ------------------------------------------- |
+| **Critical** | Deadline within 7 days AND completion <80%  |
+| **High**     | Deadline within 14 days AND completion <60% |
+| **Medium**   | Deadline within 30 days OR completion <40%  |
+| **On track** | Deadline >30 days AND completion >60%       |
 
 ### 4. Get Detail for Focus Bid
 
 If a specific bid was requested, call `get_bid_detail` with the bid ID to get:
+
 - Full question list with section groupings
 - Response status per question (answered, draft, unanswered)
 - Confidence postures (strong_match, partial_match, needs_sme, no_content)
 - Word limits and response lengths
 
-For the top bid questions, optionally call `get_bid_question` for individual question detail.
+For the top bid questions, optionally call `get_bid_question` for individual
+question detail.
 
 ### 5. Identify Gaps
 
 Analyse the bid data to surface:
 
-**Unanswered questions** — grouped by section, with the hardest gaps highlighted:
+**Unanswered questions** — grouped by section, with the hardest gaps
+highlighted:
+
 - Questions with `no_content` confidence (no KB material available)
 - Questions with `needs_sme` confidence (need subject matter expert input)
 - Questions in sections with no responses at all
 
-**Evidence gaps** — questions where the KB may have supporting material but no response has been drafted:
+**Evidence gaps** — questions where the KB may have supporting material but no
+response has been drafted:
+
 - Suggest running `/kb:search` or `/kb:draft-response` for specific questions
 
 **Quality concerns** — responses that may need attention:
+
 - Responses below word limit by >20%
 - Responses with `partial_match` confidence that could be strengthened
 
@@ -182,6 +195,7 @@ Analyse the bid data to surface:
 ### 7. Handle Edge Cases
 
 **No active bids:**
+
 ```
 No active bids found. Your bid pipeline is empty.
 
@@ -189,6 +203,7 @@ To create a new bid workspace, use the Knowledge Hub web interface.
 ```
 
 **Bid name not found:**
+
 ```
 I couldn't find a bid matching "[name]". Active bids are:
 - [Bid 1]
@@ -206,4 +221,5 @@ Did you mean one of these?
 - Sort sections by completion (least complete first) to surface gaps quickly
 - Truncate question text in tables to keep output scannable
 - Always end with actionable recommendations
-- For a workflow-oriented cross-bid review (blockers, stalled drafts, next actions rather than per-bid status), use `/kb:bid-pipeline-review`
+- For a workflow-oriented cross-bid review (blockers, stalled drafts, next
+  actions rather than per-bid status), use `/kb:bid-pipeline-review`

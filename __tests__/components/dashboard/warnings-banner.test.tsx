@@ -25,20 +25,14 @@ describe('<WarningsBanner />', () => {
   it('renders nothing when warnings is undefined-like (defensive)', () => {
     // Cast through unknown to simulate a runtime payload missing the field.
     const { container } = render(
-      <WarningsBanner
-        warnings={undefined as unknown as readonly string[]}
-      />,
+      <WarningsBanner warnings={undefined as unknown as readonly string[]} />,
     );
     expect(container.firstChild).toBeNull();
   });
 
   it('renders the heading and one bullet for one warning', () => {
-    render(
-      <WarningsBanner warnings={['recent_activity query failed']} />,
-    );
-    expect(
-      screen.getByText(/temporarily unavailable/i),
-    ).toBeInTheDocument();
+    render(<WarningsBanner warnings={['recent_activity query failed']} />);
+    expect(screen.getByText(/temporarily unavailable/i)).toBeInTheDocument();
     expect(
       screen.getByText('recent_activity query failed'),
     ).toBeInTheDocument();
@@ -56,19 +50,13 @@ describe('<WarningsBanner />', () => {
         ]}
       />,
     );
-    expect(
-      screen.getByText(/temporarily unavailable/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/temporarily unavailable/i)).toBeInTheDocument();
     expect(screen.getAllByRole('listitem')).toHaveLength(3);
-    expect(
-      screen.getByText('team_changes query failed'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('team_changes query failed')).toBeInTheDocument();
   });
 
   it('exposes status role with polite live region and labelled heading', () => {
-    render(
-      <WarningsBanner warnings={['attention_counts RPC failed']} />,
-    );
+    render(<WarningsBanner warnings={['attention_counts RPC failed']} />);
     const region = screen.getByRole('status');
     expect(region).toHaveAttribute('aria-live', 'polite');
     // The heading element referenced by aria-labelledby must exist and
@@ -89,8 +77,6 @@ describe('<WarningsBanner />', () => {
       screen.getByRole('button', { name: /dismiss dashboard warnings/i }),
     );
     expect(screen.queryByRole('status')).toBeNull();
-    expect(
-      screen.queryByText('team_changes query failed'),
-    ).toBeNull();
+    expect(screen.queryByText('team_changes query failed')).toBeNull();
   });
 });

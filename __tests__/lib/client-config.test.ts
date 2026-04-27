@@ -127,7 +127,10 @@ describe('buildDisambiguationBlock', () => {
     expect(lines.length).toBe(
       CLIENT_CONFIG.classification_disambiguation_rules.length,
     );
-    for (const [i, rule] of CLIENT_CONFIG.classification_disambiguation_rules.entries()) {
+    for (const [
+      i,
+      rule,
+    ] of CLIENT_CONFIG.classification_disambiguation_rules.entries()) {
       expect(lines[i]).toBe(`- ${rule}`);
     }
   });

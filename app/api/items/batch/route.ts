@@ -232,7 +232,8 @@ export async function POST(request: NextRequest) {
             // (bug B2 fix). Prefer explicit answerStandard field when provided
             // (Option A — avoids redundant composite→extract round-trip);
             // fall back to extractAnswerFromContent for backward compatibility.
-            answer_standard: item.answerStandard ?? extractAnswerFromContent(item.content),
+            answer_standard:
+              item.answerStandard ?? extractAnswerFromContent(item.content),
             ...(source_document_id ? { source_document_id } : {}),
             ...(item.answerAdvanced
               ? { answer_advanced: item.answerAdvanced }
@@ -276,7 +277,8 @@ export async function POST(request: NextRequest) {
         // 1. Generate embedding
         try {
           const { generateEmbedding } = await import('@/lib/ai/embed');
-          const { stripMarkdown } = await import('@/lib/content/strip-markdown');
+          const { stripMarkdown } =
+            await import('@/lib/content/strip-markdown');
           const plainText = stripMarkdown(item.content);
           const embeddingText = `${item.title}\n\n${plainText}`;
           const embedding = await generateEmbedding(embeddingText);
@@ -323,7 +325,8 @@ export async function POST(request: NextRequest) {
         // 4. Layer inference
         try {
           const { inferLayer } = await import('@/lib/layer-inference');
-          const { stripMarkdown } = await import('@/lib/content/strip-markdown');
+          const { stripMarkdown } =
+            await import('@/lib/content/strip-markdown');
           const plainText = stripMarkdown(item.content);
           const suggestion = inferLayer({
             contentType: 'q_a_pair',

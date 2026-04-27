@@ -12,9 +12,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { registerPrompts } from '@/lib/mcp/resources';
 
-type PromptHandler = (
-  args: Record<string, unknown>,
-) => Promise<{
+type PromptHandler = (args: Record<string, unknown>) => Promise<{
   messages: Array<{
     role: string;
     content: { type: string; text: string };

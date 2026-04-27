@@ -6,11 +6,7 @@
     "size": "SMB / Mid-market / Enterprise",
     "region": "UK"
   },
-  "certifications": [
-    "ISO 27001:2022",
-    "Cyber Essentials Plus",
-    "ISO 9001:2015"
-  ],
+  "certifications": ["ISO 27001:2022", "Cyber Essentials Plus", "ISO 9001:2015"],
   "taxonomy": {
     "primary_domains": [
       "Security",
@@ -34,11 +30,7 @@
   "bid_preferences": {
     "default_tone": "professional",
     "case_study_anonymise": true,
-    "preferred_evidence_types": [
-      "case_study",
-      "certification",
-      "q_a_pair"
-    ],
+    "preferred_evidence_types": ["case_study", "certification", "q_a_pair"],
     "word_limit_target_percent": 92
   },
   "conventions": {

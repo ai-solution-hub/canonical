@@ -14,8 +14,7 @@ turndown.use(gfm);
 
 // Remove empty links (common in scraped content)
 turndown.addRule('emptyLinks', {
-  filter: (node) =>
-    node.nodeName === 'A' && !node.textContent?.trim(),
+  filter: (node) => node.nodeName === 'A' && !node.textContent?.trim(),
   replacement: () => '',
 });
 

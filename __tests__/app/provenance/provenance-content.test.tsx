@@ -113,12 +113,8 @@ describe('ProvenanceContent', () => {
       mockUserRole.canAdmin = false;
       mockUserRole.canEdit = false;
       render(<ProvenanceContent />);
-      expect(
-        screen.getByRole('alert'),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByText('Admin access required'),
-      ).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toBeInTheDocument();
+      expect(screen.getByText('Admin access required')).toBeInTheDocument();
     });
 
     it('shows AccessDenied for editor role', () => {
@@ -126,12 +122,8 @@ describe('ProvenanceContent', () => {
       mockUserRole.canAdmin = false;
       mockUserRole.canEdit = true;
       render(<ProvenanceContent />);
-      expect(
-        screen.getByRole('alert'),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByText('Admin access required'),
-      ).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toBeInTheDocument();
+      expect(screen.getByText('Admin access required')).toBeInTheDocument();
     });
 
     it('shows tabs for admin role', () => {
@@ -169,10 +161,9 @@ describe('ProvenanceContent', () => {
       const auditTrigger = within(tabList).getByText('Audit');
       await user.click(auditTrigger);
 
-      expect(mockRouter.replace).toHaveBeenCalledWith(
-        '/provenance?tab=audit',
-        { scroll: false },
-      );
+      expect(mockRouter.replace).toHaveBeenCalledWith('/provenance?tab=audit', {
+        scroll: false,
+      });
     });
   });
 

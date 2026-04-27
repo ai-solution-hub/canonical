@@ -27,7 +27,11 @@ const UNKNOWN = '00000000-4000-4000-8000-000000000999';
 // Mock Supabase client — only the `.rpc` method is used by the wrapper.
 // ---------------------------------------------------------------------------
 
-type DisplayRow = { user_id: string; display_name: string; email: string | null };
+type DisplayRow = {
+  user_id: string;
+  display_name: string;
+  email: string | null;
+};
 
 function buildMockClient(
   rpcResult:
@@ -93,10 +97,7 @@ describe('resolveUserDisplayNames', () => {
     await resolveUserDisplayNames(client, [USER_1, USER_1, USER_1, USER_2]);
 
     const rpcMock = vi.mocked(client.rpc);
-    const [, args] = rpcMock.mock.calls[0] as [
-      string,
-      { user_ids: string[] },
-    ];
+    const [, args] = rpcMock.mock.calls[0] as [string, { user_ids: string[] }];
     expect(args.user_ids).toHaveLength(2);
     expect(new Set(args.user_ids)).toEqual(new Set([USER_1, USER_2]));
   });
@@ -129,9 +130,7 @@ describe('resolveUserDisplayNames', () => {
     // accidentally reintroduce the "drop rows with null user_id"
     // behaviour that bug exposed.
     const client = buildMockClient({
-      data: [
-        { user_id: UNKNOWN, display_name: 'A team member', email: null },
-      ],
+      data: [{ user_id: UNKNOWN, display_name: 'A team member', email: null }],
       error: null,
     });
 
@@ -147,7 +146,9 @@ describe('resolveUserDisplayNames', () => {
   it('throws a descriptive error when the RPC returns an error envelope', async () => {
     const client = buildMockClient({
       data: null,
-      error: { message: 'permission denied for function get_user_display_names' },
+      error: {
+        message: 'permission denied for function get_user_display_names',
+      },
     });
 
     await expect(resolveUserDisplayNames(client, [USER_1])).rejects.toThrow(

@@ -179,9 +179,7 @@ function buildStatsBar(): HTMLElement {
   return bar;
 }
 
-function buildCategorySection(
-  entries: Array<[string, number]>,
-): HTMLElement {
+function buildCategorySection(entries: Array<[string, number]>): HTMLElement {
   const section = createElement('div', { className: 'category-section' });
   const title = createElement('h2', { className: 'category-section-title' });
   title.textContent = 'Categories';
@@ -246,9 +244,7 @@ function buildArticleCard(article: IntelligenceArticle): HTMLElement {
   headerRow.appendChild(source);
 
   // Date (DD/MM/YYYY)
-  const dateStr = formatDateUK(
-    article.published_at ?? article.ingested_at,
-  );
+  const dateStr = formatDateUK(article.published_at ?? article.ingested_at);
   const dateEl = createElement('span', { className: 'article-date' });
   dateEl.textContent = dateStr;
   headerRow.appendChild(dateEl);

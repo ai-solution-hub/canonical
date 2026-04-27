@@ -21,13 +21,15 @@ test.describe('Intelligence workspace navigation', () => {
   }) => {
     await page.goto('/workspaces');
 
-    await expect(
-      page.getByRole('heading', { name: 'Workspaces' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Workspaces' })).toBeVisible(
+      { timeout: 10000 },
+    );
 
     // Intelligence card should be visible (look for the workspace type card)
     const intelligenceCard = page
-      .locator('a[aria-label*="Intelligence"], [data-testid="workspace-card-intelligence"]')
+      .locator(
+        'a[aria-label*="Intelligence"], [data-testid="workspace-card-intelligence"]',
+      )
       .first();
 
     await expect(intelligenceCard).toBeVisible({ timeout: 5000 });
@@ -37,9 +39,7 @@ test.describe('Intelligence workspace navigation', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto(
-      `/intelligence/${workerData.intelligenceWorkspaceId}`,
-    );
+    await page.goto(`/intelligence/${workerData.intelligenceWorkspaceId}`);
 
     // Wait for page to load
     await page.waitForLoadState('networkidle', { timeout: 15000 });
@@ -154,7 +154,9 @@ test.describe('Intelligence flag creation', () => {
     await expect(flagDialog).toBeVisible({ timeout: 5000 });
 
     // Submit the flag (dialog has a submit button)
-    const submitButton = flagDialog.getByRole('button', { name: /Submit|Flag|Confirm/i });
+    const submitButton = flagDialog.getByRole('button', {
+      name: /Submit|Flag|Confirm/i,
+    });
     await expect(submitButton).toBeVisible({ timeout: 3000 });
     await submitButton.click();
 
@@ -184,9 +186,9 @@ test.describe('Intelligence RSS output', () => {
 
     const contentType = response.headers()['content-type'] ?? '';
     // Should be RSS XML or application/xml
-    expect(
-      contentType.includes('xml') || contentType.includes('rss'),
-    ).toBe(true);
+    expect(contentType.includes('xml') || contentType.includes('rss')).toBe(
+      true,
+    );
 
     const body = await response.text();
     // Should be valid RSS 2.0 structure

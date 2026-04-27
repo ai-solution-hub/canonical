@@ -205,10 +205,7 @@ export async function extractContent(
 
     if (response.status === 429) {
       rateLimiter.recordRateLimit(item.url);
-      throw new RateLimitError(
-        new URL(item.url).hostname,
-        0,
-      );
+      throw new RateLimitError(new URL(item.url).hostname, 0);
     }
 
     if (response.ok) {

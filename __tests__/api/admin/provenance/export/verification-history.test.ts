@@ -18,9 +18,8 @@ import {
 const mockSupabase: MockSupabaseClient = createMockSupabaseClient();
 
 vi.mock('@/lib/auth', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/auth')>(
-    '@/lib/auth',
-  );
+  const actual =
+    await vi.importActual<typeof import('@/lib/auth')>('@/lib/auth');
   return {
     ...actual,
     getAuthorisedClient: vi.fn(),
@@ -114,9 +113,8 @@ function makeVerificationRow(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   // Reset chain defaults
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
   mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
 });
@@ -130,8 +128,7 @@ describe('GET /api/admin/provenance/export/verification-history', () => {
     it('returns 200 for admin users', async () => {
       configureAdminAuth();
       mockSupabase._chain.then.mockImplementation(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: [], error: null }),
+        (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
       );
 
       const res = await GET(makeRequest());
@@ -158,8 +155,7 @@ describe('GET /api/admin/provenance/export/verification-history', () => {
     it('uses default 30-day range when no params provided', async () => {
       configureAdminAuth();
       mockSupabase._chain.then.mockImplementation(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: [], error: null }),
+        (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
       );
 
       const res = await GET(makeRequest());
@@ -174,8 +170,7 @@ describe('GET /api/admin/provenance/export/verification-history', () => {
     it('uses custom date range when provided', async () => {
       configureAdminAuth();
       mockSupabase._chain.then.mockImplementation(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: [], error: null }),
+        (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
       );
 
       const res = await GET(
@@ -220,8 +215,7 @@ describe('GET /api/admin/provenance/export/verification-history', () => {
       configureAdminAuth();
       const rows = [makeVerificationRow()];
       mockSupabase._chain.then.mockImplementation(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: rows, error: null }),
+        (resolve: (v: unknown) => void) => resolve({ data: rows, error: null }),
       );
 
       const res = await GET(
@@ -238,8 +232,7 @@ describe('GET /api/admin/provenance/export/verification-history', () => {
     it('returns valid PDF with empty results', async () => {
       configureAdminAuth();
       mockSupabase._chain.then.mockImplementation(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: [], error: null }),
+        (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
       );
 
       const res = await GET(makeRequest());
@@ -253,8 +246,7 @@ describe('GET /api/admin/provenance/export/verification-history', () => {
       configureAdminAuth();
       const rows = [makeVerificationRow()];
       mockSupabase._chain.then.mockImplementation(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: rows, error: null }),
+        (resolve: (v: unknown) => void) => resolve({ data: rows, error: null }),
       );
 
       await GET(makeRequest({ from: '2026-04-01', to: '2026-04-15' }));

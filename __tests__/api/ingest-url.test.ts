@@ -1129,7 +1129,10 @@ describe('POST /api/ingest/url — Dedup soft-block', () => {
 
     // maybeSingle for domain re-fetch
     mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-      data: { primary_domain: 'General Business', primary_subtopic: 'Strategy' },
+      data: {
+        primary_domain: 'General Business',
+        primary_subtopic: 'Strategy',
+      },
       error: null,
     });
 

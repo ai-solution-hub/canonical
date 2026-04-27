@@ -165,8 +165,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
 const TEST_USER_EMAIL =
   process.env.TEST_USER_1_EMAIL || 'test.user1@test-kb-aish.co.uk';
-const TEST_USER_PASSWORD =
-  process.env.TEST_USER_1_PASSWORD || 'Welcome12391.';
+const TEST_USER_PASSWORD = process.env.TEST_USER_1_PASSWORD || 'Welcome12391.';
 
 // Use an existing fast app route as the OAuth redirect URI so the dev server
 // doesn't have to compile a 404 page (which can push the test over its
@@ -241,7 +240,10 @@ async function initOAuthFlow(
   ).toBe(302);
 
   const location = resp.headers.get('location');
-  expect(location, 'Supabase /oauth/authorize must set Location header').toBeTruthy();
+  expect(
+    location,
+    'Supabase /oauth/authorize must set Location header',
+  ).toBeTruthy();
 
   const url = new URL(location!);
   const authorizationId = url.searchParams.get('authorization_id');
@@ -351,7 +353,12 @@ test.describe('8.0.1 OAuth consent flow', () => {
     // -----------------------------------------------------------------------
     const state1 = `state-1-${crypto.randomBytes(8).toString('hex')}`;
     const pkce1 = makePkcePair();
-    const init1 = await initOAuthFlow(accessToken, clientId, state1, pkce1.challenge);
+    const init1 = await initOAuthFlow(
+      accessToken,
+      clientId,
+      state1,
+      pkce1.challenge,
+    );
     expect(
       init1.authorizationId,
       'first init must return an authorization_id (consent required)',
@@ -470,7 +477,12 @@ test.describe('8.0.1 OAuth consent flow', () => {
     // -----------------------------------------------------------------------
     const state2 = `state-2-${crypto.randomBytes(8).toString('hex')}`;
     const pkce2 = makePkcePair();
-    const init2 = await initOAuthFlow(accessToken, clientId, state2, pkce2.challenge);
+    const init2 = await initOAuthFlow(
+      accessToken,
+      clientId,
+      state2,
+      pkce2.challenge,
+    );
     expect(init2.authorizationId).toBeTruthy();
 
     // Navigate to the consent page; it should server-redirect to the
@@ -488,9 +500,7 @@ test.describe('8.0.1 OAuth consent flow', () => {
     expect(url2.searchParams.get('state')).toBe(state2);
     expect(url2.searchParams.get('code')).toBeTruthy();
     // Approve button must NOT be present at this URL.
-    await expect(
-      page.getByRole('button', { name: /approve/i }),
-    ).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /approve/i })).toHaveCount(0);
 
     // -----------------------------------------------------------------------
     // Step 6: Revoke the grant via POST /api/oauth/revoke
@@ -519,15 +529,18 @@ test.describe('8.0.1 OAuth consent flow', () => {
     // -----------------------------------------------------------------------
     const state3 = `state-3-${crypto.randomBytes(8).toString('hex')}`;
     const pkce3 = makePkcePair();
-    const init3 = await initOAuthFlow(accessToken, clientId, state3, pkce3.challenge);
+    const init3 = await initOAuthFlow(
+      accessToken,
+      clientId,
+      state3,
+      pkce3.challenge,
+    );
     expect(
       init3.authorizationId,
       'after revocation, /oauth/authorize must return a fresh authorization_id (consent re-required)',
     ).toBeTruthy();
     await page.goto(`/oauth/consent?authorization_id=${init3.authorizationId}`);
-    await expect(
-      page.getByRole('button', { name: /approve/i }),
-    ).toBeVisible();
+    await expect(page.getByRole('button', { name: /approve/i })).toBeVisible();
     await expect(
       page.getByRole('heading', { name: `Authorise ${registeredClientName}` }),
     ).toBeVisible();

@@ -101,12 +101,10 @@ describe('SI-L5: Workspace-Level Scoring Threshold', () => {
   it('passes workspace threshold to scoreRelevance', async () => {
     const { processFeedSource } = await import('@/lib/intelligence/pipeline');
     const { pollFeed } = await import('@/lib/intelligence/feed-poller');
-    const { extractContent } = await import(
-      '@/lib/intelligence/content-extractor'
-    );
-    const { embeddingPreFilter, scoreRelevance } = await import(
-      '@/lib/intelligence/relevance-scorer'
-    );
+    const { extractContent } =
+      await import('@/lib/intelligence/content-extractor');
+    const { embeddingPreFilter, scoreRelevance } =
+      await import('@/lib/intelligence/relevance-scorer');
 
     vi.mocked(pollFeed).mockResolvedValue({
       feedSourceId: 'source-1',
@@ -162,13 +160,11 @@ describe('SI-L5: Workspace-Level Scoring Threshold', () => {
           eq: vi.fn().mockResolvedValue({ error: null }),
         }),
         insert: vi.fn().mockImplementation(() => ({
-          select: vi
-            .fn()
-            .mockReturnValue({
-              single: vi
-                .fn()
-                .mockResolvedValue({ data: { id: 'ci-1' }, error: null }),
-            }),
+          select: vi.fn().mockReturnValue({
+            single: vi
+              .fn()
+              .mockResolvedValue({ data: { id: 'ci-1' }, error: null }),
+          }),
           error: null,
         })),
       })),
@@ -218,12 +214,10 @@ describe('SI-L5: Workspace-Level Scoring Threshold', () => {
   it('uses default threshold when not specified', async () => {
     const { processFeedSource } = await import('@/lib/intelligence/pipeline');
     const { pollFeed } = await import('@/lib/intelligence/feed-poller');
-    const { extractContent } = await import(
-      '@/lib/intelligence/content-extractor'
-    );
-    const { embeddingPreFilter, scoreRelevance } = await import(
-      '@/lib/intelligence/relevance-scorer'
-    );
+    const { extractContent } =
+      await import('@/lib/intelligence/content-extractor');
+    const { embeddingPreFilter, scoreRelevance } =
+      await import('@/lib/intelligence/relevance-scorer');
 
     vi.mocked(pollFeed).mockResolvedValue({
       feedSourceId: 'source-1',
@@ -279,13 +273,11 @@ describe('SI-L5: Workspace-Level Scoring Threshold', () => {
           eq: vi.fn().mockResolvedValue({ error: null }),
         }),
         insert: vi.fn().mockImplementation(() => ({
-          select: vi
-            .fn()
-            .mockReturnValue({
-              single: vi
-                .fn()
-                .mockResolvedValue({ data: { id: 'ci-2' }, error: null }),
-            }),
+          select: vi.fn().mockReturnValue({
+            single: vi
+              .fn()
+              .mockResolvedValue({ data: { id: 'ci-2' }, error: null }),
+          }),
           error: null,
         })),
       })),

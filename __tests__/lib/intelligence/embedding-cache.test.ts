@@ -42,7 +42,11 @@ describe('Company embedding caching', () => {
     hasProfile?: boolean;
     hasSources?: boolean;
   }) {
-    const { cachedEmbedding = null, hasProfile = true, hasSources = true } = opts;
+    const {
+      cachedEmbedding = null,
+      hasProfile = true,
+      hasSources = true,
+    } = opts;
 
     const updateCalls: any[] = [];
 
@@ -87,9 +91,10 @@ describe('Company embedding caching', () => {
             select: vi.fn().mockImplementation((cols: string) => {
               if (cols.includes('company_embedding')) {
                 const embeddingResult = {
-                  data: cachedEmbedding !== undefined
-                    ? { company_embedding: cachedEmbedding }
-                    : null,
+                  data:
+                    cachedEmbedding !== undefined
+                      ? { company_embedding: cachedEmbedding }
+                      : null,
                   error: null,
                 };
                 return {
@@ -157,7 +162,9 @@ describe('Company embedding caching', () => {
             }),
             insert: vi.fn().mockReturnValue({
               select: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({ data: { id: 'fa-1' }, error: null }),
+                single: vi
+                  .fn()
+                  .mockResolvedValue({ data: { id: 'fa-1' }, error: null }),
               }),
               error: null,
             }),
@@ -201,7 +208,9 @@ describe('Company embedding caching', () => {
 
   it('uses cached embedding when available (no API call)', async () => {
     const cachedEmbeddingStr = JSON.stringify(fakeEmbedding);
-    const supabase = createMockSupabase({ cachedEmbedding: cachedEmbeddingStr });
+    const supabase = createMockSupabase({
+      cachedEmbedding: cachedEmbeddingStr,
+    });
 
     // pollFeed returns empty items so we skip article processing
     vi.mocked(pollFeed).mockResolvedValue({
@@ -239,7 +248,9 @@ describe('Company embedding caching', () => {
       (c: any) => c.table === 'company_profiles' && c.data.company_embedding,
     );
     expect(profileUpdate).toBeDefined();
-    expect(JSON.parse(profileUpdate.data.company_embedding)).toEqual(fakeEmbedding);
+    expect(JSON.parse(profileUpdate.data.company_embedding)).toEqual(
+      fakeEmbedding,
+    );
   });
 
   it('skips embedding when no company profile exists', async () => {

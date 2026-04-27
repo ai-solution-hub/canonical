@@ -196,9 +196,7 @@ function inferEmptyHeaders(headers: string[]): string[] {
  * Detect the table format from header names.
  * Mirrors detect_table_format() in scripts/extract_docx_tables.py.
  */
-export function detectTableFormat(
-  headers: string[],
-): TableFormat | null {
+export function detectTableFormat(headers: string[]): TableFormat | null {
   let normalised = headers.map((h) => normaliseHeader(h));
 
   const hasQuestion = normalised.includes('question');

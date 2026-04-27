@@ -434,5 +434,4 @@ describe('MetadataSidebar', () => {
     expect(mockChain.eq).toHaveBeenCalledWith('content_item_id', 'item-xyz');
     expect(mockChain.eq).toHaveBeenCalledWith('resolved', false);
   });
-
 });

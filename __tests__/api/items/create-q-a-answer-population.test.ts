@@ -150,9 +150,8 @@ beforeEach(() => {
     error: null,
   });
   mockSupabase._chain.then.mockReset();
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 });
 
@@ -164,8 +163,7 @@ describe('POST /api/items — Q&A answer-field population (WP1 / spec §4.1 H1)'
   it('populates answer_standard with the submitted content for q_a_pair items', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const itemContent =
-      'We comply with ISO 27001 and review the SoA annually.';
+    const itemContent = 'We comply with ISO 27001 and review the SoA annually.';
 
     // INSERT returns the new item
     mockSupabase._chain.single.mockResolvedValueOnce({

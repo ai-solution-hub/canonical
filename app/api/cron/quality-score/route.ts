@@ -397,8 +397,7 @@ export async function GET(request: NextRequest) {
     // the previous code was passing a non-existent field that Supabase
     // silently dropped.
     const durationMs = Date.now() - startTime;
-    const hadFailures =
-      failedFetches.length > 0 || failedUpdates.length > 0;
+    const hadFailures = failedFetches.length > 0 || failedUpdates.length > 0;
     const errorSummary = hadFailures
       ? `quality-score: ${failedFetches.length} fetch failure(s), ${failedUpdates.length} update failure(s)`
       : null;

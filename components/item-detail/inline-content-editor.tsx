@@ -95,9 +95,7 @@ export function InlineContentEditor({
             <input
               type="checkbox"
               checked={editConfig.reclassifyAfterSave ?? false}
-              onChange={(e) =>
-                editConfig.onReclassifyChange!(e.target.checked)
-              }
+              onChange={(e) => editConfig.onReclassifyChange!(e.target.checked)}
               className="accent-primary"
             />
             Re-classify after save

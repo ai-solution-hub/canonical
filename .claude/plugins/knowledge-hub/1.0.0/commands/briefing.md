@@ -1,11 +1,13 @@
 ---
-description: Get a reorientation briefing on what changed and what needs attention
-argument-hint: ""
+description:
+  Get a reorientation briefing on what changed and what needs attention
+argument-hint: ''
 ---
 
 # Briefing Command
 
-> If you see unfamiliar placeholders or need to check which tools are connected, see [CONNECTORS.md](../CONNECTORS.md).
+> If you see unfamiliar placeholders or need to check which tools are connected,
+> see [CONNECTORS.md](../CONNECTORS.md).
 
 ```
 +---------------------------------------------------------+
@@ -19,10 +21,11 @@ argument-hint: ""
 +---------------------------------------------------------+
 ```
 
-Generate a personalised briefing covering urgent items, team activity, recent work, and active bid status. Ideal for starting your day or returning after time away.
+Generate a personalised briefing covering urgent items, team activity, recent
+work, and active bid status. Ideal for starting your day or returning after time
+away.
 
-$ARGUMENTS: No arguments expected.
-If a file is referenced: @$1
+$ARGUMENTS: No arguments expected. If a file is referenced: @$1
 
 ## Usage
 
@@ -47,7 +50,9 @@ Use this to frame the urgency and depth of the briefing.
 **If `~~knowledge base` connector is available:**
 
 Call `get_reorientation` to fetch the personalised briefing data. This returns:
-- Urgent items needing attention (stale content, quality flags, approaching deadlines)
+
+- Urgent items needing attention (stale content, quality flags, approaching
+  deadlines)
 - Recent team activity (new items, updates by others)
 - Your recent work (items you've created or modified)
 - Active bid status (progress, deadlines, gaps)
@@ -71,16 +76,19 @@ any items you know need attention — I'll help you organise your day.
 Use the @content-governance skill to categorise urgency:
 
 **Critical (act today):**
+
 - Bid deadlines within 3 days with unanswered questions
 - Expired content referenced in active bids
 - Quality flags on high-priority items
 
 **Important (act this week):**
+
 - Stale content that may need updating
 - Bids with <50% question completion and deadline within 14 days
 - Governance review items pending action
 
 **Awareness (no immediate action):**
+
 - Aging content approaching stale threshold
 - New items added by team members
 - Completed bid responses needing review
@@ -165,6 +173,7 @@ Structure the full output:
 - Frame deadlines in terms of days remaining, not just dates
 - Bid status should always include percentage completion
 - Do not overwhelm — if there are many items, prioritise and summarise
-- If no urgent items exist, say so clearly: "No urgent items — your KB is in good shape"
+- If no urgent items exist, say so clearly: "No urgent items — your KB is in
+  good shape"
 - Suggest running `/kb:bid-status [name]` for detailed bid investigation
 - Suggest running `/kb:coverage` if freshness issues are widespread

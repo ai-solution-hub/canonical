@@ -1,11 +1,13 @@
 ---
-description: Draft a bid response using KB content with citations and confidence assessment
-argument-hint: "<bid question text>"
+description:
+  Draft a bid response using KB content with citations and confidence assessment
+argument-hint: '<bid question text>'
 ---
 
 # Draft Response Command
 
-> If you see unfamiliar placeholders or need to check which tools are connected, see [CONNECTORS.md](../CONNECTORS.md).
+> If you see unfamiliar placeholders or need to check which tools are connected,
+> see [CONNECTORS.md](../CONNECTORS.md).
 
 ```
 +---------------------------------------------------------+
@@ -21,25 +23,29 @@ argument-hint: "<bid question text>"
 +---------------------------------------------------------+
 ```
 
-Draft a response to a bid question using relevant knowledge base content. Searches for supporting material, evaluates source quality, and produces a structured response following UK public procurement conventions.
+Draft a response to a bid question using relevant knowledge base content.
+Searches for supporting material, evaluates source quality, and produces a
+structured response following UK public procurement conventions.
 
-Draft a response for: $ARGUMENTS
-If a file is referenced: @$1
+Draft a response for: $ARGUMENTS If a file is referenced: @$1
 
 ## What I Need From You
 
 **Option A — Question text (connector required):**
+
 ```
 /kb:draft-response "Describe your approach to information security management"
 ```
 
 **Option B — Question with context (no connector needed):**
+
 ```
 /kb:draft-response "Describe your approach to information security management"
 [Paste relevant policies, case studies, or Q&A pairs to use as source material]
 ```
 
 **Option C — Question from a file:**
+
 ```
 /kb:draft-response @tender-questions.docx
 ```
@@ -58,13 +64,20 @@ If a file is referenced: @$1
 
 Analyse the bid question to understand:
 
-- **Question type**: Descriptive ("describe your approach"), evidential ("provide evidence"), process ("how do you"), capability ("demonstrate your ability"), compliance ("confirm you meet")
-- **Domain signals**: Which knowledge domains are relevant (security, compliance, delivery, etc.)
-- **Scope**: Broad ("your approach to X") vs specific ("your ISO 27001 certification")
-- **Evidence requirements**: Does it ask for examples, case studies, metrics, or certifications?
-- **Word limit**: If mentioned, note the target (aim for 90-95% of limit per @bid-writing skill)
+- **Question type**: Descriptive ("describe your approach"), evidential
+  ("provide evidence"), process ("how do you"), capability ("demonstrate your
+  ability"), compliance ("confirm you meet")
+- **Domain signals**: Which knowledge domains are relevant (security,
+  compliance, delivery, etc.)
+- **Scope**: Broad ("your approach to X") vs specific ("your ISO 27001
+  certification")
+- **Evidence requirements**: Does it ask for examples, case studies, metrics, or
+  certifications?
+- **Word limit**: If mentioned, note the target (aim for 90-95% of limit per
+  @bid-writing skill)
 
-Use the @bid-writing skill to classify the question type and determine the response structure.
+Use the @bid-writing skill to classify the question type and determine the
+response structure.
 
 ### 2. Search for Relevant Content
 
@@ -72,12 +85,15 @@ Use the @bid-writing skill to classify the question type and determine the respo
 
 Execute searches in parallel:
 
-1. Call `search_knowledge_base` with the question text to find relevant articles, policies, case studies, and other content
-2. Call `search_qa_library` with the question text to find existing Q&A pairs with standard answers
+1. Call `search_knowledge_base` with the question text to find relevant
+   articles, policies, case studies, and other content
+2. Call `search_qa_library` with the question text to find existing Q&A pairs
+   with standard answers
 
 If the question targets a specific domain, add domain filtering.
 
-Use the @search-strategy skill to decompose the question into optimal search queries.
+Use the @search-strategy skill to decompose the question into optimal search
+queries.
 
 **If no connector available:**
 
@@ -93,19 +109,23 @@ I'll draft a response following UK bid writing conventions.
 
 ### 3. Evaluate Source Quality
 
-For each search result, assess using @content-governance and @knowledge-synthesis skills:
+For each search result, assess using @content-governance and
+@knowledge-synthesis skills:
 
-| Factor | Assessment |
-|--------|------------|
-| **Similarity score** | >0.7 strong match, 0.5-0.7 moderate, <0.5 weak |
-| **Freshness** | Fresh = safe to use, aging = probably fine, stale/expired = flag |
-| **Content type** | Q&A pair = direct answer, case study = evidence, policy = authority |
-| **Classification confidence** | >0.8 reliable, 0.6-0.8 check, <0.6 verify |
+| Factor                        | Assessment                                                          |
+| ----------------------------- | ------------------------------------------------------------------- |
+| **Similarity score**          | >0.7 strong match, 0.5-0.7 moderate, <0.5 weak                      |
+| **Freshness**                 | Fresh = safe to use, aging = probably fine, stale/expired = flag    |
+| **Content type**              | Q&A pair = direct answer, case study = evidence, policy = authority |
+| **Classification confidence** | >0.8 reliable, 0.6-0.8 check, <0.6 verify                           |
 
 Determine the overall **confidence posture**:
-- **strong_match**: Multiple fresh, high-quality sources directly address the question
+
+- **strong_match**: Multiple fresh, high-quality sources directly address the
+  question
 - **partial_match**: Some relevant sources but gaps exist
-- **needs_sme**: KB has partial coverage but subject matter expert input is needed
+- **needs_sme**: KB has partial coverage but subject matter expert input is
+  needed
 - **no_content**: No relevant KB material found — flag as a gap
 
 ### 4. Draft the Response
@@ -113,6 +133,7 @@ Determine the overall **confidence posture**:
 Use the @bid-writing skill to structure the response:
 
 **Standard structure for descriptive questions:**
+
 ```
 [Opening statement — directly answer the question in 1-2 sentences]
 
@@ -125,6 +146,7 @@ Use the @bid-writing skill to structure the response:
 ```
 
 **For evidential questions (case studies, examples):**
+
 ```
 [Brief context — what you will demonstrate]
 
@@ -141,16 +163,19 @@ Use the @bid-writing skill to structure the response:
 ```
 
 **Response quality rules from @bid-writing skill:**
+
 - Use UK English throughout (organisation, colour, DD/MM/YYYY)
 - Be specific — use real figures, dates, and named standards
 - Lead with the answer, then provide evidence
 - Every claim should be backed by a KB source
-- Match the tone to the question type (formal for compliance, confident for capability)
+- Match the tone to the question type (formal for compliance, confident for
+  capability)
 - If a word limit is provided, target 90-95%
 
 ### 5. Apply Word Limit
 
 If a word limit is specified:
+
 1. Draft at full length first
 2. Count words
 3. If over limit, trim secondary points and examples
@@ -208,6 +233,7 @@ Want me to:
 ### 8. Handle Edge Cases
 
 **No relevant KB content found:**
+
 ```
 ## Draft Response — Low Confidence
 
@@ -227,6 +253,7 @@ I couldn't find relevant content in the knowledge base for this question.
 ```
 
 **Stale sources only:**
+
 ```
 ## Draft Response — Freshness Warning
 
@@ -242,10 +269,12 @@ before submission:
 
 ## Tips
 
-- Never submit a response with `no_content` confidence without explicit user confirmation
+- Never submit a response with `no_content` confidence without explicit user
+  confirmation
 - Always include source citations — traceability is essential for bid responses
 - UK procurement evaluators value specificity over generality
 - If the question asks for word count compliance, always include the count
-- Q&A pairs are the strongest source type — they contain pre-approved standard answers
+- Q&A pairs are the strongest source type — they contain pre-approved standard
+  answers
 - Case studies are the strongest evidence type — real examples beat descriptions
 - Reference `kb://items/{id}` and `kb://qa/{id}` URIs for source traceability

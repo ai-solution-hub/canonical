@@ -70,9 +70,7 @@ test.describe('Prompt refinement page navigation', () => {
     await expect(advancedToggle).toBeVisible({ timeout: 10000 });
 
     // Editor textarea should NOT be in the DOM while collapsed (conditional render).
-    await expect(
-      page.locator('#advanced-prompt-editor'),
-    ).toHaveCount(0);
+    await expect(page.locator('#advanced-prompt-editor')).toHaveCount(0);
 
     await advancedToggle.click();
     await expect(advancedToggle).toHaveAttribute('aria-expanded', 'true');
@@ -355,9 +353,7 @@ test.describe('Prompt refinement happy path (mocked API)', () => {
     );
 
     // Navigate to the prompts page.
-    await page.goto(
-      `/intelligence/${workspaceId}/prompts`,
-    );
+    await page.goto(`/intelligence/${workspaceId}/prompts`);
     await page.waitForLoadState('networkidle', { timeout: 15000 });
 
     // Wait for the refinement panel header — the page is ready.
@@ -366,9 +362,9 @@ test.describe('Prompt refinement happy path (mocked API)', () => {
     ).toBeVisible({ timeout: 10000 });
 
     // 3 unresolved flags should be summarised (pluralised UK English).
-    await expect(
-      page.getByText(/3 unresolved flags/i),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/3 unresolved flags/i)).toBeVisible({
+      timeout: 10000,
+    });
 
     // Click "Analyse flags".
     const analyseButton = page.getByRole('button', {
@@ -378,9 +374,9 @@ test.describe('Prompt refinement happy path (mocked API)', () => {
     await analyseButton.click();
 
     // Analysis view renders the summary text from the mock.
-    await expect(
-      page.getByText(/Three flags analysed/i),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/Three flags analysed/i)).toBeVisible({
+      timeout: 10000,
+    });
 
     // Click "Preview impact".
     const previewButton = page.getByRole('button', {
@@ -389,9 +385,9 @@ test.describe('Prompt refinement happy path (mocked API)', () => {
     await previewButton.click();
 
     // Rescoring preview renders the sample count from the mock.
-    await expect(
-      page.getByText(/3 articles re-scored/i),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/3 articles re-scored/i)).toBeVisible({
+      timeout: 10000,
+    });
 
     // Click "Apply changes".
     const applyButton = page.getByRole('button', {
@@ -401,8 +397,8 @@ test.describe('Prompt refinement happy path (mocked API)', () => {
 
     // After apply completes, the panel resets to the empty state because
     // the mocked GET /flags now returns [].
-    await expect(
-      page.getByText(/no unresolved flags/i),
-    ).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/no unresolved flags/i)).toBeVisible({
+      timeout: 15000,
+    });
   });
 });

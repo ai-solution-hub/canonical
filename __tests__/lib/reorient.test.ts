@@ -1563,14 +1563,8 @@ describe('resolveDisplayNames', () => {
   it('takes the first name when the display_name has a space', async () => {
     vi.mocked(resolveUserDisplayNames).mockResolvedValueOnce(
       new Map([
-        [
-          U1,
-          { user_id: U1, display_name: 'Alice Smith', email: 'alice@x.io' },
-        ],
-        [
-          U2,
-          { user_id: U2, display_name: 'bob', email: 'bob@test.com' },
-        ],
+        [U1, { user_id: U1, display_name: 'Alice Smith', email: 'alice@x.io' }],
+        [U2, { user_id: U2, display_name: 'bob', email: 'bob@test.com' }],
       ]),
     );
 

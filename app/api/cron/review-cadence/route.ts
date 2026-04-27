@@ -158,10 +158,7 @@ export async function GET(request: NextRequest) {
         hadFailures = true;
         const msg = err instanceof Error ? err.message : String(err);
         failureMessages.push(`update ${item.id}: ${msg}`);
-        console.error(
-          `review-cadence: failed to flag item ${item.id}`,
-          err,
-        );
+        console.error(`review-cadence: failed to flag item ${item.id}`, err);
       }
     }
 
@@ -279,9 +276,7 @@ export async function GET(request: NextRequest) {
       );
       if (bulkError) {
         hadFailures = true;
-        failureMessages.push(
-          `createBulkNotifications: ${bulkError.message}`,
-        );
+        failureMessages.push(`createBulkNotifications: ${bulkError.message}`);
         console.error(
           'review-cadence: createBulkNotifications failed',
           bulkError,

@@ -115,7 +115,10 @@ export async function getOrganisationProfile(
     .maybeSingle();
 
   if (error) {
-    console.error('[organisation-profile] Failed to fetch primary profile:', error);
+    console.error(
+      '[organisation-profile] Failed to fetch primary profile:',
+      error,
+    );
     return null;
   }
 
@@ -137,7 +140,10 @@ export async function getFullPrimaryProfile(
     .maybeSingle();
 
   if (error) {
-    console.error('[organisation-profile] Failed to fetch full primary profile:', error);
+    console.error(
+      '[organisation-profile] Failed to fetch full primary profile:',
+      error,
+    );
     return null;
   }
 

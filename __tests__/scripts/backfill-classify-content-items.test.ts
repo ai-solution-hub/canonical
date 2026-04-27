@@ -126,7 +126,9 @@ interface MockRow {
  *   .from(t).select(...).in(...)                   -> resolves to { data, error }
  *   .from(t).select(...).in(...).eq(...)           -> resolves to { data, error }
  */
-function makeMockSupabase(tables: Record<string, { data?: MockRow[]; error?: Error | null }>) {
+function makeMockSupabase(
+  tables: Record<string, { data?: MockRow[]; error?: Error | null }>,
+) {
   function makeQuery(tableName: string) {
     const result = tables[tableName] ?? { data: [], error: null };
     const resolved = Promise.resolve({
@@ -262,9 +264,7 @@ describe('formatSummary', () => {
       total_candidates: 3,
       classified: 2,
       failed: 1,
-      failures: [
-        { id: 'item-x', title: 'Broken Item', error: 'API timeout' },
-      ],
+      failures: [{ id: 'item-x', title: 'Broken Item', error: 'API timeout' }],
     };
     const out = formatSummary(summary, false);
     expect(out).toContain('Total candidates: 3');
@@ -280,7 +280,10 @@ describe('formatSummary', () => {
   });
 
   it('omits failures section when there are none', () => {
-    const out = formatSummary({ ...empty, classified: 5, total_candidates: 5 }, false);
+    const out = formatSummary(
+      { ...empty, classified: 5, total_candidates: 5 },
+      false,
+    );
     expect(out).not.toContain('Failures:');
   });
 });

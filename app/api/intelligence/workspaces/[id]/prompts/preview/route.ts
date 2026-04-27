@@ -69,10 +69,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     try {
       body = await request.json();
     } catch {
-      return NextResponse.json(
-        { error: 'Invalid JSON body' },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
     const parsed = parseBody(PreviewSchema, body);
     if (!parsed.success) return parsed.response;
@@ -148,9 +145,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const articlesResult = await tryQuery(
       supabase
         .from('feed_articles')
-        .select(
-          'id, title, raw_content, relevance_score, relevance_reasoning',
-        )
+        .select('id, title, raw_content, relevance_score, relevance_reasoning')
         .eq('workspace_id', workspaceId)
         .not('raw_content', 'is', null)
         .order('ingested_at', { ascending: false })

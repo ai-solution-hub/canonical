@@ -106,11 +106,7 @@ export function useReviewQueue(): UseReviewQueueReturn {
   // -------------------------------------------------------------------------
   // 3. Navigation (index, sorting, selection, focus, prefetch)
   // -------------------------------------------------------------------------
-  const nav = useReviewNavigation(
-    data.queue,
-    data.isLoading,
-    data.queueQuery,
-  );
+  const nav = useReviewNavigation(data.queue, data.isLoading, data.queueQuery);
 
   // -------------------------------------------------------------------------
   // 4. Actions (verify, flag, publish, undo mutations)

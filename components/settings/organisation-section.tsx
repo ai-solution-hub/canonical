@@ -341,7 +341,10 @@ export function OrganisationSection() {
 
       {!profile && (
         <div className="mb-6 flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border py-8 text-center">
-          <Building2 className="size-8 text-muted-foreground" aria-hidden="true" />
+          <Building2
+            className="size-8 text-muted-foreground"
+            aria-hidden="true"
+          />
           <div>
             <p className="text-sm font-medium text-foreground">
               No organisation profile yet

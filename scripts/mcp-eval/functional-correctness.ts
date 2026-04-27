@@ -2903,10 +2903,7 @@ async function runGuideToolChecks(accessToken: string): Promise<void> {
     if (result.errorMessage) {
       // RPC-level error is acceptable for not-found
       const msgLower = result.errorMessage.toLowerCase();
-      if (
-        msgLower.includes('not found') ||
-        msgLower.includes('error')
-      ) {
+      if (msgLower.includes('not found') || msgLower.includes('error')) {
         record(
           'Guide Tools',
           'FC-85',
@@ -2955,10 +2952,7 @@ async function runGuideToolChecks(accessToken: string): Promise<void> {
     for (const guideId of createdGuideIds) {
       try {
         // Delete sections first (FK constraint)
-        await supabase
-          .from('guide_sections')
-          .delete()
-          .eq('guide_id', guideId);
+        await supabase.from('guide_sections').delete().eq('guide_id', guideId);
         // Delete the guide
         await supabase.from('guides').delete().eq('id', guideId);
       } catch {

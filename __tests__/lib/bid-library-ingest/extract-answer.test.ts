@@ -11,7 +11,8 @@ import { extractAnswerFromContent } from '@/lib/bid-library-ingest/extract-answe
 
 describe('extractAnswerFromContent', () => {
   it('extracts answer from composite "Q: {question}\\n\\n{answer}" content', () => {
-    const composite = 'Q: What is your quality policy?\n\nWe follow ISO 9001 standards.';
+    const composite =
+      'Q: What is your quality policy?\n\nWe follow ISO 9001 standards.';
     expect(extractAnswerFromContent(composite)).toBe(
       'We follow ISO 9001 standards.',
     );
@@ -49,7 +50,8 @@ describe('extractAnswerFromContent', () => {
 
   it('handles answer that starts with Q: but is not a question prefix', () => {
     // Content that doesn't start with "Q: " should pass through
-    const notQuestion = 'Quality assurance is important.\n\nWe follow best practices.';
+    const notQuestion =
+      'Quality assurance is important.\n\nWe follow best practices.';
     expect(extractAnswerFromContent(notQuestion)).toBe(notQuestion);
   });
 

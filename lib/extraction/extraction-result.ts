@@ -21,7 +21,14 @@ export interface PipelineExtractionResult {
 const EXTRACTOR_VERSION = '1.0.0';
 
 export function createPipelineExtractionResult(
-  raw: Pick<PipelineExtractionResult, 'source_format' | 'title' | 'content_markdown' | 'extraction_method' | 'extraction_confidence'> &
+  raw: Pick<
+    PipelineExtractionResult,
+    | 'source_format'
+    | 'title'
+    | 'content_markdown'
+    | 'extraction_method'
+    | 'extraction_confidence'
+  > &
     Partial<Pick<PipelineExtractionResult, 'source_url' | 'source_file'>>,
 ): PipelineExtractionResult {
   const contentPlain = stripMarkdown(raw.content_markdown);

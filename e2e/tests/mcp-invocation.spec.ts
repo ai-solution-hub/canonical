@@ -143,8 +143,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
 const TEST_USER_EMAIL =
   process.env.TEST_USER_1_EMAIL || 'test.user1@test-kb-aish.co.uk';
-const TEST_USER_PASSWORD =
-  process.env.TEST_USER_1_PASSWORD || 'Welcome12391.';
+const TEST_USER_PASSWORD = process.env.TEST_USER_1_PASSWORD || 'Welcome12391.';
 
 const MCP_ENDPOINT = '/api/mcp/mcp';
 const TOOL_NAME = 'search_knowledge_base';
@@ -174,7 +173,9 @@ function parseMcpBody(body: string): JsonRpcResponse {
     .filter((l) => l.startsWith('data:'))
     .map((l) => l.slice(5).trim());
   if (dataLines.length === 0) {
-    throw new Error(`Cannot parse MCP body — no JSON or SSE data: ${body.slice(0, 200)}`);
+    throw new Error(
+      `Cannot parse MCP body — no JSON or SSE data: ${body.slice(0, 200)}`,
+    );
   }
   return JSON.parse(dataLines[dataLines.length - 1]) as JsonRpcResponse;
 }
@@ -318,10 +319,9 @@ test.describe('8.0.2 MCP tool invocation', () => {
       // Don't follow auth-related redirects
       maxRedirects: 0,
     });
-    expect(
-      noAuthResp.status(),
-      'unauthenticated POST must return 401',
-    ).toBe(401);
+    expect(noAuthResp.status(), 'unauthenticated POST must return 401').toBe(
+      401,
+    );
     const noAuthCT = noAuthResp.headers()['content-type'] ?? '';
     expect(noAuthCT.includes('application/json')).toBe(true);
     const noAuthBody = (await noAuthResp.json()) as Record<string, unknown>;

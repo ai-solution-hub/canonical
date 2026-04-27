@@ -28,9 +28,17 @@ import { resolve } from 'path';
 import { execSync } from 'child_process';
 import { createClient } from '@supabase/supabase-js';
 import { rougeL, rouge1 } from '../lib/eval/metrics';
-import { loadBaseline, saveBaseline, checkRegression } from '../lib/eval/baseline';
+import {
+  loadBaseline,
+  saveBaseline,
+  checkRegression,
+} from '../lib/eval/baseline';
 import { printReport, printJsonReport } from '../lib/eval/reporter';
-import type { EvalResult, RegressionResult, SummarisationGoldItem } from '../lib/eval/types';
+import type {
+  EvalResult,
+  RegressionResult,
+  SummarisationGoldItem,
+} from '../lib/eval/types';
 
 // ── Env loading ─────────────────────────────────────────────────────
 
@@ -105,7 +113,12 @@ interface ItemScore {
 // ── Tier Classification ─────────────────────────────────────────────
 
 const TIER_1_TYPES = new Set([
-  'article', 'policy', 'case_study', 'research', 'capability', 'compliance',
+  'article',
+  'policy',
+  'case_study',
+  'research',
+  'capability',
+  'compliance',
 ]);
 
 function getTier(contentType: string): 1 | 2 {
@@ -165,7 +178,11 @@ function parseSummaryData(raw: unknown): SummaryData | null {
   return raw as SummaryData;
 }
 
-function scoreItem(gold: GoldItem, db: DbRow | undefined, tier: 1 | 2): ItemScore {
+function scoreItem(
+  gold: GoldItem,
+  db: DbRow | undefined,
+  tier: 1 | 2,
+): ItemScore {
   const details: string[] = [];
 
   const emptyScore: ItemScore = {
@@ -204,9 +221,10 @@ function scoreTier1(gold: GoldItem, db: DbRow, details: string[]): ItemScore {
   const summary = parseSummaryData(db.summary_data);
 
   // Structural compliance: summary_data has all three sections
-  const hasExecutive = !!(summary?.executive);
-  const hasDetailed = !!(summary?.detailed);
-  const hasTakeaways = Array.isArray(summary?.takeaways) && summary!.takeaways!.length > 0;
+  const hasExecutive = !!summary?.executive;
+  const hasDetailed = !!summary?.detailed;
+  const hasTakeaways =
+    Array.isArray(summary?.takeaways) && summary!.takeaways!.length > 0;
   const structuralCompliant = hasExecutive && hasDetailed && hasTakeaways;
 
   if (!structuralCompliant) {
@@ -362,14 +380,14 @@ const TIER_1_THRESHOLDS: Record<string, { min?: number; max_drop?: number }> = {
   t1_rouge_l_executive: { min: 0.25, max_drop: 0.05 },
   t1_rouge_l_detailed: { min: 0.17, max_drop: 0.05 },
   t1_structural_compliance: { min: 0.95 },
-  t1_length_compliance: { min: 0.90 },
-  t1_takeaway_compliance: { min: 0.90 },
+  t1_length_compliance: { min: 0.9 },
+  t1_takeaway_compliance: { min: 0.9 },
 };
 
 const TIER_2_THRESHOLDS: Record<string, { min?: number; max_drop?: number }> = {
   t2_rouge_l_executive: { min: 0.33, max_drop: 0.05 },
-  t2_length_appropriateness: { min: 0.90 },
-  t2_non_empty: { min: 1.00 },
+  t2_length_appropriateness: { min: 0.9 },
+  t2_non_empty: { min: 1.0 },
 };
 
 async function main() {
@@ -389,13 +407,17 @@ async function main() {
     process.exit(1);
   }
 
-  const rawGold: Array<Record<string, unknown>> = JSON.parse(readFileSync(fixturePath, 'utf-8'));
+  const rawGold: Array<Record<string, unknown>> = JSON.parse(
+    readFileSync(fixturePath, 'utf-8'),
+  );
   // Filter out the metadata entry (first item has _metadata key)
   const goldStandard: GoldItem[] = rawGold.filter(
     (item) => !('_metadata' in item),
   ) as unknown as GoldItem[];
 
-  console.log(`Loading summary data for ${goldStandard.length} gold standard items...`);
+  console.log(
+    `Loading summary data for ${goldStandard.length} gold standard items...`,
+  );
 
   // Fetch from DB
   const supabase = createServiceClient();
@@ -404,7 +426,9 @@ async function main() {
 
   const missing = itemIds.filter((id) => !dbMap.has(id));
   if (missing.length > 0) {
-    console.log(`Warning: ${missing.length} gold standard items not found in database (skipped)`);
+    console.log(
+      `Warning: ${missing.length} gold standard items not found in database (skipped)`,
+    );
   }
 
   // Score each item with tier-aware scoring
@@ -416,7 +440,9 @@ async function main() {
 
   // ── BERTScore (opt-in) ──────────────────────────────────────────
   if (runBERTScore) {
-    console.log('Computing BERTScore (this may take ~20 seconds on first run)...');
+    console.log(
+      'Computing BERTScore (this may take ~20 seconds on first run)...',
+    );
 
     // Build candidate/reference pairs for executive summaries
     const execPairs: BERTScorePair[] = [];
@@ -429,7 +455,9 @@ async function main() {
       const s = scores[i];
       if (s.details[0] === 'Item not found in database') continue;
 
-      const gold = goldStandard.find((g) => g.content_item_id === s.content_item_id);
+      const gold = goldStandard.find(
+        (g) => g.content_item_id === s.content_item_id,
+      );
       const db = dbMap.get(s.content_item_id);
       if (!gold || !db) continue;
 
@@ -437,7 +465,10 @@ async function main() {
       const summary = parseSummaryData(db.summary_data);
       const candidateExec = summary?.executive ?? db.summary ?? '';
       if (candidateExec && gold.reference_executive) {
-        execPairs.push({ candidate: candidateExec, reference: gold.reference_executive });
+        execPairs.push({
+          candidate: candidateExec,
+          reference: gold.reference_executive,
+        });
         execIndices.push(i);
       }
 
@@ -445,7 +476,10 @@ async function main() {
       if (s.tier === 1) {
         const candidateDet = summary?.detailed ?? '';
         if (candidateDet && gold.reference_detailed) {
-          detPairs.push({ candidate: candidateDet, reference: gold.reference_detailed });
+          detPairs.push({
+            candidate: candidateDet,
+            reference: gold.reference_detailed,
+          });
           detIndices.push(i);
         }
       }
@@ -475,7 +509,9 @@ async function main() {
   }
 
   // Filter out items not found in DB for aggregation
-  const evaluated = scores.filter((s) => s.details[0] !== 'Item not found in database');
+  const evaluated = scores.filter(
+    (s) => s.details[0] !== 'Item not found in database',
+  );
 
   // Separate by tier
   const tier1 = evaluated.filter((s) => s.tier === 1);
@@ -534,7 +570,8 @@ async function main() {
   const totalEvaluated = tier1.length + tier2.length;
   const combinedRougeLExec =
     totalEvaluated > 0
-      ? (t1RougeLExec * tier1.length + t2RougeLExec * tier2.length) / totalEvaluated
+      ? (t1RougeLExec * tier1.length + t2RougeLExec * tier2.length) /
+        totalEvaluated
       : 0;
 
   // ── BERTScore Aggregation (when enabled) ────────────────────────
@@ -544,17 +581,23 @@ async function main() {
 
   if (runBERTScore) {
     const t1WithBert = tier1.filter((s) => s.bertscore_f1_executive > 0);
-    t1BertExec = t1WithBert.length > 0
-      ? t1WithBert.reduce((sum, s) => sum + s.bertscore_f1_executive, 0) / t1WithBert.length
-      : 0;
+    t1BertExec =
+      t1WithBert.length > 0
+        ? t1WithBert.reduce((sum, s) => sum + s.bertscore_f1_executive, 0) /
+          t1WithBert.length
+        : 0;
     const t1WithBertDet = tier1.filter((s) => s.bertscore_f1_detailed > 0);
-    t1BertDet = t1WithBertDet.length > 0
-      ? t1WithBertDet.reduce((sum, s) => sum + s.bertscore_f1_detailed, 0) / t1WithBertDet.length
-      : 0;
+    t1BertDet =
+      t1WithBertDet.length > 0
+        ? t1WithBertDet.reduce((sum, s) => sum + s.bertscore_f1_detailed, 0) /
+          t1WithBertDet.length
+        : 0;
     const t2WithBert = tier2.filter((s) => s.bertscore_f1_executive > 0);
-    t2BertExec = t2WithBert.length > 0
-      ? t2WithBert.reduce((sum, s) => sum + s.bertscore_f1_executive, 0) / t2WithBert.length
-      : 0;
+    t2BertExec =
+      t2WithBert.length > 0
+        ? t2WithBert.reduce((sum, s) => sum + s.bertscore_f1_executive, 0) /
+          t2WithBert.length
+        : 0;
   }
 
   // ── Merge all metrics with prefixes ─────────────────────────────
@@ -584,7 +627,10 @@ async function main() {
   }
 
   // ── BERTScore Thresholds (only applied when --bertscore is enabled) ──
-  const bertscoreThresholds: Record<string, { min?: number; max_drop?: number }> = runBERTScore
+  const bertscoreThresholds: Record<
+    string,
+    { min?: number; max_drop?: number }
+  > = runBERTScore
     ? {
         t1_bertscore_f1_executive: { min: 0.85, max_drop: 0.03 },
         t1_bertscore_f1_detailed: { min: 0.83, max_drop: 0.03 },
@@ -592,11 +638,19 @@ async function main() {
     : {};
 
   // ── Threshold checking ──────────────────────────────────────────
-  const allThresholds = { ...TIER_1_THRESHOLDS, ...TIER_2_THRESHOLDS, ...bertscoreThresholds };
+  const allThresholds = {
+    ...TIER_1_THRESHOLDS,
+    ...TIER_2_THRESHOLDS,
+    ...bertscoreThresholds,
+  };
   const failures: string[] = [];
   for (const [metricName, threshold] of Object.entries(allThresholds)) {
     const value = metrics[metricName];
-    if (value !== undefined && threshold.min !== undefined && value < threshold.min) {
+    if (
+      value !== undefined &&
+      threshold.min !== undefined &&
+      value < threshold.min
+    ) {
       failures.push(
         `${metricName} ${(value * 100).toFixed(1)}% below minimum ${(threshold.min * 100).toFixed(0)}%`,
       );
@@ -639,7 +693,8 @@ async function main() {
     console.log('\n--- TIER 1 (LONG-FORM) DETAIL ---\n');
     const tier1Scores = scores.filter((s) => s.tier === 1);
     for (const s of tier1Scores) {
-      const status = s.structural_compliant && s.length_compliant ? 'PASS' : 'FAIL';
+      const status =
+        s.structural_compliant && s.length_compliant ? 'PASS' : 'FAIL';
       console.log(`  [${status}] ${s.title.slice(0, 70)}`);
       const bertPart = runBERTScore
         ? `  BERT(exec)=${(s.bertscore_f1_executive * 100).toFixed(1)}%  BERT(det)=${(s.bertscore_f1_detailed * 100).toFixed(1)}%`
@@ -677,10 +732,28 @@ async function main() {
 
     // Per-content-type breakdown with tier column
     console.log('--- PER-CONTENT-TYPE BREAKDOWN ---\n');
-    const byType = new Map<string, { total: number; tier: 1 | 2; rougeLExec: number; structural: number; lengthOk: number; nonEmpty: number }>();
+    const byType = new Map<
+      string,
+      {
+        total: number;
+        tier: 1 | 2;
+        rougeLExec: number;
+        structural: number;
+        lengthOk: number;
+        nonEmpty: number;
+      }
+    >();
     for (const s of evaluated) {
       const ct = s.content_type;
-      if (!byType.has(ct)) byType.set(ct, { total: 0, tier: s.tier, rougeLExec: 0, structural: 0, lengthOk: 0, nonEmpty: 0 });
+      if (!byType.has(ct))
+        byType.set(ct, {
+          total: 0,
+          tier: s.tier,
+          rougeLExec: 0,
+          structural: 0,
+          lengthOk: 0,
+          nonEmpty: 0,
+        });
       const entry = byType.get(ct)!;
       entry.total++;
       entry.rougeLExec += s.rouge_l_executive;
@@ -705,7 +778,9 @@ async function main() {
     }
 
     // Summary counts
-    console.log(`\n  Tier 1: ${tier1.length} items | Tier 2: ${tier2.length} items | Total: ${evaluated.length} items`);
+    console.log(
+      `\n  Tier 1: ${tier1.length} items | Tier 2: ${tier2.length} items | Total: ${evaluated.length} items`,
+    );
     console.log('');
   }
 

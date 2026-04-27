@@ -378,9 +378,7 @@ describe('ReorientSection', () => {
     const user = userEvent.setup();
 
     const data = makeReorientData({
-      team_changes: [
-        makeTeamChange({ user_id: 'user-a', action: 'updated' }),
-      ],
+      team_changes: [makeTeamChange({ user_id: 'user-a', action: 'updated' })],
     });
 
     render(<ReorientSection data={data} />);

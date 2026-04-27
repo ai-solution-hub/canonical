@@ -143,12 +143,14 @@ export async function getItemProvenance(
     item.embedding_model ??
     process.env.AI_EMBEDDING_MODEL ??
     'text-embedding-3-large';
-  const embeddingModelSource: 'recorded' | 'env_default' =
-    item.embedding_model ? 'recorded' : 'env_default';
+  const embeddingModelSource: 'recorded' | 'env_default' = item.embedding_model
+    ? 'recorded'
+    : 'env_default';
 
   // 4. Estimate costs
   const estimatedClassifyCostValue =
-    item.classification_tokens_in != null && item.classification_tokens_out != null
+    item.classification_tokens_in != null &&
+    item.classification_tokens_out != null
       ? estimateClassifyCost(
           item.classification_tokens_in,
           item.classification_tokens_out,
@@ -215,10 +217,7 @@ export async function getItemProvenance(
 
   if (uniqueProjectIds.length > 0) {
     const workspaces = await sb(
-      supabase
-        .from('workspaces')
-        .select('id, name')
-        .in('id', uniqueProjectIds),
+      supabase.from('workspaces').select('id, name').in('id', uniqueProjectIds),
       'provenance.item.bidNames',
     );
     bidNameMap = new Map(workspaces.map((w) => [w.id, w.name]));
@@ -228,7 +227,10 @@ export async function getItemProvenance(
   const recentDrafts: BidDraftInfo[] = recentDraftsResult.map((r) => {
     const bq = Array.isArray(r.bid_questions)
       ? r.bid_questions[0]
-      : (r.bid_questions as { project_id: string; question_text: string } | null);
+      : (r.bid_questions as {
+          project_id: string;
+          question_text: string;
+        } | null);
 
     const bidId = bq?.project_id ?? '';
 

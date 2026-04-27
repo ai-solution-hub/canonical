@@ -10,10 +10,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
  * `{ staleTime, gcTime }` overrides that match the production
  * `lib/query/query-provider.tsx` configuration.
  */
-export function createQueryWrapper(opts: {
-  staleTime?: number;
-  gcTime?: number;
-} = {}) {
+export function createQueryWrapper(
+  opts: {
+    staleTime?: number;
+    gcTime?: number;
+  } = {},
+) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {

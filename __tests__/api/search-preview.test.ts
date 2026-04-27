@@ -366,7 +366,12 @@ describe('GET /api/search/preview', () => {
       (resolve: (v: unknown) => void) =>
         resolve({
           data: null,
-          error: { message: 'DB error', code: 'PGRST000', details: '', hint: '' },
+          error: {
+            message: 'DB error',
+            code: 'PGRST000',
+            details: '',
+            hint: '',
+          },
         }),
     );
 

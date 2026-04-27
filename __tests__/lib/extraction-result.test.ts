@@ -156,7 +156,9 @@ describe('createPipelineExtractionResult', () => {
       extraction_method: 'test',
       extraction_confidence: 'high',
     });
-    expect(result.quality_warnings).not.toContain('high markdown-to-plain ratio');
+    expect(result.quality_warnings).not.toContain(
+      'high markdown-to-plain ratio',
+    );
   });
 
   // "empty title" is kept as a defensible extension of the Plan D spec:
@@ -211,6 +213,8 @@ describe('createPipelineExtractionResult', () => {
     expect(result.has_tables).toBe(false);
     expect(result.has_code_blocks).toBe(false);
     expect(result.quality_warnings).toContain('very short content');
-    expect(result.quality_warnings).not.toContain('high markdown-to-plain ratio');
+    expect(result.quality_warnings).not.toContain(
+      'high markdown-to-plain ratio',
+    );
   });
 });

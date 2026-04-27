@@ -78,7 +78,9 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
 
         let query = supabase
           .from('guides')
-          .select('id, name, slug, guide_type, domain_filter, is_published, display_order')
+          .select(
+            'id, name, slug, guide_type, domain_filter, is_published, display_order',
+          )
           .order('display_order')
           .order('name')
           .limit(args.limit);
@@ -341,24 +343,61 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
         'Create a new guide with optional sections. Guides organise knowledge base content into structured views by domain, subtopic, and content type. Requires editor or admin role. Set is_published to false (default) to create as draft. Use the kb://taxonomy resource for valid domain values.',
       inputSchema: {
         name: guideCreateSchema.shape.name.describe('Guide name'),
-        slug: guideCreateSchema.shape.slug.describe('URL-safe slug (lowercase, hyphens, numbers only)'),
-        description: guideCreateSchema.shape.description.describe('Guide description'),
-        guide_type: guideCreateSchema.shape.guide_type.describe('Guide type: sector, product, company, research, or custom'),
-        domain_filter: guideCreateSchema.shape.domain_filter.describe('Primary domain this guide covers'),
+        slug: guideCreateSchema.shape.slug.describe(
+          'URL-safe slug (lowercase, hyphens, numbers only)',
+        ),
+        description:
+          guideCreateSchema.shape.description.describe('Guide description'),
+        guide_type: guideCreateSchema.shape.guide_type.describe(
+          'Guide type: sector, product, company, research, or custom',
+        ),
+        domain_filter: guideCreateSchema.shape.domain_filter.describe(
+          'Primary domain this guide covers',
+        ),
         icon: guideCreateSchema.shape.icon.describe('Icon identifier'),
         color: guideCreateSchema.shape.color.describe('Colour identifier'),
-        display_order: guideCreateSchema.shape.display_order.describe('Display order (lower = first)'),
-        is_published: guideCreateSchema.shape.is_published.describe('Publish immediately (default: false)'),
+        display_order: guideCreateSchema.shape.display_order.describe(
+          'Display order (lower = first)',
+        ),
+        is_published: guideCreateSchema.shape.is_published.describe(
+          'Publish immediately (default: false)',
+        ),
         sections: z
           .array(
             z.object({
               section_name: z.string().min(1).max(200).describe('Section name'),
-              description: z.string().max(1000).optional().nullable().describe('Section description'),
-              expected_layer: z.string().optional().nullable().describe('Valid layer key — see kb://taxonomy resource for current values'),
-              subtopic_filter: z.string().optional().nullable().describe('Subtopic filter'),
-              content_type_filter: z.string().optional().nullable().describe('Content type filter'),
-              display_order: z.number().int().min(0).describe('Section display order'),
-              is_required: z.boolean().default(true).describe('Whether the section is required'),
+              description: z
+                .string()
+                .max(1000)
+                .optional()
+                .nullable()
+                .describe('Section description'),
+              expected_layer: z
+                .string()
+                .optional()
+                .nullable()
+                .describe(
+                  'Valid layer key — see kb://taxonomy resource for current values',
+                ),
+              subtopic_filter: z
+                .string()
+                .optional()
+                .nullable()
+                .describe('Subtopic filter'),
+              content_type_filter: z
+                .string()
+                .optional()
+                .nullable()
+                .describe('Content type filter'),
+              display_order: z
+                .number()
+                .int()
+                .min(0)
+                .describe('Section display order'),
+              is_required: z
+                .boolean()
+                .default(true)
+                .describe('Whether the section is required'),
             }),
           )
           .optional()
@@ -543,13 +582,12 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
     {
       title: 'Update Guide',
       description:
-        'Update an existing guide\'s metadata and optionally add or update sections. Sections with an id are updated; sections without an id are inserted as new. No sections are deleted. Requires editor or admin role.',
+        "Update an existing guide's metadata and optionally add or update sections. Sections with an id are updated; sections without an id are inserted as new. No sections are deleted. Requires editor or admin role.",
       inputSchema: {
-        id: z
-          .string()
-          .uuid()
-          .describe('The UUID of the guide to update'),
-        fields: guideUpdateSchema.describe('Fields to update — only include fields you want to change'),
+        id: z.string().uuid().describe('The UUID of the guide to update'),
+        fields: guideUpdateSchema.describe(
+          'Fields to update — only include fields you want to change',
+        ),
         sections: z
           .array(
             z.object({
@@ -557,18 +595,54 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
                 .string()
                 .uuid()
                 .optional()
-                .describe('Section UUID — include to update existing section, omit to insert new'),
-              section_name: z.string().min(1).max(200).optional().describe('Section name'),
-              description: z.string().max(1000).nullable().optional().describe('Section description'),
-              expected_layer: z.string().optional().nullable().describe('Valid layer key — see kb://taxonomy resource for current values'),
-              subtopic_filter: z.string().nullable().optional().describe('Subtopic filter'),
-              content_type_filter: z.string().nullable().optional().describe('Content type filter'),
-              display_order: z.number().int().min(0).optional().describe('Section display order'),
-              is_required: z.boolean().optional().describe('Whether the section is required'),
+                .describe(
+                  'Section UUID — include to update existing section, omit to insert new',
+                ),
+              section_name: z
+                .string()
+                .min(1)
+                .max(200)
+                .optional()
+                .describe('Section name'),
+              description: z
+                .string()
+                .max(1000)
+                .nullable()
+                .optional()
+                .describe('Section description'),
+              expected_layer: z
+                .string()
+                .optional()
+                .nullable()
+                .describe(
+                  'Valid layer key — see kb://taxonomy resource for current values',
+                ),
+              subtopic_filter: z
+                .string()
+                .nullable()
+                .optional()
+                .describe('Subtopic filter'),
+              content_type_filter: z
+                .string()
+                .nullable()
+                .optional()
+                .describe('Content type filter'),
+              display_order: z
+                .number()
+                .int()
+                .min(0)
+                .optional()
+                .describe('Section display order'),
+              is_required: z
+                .boolean()
+                .optional()
+                .describe('Whether the section is required'),
             }),
           )
           .optional()
-          .describe('Sections to add or update (id present = update, id absent = insert)'),
+          .describe(
+            'Sections to add or update (id present = update, id absent = insert)',
+          ),
         reason: z
           .string()
           .optional()
@@ -652,7 +726,10 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
           }
 
           // Critical: check 0-row update (Supabase PATCH returns 200 OK with 0 rows on wrong UUID)
-          if (!updateResult.data || (updateResult.data as Array<{ id: string }>).length === 0) {
+          if (
+            !updateResult.data ||
+            (updateResult.data as Array<{ id: string }>).length === 0
+          ) {
             return {
               content: [
                 {
@@ -666,11 +743,7 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
         } else {
           // No field updates — verify the guide exists before processing sections
           const existResult = await tryQuery(
-            supabase
-              .from('guides')
-              .select('id')
-              .eq('id', args.id)
-              .single(),
+            supabase.from('guides').select('id').eq('id', args.id).single(),
             'mcp.guides.update.exists',
           );
 
@@ -807,8 +880,14 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
 
         const result = {
           id: args.id,
-          name: (updatedGuide as { name: string; slug: string } | null)?.name ?? args.fields.name ?? 'Unknown',
-          slug: (updatedGuide as { name: string; slug: string } | null)?.slug ?? args.fields.slug ?? null,
+          name:
+            (updatedGuide as { name: string; slug: string } | null)?.name ??
+            args.fields.name ??
+            'Unknown',
+          slug:
+            (updatedGuide as { name: string; slug: string } | null)?.slug ??
+            args.fields.slug ??
+            null,
           updated_fields: updatedFields,
           sections_added: sectionsAdded,
           sections_updated: sectionsUpdated,

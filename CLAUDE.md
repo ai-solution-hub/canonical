@@ -10,8 +10,8 @@ code in this repository.
 
 Knowledge Hub is a knowledge base platform where the core value is high-quality,
 structured data accessible by AI. The first domain applications are bid
-management and sector intelligence for UK SMBs. The knowledge base
-is the foundation for these and future applications.
+management and sector intelligence for UK SMBs. The knowledge base is the
+foundation for these and future applications.
 
 **Team:** Liam (product owner) + Claude Code as development partner.
 
@@ -66,7 +66,7 @@ Key file: `proxy.ts` — Next.js 16 auth middleware, `publicRoutes` allowlist
 | `mcp-apps/`   | MCP App UIs (Vite single-file builds for Claude Desktop/Claude.ai)                                                                                                                                                                              |
 | `components/` | 23 domain subdirs — new components go in their domain dir, never at root                                                                                                                                                                        |
 | `contexts/`   | React contexts (read-marks, taxonomy, client-features, layer-vocabulary)                                                                                                                                                                        |
-| `hooks/`      | Custom React hooks — 7 domain subdirs (bid, browse, intelligence, provenance, review, streaming, ui) + general hooks at root                                                                                                                                  |
+| `hooks/`      | Custom React hooks — 7 domain subdirs (bid, browse, intelligence, provenance, review, streaming, ui) + general hooks at root                                                                                                                    |
 | `lib/`        | Core modules — `ai/`, `mcp/` (tools, resources, prompts), `bid/`, `content/`, `coverage/`, `digest/`, `entities/`, `extraction/`, `quality/`, `source-documents/`, `supabase/`, `taxonomy/`, `templates/`, `validation/`, plus standalone utils |
 | `types/`      | TypeScript types (content, bid, bid-metadata, digest, review, template, owner, reorient, unified-gap, filter-preset, css.d)                                                                                                                     |
 | `scripts/`    | Python pipeline (`kb_pipeline/`), ingestion CLIs, search CLI, batch scripts                                                                                                                                                                     |
@@ -80,25 +80,25 @@ Current counts (routes, components, hooks, tools, migrations, tests):
 
 ## Environment
 
-Env vars in `.env.local` — full template in `.env.example`. (`.env`
-retired kh-prod-readiness-S6 27/04/2026 per WP-S5.2 D-20=α; `.env.local`
-is now the single source of truth for both TS and Python pipelines.)
+Env vars in `.env.local` — full template in `.env.example`. (`.env` retired
+kh-prod-readiness-S6 27/04/2026 per WP-S5.2 D-20=α; `.env.local` is now the
+single source of truth for both TS and Python pipelines.)
 
-**Default target: staging.** Post-WP-S5.2 `.env.local` points at the
-persistent staging Supabase branch (`turayklvaunphgbgscat`). Prod-targeted
-CLI work opts in via `--env=prod` (top-10 scripts) or explicit env
-override. Full guidance: `docs/runbooks/local-development.md`.
+**Default target: staging.** Post-WP-S5.2 `.env.local` points at the persistent
+staging Supabase branch (`turayklvaunphgbgscat`). Prod-targeted CLI work opts in
+via `--env=prod` (top-10 scripts) or explicit env override. Full guidance:
+`docs/runbooks/local-development.md`.
 
 Required: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `SUPABASE_URL`,
 `SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`,
 `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
-`POSTGRES_PASSWORD`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_CLIENT_ID`
-(missing → BRANDING corrupts entity metadata), `CRON_SECRET`,
-`FIRECRAWL_API_KEY`. Sentry: `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`,
-`SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`. Taxonomy sync:
-`GITHUB_SYNC_TOKEN`, `TAXONOMY_SYNC_CALLBACK_SECRET`.
+`POSTGRES_PASSWORD`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_CLIENT_ID` (missing →
+BRANDING corrupts entity metadata), `CRON_SECRET`, `FIRECRAWL_API_KEY`. Sentry:
+`NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`.
+Taxonomy sync: `GITHUB_SYNC_TOKEN`, `TAXONOMY_SYNC_CALLBACK_SECRET`.
 
 Optional model overrides:
+
 - `AI_SUMMARY_MODEL` — `claude-sonnet-4-6`
 - `AI_CLASSIFICATION_MODEL` — `claude-opus-4-6` (Python pipeline)
 - `AI_EMBEDDING_MODEL` — `text-embedding-3-large` (both pipelines)
@@ -108,8 +108,8 @@ Optional model overrides:
 
 - **Project ID:** `rovrymhhffssilaftdwd` (eu-west-2 London), pgvector 0.8.0
 - **Staging:** persistent branch `turayklvaunphgbgscat` (provisioned
-  kh-prod-readiness-S3 26/04/2026; Vercel Preview target). Refresh
-  procedure: `docs/runbooks/staging-refresh.md`.
+  kh-prod-readiness-S3 26/04/2026; Vercel Preview target). Refresh procedure:
+  `docs/runbooks/staging-refresh.md`.
 - **CLI:** `/opt/homebrew/bin/supabase`
 - **DDL via CLI only** (`supabase migration new` + `db push`), never MCP
   `execute_sql`. MCP tools for queries and quick DML only.
@@ -120,11 +120,11 @@ Optional model overrides:
 - **Schema reference:** `docs/reference/SCHEMA-QUICK-REFERENCE.md`
 - RLS: role-based via `get_user_role()`. Embeddings: `vector(1024)`
   (text-embedding-3-large). Canonical constants: `lib/validation/schemas.ts`.
-- **Publication lifecycle (S202 §5.2):** `content_items.publication_status`
-  is NOT NULL, CHECK enum (`draft|in_review|published|archived`), paired
-  with `archived_at` via `enforce_archive_state_consistency` trigger.
-  `'draft'` removed from `governance_review_status` (S202 T9) — draft is
-  now a publication state exclusively. MCP tool: `update_publication_status`.
+- **Publication lifecycle (S202 §5.2):** `content_items.publication_status` is
+  NOT NULL, CHECK enum (`draft|in_review|published|archived`), paired with
+  `archived_at` via `enforce_archive_state_consistency` trigger. `'draft'`
+  removed from `governance_review_status` (S202 T9) — draft is now a publication
+  state exclusively. MCP tool: `update_publication_status`.
 
 ## Testing
 
@@ -140,19 +140,20 @@ Optional model overrides:
 
 - **Platform:** Vercel
 - **URL:** https://knowledge-hub-seven-kappa.vercel.app
-- **Staging URL:** https://knowledge-hub-git-staging-tw-group.vercel.app
-  (Vercel Preview target, branch `staging`)
+- **Staging URL:** https://knowledge-hub-git-staging-tw-group.vercel.app (Vercel
+  Preview target, branch `staging`)
 - **GitHub:** https://github.com/liam-jons/knowledge-hub (private)
 - **Region:** eu-west-2 (London) — matches Supabase region
-- **GitHub Environments:** `Production` + `Staging` (case-sensitive).
-  Setup: `docs/runbooks/github-environments.md`.
+- **GitHub Environments:** `Production` + `Staging` (case-sensitive). Setup:
+  `docs/runbooks/github-environments.md`.
 
 ## Key Product Design Principles
 
 - **"One record, many views"** — no content duplication, multiple views
 - **AI is invisible infrastructure** — not a visible product feature. See
   `docs/reference/ai-visibility-policy.md`
-- **Programmatic where possible** — deterministic functions for deterministic tasks
+- **Programmatic where possible** — deterministic functions for deterministic
+  tasks
 - **Generic over specific** — reusable containers/workflows, not bid-specific
 - **UK English throughout** — DD/MM/YYYY, "colour", "organisation"
 - **WCAG 2.1 AA** — never colour alone for meaning
@@ -168,20 +169,21 @@ Consult when adding or modifying UI elements.
 
 ## Key Reference Documents
 
-| Document                  | Location                                                              |
-| ------------------------- | --------------------------------------------------------------------- |
-| State of the Product      | `docs/reference/state-of-the-product.md`                              |
-| Roadmap                   | `docs/reference/post-mvp-roadmap.md`                                  |
-| Product backlog           | `docs/reference/product-backlog.md`                                   |
-| Schema quick reference    | `docs/reference/SCHEMA-QUICK-REFERENCE.md`                            |
-| Auto-generated stats      | `docs/generated/codebase-stats.md`, `docs/generated/mcp-inventory.md` |
-| AI visibility policy      | `docs/reference/ai-visibility-policy.md`                              |
-| Session handoffs          | `docs/continuation-prompts/`                                          |
-| Codebase mapping (7 docs) | `.planning/codebase/`                                                 |
-| Quality checks (11 files) | `.claude/checks/`                                                     |
+| Document                  | Location                                                                   |
+| ------------------------- | -------------------------------------------------------------------------- |
+| State of the Product      | `docs/reference/state-of-the-product.md`                                   |
+| Roadmap                   | `docs/reference/post-mvp-roadmap.md`                                       |
+| Product backlog           | `docs/reference/product-backlog.md`                                        |
+| Schema quick reference    | `docs/reference/SCHEMA-QUICK-REFERENCE.md`                                 |
+| Auto-generated stats      | `docs/generated/codebase-stats.md`, `docs/generated/mcp-inventory.md`      |
+| AI visibility policy      | `docs/reference/ai-visibility-policy.md`                                   |
+| Session handoffs          | `docs/continuation-prompts/`                                               |
+| Codebase mapping (7 docs) | `.planning/codebase/`                                                      |
+| Quality checks (11 files) | `.claude/checks/`                                                          |
 | Runbooks                  | `docs/runbooks/` — local-development, staging-refresh, github-environments |
 
-Full inventory of all reference docs: `docs/reference/documentation-inventory.md`
+Full inventory of all reference docs:
+`docs/reference/documentation-inventory.md`
 
 Historical planning: `.planning/.archive/` (specs, audits, research, session
 handoffs s41–s131+). Grep explicitly when researching past decisions; treat as
@@ -204,22 +206,23 @@ management only for merge-conflict-prone work requiring interactive resolution.
 Three concurrent long-lived worktrees on this project (shared filesystem via
 `git worktree`):
 
-- **main** (`/Users/liamj/Documents/development/knowledge-hub`, branch `main`)
-  — client bid/SI product. Global session counter `kh-sN`.
-- **kh-knowledge-platform** (`/Users/liamj/Documents/development/knowledge-hub-knowledge-platform`,
-  branch `kh-knowledge-platform`) — engineering-docs dogfood + productisation
-  validation. Track-local counter `kh-kpf-sN`. One-way references only (does
-  NOT merge back to main). Supabase project: `ztiztwqlyqcsuyhtjoya`
-  (shared dev-KB `kb-aish-product-dev`, hosts multiple future dev projects).
-  Primer: `docs/tracks/kh-knowledge-platform.md`.
-- **production-readiness** (`/Users/liamj/Documents/development/knowledge-hub-production-readiness`,
+- **main** (`/Users/liamj/Documents/development/knowledge-hub`, branch `main`) —
+  client bid/SI product. Global session counter `kh-sN`.
+- **kh-knowledge-platform**
+  (`/Users/liamj/Documents/development/knowledge-hub-knowledge-platform`, branch
+  `kh-knowledge-platform`) — engineering-docs dogfood + productisation
+  validation. Track-local counter `kh-kpf-sN`. One-way references only (does NOT
+  merge back to main). Supabase project: `ztiztwqlyqcsuyhtjoya` (shared dev-KB
+  `kb-aish-product-dev`, hosts multiple future dev projects). Primer:
+  `docs/tracks/kh-knowledge-platform.md`.
+- **production-readiness**
+  (`/Users/liamj/Documents/development/knowledge-hub-production-readiness`,
   branch `production-readiness`) — CI/CD, staging DB, structured logging,
-  handover infra. Track-local counter `kh-prod-readiness-sN`.
-  **Bidirectional merge with main** (corrected S1 closeout 24/04/2026
-  — kickoff primer wrongly said one-way). Roadmap + runbook + handover
-  artefacts land here and merge to main; main fixes also merge in.
-  Unlike kh-knowledge-platform (which IS one-way). Primer:
-  `docs/tracks/production-readiness.md`.
+  handover infra. Track-local counter `kh-prod-readiness-sN`. **Bidirectional
+  merge with main** (corrected S1 closeout 24/04/2026 — kickoff primer wrongly
+  said one-way). Roadmap + runbook + handover artefacts land here and merge to
+  main; main fixes also merge in. Unlike kh-knowledge-platform (which IS
+  one-way). Primer: `docs/tracks/production-readiness.md`.
 
 Closed tracks: UI simplification (`knowledge-hub-ui-ux-simplification`, closed
 24/04/2026 after S196 merge-back).
@@ -240,8 +243,8 @@ conventions: `docs/continuation-prompts/README.md`.
   Always verify updates by re-querying.
 - **RLS requires user_roles entry:** New users cannot write until seeded.
 - **CLI in Claude Code sandbox:** Run `supabase migration new`, `db push`, and
-  `gen types` with `dangerouslyDisableSandbox: true`. `POSTGRES_PASSWORD`
-  must be set as a shell env var.
+  `gen types` with `dangerouslyDisableSandbox: true`. `POSTGRES_PASSWORD` must
+  be set as a shell env var.
 - **Empty migration files from worktree cherry-picks:** Migration files may
   arrive as 0-byte. Supabase CLI marks them "applied" anyway. Always verify
   content after cherry-pick; if empty was already recorded, apply SQL via
@@ -255,13 +258,13 @@ conventions: `docs/continuation-prompts/README.md`.
   or update value rejected with `cannot insert a non-DEFAULT value into column`.
   PG auto-computes via `md5(normalised content)`. Omit the field from any
   payload writing `content_items`.
-- **`pg_dump` version must match server PG major version:** Supabase 'r' runs
-  PG 17.6; Homebrew `pg_dump@16` refuses to dump. Install `postgresql@17` via
+- **`pg_dump` version must match server PG major version:** Supabase 'r' runs PG
+  17.6; Homebrew `pg_dump@16` refuses to dump. Install `postgresql@17` via
   Homebrew and use `/opt/homebrew/opt/postgresql@17/bin/pg_dump` explicitly.
-- **CLI `.temp/project-ref` can silently go stale post-env-flip:** `supabase
-  db push` may push to the WRONG project (looks like silent-fail on intended
-  project). Always `cat supabase/.temp/project-ref` before any push; relink via
-  `supabase link --project-ref <correct>` if drift detected.
+- **CLI `.temp/project-ref` can silently go stale post-env-flip:**
+  `supabase db push` may push to the WRONG project (looks like silent-fail on
+  intended project). Always `cat supabase/.temp/project-ref` before any push;
+  relink via `supabase link --project-ref <correct>` if drift detected.
 
 ### Testing
 
@@ -270,8 +273,8 @@ conventions: `docs/continuation-prompts/README.md`.
   Update fixtures when adding tools or changing doc paths.
 - **vi.mock() hoisting:** Use `vi.hoisted()` for mock variables. Arrow functions
   in `mockImplementation()` cannot be used with `new` — use `function` keyword.
-- **Zod UUID validation is strict:** `z.string().uuid()` enforces RFC 4122.
-  Test UUIDs like `00000000-...0001` fail — use v4-compliant values.
+- **Zod UUID validation is strict:** `z.string().uuid()` enforces RFC 4122. Test
+  UUIDs like `00000000-...0001` fail — use v4-compliant values.
 - **Date-sensitive tests need pinned time:** Use `vi.spyOn(Date, 'now')` with a
   fixed timestamp — `setDate()` rounding causes midnight-boundary flakiness.
 - **Agent escalation rule:** Test agents encountering unexpected production
@@ -283,8 +286,9 @@ conventions: `docs/continuation-prompts/README.md`.
 - **Verifier diff on long-lived branches:** use `git show --stat <commit>`, not
   `git diff main..<commit>` — the latter returns multi-session deltas and
   produces false-positive "commit contamination" reports.
-- **Radix Select in jsdom needs pointer shims:** call `installRadixPointerShims()`
-  from `@/__tests__/helpers/radix-pointer-shims` in `beforeEach`.
+- **Radix Select in jsdom needs pointer shims:** call
+  `installRadixPointerShims()` from `@/__tests__/helpers/radix-pointer-shims` in
+  `beforeEach`.
 
 ### E2E / Playwright
 
@@ -296,7 +300,9 @@ conventions: `docs/continuation-prompts/README.md`.
   login inputs.
 - **Browser testing:** Never use `mcp__playwright__*` for parallel testing. Use
   `agent-browser` skill with `--session` for isolated sessions.
-- **Conditional fallbacks silently pass on empty DBs:** `if (await X.isVisible().catch(() => false))` skips assertions — use hard `expect(X).toBeVisible()` so missing fixtures fail honestly.
+- **Conditional fallbacks silently pass on empty DBs:**
+  `if (await X.isVisible().catch(() => false))` skips assertions — use hard
+  `expect(X).toBeVisible()` so missing fixtures fail honestly.
 
 ### Plugin / MCP
 
@@ -339,23 +345,25 @@ conventions: `docs/continuation-prompts/README.md`.
 - **Taxonomy dual-source:** App uses DB-driven taxonomy
   (`contexts/taxonomy-context.tsx`); `lib/taxonomy/taxonomy.ts` remains for the
   Python pipeline. After taxonomy changes, run `bun run sync:taxonomy` to
-  regenerate classification prompt and plugin files. DB is single source of truth.
+  regenerate classification prompt and plugin files. DB is single source of
+  truth.
 - **Content review vs governance review:** `/review` = content quality.
   `/api/governance/review` = freshness/ownership. Separate workflows.
 - **"Change Reports" not "Digest":** User-facing label is "Change Reports";
   internal code still uses "digest".
 - **Entity classification: false positives, not type errors:** The problem is
-  extracting non-entities (policies, generic concepts, job titles), not mistyping
-  real ones. Source of truth: `docs/reference/entity-type-taxonomy-spec.md`.
+  extracting non-entities (policies, generic concepts, job titles), not
+  mistyping real ones. Source of truth:
+  `docs/reference/entity-type-taxonomy-spec.md`.
 
 ### UI / Frontend
 
 - **No raw Tailwind colours:** Always use semantic tokens. Define new ones in
   `app/globals.css`. See `docs/design/warm-meridian-implementation-spec.md`.
 - **Tailwind v4 gotchas:** (1) Dark mode is class-based via
-  `@custom-variant dark (&:is(.dark *))` in `globals.css` — don't remove.
-  (2) Scans ALL files — never put wildcard class patterns in backticks.
-  (3) Bare `border` uses `currentColor` — the `globals.css` base rule restoring
+  `@custom-variant dark (&:is(.dark *))` in `globals.css` — don't remove. (2)
+  Scans ALL files — never put wildcard class patterns in backticks. (3) Bare
+  `border` uses `currentColor` — the `globals.css` base rule restoring
   `var(--border)` must not be removed.
 - **`@tiptap/markdown` is NOT `tiptap-markdown`:** Official package uses
   `editor.getMarkdown()` (not `editor.storage.markdown.getMarkdown()`), has no
@@ -363,9 +371,9 @@ conventions: `docs/continuation-prompts/README.md`.
   the community package — verify against `node_modules/@tiptap/markdown/dist/`.
 - **React compiler memoisation:** Destructure nested properties before using in
   `useCallback` deps (e.g. `const { fn } = data;` not `data.fn`).
-- **Stable empty array/object defaults in hook returns:** Inline `data?.foo ?? []`
-  creates a new reference every render, breaking downstream deps. Hoist a
-  module-level `const EMPTY_X: T[] = [];` and wrap with
+- **Stable empty array/object defaults in hook returns:** Inline
+  `data?.foo ?? []` creates a new reference every render, breaking downstream
+  deps. Hoist a module-level `const EMPTY_X: T[] = [];` and wrap with
   `useMemo(() => data?.foo ?? EMPTY_X, [data?.foo])`.
 - **Reset local state via `key` prop, not `setState` in effect:** Add
   `key={propId}` at the call site to force a clean remount — don't write a
@@ -407,16 +415,16 @@ conventions: `docs/continuation-prompts/README.md`.
 - **"Build the thing, forget to turn it on":** Every fix must trace from the
   production entry point to the change. Run `bun run knip` for deterministic
   detection of unused files/exports.
-- **`classifyContent` userId must be a UUID:** Use pipeline service account
-  UUID (`a0000000-0000-4000-8000-000000000001`), never literal strings.
-- **`content_items.summary` (not `ai_summary`):** `feed_articles.ai_summary`
-  is intentionally a separate column — do not "fix" the naming.
+- **`classifyContent` userId must be a UUID:** Use pipeline service account UUID
+  (`a0000000-0000-4000-8000-000000000001`), never literal strings.
+- **`content_items.summary` (not `ai_summary`):** `feed_articles.ai_summary` is
+  intentionally a separate column — do not "fix" the naming.
 - **Proxy blocks non-API public routes:** New public endpoints must be added to
   `publicRoutes` in `proxy.ts` (project root) or they silently redirect to
   `/login`.
 - **Default target is staging — prod CLI scripts return empty unless opted-in.**
   Post-WP-S5.2 `.env.local` points at staging. Top-10 scripts (kb-search,
-  ingest.py, batch-generate-summaries, eval-*, normalise-entities,
+  ingest.py, batch-generate-summaries, eval-\*, normalise-entities,
   import_bid_library, wipe-bid-responses) accept `--env=prod`; remaining
   always-prod scripts use Pattern B (explicit `SUPABASE_URL=<prod> …` at
   invocation). Full table: `docs/runbooks/local-development.md` §3.

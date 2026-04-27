@@ -18,9 +18,9 @@ test.describe('Provenance -- admin access and tab navigation', () => {
     await page.goto('/provenance');
 
     // Should see the Provenance heading
-    await expect(
-      page.getByRole('heading', { name: 'Provenance' }),
-    ).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('heading', { name: 'Provenance' })).toBeVisible(
+      { timeout: 15000 },
+    );
 
     // Should see all five tab triggers
     await expect(page.getByRole('tab', { name: 'Per-item' })).toBeVisible();
@@ -67,9 +67,9 @@ test.describe('Provenance -- deep-linking and redirects', () => {
   }) => {
     await page.goto('/provenance?tab=pipeline-health');
 
-    await expect(
-      page.getByRole('heading', { name: 'Provenance' }),
-    ).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('heading', { name: 'Provenance' })).toBeVisible(
+      { timeout: 15000 },
+    );
 
     // The Pipeline Health tab should be selected
     const pipelineTab = page.getByRole('tab', { name: 'Pipeline Health' });
@@ -87,9 +87,9 @@ test.describe('Provenance -- deep-linking and redirects', () => {
       timeout: 15000,
     });
 
-    await expect(
-      page.getByRole('heading', { name: 'Provenance' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Provenance' })).toBeVisible(
+      { timeout: 10000 },
+    );
   });
 
   test('/settings?section=activity redirects to /provenance?tab=audit', async ({
@@ -102,9 +102,9 @@ test.describe('Provenance -- deep-linking and redirects', () => {
       timeout: 15000,
     });
 
-    await expect(
-      page.getByRole('heading', { name: 'Provenance' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Provenance' })).toBeVisible(
+      { timeout: 10000 },
+    );
   });
 });
 

@@ -48,9 +48,8 @@ describe('dispatchTaxonomySync', () => {
   it('throws when GITHUB_SYNC_TOKEN is not set', async () => {
     delete process.env.GITHUB_SYNC_TOKEN;
 
-    const { dispatchTaxonomySync } = await import(
-      '@/lib/integrations/github-dispatch'
-    );
+    const { dispatchTaxonomySync } =
+      await import('@/lib/integrations/github-dispatch');
 
     await expect(dispatchTaxonomySync()).rejects.toThrow(
       'GITHUB_SYNC_TOKEN not configured',
@@ -61,9 +60,8 @@ describe('dispatchTaxonomySync', () => {
     const fetchMock = vi.fn().mockResolvedValue({ status: 204 });
     globalThis.fetch = fetchMock;
 
-    const { dispatchTaxonomySync } = await import(
-      '@/lib/integrations/github-dispatch'
-    );
+    const { dispatchTaxonomySync } =
+      await import('@/lib/integrations/github-dispatch');
 
     const result = await dispatchTaxonomySync();
 
@@ -91,9 +89,8 @@ describe('dispatchTaxonomySync', () => {
     const fetchMock = vi.fn().mockResolvedValue({ status: 401 });
     globalThis.fetch = fetchMock;
 
-    const { dispatchTaxonomySync } = await import(
-      '@/lib/integrations/github-dispatch'
-    );
+    const { dispatchTaxonomySync } =
+      await import('@/lib/integrations/github-dispatch');
 
     const result = await dispatchTaxonomySync();
 
@@ -109,9 +106,8 @@ describe('dispatchTaxonomySync', () => {
     const fetchMock = vi.fn().mockResolvedValue({ status: 403 });
     globalThis.fetch = fetchMock;
 
-    const { dispatchTaxonomySync } = await import(
-      '@/lib/integrations/github-dispatch'
-    );
+    const { dispatchTaxonomySync } =
+      await import('@/lib/integrations/github-dispatch');
 
     const result = await dispatchTaxonomySync();
 
@@ -131,9 +127,8 @@ describe('dispatchTaxonomySync', () => {
       .mockResolvedValueOnce({ status: 204 });
     globalThis.fetch = fetchMock;
 
-    const { dispatchTaxonomySync } = await import(
-      '@/lib/integrations/github-dispatch'
-    );
+    const { dispatchTaxonomySync } =
+      await import('@/lib/integrations/github-dispatch');
 
     const promise = dispatchTaxonomySync();
 
@@ -153,9 +148,8 @@ describe('dispatchTaxonomySync', () => {
       .mockResolvedValueOnce({ status: 502 });
     globalThis.fetch = fetchMock;
 
-    const { dispatchTaxonomySync } = await import(
-      '@/lib/integrations/github-dispatch'
-    );
+    const { dispatchTaxonomySync } =
+      await import('@/lib/integrations/github-dispatch');
 
     const promise = dispatchTaxonomySync();
 
@@ -178,9 +172,8 @@ describe('dispatchTaxonomySync', () => {
       .mockResolvedValueOnce({ status: 204 });
     globalThis.fetch = fetchMock;
 
-    const { dispatchTaxonomySync } = await import(
-      '@/lib/integrations/github-dispatch'
-    );
+    const { dispatchTaxonomySync } =
+      await import('@/lib/integrations/github-dispatch');
 
     const promise = dispatchTaxonomySync();
 
@@ -199,9 +192,8 @@ describe('dispatchTaxonomySync', () => {
       .mockRejectedValueOnce(new Error('ETIMEDOUT'));
     globalThis.fetch = fetchMock;
 
-    const { dispatchTaxonomySync } = await import(
-      '@/lib/integrations/github-dispatch'
-    );
+    const { dispatchTaxonomySync } =
+      await import('@/lib/integrations/github-dispatch');
 
     const promise = dispatchTaxonomySync();
 

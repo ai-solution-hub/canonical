@@ -42,7 +42,6 @@ interface FrameworkSummaryCardProps {
   onEditEntity?: (canonicalName: string) => void;
 }
 
-
 // ---------------------------------------------------------------------------
 // Date formatting
 // ---------------------------------------------------------------------------

@@ -166,10 +166,7 @@ describe('TeamSection — Invite flow', () => {
     await screen.findByText('Admin User');
 
     await user.click(screen.getByRole('button', { name: /invite user/i }));
-    await user.type(
-      screen.getByLabelText('Email Address'),
-      'fail@example.com',
-    );
+    await user.type(screen.getByLabelText('Email Address'), 'fail@example.com');
 
     fetchMock.mockImplementation(async (url: string, _opts?: RequestInit) => {
       if (url === '/api/admin/users/invite') {

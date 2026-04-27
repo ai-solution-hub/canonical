@@ -111,7 +111,9 @@ describe('OrganisationSection', () => {
 
     renderSection();
 
-    const nameInput = screen.getByLabelText('Organisation Name *') as HTMLInputElement;
+    const nameInput = screen.getByLabelText(
+      'Organisation Name *',
+    ) as HTMLInputElement;
     expect(nameInput.value).toBe('Acme Services');
     expect(screen.getByText('Save Changes')).toBeTruthy();
     // Empty state should not be shown
@@ -162,7 +164,9 @@ describe('OrganisationSection', () => {
     await user.type(nameInput, 'New Company');
 
     // Add a sector
-    const sectorInput = screen.getByPlaceholderText('Type a sector and press Enter');
+    const sectorInput = screen.getByPlaceholderText(
+      'Type a sector and press Enter',
+    );
     await user.type(sectorInput, 'Healthcare');
     await user.keyboard('{Enter}');
 

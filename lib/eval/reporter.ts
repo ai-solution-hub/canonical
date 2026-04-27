@@ -33,7 +33,7 @@ const REPORT_WIDTH = 72;
  */
 export function printReport(
   result: EvalResult,
-  regressions?: RegressionResult[]
+  regressions?: RegressionResult[],
 ): void {
   const status = result.passed ? 'PASS' : 'FAIL';
   console.log(`\n${'='.repeat(REPORT_WIDTH)}`);
@@ -46,7 +46,8 @@ export function printReport(
   // Metrics table
   for (const [name, value] of Object.entries(result.metrics)) {
     const formatted = formatMetricName(name);
-    const valueStr = typeof value === 'number' ? formatMetricValue(value) : String(value);
+    const valueStr =
+      typeof value === 'number' ? formatMetricValue(value) : String(value);
 
     let regressionMarker = '';
     if (regressions) {
@@ -76,7 +77,7 @@ export function printReport(
     for (const reg of regressions.filter((r) => !r.passed)) {
       const name = formatMetricName(reg.metric_name);
       console.log(
-        `    ${name}: ${formatMetricValue(reg.baseline_value)} -> ${formatMetricValue(reg.current_value)} (delta: ${reg.delta.toFixed(4)}, threshold: ${formatMetricValue(reg.threshold)})`
+        `    ${name}: ${formatMetricValue(reg.baseline_value)} -> ${formatMetricValue(reg.current_value)} (delta: ${reg.delta.toFixed(4)}, threshold: ${formatMetricValue(reg.threshold)})`,
       );
     }
   }
@@ -91,7 +92,7 @@ export function printReport(
  */
 export function printJsonReport(
   result: EvalResult,
-  regressions?: RegressionResult[]
+  regressions?: RegressionResult[],
 ): void {
   const output = {
     ...result,

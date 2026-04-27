@@ -53,9 +53,7 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-const SOURCE_FILES = INCLUDE_DIRS.flatMap((d) =>
-  walk(path.join(REPO_ROOT, d)),
-);
+const SOURCE_FILES = INCLUDE_DIRS.flatMap((d) => walk(path.join(REPO_ROOT, d)));
 
 function findInsertBlocks(
   filePath: string,
@@ -94,8 +92,9 @@ describe('content_history.change_reason guard (S153)', () => {
         // Check the first ~5 lines since supabase-js chains commonly wrap:
         //   .from('content_history')\n    .insert(rows)\n    .select(...)
         const openingBlock = block.split('\n').slice(0, 5).join('\n');
-        const variableInsert =
-          /\.insert\(\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\)/.test(openingBlock);
+        const variableInsert = /\.insert\(\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\)/.test(
+          openingBlock,
+        );
         if (braceStart === -1) {
           if (variableInsert && fileHasChangeReason) continue;
           violations.push(
@@ -135,7 +134,9 @@ describe('content_history.change_reason guard (S153)', () => {
     const storePath = path.join(REPO_ROOT, 'scripts/kb_pipeline/store.py');
     const content = readFileSync(storePath, 'utf-8');
     expect(content).toMatch(/def insert_content_history_entry\(/);
-    expect(content).toMatch(/change_reason:\s*str\s*=\s*["']initial_ingest["']/);
+    expect(content).toMatch(
+      /change_reason:\s*str\s*=\s*["']initial_ingest["']/,
+    );
     expect(content).toMatch(
       /PIPELINE_SERVICE_ACCOUNT_USER_ID\s*=\s*["']a0000000-0000-4000-8000-000000000001["']/,
     );
@@ -155,15 +156,22 @@ describe('content_history.change_reason guard (S153)', () => {
     // the trigger, (b) post_insert.py documents the no-op contract, and
     // (c) callers still invoke run_post_insert so the broader pipeline
     // (embedding / chunks / entities / temporal) still runs.
-    const triggerMigration = 'supabase/migrations/20260422060118_ensure_content_items_v1_history.sql';
-    const triggerContent = readFileSync(path.join(REPO_ROOT, triggerMigration), 'utf-8');
+    const triggerMigration =
+      'supabase/migrations/20260422060118_ensure_content_items_v1_history.sql';
+    const triggerContent = readFileSync(
+      path.join(REPO_ROOT, triggerMigration),
+      'utf-8',
+    );
     expect(
       triggerContent,
       `${triggerMigration} should create trg_content_items_ensure_v1_history`,
     ).toMatch(/trg_content_items_ensure_v1_history/);
 
     const helperPath = 'scripts/kb_pipeline/post_insert.py';
-    const helperContent = readFileSync(path.join(REPO_ROOT, helperPath), 'utf-8');
+    const helperContent = readFileSync(
+      path.join(REPO_ROOT, helperPath),
+      'utf-8',
+    );
     expect(
       helperContent,
       `${helperPath} should document the OPS-20 Step 1 no-op`,

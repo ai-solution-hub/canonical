@@ -59,9 +59,7 @@ describe('ResponseActions', () => {
 
   it('renders Redraft button when no draft exists', () => {
     render(<ResponseActions {...defaultProps()} />);
-    expect(
-      screen.getByRole('button', { name: /Redraft/ }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Redraft/ })).toBeInTheDocument();
   });
 
   it('renders More button when no draft exists', () => {
@@ -249,9 +247,7 @@ describe('ResponseActions', () => {
     render(<ResponseActions {...defaultProps()} />);
 
     await user.click(screen.getByRole('button', { name: /Redraft/ }));
-    expect(
-      screen.getByLabelText('Redraft instructions'),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Redraft instructions')).toBeInTheDocument();
   });
 
   it('sends instructions on second Redraft click', async () => {
@@ -274,9 +270,7 @@ describe('ResponseActions', () => {
     render(<ResponseActions {...defaultProps()} />);
 
     await user.click(screen.getByRole('button', { name: /Redraft/ }));
-    expect(
-      screen.getByLabelText('Redraft instructions'),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Redraft instructions')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /Cancel/ }));
     expect(

@@ -273,15 +273,12 @@ test.describe('8.0.6 viewer write enforcement (server-side)', () => {
     expect(uploadBody).toEqual({ error: 'Forbidden' });
 
     // ---- Endpoint D (cross-user PATCH): PATCH /api/bids/:id ----
-    const patchRes = await viewerPage.request.patch(
-      `/api/bids/${bidId}`,
-      {
-        data: {
-          name: `HACKED-${Date.now()}`,
-          buyer: 'HACKED-BUYER',
-        },
+    const patchRes = await viewerPage.request.patch(`/api/bids/${bidId}`, {
+      data: {
+        name: `HACKED-${Date.now()}`,
+        buyer: 'HACKED-BUYER',
       },
-    );
+    });
     expect(patchRes.status()).toBe(403);
     expect(patchRes.headers()['content-type'] ?? '').toContain(
       'application/json',

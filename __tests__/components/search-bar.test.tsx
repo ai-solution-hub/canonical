@@ -22,7 +22,9 @@ vi.mock('@/contexts/taxonomy-context', () => ({
   useTaxonomy: () => ({
     getDomainColourKey: (domain: string) => domain.toLowerCase(),
     formatDomainName: (domain: string) =>
-      domain.replace(/-/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+      domain
+        .replace(/-/g, ' ')
+        .replace(/\b\w/g, (c: string) => c.toUpperCase()),
   }),
 }));
 
@@ -365,7 +367,9 @@ describe('SearchBar', () => {
       // Wait for debounce + fetch to resolve
       await waitFor(
         () => {
-          expect(screen.getByTestId('preview-results-region')).toBeInTheDocument();
+          expect(
+            screen.getByTestId('preview-results-region'),
+          ).toBeInTheDocument();
         },
         { timeout: 2000 },
       );

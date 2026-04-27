@@ -37,9 +37,9 @@ vi.mock('@/lib/mcp/auth', () => ({
 }));
 
 vi.mock('@/lib/supersession/set', async () => {
-  const actual = await vi.importActual<
-    typeof import('@/lib/supersession/set')
-  >('@/lib/supersession/set');
+  const actual = await vi.importActual<typeof import('@/lib/supersession/set')>(
+    '@/lib/supersession/set',
+  );
   return {
     ...actual,
     setSupersession: mocks.setSupersession,
@@ -71,11 +71,7 @@ function createTestServer(): {
   const tools = new Map<string, RegisteredTool>();
   const server = {
     registerTool: vi.fn(
-      (
-        name: string,
-        _config: unknown,
-        handler: RegisteredTool['handler'],
-      ) => {
+      (name: string, _config: unknown, handler: RegisteredTool['handler']) => {
         tools.set(name, { name, handler });
         return { enabled: true };
       },

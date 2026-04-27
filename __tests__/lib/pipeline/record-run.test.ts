@@ -34,7 +34,12 @@ import type { Database } from '@/supabase/types/database.types';
 type InsertArgs = Record<string, unknown>;
 
 function createMockSupabase(
-  insertResult: { data: null; error: null } | { data: null; error: { message: string; code: string; details: string; hint: string } },
+  insertResult:
+    | { data: null; error: null }
+    | {
+        data: null;
+        error: { message: string; code: string; details: string; hint: string };
+      },
 ): {
   client: SupabaseClient<Database>;
   insertSpy: ReturnType<typeof vi.fn>;
@@ -107,8 +112,9 @@ describe('recordPipelineRun', () => {
     });
 
     expect(Sentry.captureMessage).toHaveBeenCalledTimes(1);
-    const [message, options] = (Sentry.captureMessage as ReturnType<typeof vi.fn>)
-      .mock.calls[0];
+    const [message, options] = (
+      Sentry.captureMessage as ReturnType<typeof vi.fn>
+    ).mock.calls[0];
     expect(message).toContain('classification_quality');
     expect(message).toContain('failed');
     expect(message).toContain('all items errored');
@@ -125,8 +131,8 @@ describe('recordPipelineRun', () => {
     });
 
     expect(Sentry.captureMessage).toHaveBeenCalledTimes(1);
-    const [, options] = (Sentry.captureMessage as ReturnType<typeof vi.fn>)
-      .mock.calls[0];
+    const [, options] = (Sentry.captureMessage as ReturnType<typeof vi.fn>).mock
+      .calls[0];
     expect(options).toMatchObject({ level: 'warning' });
   });
 
@@ -172,8 +178,9 @@ describe('recordPipelineRun', () => {
     });
 
     expect(Sentry.captureMessage).toHaveBeenCalledTimes(1);
-    const [message, options] = (Sentry.captureMessage as ReturnType<typeof vi.fn>)
-      .mock.calls[0];
+    const [message, options] = (
+      Sentry.captureMessage as ReturnType<typeof vi.fn>
+    ).mock.calls[0];
     expect(message).toContain('pipeline_runs insert failed');
     expect(message).toContain('coverage_alert');
     expect(options).toMatchObject({ level: 'error' });

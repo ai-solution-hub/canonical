@@ -23,7 +23,11 @@ import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { createClient } from '@supabase/supabase-js';
 import { rougeL } from '../lib/eval/metrics';
-import { loadBaseline, saveBaseline, checkRegression } from '../lib/eval/baseline';
+import {
+  loadBaseline,
+  saveBaseline,
+  checkRegression,
+} from '../lib/eval/baseline';
 import { printReport, printJsonReport } from '../lib/eval/reporter';
 import type { EvalResult, RegressionResult } from '../lib/eval/types';
 
@@ -146,7 +150,10 @@ async function fetchBidResponses(
 // ── Scoring ─────────────────────────────────────────────────────────
 
 function countWords(text: string): number {
-  return text.trim().split(/\s+/).filter((w) => w.length > 0).length;
+  return text
+    .trim()
+    .split(/\s+/)
+    .filter((w) => w.length > 0).length;
 }
 
 function computeStructureScore(text: string): number {
@@ -196,17 +203,24 @@ function scoreItem(gold: GoldItem, db: DbResponse | undefined): ItemScore {
   const maxWords = Math.ceil(gold.word_limit * 1.1);
   const wordCountCompliant = wordCount >= minWords && wordCount <= maxWords;
   if (!wordCountCompliant) {
-    details.push(`Word count: ${wordCount} (expected ${minWords}-${maxWords} for ${gold.word_limit} limit)`);
+    details.push(
+      `Word count: ${wordCount} (expected ${minWords}-${maxWords} for ${gold.word_limit} limit)`,
+    );
   }
 
   // Citation coverage: cited items / expected items
   const citedItems = db.cited_items ?? [];
   const expectedItems = gold.expected_kb_items_used;
   const citedSet = new Set(citedItems);
-  const matchedCitations = expectedItems.filter((id) => citedSet.has(id)).length;
-  const citationCoverage = expectedItems.length > 0 ? matchedCitations / expectedItems.length : 0;
+  const matchedCitations = expectedItems.filter((id) =>
+    citedSet.has(id),
+  ).length;
+  const citationCoverage =
+    expectedItems.length > 0 ? matchedCitations / expectedItems.length : 0;
   if (citationCoverage < 1.0 && expectedItems.length > 0) {
-    details.push(`Citation coverage: ${matchedCitations}/${expectedItems.length} expected KB items cited`);
+    details.push(
+      `Citation coverage: ${matchedCitations}/${expectedItems.length} expected KB items cited`,
+    );
   }
 
   // ROUGE-L against reference response
@@ -233,10 +247,10 @@ function scoreItem(gold: GoldItem, db: DbResponse | undefined): ItemScore {
 const SUITE_NAME = 'bid-drafting';
 
 const THRESHOLDS: Record<string, { min?: number; max_drop?: number }> = {
-  word_count_compliance: { min: 0.70, max_drop: 0.10 },
-  citation_coverage: { min: 0.40, max_drop: 0.10 },
-  rouge_l: { min: 0.10, max_drop: 0.05 },
-  structure_score: { min: 0.70, max_drop: 0.10 },
+  word_count_compliance: { min: 0.7, max_drop: 0.1 },
+  citation_coverage: { min: 0.4, max_drop: 0.1 },
+  rouge_l: { min: 0.1, max_drop: 0.05 },
+  structure_score: { min: 0.7, max_drop: 0.1 },
 };
 
 async function main() {
@@ -248,7 +262,9 @@ async function main() {
 
   if (isLive) {
     console.log('Live mode is not yet implemented.');
-    console.log('Use --cached (default) to compare existing bid responses against the gold standard.');
+    console.log(
+      'Use --cached (default) to compare existing bid responses against the gold standard.',
+    );
     process.exit(0);
   }
 
@@ -262,9 +278,13 @@ async function main() {
     process.exit(1);
   }
 
-  const goldStandard: GoldItem[] = JSON.parse(readFileSync(fixturePath, 'utf-8'));
+  const goldStandard: GoldItem[] = JSON.parse(
+    readFileSync(fixturePath, 'utf-8'),
+  );
 
-  console.log(`Loading bid response data for ${goldStandard.length} gold standard items...`);
+  console.log(
+    `Loading bid response data for ${goldStandard.length} gold standard items...`,
+  );
 
   // Fetch from DB
   const supabase = createServiceClient();
@@ -273,7 +293,9 @@ async function main() {
 
   // If no data found, exit gracefully
   if (dbMap.size === 0) {
-    console.log('No bid responses found in database. Run with live data to generate baselines.');
+    console.log(
+      'No bid responses found in database. Run with live data to generate baselines.',
+    );
     process.exit(0);
   }
 
@@ -284,22 +306,30 @@ async function main() {
   }
 
   // Filter to items with responses for aggregation
-  const evaluated = scores.filter((s) => s.details[0] !== 'No response found in database');
+  const evaluated = scores.filter(
+    (s) => s.details[0] !== 'No response found in database',
+  );
 
   if (evaluated.length === 0) {
-    console.log('No matching bid responses found for gold standard question IDs.');
-    console.log('The gold standard uses synthetic IDs (eval-bid-NNN). Responses must match these IDs.');
+    console.log(
+      'No matching bid responses found for gold standard question IDs.',
+    );
+    console.log(
+      'The gold standard uses synthetic IDs (eval-bid-NNN). Responses must match these IDs.',
+    );
     process.exit(0);
   }
 
   // Aggregate metrics
   const wordCountCompliance =
     evaluated.length > 0
-      ? evaluated.filter((s) => s.word_count_compliant).length / evaluated.length
+      ? evaluated.filter((s) => s.word_count_compliant).length /
+        evaluated.length
       : 0;
   const avgCitationCoverage =
     evaluated.length > 0
-      ? evaluated.reduce((sum, s) => sum + s.citation_coverage, 0) / evaluated.length
+      ? evaluated.reduce((sum, s) => sum + s.citation_coverage, 0) /
+        evaluated.length
       : 0;
   const avgRougeL =
     evaluated.length > 0
@@ -307,7 +337,8 @@ async function main() {
       : 0;
   const avgStructureScore =
     evaluated.length > 0
-      ? evaluated.reduce((sum, s) => sum + s.structure_score, 0) / evaluated.length
+      ? evaluated.reduce((sum, s) => sum + s.structure_score, 0) /
+        evaluated.length
       : 0;
 
   const metrics: Record<string, number> = {
@@ -321,7 +352,11 @@ async function main() {
   const failures: string[] = [];
   for (const [metricName, threshold] of Object.entries(THRESHOLDS)) {
     const value = metrics[metricName];
-    if (value !== undefined && threshold.min !== undefined && value < threshold.min) {
+    if (
+      value !== undefined &&
+      threshold.min !== undefined &&
+      value < threshold.min
+    ) {
       failures.push(
         `${metricName} ${(value * 100).toFixed(1)}% below minimum ${(threshold.min * 100).toFixed(0)}%`,
       );
@@ -382,12 +417,16 @@ async function main() {
 
     // Per-section breakdown
     console.log('--- PER-SECTION BREAKDOWN ---\n');
-    const bySection = new Map<string, { total: number; wcOk: number; rougeSum: number }>();
+    const bySection = new Map<
+      string,
+      { total: number; wcOk: number; rougeSum: number }
+    >();
     for (let i = 0; i < goldStandard.length; i++) {
       const section = goldStandard[i].section_name;
       const s = scores[i];
       if (s.details[0] === 'No response found in database') continue;
-      if (!bySection.has(section)) bySection.set(section, { total: 0, wcOk: 0, rougeSum: 0 });
+      if (!bySection.has(section))
+        bySection.set(section, { total: 0, wcOk: 0, rougeSum: 0 });
       const entry = bySection.get(section)!;
       entry.total++;
       if (s.word_count_compliant) entry.wcOk++;

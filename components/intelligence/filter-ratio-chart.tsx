@@ -140,7 +140,9 @@ export function FilterRatioChart({
                 x2={PADDING.left + chartWidth}
                 y2={y}
                 className="stroke-border"
-                strokeDasharray={tick === 0 || tick === yMax ? undefined : '4 4'}
+                strokeDasharray={
+                  tick === 0 || tick === yMax ? undefined : '4 4'
+                }
                 strokeWidth={0.5}
               />
               <text

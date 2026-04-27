@@ -62,30 +62,100 @@ const inferenceCases: Array<{
   expected: string;
 }> = [
   // policy branch
-  { name: 'policy keyword', domain: 'governance', subtopic: 'data-policy', expected: 'policy' },
-  { name: 'regulation keyword', domain: 'governance', subtopic: 'gdpr-regulation', expected: 'policy' },
-  { name: 'legislation keyword', domain: 'governance', subtopic: 'eu-legislation', expected: 'policy' },
+  {
+    name: 'policy keyword',
+    domain: 'governance',
+    subtopic: 'data-policy',
+    expected: 'policy',
+  },
+  {
+    name: 'regulation keyword',
+    domain: 'governance',
+    subtopic: 'gdpr-regulation',
+    expected: 'policy',
+  },
+  {
+    name: 'legislation keyword',
+    domain: 'governance',
+    subtopic: 'eu-legislation',
+    expected: 'policy',
+  },
 
   // case_study branch (must come before research per inferContentType ordering)
-  { name: 'case-study with hyphen', domain: 'sectors', subtopic: 'nhs-case-study', expected: 'case_study' },
-  { name: 'case_study with underscore', domain: 'sectors', subtopic: 'mod-case_study', expected: 'case_study' },
+  {
+    name: 'case-study with hyphen',
+    domain: 'sectors',
+    subtopic: 'nhs-case-study',
+    expected: 'case_study',
+  },
+  {
+    name: 'case_study with underscore',
+    domain: 'sectors',
+    subtopic: 'mod-case_study',
+    expected: 'case_study',
+  },
 
   // research branch
-  { name: 'research keyword', domain: 'evidence', subtopic: 'health-research', expected: 'research' },
-  { name: 'study keyword', domain: 'evidence', subtopic: 'cohort-study', expected: 'research' },
-  { name: 'analysis keyword', domain: 'evidence', subtopic: 'gap-analysis', expected: 'research' },
+  {
+    name: 'research keyword',
+    domain: 'evidence',
+    subtopic: 'health-research',
+    expected: 'research',
+  },
+  {
+    name: 'study keyword',
+    domain: 'evidence',
+    subtopic: 'cohort-study',
+    expected: 'research',
+  },
+  {
+    name: 'analysis keyword',
+    domain: 'evidence',
+    subtopic: 'gap-analysis',
+    expected: 'research',
+  },
 
   // compliance branch
-  { name: 'compliance keyword', domain: 'governance', subtopic: 'iso-compliance', expected: 'compliance' },
-  { name: 'audit keyword', domain: 'governance', subtopic: 'security-audit', expected: 'compliance' },
+  {
+    name: 'compliance keyword',
+    domain: 'governance',
+    subtopic: 'iso-compliance',
+    expected: 'compliance',
+  },
+  {
+    name: 'audit keyword',
+    domain: 'governance',
+    subtopic: 'security-audit',
+    expected: 'compliance',
+  },
 
   // certification branch
-  { name: 'certification keyword', domain: 'governance', subtopic: 'cyber-essentials-certification', expected: 'certification' },
-  { name: 'accreditation keyword', domain: 'governance', subtopic: 'ukas-accreditation', expected: 'certification' },
+  {
+    name: 'certification keyword',
+    domain: 'governance',
+    subtopic: 'cyber-essentials-certification',
+    expected: 'certification',
+  },
+  {
+    name: 'accreditation keyword',
+    domain: 'governance',
+    subtopic: 'ukas-accreditation',
+    expected: 'certification',
+  },
 
   // methodology branch
-  { name: 'methodology in domain', domain: 'methodology', subtopic: 'agile', expected: 'methodology' },
-  { name: 'methodology in subtopic', domain: 'delivery', subtopic: 'lean-methodology', expected: 'methodology' },
+  {
+    name: 'methodology in domain',
+    domain: 'methodology',
+    subtopic: 'agile',
+    expected: 'methodology',
+  },
+  {
+    name: 'methodology in subtopic',
+    domain: 'delivery',
+    subtopic: 'lean-methodology',
+    expected: 'methodology',
+  },
 ];
 
 describe('SI-L3: inferContentType() outputs must match VALID_CONTENT_TYPES', () => {
@@ -94,7 +164,9 @@ describe('SI-L3: inferContentType() outputs must match VALID_CONTENT_TYPES', () 
     ({ domain, subtopic, expected }) => {
       const result = inferContentType(domain, subtopic);
       expect(result).toBe(expected);
-      expect(VALID_CONTENT_TYPES).toContain(result as (typeof VALID_CONTENT_TYPES)[number]);
+      expect(VALID_CONTENT_TYPES).toContain(
+        result as (typeof VALID_CONTENT_TYPES)[number],
+      );
     },
   );
 
@@ -107,9 +179,7 @@ describe('SI-L3: inferContentType() outputs must match VALID_CONTENT_TYPES', () 
   });
 
   it('every distinct return value is a member of VALID_CONTENT_TYPES', () => {
-    const distinctReturns = new Set(
-      inferenceCases.map((c) => c.expected),
-    );
+    const distinctReturns = new Set(inferenceCases.map((c) => c.expected));
     for (const value of distinctReturns) {
       expect(VALID_CONTENT_TYPES).toContain(
         value as (typeof VALID_CONTENT_TYPES)[number],
@@ -133,12 +203,10 @@ describe('SI-L3: inferContentType() outputs must match VALID_CONTENT_TYPES', () 
 describe('SI-L3: pipeline content_type update logs errors on DB rejection', () => {
   it('logs an error and does NOT throw when supabase update returns an error', async () => {
     const { pollFeed } = await import('@/lib/intelligence/feed-poller');
-    const { extractContent } = await import(
-      '@/lib/intelligence/content-extractor'
-    );
-    const { embeddingPreFilter, scoreRelevance } = await import(
-      '@/lib/intelligence/relevance-scorer'
-    );
+    const { extractContent } =
+      await import('@/lib/intelligence/content-extractor');
+    const { embeddingPreFilter, scoreRelevance } =
+      await import('@/lib/intelligence/relevance-scorer');
     const { classifyContent } = await import('@/lib/ai/classify');
 
     vi.mocked(pollFeed).mockResolvedValue({
@@ -370,17 +438,13 @@ describe('SI-L3: migration file enforces canonical CHECK constraint', () => {
     const sql = readFileSync(migrationPath, 'utf-8');
     // Post-squash: the pg_dump format includes the constraint inline
     // in the CREATE TABLE rather than as a separate DROP+ADD pair.
-    expect(sql).toMatch(
-      /content_items_valid_content_type/i,
-    );
+    expect(sql).toMatch(/content_items_valid_content_type/i);
   });
 
   it('constraint includes all VALID_CONTENT_TYPES', () => {
     const sql = readFileSync(migrationPath, 'utf-8');
     // Confirm the constraint is present
-    expect(sql).toMatch(
-      /content_items_valid_content_type/i,
-    );
+    expect(sql).toMatch(/content_items_valid_content_type/i);
     // Confirm every canonical type appears in the SQL body
     for (const type of VALID_CONTENT_TYPES) {
       expect(sql).toContain(`'${type}'`);

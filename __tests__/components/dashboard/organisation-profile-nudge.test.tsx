@@ -26,11 +26,13 @@ import { OrganisationProfileNudge } from '@/components/dashboard/organisation-pr
 // Helpers
 // ---------------------------------------------------------------------------
 
-function renderNudge(overrides: Partial<{
-  isProfileComplete: boolean;
-  isFirstLogin: boolean;
-  userRole: string;
-}> = {}) {
+function renderNudge(
+  overrides: Partial<{
+    isProfileComplete: boolean;
+    isFirstLogin: boolean;
+    userRole: string;
+  }> = {},
+) {
   const props = {
     isProfileComplete: false,
     isFirstLogin: true,
@@ -65,34 +67,26 @@ describe('OrganisationProfileNudge', () => {
   it('renders when isFirstLogin + profile incomplete', () => {
     renderNudge();
 
-    expect(
-      screen.getByTestId('organisation-profile-nudge'),
-    ).toBeTruthy();
+    expect(screen.getByTestId('organisation-profile-nudge')).toBeTruthy();
     expect(screen.getByText('Set up')).toBeTruthy();
   });
 
   it('does not render when profile is complete', () => {
     renderNudge({ isProfileComplete: true });
 
-    expect(
-      screen.queryByTestId('organisation-profile-nudge'),
-    ).toBeNull();
+    expect(screen.queryByTestId('organisation-profile-nudge')).toBeNull();
   });
 
   it('does not render when not first login', () => {
     renderNudge({ isFirstLogin: false });
 
-    expect(
-      screen.queryByTestId('organisation-profile-nudge'),
-    ).toBeNull();
+    expect(screen.queryByTestId('organisation-profile-nudge')).toBeNull();
   });
 
   it('does not render for viewers', () => {
     renderNudge({ userRole: 'viewer' });
 
-    expect(
-      screen.queryByTestId('organisation-profile-nudge'),
-    ).toBeNull();
+    expect(screen.queryByTestId('organisation-profile-nudge')).toBeNull();
   });
 
   it('does not render when dismissed', () => {
@@ -103,9 +97,7 @@ describe('OrganisationProfileNudge', () => {
 
     renderNudge();
 
-    expect(
-      screen.queryByTestId('organisation-profile-nudge'),
-    ).toBeNull();
+    expect(screen.queryByTestId('organisation-profile-nudge')).toBeNull();
   });
 
   it('shows persona-tailored copy for bid_writing focus', async () => {
@@ -121,9 +113,7 @@ describe('OrganisationProfileNudge', () => {
     renderNudge();
 
     // Wait for useEffect to resolve
-    await screen.findByText(
-      'Add your company profile to improve bid context',
-    );
+    await screen.findByText('Add your company profile to improve bid context');
   });
 
   it('shows persona-tailored copy for account_management focus', async () => {
@@ -180,9 +170,7 @@ describe('OrganisationProfileNudge', () => {
     );
     await user.click(dismissBtn);
 
-    expect(
-      screen.queryByTestId('organisation-profile-nudge'),
-    ).toBeNull();
+    expect(screen.queryByTestId('organisation-profile-nudge')).toBeNull();
     expect(
       localStorage.getItem('organisation-profile-nudge-dismissed'),
     ).toBeTruthy();
@@ -191,8 +179,6 @@ describe('OrganisationProfileNudge', () => {
   it('renders for editor role', () => {
     renderNudge({ userRole: 'editor' });
 
-    expect(
-      screen.getByTestId('organisation-profile-nudge'),
-    ).toBeTruthy();
+    expect(screen.getByTestId('organisation-profile-nudge')).toBeTruthy();
   });
 });

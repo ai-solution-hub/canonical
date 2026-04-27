@@ -102,7 +102,9 @@ async function main(): Promise<void> {
         .update({ embedding: JSON.stringify(embedding) })
         .eq('id', row.id);
       if (updateError) {
-        console.error(`  ✗ ${label}${truncNote}: update failed — ${updateError.message}`);
+        console.error(
+          `  ✗ ${label}${truncNote}: update failed — ${updateError.message}`,
+        );
         failed++;
         continue;
       }

@@ -54,7 +54,8 @@ const SAMPLE_FLAG: WorkspaceFlag = {
   article_title: 'New cybersecurity regulations announced',
   article_external_url: 'https://www.gov.uk/guidance/cyber-2026',
   article_relevance_score: 0.85,
-  article_relevance_reasoning: 'Directly relevant to security compliance domain',
+  article_relevance_reasoning:
+    'Directly relevant to security compliance domain',
   article_relevance_category: 'high',
   article_passed: true,
   source_name: 'Gov.uk Security',
@@ -134,7 +135,9 @@ describe('useWorkspaceFlags', () => {
     });
 
     const url = lastFetchUrl();
-    expect(url).toContain(`/api/intelligence/workspaces/${WORKSPACE_ID}/flags?`);
+    expect(url).toContain(
+      `/api/intelligence/workspaces/${WORKSPACE_ID}/flags?`,
+    );
     expect(url).toContain('resolved=true');
     expect(url).not.toContain('flag_type=');
   });
@@ -144,8 +147,7 @@ describe('useWorkspaceFlags', () => {
     const { Wrapper } = createWrapper();
 
     const { result } = renderHook(
-      () =>
-        useWorkspaceFlags(WORKSPACE_ID, { flag_type: 'false_positive' }),
+      () => useWorkspaceFlags(WORKSPACE_ID, { flag_type: 'false_positive' }),
       { wrapper: Wrapper },
     );
 

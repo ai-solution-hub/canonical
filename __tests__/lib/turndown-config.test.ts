@@ -34,23 +34,21 @@ describe('Turndown configuration', () => {
   });
 
   it('removes script tags', () => {
-    expect(
-      turndown.turndown('<p>Hello</p><script>alert("xss")</script>'),
-    ).toBe('Hello');
+    expect(turndown.turndown('<p>Hello</p><script>alert("xss")</script>')).toBe(
+      'Hello',
+    );
   });
 
   it('removes style tags', () => {
     expect(
-      turndown.turndown(
-        '<style>.foo { color: red }</style><p>Content</p>',
-      ),
+      turndown.turndown('<style>.foo { color: red }</style><p>Content</p>'),
     ).toBe('Content');
   });
 
   it('removes noscript tags', () => {
-    expect(
-      turndown.turndown('<noscript>No JS</noscript><p>Content</p>'),
-    ).toBe('Content');
+    expect(turndown.turndown('<noscript>No JS</noscript><p>Content</p>')).toBe(
+      'Content',
+    );
   });
 
   it('converts horizontal rules', () => {

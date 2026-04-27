@@ -1,7 +1,10 @@
 // __tests__/lib/intelligence/health.test.ts
 /* eslint-disable @typescript-eslint/no-explicit-any -- mock supabase clients require flexible typing */
 import { describe, it, expect, vi } from 'vitest';
-import { getPipelineHealth, getSourceHealthSummary } from '@/lib/intelligence/health';
+import {
+  getPipelineHealth,
+  getSourceHealthSummary,
+} from '@/lib/intelligence/health';
 
 function createMockSupabase(overrides: Record<string, any> = {}) {
   const chain: any = {

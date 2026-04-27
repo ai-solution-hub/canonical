@@ -23,12 +23,7 @@ import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
-} from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   Tooltip,
   TooltipContent,
@@ -246,9 +241,7 @@ export function TagMorphologySection() {
                   <p className="text-xs text-muted-foreground">
                     {flagsSorted.length} flag
                     {flagsSorted.length === 1 ? '' : 's'}
-                    {total !== flagsSorted.length
-                      ? ` (${total} total)`
-                      : ''}
+                    {total !== flagsSorted.length ? ` (${total} total)` : ''}
                   </p>
                   <ul className="divide-y divide-border rounded-lg border">
                     {flagsSorted.map((flag) => (
@@ -378,8 +371,8 @@ export function TagMorphologySection() {
             <DialogHeader>
               <DialogTitle>Add a decision rationale</DialogTitle>
               <DialogDescription>
-                Optional but recommended — a short note explaining why this
-                tag should be preserved or dismissed helps future reviewers.
+                Optional but recommended — a short note explaining why this tag
+                should be preserved or dismissed helps future reviewers.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-2">

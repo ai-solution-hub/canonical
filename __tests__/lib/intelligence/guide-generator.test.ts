@@ -581,23 +581,17 @@ describe('createIntelligenceGuide', () => {
     const topicRows = mock.guideSectionInsertCalls[1].rows;
 
     // KCSIE nested under Education
-    const kcsieRow = topicRows.find(
-      (r) => r.section_name === 'KCSIE',
-    );
+    const kcsieRow = topicRows.find((r) => r.section_name === 'KCSIE');
     expect(kcsieRow).toBeDefined();
     expect(kcsieRow!.parent_section_id).toBe(EDUCATION_SECTION_ID);
 
     // Ofsted nested under Education
-    const ofstedRow = topicRows.find(
-      (r) => r.section_name === 'Ofsted',
-    );
+    const ofstedRow = topicRows.find((r) => r.section_name === 'Ofsted');
     expect(ofstedRow).toBeDefined();
     expect(ofstedRow!.parent_section_id).toBe(EDUCATION_SECTION_ID);
 
     // CQC nested under Health & Social Care
-    const cqcRow = topicRows.find(
-      (r) => r.section_name === 'CQC',
-    );
+    const cqcRow = topicRows.find((r) => r.section_name === 'CQC');
     expect(cqcRow).toBeDefined();
     expect(cqcRow!.parent_section_id).toBe(HEALTH_SECTION_ID);
   });

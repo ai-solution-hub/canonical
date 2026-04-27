@@ -267,7 +267,9 @@ async function main() {
   console.log('='.repeat(60));
   console.log('BACKFILL COMPLETE');
   console.log('='.repeat(60));
-  console.log(`  Items processed: ${itemsProcessed}${DRY_RUN ? ' (dry run)' : ''}`);
+  console.log(
+    `  Items processed: ${itemsProcessed}${DRY_RUN ? ' (dry run)' : ''}`,
+  );
   console.log(`  Chunks created:  ${chunksCreated}`);
   console.log(`  Errors:          ${errors}`);
 

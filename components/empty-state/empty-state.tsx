@@ -85,9 +85,7 @@ export function EmptyState({
       </div>
       {(primaryCta || secondaryCta) && (
         <div className="flex flex-wrap items-center justify-center gap-2">
-          {primaryCta ? (
-            <CtaButton cta={primaryCta} variant="outline" />
-          ) : null}
+          {primaryCta ? <CtaButton cta={primaryCta} variant="outline" /> : null}
           {secondaryCta ? (
             <CtaButton cta={secondaryCta} variant="ghost" />
           ) : null}

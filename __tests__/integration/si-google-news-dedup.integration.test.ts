@@ -250,16 +250,10 @@ async function cleanup() {
         .eq('workspace_id', workspaceId);
     }
     if (feedSourceId1) {
-      await serviceClient
-        .from('feed_sources')
-        .delete()
-        .eq('id', feedSourceId1);
+      await serviceClient.from('feed_sources').delete().eq('id', feedSourceId1);
     }
     if (feedSourceId2) {
-      await serviceClient
-        .from('feed_sources')
-        .delete()
-        .eq('id', feedSourceId2);
+      await serviceClient.from('feed_sources').delete().eq('id', feedSourceId2);
     }
     if (workspaceId) {
       await serviceClient.from('workspaces').delete().eq('id', workspaceId);

@@ -22,16 +22,17 @@ describe('GET /api/cron/intelligence-cleanup', () => {
   });
 
   async function callRoute(cronSecret?: string) {
-    const { GET } = await import(
-      '@/app/api/cron/intelligence-cleanup/route'
-    );
+    const { GET } = await import('@/app/api/cron/intelligence-cleanup/route');
     const headers = new Headers();
     if (cronSecret) {
       headers.set('authorization', `Bearer ${cronSecret}`);
     }
-    const request = new Request('http://localhost/api/cron/intelligence-cleanup', {
-      headers,
-    });
+    const request = new Request(
+      'http://localhost/api/cron/intelligence-cleanup',
+      {
+        headers,
+      },
+    );
     return GET(request);
   }
 

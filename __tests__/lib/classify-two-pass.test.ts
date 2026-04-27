@@ -39,9 +39,11 @@ vi.mock('@/lib/content/strip-markdown', () => ({
 }));
 
 vi.mock('@/lib/ai/skills/loader', () => ({
-  loadSkill: vi.fn().mockResolvedValue(
-    'Classify content.\n\n{TAXONOMY}\n\n{CLIENT_DISAMBIGUATION}\n\nPrefer "{CLIENT_ORGANISATION_NAME}" not "{CLIENT_ORGANISATION_SHORT}", "{CLIENT_PRODUCT_NAME}" not "{CLIENT_PRODUCT_SHORT}".',
-  ),
+  loadSkill: vi
+    .fn()
+    .mockResolvedValue(
+      'Classify content.\n\n{TAXONOMY}\n\n{CLIENT_DISAMBIGUATION}\n\nPrefer "{CLIENT_ORGANISATION_NAME}" not "{CLIENT_ORGANISATION_SHORT}", "{CLIENT_PRODUCT_NAME}" not "{CLIENT_PRODUCT_SHORT}".',
+    ),
 }));
 
 vi.mock('@/lib/entities/entity-aliases', async (importOriginal) => {
@@ -160,7 +162,8 @@ function setupMockSupabase(supabase: MockSupabaseClient) {
     data: {
       id: ITEM_ID,
       title: 'Test Content',
-      content: 'ISO 27001 certification for Acme Corp. Encryption is important.',
+      content:
+        'ISO 27001 certification for Acme Corp. Encryption is important.',
       content_type: 'q_a_pair',
       classified_at: null,
       primary_domain: null,
@@ -178,9 +181,8 @@ function setupMockSupabase(supabase: MockSupabaseClient) {
   });
 
   // Taxonomy domain/subtopic queries (then() terminator for awaitable chains)
-  supabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  supabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 }
 
@@ -194,7 +196,12 @@ describe('validateEntities', () => {
   });
 
   it('returns empty result when entities array is empty', async () => {
-    const result = await validateEntities([], 'some content', 'Title', 'article');
+    const result = await validateEntities(
+      [],
+      'some content',
+      'Title',
+      'article',
+    );
 
     expect(result).toEqual({
       validated_entities: [],
@@ -231,7 +238,12 @@ describe('validateEntities', () => {
       ]),
     );
 
-    await validateEntities(entities, 'Test content about ISO 27001', 'Test', 'article');
+    await validateEntities(
+      entities,
+      'Test content about ISO 27001',
+      'Test',
+      'article',
+    );
 
     expect(mockCreate).toHaveBeenCalledTimes(1);
     const callArgs = mockCreate.mock.calls[0][0];
@@ -327,9 +339,7 @@ describe('validateEntities', () => {
     expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining('1 confirmed'),
     );
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Tokens:'),
-    );
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Tokens:'));
 
     consoleSpy.mockRestore();
   });

@@ -27,7 +27,10 @@ import { resolve } from 'path';
 import { promisify } from 'util';
 import { describe, expect, it } from 'vitest';
 
-import { extractQaPairs, type QaPair } from '@/lib/bid-library-ingest/extract-qa-pairs';
+import {
+  extractQaPairs,
+  type QaPair,
+} from '@/lib/bid-library-ingest/extract-qa-pairs';
 
 const execFileAsync = promisify(execFile);
 
@@ -45,9 +48,7 @@ const FIXTURE_FILES = ['audit-format.docx', 'draft-format.docx'];
  * Returns an array of { question_text, answer_standard, answer_advanced }
  * dicts as JSON from a small Python wrapper script.
  */
-async function runPythonExtractor(
-  fixturePath: string,
-): Promise<
+async function runPythonExtractor(fixturePath: string): Promise<
   Array<{
     question_text: string;
     answer_standard: string;
@@ -134,9 +135,7 @@ describe.skipIf(!shouldRun)('CLI <-> TS parity integration', () => {
         ]);
 
         for (let i = 0; i < tsPairs.length; i++) {
-          expect(
-            normaliseForComparison(tsPairs[i].questionText),
-          ).toBe(
+          expect(normaliseForComparison(tsPairs[i].questionText)).toBe(
             normaliseForComparison(pyPairs[i].question_text),
           );
         }
@@ -150,9 +149,7 @@ describe.skipIf(!shouldRun)('CLI <-> TS parity integration', () => {
         ]);
 
         for (let i = 0; i < tsPairs.length; i++) {
-          expect(
-            normaliseForComparison(tsPairs[i].answerStandard),
-          ).toBe(
+          expect(normaliseForComparison(tsPairs[i].answerStandard)).toBe(
             normaliseForComparison(pyPairs[i].answer_standard),
           );
         }
@@ -166,9 +163,7 @@ describe.skipIf(!shouldRun)('CLI <-> TS parity integration', () => {
         ]);
 
         for (let i = 0; i < tsPairs.length; i++) {
-          expect(
-            normaliseForComparison(tsPairs[i].answerAdvanced),
-          ).toBe(
+          expect(normaliseForComparison(tsPairs[i].answerAdvanced)).toBe(
             normaliseForComparison(pyPairs[i].answer_advanced),
           );
         }

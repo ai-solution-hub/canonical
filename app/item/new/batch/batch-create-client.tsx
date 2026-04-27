@@ -196,276 +196,276 @@ export function BatchCreateContent() {
       : 0;
 
   return (
-      <section
-        aria-label="Batch create Q&A pairs"
-        className="mx-auto max-w-4xl px-4 py-6 sm:px-6"
-      >
-        <p className="mb-4 text-sm text-muted-foreground">
-          Create multiple Q&A pairs at once by pasting from a spreadsheet.
-        </p>
+    <section
+      aria-label="Batch create Q&A pairs"
+      className="mx-auto max-w-4xl px-4 py-6 sm:px-6"
+    >
+      <p className="mb-4 text-sm text-muted-foreground">
+        Create multiple Q&A pairs at once by pasting from a spreadsheet.
+      </p>
 
-        <div className="space-y-6">
-          {/* Informational note about pipeline */}
-          <div className="flex items-start gap-3 rounded-md border bg-muted/30 p-4">
-            <Info
-              className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-              aria-hidden="true"
-            />
-            <p className="text-sm text-muted-foreground">
-              Each item will be automatically classified, summarised, and scored
-              after creation.
-            </p>
-          </div>
-
-          {/* Paste area */}
-          {!hasParsed && (
-            <div className="space-y-3">
-              <Label htmlFor="paste-area">Paste Q&A pairs</Label>
-              <Textarea
-                id="paste-area"
-                value={pasteText}
-                onChange={(e) => setPasteText(e.target.value)}
-                placeholder="Paste Q&A pairs from a spreadsheet. Each row should have a question in the first column and an answer in the second column, separated by a tab."
-                rows={10}
-                className="min-h-[200px] font-mono text-sm"
-                aria-describedby="paste-instructions"
-              />
-              <p
-                id="paste-instructions"
-                className="text-xs text-muted-foreground"
-              >
-                Supported formats: tab-separated (from spreadsheets) or
-                pipe-separated (question | answer). One pair per line.
-              </p>
-              <Button
-                type="button"
-                onClick={handleParse}
-                disabled={!pasteText.trim()}
-              >
-                Parse Q&A pairs
-              </Button>
-            </div>
-          )}
-
-          {/* Preview table */}
-          {hasParsed && (
-            <>
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold">
-                  Preview ({validPairs.length} valid pair
-                  {validPairs.length !== 1 ? 's' : ''})
-                </h2>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleReset}
-                  disabled={isSubmitting}
-                >
-                  Start over
-                </Button>
-              </div>
-
-              <BatchQAPreviewTable
-                pairs={pairs}
-                onPairsChange={setPairs}
-                itemStatuses={itemStatuses.size > 0 ? itemStatuses : undefined}
-                disabled={isSubmitting}
-              />
-
-              {/* Shared metadata — domain/subtopic are collected for future per-item
-                  metadata support. Currently the batch API auto-classifies all items
-                  via the pipeline, so these values are informational only. */}
-              <fieldset
-                className="space-y-4 rounded-md border p-4"
-                disabled={isSubmitting}
-              >
-                <legend className="px-2 text-sm font-medium text-muted-foreground">
-                  Shared metadata (optional)
-                </legend>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="batch-domain">Domain</Label>
-                    <Select value={domain} onValueChange={handleDomainChange}>
-                      <SelectTrigger id="batch-domain">
-                        <SelectValue placeholder="Select domain..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {domainNames.map((d) => (
-                          <SelectItem key={d} value={d}>
-                            {formatDomainName(d)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="batch-subtopic">Subtopic</Label>
-                    <Select
-                      value={subtopic}
-                      onValueChange={setSubtopic}
-                      disabled={!domain}
-                    >
-                      <SelectTrigger id="batch-subtopic">
-                        <SelectValue
-                          placeholder={
-                            domain
-                              ? 'Select subtopic...'
-                              : 'Select a domain first'
-                          }
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {subtopicNames.map((s) => (
-                          <SelectItem key={s} value={s}>
-                            {formatSubtopic(s)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </fieldset>
-
-              {/* Progress bar during submission */}
-              {isSubmitting && (
-                <div
-                  className="space-y-2"
-                  role="status"
-                  aria-label="Batch creation progress"
-                >
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      Creating items...
-                    </span>
-                    <span className="tabular-nums text-muted-foreground">
-                      {progress.current} of {progress.total}
-                    </span>
-                  </div>
-                  <Progress value={progressPercentage} />
-                </div>
-              )}
-
-              {/* Error display */}
-              {error && (
-                <div
-                  className="flex items-start gap-3 rounded-md border border-destructive/50 bg-destructive/10 p-4"
-                  role="alert"
-                >
-                  <AlertTriangle
-                    className="mt-0.5 size-4 shrink-0 text-destructive"
-                    aria-hidden="true"
-                  />
-                  <p className="text-sm text-destructive">{error}</p>
-                </div>
-              )}
-
-              {/* Results summary */}
-              {results && !isSubmitting && (
-                <div className="rounded-md border bg-muted/30 p-4 space-y-2">
-                  <p className="text-sm font-medium">
-                    Batch creation complete: {results.created} created,{' '}
-                    {results.failed} failed.
-                  </p>
-                  <div className="flex gap-3">
-                    <Link
-                      href="/browse"
-                      className="text-sm text-primary hover:underline"
-                    >
-                      View in Browse
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={handleReset}
-                      className="text-sm text-primary hover:underline"
-                    >
-                      Create another batch
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Submit button */}
-              {!results && (
-                <div className="flex items-center gap-3">
-                  <Button
-                    type="button"
-                    onClick={handleSubmit}
-                    disabled={!canSubmit || isCheckingDuplicates}
-                  >
-                    {isCheckingDuplicates ? (
-                      <>
-                        <Loader2
-                          className="size-4 animate-spin"
-                          aria-hidden="true"
-                        />
-                        Checking for duplicates...
-                      </>
-                    ) : isSubmitting ? (
-                      <>
-                        <Loader2
-                          className="size-4 animate-spin"
-                          aria-hidden="true"
-                        />
-                        Creating...
-                      </>
-                    ) : (
-                      `Create ${validPairs.length} item${validPairs.length !== 1 ? 's' : ''}`
-                    )}
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
+      <div className="space-y-6">
+        {/* Informational note about pipeline */}
+        <div className="flex items-start gap-3 rounded-md border bg-muted/30 p-4">
+          <Info
+            className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <p className="text-sm text-muted-foreground">
+            Each item will be automatically classified, summarised, and scored
+            after creation.
+          </p>
         </div>
 
-        {/* Duplicate warning dialog */}
-        <AlertDialog
-          open={showDuplicateDialog}
-          onOpenChange={setShowDuplicateDialog}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Potential duplicates found</AlertDialogTitle>
-              <AlertDialogDescription>
-                The following pasted questions may already exist in the
-                knowledge base. This is a best-effort title match — full
-                semantic dedup runs after creation.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <div className="max-h-[300px] overflow-y-auto space-y-3 my-2">
-              {duplicateMatches.map((match) => (
-                <div
-                  key={`${match.id}-${match.question}`}
-                  className="rounded-md border p-3 text-sm space-y-1"
-                >
-                  <p className="font-medium">
-                    Pasted: &ldquo;
-                    {match.question.length > 80
-                      ? `${match.question.slice(0, 80)}...`
-                      : match.question}
-                    &rdquo;
-                  </p>
-                  <p className="text-muted-foreground">
-                    Existing: &ldquo;
-                    {match.title.length > 80
-                      ? `${match.title.slice(0, 80)}...`
-                      : match.title}
-                    &rdquo;
-                  </p>
-                </div>
-              ))}
+        {/* Paste area */}
+        {!hasParsed && (
+          <div className="space-y-3">
+            <Label htmlFor="paste-area">Paste Q&A pairs</Label>
+            <Textarea
+              id="paste-area"
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+              placeholder="Paste Q&A pairs from a spreadsheet. Each row should have a question in the first column and an answer in the second column, separated by a tab."
+              rows={10}
+              className="min-h-[200px] font-mono text-sm"
+              aria-describedby="paste-instructions"
+            />
+            <p
+              id="paste-instructions"
+              className="text-xs text-muted-foreground"
+            >
+              Supported formats: tab-separated (from spreadsheets) or
+              pipe-separated (question | answer). One pair per line.
+            </p>
+            <Button
+              type="button"
+              onClick={handleParse}
+              disabled={!pasteText.trim()}
+            >
+              Parse Q&A pairs
+            </Button>
+          </div>
+        )}
+
+        {/* Preview table */}
+        {hasParsed && (
+          <>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">
+                Preview ({validPairs.length} valid pair
+                {validPairs.length !== 1 ? 's' : ''})
+              </h2>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleReset}
+                disabled={isSubmitting}
+              >
+                Start over
+              </Button>
             </div>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleContinueWithDuplicates}>
-                Continue anyway
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </section>
+
+            <BatchQAPreviewTable
+              pairs={pairs}
+              onPairsChange={setPairs}
+              itemStatuses={itemStatuses.size > 0 ? itemStatuses : undefined}
+              disabled={isSubmitting}
+            />
+
+            {/* Shared metadata — domain/subtopic are collected for future per-item
+                  metadata support. Currently the batch API auto-classifies all items
+                  via the pipeline, so these values are informational only. */}
+            <fieldset
+              className="space-y-4 rounded-md border p-4"
+              disabled={isSubmitting}
+            >
+              <legend className="px-2 text-sm font-medium text-muted-foreground">
+                Shared metadata (optional)
+              </legend>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="batch-domain">Domain</Label>
+                  <Select value={domain} onValueChange={handleDomainChange}>
+                    <SelectTrigger id="batch-domain">
+                      <SelectValue placeholder="Select domain..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {domainNames.map((d) => (
+                        <SelectItem key={d} value={d}>
+                          {formatDomainName(d)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="batch-subtopic">Subtopic</Label>
+                  <Select
+                    value={subtopic}
+                    onValueChange={setSubtopic}
+                    disabled={!domain}
+                  >
+                    <SelectTrigger id="batch-subtopic">
+                      <SelectValue
+                        placeholder={
+                          domain
+                            ? 'Select subtopic...'
+                            : 'Select a domain first'
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {subtopicNames.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {formatSubtopic(s)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </fieldset>
+
+            {/* Progress bar during submission */}
+            {isSubmitting && (
+              <div
+                className="space-y-2"
+                role="status"
+                aria-label="Batch creation progress"
+              >
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    Creating items...
+                  </span>
+                  <span className="tabular-nums text-muted-foreground">
+                    {progress.current} of {progress.total}
+                  </span>
+                </div>
+                <Progress value={progressPercentage} />
+              </div>
+            )}
+
+            {/* Error display */}
+            {error && (
+              <div
+                className="flex items-start gap-3 rounded-md border border-destructive/50 bg-destructive/10 p-4"
+                role="alert"
+              >
+                <AlertTriangle
+                  className="mt-0.5 size-4 shrink-0 text-destructive"
+                  aria-hidden="true"
+                />
+                <p className="text-sm text-destructive">{error}</p>
+              </div>
+            )}
+
+            {/* Results summary */}
+            {results && !isSubmitting && (
+              <div className="rounded-md border bg-muted/30 p-4 space-y-2">
+                <p className="text-sm font-medium">
+                  Batch creation complete: {results.created} created,{' '}
+                  {results.failed} failed.
+                </p>
+                <div className="flex gap-3">
+                  <Link
+                    href="/browse"
+                    className="text-sm text-primary hover:underline"
+                  >
+                    View in Browse
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={handleReset}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Create another batch
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Submit button */}
+            {!results && (
+              <div className="flex items-center gap-3">
+                <Button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={!canSubmit || isCheckingDuplicates}
+                >
+                  {isCheckingDuplicates ? (
+                    <>
+                      <Loader2
+                        className="size-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                      Checking for duplicates...
+                    </>
+                  ) : isSubmitting ? (
+                    <>
+                      <Loader2
+                        className="size-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                      Creating...
+                    </>
+                  ) : (
+                    `Create ${validPairs.length} item${validPairs.length !== 1 ? 's' : ''}`
+                  )}
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Duplicate warning dialog */}
+      <AlertDialog
+        open={showDuplicateDialog}
+        onOpenChange={setShowDuplicateDialog}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Potential duplicates found</AlertDialogTitle>
+            <AlertDialogDescription>
+              The following pasted questions may already exist in the knowledge
+              base. This is a best-effort title match — full semantic dedup runs
+              after creation.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="max-h-[300px] overflow-y-auto space-y-3 my-2">
+            {duplicateMatches.map((match) => (
+              <div
+                key={`${match.id}-${match.question}`}
+                className="rounded-md border p-3 text-sm space-y-1"
+              >
+                <p className="font-medium">
+                  Pasted: &ldquo;
+                  {match.question.length > 80
+                    ? `${match.question.slice(0, 80)}...`
+                    : match.question}
+                  &rdquo;
+                </p>
+                <p className="text-muted-foreground">
+                  Existing: &ldquo;
+                  {match.title.length > 80
+                    ? `${match.title.slice(0, 80)}...`
+                    : match.title}
+                  &rdquo;
+                </p>
+              </div>
+            ))}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleContinueWithDuplicates}>
+              Continue anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </section>
   );
 }

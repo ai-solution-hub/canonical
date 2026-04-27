@@ -457,9 +457,7 @@ export function ReviewContent() {
                 variant="ghost"
                 size="sm"
                 className="shrink-0 gap-1.5 text-xs"
-                onClick={() =>
-                  setFilters({ ...filters, assigned_to_me: true })
-                }
+                onClick={() => setFilters({ ...filters, assigned_to_me: true })}
               >
                 <ClipboardCheck className="size-3.5" aria-hidden="true" />
                 Show my assigned items

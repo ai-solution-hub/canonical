@@ -146,9 +146,7 @@ export function SupersedeContentDialog({
                   disabled={isSubmitting}
                   className="w-full rounded border border-input bg-background px-3 py-2 font-mono text-xs"
                   aria-invalid={inlineError !== null}
-                  aria-describedby={
-                    inlineError ? 'supersede-error' : undefined
-                  }
+                  aria-describedby={inlineError ? 'supersede-error' : undefined}
                   data-testid="supersede-new-id-input"
                 />
               </label>

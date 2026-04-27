@@ -22,9 +22,8 @@ const mockSupabase: MockSupabaseClient = createMockSupabaseClient();
 vi.mock('@/lib/auth', async () => {
   // Re-export the real authFailureResponse so 401/403/500 mapping
   // matches production behaviour exactly.
-  const actual = await vi.importActual<typeof import('@/lib/auth')>(
-    '@/lib/auth',
-  );
+  const actual =
+    await vi.importActual<typeof import('@/lib/auth')>('@/lib/auth');
   return {
     ...actual,
     getAuthorisedClient: vi.fn(),
@@ -107,9 +106,8 @@ beforeEach(() => {
 
   // Reset the chain and re-establish chainable returns.
   mockSupabase._chain.then.mockReset();
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 
   const chain = mockSupabase._chain;
@@ -281,11 +279,9 @@ describe('GET /api/admin/pipeline-runs/recent', () => {
       const body = await response.json();
       // Summaries are sorted alphabetically by pipelineName.
       expect(body.summaries).toHaveLength(3);
-      expect(body.summaries.map((s: { pipelineName: string }) => s.pipelineName)).toEqual([
-        'content_gaps',
-        'freshness_transitions',
-        'quality_score',
-      ]);
+      expect(
+        body.summaries.map((s: { pipelineName: string }) => s.pipelineName),
+      ).toEqual(['content_gaps', 'freshness_transitions', 'quality_score']);
 
       const contentGaps = body.summaries.find(
         (s: { pipelineName: string }) => s.pipelineName === 'content_gaps',
@@ -298,7 +294,8 @@ describe('GET /api/admin/pipeline-runs/recent', () => {
       expect(contentGaps.lastFailureMessage).toBeNull();
 
       const freshness = body.summaries.find(
-        (s: { pipelineName: string }) => s.pipelineName === 'freshness_transitions',
+        (s: { pipelineName: string }) =>
+          s.pipelineName === 'freshness_transitions',
       );
       expect(freshness.runCount).toBe(1);
       expect(freshness.failureCount).toBe(1);

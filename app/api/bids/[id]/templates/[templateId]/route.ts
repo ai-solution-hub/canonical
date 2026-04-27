@@ -194,10 +194,7 @@ export async function GET(
       .order('created_at', { ascending: false });
 
     if (completionsError) {
-      console.error(
-        'Failed to fetch template completions:',
-        completionsError,
-      );
+      console.error('Failed to fetch template completions:', completionsError);
       warnings.push(
         'Completions history could not be loaded: ' +
           safeErrorMessage(completionsError, 'completions fetch failed'),

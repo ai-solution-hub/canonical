@@ -6,13 +6,7 @@
  */
 
 import React from 'react';
-import {
-  Document,
-  Page,
-  Text,
-  View,
-  StyleSheet,
-} from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
 
 // ──────────────────────────────────────────
 // Types
@@ -222,9 +216,7 @@ function Header({
   return (
     <View style={styles.header}>
       <Text style={styles.orgName}>{organisationName}</Text>
-      <Text style={styles.headerMeta}>
-        Verification History Report
-      </Text>
+      <Text style={styles.headerMeta}>Verification History Report</Text>
       <Text style={styles.headerMeta}>
         Period: {formatDateUK(from)} to {formatDateUK(to)}
       </Text>
@@ -250,18 +242,10 @@ function EventRow({ row }: { row: VerificationRow }) {
       <Text style={styles.rowTitle}>
         {truncate(row.title ?? 'Untitled', 80)}
       </Text>
-      <Text style={styles.rowStatus}>
-        {row.governance_status ?? '-'}
-      </Text>
-      <Text style={styles.rowReviewer}>
-        {truncate(row.reviewer_name, 25)}
-      </Text>
-      <Text style={styles.rowTime}>
-        {formatDateTimeUK(row.performed_at)}
-      </Text>
-      <Text style={styles.rowAction}>
-        {humaniseAction(row.action_type)}
-      </Text>
+      <Text style={styles.rowStatus}>{row.governance_status ?? '-'}</Text>
+      <Text style={styles.rowReviewer}>{truncate(row.reviewer_name, 25)}</Text>
+      <Text style={styles.rowTime}>{formatDateTimeUK(row.performed_at)}</Text>
+      <Text style={styles.rowAction}>{humaniseAction(row.action_type)}</Text>
       <Text style={styles.rowNote}>
         {row.note ? truncate(row.note, 280) : '-'}
       </Text>

@@ -207,9 +207,9 @@ test.describe('SI Starter Pack Seeding', () => {
     // optimistic UI state).
     await page.reload();
     await page.waitForLoadState('networkidle', { timeout: 15000 });
-    await expect(
-      page.getByText('Crown Commercial Service News'),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Crown Commercial Service News')).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -296,9 +296,9 @@ test.describe('SI Starter Pack Seeding', () => {
     expect(response.status()).toBe(200);
 
     // 4. Verify dialog shows feeds already existed
-    await expect(
-      seedDialog.getByText(/already existed/),
-    ).toBeVisible({ timeout: 15000 });
+    await expect(seedDialog.getByText(/already existed/)).toBeVisible({
+      timeout: 15000,
+    });
 
     // 5. Close dialog
     await seedDialog.getByRole('button', { name: /Done/i }).click();
@@ -428,12 +428,12 @@ test.describe('SI Starter Pack Seeding', () => {
     await page.reload();
     await page.waitForLoadState('networkidle', { timeout: 15000 });
     // Verify feeds from both packs render after reload
-    await expect(
-      page.getByText('Crown Commercial Service News'),
-    ).toBeVisible({ timeout: 10000 });
-    await expect(
-      page.getByText('CQC Safeguarding News'),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Crown Commercial Service News')).toBeVisible({
+      timeout: 10000,
+    });
+    await expect(page.getByText('CQC Safeguarding News')).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   // ---------------------------------------------------------------------------

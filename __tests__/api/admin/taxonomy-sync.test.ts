@@ -24,7 +24,11 @@ import {
 // ---------------------------------------------------------------------------
 
 const mockDispatchResult = vi.hoisted(() => ({
-  current: { ok: true, status: 204 } as { ok: boolean; status: number; error?: string },
+  current: { ok: true, status: 204 } as {
+    ok: boolean;
+    status: number;
+    error?: string;
+  },
 }));
 
 // ---------------------------------------------------------------------------
@@ -34,9 +38,8 @@ const mockDispatchResult = vi.hoisted(() => ({
 const mockSupabase: MockSupabaseClient = createMockSupabaseClient();
 
 vi.mock('@/lib/auth', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/auth')>(
-    '@/lib/auth',
-  );
+  const actual =
+    await vi.importActual<typeof import('@/lib/auth')>('@/lib/auth');
   return {
     ...actual,
     getAuthorisedClient: vi.fn(),
@@ -48,7 +51,9 @@ vi.mock('@/lib/pipeline/record-run', () => ({
 }));
 
 vi.mock('@/lib/integrations/github-dispatch', () => ({
-  dispatchTaxonomySync: vi.fn(() => Promise.resolve(mockDispatchResult.current)),
+  dispatchTaxonomySync: vi.fn(() =>
+    Promise.resolve(mockDispatchResult.current),
+  ),
 }));
 
 vi.mock('@sentry/nextjs', () => ({
@@ -96,15 +101,23 @@ function configureForbiddenAuth() {
 /** Standard taxonomy data that produces a known hash. */
 const MOCK_DOMAINS = [
   {
-    id: '1', name: 'Construction', description: 'Building sector',
-    key_signal: 'signal', display_order: 1, is_active: true,
+    id: '1',
+    name: 'Construction',
+    description: 'Building sector',
+    key_signal: 'signal',
+    display_order: 1,
+    is_active: true,
   },
 ];
 
 const MOCK_SUBTOPICS = [
   {
-    id: '10', domain_id: '1', name: 'Tenders',
-    description: 'Tender docs', display_order: 1, is_active: true,
+    id: '10',
+    domain_id: '1',
+    name: 'Tenders',
+    description: 'Tender docs',
+    display_order: 1,
+    is_active: true,
   },
 ];
 
@@ -116,9 +129,26 @@ const MOCK_SUBTOPICS = [
 function makeChain(terminalData: unknown) {
   const chain: Record<string, ReturnType<typeof vi.fn>> = {};
   const chainable = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ];
   for (const m of chainable) {
     chain[m] = vi.fn().mockReturnValue(chain);
@@ -199,9 +229,8 @@ describe('POST /api/admin/taxonomy-sync', () => {
       configureAdminAuth();
 
       // Use computeTaxonomyHash to get the matching hash
-      const { computeTaxonomyHash } = await import(
-        '@/lib/taxonomy/sync-trigger'
-      );
+      const { computeTaxonomyHash } =
+        await import('@/lib/taxonomy/sync-trigger');
       const matchingHash = computeTaxonomyHash({
         domains: MOCK_DOMAINS,
         subtopics: MOCK_SUBTOPICS,
@@ -219,9 +248,8 @@ describe('POST /api/admin/taxonomy-sync', () => {
     it('records a no-op pipeline_runs row via recordPipelineRun', async () => {
       configureAdminAuth();
 
-      const { computeTaxonomyHash } = await import(
-        '@/lib/taxonomy/sync-trigger'
-      );
+      const { computeTaxonomyHash } =
+        await import('@/lib/taxonomy/sync-trigger');
       const matchingHash = computeTaxonomyHash({
         domains: MOCK_DOMAINS,
         subtopics: MOCK_SUBTOPICS,

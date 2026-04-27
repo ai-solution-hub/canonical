@@ -137,7 +137,9 @@ vi.mock('@/lib/supabase/safe', () => ({
     const result = await query;
     if (result.error) {
       throw new Error(
-        typeof result.error === 'object' && result.error !== null && 'message' in result.error
+        typeof result.error === 'object' &&
+          result.error !== null &&
+          'message' in result.error
           ? (result.error as { message: string }).message
           : String(result.error),
       );
@@ -146,7 +148,9 @@ vi.mock('@/lib/supabase/safe', () => ({
   },
   tryQuery: vi.fn(),
   isOk: (r: { ok: boolean }) => r.ok,
-  SupabaseError: class extends Error { name = 'SupabaseError'; },
+  SupabaseError: class extends Error {
+    name = 'SupabaseError';
+  },
 }));
 
 // ---------------------------------------------------------------------------
@@ -203,10 +207,7 @@ function getBulkAssignTool(): ToolRegistration {
   return tool;
 }
 
-function createMockExtra(
-  userId = ADMIN_USER_ID,
-  role = 'admin',
-) {
+function createMockExtra(userId = ADMIN_USER_ID, role = 'admin') {
   return {
     authInfo: {
       token: 'test-token',
@@ -220,8 +221,7 @@ function setContentItems(
   items: Array<{ id: string; title: string; content_owner_id: string | null }>,
 ) {
   mocks.contentItemsChain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: items, error: null }),
+    (resolve: (v: unknown) => void) => resolve({ data: items, error: null }),
   );
 }
 
@@ -277,13 +277,11 @@ describe('bulk_assign_owner MCP tool', () => {
     setContentItems([]);
     mocks.contentHistoryChain.insert.mockReturnValue(mocks.contentHistoryChain);
     mocks.contentHistoryChain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
     mocks.notificationsChain.insert.mockReturnValue(mocks.notificationsChain);
     mocks.notificationsChain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     // Reset chain methods
@@ -504,9 +502,7 @@ describe('bulk_assign_owner MCP tool', () => {
 
   // T7: dry_run: true returns same shape, no DB write
   it('T7: dry_run returns preview without writing', async () => {
-    setContentItems([
-      { id: ITEM_1, title: 'Item A', content_owner_id: null },
-    ]);
+    setContentItems([{ id: ITEM_1, title: 'Item A', content_owner_id: null }]);
 
     const result = await tool.handler(
       {
@@ -523,7 +519,9 @@ describe('bulk_assign_owner MCP tool', () => {
     expect(result.isError).toBeUndefined();
     expect(result.structuredContent!.dry_run).toBe(true);
     expect(result.structuredContent!.assigned_count).toBe(1);
-    const itemsAffected = result.structuredContent!.items_affected as Array<{ id: string }>;
+    const itemsAffected = result.structuredContent!.items_affected as Array<{
+      id: string;
+    }>;
     expect(itemsAffected).toHaveLength(1);
     expect(itemsAffected[0].id).toBe(ITEM_1);
 
@@ -742,13 +740,11 @@ describe('bulk_assign_owner MCP tool', () => {
     // Re-wire insert mocks after clearAllMocks
     mocks.contentHistoryChain.insert.mockReturnValue(mocks.contentHistoryChain);
     mocks.contentHistoryChain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
     mocks.notificationsChain.insert.mockReturnValue(mocks.notificationsChain);
     mocks.notificationsChain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
 
     const result2 = await tool.handler(
@@ -775,9 +771,7 @@ describe('bulk_assign_owner MCP tool', () => {
 
   // T14: content_history insert fails post-RPC — best-effort
   it('T14: audit write failure is best-effort — tool still succeeds', async () => {
-    setContentItems([
-      { id: ITEM_1, title: 'Item A', content_owner_id: null },
-    ]);
+    setContentItems([{ id: ITEM_1, title: 'Item A', content_owner_id: null }]);
     mocks.mockSupabaseClient.rpc.mockResolvedValue({ data: 1, error: null });
     setHistoryInsertError('content_history insert failed');
 
@@ -812,9 +806,7 @@ describe('bulk_assign_owner MCP tool', () => {
 
   // T15: notify: false
   it('T15: notify false suppresses notification', async () => {
-    setContentItems([
-      { id: ITEM_1, title: 'Item A', content_owner_id: null },
-    ]);
+    setContentItems([{ id: ITEM_1, title: 'Item A', content_owner_id: null }]);
     mocks.mockSupabaseClient.rpc.mockResolvedValue({ data: 1, error: null });
 
     const result = await tool.handler(
@@ -869,9 +861,7 @@ describe('bulk_assign_owner MCP tool', () => {
   it('T17: self-assignment skips notification regardless of notify flag', async () => {
     // Set acting user = owner
     mocks.getMcpUserId.mockReturnValue(OWNER_ID);
-    setContentItems([
-      { id: ITEM_1, title: 'Item A', content_owner_id: null },
-    ]);
+    setContentItems([{ id: ITEM_1, title: 'Item A', content_owner_id: null }]);
     mocks.mockSupabaseClient.rpc.mockResolvedValue({ data: 1, error: null });
 
     const result = await tool.handler(

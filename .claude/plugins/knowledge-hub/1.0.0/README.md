@@ -1,14 +1,24 @@
 # Knowledge Hub
 
-A knowledge base plugin primarily designed for [Cowork](https://claude.com/product/cowork), Anthropic's agentic desktop application — though it also works in Claude Code. Search your knowledge base, manage bids, and draft responses with full access to articles, policies, case studies, Q&A pairs, and more — all organised by domain with quality tracking and freshness monitoring.
+A knowledge base plugin primarily designed for
+[Cowork](https://claude.com/product/cowork), Anthropic's agentic desktop
+application — though it also works in Claude Code. Search your knowledge base,
+manage bids, and draft responses with full access to articles, policies, case
+studies, Q&A pairs, and more — all organised by domain with quality tracking and
+freshness monitoring.
 
-> **Note:** This plugin is not yet available in the Cowork registry. Install locally via manual connector setup (see [Getting Started](#getting-started) below).
+> **Note:** This plugin is not yet available in the Cowork registry. Install
+> locally via manual connector setup (see [Getting Started](#getting-started)
+> below).
 
 ---
 
 ## How It Works
 
-Knowledge Hub connects Claude to your structured knowledge base. Ask questions about your content, get briefings on active bids, draft responses to tender questions, and monitor the health of your knowledge base — all through natural conversation.
+Knowledge Hub connects Claude to your structured knowledge base. Ask questions
+about your content, get briefings on active bids, draft responses to tender
+questions, and monitor the health of your knowledge base — all through natural
+conversation.
 
 ```
 You: "What do we say about our ISO 27001 certification?"
@@ -29,52 +39,56 @@ One query. Full context. Ready-to-use answers.
 
 ## Standalone vs Supercharged
 
-Every command works in two modes. Without the connector, you provide context and Claude applies its skills. With the connector, Claude searches your live knowledge base directly.
+Every command works in two modes. Without the connector, you provide context and
+Claude applies its skills. With the connector, Claude searches your live
+knowledge base directly.
 
-| Feature | Standalone | Supercharged (with connector) |
-|---------|-----------|-------------------------------|
-| **Search** | You paste content; Claude applies search strategy and synthesis | Claude searches live KB with semantic + keyword hybrid search |
-| **Briefing** | You describe priorities; Claude organises and prioritises | Claude pulls reorientation data, bid status, and freshness alerts |
-| **Bid Status** | You share bid details; Claude ranks urgency and identifies gaps | Claude fetches live bid data with question-level progress |
-| **Coverage** | You describe your KB; Claude analyses gaps | Claude pulls dashboard, freshness, and quality data automatically |
-| **Draft Response** | You paste source material; Claude drafts with bid writing best practice | Claude searches KB and Q&A library, cites sources, scores confidence |
-| **Digest** | You share recent changes; Claude categorises and prioritises | Claude generates digest from live dashboard and freshness data |
-| **Classification** | Claude advises on taxonomy based on description | Claude triggers AI classification via `classify_content` tool |
-| **Quality tracking** | Manual review guidance | Live freshness and quality data from KB |
+| Feature              | Standalone                                                              | Supercharged (with connector)                                        |
+| -------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| **Search**           | You paste content; Claude applies search strategy and synthesis         | Claude searches live KB with semantic + keyword hybrid search        |
+| **Briefing**         | You describe priorities; Claude organises and prioritises               | Claude pulls reorientation data, bid status, and freshness alerts    |
+| **Bid Status**       | You share bid details; Claude ranks urgency and identifies gaps         | Claude fetches live bid data with question-level progress            |
+| **Coverage**         | You describe your KB; Claude analyses gaps                              | Claude pulls dashboard, freshness, and quality data automatically    |
+| **Draft Response**   | You paste source material; Claude drafts with bid writing best practice | Claude searches KB and Q&A library, cites sources, scores confidence |
+| **Digest**           | You share recent changes; Claude categorises and prioritises            | Claude generates digest from live dashboard and freshness data       |
+| **Classification**   | Claude advises on taxonomy based on description                         | Claude triggers AI classification via `classify_content` tool        |
+| **Quality tracking** | Manual review guidance                                                  | Live freshness and quality data from KB                              |
 
 ---
 
 ## What It Searches
 
-> If you see unfamiliar placeholders or need to check which tools are connected, see [CONNECTORS.md](CONNECTORS.md).
+> If you see unfamiliar placeholders or need to check which tools are connected,
+> see [CONNECTORS.md](CONNECTORS.md).
 
 The Knowledge Hub contains structured content organised by domain and subtopic:
 
-| Content Type | What it covers |
-|-------------|----------------|
-| **Q&A Pairs** | Standard and advanced answers to common bid questions |
-| **Articles** | In-depth knowledge base articles |
-| **Policies** | Organisational policies and procedures |
-| **Case Studies** | Project examples with outcomes and evidence |
-| **Certifications** | ISO, Cyber Essentials, and other accreditations |
-| **Compliance** | Regulatory and standards compliance documentation |
-| **Methodologies** | Delivery approaches and frameworks |
-| **Capabilities** | Service and product capability statements |
+| Content Type       | What it covers                                        |
+| ------------------ | ----------------------------------------------------- |
+| **Q&A Pairs**      | Standard and advanced answers to common bid questions |
+| **Articles**       | In-depth knowledge base articles                      |
+| **Policies**       | Organisational policies and procedures                |
+| **Case Studies**   | Project examples with outcomes and evidence           |
+| **Certifications** | ISO, Cyber Essentials, and other accreditations       |
+| **Compliance**     | Regulatory and standards compliance documentation     |
+| **Methodologies**  | Delivery approaches and frameworks                    |
+| **Capabilities**   | Service and product capability statements             |
 
-Each item is classified into a domain taxonomy, tracked for freshness, and scored for quality — giving you confidence in every answer.
+Each item is classified into a domain taxonomy, tracked for freshness, and
+scored for quality — giving you confidence in every answer.
 
 ---
 
 ## Commands
 
-| Command | What it does |
-|---------|--------------|
-| `/kb:search` | Search the knowledge base using semantic and keyword search |
-| `/kb:briefing` | Get a reorientation briefing on what changed and what needs attention |
-| `/kb:bid-status` | Overview of active bids with progress, gaps, and deadlines |
-| `/kb:coverage` | Analyse coverage gaps and identify thin domains |
-| `/kb:draft-response` | Draft a bid response using KB content with citations |
-| `/kb:digest` | Generate a digest of recent KB changes and activity |
+| Command              | What it does                                                          |
+| -------------------- | --------------------------------------------------------------------- |
+| `/kb:search`         | Search the knowledge base using semantic and keyword search           |
+| `/kb:briefing`       | Get a reorientation briefing on what changed and what needs attention |
+| `/kb:bid-status`     | Overview of active bids with progress, gaps, and deadlines            |
+| `/kb:coverage`       | Analyse coverage gaps and identify thin domains                       |
+| `/kb:draft-response` | Draft a bid response using KB content with citations                  |
+| `/kb:digest`         | Generate a digest of recent KB changes and activity                   |
 
 ### Search
 
@@ -84,7 +98,8 @@ Each item is classified into a domain taxonomy, tracked for freshness, and score
 /kb:search case studies involving healthcare clients
 ```
 
-Searches across all content types using hybrid semantic + keyword search. Results include similarity scores, freshness status, and domain classification.
+Searches across all content types using hybrid semantic + keyword search.
+Results include similarity scores, freshness status, and domain classification.
 
 ### Briefing
 
@@ -92,7 +107,9 @@ Searches across all content types using hybrid semantic + keyword search. Result
 /kb:briefing
 ```
 
-Get a personalised briefing covering urgent items needing attention, recent team activity, your recent work, and active bid status. Ideal for starting your day or returning after time away.
+Get a personalised briefing covering urgent items needing attention, recent team
+activity, your recent work, and active bid status. Ideal for starting your day
+or returning after time away.
 
 ### Bid Status
 
@@ -101,7 +118,9 @@ Get a personalised briefing covering urgent items needing attention, recent team
 /kb:bid-status NHS Digital Framework
 ```
 
-See all active bids sorted by urgency, or focus on a specific bid. Shows question completion progress, response gaps, confidence postures, and upcoming deadlines.
+See all active bids sorted by urgency, or focus on a specific bid. Shows
+question completion progress, response gaps, confidence postures, and upcoming
+deadlines.
 
 ### Coverage
 
@@ -109,7 +128,8 @@ See all active bids sorted by urgency, or focus on a specific bid. Shows questio
 /kb:coverage
 ```
 
-Analyse which domains have strong coverage and which are thin. Identifies freshness issues, quality flags, and recommends specific content to create.
+Analyse which domains have strong coverage and which are thin. Identifies
+freshness issues, quality flags, and recommends specific content to create.
 
 ### Draft Response
 
@@ -118,7 +138,9 @@ Analyse which domains have strong coverage and which are thin. Identifies freshn
 /kb:draft-response "Provide evidence of similar projects delivered in the last 3 years"
 ```
 
-Searches the KB and Q&A library for relevant content, evaluates source quality, and drafts a structured response following UK public procurement conventions. Includes a confidence assessment and source citations.
+Searches the KB and Q&A library for relevant content, evaluates source quality,
+and drafts a structured response following UK public procurement conventions.
+Includes a confidence assessment and source citations.
 
 ### Digest
 
@@ -128,7 +150,8 @@ Searches the KB and Q&A library for relevant content, evaluates source quality, 
 /kb:digest --weekly
 ```
 
-Summarise recent changes to the knowledge base — new content, freshness changes, quality issues, and items needing review. Helps you stay on top of KB health.
+Summarise recent changes to the knowledge base — new content, freshness changes,
+quality issues, and items needing review. Helps you stay on top of KB health.
 
 ---
 
@@ -136,15 +159,25 @@ Summarise recent changes to the knowledge base — new content, freshness change
 
 Five skills power the Knowledge Hub experience:
 
-**Search Strategy** — Query decomposition for hybrid search. Classifies query types, determines whether to use semantic or keyword search, applies domain filters, and interprets similarity scores.
+**Search Strategy** — Query decomposition for hybrid search. Classifies query
+types, determines whether to use semantic or keyword search, applies domain
+filters, and interprets similarity scores.
 
-**Bid Writing** — UK public procurement bid writing guidance. Covers PQQ/ITT conventions, response structure, confidence postures, word limit management, and evidence-backed writing with measurable outcomes. See [QUICKREF.md](skills/bid-writing/QUICKREF.md) for a compact reference card.
+**Bid Writing** — UK public procurement bid writing guidance. Covers PQQ/ITT
+conventions, response structure, confidence postures, word limit management, and
+evidence-backed writing with measurable outcomes. See
+[QUICKREF.md](skills/bid-writing/QUICKREF.md) for a compact reference card.
 
-**Knowledge Synthesis** — Combines multiple KB sources into coherent responses. Handles deduplication, citation formatting, confidence assessment based on source freshness, and strategies for different result set sizes.
+**Knowledge Synthesis** — Combines multiple KB sources into coherent responses.
+Handles deduplication, citation formatting, confidence assessment based on
+source freshness, and strategies for different result set sizes.
 
-**Content Governance** — Freshness lifecycle management, quality flag interpretation, governance review vs content review workflows, lifecycle types, and priority level guidance.
+**Content Governance** — Freshness lifecycle management, quality flag
+interpretation, governance review vs content review workflows, lifecycle types,
+and priority level guidance.
 
-**Classification** — Domain taxonomy guidance including content type classification, confidence interpretation, and when to trigger reclassification.
+**Classification** — Domain taxonomy guidance including content type
+classification, confidence interpretation, and when to trigger reclassification.
 
 ---
 
@@ -230,27 +263,41 @@ Result: Prioritised list of stale items, grouped by impact.
 
 ## Maintenance
 
-The plugin taxonomy and content types are automatically kept in sync with the Knowledge Hub codebase.
+The plugin taxonomy and content types are automatically kept in sync with the
+Knowledge Hub codebase.
 
 ### Syncing Taxonomy
-If the canonical taxonomy (in `docs/reference/classification-prompt.md`) or content types (in `lib/validation/schemas.ts`) change, run the sync script:
+
+If the canonical taxonomy (in `docs/reference/classification-prompt.md`) or
+content types (in `lib/validation/schemas.ts`) change, run the sync script:
+
 ```bash
 bun run sync:plugin-taxonomy
 ```
-This updates the injection markers in `skills/classification/SKILL.md` and `skills/search-strategy/SKILL.md`.
+
+This updates the injection markers in `skills/classification/SKILL.md` and
+`skills/search-strategy/SKILL.md`.
 
 ### Bundling
-The plugin is bundled as a Base64 ZIP string for deployment. A validation check runs before bundling to ensure taxonomy consistency:
+
+The plugin is bundled as a Base64 ZIP string for deployment. A validation check
+runs before bundling to ensure taxonomy consistency:
+
 ```bash
 bun run build:plugin
 ```
-*Note: This generates `lib/mcp/plugin-bundle.ts` which must be committed to git.*
+
+_Note: This generates `lib/mcp/plugin-bundle.ts` which must be committed to
+git._
 
 ---
 
 ## Personalisation
 
-Copy `settings.template.json` to `settings.local.json` to customise the plugin for your organisation. Settings include organisation name, certifications held, preferred response tone, and default taxonomy domains. See the template file for all available options.
+Copy `settings.template.json` to `settings.local.json` to customise the plugin
+for your organisation. Settings include organisation name, certifications held,
+preferred response tone, and default taxonomy domains. See the template file for
+all available options.
 
 ---
 
@@ -265,12 +312,20 @@ Copy `settings.template.json` to `settings.local.json` to customise the plugin f
 /kb:search [your question here]
 ```
 
-Without the connector, commands still work — you provide context manually, and Claude applies the same frameworks and guidance. With the connector, Claude searches your knowledge base directly and returns results with full source attribution.
+Without the connector, commands still work — you provide context manually, and
+Claude applies the same frameworks and guidance. With the connector, Claude
+searches your knowledge base directly and returns results with full source
+attribution.
 
 ---
 
 ## Philosophy
 
-Bid teams spend hours hunting for the right answer — digging through old documents, previous bids, and shared drives. The answer exists somewhere, but finding it and knowing it's current takes time.
+Bid teams spend hours hunting for the right answer — digging through old
+documents, previous bids, and shared drives. The answer exists somewhere, but
+finding it and knowing it's current takes time.
 
-Knowledge Hub treats your organisational knowledge as a structured, searchable, quality-tracked resource. One question, authoritative answers, with confidence scoring so you know what to trust. Your knowledge base should work for you, not the other way around.
+Knowledge Hub treats your organisational knowledge as a structured, searchable,
+quality-tracked resource. One question, authoritative answers, with confidence
+scoring so you know what to trust. Your knowledge base should work for you, not
+the other way around.

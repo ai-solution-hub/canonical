@@ -321,13 +321,10 @@ describe('ResponseEditor', () => {
     );
     vi.clearAllMocks();
     mockEditor.getMarkdown.mockReturnValue('Old content');
-    rerender(
-      <ResponseEditor {...defaultProps({ content: 'New content' })} />,
-    );
-    expect(mockEditor.commands.setContent).toHaveBeenCalledWith(
-      'New content',
-      { contentType: 'markdown' },
-    );
+    rerender(<ResponseEditor {...defaultProps({ content: 'New content' })} />);
+    expect(mockEditor.commands.setContent).toHaveBeenCalledWith('New content', {
+      contentType: 'markdown',
+    });
   });
 
   it('does not sync content when prop matches editor markdown', () => {
@@ -337,9 +334,7 @@ describe('ResponseEditor', () => {
     );
     vi.clearAllMocks();
     mockEditor.getMarkdown.mockReturnValue('Same content');
-    rerender(
-      <ResponseEditor {...defaultProps({ content: 'Same content' })} />,
-    );
+    rerender(<ResponseEditor {...defaultProps({ content: 'Same content' })} />);
     expect(mockEditor.commands.setContent).not.toHaveBeenCalled();
   });
 
@@ -394,9 +389,8 @@ describe('ResponseEditor', () => {
   // See docs/audits/s152a-bid-drafting-production-bugs.md §1.
 
   it('#16: CharacterCount is configured WITHOUT a limit option', async () => {
-    const CharacterCountMock = await import(
-      '@tiptap/extension-character-count'
-    );
+    const CharacterCountMock =
+      await import('@tiptap/extension-character-count');
     vi.clearAllMocks();
     render(<ResponseEditor {...defaultProps({ wordLimit: 500 })} />);
     expect(CharacterCountMock.default.configure).toHaveBeenCalled();
@@ -411,9 +405,8 @@ describe('ResponseEditor', () => {
   });
 
   it('#16: CharacterCount has no limit even when wordLimit is null', async () => {
-    const CharacterCountMock = await import(
-      '@tiptap/extension-character-count'
-    );
+    const CharacterCountMock =
+      await import('@tiptap/extension-character-count');
     vi.clearAllMocks();
     render(<ResponseEditor {...defaultProps({ wordLimit: null })} />);
     const lastCall = (

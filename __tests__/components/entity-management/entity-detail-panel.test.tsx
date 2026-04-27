@@ -126,9 +126,7 @@ describe('EntityDetailPanel — holder placeholder (OPS-25)', () => {
   });
 
   it('shows "Self-held" when metadata.holder is "self"', () => {
-    mockUseEntityDetail.mockReturnValue(
-      makeEntityDetail({ holder: 'self' }),
-    );
+    mockUseEntityDetail.mockReturnValue(makeEntityDetail({ holder: 'self' }));
 
     render(
       <EntityDetailPanel
@@ -173,9 +171,7 @@ describe('EntityDetailPanel — holder placeholder (OPS-25)', () => {
       ).toBeVisible();
     });
 
-    await user.click(
-      screen.getByRole('option', { name: /supplier-held/i }),
-    );
+    await user.click(screen.getByRole('option', { name: /supplier-held/i }));
 
     // After selection, the supplier name input should appear
     await waitFor(() => {
