@@ -3,6 +3,7 @@ import {
   parseCliArgs,
   assertNotRetiredProject,
   assertEnvComplete,
+  assertEnvFlag,
   isTestArtefactTitle,
   buildHistoryRow,
   BACKFILL_CHANGE_REASON,
@@ -50,6 +51,7 @@ describe('parseCliArgs', () => {
       dryRun: false,
       batchSize: 50,
       help: false,
+      env: '',
     });
   });
 
@@ -67,6 +69,14 @@ describe('parseCliArgs', () => {
 
   it('parses --help', () => {
     expect(parseCliArgs(['--help']).help).toBe(true);
+  });
+
+  it('parses --env=prod (D-19 + D-23 fix)', () => {
+    expect(parseCliArgs(['--env=prod']).env).toBe('prod');
+  });
+
+  it('parses --env prod (space form, L-3 fix)', () => {
+    expect(parseCliArgs(['--env', 'prod']).env).toBe('prod');
   });
 
   it('rejects negative --limit (via --limit= syntax that bypasses util parseArgs ambiguity)', () => {
@@ -92,6 +102,7 @@ describe('parseCliArgs', () => {
       dryRun: true,
       batchSize: 25,
       help: false,
+      env: '',
     });
   });
 });
@@ -100,7 +111,7 @@ describe('parseCliArgs', () => {
 // assertNotRetiredProject
 // ---------------------------------------------------------------------------
 
-describe('assertNotRetiredProject', () => {
+describe('assertNotRetiredProject (D-19 fix: retired ref is now mgrmucazfiibsomdmndh)', () => {
   let exitSpy: ReturnType<typeof vi.spyOn>;
   let errorSpy: ReturnType<typeof vi.spyOn>;
 
@@ -116,20 +127,62 @@ describe('assertNotRetiredProject', () => {
     errorSpy.mockRestore();
   });
 
-  it('exits with code 1 when URL contains retired project ref', () => {
-    assertNotRetiredProject('https://rovrymhhffssilaftdwd.supabase.co');
+  it('exits with code 1 when URL contains the legacy retired project ref (mgrmucazfiibsomdmndh)', () => {
+    assertNotRetiredProject('https://mgrmucazfiibsomdmndh.supabase.co');
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(errorSpy).toHaveBeenCalled();
   });
 
-  it('does not exit for current production URL', () => {
-    assertNotRetiredProject('https://mgrmucazfiibsomdmndh.supabase.co');
+  it('does not exit for current production URL (rovrymhhffssilaftdwd)', () => {
+    assertNotRetiredProject('https://rovrymhhffssilaftdwd.supabase.co');
     expect(exitSpy).not.toHaveBeenCalled();
   });
 
   it('does not exit when URL is undefined (caller handles missing env separately)', () => {
     assertNotRetiredProject(undefined);
     expect(exitSpy).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// assertEnvFlag (D-19 + D-23: --env=prod opt-in assertion)
+// ---------------------------------------------------------------------------
+
+describe('assertEnvFlag (D-19 + D-23 --env=prod opt-in)', () => {
+  let exitSpy: ReturnType<typeof vi.spyOn>;
+  let errorSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    exitSpy = vi
+      .spyOn(process, 'exit')
+      .mockImplementation((() => undefined) as never);
+    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    exitSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
+  it('does nothing when env flag is empty (default — no assertion)', () => {
+    assertEnvFlag('', 'https://anything.supabase.co');
+    expect(exitSpy).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when env=prod AND url contains prod ref', () => {
+    assertEnvFlag('prod', 'https://rovrymhhffssilaftdwd.supabase.co');
+    expect(exitSpy).not.toHaveBeenCalled();
+  });
+
+  it('exits with code 1 when env=prod but url does NOT contain prod ref', () => {
+    assertEnvFlag('prod', 'https://turayklvaunphgbgscat.supabase.co');
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(errorSpy).toHaveBeenCalled();
+  });
+
+  it('exits with code 1 when env=prod and url is undefined', () => {
+    assertEnvFlag('prod', undefined);
+    expect(exitSpy).toHaveBeenCalledWith(1);
   });
 });
 

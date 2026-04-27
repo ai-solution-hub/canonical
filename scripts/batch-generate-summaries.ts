@@ -44,11 +44,17 @@ loadEnvFile(`${PROJECT_ROOT}.env`);
 
 // ── CLI args ──
 
-function parseArgs(): { limit: number; dryRun: boolean; batchSize: number } {
+function parseArgs(): {
+  limit: number;
+  dryRun: boolean;
+  batchSize: number;
+  env: string;
+} {
   const args = process.argv.slice(2);
   let limit = 20;
   let dryRun = false;
   let batchSize = 5;
+  let env = '';
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--limit' && args[i + 1]) {
@@ -59,6 +65,11 @@ function parseArgs(): { limit: number; dryRun: boolean; batchSize: number } {
     } else if (args[i] === '--batch-size' && args[i + 1]) {
       batchSize = parseInt(args[i + 1], 10);
       i++;
+    } else if (args[i] === '--env' && args[i + 1]) {
+      env = args[i + 1];
+      i++;
+    } else if (args[i].startsWith('--env=')) {
+      env = args[i].slice('--env='.length);
     }
   }
 
@@ -67,7 +78,28 @@ function parseArgs(): { limit: number; dryRun: boolean; batchSize: number } {
   // Cap concurrent requests at 5
   if (batchSize > 5) batchSize = 5;
 
-  return { limit, dryRun, batchSize };
+  return { limit, dryRun, batchSize, env };
+}
+
+// ── --env=prod opt-in ──
+
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+
+/**
+ * --env=prod opt-in: assert SUPABASE_URL is prod-pointed.
+ *
+ * Per WP-S5.2 spec v1.1 §7.1, the flag DOES NOT swap env values — it only
+ * **asserts** the env-resolved URL points at prod. This script re-summarises
+ * prod content_items at AI cost; running against a wrong env wastes spend.
+ */
+function assertEnvFlag(env: string, url: string | undefined): void {
+  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+    console.error(
+      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<prod-svc-key> bun run scripts/batch-generate-summaries.ts --env=prod`,
+    );
+    process.exit(1);
+  }
 }
 
 // ── Constants ──
@@ -129,7 +161,7 @@ function sleep(ms: number): Promise<void> {
 // ── Main ──
 
 async function main(): Promise<void> {
-  const { limit, dryRun, batchSize } = parseArgs();
+  const { limit, dryRun, batchSize, env } = parseArgs();
 
   // Validate env
   const supabaseUrl =
@@ -148,6 +180,8 @@ async function main(): Promise<void> {
     console.error('Missing ANTHROPIC_API_KEY in environment');
     process.exit(1);
   }
+
+  assertEnvFlag(env, supabaseUrl);
 
   const model = process.env.AI_SUMMARY_MODEL || 'claude-sonnet-4-6';
   const supabase = createClient(supabaseUrl, supabaseKey);

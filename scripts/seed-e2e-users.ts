@@ -1,5 +1,14 @@
 #!/usr/bin/env bun
 /**
+ * Seeds E2E test users (TEST_USER_1/2/3) into auth.users.
+ *
+ * **ALWAYS-STAGING.** Post-WP-S5.2 .env.local flip, this script
+ * defaults to staging — which is the correct intent. NEVER invoke
+ * against prod (would create test users in prod auth.users with no
+ * cleanup path).
+ *
+ * To verify env target before running: `cat .env.local | grep SUPABASE_URL`.
+ *
  * Seed E2E test users (TEST_USER_1/2/3) with admin/editor/viewer roles.
  *
  * **Why this script exists:**

@@ -11,11 +11,15 @@ logger = logging.getLogger(__name__)
 # So PROJECT_ROOT = dirname(dirname(dirname(abspath(__file__))))
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-ENV_PATH = os.path.join(PROJECT_ROOT, ".env")
+ENV_PATH = os.path.join(PROJECT_ROOT, ".env.local")
 PROMPT_PATH = os.path.join(PROJECT_ROOT, "docs", "reference", "classification-prompt.md")
-SUPABASE_URL = None  # loaded from .env via get_env()
+SUPABASE_URL = None  # loaded from .env.local via get_env()
 
-# Load .env into os.environ (does not override existing env vars)
+# Load .env.local into os.environ (does not override existing env vars).
+# Per WP-S5.2 spec v1.1 §8.1 + §9 D-20=α: Python pipeline reads .env.local
+# only — no .env fallback (`.env` is being phased out from dev-side state).
+# Production Python pipeline (W4 WP-RUN.1 Railway target) reads Railway env
+# vars natively via os.environ; load_dotenv is a no-op when no file present.
 load_dotenv(ENV_PATH)
 
 # Models (overridable via env vars — AI_-prefixed names preferred, legacy fallback for one cycle)
@@ -53,9 +57,9 @@ LOW_CONFIDENCE_THRESHOLD = float(os.environ.get("LOW_CONFIDENCE_THRESHOLD", "0.6
 def load_env():
     """Return current environment variables as a dict.
 
-    Variables are loaded from .env at module import time via python-dotenv.
-    This function now simply returns os.environ as a dict for backward
-    compatibility with get_env() caching.
+    Variables are loaded from .env.local at module import time via
+    python-dotenv. This function now simply returns os.environ as a
+    dict for backward compatibility with get_env() caching.
     """
     return dict(os.environ)
 
@@ -126,25 +130,25 @@ def get_system_prompt():
 
 
 def get_supabase_url():
-    """Get Supabase URL from .env."""
+    """Get Supabase URL from .env.local."""
     env = get_env()
     url = env.get('SUPABASE_URL', '')
     if not url:
-        raise RuntimeError("SUPABASE_URL not set in .env")
+        raise RuntimeError("SUPABASE_URL not set in .env.local")
     return url
 
 
 def get_supabase_secret_key():
-    """Get Supabase service_role key from .env (bypasses RLS)."""
+    """Get Supabase service_role key from .env.local (bypasses RLS)."""
     env = get_env()
     key = env.get('SUPABASE_SERVICE_ROLE_KEY', '')
     if not key:
-        raise RuntimeError("SUPABASE_SERVICE_ROLE_KEY not set in .env")
+        raise RuntimeError("SUPABASE_SERVICE_ROLE_KEY not set in .env.local")
     return key
 
 
 def get_supabase_anon_key():
-    """Get Supabase anon key from .env.
+    """Get Supabase anon key from .env.local.
 
     Checks SUPABASE_PUBLISHABLE_KEY first, then falls back to
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY for compatibility with the Next.js
@@ -153,5 +157,5 @@ def get_supabase_anon_key():
     env = get_env()
     key = env.get('SUPABASE_PUBLISHABLE_KEY', '') or env.get('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', '')
     if not key:
-        raise RuntimeError("SUPABASE_PUBLISHABLE_KEY not set in .env")
+        raise RuntimeError("SUPABASE_PUBLISHABLE_KEY not set in .env.local")
     return key

@@ -46,6 +46,12 @@ from docx_utils import has_tracked_changes
 # ── Quality thresholds ─────────────────────────────────────────────────
 FRAGMENT_THRESHOLD = 20  # Content shorter than this is flagged as a fragment
 
+# Per WP-S5.2 spec v1.1 §7.2 + §9 D-23 item 9: --env=prod flag asserts
+# SUPABASE_URL contains the prod project ref before any DB writes.
+# Client .docx Q&A ingest is high-stakes — accidental staging-write would
+# break the data-empty assumption.
+PROD_PROJECT_URL_FRAGMENT = "rovrymhhffssilaftdwd"
+
 
 def truncate_at_word_boundary(text: str, max_length: int, suffix: str = "...") -> str:
     """Truncate text at a word boundary near max_length.
@@ -352,6 +358,16 @@ def main():
         action="store_true",
         help="Run entity extraction on imported items (separate AI pass, slower)",
     )
+    parser.add_argument(
+        "--env",
+        choices=["prod", "staging", "auto"],
+        default="auto",
+        help=(
+            "With --env=prod, asserts SUPABASE_URL points at prod and "
+            "refuses to run otherwise. --env=staging and --env=auto "
+            "are non-asserting (trust env). Default 'auto'."
+        ),
+    )
 
     # S186 WP-B.6 — mutually exclusive supersession flags. Off by default.
     supersede_group = parser.add_mutually_exclusive_group()
@@ -375,6 +391,24 @@ def main():
     )
 
     args = parser.parse_args()
+
+    # Env assertion — must run before any DB writes. kb_pipeline.config
+    # has loaded .env.local into os.environ at import time (see WP-S5.2
+    # spec v1.1 §8.1 D-20=α); shell-exported SUPABASE_URL still wins by
+    # python-dotenv default (override=False), so this checks the resolved
+    # value. Only enforced for --env=prod so default --env=auto preserves
+    # the legacy behaviour (defer URL fetch to pipeline write-time).
+    if args.env == "prod":
+        from kb_pipeline.config import get_supabase_url
+        url = get_supabase_url()
+        if PROD_PROJECT_URL_FRAGMENT not in url:
+            sys.exit(
+                f"--env=prod set but SUPABASE_URL does not contain "
+                f"'{PROD_PROJECT_URL_FRAGMENT}'. Run with explicit override:\n"
+                f"  SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<prod-key> "
+                f"python3 scripts/import_bid_library.py"
+            )
+
     start_time = time.time()
 
     batch_name = args.batch_name or f"bid-library-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"

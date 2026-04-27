@@ -31,6 +31,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from kb_pipeline.pipeline import process_url, process_urls
 
+# Per WP-S5.2 spec v1.1 §7.2 + §9 D-23 item 2: --env=prod flag asserts
+# SUPABASE_URL contains the prod project ref before any DB writes. Highest-
+# risk Python entry point — accidental staging-write would break the
+# data-empty assumption.
+PROD_PROJECT_URL_FRAGMENT = "rovrymhhffssilaftdwd"
+
 
 def main():
     parser = argparse.ArgumentParser(description="Knowledge Hub content ingestion pipeline")
@@ -58,8 +64,35 @@ def main():
         "--static-taxonomy", action="store_true",
         help="Use static taxonomy from prompt file instead of fetching from DB"
     )
+    parser.add_argument(
+        "--env",
+        choices=["prod", "staging", "auto"],
+        default="auto",
+        help=(
+            "With --env=prod, asserts SUPABASE_URL points at prod and "
+            "refuses to run otherwise. --env=staging and --env=auto "
+            "are non-asserting (trust env). Default 'auto'."
+        ),
+    )
 
     args = parser.parse_args()
+
+    # Env assertion — must run before any DB writes. kb_pipeline.config
+    # has loaded .env.local into os.environ at import time (see §8.1
+    # D-20=α); shell-exported SUPABASE_URL still wins by python-dotenv
+    # default (override=False), so this checks the resolved value.
+    # Only enforced for --env=prod so default --env=auto preserves the
+    # legacy behaviour (defer URL fetch to pipeline write-time).
+    if args.env == "prod":
+        from kb_pipeline.config import get_supabase_url
+        url = get_supabase_url()
+        if PROD_PROJECT_URL_FRAGMENT not in url:
+            sys.exit(
+                f"--env=prod set but SUPABASE_URL does not contain "
+                f"'{PROD_PROJECT_URL_FRAGMENT}'. Run with explicit override:\n"
+                f"  SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<prod-key> "
+                f"python3 scripts/ingest.py"
+            )
 
     if args.static_taxonomy:
         from kb_pipeline.config import set_static_taxonomy

@@ -145,13 +145,24 @@ export interface ParsedArgs {
   itemFilter: string | null;
   live: boolean;
   confirm: boolean;
+  env: string;
 }
 
 /**
  * Parse CLI arguments. Exported so unit tests can verify flag handling
  * without spawning the full eval pipeline.
+ *
+ * Supports both `--env prod` (space-separated) and `--env=prod` (=-form).
  */
 export function parseArgs(args: string[]): ParsedArgs {
+  let env = '';
+  if (args.includes('--env')) {
+    env = args[args.indexOf('--env') + 1] ?? '';
+  }
+  const eqArg = args.find((a) => a.startsWith('--env='));
+  if (eqArg) {
+    env = eqArg.slice('--env='.length);
+  }
   return {
     verbose: args.includes('--verbose'),
     jsonOutput: args.includes('--json'),
@@ -159,7 +170,30 @@ export function parseArgs(args: string[]): ParsedArgs {
     itemFilter: args.includes('--item') ? args[args.indexOf('--item') + 1] ?? null : null,
     live: args.includes('--live'),
     confirm: args.includes('--confirm'),
+    env,
   };
+}
+
+// ── --env=prod opt-in ──────────────────────────────────────────────
+
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+
+/**
+ * --env=prod opt-in: assert SUPABASE_URL is prod-pointed.
+ *
+ * Per WP-S5.2 spec v1.1 §7.1, the flag DOES NOT swap env values — it only
+ * **asserts** the env-resolved URL points at prod. Override via:
+ *   SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<prod-svc-key> \
+ *     bun run scripts/eval-classification.ts --env=prod
+ */
+export function assertEnvFlag(env: string, url: string | undefined): void {
+  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+    console.error(
+      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<prod-svc-key> bun run scripts/eval-classification.ts --env=prod`,
+    );
+    process.exit(1);
+  }
 }
 
 // ── DB Access ───────────────────────────────────────────────────────
@@ -593,7 +627,12 @@ const THRESHOLDS: Record<string, { min?: number; max_drop?: number }> = {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const { verbose, jsonOutput, doSaveBaseline, itemFilter, live, confirm } = args;
+  const { verbose, jsonOutput, doSaveBaseline, itemFilter, live, confirm, env } = args;
+
+  // Assert --env=prod when set (per WP-S5.2 spec v1.1 §7.1)
+  const envUrl =
+    process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  assertEnvFlag(env, envUrl);
 
   // Load gold standard
   const fixturePath = resolve(
