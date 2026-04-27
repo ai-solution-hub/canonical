@@ -22,6 +22,14 @@
 --
 -- Idempotent: WHERE NOT EXISTS guard keyed on (guide_id, section_name).
 -- No unique constraint on that pair, so ON CONFLICT is not available.
+--
+-- POST-S4 EDIT 2026-04-27: WHERE EXISTS guard added on parent `guides` row.
+-- Already applied on prod (schema_migrations records this version) — no re-apply.
+-- On data-empty branches: INSERT no-ops because parent guides don't exist yet.
+-- Future client deployments: parent rows are created at runtime by
+-- lib/intelligence/guide-generator.ts; this migration becomes a safety-net
+-- conditional INSERT that fires only when parents exist.
+--
 
 -- Advanced Audits Product Guide
 INSERT INTO guide_sections (
@@ -45,7 +53,11 @@ SELECT
     20,
     FALSE,
     NULL
-WHERE NOT EXISTS (
+WHERE EXISTS (
+    SELECT 1 FROM guides
+     WHERE id = 'a4cfe046-9a6c-4e3f-b0ff-2d4f0d958687'::uuid
+)
+AND NOT EXISTS (
     SELECT 1 FROM guide_sections
      WHERE guide_id = 'a4cfe046-9a6c-4e3f-b0ff-2d4f0d958687'::uuid
        AND section_name = 'Research Feed'
@@ -73,7 +85,11 @@ SELECT
     20,
     FALSE,
     NULL
-WHERE NOT EXISTS (
+WHERE EXISTS (
+    SELECT 1 FROM guides
+     WHERE id = 'f216848e-decf-4a86-a19f-f9907b6b55c8'::uuid
+)
+AND NOT EXISTS (
     SELECT 1 FROM guide_sections
      WHERE guide_id = 'f216848e-decf-4a86-a19f-f9907b6b55c8'::uuid
        AND section_name = 'Research Feed'
@@ -101,7 +117,11 @@ SELECT
     20,
     FALSE,
     NULL
-WHERE NOT EXISTS (
+WHERE EXISTS (
+    SELECT 1 FROM guides
+     WHERE id = 'ff2b9333-80f7-41a7-88d8-82baeb65b20e'::uuid
+)
+AND NOT EXISTS (
     SELECT 1 FROM guide_sections
      WHERE guide_id = 'ff2b9333-80f7-41a7-88d8-82baeb65b20e'::uuid
        AND section_name = 'Research Feed'

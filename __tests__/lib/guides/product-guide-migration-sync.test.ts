@@ -111,7 +111,7 @@ describe('Product Guide migration 20260422174420 — fixture sync guard', () => 
   });
 
   it('has idempotency guard `subtopic_filter IS NULL` on every UPDATE', () => {
-    const updateCount = (migrationSql.match(/^UPDATE\s+guide_sections/gim) || [])
+    const updateCount = (migrationSql.match(/^\s*UPDATE\s+guide_sections/gim) || [])
       .length;
     const guardCount = (
       migrationSql.match(/AND\s+subtopic_filter\s+IS\s+NULL/gi) || []
@@ -136,7 +136,7 @@ describe('Product Guide migration 20260422174420 — fixture sync guard', () => 
     }
     // Count UPDATE occurrences and IN-clauses to ensure each UPDATE uses
     // the 3-UUID scope.
-    const updateCount = (migrationSql.match(/^UPDATE\s+guide_sections/gim) || [])
+    const updateCount = (migrationSql.match(/^\s*UPDATE\s+guide_sections/gim) || [])
       .length;
     expect(updateCount).toBeGreaterThanOrEqual(19);
   });
