@@ -64,9 +64,24 @@ const { values: args } = parseArgs({
     limit: { type: 'string', default: '0' },
     'dry-run': { type: 'boolean', default: false },
     help: { type: 'boolean', default: false },
+    env: { type: 'string', default: '' },
   },
   strict: true,
 });
+
+// ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
+
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+
+function assertEnvFlag(env: string, url: string | undefined): void {
+  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+    console.error(
+      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/propagate-cert-metadata.ts --env=prod`,
+    );
+    process.exit(1);
+  }
+}
 
 if (args.help) {
   console.log(`
@@ -75,6 +90,7 @@ Usage: bun run scripts/propagate-cert-metadata.ts [options]
 Options:
   --limit N    Max mentions to update (0 = all eligible)
   --dry-run    Preview what would be updated without writing
+  --env=prod   Asserts SUPABASE_URL points at prod ('${PROD_PROJECT_REF}')
   --help       Show this help
 `);
   process.exit(0);
@@ -85,7 +101,8 @@ const DRY_RUN = args['dry-run']!;
 
 // ── Supabase client ────────────────────────────────────────────────────────
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseUrl =
+  process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   process.env.SUPABASE_PUBLISHABLE_KEY ||
@@ -93,10 +110,12 @@ const supabaseKey =
 
 if (!supabaseUrl || !supabaseKey) {
   console.error(
-    'Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment',
+    'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment',
   );
   process.exit(1);
 }
+
+assertEnvFlag(args.env ?? '', supabaseUrl);
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 

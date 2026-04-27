@@ -172,6 +172,7 @@ export interface CliArgs {
   includeChecks: string[];
   excludeChecks: string[];
   help: boolean;
+  env: string;
 }
 
 export function parseCli(argv: string[]): CliArgs {
@@ -186,6 +187,7 @@ export function parseCli(argv: string[]): CliArgs {
       'include-check': { type: 'string', multiple: true },
       'exclude-check': { type: 'string', multiple: true },
       help: { type: 'boolean' },
+      env: { type: 'string' },
     },
     strict: true,
     allowPositionals: false,
@@ -214,7 +216,22 @@ export function parseCli(argv: string[]): CliArgs {
     includeChecks: (values['include-check'] as string[] | undefined) ?? [],
     excludeChecks: (values['exclude-check'] as string[] | undefined) ?? [],
     help: Boolean(values.help),
+    env: (values.env as string | undefined) ?? '',
   };
+}
+
+// ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
+
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+
+function assertEnvFlag(env: string, url: string | undefined): void {
+  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+    console.error(
+      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/quality-gate.ts --env=prod`,
+    );
+    process.exit(1);
+  }
 }
 
 const HELP_TEXT = `
@@ -320,14 +337,16 @@ export function severityFor(
 // Supabase client
 // ---------------------------------------------------------------------------
 
-export function createSb(): { sb: SupabaseClient; projectId: string } {
-  const url = process.env.SUPABASE_URL;
+export function createSb(env = ''): { sb: SupabaseClient; projectId: string } {
+  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
     throw new Error(
       'Both SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY env vars are required.',
     );
   }
+
+  assertEnvFlag(env, url);
 
   const projectId = extractProjectId(url);
   const sb = createClient(url, key, {
@@ -1893,7 +1912,7 @@ export async function runGate(
   const profileName = args.profile ?? args.threshold ?? 're-ingest';
   const profileDef = resolveProfile(profiles, profileName);
 
-  const { sb, projectId } = createSb();
+  const { sb, projectId } = createSb(args.env);
 
   let auditContent: AuditContentExpected | undefined;
   if (isAuditProfile) {

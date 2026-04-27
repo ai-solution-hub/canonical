@@ -34,13 +34,36 @@ interface OrphanRow {
   content: string;
 }
 
+// ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
+
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+
+function parseEnvFlag(argv: string[]): string {
+  const eqArg = argv.find((a) => a.startsWith('--env='));
+  if (eqArg) return eqArg.slice('--env='.length);
+  const idx = argv.indexOf('--env');
+  if (idx >= 0 && argv[idx + 1]) return argv[idx + 1];
+  return '';
+}
+
+function assertEnvFlag(env: string, url: string | undefined): void {
+  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+    console.error(
+      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/reembed-missing-embeddings.ts --env=prod`,
+    );
+    process.exit(1);
+  }
+}
+
 async function main(): Promise<void> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl =
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
     console.error(
-      'Error: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.',
+      'Error: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.',
     );
     process.exit(1);
   }
@@ -48,6 +71,8 @@ async function main(): Promise<void> {
     console.error('Error: OPENAI_API_KEY must be set.');
     process.exit(1);
   }
+
+  assertEnvFlag(parseEnvFlag(process.argv.slice(2)), supabaseUrl);
 
   const includeUnclassified = process.argv.includes('--include-unclassified');
 
