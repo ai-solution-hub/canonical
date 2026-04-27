@@ -522,11 +522,11 @@ describe('Integration: full codebase extraction', () => {
         }
       }
 
-      // 56 = 43 pre-S180 + 2 governance additions + 3 review tools +
+      // 57 = 43 pre-S180 + 2 governance additions + 3 review tools +
       // 4 guides (added to CATEGORY_ORDER in WP6 — was a pre-S180 oversight)
       // + 1 change-report + 1 supersession (S186) + 1 bulk_assign_owner (S194)
-      // + 1 list_user_workspaces (S194).
-      expect(allTools.length).toBe(56);
+      // + 1 list_user_workspaces (S194) + 1 update_publication_status (S202 §5.2 T7).
+      expect(allTools.length).toBe(57);
 
       // Every tool should have a non-empty name
       for (const tool of allTools) {
