@@ -1,23 +1,17 @@
-# PR-blocking CI for knowledge-hub.
-#
-# Runs on every PR (any base branch) and on push to main. Cheaper checks
-# (lint, format, knip) precede slower checks (build, test) so failures
-# surface fast.
-#
-# Spec: docs/audits/kh-production-readiness-phase-1/spec/wp-g4-ci-foundation-spec.md
-# Runbook: docs/runbooks/ci.md
+# Spec: docs/runbooks/ci.md — PR-blocking CI foundation (WP-G4.1)
 
 name: CI
 
 on:
   pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
   push:
     branches: [main]
 
 concurrency:
   group:
-    ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref
-    }}
+    ci-${{ github.workflow }}-${{ github.event_name }}-${{
+    github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -51,6 +45,8 @@ jobs:
           # the PR head against the merge base on PR runs.
           fetch-depth: 0
 
+      # Bun handles dependency install + script execution; Node 22 is required for
+      # Vitest 4 + Next.js 16 tooling that does not run on Bun's Node-compat layer.
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
@@ -73,7 +69,6 @@ jobs:
 
       - name: Build (Next.js)
         env:
-          # Server-side required vars (lib/env.ts)
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -81,22 +76,17 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
-          # Client-side required vars (lib/env-client.ts) — Production
-          # environment exposes the bare names; mirror them onto the
-          # NEXT_PUBLIC_* names the client schema expects.
+          # Production stores bare names; mirror to NEXT_PUBLIC_* for the client schema.
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
             ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
           NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
-          # Sentry release tagging — VERCEL_GIT_COMMIT_SHA is a Vercel-only
-          # var; substitute github.sha so the release name resolves.
+          # VERCEL_GIT_COMMIT_SHA is Vercel-only; substitute github.sha so Sentry release tag resolves.
           VERCEL_GIT_COMMIT_SHA: ${{ github.sha }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
-          # Optional model overrides (variables, not secrets)
           AI_SUMMARY_MODEL: ${{ vars.AI_SUMMARY_MODEL }}
           AI_EMBEDDING_MODEL: ${{ vars.AI_EMBEDDING_MODEL }}
           AI_EMBEDDING_DIMS: ${{ vars.AI_EMBEDDING_DIMS }}
@@ -105,8 +95,7 @@ jobs:
 
       - name: Test (Vitest)
         env:
-          # Vitest setup imports validated env modules; provide the same
-          # set as the build step.
+          # Vitest setup imports validated env modules; mirror the build step.
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -121,8 +110,7 @@ jobs:
           NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
           AI_EMBEDDING_MODEL: ${{ vars.AI_EMBEDDING_MODEL }}
           AI_EMBEDDING_DIMS: ${{ vars.AI_EMBEDDING_DIMS }}
-          # Pulled into env to avoid embedding github-context expressions
-          # directly in `run:` commands (workflow-injection mitigation).
+          # Workflow-injection mitigation: pass github context through env, not run:.
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           GITHUB_BASE_REF: ${{ github.base_ref }}
         run: |
