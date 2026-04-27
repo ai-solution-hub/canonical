@@ -1,14 +1,11 @@
 ---
-description:
-  Pipeline-wide action review — blockers, stalled drafts, and prioritised next
-  actions across all active bids
-argument-hint: '[stale_threshold_days]'
+description: Pipeline-wide action review — blockers, stalled drafts, and prioritised next actions across all active bids
+argument-hint: "[stale_threshold_days]"
 ---
 
 # Bid Pipeline Review Command
 
-> If you see unfamiliar placeholders or need to check which tools are connected,
-> see [CONNECTORS.md](../CONNECTORS.md).
+> If you see unfamiliar placeholders or need to check which tools are connected, see [CONNECTORS.md](../CONNECTORS.md).
 
 ```
 +---------------------------------------------------------+
@@ -22,11 +19,10 @@ argument-hint: '[stale_threshold_days]'
 +---------------------------------------------------------+
 ```
 
-Surfaces the bids that need work right now — not a status dump. Complements
-`/kb:bid-status` (per-bid read) with a workflow framing: what is blocking me,
-what has gone stale, and what should I do next across all bids.
+Surfaces the bids that need work right now — not a status dump. Complements `/kb:bid-status` (per-bid read) with a workflow framing: what is blocking me, what has gone stale, and what should I do next across all bids.
 
-Stale threshold (days since last edit): $ARGUMENTS If a file is referenced: @$1
+Stale threshold (days since last edit): $ARGUMENTS
+If a file is referenced: @$1
 
 ## What I Need From You
 
@@ -37,8 +33,7 @@ Stale threshold (days since last edit): $ARGUMENTS If a file is referenced: @$1
 /kb:bid-pipeline-review 7
 ```
 
-Pass an optional integer argument to override the "stalled draft" threshold
-(default 5 days).
+Pass an optional integer argument to override the "stalled draft" threshold (default 5 days).
 
 **Option B — Manual input (no connector needed):**
 
@@ -58,24 +53,19 @@ Pass an optional integer argument to override the "stalled draft" threshold
 
 ### 1. Parse Arguments
 
-If `$ARGUMENTS` parses as a positive integer, use it as the stale-draft
-threshold in days. Otherwise default to 5.
+If `$ARGUMENTS` parses as a positive integer, use it as the stale-draft threshold in days. Otherwise default to 5.
 
 ### 2. Invoke the `bid_pipeline_review` MCP prompt
 
 **If `~~knowledge base` connector is available:**
 
-Invoke the `bid_pipeline_review` MCP prompt with `stale_threshold_days` = the
-parsed value. The prompt template will direct you through:
+Invoke the `bid_pipeline_review` MCP prompt with `stale_threshold_days` = the parsed value. The prompt template will direct you through:
 
 1. `list_active_bids(limit: 50)` — full pipeline
-2. `get_bid_detail(id: <bid_id>)` for each active bid — extract unanswered
-   questions, confidence postures (`no_content`, `needs_sme`), stalled drafts
-   (response `updated_at` older than the threshold)
+2. `get_bid_detail(id: <bid_id>)` for each active bid — extract unanswered questions, confidence postures (`no_content`, `needs_sme`), stalled drafts (response `updated_at` older than the threshold)
 3. Recent activity classification (active within 7 days vs silent)
 
-Use the `@bid-writing` skill for urgency framing and `@knowledge-synthesis` for
-cross-bid narrative.
+Use the `@bid-writing` skill for urgency framing and `@knowledge-synthesis` for cross-bid narrative.
 
 **If no connector available:**
 
@@ -119,12 +109,10 @@ Alternatively, paste:
 ### 4. Prioritise
 
 Order actions by:
-
 1. Bids with deadlines < 7 days AND unresolved blockers first.
 2. Bids with stalled drafts past the threshold second.
 3. SME escalations third.
-4. If an item has zero blockers, omit from the blocker sections (still list in
-   Recent activity).
+4. If an item has zero blockers, omit from the blocker sections (still list in Recent activity).
 
 Limit to 3-5 actions — this is a focus list, not a full task inventory.
 
@@ -151,11 +139,7 @@ Next action: consider `/kb:coverage` to spot pre-emptive gaps, or `/kb:draft-res
 ## Tips
 
 - UK English throughout. DD/MM/YYYY dates.
-- Stale threshold defaults to 5 days; override with an integer arg (e.g.
-  `/kb:bid-pipeline-review 7`).
-- Cross-reference: `/kb:bid-status <bid>` for a per-bid deep-dive on anything
-  this review surfaces.
-- Cross-reference: `/kb:draft-response "<question>"` for drafting a specific
-  answer.
-- Do NOT emit per-bid progress tables — that's `/kb:bid-status`. This command is
-  action-oriented.
+- Stale threshold defaults to 5 days; override with an integer arg (e.g. `/kb:bid-pipeline-review 7`).
+- Cross-reference: `/kb:bid-status <bid>` for a per-bid deep-dive on anything this review surfaces.
+- Cross-reference: `/kb:draft-response "<question>"` for drafting a specific answer.
+- Do NOT emit per-bid progress tables — that's `/kb:bid-status`. This command is action-oriented.
