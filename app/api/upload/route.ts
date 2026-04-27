@@ -317,7 +317,7 @@ export async function POST(request: NextRequest) {
           mime_type: mimeType,
           ingestion_source: 'upload',
         },
-        ...(createAsDraft ? { governance_review_status: 'draft' } : {}),
+        ...(createAsDraft ? { publication_status: 'draft' } : {}),
         ...(authorOverride ? { author_name: authorOverride } : {}),
         created_by: user.id,
       })
@@ -1042,7 +1042,7 @@ export async function POST(request: NextRequest) {
         suspected_duplicate_of: dedupStamp.suspected_duplicate_of,
       }),
       pipeline_run_id: pipelineRunId,
-      governance_review_status: createAsDraft ? 'draft' : null,
+      publication_status: createAsDraft ? 'draft' : null,
       ...(classificationData && { classification: classificationData }),
       ...(aiSummary !== undefined && { summary: aiSummary }),
       ...(qualityScore !== undefined && { quality_score: qualityScore }),

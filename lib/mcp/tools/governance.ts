@@ -300,7 +300,7 @@ export async function registerGovernanceTools(
     {
       title: 'Update Governance Status',
       description:
-        'Batch publish or draft content items. Use "publish" to move draft items into the live knowledge base (generates embeddings and clears governance_review_status). Use "draft" to pull live items back to draft status. Publishing generates embeddings synchronously before making items searchable — items that fail embedding are reported but do not block other items. Requires editor or admin role.',
+        'Batch publish or draft content items. Use "publish" to move draft items into the live knowledge base (generates embeddings and clears governance_review_status). Use "draft" to pull live items back to draft status (writes publication_status="draft" — S202 §5.2 Phase 2.5 rewire; tool surface unchanged for LLM callers). Publishing generates embeddings synchronously before making items searchable — items that fail embedding are reported but do not block other items. Requires editor or admin role.',
       inputSchema: {
         item_ids: z
           .array(z.string().uuid())
@@ -494,11 +494,14 @@ export async function registerGovernanceTools(
                 }
               }
             } else {
-              // Draft: set governance_review_status to 'draft'
+              // Draft: set publication_status to 'draft' (S202 §5.2 Phase 2.5
+              // rewire — rewired from governance_review_status per spec §6.5).
+              // The tool's external 'draft' action verb is unchanged so LLM
+              // callers transparently target the new column.
               const { error: updateError } = await supabase
                 .from('content_items')
                 .update({
-                  governance_review_status: 'draft',
+                  publication_status: 'draft',
                   updated_by: userId,
                 } satisfies Database['public']['Tables']['content_items']['Update'])
                 .eq('id', itemId);

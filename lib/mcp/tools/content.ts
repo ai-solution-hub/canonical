@@ -256,7 +256,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
     {
       title: 'Create Content Item',
       description:
-        'Create a new content item in the knowledge base. Content should be in markdown format (the canonical storage format). Requires editor or admin role. The item will be automatically embedded for search unless created as a draft. Set governance_review_status to "draft" to create items that are excluded from search and visible only in the review queue\'s Drafts filter — useful for batch content creation that needs review before going live. Use batch_tag to group related draft items (e.g. "reorient-2026-03") and source_document to record provenance. Choose content_type carefully: use q_a_pair for question-answer pairs, case_study for project examples, policy for governance documents, certification for accreditations, capability for service descriptions. Use the kb://taxonomy resource to see valid domain and subtopic values.',
+        'Create a new content item in the knowledge base. Content should be in markdown format (the canonical storage format). Requires editor or admin role. The item will be automatically embedded for search unless created as a draft. Set publication_status to "draft" to create items that are excluded from search and visible only in the review queue\'s Drafts filter — useful for batch content creation that needs review before going live. Use batch_tag to group related draft items (e.g. "reorient-2026-03") and source_document to record provenance. Choose content_type carefully: use q_a_pair for question-answer pairs, case_study for project examples, policy for governance documents, certification for accreditations, capability for service descriptions. Use the kb://taxonomy resource to see valid domain and subtopic values.',
       inputSchema: {
         title: z.string().min(1).max(500).describe('Title of the content item'),
         content: z.string().min(1).max(500000).describe('The content text in markdown format'),
@@ -287,11 +287,17 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           .enum(['high', 'medium', 'low'])
           .optional()
           .describe('Priority level'),
+        publication_status: z
+          .enum(['draft', 'in_review', 'published', 'archived'])
+          .optional()
+          .describe(
+            'Set to "draft" to create as a draft item (excluded from search, no embedding generated). Publish later via update_publication_status. Other values ("in_review", "published", "archived") are accepted for parity with update_publication_status, but creation flows typically use "draft" or omit this field (defaults to "published" via DB DEFAULT).',
+          ),
         governance_review_status: z
           .enum(['draft'])
           .optional()
           .describe(
-            'Set to "draft" to create as a draft item (excluded from search, no embedding generated). Publish later via update_governance_status.',
+            'Deprecated (S202 §5.2 Phase 2.5): prefer publication_status="draft". Accepted for back-compat during the transition window — equivalent to publication_status="draft".',
           ),
         batch_tag: z
           .string()
@@ -333,7 +339,12 @@ export async function registerContentTools(server: McpServer): Promise<void> {
 
         const supabase = createMcpClient(extra.authInfo);
         const userId = getMcpUserId(extra.authInfo);
-        const isDraft = args.governance_review_status === 'draft';
+        // S202 §5.2 Phase 2.5 (T8a): isDraft derivation prefers the new
+        // `publication_status` field; back-compat accepts the legacy
+        // `governance_review_status` field per spec §10.6 transition window.
+        const isDraft =
+          args.publication_status === 'draft' ||
+          args.governance_review_status === 'draft';
 
         // Admin-only dedup override (spec §6 D2). Silent-ignore for
         // editors even though the flag is exposed on the input schema.
@@ -405,7 +416,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             }),
             ...(args.priority && { priority: args.priority }),
             ...(embedding && { embedding: JSON.stringify(embedding) }),
-            ...(isDraft && { governance_review_status: 'draft' }),
+            ...(isDraft && { publication_status: 'draft' }),
             ...(Object.keys(metadata).length > 0 && {
               metadata: metadata as unknown as Json,
             }),
@@ -647,7 +658,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           content: [{ type: 'text' as const, text: markdown }],
           structuredContent: toStructuredContent({
             ...created,
-            governance_review_status: isDraft ? 'draft' : null,
+            publication_status: isDraft ? 'draft' : null,
             batch_tag: args.batch_tag ?? null,
             source_document: args.source_document ?? null,
             suggested_layer: suggestedLayerKey ?? null,
