@@ -14,7 +14,8 @@
  * Why all 11 modules? `registerAppTool` (ext-apps) is a thin convenience
  * wrapper that delegates to `server.registerTool`, so the single mock
  * `registerTool` capture catches the 4 app-tool registrations too — total
- * captured count should be 42 across all 11 modules.
+ * captured count should be 57 across all 16 modules (governance.ts adds
+ * `update_publication_status` in S202 §5.2 T7).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -123,10 +124,10 @@ describe('MCP tool annotation coverage (P0-19 regression guard)', () => {
     tools = await collectAllTools();
   });
 
-  it('registers exactly 56 tools across all 16 modules', () => {
+  it('registers exactly 57 tools across all 16 modules', () => {
     // This guards against accidental duplicate registrations or a module
     // silently no-oping (e.g. a lazy-import failure inside registerAppTools).
-    expect(tools.length).toBe(56);
+    expect(tools.length).toBe(57);
   });
 
   it('every registered tool declares all four ToolAnnotations fields', () => {

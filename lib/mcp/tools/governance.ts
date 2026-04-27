@@ -1,8 +1,9 @@
 /**
- * Governance and lifecycle tool registrations (4 tools):
+ * Governance and lifecycle tool registrations (5 tools):
  *  25. delete_content_item
  *  30. update_governance_status
- *  get_governance_queue (S180 WP3 / P0-23 A1)
+ *  31. update_publication_status (S202 §5.2 Phase 2 / T7)
+ *  get_governance_queue (S180 WP3 / P0-23 A1; widened S202 §5.2 T7)
  *  review_governance_item (S180 WP3 / P0-23 B2)
  */
 import { z } from 'zod';
@@ -20,6 +21,7 @@ import {
   formatGovernanceQueue,
   formatGovernanceReviewAction,
   formatGovernanceStatusUpdate,
+  formatPublicationStatusUpdate,
 } from '@/lib/mcp/formatters';
 import type {
   DeleteContentResult,
@@ -29,6 +31,7 @@ import type {
   GovernanceReviewActionResult,
   GovernanceStatusItemResult,
   GovernanceStatusUpdateResult,
+  PublicationStatusUpdateResult,
 } from '@/lib/mcp/formatters';
 import {
   type ToolExtra,
@@ -46,6 +49,13 @@ import {
   type AllowedReviewInputStatus,
 } from '@/lib/governance/review-input-statuses';
 import { computeNextReviewDate } from '@/lib/governance/cadence-renewal';
+import {
+  VALID_PUBLICATION_STATUSES,
+  computeAllowedTransitions,
+  applyTransitionSideEffects,
+  type PublicationStatus,
+  type UserRole,
+} from '@/lib/governance/publication-transitions';
 
 export async function registerGovernanceTools(
   server: McpServer,
@@ -579,10 +589,268 @@ export async function registerGovernanceTools(
   );
 
   // -------------------------------------------------------------------------
+  // 31. update_publication_status (write tool — editor or admin)
+  //
+  // Mirrors the PATCH /api/items/[id] publication_status branch (T6) so the
+  // MCP path uses the same T5 helpers, the same role-gate matrix, and writes
+  // the same `content_history` rows. Distinct from `update_governance_status`
+  // which handles change-management states (publish/draft on
+  // `governance_review_status`) — this tool is about the publication
+  // lifecycle column `publication_status`.
+  //
+  // Spec: docs/specs/publication-lifecycle-state-machine-spec.md §7.1, §7.1.1
+  // Plan: docs/plans/§5.2-phase-1-2-2.5-plan.md T7
+  // ACs:  AC4.4 (role-gate matrix via MCP), AC6.2 (registration fixture)
+  // -------------------------------------------------------------------------
+  defineTool(
+    server,
+    'update_publication_status',
+    {
+      title: 'Update Publication Status',
+      description:
+        'Transition a content item between publication lifecycle states (draft, in_review, published, archived). Use this tool to publish a draft item, return an in-review item to draft for revision, archive a published item, or restore an archived item. Each transition has role-based gates (some are admin-only). Returns the new state and any side-effects (archived_at, archive_reason). Distinct from update_governance_status which handles change-management workflow (pending/approved/changes_requested/reverted) — those are about whether a recent EDIT has been reviewed, separate from whether the item is published. Editor or admin role required.',
+      inputSchema: {
+        item_id: z
+          .string()
+          .uuid()
+          .describe('UUID of the content item to transition'),
+        new_status: z
+          .enum(['draft', 'in_review', 'published', 'archived'])
+          .describe(
+            'Target publication lifecycle state. Allowed transitions are constrained by §3.2 of the spec and the caller role.',
+          ),
+        archive_reason: z
+          .string()
+          .max(500)
+          .optional()
+          .describe(
+            'Optional human-readable reason. Stamped into the `archive_reason` column ONLY on transitions to `archived`; ignored otherwise.',
+          ),
+      },
+      annotations: SAFE_WRITE_ANNOTATIONS,
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const role = await checkMcpRole(extra.authInfo, ['admin', 'editor']);
+        if (!role) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: 'Permission denied: editor or admin role required to update publication status.',
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const supabase = createMcpClient(extra.authInfo);
+        const userId = getMcpUserId(extra.authInfo);
+        const newStatus = args.new_status as PublicationStatus;
+
+        // Fetch current state. Mirrors the PATCH route — selects all columns
+        // needed for transition validation + content_history insert. Use
+        // tryQuery + 404-style error message when the row is missing (per
+        // CLAUDE.md "REST PATCH on wrong UUID" — silent 0-row no-ops are
+        // unsafe).
+        const currentRes = await tryQuery(
+          supabase
+            .from('content_items')
+            .select(
+              'id, publication_status, archived_at, archived_by, archive_reason, title, suggested_title, content, brief, detail, reference',
+            )
+            .eq('id', args.item_id)
+            .maybeSingle(),
+          'mcp.governance.update_publication_status.fetch',
+        );
+        if (!isOk(currentRes)) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Item lookup failed: ${currentRes.error.message}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+        if (!currentRes.data) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Item ${args.item_id} not found.`,
+              },
+            ],
+            isError: true,
+          };
+        }
+        const current = currentRes.data;
+        const fromStatus = current.publication_status as PublicationStatus;
+
+        // Validate transition + role gate per §3.2 + §3.4 via the T5 helper.
+        // Mirrors the PATCH route's status-code policy:
+        //   - 403-equivalent (forbidden) when the role has NO transitions out
+        //     of the current state (e.g. viewer everywhere, editor on
+        //     `'published'`/`'archived'` rows). MCP surfaces this via
+        //     isError + a "Permission denied" / "Role cannot transition"
+        //     message.
+        //   - 409-equivalent (conflict) when the role CAN transition but not
+        //     to this target (e.g. editor `'draft' → 'archived'`). MCP
+        //     surfaces this via isError + "Transition not allowed".
+        const allowedTransitions = computeAllowedTransitions(
+          fromStatus,
+          role as UserRole,
+        );
+        if (allowedTransitions.length === 0) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Role '${role}' cannot transition out of '${fromStatus}'.`,
+              },
+            ],
+            isError: true,
+          };
+        }
+        if (!allowedTransitions.includes(newStatus)) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Transition not allowed: '${fromStatus}' -> '${newStatus}' for role '${role}'.`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // Defensive guard against helper-vs-Zod drift (matches the PATCH
+        // route's pattern). Reaching this branch with a non-enum value would
+        // mean the Zod enum is out of sync with the helper's
+        // VALID_PUBLICATION_STATUSES — exactly the drift case
+        // `feedback_check_constraint_app_enum_drift` warns against.
+        if (
+          !(VALID_PUBLICATION_STATUSES as readonly string[]).includes(newStatus)
+        ) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Invalid publication_status: ${String(newStatus)}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // Assemble the side-effect payload via the T5 helper. Stamps
+        // archived_at/by/reason on `published → archived`; clears archived_at
+        // (preserving the audit trail) on un-archive transitions.
+        const updatePayload = applyTransitionSideEffects(
+          {
+            publication_status: newStatus,
+            updated_by: userId,
+          },
+          fromStatus,
+          newStatus,
+          userId,
+          args.archive_reason,
+        );
+
+        // Persist the state change. `sb()` is fail-fast — any DB error
+        // surfaces as SupabaseError, caught by the outer try/catch. Per
+        // CLAUDE.md `silent-failure-prevention`.
+        await sb(
+          supabase
+            .from('content_items')
+            .update(
+              updatePayload as Database['public']['Tables']['content_items']['Update'],
+            )
+            .eq('id', args.item_id),
+          'mcp.governance.update_publication_status.update',
+        );
+
+        // Write a content_history row capturing the transition. Per
+        // CLAUDE.md `feedback_content_history_change_reason_mandatory`, the
+        // canonical phrasing is `Transition from ${from} to ${to}` (+
+        // optional ` (reason: ${archive_reason})` suffix). The
+        // change_type='publication_state' value was added to the CHECK enum
+        // in commit eeb8ae25.
+        const changeReasonText =
+          `Transition from ${fromStatus} to ${newStatus}` +
+          (args.archive_reason ? ` (reason: ${args.archive_reason})` : '');
+
+        const maxVersionRes = await tryQuery(
+          supabase
+            .from('content_history')
+            .select('version')
+            .eq('content_item_id', args.item_id)
+            .order('version', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+          'mcp.governance.update_publication_status.history_version_lookup',
+        );
+        const nextVersion = isOk(maxVersionRes)
+          ? (maxVersionRes.data?.version ?? 0) + 1
+          : 1;
+
+        await sb(
+          supabase.from('content_history').insert({
+            content_item_id: args.item_id,
+            version: nextVersion,
+            title: current.title ?? '',
+            content: current.content ?? '',
+            brief: current.brief ?? null,
+            detail: current.detail ?? null,
+            reference: current.reference ?? null,
+            change_summary: `Publication status: ${fromStatus} -> ${newStatus}`,
+            change_reason: changeReasonText,
+            change_type: 'publication_state',
+            created_by: userId,
+          }),
+          'mcp.governance.update_publication_status.history_insert',
+        );
+
+        const displayTitle =
+          current.title ?? current.suggested_title ?? '(untitled)';
+        const result: PublicationStatusUpdateResult = {
+          item_id: args.item_id,
+          title: displayTitle,
+          previous_status: fromStatus,
+          new_status: newStatus,
+          transition: `${fromStatus} -> ${newStatus}`,
+          archive_reason: args.archive_reason ?? null,
+        };
+
+        const markdown = formatPublicationStatusUpdate(result);
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(result),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Publication status update failed: ${message}.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
   // get_governance_queue (read-only — editor+)
   //
   // Wraps GET /api/governance/review. Returns items pending governance
   // review ordered by due date ascending. Optional post-query domain filter.
+  // S202 §5.2 T7: widened with optional `publication_status` filter that
+  // composes with the existing filters via AND. Backwards-compat preserved
+  // — existing callers (omitting the param) see no behaviour change.
   // -------------------------------------------------------------------------
   defineTool(
     server,
@@ -590,7 +858,7 @@ export async function registerGovernanceTools(
     {
       title: 'Get Governance Queue',
       description:
-        'List content items pending governance review. Returns each item with domain, due date, reviewer, and last-updated timestamp. Use this to triage the governance backlog via Claude (weekly cadence for most admins). Optional domain filter is applied at the query level so pagination totals reflect the filter. Editor or admin role required.',
+        'List content items pending governance review. Returns each item with domain, due date, reviewer, and last-updated timestamp. Use this to triage the governance backlog via Claude (weekly cadence for most admins). Optional `domain` filter restricts by `primary_domain`; optional `publication_status` filter restricts by publication lifecycle state (e.g. set `publication_status="in_review"` to surface items awaiting publication approval — a separate axis from change-management `governance_review_status="pending"`). All filters compose via AND. Editor or admin role required.',
       inputSchema: {
         limit: z
           .number()
@@ -610,6 +878,12 @@ export async function registerGovernanceTools(
           .optional()
           .describe(
             'Optional primary_domain filter applied at the query level (the underlying route does not support a domain filter — this tool extends the route).',
+          ),
+        publication_status: z
+          .enum(['draft', 'in_review', 'published', 'archived'])
+          .optional()
+          .describe(
+            'If set, restrict the queue to items in this publication state. Common usage: publication_status="in_review" to surface items awaiting publication approval (separate axis from change-management governance_review_status="pending").',
           ),
       },
       annotations: READ_ONLY_ANNOTATIONS,
@@ -648,6 +922,12 @@ export async function registerGovernanceTools(
           query = query.eq('primary_domain', args.domain);
         }
 
+        // S202 §5.2 T7 — publication_status filter composes via AND with the
+        // existing filters. Omitted → no-op (backwards-compat preserved).
+        if (args.publication_status) {
+          query = query.eq('publication_status', args.publication_status);
+        }
+
         const { data, error, count } = await query;
 
         if (error) {
@@ -669,6 +949,7 @@ export async function registerGovernanceTools(
           offset: args.offset,
           limit: args.limit,
           domain_filter: args.domain ?? null,
+          publication_status_filter: args.publication_status ?? null,
         };
 
         const markdown = formatGovernanceQueue(result);

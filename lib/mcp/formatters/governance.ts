@@ -116,21 +116,39 @@ export interface GovernanceQueueData {
   offset: number;
   limit: number;
   domain_filter: string | null;
+  /**
+   * S202 §5.2 T7 — optional publication-lifecycle filter. `null` when the
+   * caller omitted the param. Surfaces in the markdown header when set so
+   * users see exactly which slice of the queue they're looking at.
+   */
+  publication_status_filter?: string | null;
 }
 
 export function formatGovernanceQueue(data: GovernanceQueueData): string {
-  const { items, total, offset, domain_filter } = data;
+  const { items, total, offset, domain_filter, publication_status_filter } =
+    data;
 
   if (items.length === 0 && total === 0) {
-    const scope = domain_filter ? ` for domain "${domain_filter}"` : '';
-    return `# Governance Queue\n\nGovernance queue is clear${scope} — no items pending review.`;
+    const domainScope = domain_filter ? ` for domain "${domain_filter}"` : '';
+    const pubScope = publication_status_filter
+      ? ` in publication state "${publication_status_filter}"`
+      : '';
+    return `# Governance Queue\n\nGovernance queue is clear${domainScope}${pubScope} — no items pending review.`;
   }
 
   const start = offset + 1;
   const end = Math.min(offset + items.length, total);
-  const scopeNote = domain_filter
-    ? ` (domain filter: \`${domain_filter}\`)`
-    : '';
+  const filterParts: string[] = [];
+  if (domain_filter) {
+    filterParts.push(`domain: \`${domain_filter}\``);
+  }
+  if (publication_status_filter) {
+    filterParts.push(
+      `publication_status: \`${publication_status_filter}\``,
+    );
+  }
+  const scopeNote =
+    filterParts.length > 0 ? ` (${filterParts.join(', ')})` : '';
 
   const lines: string[] = [
     `# Governance Queue`,
@@ -192,6 +210,41 @@ export function formatGovernanceReviewAction(
 
   if (result.notes) {
     lines.push('', `**Notes:** ${result.notes}`);
+  }
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Publication status update (update_publication_status)
+//
+// S202 §5.2 T7. Mirrors the PATCH /api/items/[id] publication_status branch
+// response shape so the MCP tool surfaces the same {previous_status, new_status,
+// transition} fields callers rely on. archive_reason is `null` for non-archive
+// transitions and for archive transitions where the caller omitted the field.
+// ---------------------------------------------------------------------------
+
+export interface PublicationStatusUpdateResult {
+  item_id: string;
+  title: string;
+  previous_status: string;
+  new_status: string;
+  transition: string;
+  archive_reason: string | null;
+}
+
+export function formatPublicationStatusUpdate(
+  result: PublicationStatusUpdateResult,
+): string {
+  const lines: string[] = [
+    `# Publication status updated`,
+    '',
+    `**Item:** ${result.title} (${result.item_id})`,
+    `**Transition:** \`${result.previous_status}\` → \`${result.new_status}\``,
+  ];
+
+  if (result.archive_reason) {
+    lines.push(`**Archive reason:** ${result.archive_reason}`);
   }
 
   return lines.join('\n');

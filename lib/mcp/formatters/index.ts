@@ -94,6 +94,8 @@ export {
   type GovernanceReviewAction,
   type GovernanceReviewActionResult,
   formatGovernanceReviewAction,
+  type PublicationStatusUpdateResult,
+  formatPublicationStatusUpdate,
 } from './governance';
 export {
   type ReviewQueueToolItem,
