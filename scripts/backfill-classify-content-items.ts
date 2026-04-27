@@ -67,6 +67,7 @@ export interface CliArgs {
   dryRun: boolean;
   limit: number;
   contentType: string | null;
+  env: string;
   /** If set, parseArgs collected an error message instead of valid args. */
   error: string | null;
 }
@@ -76,6 +77,7 @@ export function parseArgs(argv: string[]): CliArgs {
   let dryRun = false;
   let limit = DEFAULT_LIMIT;
   let contentType: string | null = null;
+  let env = '';
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -92,6 +94,7 @@ export function parseArgs(argv: string[]): CliArgs {
           dryRun,
           limit,
           contentType,
+          env,
           error: `--limit must be a positive integer, got "${argv[i + 1]}"`,
         };
       }
@@ -100,6 +103,11 @@ export function parseArgs(argv: string[]): CliArgs {
     } else if (arg === '--content-type' && argv[i + 1]) {
       contentType = argv[i + 1];
       i++;
+    } else if (arg === '--env' && argv[i + 1]) {
+      env = argv[i + 1];
+      i++;
+    } else if (arg.startsWith('--env=')) {
+      env = arg.slice('--env='.length);
     }
   }
 
@@ -109,6 +117,7 @@ export function parseArgs(argv: string[]): CliArgs {
       dryRun,
       limit,
       contentType,
+      env,
       error:
         '--workspace-id <uuid> is REQUIRED. The script refuses to run ' +
         'without it to prevent accidental full-DB reclassification.',
@@ -121,11 +130,26 @@ export function parseArgs(argv: string[]): CliArgs {
       dryRun,
       limit,
       contentType,
+      env,
       error: `--limit ${limit} exceeds hard cap of ${MAX_LIMIT} (anti-runaway).`,
     };
   }
 
-  return { workspaceId, dryRun, limit, contentType, error: null };
+  return { workspaceId, dryRun, limit, contentType, env, error: null };
+}
+
+// ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
+
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+
+function assertEnvFlag(env: string, url: string | undefined): void {
+  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+    console.error(
+      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/backfill-classify-content-items.ts --env=prod`,
+    );
+    process.exit(1);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -296,15 +320,18 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl =
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
     console.error(
-      'Error: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.',
+      'Error: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.',
     );
     process.exit(1);
   }
+
+  assertEnvFlag(args.env, supabaseUrl);
 
   if (!process.env.ANTHROPIC_API_KEY && !args.dryRun) {
     console.error(

@@ -65,9 +65,24 @@ const { values: args } = parseArgs({
     'batch-size': { type: 'string', default: '50' },
     delay: { type: 'string', default: '1500' },
     help: { type: 'boolean', default: false },
+    env: { type: 'string', default: '' },
   },
   strict: true,
 });
+
+// ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
+
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+
+function assertEnvFlag(env: string, url: string | undefined): void {
+  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+    console.error(
+      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/backfill-reader-html.ts --env=prod`,
+    );
+    process.exit(1);
+  }
+}
 
 if (args.help) {
   console.log(`
@@ -79,6 +94,10 @@ Options:
   --type TYPE      Filter by content_type (article, blog, newsletter)
   --batch-size N   Items per database query batch (default: 50)
   --delay MS       Milliseconds between HTTP fetches (default: 1500)
+  --env=prod       Asserts SUPABASE_URL points at current prod
+                   ('${PROD_PROJECT_REF}'). Override invocation:
+                   SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key>
+                   bun run scripts/backfill-reader-html.ts --env=prod
   --help           Show this help
 `);
   process.exit(0);
@@ -92,7 +111,8 @@ const DELAY_MS = parseInt(args.delay!, 10) || 1500;
 
 // ── Supabase client ────────────────────────────────────────────────────────
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseUrl =
+  process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   process.env.SUPABASE_PUBLISHABLE_KEY ||
@@ -104,6 +124,8 @@ if (!supabaseUrl || !supabaseKey) {
   );
   process.exit(1);
 }
+
+assertEnvFlag(args.env ?? '', supabaseUrl);
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 

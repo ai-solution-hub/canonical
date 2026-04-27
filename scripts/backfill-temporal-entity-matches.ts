@@ -57,9 +57,24 @@ const { values: args } = parseArgs({
     'dry-run': { type: 'boolean', default: false },
     'item-id': { type: 'string', default: '' },
     help: { type: 'boolean', default: false },
+    env: { type: 'string', default: '' },
   },
   strict: true,
 });
+
+// ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
+
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+
+function assertEnvFlag(env: string, url: string | undefined): void {
+  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+    console.error(
+      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/backfill-temporal-entity-matches.ts --env=prod`,
+    );
+    process.exit(1);
+  }
+}
 
 if (args.help) {
   console.log(`
@@ -69,6 +84,10 @@ Options:
   --limit N      Max items to process (0 = all eligible)
   --dry-run      Preview matches without writing to database
   --item-id UUID Process a single item by ID
+  --env=prod     Asserts SUPABASE_URL points at current prod
+                 ('${PROD_PROJECT_REF}'). Override invocation:
+                 SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key>
+                 bun run scripts/backfill-temporal-entity-matches.ts --env=prod
   --help         Show this help
 `);
   process.exit(0);
@@ -82,7 +101,8 @@ const DELAY_MS = 500;
 
 // ── Supabase client ──────────────────────────────────────────────────────
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseUrl =
+  process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   process.env.SUPABASE_PUBLISHABLE_KEY ||
@@ -90,10 +110,12 @@ const supabaseKey =
 
 if (!supabaseUrl || !supabaseKey) {
   console.error(
-    'Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment',
+    'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment',
   );
   process.exit(1);
 }
+
+assertEnvFlag(args.env ?? '', supabaseUrl);
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
