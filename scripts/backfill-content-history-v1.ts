@@ -65,6 +65,7 @@ interface CliArgs {
   dryRun: boolean;
   batchSize: number;
   help: boolean;
+  env: string;
 }
 
 export function parseCliArgs(argv: string[]): CliArgs {
@@ -75,6 +76,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
       'dry-run': { type: 'boolean', default: false },
       'batch-size': { type: 'string', default: '50' },
       help: { type: 'boolean', default: false },
+      env: { type: 'string', default: '' },
     },
     strict: true,
   });
@@ -91,6 +93,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
     dryRun: values['dry-run']!,
     batchSize: batchSize || 50,
     help: values.help!,
+    env: values.env ?? '',
   };
 }
 
@@ -105,21 +108,58 @@ Options:
   --dry-run         Preview counts + sample; write zero rows.
   --limit N         Max items to process (0 = all eligible).
   --batch-size N    Insert batch size (1-100, default 50).
+  --env=prod        Asserts SUPABASE_URL points at current prod
+                    (\`rovrymhhffssilaftdwd\`). Override invocation:
+                    SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key>
+                    bun run scripts/backfill-content-history-v1.ts --env=prod
   --help            Show this help.
 
-Target DB is read from NEXT_PUBLIC_SUPABASE_URL in .env.local / .env.
-Script aborts if the URL points at the retired project \`rovrymhhffssilaftdwd\`.
+Target DB is read from NEXT_PUBLIC_SUPABASE_URL in .env.local.
+Script aborts if the URL points at the legacy retired project
+\`mgrmucazfiibsomdmndh\` (paused/about-to-delete per S187 cutover).
 `;
 
 // ── Safety + env ───────────────────────────────────────────────────────────
 
-const RETIRED_PROJECT_REF = 'rovrymhhffssilaftdwd';
+// Legacy retired project — was temporary prod 17/04–22/04 post-S182 cutover;
+// recommended pause ≥26/04 / delete ≥03/05 per MEMORY. The current prod
+// project is `rovrymhhffssilaftdwd` (post-S187 cutover-back). This guard
+// refuses to run against the legacy project so a stale .env.local from
+// the cutover window cannot accidentally hit a phantom DB.
+//
+// (D-19 fix per WP-S5.2 spec v1.1 §5.1 + §9 — was incorrectly set to the
+// current prod project, which broke the script today. Backfill is per
+// S186 WP-A likely already complete in current prod, but the script is
+// preserved for future similar workflows.)
+const RETIRED_PROJECT_REF = 'mgrmucazfiibsomdmndh';
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
 
 export function assertNotRetiredProject(url: string | undefined): void {
   if (!url) return; // env validation raises elsewhere
   if (url.includes(RETIRED_PROJECT_REF)) {
     console.error(
-      `Refusing to run: NEXT_PUBLIC_SUPABASE_URL points at the retired project (${RETIRED_PROJECT_REF}). Update .env.local to the current production project before retrying.`,
+      `Refusing to run: NEXT_PUBLIC_SUPABASE_URL points at the legacy retired project (${RETIRED_PROJECT_REF}). Update .env.local to the current production project (${PROD_PROJECT_REF}) before retrying.`,
+    );
+    process.exit(1);
+  }
+}
+
+/**
+ * --env=prod opt-in: assert SUPABASE_URL is prod-pointed.
+ *
+ * Per WP-S5.2 spec v1.1 §7.1, the flag DOES NOT swap env values — it only
+ * **asserts** the env-resolved URL points at prod. Override via:
+ *   SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<prod-key> \
+ *     bun run scripts/backfill-content-history-v1.ts --env=prod
+ */
+export function assertEnvFlag(
+  env: string,
+  url: string | undefined,
+): void {
+  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+    console.error(
+      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<prod-svc-key> bun run scripts/backfill-content-history-v1.ts --env=prod`,
     );
     process.exit(1);
   }
@@ -220,6 +260,7 @@ async function main() {
 
   assertEnvComplete(supabaseUrl, supabaseKey);
   assertNotRetiredProject(supabaseUrl);
+  assertEnvFlag(args.env, supabaseUrl);
 
   const supabase = createClient(supabaseUrl!, supabaseKey!);
 

@@ -124,6 +124,7 @@ interface CliArgs {
   json: boolean;
   threshold: number;
   includeSuperseded: boolean;
+  env: string;
 }
 
 // ── CLI arg parsing ──
@@ -140,6 +141,7 @@ function parseArgs(): CliArgs {
   // Operators running this tool are typically debugging — they want to see
   // everything including superseded rows. Pass --exclude-superseded to flip.
   let includeSuperseded = true;
+  let env = '';
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -160,6 +162,11 @@ function parseArgs(): CliArgs {
       includeSuperseded = true;
     } else if (arg === '--exclude-superseded') {
       includeSuperseded = false;
+    } else if (arg === '--env' && args[i + 1]) {
+      env = args[i + 1];
+      i++;
+    } else if (arg.startsWith('--env=')) {
+      env = arg.slice('--env='.length);
     } else if (arg === '--help' || arg === '-h') {
       printUsage();
       process.exit(0);
@@ -178,7 +185,7 @@ function parseArgs(): CliArgs {
   if (isNaN(limit) || limit < 1) limit = 10;
   if (isNaN(threshold) || threshold < 0 || threshold > 1) threshold = 0.25;
 
-  return { query, limit, domain, full, json, threshold, includeSuperseded };
+  return { query, limit, domain, full, json, threshold, includeSuperseded, env };
 }
 
 function printUsage(): void {
@@ -192,6 +199,10 @@ Options:
   --threshold N            Similarity threshold 0-1 (default: 0.25)
   --include-superseded     Include superseded rows (default — diagnostic CLI)
   --exclude-superseded     Hide superseded rows (match app default)
+  --env=prod               Asserts SUPABASE_URL points at current prod
+                           ('rovrymhhffssilaftdwd'). Override invocation:
+                           SUPABASE_URL=<prod-url> SUPABASE_PUBLISHABLE_KEY=<key>
+                           bun run scripts/kb-search.ts "query" --env=prod
   --help, -h               Show this help message
 
 Examples:
@@ -199,7 +210,30 @@ Examples:
   bun run scripts/kb-search.ts "MCP server patterns" --limit 5
   bun run scripts/kb-search.ts "startup metrics" --domain "BUSINESS & STRATEGY"
   bun run scripts/kb-search.ts "RAG vs fine-tuning" --full --json
-  bun run scripts/kb-search.ts "ISO certification" --exclude-superseded`);
+  bun run scripts/kb-search.ts "ISO certification" --exclude-superseded
+  bun run scripts/kb-search.ts "stack" --env=prod   # asserts prod-pointed env`);
+}
+
+// ── --env=prod opt-in ──
+
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+
+/**
+ * --env=prod opt-in: assert SUPABASE_URL is prod-pointed.
+ *
+ * Per WP-S5.2 spec v1.1 §7.1, the flag DOES NOT swap env values — it only
+ * **asserts** the env-resolved URL points at prod. Override via:
+ *   SUPABASE_URL=<prod-url> SUPABASE_PUBLISHABLE_KEY=<prod-key> \
+ *     bun run scripts/kb-search.ts "<query>" --env=prod
+ */
+function assertEnvFlag(env: string, url: string | undefined): void {
+  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+    console.error(
+      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_PUBLISHABLE_KEY=<prod-key> bun run scripts/kb-search.ts "<query>" --env=prod`,
+    );
+    process.exit(1);
+  }
 }
 
 // ── Formatting helpers ──
@@ -222,7 +256,7 @@ function formatDate(dateStr: string | null): string {
 // ── Main ──
 
 async function main(): Promise<void> {
-  const { query, limit, domain, full, json, threshold, includeSuperseded } =
+  const { query, limit, domain, full, json, threshold, includeSuperseded, env } =
     parseArgs();
 
   // Validate env
@@ -242,6 +276,8 @@ async function main(): Promise<void> {
     console.error('Missing OPENAI_API_KEY in environment');
     process.exit(1);
   }
+
+  assertEnvFlag(env, supabaseUrl);
 
   const supabase = createClient(supabaseUrl, supabaseKey);
   const openai = new OpenAI({ apiKey: openaiKey });

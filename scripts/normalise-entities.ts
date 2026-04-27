@@ -13,6 +13,12 @@
  *   bun run scripts/normalise-entities.ts --verbose        # show every change
  *   bun run scripts/normalise-entities.ts --report         # summary report
  *   bun run scripts/normalise-entities.ts --type capability  # filter by type
+ *   bun run scripts/normalise-entities.ts --apply --env=prod   # assert URL is prod-pointed
+ *
+ * --env=prod opt-in (per WP-S5.2 spec v1.1 §7.1) asserts SUPABASE_URL
+ * contains the canonical prod project ref. Override invocation:
+ *   SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<prod-svc-key> \
+ *     bun run scripts/normalise-entities.ts --apply --env=prod
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -51,6 +57,7 @@ interface CliArgs {
   verbose: boolean;
   report: boolean;
   type: string | null;
+  env: string;
 }
 
 function parseArgs(): CliArgs {
@@ -59,6 +66,7 @@ function parseArgs(): CliArgs {
   let verbose = false;
   let report = false;
   let type: string | null = null;
+  let env = '';
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--apply') apply = true;
@@ -69,10 +77,36 @@ function parseArgs(): CliArgs {
     else if (args[i] === '--type' && args[i + 1]) {
       type = args[i + 1];
       i++;
+    } else if (args[i] === '--env' && args[i + 1]) {
+      env = args[i + 1];
+      i++;
+    } else if (args[i].startsWith('--env=')) {
+      env = args[i].slice('--env='.length);
     }
   }
 
-  return { apply, verbose, report, type };
+  return { apply, verbose, report, type, env };
+}
+
+// ── --env=prod opt-in ────────────────────────────────────────────────────────
+
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+
+/**
+ * --env=prod opt-in: assert SUPABASE_URL is prod-pointed.
+ *
+ * Per WP-S5.2 spec v1.1 §7.1, the flag DOES NOT swap env values — it only
+ * **asserts** the env-resolved URL points at prod. Critical for this script
+ * because --apply mass-rewrites entity_mentions + entity_relationships.
+ */
+function assertEnvFlag(env: string, url: string | undefined): void {
+  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+    console.error(
+      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<prod-svc-key> bun run scripts/normalise-entities.ts --apply --env=prod`,
+    );
+    process.exit(1);
+  }
 }
 
 // ── Normalisation pipeline ───────────────────────────────────────────────────
@@ -120,6 +154,8 @@ async function main() {
     console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
     process.exit(1);
   }
+
+  assertEnvFlag(cli.env, supabaseUrl);
 
   const supabase = createClient(supabaseUrl, supabaseKey, {
     auth: { persistSession: false },

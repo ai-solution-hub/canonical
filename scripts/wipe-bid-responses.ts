@@ -10,20 +10,30 @@
  * Turndown service. Useful if preserving responses during the HTML → markdown
  * format migration.
  *
+ * **REQUIRED ENV FLAG (D-22 fix per WP-S5.2 spec v1.1 §6.2 + §9):**
+ *   --env=staging  Default safe target post-flip. Asserts SUPABASE_URL
+ *                  contains `turayklvaunphgbgscat`.
+ *   --env=prod     DANGEROUS — only with explicit confirmation prompt.
+ *                  Asserts SUPABASE_URL contains `rovrymhhffssilaftdwd`.
+ *
+ * The script FAILS FAST if neither flag is passed.
+ *
  * NOTE: When running against the dev DB via Claude Code, invoke with
  * `dangerouslyDisableSandbox: true` to avoid the Bun+sandbox HTTP 204 hang
  * (see CLAUDE.md Gotchas § Supabase).
  *
  * Usage:
- *   bun run scripts/wipe-bid-responses.ts                # wipe all (with 5s safety delay)
- *   bun run scripts/wipe-bid-responses.ts --dry-run      # preview counts without changes
- *   bun run scripts/wipe-bid-responses.ts --convert      # HTML → markdown in-place (no delete)
- *   bun run scripts/wipe-bid-responses.ts --convert --dry-run  # preview conversion
- *   bun run scripts/wipe-bid-responses.ts --yes          # skip 5s safety delay
+ *   bun run scripts/wipe-bid-responses.ts --env=staging               # wipe staging (with 5s safety delay)
+ *   bun run scripts/wipe-bid-responses.ts --env=staging --dry-run     # preview counts without changes
+ *   bun run scripts/wipe-bid-responses.ts --env=staging --convert     # HTML → markdown in-place (no delete)
+ *   bun run scripts/wipe-bid-responses.ts --env=staging --convert --dry-run  # preview conversion
+ *   bun run scripts/wipe-bid-responses.ts --env=staging --yes         # skip 5s safety delay
+ *   bun run scripts/wipe-bid-responses.ts --env=prod                  # WIPE PROD (interactive confirm)
  */
 
 import { createClient } from '@supabase/supabase-js';
 import { parseArgs } from 'util';
+import { createInterface } from 'readline';
 import path from 'path';
 import fs from 'fs';
 
@@ -65,19 +75,28 @@ const { values: args } = parseArgs({
     convert: { type: 'boolean', default: false },
     yes: { type: 'boolean', default: false },
     help: { type: 'boolean', default: false },
+    env: { type: 'string', default: '' },
   },
   strict: true,
 });
 
 if (args.help) {
   console.log(`
-Usage: bun run scripts/wipe-bid-responses.ts [options]
+Usage: bun run scripts/wipe-bid-responses.ts --env=<staging|prod> [options]
+
+Required:
+  --env=staging  Wipe staging (asserts URL contains \`turayklvaunphgbgscat\`)
+  --env=prod     Wipe prod   (asserts URL contains \`rovrymhhffssilaftdwd\`,
+                 requires interactive "wipe prod" confirmation)
 
 Options:
-  --dry-run    Preview row counts without making changes
-  --convert    Convert HTML response_text to markdown in-place (no delete)
-  --yes        Skip the 5-second safety delay before destructive operations
-  --help       Show this help
+  --dry-run      Preview row counts without making changes
+  --convert      Convert HTML response_text to markdown in-place (no delete)
+  --yes          Skip the 5-second safety delay before destructive operations
+  --help         Show this help
+
+The script FAILS FAST if neither --env=staging nor --env=prod is passed —
+this prevents accidental wipes against whichever DB happens to be linked.
 `);
   process.exit(0);
 }
@@ -85,6 +104,14 @@ Options:
 const DRY_RUN = args['dry-run']!;
 const CONVERT = args.convert!;
 const SKIP_DELAY = args.yes!;
+const ENV_FLAG = args.env!;
+
+// Project-ref constants for env-flag assertion (D-22 fix per WP-S5.2 spec
+// v1.1 §6.2 + §9). Hardcoded per spec §7.1 so the script does NOT swap
+// env values — the flag only ASSERTS the env-resolved URL points at the
+// expected env. Operator must provide creds via env vars.
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+const STAGING_PROJECT_REF = 'turayklvaunphgbgscat';
 
 // ── Supabase client ────────────────────────────────────────────────────────
 
@@ -105,7 +132,74 @@ if (!supabaseKey) {
   process.exit(1);
 }
 
+// FAIL-FAST: --env flag is REQUIRED. Without it, we have no way to know
+// whether the linked DB is the intended target — this is the highest-risk
+// destructive script in the repo.
+if (ENV_FLAG !== 'staging' && ENV_FLAG !== 'prod') {
+  console.error(
+    'ERROR: --env=<staging|prod> is REQUIRED. This script wipes ALL bid responses;\n' +
+      'refusing to run without an explicit env flag to prevent accidental destruction.\n\n' +
+      'Examples:\n' +
+      '  bun run scripts/wipe-bid-responses.ts --env=staging\n' +
+      '  bun run scripts/wipe-bid-responses.ts --env=prod   # interactive confirm\n',
+  );
+  process.exit(1);
+}
+
+// Assert URL matches the named env.
+if (ENV_FLAG === 'staging' && !supabaseUrl.includes(STAGING_PROJECT_REF)) {
+  console.error(
+    `ERROR: --env=staging set but SUPABASE_URL does not include '${STAGING_PROJECT_REF}'.\n` +
+      `Current SUPABASE_URL: ${supabaseUrl}\n` +
+      'Update .env.local to point at staging or pass an explicit override:\n' +
+      `  SUPABASE_URL=https://${STAGING_PROJECT_REF}.supabase.co \\\n` +
+      '    SUPABASE_SERVICE_ROLE_KEY=<staging-svc-key> \\\n' +
+      '    bun run scripts/wipe-bid-responses.ts --env=staging',
+  );
+  process.exit(1);
+}
+if (ENV_FLAG === 'prod' && !supabaseUrl.includes(PROD_PROJECT_REF)) {
+  console.error(
+    `ERROR: --env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+      `Current SUPABASE_URL: ${supabaseUrl}\n` +
+      'Override with explicit prod creds:\n' +
+      `  SUPABASE_URL=https://${PROD_PROJECT_REF}.supabase.co \\\n` +
+      '    SUPABASE_SERVICE_ROLE_KEY=<prod-svc-key> \\\n' +
+      '    bun run scripts/wipe-bid-responses.ts --env=prod',
+  );
+  process.exit(1);
+}
+
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+// ── Prod confirmation prompt ───────────────────────────────────────────────
+
+/**
+ * For --env=prod, require the operator to type "wipe prod" verbatim before
+ * any destructive call. Anything else exits 0 (cancelled).
+ *
+ * Skipped in dry-run mode (no destructive side effects).
+ * Skipped in --convert mode (non-destructive — converts in-place).
+ */
+async function confirmProdWipe(): Promise<void> {
+  if (DRY_RUN || CONVERT) return;
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const answer = await new Promise<string>((resolveAnswer) => {
+    rl.question(
+      'WARNING: Wiping prod bid_responses. Type "wipe prod" to confirm: ',
+      (input) => {
+        rl.close();
+        resolveAnswer(input);
+      },
+    );
+  });
+
+  if (answer.trim() !== 'wipe prod') {
+    console.error('Confirmation phrase did not match. Aborting.');
+    process.exit(0);
+  }
+}
 
 // ── Count helper ───────────────────────────────────────────────────────────
 
@@ -275,6 +369,13 @@ async function wipeResponses(): Promise<void> {
 
 async function main(): Promise<void> {
   console.log('=== Bid Response Wipe/Convert Script ===\n');
+  console.log(`Env: ${ENV_FLAG}`);
+  console.log(`Target: ${supabaseUrl}\n`);
+
+  // Prod requires interactive confirmation before any destructive call.
+  if (ENV_FLAG === 'prod') {
+    await confirmProdWipe();
+  }
 
   if (CONVERT) {
     console.log(`Mode: convert (HTML → markdown)${DRY_RUN ? ' [DRY RUN]' : ''}\n`);

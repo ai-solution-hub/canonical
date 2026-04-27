@@ -207,6 +207,7 @@ interface CliArgs {
   output: string | null;
   itemIds: string[] | null;
   dryRun: boolean;
+  env: string;
 }
 
 // ──────────────────────────────────────────
@@ -219,8 +220,10 @@ function parseArgs(): CliArgs {
   let output: string | null = null;
   let itemIds: string[] | null = null;
   let dryRun = false;
+  let env = '';
 
-  for (const arg of args) {
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
     if (arg.startsWith('--mode=')) {
       const value = arg.slice('--mode='.length);
       if (value !== 'snapshot' && value !== 'run') {
@@ -234,6 +237,11 @@ function parseArgs(): CliArgs {
       itemIds = arg.slice('--item-ids='.length).split(',').map(s => s.trim()).filter(Boolean);
     } else if (arg === '--dry-run') {
       dryRun = true;
+    } else if (arg.startsWith('--env=')) {
+      env = arg.slice('--env='.length);
+    } else if (arg === '--env' && args[i + 1]) {
+      env = args[i + 1];
+      i++;
     } else if (arg === '--help' || arg === '-h') {
       printUsage();
       process.exit(0);
@@ -253,7 +261,7 @@ function parseArgs(): CliArgs {
     process.exit(2);
   }
 
-  return { mode, output, itemIds, dryRun };
+  return { mode, output, itemIds, dryRun, env };
 }
 
 function printUsage(): void {
@@ -268,14 +276,45 @@ Options:
   --output=<path>   Write output to file (default: stdout for snapshot).
   --item-ids=<csv>  Comma-separated item ID prefixes (default: all holds items).
   --dry-run         Run mode only: report what would run without classifying.
+  --env=prod        Asserts SUPABASE_URL points at current prod
+                    ('rovrymhhffssilaftdwd'). Override invocation:
+                    SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key>
+                    bun run scripts/eval-holder-rule-ts.ts --mode=run --env=prod
   --help            Show this help message.
+
+DESTRUCTIVE WARNING: --mode=run rebuilds entity_mentions on the live DB
+via classifyContent({ force: true }). Always pass --env=prod when running
+against production to assert URL is prod-pointed.
 
 Examples:
   bun run scripts/eval-holder-rule-ts.ts --mode=snapshot --output=docs/audits/ts-eval-preflight-2026-04-25.json
-  bun run scripts/eval-holder-rule-ts.ts --mode=run
+  bun run scripts/eval-holder-rule-ts.ts --mode=run --env=prod
   bun run scripts/eval-holder-rule-ts.ts --mode=run --item-ids=9e8fafee,7e511dbc --dry-run
 `.trim();
   process.stderr.write(usage + '\n');
+}
+
+// ──────────────────────────────────────────
+// --env=prod opt-in
+// ──────────────────────────────────────────
+
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+
+/**
+ * --env=prod opt-in: assert SUPABASE_URL is prod-pointed.
+ *
+ * Per WP-S5.2 spec v1.1 §7.1, the flag DOES NOT swap env values — it only
+ * **asserts** the env-resolved URL points at prod. Critical for this
+ * script because --mode=run is destructive (rebuilds entity_mentions).
+ */
+function assertEnvFlag(env: string, url: string | undefined): void {
+  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+    logError(
+      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<prod-svc-key> bun run scripts/eval-holder-rule-ts.ts --mode=run --env=prod`,
+    );
+    process.exit(2);
+  }
 }
 
 // ──────────────────────────────────────────
@@ -982,6 +1021,8 @@ Overall:                ${allPassed ? 'ALL PASSED' : 'FAILED'}
 
 async function main(): Promise<void> {
   const args = parseArgs();
+  // Assert --env=prod when set BEFORE creating client / running anything.
+  assertEnvFlag(args.env, process.env.SUPABASE_URL);
   const supabase = createServiceRoleClient();
 
   if (args.mode === 'snapshot') {

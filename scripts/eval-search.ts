@@ -241,6 +241,29 @@ async function main() {
   const caseFilter = args.includes('--case')
     ? args[args.indexOf('--case') + 1]
     : null;
+  // Supports both `--env prod` (space-separated) and `--env=prod` (=-form).
+  let envFlag = '';
+  if (args.includes('--env')) {
+    envFlag = args[args.indexOf('--env') + 1] ?? '';
+  }
+  const envEqArg = args.find((a) => a.startsWith('--env='));
+  if (envEqArg) {
+    envFlag = envEqArg.slice('--env='.length);
+  }
+
+  // --env=prod opt-in: assert SUPABASE_URL is prod-pointed (per WP-S5.2 spec v1.1 §7.1).
+  // This script runs hybrid_search RPC against the prod KB — staging would 0-hit
+  // (data-empty) so use --env=prod to assert URL is correctly prod-pointed.
+  const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+  const envUrl =
+    process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  if (envFlag === 'prod' && !(envUrl ?? '').includes(PROD_PROJECT_REF)) {
+    console.error(
+      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<prod-svc-key> bun run scripts/eval-search.ts --env=prod`,
+    );
+    process.exit(1);
+  }
 
   // Check for OpenAI API key
   if (!process.env.OPENAI_API_KEY) {
