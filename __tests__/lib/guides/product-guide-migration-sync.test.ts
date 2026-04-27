@@ -41,7 +41,12 @@ const EXPECTED_SUBTOPIC_SLUGS = [
   'cyber-security',
   'data-protection',
   'deployment',
+  // 'financial' retained for the historical migration file
+  // (20260422174420_wire_product_guide_sections.sql) — that file uses the
+  // pre-merge slug. Live DB rows have since migrated to 'financial-standing'
+  // via S203 WP-D taxonomy-financial-merge-spec.md.
   'financial',
+  'financial-standing',
   'functionality',
   'integration',
   'references',

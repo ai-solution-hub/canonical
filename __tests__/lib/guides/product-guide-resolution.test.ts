@@ -62,7 +62,7 @@ const SECTION_FILTER_MAP: Array<{
   { displayOrder: 3, sectionName: 'Differentiators', subtopicFilter: 'approach', expectedLayer: 'sales_brief' },
   { displayOrder: 4, sectionName: 'Target Audience', subtopicFilter: 'company-info', expectedLayer: 'sales_brief' },
   { displayOrder: 5, sectionName: 'Use Cases', subtopicFilter: 'functionality', expectedLayer: 'bid_detail' },
-  { displayOrder: 6, sectionName: 'Pricing', subtopicFilter: 'financial', expectedLayer: 'company_reference' },
+  { displayOrder: 6, sectionName: 'Pricing', subtopicFilter: 'financial-standing', expectedLayer: 'company_reference' },
   { displayOrder: 7, sectionName: 'Objection Handling', subtopicFilter: 'approach', expectedLayer: 'sales_brief' },
   { displayOrder: 8, sectionName: 'Demo Flow', subtopicFilter: 'usability', expectedLayer: 'sales_brief' },
   { displayOrder: 9, sectionName: 'Competitor Comparison', subtopicFilter: 'standards', expectedLayer: 'bid_detail' },
@@ -86,7 +86,7 @@ const VALID_SUBTOPICS = new Set([
   // product-feature domain
   'functionality', 'reporting', 'technical', 'usability',
   // corporate domain
-  'company-info', 'financial', 'insurance', 'references', 'staffing',
+  'company-info', 'insurance', 'references', 'staffing',
   'methodology', 'supply-chain', 'financial-standing',
   // security domain
   'access-control', 'cyber-security', 'data-protection', 'encryption', 'iso-27001',
@@ -107,7 +107,7 @@ const VALID_SUBTOPICS = new Set([
  * but content loading is pending.
  */
 const CONTENT_POPULATION_PENDING_SECTIONS = new Set([
-  'Pricing',        // financial + company_reference
+  'Pricing',        // financial-standing + company_reference
   'Data Handling',  // data-protection + company_reference
   'Certifications', // certification + company_reference
 ]);
@@ -253,7 +253,7 @@ describe('Product Guide Section Semantic Mapping', () => {
     const companyRefSections = SECTION_FILTER_MAP.filter(s => s.expectedLayer === 'company_reference');
     const companySubtopics = new Set(companyRefSections.map(s => s.subtopicFilter));
     expect(companySubtopics).toContain('sla');
-    expect(companySubtopics).toContain('financial');
+    expect(companySubtopics).toContain('financial-standing');
     expect(companySubtopics).toContain('data-protection');
     expect(companySubtopics).toContain('certification');
   });
@@ -435,7 +435,7 @@ describe('Content-Population Pending Sections', () => {
   it('pending sections have semantically correct subtopic_filter values', () => {
     // Even though these sections have 0 items today, the subtopic is intentional
     const expectedMapping: Record<string, string> = {
-      'Pricing': 'financial',
+      'Pricing': 'financial-standing',
       'Data Handling': 'data-protection',
       'Certifications': 'certification',
     };

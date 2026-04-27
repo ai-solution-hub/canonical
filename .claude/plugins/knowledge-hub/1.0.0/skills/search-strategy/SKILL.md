@@ -97,7 +97,7 @@ The KB uses 15 domains. Use the domain slug when filtering:
 | Standards, regulatory, audit, certification, health and safety, environmental, modern slavery, equalities, safeguarding | compliance |
 | Deployment, migration, onboarding, integration | implementation |
 | Sla, helpdesk, maintenance, incident | support |
-| Company info, financial, insurance, references, staffing, supply chain, financial standing, methodology | corporate |
+| Company info, insurance, references, staffing, supply chain, financial standing, methodology | corporate |
 | Functionality, technical, reporting, usability | product-feature |
 | Approach, project management, quality, delivery | methodology |
 |  | safeguarding-child-protection |

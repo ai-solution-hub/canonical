@@ -422,7 +422,7 @@
       "expectations": {
         "min_results": 2,
         "expected_domains": ["corporate"],
-        "expected_subtopics": ["insurance", "financial"],
+        "expected_subtopics": ["insurance", "financial-standing"],
         "expected_content_types": ["q_a_pair"],
         "must_include_titles": [],
         "notes": "Keyword-overlap test for corporate/insurance. These are highly specific insurance terms that should map directly to corporate/insurance items. May also surface corporate/financial items about financial standing and risk management. Tests whether the search precisely matches financial/insurance terminology."

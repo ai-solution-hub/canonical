@@ -132,7 +132,7 @@ CATEGORY_KEYWORDS: dict[str, dict[str, list[str]]] = {
             "employees", "headcount", "turnover", "revenue",
             "annual report", "company registration", "companies house",
         ],
-        "financial": [
+        "financial-standing": [
             "financial", "accounts", "profit", "loss", "balance sheet",
             "credit rating", "financial standing", "insolvency",
             "parent company", "subsidiary",

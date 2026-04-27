@@ -337,9 +337,11 @@ conventions: `docs/continuation-prompts/README.md`.
 - **No barrel re-exports:** Always use direct file imports
   (`@/lib/bid/helpers`), never import from index files.
 - **Taxonomy dual-source:** App uses DB-driven taxonomy
-  (`contexts/taxonomy-context.tsx`); `lib/taxonomy/taxonomy.ts` remains for the
-  Python pipeline. After taxonomy changes, run `bun run sync:taxonomy` to
-  regenerate classification prompt and plugin files. DB is single source of truth.
+  (`contexts/taxonomy-context.tsx`); `lib/taxonomy/taxonomy.ts` is now a
+  24-line re-export shim for content types and platforms only — Python
+  pipeline reads taxonomy from `scripts/tests/fixtures/taxonomy_snapshot.json`.
+  After taxonomy changes, run `bun run sync:taxonomy` to regenerate classification
+  prompt and plugin files. DB is single source of truth.
 - **Content review vs governance review:** `/review` = content quality.
   `/api/governance/review` = freshness/ownership. Separate workflows.
 - **"Change Reports" not "Digest":** User-facing label is "Change Reports";

@@ -21,7 +21,7 @@ Domain (Level 1)
 **Domains** are broad knowledge areas (e.g., Security, Compliance, Methodology). Each domain contains multiple **subtopics** that provide finer-grained classification.
 
 <!-- TAXONOMY_INJECT_START -->
-### Full Taxonomy (15 domains, 57 subtopics)
+### Full Taxonomy (15 domains, 56 subtopics)
 
 ```
 Security (5 subtopics)
@@ -54,9 +54,8 @@ Support (4 subtopics)
   ├── maintenance (Scheduled maintenance, patching, updates, system health monitoring)
   └── incident (Incident response, disaster recovery, business continuity, root cause analysis)
 
-Corporate (8 subtopics)
+Corporate (7 subtopics)
   ├── company-info (Company overview, history, mission, organisational structure)
-  ├── financial (Financial statements, turnover, profitability, financial stability)
   ├── insurance (Professional indemnity, public liability, cyber insurance, coverage details)
   ├── references (Client references, case studies, testimonials, similar contract experience)
   ├── staffing (Team structure, key personnel, CVs, recruitment and retention)

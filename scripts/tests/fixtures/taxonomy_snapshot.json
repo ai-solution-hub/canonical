@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-24T11:04:28.186Z",
+  "generated_at": "2026-04-27T22:37:28.559Z",
   "domains": [
     {
       "id": "17d9f23f-1c4f-4d6d-b9c3-f37c178a547e",
@@ -117,12 +117,12 @@
       "description": "Company overview, history, mission, organisational structure"
     },
     {
-      "id": "e07d008f-f7b8-43d6-9190-2a2f4b52cbbe",
-      "domain_id": "d234988f-f548-4ea6-afbd-3aa7969674bd",
-      "name": "sla",
+      "id": "de0bd12e-607c-43e2-bfa3-e372096ff66e",
+      "domain_id": "17d9f23f-1c4f-4d6d-b9c3-f37c178a547e",
+      "name": "data-protection",
       "display_order": 1,
       "provenance": "baseline",
-      "description": "Service level agreements, uptime guarantees, response times, performance targets"
+      "description": "GDPR, data handling, privacy policies, data retention and disposal"
     },
     {
       "id": "ff5e3789-fc77-4904-9fde-ed26392fc224",
@@ -133,12 +133,20 @@
       "description": "Solution rollout, environment setup, go-live planning, deployment processes"
     },
     {
-      "id": "de0bd12e-607c-43e2-bfa3-e372096ff66e",
-      "domain_id": "17d9f23f-1c4f-4d6d-b9c3-f37c178a547e",
-      "name": "data-protection",
+      "id": "e07d008f-f7b8-43d6-9190-2a2f4b52cbbe",
+      "domain_id": "d234988f-f548-4ea6-afbd-3aa7969674bd",
+      "name": "sla",
       "display_order": 1,
       "provenance": "baseline",
-      "description": "GDPR, data handling, privacy policies, data retention and disposal"
+      "description": "Service level agreements, uptime guarantees, response times, performance targets"
+    },
+    {
+      "id": "de5d47f0-6f59-4d13-9cb3-a9561230bfc0",
+      "domain_id": "609bbcc4-ea14-4d74-b53d-d074ddce19a4",
+      "name": "functionality",
+      "display_order": 1,
+      "provenance": "baseline",
+      "description": "Core product features, capabilities, modules, feature descriptions"
     },
     {
       "id": "451b58a4-c34e-4926-b897-5149f819594a",
@@ -157,12 +165,28 @@
       "description": "Industry standards compliance, best practice frameworks, governance requirements"
     },
     {
-      "id": "de5d47f0-6f59-4d13-9cb3-a9561230bfc0",
-      "domain_id": "609bbcc4-ea14-4d74-b53d-d074ddce19a4",
-      "name": "functionality",
-      "display_order": 1,
+      "id": "14f33f1e-c69b-4ffe-a6d5-841cdecdd8a0",
+      "domain_id": "7ea9e1ca-0a99-48e4-8a38-0aff9b910e7b",
+      "name": "migration",
+      "display_order": 2,
       "provenance": "baseline",
-      "description": "Core product features, capabilities, modules, feature descriptions"
+      "description": "Data migration, system transition, legacy replacement, cutover planning"
+    },
+    {
+      "id": "51294099-2a34-4f59-b5bc-853ee8e7772b",
+      "domain_id": "609bbcc4-ea14-4d74-b53d-d074ddce19a4",
+      "name": "technical",
+      "display_order": 2,
+      "provenance": "baseline",
+      "description": "Technical architecture, infrastructure, hosting, technology stack"
+    },
+    {
+      "id": "b7486e15-de9b-4e85-9e01-ed1d0ba0df53",
+      "domain_id": "8d6c0b63-f77c-4021-a54b-15c07fa04420",
+      "name": "regulatory",
+      "display_order": 2,
+      "provenance": "baseline",
+      "description": "Legal and regulatory requirements, sector-specific regulations, compliance obligations"
     },
     {
       "id": "4ec4990d-135a-4cd3-b582-c41ce4b644d2",
@@ -181,60 +205,12 @@
       "description": "Threat detection, vulnerability management, penetration testing, security monitoring"
     },
     {
-      "id": "b7486e15-de9b-4e85-9e01-ed1d0ba0df53",
-      "domain_id": "8d6c0b63-f77c-4021-a54b-15c07fa04420",
-      "name": "regulatory",
-      "display_order": 2,
-      "provenance": "baseline",
-      "description": "Legal and regulatory requirements, sector-specific regulations, compliance obligations"
-    },
-    {
-      "id": "14f33f1e-c69b-4ffe-a6d5-841cdecdd8a0",
-      "domain_id": "7ea9e1ca-0a99-48e4-8a38-0aff9b910e7b",
-      "name": "migration",
-      "display_order": 2,
-      "provenance": "baseline",
-      "description": "Data migration, system transition, legacy replacement, cutover planning"
-    },
-    {
       "id": "bd79809d-2e72-4e34-8165-4876a5d28fbc",
       "domain_id": "d234988f-f548-4ea6-afbd-3aa7969674bd",
       "name": "helpdesk",
       "display_order": 2,
       "provenance": "baseline",
       "description": "Support desk operations, ticket management, escalation procedures, user support"
-    },
-    {
-      "id": "111bbaea-6070-4100-ba6f-99cf388e0a32",
-      "domain_id": "2cf9db4f-fa8d-4c7b-97ce-c3ce6f966f1b",
-      "name": "financial",
-      "display_order": 2,
-      "provenance": "baseline",
-      "description": "Financial statements, turnover, profitability, financial stability"
-    },
-    {
-      "id": "51294099-2a34-4f59-b5bc-853ee8e7772b",
-      "domain_id": "609bbcc4-ea14-4d74-b53d-d074ddce19a4",
-      "name": "technical",
-      "display_order": 2,
-      "provenance": "baseline",
-      "description": "Technical architecture, infrastructure, hosting, technology stack"
-    },
-    {
-      "id": "2f8bf860-ad6c-48d0-9835-7c13f51c5a54",
-      "domain_id": "d234988f-f548-4ea6-afbd-3aa7969674bd",
-      "name": "maintenance",
-      "display_order": 3,
-      "provenance": "baseline",
-      "description": "Scheduled maintenance, patching, updates, system health monitoring"
-    },
-    {
-      "id": "338e233d-a056-4267-b50d-304ea9aa90b8",
-      "domain_id": "17d9f23f-1c4f-4d6d-b9c3-f37c178a547e",
-      "name": "encryption",
-      "display_order": 3,
-      "provenance": "baseline",
-      "description": "Data encryption at rest and in transit, key management, cryptographic standards"
     },
     {
       "id": "944db61d-3ed2-4938-8381-a00b4c71c5ca",
@@ -253,6 +229,30 @@
       "description": "Reporting capabilities, dashboards, analytics, management information"
     },
     {
+      "id": "2f8bf860-ad6c-48d0-9835-7c13f51c5a54",
+      "domain_id": "d234988f-f548-4ea6-afbd-3aa7969674bd",
+      "name": "maintenance",
+      "display_order": 3,
+      "provenance": "baseline",
+      "description": "Scheduled maintenance, patching, updates, system health monitoring"
+    },
+    {
+      "id": "338e233d-a056-4267-b50d-304ea9aa90b8",
+      "domain_id": "17d9f23f-1c4f-4d6d-b9c3-f37c178a547e",
+      "name": "encryption",
+      "display_order": 3,
+      "provenance": "baseline",
+      "description": "Data encryption at rest and in transit, key management, cryptographic standards"
+    },
+    {
+      "id": "b367636e-a9d1-453c-9801-7aa1cc1b6488",
+      "domain_id": "8d6c0b63-f77c-4021-a54b-15c07fa04420",
+      "name": "audit",
+      "display_order": 3,
+      "provenance": "baseline",
+      "description": "Audit processes, evidence gathering, compliance reporting, third-party audits"
+    },
+    {
       "id": "5ad3bdc7-f536-4559-9934-baacd028a36b",
       "domain_id": "7ea9e1ca-0a99-48e4-8a38-0aff9b910e7b",
       "name": "onboarding",
@@ -269,44 +269,12 @@
       "description": "Professional indemnity, public liability, cyber insurance, coverage details"
     },
     {
-      "id": "b367636e-a9d1-453c-9801-7aa1cc1b6488",
-      "domain_id": "8d6c0b63-f77c-4021-a54b-15c07fa04420",
-      "name": "audit",
-      "display_order": 3,
-      "provenance": "baseline",
-      "description": "Audit processes, evidence gathering, compliance reporting, third-party audits"
-    },
-    {
-      "id": "00e6192a-c6d0-4fe8-9c3a-bf89b48f0776",
-      "domain_id": "8d6c0b63-f77c-4021-a54b-15c07fa04420",
-      "name": "certification",
-      "display_order": 4,
-      "provenance": "baseline",
-      "description": "Professional certifications, organisational accreditations, quality marks"
-    },
-    {
-      "id": "5665e422-c718-47f6-a3f7-b0f7a7eeca02",
-      "domain_id": "d234988f-f548-4ea6-afbd-3aa7969674bd",
-      "name": "incident",
-      "display_order": 4,
-      "provenance": "baseline",
-      "description": "Incident response, disaster recovery, business continuity, root cause analysis"
-    },
-    {
       "id": "9c5f4c1c-a509-41bd-a734-c24fb69dc875",
       "domain_id": "047b2b0f-59a1-4242-bbc8-b912c57d29aa",
       "name": "delivery",
       "display_order": 4,
       "provenance": "baseline",
       "description": "Delivery timelines, phased rollout, resource planning, capacity management"
-    },
-    {
-      "id": "d63daabd-c690-4f11-9244-d4dff43633f6",
-      "domain_id": "2cf9db4f-fa8d-4c7b-97ce-c3ce6f966f1b",
-      "name": "references",
-      "display_order": 4,
-      "provenance": "baseline",
-      "description": "Client references, case studies, testimonials, similar contract experience"
     },
     {
       "id": "844b1177-4da2-40b6-bd13-83b14c4456d0",
@@ -317,12 +285,36 @@
       "description": "Authentication, authorisation, role-based access, multi-factor authentication"
     },
     {
+      "id": "00e6192a-c6d0-4fe8-9c3a-bf89b48f0776",
+      "domain_id": "8d6c0b63-f77c-4021-a54b-15c07fa04420",
+      "name": "certification",
+      "display_order": 4,
+      "provenance": "baseline",
+      "description": "Professional certifications, organisational accreditations, quality marks"
+    },
+    {
       "id": "d9c2678f-074b-4680-ba71-516246cfe6f2",
       "domain_id": "7ea9e1ca-0a99-48e4-8a38-0aff9b910e7b",
       "name": "integration",
       "display_order": 4,
       "provenance": "baseline",
       "description": "API integration, third-party systems, data exchange, interoperability"
+    },
+    {
+      "id": "5665e422-c718-47f6-a3f7-b0f7a7eeca02",
+      "domain_id": "d234988f-f548-4ea6-afbd-3aa7969674bd",
+      "name": "incident",
+      "display_order": 4,
+      "provenance": "baseline",
+      "description": "Incident response, disaster recovery, business continuity, root cause analysis"
+    },
+    {
+      "id": "d63daabd-c690-4f11-9244-d4dff43633f6",
+      "domain_id": "2cf9db4f-fa8d-4c7b-97ce-c3ce6f966f1b",
+      "name": "references",
+      "display_order": 4,
+      "provenance": "baseline",
+      "description": "Client references, case studies, testimonials, similar contract experience"
     },
     {
       "id": "69583689-3a44-46ba-a9a3-b009043858e5",
@@ -357,20 +349,20 @@
       "description": "Health and safety policy, risk assessments, incident reporting, RIDDOR, CDM regulations"
     },
     {
-      "id": "e2ab8b62-e838-4e4b-b6ab-466a411fcd3b",
-      "domain_id": "8d6c0b63-f77c-4021-a54b-15c07fa04420",
-      "name": "environmental",
-      "display_order": 6,
-      "provenance": "baseline",
-      "description": "Carbon reduction plan, net zero targets, environmental policy, ISO 14001, sustainability, PPN 06/20"
-    },
-    {
       "id": "ae221eeb-52e1-4a9e-b2a9-3a1664c75909",
       "domain_id": "2cf9db4f-fa8d-4c7b-97ce-c3ce6f966f1b",
       "name": "supply-chain",
       "display_order": 6,
       "provenance": "baseline",
       "description": "Supply chain management, prompt payment, subcontractor oversight, PPN 02/23"
+    },
+    {
+      "id": "e2ab8b62-e838-4e4b-b6ab-466a411fcd3b",
+      "domain_id": "8d6c0b63-f77c-4021-a54b-15c07fa04420",
+      "name": "environmental",
+      "display_order": 6,
+      "provenance": "baseline",
+      "description": "Carbon reduction plan, net zero targets, environmental policy, ISO 14001, sustainability, PPN 06/20"
     },
     {
       "id": "d3318f02-34f4-4d3f-b923-e94d9bbf4e64",
@@ -413,12 +405,12 @@
       "description": "Method statements, service delivery approach, working arrangements, key steps, efficiencies, risk mitigation"
     },
     {
-      "id": "5decb72b-20fb-4c56-8526-3fac940ca7ad",
-      "domain_id": "dee601a0-7c43-4470-acea-da0cbfc1601c",
-      "name": "competitor-products",
+      "id": "02d18662-6a8b-4f40-af72-379fca735654",
+      "domain_id": "43326cbe-bbe3-47f5-a70e-df314bfa966d",
+      "name": "mat-leadership",
       "display_order": 10,
       "provenance": "client",
-      "description": "Competitor product launches, service offerings, feature comparisons"
+      "description": "Multi-academy trust CEO appointments, board changes, leadership announcements"
     },
     {
       "id": "e1ac3afe-9b32-4200-a78d-f113d6c61f91",
@@ -429,20 +421,12 @@
       "description": "KCSIE statutory guidance, safeguarding requirements for schools and colleges"
     },
     {
-      "id": "02d18662-6a8b-4f40-af72-379fca735654",
-      "domain_id": "43326cbe-bbe3-47f5-a70e-df314bfa966d",
-      "name": "mat-leadership",
+      "id": "5decb72b-20fb-4c56-8526-3fac940ca7ad",
+      "domain_id": "dee601a0-7c43-4470-acea-da0cbfc1601c",
+      "name": "competitor-products",
       "display_order": 10,
       "provenance": "client",
-      "description": "Multi-academy trust CEO appointments, board changes, leadership announcements"
-    },
-    {
-      "id": "e07f9839-1777-4a24-919d-a1023d68d66d",
-      "domain_id": "dee601a0-7c43-4470-acea-da0cbfc1601c",
-      "name": "competitor-market-activity",
-      "display_order": 20,
-      "provenance": "client",
-      "description": "Competitor contract wins, partnerships, market positioning"
+      "description": "Competitor product launches, service offerings, feature comparisons"
     },
     {
       "id": "4aa353f9-3675-434a-bc76-d087df977463",
@@ -461,12 +445,12 @@
       "description": "MAT mergers, trust splits, school transfers between trusts"
     },
     {
-      "id": "816c858a-7bd1-4379-97b3-00636827cf6c",
-      "domain_id": "43326cbe-bbe3-47f5-a70e-df314bfa966d",
-      "name": "mat-audits-ofsted",
-      "display_order": 30,
+      "id": "e07f9839-1777-4a24-919d-a1023d68d66d",
+      "domain_id": "dee601a0-7c43-4470-acea-da0cbfc1601c",
+      "name": "competitor-market-activity",
+      "display_order": 20,
       "provenance": "client",
-      "description": "Ofsted inspection outcomes for MATs, ESFA financial audits, trust reviews"
+      "description": "Competitor contract wins, partnerships, market positioning"
     },
     {
       "id": "527b9f35-e010-4e29-983d-631938b62e13",
@@ -477,20 +461,20 @@
       "description": "Health and Social Care Act, CQC regulations, care standards legislation"
     },
     {
+      "id": "816c858a-7bd1-4379-97b3-00636827cf6c",
+      "domain_id": "43326cbe-bbe3-47f5-a70e-df314bfa966d",
+      "name": "mat-audits-ofsted",
+      "display_order": 30,
+      "provenance": "client",
+      "description": "Ofsted inspection outcomes for MATs, ESFA financial audits, trust reviews"
+    },
+    {
       "id": "4006633c-bb85-4e8a-acc6-e049408449d1",
       "domain_id": "dee601a0-7c43-4470-acea-da0cbfc1601c",
       "name": "competitor-leadership",
       "display_order": 30,
       "provenance": "client",
       "description": "Competitor leadership changes, strategic announcements, organisational restructuring"
-    },
-    {
-      "id": "468225bd-36f0-43b5-bb29-d78b3fcd3a4e",
-      "domain_id": "43326cbe-bbe3-47f5-a70e-df314bfa966d",
-      "name": "education-sector-audits",
-      "display_order": 40,
-      "provenance": "client",
-      "description": "School inspections, college reviews, university quality assessments"
     },
     {
       "id": "8019bd80-9d44-4574-a407-0bc8b6f87e3b",
@@ -509,12 +493,12 @@
       "description": "Sector market trends, growth areas, emerging technologies, spending patterns"
     },
     {
-      "id": "8afe5bca-5bc5-4564-8adc-a3633eeb271f",
-      "domain_id": "dee601a0-7c43-4470-acea-da0cbfc1601c",
-      "name": "procurement-activity",
-      "display_order": 50,
+      "id": "468225bd-36f0-43b5-bb29-d78b3fcd3a4e",
+      "domain_id": "43326cbe-bbe3-47f5-a70e-df314bfa966d",
+      "name": "education-sector-audits",
+      "display_order": 40,
       "provenance": "client",
-      "description": "Public sector procurement notices, framework opportunities, tender activity"
+      "description": "School inspections, college reviews, university quality assessments"
     },
     {
       "id": "8b87ed2d-6455-4659-9f13-c476cc09cf34",
@@ -523,6 +507,14 @@
       "display_order": 50,
       "provenance": "client",
       "description": "Education funding formulae, ESFA allocations, grant conditions, pupil premium"
+    },
+    {
+      "id": "8afe5bca-5bc5-4564-8adc-a3633eeb271f",
+      "domain_id": "dee601a0-7c43-4470-acea-da0cbfc1601c",
+      "name": "procurement-activity",
+      "display_order": 50,
+      "provenance": "client",
+      "description": "Public sector procurement notices, framework opportunities, tender activity"
     },
     {
       "id": "c75516a0-a66e-4134-94c9-2a1219cc1f83",

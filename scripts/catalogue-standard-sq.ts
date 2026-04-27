@@ -7,6 +7,12 @@
  * Each question becomes a requirement row with taxonomy mapping, requirement
  * type, matching keywords, and pre-computed embedding.
  *
+ * Historical seed-script. Do not re-run. Slugs were normalised post-import via
+ * taxonomy-financial-merge-spec.md (S203 WP-D1) — see migration
+ * `20260427223323_merge_taxonomy_financial_into_financial_standing.sql`. The
+ * inline `'financial'` literals below reflect the historical state at import
+ * time and must not be edited.
+ *
  * Usage:
  *   bun run scripts/catalogue_standard_sq.ts                   # full insert with embeddings
  *   bun run scripts/catalogue_standard_sq.ts --dry-run          # preview without inserting
