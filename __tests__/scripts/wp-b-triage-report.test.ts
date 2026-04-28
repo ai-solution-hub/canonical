@@ -263,7 +263,7 @@ interface MockRow {
 interface ChainCallLog {
   table: string | null;
   selectArgs: string[];
-  isCalls: Array<[string, unknown]>;
+  filterCalls: Array<[string, string, unknown]>;
   orderCalls: Array<[string, unknown]>;
   limitCalls: number[];
 }
@@ -272,7 +272,7 @@ function makeMockSupabase(rows: MockRow[], err: Error | null = null) {
   const log: ChainCallLog = {
     table: null,
     selectArgs: [],
-    isCalls: [],
+    filterCalls: [],
     orderCalls: [],
     limitCalls: [],
   };
@@ -288,8 +288,8 @@ function makeMockSupabase(rows: MockRow[], err: Error | null = null) {
       log.selectArgs.push(cols);
       return chain;
     }),
-    is: vi.fn((col: string, val: unknown) => {
-      log.isCalls.push([col, val]);
+    filter: vi.fn((col: string, op: string, val: unknown) => {
+      log.filterCalls.push([col, op, val]);
       return chain;
     }),
     order: vi.fn((col: string, opts: unknown) => {
@@ -316,7 +316,7 @@ function makeMockSupabase(rows: MockRow[], err: Error | null = null) {
 }
 
 describe('findNullProvenanceRows', () => {
-  it('builds the candidate query: from(content_items) → is(metadata->>ingestion_source, null) → order(created_at ASC)', async () => {
+  it("builds the candidate query: from(content_items) → filter(metadata->>ingestion_source, 'is', null) → order(created_at ASC)", async () => {
     const { supabase, log } = makeMockSupabase([]);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -338,7 +338,12 @@ describe('findNullProvenanceRows', () => {
     expect(select).toContain('embedding_model');
 
     // NULL-provenance filter — spec §6.7 + plan §4.1 candidate query.
-    expect(log.isCalls).toEqual([['metadata->>ingestion_source', null]]);
+    // Use .filter() (canonical PostgREST form) for JSONB path operands;
+    // .is(jsonb-path, null) has no live-DB-verified prior art in the
+    // codebase. WP3 verifier M-finding.
+    expect(log.filterCalls).toEqual([
+      ['metadata->>ingestion_source', 'is', null],
+    ]);
 
     // Sort: created_at ASC.
     expect(log.orderCalls).toEqual([['created_at', { ascending: true }]]);

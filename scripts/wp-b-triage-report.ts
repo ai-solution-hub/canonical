@@ -213,7 +213,7 @@ export async function findNullProvenanceRows(
     .select(
       'id, title, source_url, source_file, created_by, created_at, classification_model, embedding_model',
     )
-    .is('metadata->>ingestion_source', null)
+    .filter('metadata->>ingestion_source', 'is', null)
     .order('created_at', { ascending: true });
 
   if (limit !== null) {

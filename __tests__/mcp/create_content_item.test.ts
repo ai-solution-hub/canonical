@@ -153,6 +153,33 @@ const LONG_CONTENT =
 // Tests
 // ---------------------------------------------------------------------------
 
+/**
+ * Find the content_items insert from the shared `chain.insert` mock.
+ * The handler issues two inserts via the shared chain — first into
+ * `content_items` (which carries `content_type`), then into
+ * `content_history` (which does not). Indexing by `[0]` is brittle if the
+ * order ever changes (e.g., a pre-insert audit row is added). Filter by
+ * the `content_type` field to make the lookup order-independent.
+ *
+ * eslint-disable-next-line @typescript-eslint/no-explicit-any
+ */
+function findContentItemsInsert(insertMock: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  mock: { calls: any[][] };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+}): any {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const call = insertMock.mock.calls.find((args: any[]) => {
+    const payload = args?.[0];
+    return (
+      payload != null &&
+      typeof payload === 'object' &&
+      'content_type' in payload
+    );
+  });
+  return call?.[0];
+}
+
 describe('MCP create_content_item — S205 WP-A1 typed provenance', () => {
   let createTool: RegisteredTool['handler'];
   let createConfig: RegisteredTool['config'];
@@ -204,7 +231,7 @@ describe('MCP create_content_item — S205 WP-A1 typed provenance', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const insertCall = mocks.chain.insert.mock.calls[0][0];
+      const insertCall = findContentItemsInsert(mocks.chain.insert);
       expect(insertCall.source_url).toBe('https://example.com/docs/page');
       expect(insertCall.source_file).toBeUndefined();
       expect(insertCall.source_document_id).toBeUndefined();
@@ -230,7 +257,7 @@ describe('MCP create_content_item — S205 WP-A1 typed provenance', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const insertCall = mocks.chain.insert.mock.calls[0][0];
+      const insertCall = findContentItemsInsert(mocks.chain.insert);
       expect(insertCall.source_file).toBe('docs/handbook/section-3.md');
       expect(insertCall.source_url).toBeUndefined();
       expect(insertCall.source_document_id).toBeUndefined();
@@ -252,7 +279,7 @@ describe('MCP create_content_item — S205 WP-A1 typed provenance', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const insertCall = mocks.chain.insert.mock.calls[0][0];
+      const insertCall = findContentItemsInsert(mocks.chain.insert);
       expect(insertCall.source_document_id).toBe(SOURCE_DOC_ID);
       expect(insertCall.source_url).toBeUndefined();
       expect(insertCall.source_file).toBeUndefined();
