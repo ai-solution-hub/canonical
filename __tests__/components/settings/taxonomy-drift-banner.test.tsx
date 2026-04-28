@@ -4,7 +4,15 @@
  * Tests drift-detection banner rendering, dismiss behaviour,
  * regenerate mutation, error handling, and accessibility.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+  type Mock,
+} from 'vitest';
 import {
   render,
   screen,
@@ -44,11 +52,11 @@ const IN_SYNC_RESPONSE = {
   synced_hash: 'abc123',
 };
 
-let fetchMock: ReturnType<typeof vi.fn>;
+let fetchMock: Mock<(...args: unknown[]) => Promise<unknown>>;
 
 beforeEach(() => {
-  fetchMock = vi.fn();
-  global.fetch = fetchMock;
+  fetchMock = vi.fn<(...args: unknown[]) => Promise<unknown>>();
+  global.fetch = fetchMock as unknown as typeof globalThis.fetch;
   mockToast.success.mockClear();
   mockToast.error.mockClear();
 });
@@ -61,7 +69,8 @@ afterEach(() => {
 function mockStatusResponse(
   data: typeof DRIFT_RESPONSE | typeof IN_SYNC_RESPONSE,
 ) {
-  fetchMock.mockImplementation((url: string) => {
+  fetchMock.mockImplementation((...args: unknown[]) => {
+    const url = args[0] as string;
     if (url === '/api/admin/taxonomy-sync/status') {
       return Promise.resolve({
         ok: true,
@@ -73,7 +82,8 @@ function mockStatusResponse(
 }
 
 function mockStatusError(status = 500) {
-  fetchMock.mockImplementation((url: string) => {
+  fetchMock.mockImplementation((...args: unknown[]) => {
+    const url = args[0] as string;
     if (url === '/api/admin/taxonomy-sync/status') {
       return Promise.resolve({
         ok: false,
@@ -151,7 +161,9 @@ describe('TaxonomyDriftBanner', () => {
   });
 
   it('fires POST and shows success toast on Regenerate now', async () => {
-    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+    fetchMock.mockImplementation((...args: unknown[]) => {
+      const url = args[0] as string;
+      const init = args[1] as RequestInit | undefined;
       if (url === '/api/admin/taxonomy-sync/status') {
         return Promise.resolve({
           ok: true,
@@ -190,7 +202,9 @@ describe('TaxonomyDriftBanner', () => {
   });
 
   it('shows error toast on POST failure', async () => {
-    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+    fetchMock.mockImplementation((...args: unknown[]) => {
+      const url = args[0] as string;
+      const init = args[1] as RequestInit | undefined;
       if (url === '/api/admin/taxonomy-sync/status') {
         return Promise.resolve({
           ok: true,

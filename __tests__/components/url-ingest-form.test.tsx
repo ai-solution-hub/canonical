@@ -88,64 +88,64 @@ vi.mock('lucide-react', () => ({
   Globe: (props: Record<string, unknown>) => (
     <span
       data-testid="globe-icon"
-      aria-hidden={props['aria-hidden'] as string}
+      aria-hidden={props['aria-hidden'] as boolean | 'true' | 'false' | undefined}
     />
   ),
   Loader2: (props: Record<string, unknown>) => (
     <span
       data-testid="loader-icon"
-      aria-hidden={props['aria-hidden'] as string}
+      aria-hidden={props['aria-hidden'] as boolean | 'true' | 'false' | undefined}
     />
   ),
   AlertCircle: (props: Record<string, unknown>) => (
     <span
       data-testid="alert-icon"
-      aria-hidden={props['aria-hidden'] as string}
+      aria-hidden={props['aria-hidden'] as boolean | 'true' | 'false' | undefined}
     />
   ),
   Link2: (props: Record<string, unknown>) => (
     <span
       data-testid="link-icon"
-      aria-hidden={props['aria-hidden'] as string}
+      aria-hidden={props['aria-hidden'] as boolean | 'true' | 'false' | undefined}
     />
   ),
   Copy: (props: Record<string, unknown>) => (
     <span
       data-testid="copy-icon"
-      aria-hidden={props['aria-hidden'] as string}
+      aria-hidden={props['aria-hidden'] as boolean | 'true' | 'false' | undefined}
     />
   ),
   ExternalLink: (props: Record<string, unknown>) => (
     <span
       data-testid="external-link-icon"
-      aria-hidden={props['aria-hidden'] as string}
+      aria-hidden={props['aria-hidden'] as boolean | 'true' | 'false' | undefined}
     />
   ),
   AlertTriangle: (props: Record<string, unknown>) => (
     <span
       data-testid="alert-triangle-icon"
-      aria-hidden={props['aria-hidden'] as string}
+      aria-hidden={props['aria-hidden'] as boolean | 'true' | 'false' | undefined}
     />
   ),
   X: (props: Record<string, unknown>) => (
-    <span data-testid="x-icon" aria-hidden={props['aria-hidden'] as string} />
+    <span data-testid="x-icon" aria-hidden={props['aria-hidden'] as boolean | 'true' | 'false' | undefined} />
   ),
   Check: (props: Record<string, unknown>) => (
     <span
       data-testid="check-icon"
-      aria-hidden={props['aria-hidden'] as string}
+      aria-hidden={props['aria-hidden'] as boolean | 'true' | 'false' | undefined}
     />
   ),
   Minus: (props: Record<string, unknown>) => (
     <span
       data-testid="minus-icon"
-      aria-hidden={props['aria-hidden'] as string}
+      aria-hidden={props['aria-hidden'] as boolean | 'true' | 'false' | undefined}
     />
   ),
   SkipForward: (props: Record<string, unknown>) => (
     <span
       data-testid="skip-icon"
-      aria-hidden={props['aria-hidden'] as string}
+      aria-hidden={props['aria-hidden'] as boolean | 'true' | 'false' | undefined}
     />
   ),
 }));

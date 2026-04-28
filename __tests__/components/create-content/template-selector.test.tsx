@@ -4,7 +4,7 @@
  * Tests rendering, selection, keyboard navigation, and WCAG compliance
  * for the content creation template selector.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -47,10 +47,10 @@ const mockTemplates: ContentTemplate[] = [
 // ---------------------------------------------------------------------------
 
 describe('TemplateSelector', () => {
-  let onSelect: ReturnType<typeof vi.fn>;
+  let onSelect: Mock<(template: ContentTemplate | null) => void>;
 
   beforeEach(() => {
-    onSelect = vi.fn();
+    onSelect = vi.fn<(template: ContentTemplate | null) => void>();
   });
 
   describe('rendering', () => {

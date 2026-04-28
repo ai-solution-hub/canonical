@@ -55,6 +55,22 @@ export default defineConfig({
       },
       dependencies: ['setup'],
     },
+
+    // --- Smoke project: tag-filtered curated subset for the PR-blocking
+    //     CI gate (WP-G4.3). Runs only `@smoke`-tagged tests on Desktop
+    //     Chrome. Selection criteria + tagged spec list:
+    //     docs/audits/kh-production-readiness-phase-1/specs/
+    //       wp-g4.3-e2e-smoke-spec.md §2.
+    //     Local invocation: `bun run test:e2e -- --project=smoke`.
+    {
+      name: 'smoke',
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: authFile,
+      },
+      dependencies: ['setup'],
+      grep: /@smoke/,
+    },
   ],
   webServer: {
     command: 'bun dev',

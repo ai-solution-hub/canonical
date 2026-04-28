@@ -336,7 +336,7 @@ describe('GET /api/coverage/templates/list', () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest('/api/coverage/templates/list');
-    const res = await templatesListGet(req);
+    const res = await templatesListGet();
     expect(res.status).toBe(401);
   });
 
@@ -356,7 +356,7 @@ describe('GET /api/coverage/templates/list', () => {
     mockListAvailableTemplates.mockResolvedValueOnce(templates);
 
     const req = createTestRequest('/api/coverage/templates/list');
-    const res = await templatesListGet(req);
+    const res = await templatesListGet();
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -368,7 +368,7 @@ describe('GET /api/coverage/templates/list', () => {
     mockListAvailableTemplates.mockResolvedValueOnce([]);
 
     const req = createTestRequest('/api/coverage/templates/list');
-    const res = await templatesListGet(req);
+    const res = await templatesListGet();
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -385,7 +385,7 @@ describe('GET /api/dashboard', () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest('/api/dashboard');
-    const res = await dashboardGet(req);
+    const res = await dashboardGet();
     expect(res.status).toBe(401);
   });
 
@@ -414,7 +414,7 @@ describe('GET /api/dashboard', () => {
     mockFetchUnifiedDashboardData.mockResolvedValueOnce(dashboardData);
 
     const req = createTestRequest('/api/dashboard');
-    const res = await dashboardGet(req);
+    const res = await dashboardGet();
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -426,7 +426,7 @@ describe('GET /api/dashboard', () => {
     configureRole(mockSupabase, 'admin');
 
     const req = createTestRequest('/api/dashboard');
-    await dashboardGet(req);
+    await dashboardGet();
 
     expect(mockFetchUnifiedDashboardData).toHaveBeenCalledWith(
       mockSupabase,
@@ -440,7 +440,7 @@ describe('GET /api/dashboard', () => {
     configureRole(mockSupabase, 'viewer');
 
     const req = createTestRequest('/api/dashboard');
-    await dashboardGet(req);
+    await dashboardGet();
 
     expect(mockFetchUnifiedDashboardData).toHaveBeenCalledWith(
       mockSupabase,
@@ -481,7 +481,7 @@ describe('GET /api/dashboard', () => {
     });
 
     const req = createTestRequest('/api/dashboard');
-    const res = await dashboardGet(req);
+    const res = await dashboardGet();
     expect(res.status).toBe(500);
 
     const body = await res.json();
@@ -680,7 +680,7 @@ describe('GET /api/quality/summary', () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest('/api/quality/summary');
-    const res = await qualitySummaryGet(req);
+    const res = await qualitySummaryGet();
     expect(res.status).toBe(401);
   });
 
@@ -692,7 +692,7 @@ describe('GET /api/quality/summary', () => {
     mockSupabase.rpc.mockResolvedValueOnce({ data: rpcData, error: null });
 
     const req = createTestRequest('/api/quality/summary');
-    const res = await qualitySummaryGet(req);
+    const res = await qualitySummaryGet();
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -709,7 +709,7 @@ describe('GET /api/quality/summary', () => {
     });
 
     const req = createTestRequest('/api/quality/summary');
-    const res = await qualitySummaryGet(req);
+    const res = await qualitySummaryGet();
     expect(res.status).toBe(500);
 
     const body = await res.json();

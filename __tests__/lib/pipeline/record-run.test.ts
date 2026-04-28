@@ -76,7 +76,7 @@ describe('recordPipelineRun', () => {
       pipelineName: 'content_gaps',
       status: 'completed',
       itemsProcessed: 42,
-      result: { snapshot: 'ok' } as unknown as InsertArgs,
+      result: { snapshot: 'ok' },
     });
 
     expect(insertSpy).toHaveBeenCalledTimes(1);

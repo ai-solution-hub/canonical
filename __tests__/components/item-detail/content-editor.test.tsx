@@ -16,7 +16,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
-import { Editor } from '@tiptap/core';
+import { Editor, type JSONContent } from '@tiptap/core';
 
 import {
   ContentEditor,
@@ -101,21 +101,26 @@ describe('ContentEditor markdown round-trip — GFM tables', () => {
       contentType: 'markdown',
     });
 
-    const json = editor.getJSON();
+    const json = editor.getJSON() as JSONContent;
     const tableNode = json.content?.find((n) => n.type === 'table');
     expect(tableNode, 'expected a table node in editor JSON').toBeDefined();
 
-    const rows = tableNode?.content?.filter((n) => n.type === 'tableRow') ?? [];
+    const rows: JSONContent[] =
+      tableNode?.content?.filter((n: JSONContent) => n.type === 'tableRow') ??
+      [];
     expect(rows.length).toBe(4);
 
     const headerRow = rows[0];
     const headerCells =
-      headerRow?.content?.filter((n) => n.type === 'tableHeader') ?? [];
+      headerRow?.content?.filter(
+        (n: JSONContent) => n.type === 'tableHeader',
+      ) ?? [];
     expect(headerCells.length).toBe(4);
 
     for (const bodyRow of rows.slice(1)) {
       const cells =
-        bodyRow?.content?.filter((n) => n.type === 'tableCell') ?? [];
+        bodyRow?.content?.filter((n: JSONContent) => n.type === 'tableCell') ??
+        [];
       expect(cells.length).toBe(4);
     }
 

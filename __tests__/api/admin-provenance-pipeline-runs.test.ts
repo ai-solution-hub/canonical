@@ -139,7 +139,14 @@ function mockListOkRollupError(listRows: PipelineRunRow[]) {
 function mockAuthSuccess() {
   getAuthorisedClientMock.mockResolvedValueOnce({
     success: true,
-    user: { id: 'admin-user-id', email: 'admin@example.com' },
+    user: {
+      id: 'admin-user-id',
+      email: 'admin@example.com',
+      app_metadata: {},
+      user_metadata: {},
+      aud: 'authenticated',
+      created_at: '2026-01-01T00:00:00Z',
+    },
     supabase: mockSupabase as unknown as Awaited<
       ReturnType<typeof getAuthorisedClient>
     > extends { success: true; supabase: infer S }

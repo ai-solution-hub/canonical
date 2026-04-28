@@ -115,7 +115,7 @@ function makeField(overrides: Partial<TemplateField> = {}): TemplateField {
   return {
     id: 'f-1',
     template_id: 't-1',
-    field_type: 'question',
+    field_type: 'question' as unknown as TemplateField['field_type'],
     table_index: 0,
     row_index: 0,
     col_index: 0,

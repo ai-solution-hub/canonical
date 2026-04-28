@@ -257,9 +257,7 @@ describe('useDigestData', () => {
     });
 
     // Verify the detail endpoint was called, not the list endpoint
-    const fetchCalls = mockFetch.mock.calls.map(
-      (call: [string, ...unknown[]]) => call[0],
-    );
+    const fetchCalls = mockFetch.mock.calls.map((call) => call[0]);
     expect(fetchCalls).toContain('/api/digest/past-1');
 
     // The current digest should now be the loaded one

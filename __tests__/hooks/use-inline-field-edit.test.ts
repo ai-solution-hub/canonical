@@ -12,7 +12,7 @@ const { mockToast, mockValidateEditableField } = vi.hoisted(() => ({
     error: vi.fn(),
     info: vi.fn(),
   }),
-  mockValidateEditableField: vi.fn(() => true),
+  mockValidateEditableField: vi.fn((..._args: unknown[]) => true),
 }));
 
 vi.mock('sonner', () => ({ toast: mockToast }));

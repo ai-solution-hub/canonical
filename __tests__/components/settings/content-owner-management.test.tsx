@@ -4,7 +4,7 @@
  * Tests loading state, empty state, owner stats table rendering,
  * and the single Assign Owner dialog with scope toggle (unowned / by domain).
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ContentOwnerManagement } from '@/components/settings/content-owner-management';
@@ -91,7 +91,7 @@ const MOCK_ROLES = [
   { user_id: 'user-2', role: 'editor' },
 ];
 
-let fetchMock: ReturnType<typeof vi.fn>;
+let fetchMock: Mock<(...args: unknown[]) => Promise<unknown>>;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -108,11 +108,12 @@ beforeEach(() => {
   mockFrom.mockReturnValue(chain);
 
   // Mock global fetch
-  fetchMock = vi.fn();
-  global.fetch = fetchMock;
+  fetchMock = vi.fn<(...args: unknown[]) => Promise<unknown>>();
+  global.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
   // Default fetch responses
-  fetchMock.mockImplementation(async (url: string) => {
+  fetchMock.mockImplementation(async (...args: unknown[]) => {
+    const url = args[0] as string;
     if (typeof url === 'string' && url.includes('/api/content-owners/stats')) {
       return {
         ok: true,
@@ -172,7 +173,8 @@ describe('ContentOwnerManagement', () => {
   });
 
   it('renders empty state when no owners assigned', async () => {
-    fetchMock.mockImplementation(async (url: string) => {
+    fetchMock.mockImplementation(async (...args: unknown[]) => {
+      const url = args[0] as string;
       if (
         typeof url === 'string' &&
         url.includes('/api/content-owners/stats')

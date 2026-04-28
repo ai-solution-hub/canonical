@@ -53,19 +53,19 @@ describe('classification_disputes migration', () => {
     it('has content_item_id FK with CASCADE delete', () => {
       // pg_dump emits FKs as separate ALTER TABLE ADD CONSTRAINT statements
       expect(content).toMatch(
-        /classification_disputes_content_item_id_fkey.*FOREIGN KEY.*content_item_id.*REFERENCES.*content_items.*ON DELETE CASCADE/is,
+        /classification_disputes_content_item_id_fkey[\s\S]*FOREIGN KEY[\s\S]*content_item_id[\s\S]*REFERENCES[\s\S]*content_items[\s\S]*ON DELETE CASCADE/i,
       );
     });
 
     it('has disputed_by FK with SET NULL delete', () => {
       expect(content).toMatch(
-        /classification_disputes_disputed_by_fkey.*FOREIGN KEY.*disputed_by.*REFERENCES.*auth.*users.*ON DELETE SET NULL/is,
+        /classification_disputes_disputed_by_fkey[\s\S]*FOREIGN KEY[\s\S]*disputed_by[\s\S]*REFERENCES[\s\S]*auth[\s\S]*users[\s\S]*ON DELETE SET NULL/i,
       );
     });
 
     it('has resolved_by FK with SET NULL delete', () => {
       expect(content).toMatch(
-        /classification_disputes_resolved_by_fkey.*FOREIGN KEY.*resolved_by.*REFERENCES.*auth.*users.*ON DELETE SET NULL/is,
+        /classification_disputes_resolved_by_fkey[\s\S]*FOREIGN KEY[\s\S]*resolved_by[\s\S]*REFERENCES[\s\S]*auth[\s\S]*users[\s\S]*ON DELETE SET NULL/i,
       );
     });
   });
@@ -110,11 +110,11 @@ describe('classification_disputes migration', () => {
       expect(content).toContain('classification_disputes_resolution_complete');
       // Open must have NULL resolved_by and resolved_at
       expect(content).toMatch(
-        /status.*=\s*'open'.*AND.*resolved_by.*IS\s+NULL.*AND.*resolved_at.*IS\s+NULL/is,
+        /status[\s\S]*=\s*'open'[\s\S]*AND[\s\S]*resolved_by[\s\S]*IS\s+NULL[\s\S]*AND[\s\S]*resolved_at[\s\S]*IS\s+NULL/i,
       );
       // Resolved/rejected must have both set
       expect(content).toMatch(
-        /resolved_by.*IS\s+NOT\s+NULL.*AND.*resolved_at.*IS\s+NOT\s+NULL/is,
+        /resolved_by[\s\S]*IS\s+NOT\s+NULL[\s\S]*AND[\s\S]*resolved_at[\s\S]*IS\s+NOT\s+NULL/i,
       );
     });
   });

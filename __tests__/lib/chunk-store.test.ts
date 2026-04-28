@@ -222,7 +222,7 @@ function makeRecordingSupabase(
         return this;
       },
       eq(column: string, value: unknown) {
-        this._filters[column] = value;
+        (this._filters as Record<string, unknown>)[column] = value;
         return this;
       },
       then(resolve: (v: unknown) => void) {

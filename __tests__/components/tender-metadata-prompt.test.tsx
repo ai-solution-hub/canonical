@@ -58,35 +58,35 @@ vi.mock('lucide-react', () => ({
   Building2: (props: Record<string, unknown>) => (
     <span
       data-testid="building-icon"
-      aria-hidden={props['aria-hidden'] as string}
+      aria-hidden={props['aria-hidden'] as boolean | 'true' | 'false' | undefined}
     />
   ),
   Calendar: (props: Record<string, unknown>) => (
     <span
       data-testid="calendar-icon"
-      aria-hidden={props['aria-hidden'] as string}
+      aria-hidden={props['aria-hidden'] as boolean | 'true' | 'false' | undefined}
     />
   ),
   Hash: (props: Record<string, unknown>) => (
     <span
       data-testid="hash-icon"
-      aria-hidden={props['aria-hidden'] as string}
+      aria-hidden={props['aria-hidden'] as boolean | 'true' | 'false' | undefined}
     />
   ),
   PoundSterling: (props: Record<string, unknown>) => (
     <span
       data-testid="pound-icon"
-      aria-hidden={props['aria-hidden'] as string}
+      aria-hidden={props['aria-hidden'] as boolean | 'true' | 'false' | undefined}
     />
   ),
   FileText: (props: Record<string, unknown>) => (
     <span
       data-testid="file-icon"
-      aria-hidden={props['aria-hidden'] as string}
+      aria-hidden={props['aria-hidden'] as boolean | 'true' | 'false' | undefined}
     />
   ),
   X: (props: Record<string, unknown>) => (
-    <span data-testid="x-icon" aria-hidden={props['aria-hidden'] as string} />
+    <span data-testid="x-icon" aria-hidden={props['aria-hidden'] as boolean | 'true' | 'false' | undefined} />
   ),
 }));
 

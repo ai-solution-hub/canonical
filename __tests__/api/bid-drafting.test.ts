@@ -1608,7 +1608,7 @@ describe('POST /api/bids/:id/tender', () => {
     name: string,
     mimeType: string,
   ): File {
-    const blob = new Blob([bytes], { type: mimeType });
+    const blob = new Blob([bytes as BlobPart], { type: mimeType });
     // Construct an object that satisfies both the instanceof check and
     // the route's property accesses. Object.create(File.prototype) makes
     // instanceof File pass in the same realm.

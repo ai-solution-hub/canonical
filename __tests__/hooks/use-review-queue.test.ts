@@ -77,7 +77,17 @@ const mockDataReturn = vi.hoisted(() => ({
   isLoading: true,
   hasMore: false,
   stats: null as ReviewStatsResponse | null,
-  activeAssignment: null,
+  activeAssignment: null as null | {
+    id: string;
+    notes: string;
+    filter_domains: string[];
+    filter_content_types: string[];
+    filter_freshness: string[];
+    filter_date_from: string | null;
+    filter_date_to: string | null;
+    item_count: number;
+    due_date: string;
+  },
   queueQuery: {
     data: undefined,
     isLoading: true,

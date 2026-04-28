@@ -618,7 +618,7 @@ test.describe('Bid create happy path submit (8.0.3)', () => {
         (row as { user_id: string }).user_id,
       );
       if (userData?.user?.email === adminEmail) {
-        adminUserId = userData.user.id;
+        adminUserId = userData.user!.id;
         break;
       }
     }

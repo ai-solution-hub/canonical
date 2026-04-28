@@ -177,7 +177,7 @@ vi.mock('@/components/review/review-action-bar', () => ({
       <button onClick={onExit as () => void}>Exit</button>
       <button onClick={onEdit as () => void}>Edit</button>
       <button onClick={onShowHelp as () => void}>Help</button>
-      {isDraft && (
+      {Boolean(isDraft) && (
         <button onClick={onPublish as () => void}>Publish draft</button>
       )}
     </div>

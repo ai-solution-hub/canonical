@@ -341,6 +341,96 @@ describe('Admin API routes', () => {
       expect(body[0].id).toBe('user-1');
       expect(body[0].role).toBe('editor');
     });
+
+    it('returns null (never empty string) for last_sign_in_at when the user has never signed in (WP-S8i)', async () => {
+      // Widened contract: `last_sign_in_at` MUST be `string | null` —
+      // never `''` or `undefined`. The team-section UI distinguishes
+      // "Never" (null) from a real timestamp; an empty-string would
+      // parse to Invalid Date and render as the string "Invalid Date".
+      configureRole(mockSupabase, 'admin');
+
+      mockSupabase._chain.then
+        .mockImplementationOnce((resolve: (v: unknown) => void) =>
+          resolve({
+            data: [
+              {
+                id: 'never-signed-in',
+                email: 'newbie@example.com',
+                full_name: 'Newbie',
+                created_at: '2026-04-01T00:00:00Z',
+              },
+              {
+                id: 'missing-from-auth',
+                email: 'ghost@example.com',
+                full_name: null,
+                created_at: '2026-04-02T00:00:00Z',
+              },
+              {
+                id: 'has-signed-in',
+                email: 'returning@example.com',
+                full_name: 'Returning',
+                created_at: '2026-04-03T00:00:00Z',
+              },
+            ],
+            error: null,
+          }),
+        )
+        .mockImplementationOnce((resolve: (v: unknown) => void) =>
+          resolve({
+            data: [
+              { user_id: 'never-signed-in', role: 'viewer' },
+              { user_id: 'missing-from-auth', role: 'viewer' },
+              { user_id: 'has-signed-in', role: 'editor' },
+            ],
+            error: null,
+          }),
+        );
+
+      mockSupabase.auth.admin.listUsers.mockResolvedValueOnce({
+        data: {
+          users: [
+            // Has signed in: real ISO timestamp.
+            {
+              id: 'has-signed-in',
+              email: 'returning@example.com',
+              last_sign_in_at: '2026-04-15T12:00:00Z',
+            },
+            // Has never signed in: GoTrue surfaces null.
+            {
+              id: 'never-signed-in',
+              email: 'newbie@example.com',
+              last_sign_in_at: null,
+            },
+            // 'missing-from-auth' deliberately absent — Map.get() returns
+            // undefined, must be coerced to null in the response.
+          ],
+        },
+        error: null,
+      });
+
+      const response = await listUsers();
+      expect(response.status).toBe(200);
+
+      const body = await response.json();
+      expect(body).toHaveLength(3);
+
+      const byId = new Map(
+        body.map((u: { id: string; last_sign_in_at: string | null }) => [
+          u.id,
+          u.last_sign_in_at,
+        ]),
+      );
+
+      // Real timestamp passes through verbatim.
+      expect(byId.get('has-signed-in')).toBe('2026-04-15T12:00:00Z');
+      // Never-signed-in user: null, NOT empty string.
+      expect(byId.get('never-signed-in')).toBeNull();
+      expect(byId.get('never-signed-in')).not.toBe('');
+      // Missing from auth response (unmatched profile): also null, not undefined.
+      expect(byId.get('missing-from-auth')).toBeNull();
+      expect(byId.get('missing-from-auth')).not.toBe('');
+      expect(byId.get('missing-from-auth')).not.toBeUndefined();
+    });
   });
 
   // =========================================================================

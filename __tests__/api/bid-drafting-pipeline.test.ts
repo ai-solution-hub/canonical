@@ -563,23 +563,21 @@ describe('Bid Drafting Pipeline', () => {
 
     it('assembles metadata with all three models recorded', async () => {
       const result = await runDraftingPipeline(testQuestion, testContent);
+      const ai = result.metadata.ai_metadata!;
 
-      expect(result.metadata.ai_metadata.model).toBe('claude-opus-4-6');
-      expect(result.metadata.ai_metadata.analysis_model).toBe(
-        'claude-sonnet-4-5',
-      );
-      expect(result.metadata.ai_metadata.quality_model).toBe(
-        'claude-haiku-4-5',
-      );
-      expect(result.metadata.ai_metadata.generated_at).toBeTruthy();
+      expect(ai.model).toBe('claude-opus-4-6');
+      expect(ai.analysis_model).toBe('claude-sonnet-4-5');
+      expect(ai.quality_model).toBe('claude-haiku-4-5');
+      expect(ai.generated_at).toBeTruthy();
     });
 
     it('includes quality data in metadata', async () => {
       const result = await runDraftingPipeline(testQuestion, testContent);
+      const q = result.metadata.quality_data!;
 
-      expect(result.metadata.quality_data.overall_score).toBe(85);
-      expect(result.metadata.quality_data.citation_count).toBe(2);
-      expect(result.metadata.quality_data.suggestions).toContain(
+      expect(q.overall_score).toBe(85);
+      expect(q.citation_count).toBe(2);
+      expect(q.suggestions).toContain(
         'Consider adding a specific case study example',
       );
     });
@@ -588,7 +586,7 @@ describe('Bid Drafting Pipeline', () => {
       const result = await runDraftingPipeline(testQuestion, testContent);
 
       expect(result.source_content_ids).toEqual(['c-001', 'c-002']);
-      expect(result.metadata.citations_data.source_content_ids).toEqual([
+      expect(result.metadata.citations_data!.source_content_ids).toEqual([
         'c-001',
         'c-002',
       ]);
@@ -616,7 +614,7 @@ describe('Bid Drafting Pipeline', () => {
       );
 
       expect(result.response_text).toBe('Regenerated response.');
-      expect(result.metadata.ai_metadata.regeneration_instructions).toBe(
+      expect(result.metadata.ai_metadata!.regeneration_instructions).toBe(
         'Focus more on encryption standards',
       );
 

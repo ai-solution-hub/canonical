@@ -370,7 +370,7 @@ describe('GET /api/review/queue — assigned_to_me filter', () => {
       'order',
       'range',
     ] as const) {
-      if (method !== 'then') {
+      if ((method as string) !== 'then') {
         (assignmentChain as Record<string, ReturnType<typeof vi.fn>>)[method] =
           vi.fn().mockReturnValue(assignmentChain);
       }

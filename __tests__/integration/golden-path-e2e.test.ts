@@ -856,7 +856,10 @@ describe('GP7: MCP search finds classified content', () => {
     });
 
     // 3. Verify the RPC would be called with correct shape
-    const searchResult = await mockSupabase.rpc('hybrid_search', {
+    const rpc = mockSupabase.rpc as (
+      ...args: unknown[]
+    ) => Promise<{ data: typeof mockSearchResults; error: null }>;
+    const searchResult = await rpc('hybrid_search', {
       query_embedding: JSON.stringify(queryEmbedding),
       query_text: 'ISO 27001 certification',
       similarity_threshold: 0.3,
@@ -897,7 +900,10 @@ describe('GP7: MCP search finds classified content', () => {
     // hybrid_search would not return items without embeddings
     mockSupabase.rpc.mockResolvedValueOnce({ data: [], error: null });
 
-    const searchResult = await mockSupabase.rpc('hybrid_search', {
+    const rpc = mockSupabase.rpc as (
+      ...args: unknown[]
+    ) => Promise<{ data: unknown[]; error: null }>;
+    const searchResult = await rpc('hybrid_search', {
       query_embedding: JSON.stringify(new Array(1024).fill(0.2)),
       query_text: 'unembedded content',
       similarity_threshold: 0.3,

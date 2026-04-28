@@ -353,7 +353,7 @@ describe.skipIf(!ENABLED)('SI Golden Path Real DB Integration', () => {
             feed_source_name: `${TEST_PREFIX} Test RSS Feed`,
             published_at: article.published_at,
           },
-        })
+        } as never)
         .select('id')
         .single();
 
@@ -1004,7 +1004,7 @@ describe.skipIf(!ENABLED || !hasViewerCredentials)(
         name: 'Rogue Source',
         url: 'https://evil.com',
         source_type: 'rss',
-      });
+      } as never);
 
       expect(error).toBeTruthy();
     });
@@ -1026,7 +1026,7 @@ describe.skipIf(!ENABLED || !hasViewerCredentials)(
 
       const { error } = await viewerClient
         .from('feed_articles')
-        .update({ passed: false })
+        .update({ passed: false } as never)
         .eq('id', feedArticleIds[0]);
 
       // RLS blocks updates -- either error or 0 rows affected

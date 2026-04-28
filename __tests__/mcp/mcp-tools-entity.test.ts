@@ -84,7 +84,7 @@ interface RegisteredTool {
 }
 
 function createMockMcpServer() {
-  const tools: RegisteredTool[] = {};
+  const tools: RegisteredTool[] = [];
 
   return {
     tools: tools as unknown as Record<string, RegisteredTool>,

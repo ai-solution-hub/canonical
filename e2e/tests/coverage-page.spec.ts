@@ -9,7 +9,7 @@ import { isMobileViewport } from '../helpers/responsive';
  * Uses production data (186+ items across multiple domains).
  */
 
-test.describe('Coverage page', () => {
+test.describe('Coverage page', { tag: '@smoke' }, () => {
   test.beforeEach(async ({ authenticatedPage: page }) => {
     await page.goto('/coverage');
     await expect(

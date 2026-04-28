@@ -57,7 +57,7 @@ function makeQuestion(overrides: Partial<ExportQuestion> = {}): ExportQuestion {
 
 async function loadWorkbook(buffer: Buffer): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer);
+  await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
   return workbook;
 }
 

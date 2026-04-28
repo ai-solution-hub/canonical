@@ -9,7 +9,15 @@
  * - enqueueTaxonomySync fires separately for calls spaced >2 s apart
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+  type Mock,
+} from 'vitest';
 import {
   computeTaxonomyHash,
   enqueueTaxonomySync,
@@ -219,14 +227,16 @@ describe('computeTaxonomyHash', () => {
 // ---------------------------------------------------------------------------
 
 describe('enqueueTaxonomySync', () => {
-  let fetchMock: ReturnType<typeof vi.fn>;
+  let fetchMock: Mock<(...args: unknown[]) => Promise<unknown>>;
   let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
     vi.useFakeTimers();
-    fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    fetchMock = vi
+      .fn<(...args: unknown[]) => Promise<unknown>>()
+      .mockResolvedValue({ ok: true });
     originalFetch = globalThis.fetch;
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
   });
 
   afterEach(() => {

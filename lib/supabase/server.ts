@@ -3,7 +3,7 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import type { Database } from '@/supabase/types/database.types';
 import { clientEnv } from '@/lib/env-client';
-import { serverEnv } from '@/lib/env';
+import { serverEnv } from '@/lib/env-server';
 
 /**
  * Server-side Supabase client for API routes and Server Components (with

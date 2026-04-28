@@ -153,11 +153,18 @@ beforeEach(() => {
     'filter',
   ] as const;
   for (const m of chainable) {
-    (mockSupabase._chain as Record<string, ReturnType<typeof vi.fn>>)[m] ??=
-      vi.fn();
-    (mockSupabase._chain as Record<string, ReturnType<typeof vi.fn>>)[
-      m
-    ].mockReturnValue(mockSupabase._chain);
+    (
+      mockSupabase._chain as unknown as Record<
+        string,
+        ReturnType<typeof vi.fn>
+      >
+    )[m] ??= vi.fn();
+    (
+      mockSupabase._chain as unknown as Record<
+        string,
+        ReturnType<typeof vi.fn>
+      >
+    )[m].mockReturnValue(mockSupabase._chain);
   }
 
   // Terminal methods

@@ -313,7 +313,9 @@ describe('POST /api/admin/taxonomy-sync', () => {
         }
         if (table === 'pipeline_runs') {
           const chain = makeChain({ id: RUN_ID });
-          const originalInsert = chain.insert;
+          const originalInsert = chain.insert as (
+            ...args: unknown[]
+          ) => unknown;
           chain.insert = vi.fn((payload: Record<string, unknown>) => {
             capturedInsertPayload = payload;
             return originalInsert(payload);

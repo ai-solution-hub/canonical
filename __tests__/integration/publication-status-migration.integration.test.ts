@@ -105,11 +105,12 @@ describe('publication_status migration (T1 + T2) — live DB', () => {
 
     const { error: updateErr } = await serviceClient
       .from('content_items')
-      // @ts-expect-error — deliberately writing an invalid enum value to
-      // verify the CHECK rejects it. The Database type narrows
-      // publication_status to `string | null` in Update; we want the DB
-      // CHECK to be the gate, not the TS type.
-      .update({ publication_status: 'unknown_state' })
+      .update({
+        // Deliberately writing an invalid enum value to verify the CHECK
+        // rejects it. We cast through unknown because the Database type
+        // accepts string | null but we want the DB CHECK to be the gate.
+        publication_status: 'unknown_state' as unknown as 'draft',
+      })
       .eq('id', probeId);
 
     expect(updateErr).not.toBeNull();

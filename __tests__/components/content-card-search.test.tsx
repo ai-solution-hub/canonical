@@ -64,6 +64,7 @@ function makeContentItem(
     thumbnail_url: null,
     captured_date: '2026-01-15T10:00:00Z',
     ai_keywords: null,
+    classification_confidence: null,
     priority: null,
     freshness: 'fresh',
     user_tags: null,

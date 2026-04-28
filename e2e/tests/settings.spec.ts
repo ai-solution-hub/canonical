@@ -12,7 +12,7 @@ import {
  * The authenticated test user is expected to have admin role.
  */
 
-test.describe('Settings page', () => {
+test.describe('Settings page', { tag: '@smoke' }, () => {
   test.beforeEach(async ({ authenticatedPage: page }) => {
     await page.goto('/settings');
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({
@@ -157,7 +157,7 @@ test.describe('Settings page', () => {
   });
 });
 
-test.describe('Settings — section content', () => {
+test.describe('Settings — section content', { tag: '@smoke' }, () => {
   test('profile section shows user information', async ({
     authenticatedPage: page,
   }) => {
@@ -204,21 +204,29 @@ test.describe('Settings — section content', () => {
   });
 });
 
-test.describe('Settings — navigation via site header', () => {
-  test('settings button in header navigates to settings page', async ({
-    authenticatedPage: page,
-  }) => {
-    await page.goto('/');
-    await expect(page.getByRole('link', { name: 'Knowledge Hub' })).toBeVisible(
-      { timeout: 10000 },
-    );
+test.describe(
+  'Settings — navigation via site header',
+  { tag: '@smoke' },
+  () => {
+    test('settings button in header navigates to settings page', async ({
+      authenticatedPage: page,
+    }) => {
+      await page.goto('/');
+      await expect(
+        page.getByRole('link', { name: 'Knowledge Hub' }),
+      ).toBeVisible({ timeout: 10000 });
 
-    // Click the Settings icon button in the site header (not the ThemeSettings
-    // "Appearance settings" button). Scope to <header> and use exact: true.
-    const header = page.locator('header');
-    await header.getByRole('button', { name: 'Settings', exact: true }).click();
+      // Click the Settings icon button in the site header (not the ThemeSettings
+      // "Appearance settings" button). Scope to <header> and use exact: true.
+      const header = page.locator('header');
+      await header
+        .getByRole('button', { name: 'Settings', exact: true })
+        .click();
 
-    await expect(page).toHaveURL(/\/settings/);
-    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
-  });
-});
+      await expect(page).toHaveURL(/\/settings/);
+      await expect(
+        page.getByRole('heading', { name: 'Settings' }),
+      ).toBeVisible();
+    });
+  },
+);

@@ -211,7 +211,10 @@ describe('Re-upload detection logic', () => {
       error: null,
     });
 
-    const { data } = await mockServiceClient.rpc('detect_reupload', {
+    const rpc = mockServiceClient.rpc as (
+      ...args: unknown[]
+    ) => Promise<{ data: typeof mockResult; error: null }>;
+    const { data } = await rpc('detect_reupload', {
       p_filename: 'test.docx',
       p_uploaded_by: 'user-1',
       p_content_hash: 'abc123',
@@ -236,7 +239,10 @@ describe('Re-upload detection logic', () => {
       error: null,
     });
 
-    const { data } = await mockServiceClient.rpc('detect_reupload', {
+    const rpc = mockServiceClient.rpc as (
+      ...args: unknown[]
+    ) => Promise<{ data: typeof mockResult; error: null }>;
+    const { data } = await rpc('detect_reupload', {
       p_filename: 'test.docx',
       p_uploaded_by: 'user-1',
       p_content_hash: 'new-hash',
@@ -252,7 +258,10 @@ describe('Re-upload detection logic', () => {
       error: null,
     });
 
-    const { data } = await mockServiceClient.rpc('detect_reupload', {
+    const rpc = mockServiceClient.rpc as (
+      ...args: unknown[]
+    ) => Promise<{ data: unknown[]; error: null }>;
+    const { data } = await rpc('detect_reupload', {
       p_filename: 'brand-new-file.docx',
       p_uploaded_by: 'user-1',
       p_content_hash: 'unique-hash',

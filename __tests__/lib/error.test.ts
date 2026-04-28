@@ -40,20 +40,18 @@ vi.mock('@sentry/nextjs', () => ({
 
 import { safeErrorMessage } from '@/lib/error';
 
-const originalNodeEnv = process.env.NODE_ENV;
-
 beforeEach(() => {
   sentryMocks.captureException.mockReset();
 });
 
 afterEach(() => {
-  process.env.NODE_ENV = originalNodeEnv;
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
 
 describe('safeErrorMessage', () => {
   it('returns just the fallback in production', () => {
-    process.env.NODE_ENV = 'production';
+    vi.stubEnv('NODE_ENV', 'production');
     const result = safeErrorMessage(
       new Error('secret details'),
       'Something went wrong',
@@ -62,25 +60,25 @@ describe('safeErrorMessage', () => {
   });
 
   it('includes the error message in development for Error instances', () => {
-    process.env.NODE_ENV = 'development';
+    vi.stubEnv('NODE_ENV', 'development');
     const result = safeErrorMessage(new Error('db timeout'), 'Failed to load');
     expect(result).toBe('Failed to load: db timeout');
   });
 
   it('returns just the fallback in development for non-Error objects', () => {
-    process.env.NODE_ENV = 'development';
+    vi.stubEnv('NODE_ENV', 'development');
     const result = safeErrorMessage('a plain string error', 'Operation failed');
     expect(result).toBe('Operation failed');
   });
 
   it('returns just the fallback when NODE_ENV is undefined (non-development)', () => {
-    process.env.NODE_ENV = undefined as unknown as string;
+    vi.stubEnv('NODE_ENV', '');
     const result = safeErrorMessage(new Error('oops'), 'Server error');
     expect(result).toBe('Server error');
   });
 
   it('forwards Error instances to Sentry directly (chokepoint capture)', () => {
-    process.env.NODE_ENV = 'production';
+    vi.stubEnv('NODE_ENV', 'production');
     const err = new Error('kaboom');
     safeErrorMessage(err, 'Request failed');
     expect(sentryMocks.captureException).toHaveBeenCalledTimes(1);
@@ -88,7 +86,7 @@ describe('safeErrorMessage', () => {
   });
 
   it('forwards non-Error throwables (synthesised Error with the fallback msg)', () => {
-    process.env.NODE_ENV = 'development';
+    vi.stubEnv('NODE_ENV', 'development');
     const err = { code: 42 };
     safeErrorMessage(err, 'Unexpected error');
     expect(sentryMocks.captureException).toHaveBeenCalledTimes(1);
