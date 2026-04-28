@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useReadMarks } from '@/contexts/read-marks-context';
@@ -146,6 +146,30 @@ const tabFields: readonly TabField[] = [
 ] as const;
 
 // ---------------------------------------------------------------------------
+// matchMedia store — module-scoped helpers for useSyncExternalStore.
+// React 19 idiomatic pattern; replaces a setState-in-effect that the React
+// compiler flags as a cascading-render risk.
+// ---------------------------------------------------------------------------
+
+const MOBILE_QUERY = '(max-width: 1023px)';
+
+function subscribeMobile(callback: () => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+  const mql = window.matchMedia(MOBILE_QUERY);
+  mql.addEventListener('change', callback);
+  return () => mql.removeEventListener('change', callback);
+}
+
+function getMobileSnapshot(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia(MOBILE_QUERY).matches;
+}
+
+function getMobileServerSnapshot(): boolean {
+  return false;
+}
+
+// ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
 
@@ -163,14 +187,11 @@ export function useItemDetailData({
   const [item, setItem] = useState<ItemData>(initialItem);
 
   // --- Mobile detection ---
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const mql = window.matchMedia('(max-width: 1023px)');
-    setIsMobile(mql.matches);
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mql.addEventListener('change', handler);
-    return () => mql.removeEventListener('change', handler);
-  }, []);
+  const isMobile = useSyncExternalStore(
+    subscribeMobile,
+    getMobileSnapshot,
+    getMobileServerSnapshot,
+  );
 
   // --- Transcript ---
   const { segments, highlights } = useTranscript({
