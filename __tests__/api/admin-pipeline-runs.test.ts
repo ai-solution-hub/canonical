@@ -85,7 +85,14 @@ function mockPipelineRunsError(message: string, code: string) {
 function mockAuthSuccess() {
   getAuthorisedClientMock.mockResolvedValueOnce({
     success: true,
-    user: { id: 'admin-user-id', email: 'admin@example.com' },
+    user: {
+      id: 'admin-user-id',
+      email: 'admin@example.com',
+      app_metadata: {},
+      user_metadata: {},
+      aud: 'authenticated',
+      created_at: '2026-01-01T00:00:00Z',
+    },
     // The mock client is structurally compatible with the parts of the
     // SupabaseClient surface the route exercises (`from().select().gte().order()`).
     supabase: mockSupabase as unknown as Awaited<

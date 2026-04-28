@@ -60,9 +60,9 @@ function buildFullData() {
     },
     processing: {
       classificationModel: 'claude-opus-4-6',
-      classificationModelSource: 'recorded' as const,
+      classificationModelSource: 'recorded' as 'recorded' | 'env_default',
       embeddingModel: 'text-embedding-3-large',
-      embeddingModelSource: 'recorded' as const,
+      embeddingModelSource: 'recorded' as 'recorded' | 'env_default',
       classificationTokensIn: 1420,
       classificationTokensOut: 312,
       classificationCacheCreation: 0,

@@ -57,7 +57,8 @@ describe('useThemeMode', () => {
 
   it('uses view transition API when available', () => {
     const mockStartViewTransition = vi.fn((cb: () => void) => cb());
-    document.startViewTransition = mockStartViewTransition;
+    document.startViewTransition =
+      mockStartViewTransition as unknown as typeof document.startViewTransition;
 
     // Also need matchMedia to return false for reduced motion
     vi.stubGlobal(
@@ -90,7 +91,8 @@ describe('useThemeMode', () => {
 
   it('skips view transition when prefers-reduced-motion is enabled', () => {
     const mockStartViewTransition = vi.fn((cb: () => void) => cb());
-    document.startViewTransition = mockStartViewTransition;
+    document.startViewTransition =
+      mockStartViewTransition as unknown as typeof document.startViewTransition;
 
     vi.stubGlobal(
       'matchMedia',

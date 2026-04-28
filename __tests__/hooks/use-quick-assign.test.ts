@@ -296,7 +296,7 @@ describe('useQuickAssign', () => {
 
     // Should not have called the batch endpoint
     const batchCalls = mockFetch.mock.calls.filter(
-      ([url]: [string]) => url === '/api/items/batch-workspaces',
+      ([url]) => url === '/api/items/batch-workspaces',
     );
     expect(batchCalls).toHaveLength(0);
   });

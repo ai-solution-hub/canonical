@@ -52,8 +52,9 @@ describe('bridgeTemporalReferencesToEntities', () => {
       };
 
       // Store the chain so tests can configure per-table responses
-      (mockClient as Record<string, unknown>)[`_${table}_chain_${callIndex}`] =
-        chain;
+      (mockClient as unknown as Record<string, unknown>)[
+        `_${table}_chain_${callIndex}`
+      ] = chain;
       return chain;
     });
   });

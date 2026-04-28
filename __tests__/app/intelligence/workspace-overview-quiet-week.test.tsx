@@ -128,8 +128,8 @@ function activeMetrics() {
     recent_flags: [
       {
         id: 'flag-1',
-        flag_type: 'false_positive' as const,
-        notes: 'test flag',
+        flag_type: 'false_positive' as 'false_positive' | 'false_negative',
+        notes: 'test flag' as string | null,
         created_at: '2026-04-22T09:00:00Z',
         article_title: 'Flagged Article',
       },
@@ -145,7 +145,7 @@ function unhealthyMetrics() {
   };
 }
 
-function setupDefaults(metricsData = quietMetrics()) {
+function setupDefaults(metricsData: ReturnType<typeof activeMetrics> = quietMetrics() as ReturnType<typeof activeMetrics>) {
   mockUseParams.mockReturnValue({ workspaceId: WORKSPACE_ID });
   mockUseUserRole.mockReturnValue({
     role: 'admin',

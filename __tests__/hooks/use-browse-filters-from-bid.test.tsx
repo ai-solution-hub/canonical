@@ -122,7 +122,10 @@ describe('useBrowseFilters — from_bid persistence', () => {
       const { result } = renderHook(() => useBrowseFilters());
 
       act(() => {
-        result.current.setFilters({ sort: 'title', order: 'asc' });
+        result.current.setFilters({
+          sort: 'title' as unknown as 'captured_date',
+          order: 'asc',
+        });
       });
 
       expect(mockPush).toHaveBeenCalledTimes(1);

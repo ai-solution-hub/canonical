@@ -121,7 +121,7 @@ describe('show_reorient_me trigger tool', () => {
     const result = (await handler({}, extra)) as ToolResult;
 
     expect(result.structuredContent).toBeDefined();
-    expect(result.structuredContent.last_active_relative).toBe('10 days ago');
+    expect(result.structuredContent!.last_active_relative).toBe('10 days ago');
   });
 
   it('resolves display names', async () => {
@@ -133,7 +133,10 @@ describe('show_reorient_me trigger tool', () => {
 
     const result = (await handler({}, extra)) as ToolResult;
 
-    expect(result.structuredContent.team_changes[0].user_name).toBe('Alice');
+    expect(
+      (result.structuredContent as { team_changes: { user_name: string }[] })
+        .team_changes[0].user_name,
+    ).toBe('Alice');
   });
 
   it('returns Markdown content', async () => {

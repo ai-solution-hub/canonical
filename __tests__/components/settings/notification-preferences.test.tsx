@@ -118,7 +118,7 @@ describe('NotificationPreferences', () => {
     expect(screen.queryByRole('switch')).not.toBeInTheDocument();
 
     // Unblock the query so the render cycle settles and React Query cleans up.
-    resolvePrefs?.({
+    (resolvePrefs as ((value: unknown) => void) | null)?.({
       ok: true,
       json: async () => ({
         preferences: {

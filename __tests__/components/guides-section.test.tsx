@@ -286,10 +286,10 @@ describe('GuidesSection', () => {
     // Delete API should have been called
     await waitFor(() => {
       const deleteCalls = mockFetch.mock.calls.filter(
-        (call: [string, RequestInit?]) =>
+        (call) =>
           typeof call[0] === 'string' &&
-          call[0].includes('/api/guides/') &&
-          call[1]?.method === 'DELETE',
+          (call[0] as string).includes('/api/guides/') &&
+          (call[1] as RequestInit | undefined)?.method === 'DELETE',
       );
       expect(deleteCalls.length).toBe(1);
     });

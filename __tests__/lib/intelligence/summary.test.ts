@@ -390,12 +390,11 @@ describe('fetchIntelligenceSummary (real logic, mock DB)', () => {
     // Need to re-mock the Date constructor for setDate
     const originalDate = globalThis.Date;
     const MockDate = class extends originalDate {
-      constructor(...args: ConstructorParameters<typeof Date>) {
+      constructor(...args: unknown[]) {
         if (args.length === 0) {
           super(now.getTime());
         } else {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          super(...(args as [any]));
+          super(...(args as ConstructorParameters<typeof Date>));
         }
       }
     };
