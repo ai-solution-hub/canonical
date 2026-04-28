@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { resolveContentOwnerId } from '@/lib/auth/owner-default';
+import { parseBody } from '@/lib/validation';
 import { createServiceClient } from '@/lib/supabase/server';
 import { safeErrorMessage } from '@/lib/error';
 import type { Json } from '@/supabase/types/database.types';
@@ -225,19 +226,17 @@ export async function POST(request: NextRequest) {
     // The form field is a UUID string; resolveContentOwnerId() handles
     // empty/null/undefined safely. Zod-validate the UUID shape before
     // accepting it (fix M-2 — was previously bypassed for formData paths).
-    const contentOwnerIdRaw = formData.get('content_owner_id') as
-      | string
-      | null;
+    const contentOwnerIdRaw = formData.get('content_owner_id') as string | null;
     let contentOwnerIdField: string | null = null;
     if (contentOwnerIdRaw !== null && contentOwnerIdRaw !== '') {
-      const parsed = z.string().uuid().safeParse(contentOwnerIdRaw);
+      const parsed = parseBody(
+        z.object({ content_owner_id: z.string().uuid() }),
+        { content_owner_id: contentOwnerIdRaw },
+      );
       if (!parsed.success) {
-        return NextResponse.json(
-          { error: 'Invalid content_owner_id: must be a valid UUID' },
-          { status: 400 },
-        );
+        return parsed.response;
       }
-      contentOwnerIdField = parsed.data;
+      contentOwnerIdField = parsed.data.content_owner_id;
     }
     const ownerId = resolveContentOwnerId({
       explicit: contentOwnerIdField,

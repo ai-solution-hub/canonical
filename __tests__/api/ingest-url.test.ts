@@ -1320,7 +1320,10 @@ describe('POST /api/ingest/url — content_owner_id admin override', () => {
 
     // maybeSingle for domain re-fetch (topic suggestion)
     mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-      data: { primary_domain: 'General Business', primary_subtopic: 'Strategy' },
+      data: {
+        primary_domain: 'General Business',
+        primary_subtopic: 'Strategy',
+      },
       error: null,
     });
 

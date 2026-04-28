@@ -614,9 +614,7 @@ describe('MCP create_content_item — S205 WP-A2 pipeline_runs', () => {
     // simplest reliable trigger: make checkMcpRole itself throw — control
     // is inside the outer try, so the throw lands in the outer catch
     // (not the auth-fail return path, which only fires on null).
-    mocks.checkMcpRole.mockRejectedValueOnce(
-      new Error('role lookup blew up'),
-    );
+    mocks.checkMcpRole.mockRejectedValueOnce(new Error('role lookup blew up'));
 
     const result = await createTool(
       {

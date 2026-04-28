@@ -168,10 +168,7 @@ function buildUploadRequest(fields: {
   const formData = new FormData();
   formData.get = vi.fn((key: string) => {
     if (key === 'file') return fields.file;
-    if (
-      key === 'content_owner_id' &&
-      fields.contentOwnerId !== undefined
-    ) {
+    if (key === 'content_owner_id' && fields.contentOwnerId !== undefined) {
       return fields.contentOwnerId;
     }
     return null;
@@ -280,7 +277,11 @@ describe('POST /api/upload — content_owner_id resolution at insert', () => {
     configureRole(mockSupabase, 'editor');
     configureSuccessFlow();
 
-    const file = createMockFile(VALID_PDF_BYTES, 'sample.pdf', 'application/pdf');
+    const file = createMockFile(
+      VALID_PDF_BYTES,
+      'sample.pdf',
+      'application/pdf',
+    );
     const req = buildUploadRequest({ file });
 
     const res = await POST(req);
@@ -308,7 +309,11 @@ describe('POST /api/upload — content_owner_id resolution at insert', () => {
     configureSuccessFlow();
 
     const OTHER_UUID = '11111111-2222-4333-8444-555555555555';
-    const file = createMockFile(VALID_PDF_BYTES, 'sample.pdf', 'application/pdf');
+    const file = createMockFile(
+      VALID_PDF_BYTES,
+      'sample.pdf',
+      'application/pdf',
+    );
     const req = buildUploadRequest({ file, contentOwnerId: OTHER_UUID });
 
     const res = await POST(req);
@@ -335,7 +340,11 @@ describe('POST /api/upload — content_owner_id resolution at insert', () => {
     configureSuccessFlow();
 
     const OTHER_UUID = '11111111-2222-4333-8444-555555555555';
-    const file = createMockFile(VALID_PDF_BYTES, 'sample.pdf', 'application/pdf');
+    const file = createMockFile(
+      VALID_PDF_BYTES,
+      'sample.pdf',
+      'application/pdf',
+    );
     const req = buildUploadRequest({ file, contentOwnerId: OTHER_UUID });
 
     const res = await POST(req);
@@ -365,14 +374,23 @@ describe('POST /api/upload — content_owner_id resolution at insert', () => {
     configureRole(mockSupabase, 'admin');
     configureSuccessFlow();
 
-    const file = createMockFile(VALID_PDF_BYTES, 'sample.pdf', 'application/pdf');
+    const file = createMockFile(
+      VALID_PDF_BYTES,
+      'sample.pdf',
+      'application/pdf',
+    );
     const req = buildUploadRequest({ file, contentOwnerId: 'not-a-uuid' });
 
     const res = await POST(req);
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.error).toMatch(/content_owner_id/);
-    expect(body.error).toMatch(/UUID/i);
+    expect(body.error).toBe('Validation failed');
+    // parseBody returns field-level detail in body.details
+    expect(body.details).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: 'content_owner_id' }),
+      ]),
+    );
   });
 });
