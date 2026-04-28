@@ -18,6 +18,7 @@ import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { ContentTypeIcon } from '@/components/shared/content-type-icon';
 import { FreshnessBadge } from '@/components/shared/freshness-badge';
 import { GovernanceBadge } from '@/components/shared/governance-badge';
+import { ReviewCadenceBadge } from '@/components/shared/review-cadence-badge';
 import { QualityBadge } from '@/components/shared/quality-badge';
 import { calculateQualityScore } from '@/lib/quality/quality-score';
 import { AlertTriangle, Copy, FileText } from 'lucide-react';
@@ -289,6 +290,13 @@ function CardStatusRow({
       {item.freshness && item.freshness !== 'fresh' && (
         <FreshnessBadge freshness={item.freshness} compact />
       )}
+      {/* §5.5 Phase 3 T1: Review cadence badge — visible always (overdue/due
+          must be glanceable per OQ-2 default). The component itself returns
+          null for items > 30 days out or with null next_review_date. */}
+      <ReviewCadenceBadge
+        nextReviewDate={item.next_review_date}
+        governanceStatus={item.governance_review_status}
+      />
       {hasSecondaryBadges && (
         <span className="inline-flex items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
           {isSearchResult(item) && <SimilarityBadge score={item.similarity} />}

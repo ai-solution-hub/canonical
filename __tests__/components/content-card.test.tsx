@@ -5,7 +5,7 @@
  * Covers Q&A-specific rendering, read state styling, quality flag indicators,
  * thumbnail logic, and domain badge.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import type { ContentListItem } from '@/types/content';
@@ -261,6 +261,43 @@ describe('ContentCard', () => {
     );
     // GovernanceBadge in compact mode renders icon-only with aria-label
     expect(screen.getByLabelText('Review Pending')).toBeInTheDocument();
+  });
+
+  // ── Review cadence badge (§5.5 Phase 3 T1) ──
+
+  describe('ReviewCadenceBadge wiring', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-04-28T12:00:00Z'));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('renders "Review overdue" when item.governance_review_status === "review_overdue"', () => {
+      render(
+        <ContentCard
+          item={makeContentItem({
+            governance_review_status: 'review_overdue',
+          })}
+        />,
+      );
+      // Visible always (OQ-2 default) — no hover required
+      expect(screen.getByText('Review overdue')).toBeInTheDocument();
+    });
+
+    it('renders "Review due {DD/MM/YYYY}" when next_review_date is within 30 days', () => {
+      // 2026-04-28 + 7 days = 2026-05-05 → due-soon (amber)
+      render(
+        <ContentCard
+          item={makeContentItem({
+            next_review_date: '2026-05-05',
+          })}
+        />,
+      );
+      expect(screen.getByText('Review due 05/05/2026')).toBeInTheDocument();
+    });
   });
 
   // ── Links ──

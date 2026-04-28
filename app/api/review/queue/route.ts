@@ -17,7 +17,7 @@ type ContentItemRow = Database['public']['Tables']['content_items']['Row'];
 
 /** Columns needed by mapToReviewQueueItem — excludes embedding, summary_data, reader_html and other large/unused fields */
 const REVIEW_COLUMNS =
-  'id, title, suggested_title, summary, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, platform, author_name, source_domain, thumbnail_url, captured_date, ai_keywords, classification_confidence, quality_score, priority, user_tags, metadata, content, source_url, verified_at, verified_by, freshness, governance_review_status, created_at';
+  'id, title, suggested_title, summary, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, platform, author_name, source_domain, thumbnail_url, captured_date, ai_keywords, classification_confidence, quality_score, priority, user_tags, metadata, content, source_url, verified_at, verified_by, freshness, governance_review_status, next_review_date, review_cadence_days, created_at';
 
 /**
  * GET /api/review/queue — fetch content items for the review workflow.
@@ -509,6 +509,8 @@ function mapToReviewQueueItem(row: ContentItemRow): ReviewQueueItem {
     secondary_subtopic: row.secondary_subtopic ?? null,
     freshness: row.freshness ?? null,
     governance_review_status: row.governance_review_status ?? null,
+    next_review_date: row.next_review_date ?? null,
+    review_cadence_days: row.review_cadence_days ?? null,
     quality_score: row.quality_score ?? null,
     last_reviewed_at: null, // Populated post-query from verification_history
   };
