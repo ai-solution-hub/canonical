@@ -628,6 +628,7 @@ export type Database = {
           governance_review_status: string | null
           governance_reviewer_id: string | null
           id: string
+          ingest_source: string | null
           layer: string | null
           lifecycle_type: string | null
           metadata: Json | null
@@ -704,6 +705,7 @@ export type Database = {
           governance_review_status?: string | null
           governance_reviewer_id?: string | null
           id?: string
+          ingest_source?: string | null
           layer?: string | null
           lifecycle_type?: string | null
           metadata?: Json | null
@@ -780,6 +782,7 @@ export type Database = {
           governance_review_status?: string | null
           governance_reviewer_id?: string | null
           id?: string
+          ingest_source?: string | null
           layer?: string | null
           lifecycle_type?: string | null
           metadata?: Json | null
@@ -2849,6 +2852,7 @@ export type Database = {
               governance_review_status: string | null
               governance_reviewer_id: string | null
               id: string
+              ingest_source: string | null
               layer: string | null
               lifecycle_type: string | null
               metadata: Json | null
