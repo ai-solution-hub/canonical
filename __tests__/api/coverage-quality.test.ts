@@ -335,7 +335,6 @@ describe('GET /api/coverage/templates/list', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest('/api/coverage/templates/list');
     const res = await templatesListGet();
     expect(res.status).toBe(401);
   });
@@ -355,7 +354,6 @@ describe('GET /api/coverage/templates/list', () => {
     ];
     mockListAvailableTemplates.mockResolvedValueOnce(templates);
 
-    const req = createTestRequest('/api/coverage/templates/list');
     const res = await templatesListGet();
     expect(res.status).toBe(200);
 
@@ -367,7 +365,6 @@ describe('GET /api/coverage/templates/list', () => {
   it('returns 200 with empty array when no templates exist', async () => {
     mockListAvailableTemplates.mockResolvedValueOnce([]);
 
-    const req = createTestRequest('/api/coverage/templates/list');
     const res = await templatesListGet();
     expect(res.status).toBe(200);
 
@@ -384,7 +381,6 @@ describe('GET /api/dashboard', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest('/api/dashboard');
     const res = await dashboardGet();
     expect(res.status).toBe(401);
   });
@@ -413,7 +409,6 @@ describe('GET /api/dashboard', () => {
     };
     mockFetchUnifiedDashboardData.mockResolvedValueOnce(dashboardData);
 
-    const req = createTestRequest('/api/dashboard');
     const res = await dashboardGet();
     expect(res.status).toBe(200);
 
@@ -425,7 +420,6 @@ describe('GET /api/dashboard', () => {
   it('passes isAdmin=true when user has admin role', async () => {
     configureRole(mockSupabase, 'admin');
 
-    const req = createTestRequest('/api/dashboard');
     await dashboardGet();
 
     expect(mockFetchUnifiedDashboardData).toHaveBeenCalledWith(
@@ -439,7 +433,6 @@ describe('GET /api/dashboard', () => {
   it('passes isAdmin=false when user has viewer role', async () => {
     configureRole(mockSupabase, 'viewer');
 
-    const req = createTestRequest('/api/dashboard');
     await dashboardGet();
 
     expect(mockFetchUnifiedDashboardData).toHaveBeenCalledWith(
@@ -480,7 +473,6 @@ describe('GET /api/dashboard', () => {
       ],
     });
 
-    const req = createTestRequest('/api/dashboard');
     const res = await dashboardGet();
     expect(res.status).toBe(500);
 
@@ -679,7 +671,6 @@ describe('GET /api/quality/summary', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest('/api/quality/summary');
     const res = await qualitySummaryGet();
     expect(res.status).toBe(401);
   });
@@ -691,7 +682,6 @@ describe('GET /api/quality/summary', () => {
     ];
     mockSupabase.rpc.mockResolvedValueOnce({ data: rpcData, error: null });
 
-    const req = createTestRequest('/api/quality/summary');
     const res = await qualitySummaryGet();
     expect(res.status).toBe(200);
 
@@ -708,7 +698,6 @@ describe('GET /api/quality/summary', () => {
       error: { message: 'RPC error' },
     });
 
-    const req = createTestRequest('/api/quality/summary');
     const res = await qualitySummaryGet();
     expect(res.status).toBe(500);
 

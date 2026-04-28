@@ -471,7 +471,6 @@ describe('GET /api/content-owners/stats', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest('/api/content-owners/stats');
 
     const res = await statsGet();
     expect(res.status).toBe(401);
@@ -483,7 +482,6 @@ describe('GET /api/content-owners/stats', () => {
       error: null,
     });
 
-    const req = createTestRequest('/api/content-owners/stats');
 
     const res = await statsGet();
     expect(res.status).toBe(200);
@@ -527,7 +525,6 @@ describe('GET /api/content-owners/stats', () => {
       // empty Map; route falls through to `display_name: null`.
       .mockResolvedValueOnce({ data: [], error: null });
 
-    const req = createTestRequest('/api/content-owners/stats');
 
     const res = await statsGet();
     expect(res.status).toBe(200);
@@ -543,7 +540,6 @@ describe('GET /api/content-owners/stats', () => {
       error: { message: 'RPC error' },
     });
 
-    const req = createTestRequest('/api/content-owners/stats');
 
     const res = await statsGet();
     expect(res.status).toBe(500);
@@ -559,7 +555,6 @@ describe('GET /api/content-owners/stats', () => {
       error: null,
     });
 
-    const req = createTestRequest('/api/content-owners/stats');
 
     const res = await statsGet();
     expect(res.status).toBe(200);

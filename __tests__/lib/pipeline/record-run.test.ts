@@ -31,8 +31,6 @@ import type { Database } from '@/supabase/types/database.types';
 // Helpers
 // ---------------------------------------------------------------------------
 
-type InsertArgs = Record<string, unknown>;
-
 function createMockSupabase(
   insertResult:
     | { data: null; error: null }

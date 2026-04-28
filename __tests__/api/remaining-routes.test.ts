@@ -198,7 +198,6 @@ describe('GET /api/digest/latest', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest('/api/digest/latest');
     const res = await digestLatestGet();
     expect(res.status).toBe(401);
 
@@ -212,7 +211,6 @@ describe('GET /api/digest/latest', () => {
       error: null,
     });
 
-    const req = createTestRequest('/api/digest/latest');
     const res = await digestLatestGet();
     expect(res.status).toBe(200);
 
@@ -251,7 +249,6 @@ describe('GET /api/digest/latest', () => {
       error: null,
     });
 
-    const req = createTestRequest('/api/digest/latest');
     const res = await digestLatestGet();
     expect(res.status).toBe(200);
 
@@ -272,7 +269,6 @@ describe('GET /api/digest/latest', () => {
       error: { message: 'Database connection failed', code: '08001' },
     });
 
-    const req = createTestRequest('/api/digest/latest');
     const res = await digestLatestGet();
     expect(res.status).toBe(500);
 
@@ -301,7 +297,6 @@ describe('GET /api/digest/latest', () => {
       error: null,
     });
 
-    const req = createTestRequest('/api/digest/latest');
     const res = await digestLatestGet();
     expect(res.status).toBe(200);
 
@@ -520,7 +515,6 @@ describe('GET /api/coverage/guides', () => {
   it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
-    const req = createTestRequest('/api/coverage/guides');
     const res = await coverageGuidesGet();
     expect(res.status).toBe(401);
 
@@ -531,7 +525,6 @@ describe('GET /api/coverage/guides', () => {
   it('returns 429 when rate limited', async () => {
     mockCheckRateLimit.mockReturnValueOnce({ allowed: false, remaining: 0 });
 
-    const req = createTestRequest('/api/coverage/guides');
     const res = await coverageGuidesGet();
     expect(res.status).toBe(429);
   });
@@ -539,7 +532,6 @@ describe('GET /api/coverage/guides', () => {
   it('returns 200 with empty guides when no data', async () => {
     mockSupabase.rpc.mockResolvedValueOnce({ data: [], error: null });
 
-    const req = createTestRequest('/api/coverage/guides');
     const res = await coverageGuidesGet();
     expect(res.status).toBe(200);
 
@@ -589,7 +581,6 @@ describe('GET /api/coverage/guides', () => {
 
     mockSupabase.rpc.mockResolvedValueOnce({ data: rpcRows, error: null });
 
-    const req = createTestRequest('/api/coverage/guides');
     const res = await coverageGuidesGet();
     expect(res.status).toBe(200);
 
@@ -613,7 +604,6 @@ describe('GET /api/coverage/guides', () => {
       error: { message: 'RPC error', code: '50000' },
     });
 
-    const req = createTestRequest('/api/coverage/guides');
     const res = await coverageGuidesGet();
     expect(res.status).toBe(500);
 
@@ -1234,7 +1224,6 @@ describe('GET /api/oauth/grants', () => {
       },
     });
 
-    const req = createTestRequest('/api/oauth/grants');
     const res = await oauthGrantsGet();
     expect(res.status).toBe(401);
 
@@ -1243,7 +1232,6 @@ describe('GET /api/oauth/grants', () => {
   });
 
   it('returns 200 with empty grants list', async () => {
-    const req = createTestRequest('/api/oauth/grants');
     const res = await oauthGrantsGet();
     expect(res.status).toBe(200);
 
@@ -1267,7 +1255,6 @@ describe('GET /api/oauth/grants', () => {
       error: null,
     });
 
-    const req = createTestRequest('/api/oauth/grants');
     const res = await oauthGrantsGet();
     expect(res.status).toBe(200);
 
@@ -1283,7 +1270,6 @@ describe('GET /api/oauth/grants', () => {
       error: { message: 'Service unavailable' },
     });
 
-    const req = createTestRequest('/api/oauth/grants');
     const res = await oauthGrantsGet();
     expect(res.status).toBe(500);
 
