@@ -194,6 +194,13 @@ jobs:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Server-side secrets the dev server boots with (lib/env-server.ts
+          # validates at module load — every Zod-required field must be set
+          # or `bun run dev` fails at first import).
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
           # Mirror to NEXT_PUBLIC_* for the client schema (same pattern as
           # the `quality` job's build step).
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}

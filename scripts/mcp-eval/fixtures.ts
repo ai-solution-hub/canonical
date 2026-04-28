@@ -326,7 +326,16 @@ export async function getKnownUUIDs(
     .single();
 
   if (!contentItem) {
-    throw new Error('No content items found in database for eval fixtures');
+    // Graceful exit-0 on data-empty Supabase branches (e.g. fresh staging
+    // persistent branch before fixture seeding). CI surfaces the skip in
+    // logs without failing the workflow. Roadmap §9.16.9 tracks fixture
+    // seeding so MCP eval can run end-to-end on staging.
+    console.warn(
+      '\n[MCP eval skipped] no Q&A content_items with embeddings in database.\n' +
+        '  Cause: data-empty Supabase branch (typical for fresh staging branches).\n' +
+        '  Action: seed minimum eval fixtures (roadmap §9.16.10 — staging eval seed).\n',
+    );
+    process.exit(0);
   }
 
   // Get a known bid workspace
