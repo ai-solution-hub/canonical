@@ -427,7 +427,12 @@ export function MetadataSidebar({
           </dd>
         </div>
 
-        {/* Quality score breakdown */}
+        {/* Quality score breakdown.
+            §5.5 Phase 5: pass next_review_date + review_cadence_days through
+            so the breakdown's calculateQualityScore() applies the cadence-
+            compliance penalty (spec §9.3). Cast at the boundary while T1's
+            ItemData widening is in flight (matches the ReviewCadenceEditor
+            pattern below). */}
         <QualityScoreBreakdown
           item={{
             freshness: item.freshness as string | null,
@@ -439,6 +444,12 @@ export function MetadataSidebar({
             reference: item.reference as string | null,
             summary: item.summary as string | null,
             citation_count: item.citation_count ?? 0,
+            next_review_date:
+              (item as { next_review_date?: string | null })
+                .next_review_date ?? null,
+            review_cadence_days:
+              (item as { review_cadence_days?: number | null })
+                .review_cadence_days ?? null,
           }}
         />
 
