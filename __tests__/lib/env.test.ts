@@ -1,5 +1,5 @@
 /**
- * Tests for `lib/env.ts` and `lib/env-client.ts` Zod-validated env exports.
+ * Tests for `lib/env-server.ts` and `lib/env-client.ts` Zod-validated env exports.
  *
  * @vitest-environment node
  *
@@ -38,7 +38,7 @@ function applyEnv(env: Record<string, string>): void {
   }
 }
 
-describe('lib/env.ts boot-time env validation', () => {
+describe('lib/env-server.ts + lib/env-client.ts boot-time env validation', () => {
   beforeEach(() => {
     vi.resetModules();
   });
@@ -49,7 +49,7 @@ describe('lib/env.ts boot-time env validation', () => {
 
   it('exposes typed clientEnv when all required vars are present', async () => {
     applyEnv(VALID_ENV);
-    const { clientEnv } = await import('@/lib/env');
+    const { clientEnv } = await import('@/lib/env-client');
     expect(clientEnv.NEXT_PUBLIC_SUPABASE_URL).toBe(
       'https://example.supabase.co',
     );
@@ -62,7 +62,7 @@ describe('lib/env.ts boot-time env validation', () => {
 
   it('exposes typed serverEnv with coerced numeric defaults', async () => {
     applyEnv(VALID_ENV);
-    const { serverEnv } = await import('@/lib/env');
+    const { serverEnv } = await import('@/lib/env-server');
     expect(serverEnv.SUPABASE_SERVICE_ROLE_KEY).toBe(
       'sb_secret_test_service_key',
     );
@@ -73,7 +73,7 @@ describe('lib/env.ts boot-time env validation', () => {
 
   it('coerces CLASSIFICATION_BATCH_SIZE from string to number', async () => {
     applyEnv({ ...VALID_ENV, CLASSIFICATION_BATCH_SIZE: '50' });
-    const { serverEnv } = await import('@/lib/env');
+    const { serverEnv } = await import('@/lib/env-server');
     expect(serverEnv.CLASSIFICATION_BATCH_SIZE).toBe(50);
     expect(typeof serverEnv.CLASSIFICATION_BATCH_SIZE).toBe('number');
   });
@@ -86,14 +86,14 @@ describe('lib/env.ts boot-time env validation', () => {
     // (the failure mode that caused the S196 incident).
     vi.stubEnv('NEXT_PUBLIC_CLIENT_ID', '');
 
-    await expect(import('@/lib/env')).rejects.toThrow(
+    await expect(import('@/lib/env-client')).rejects.toThrow(
       /NEXT_PUBLIC_CLIENT_ID.*REQUIRED.*BRANDING fallback corruption.*S196/,
     );
   });
 
   it('REJECTS malformed NEXT_PUBLIC_SUPABASE_URL with a clear message', async () => {
     applyEnv({ ...VALID_ENV, NEXT_PUBLIC_SUPABASE_URL: 'not-a-url' });
-    await expect(import('@/lib/env')).rejects.toThrow(
+    await expect(import('@/lib/env-client')).rejects.toThrow(
       /NEXT_PUBLIC_SUPABASE_URL.*valid URL/,
     );
   });
@@ -104,7 +104,7 @@ describe('lib/env.ts boot-time env validation', () => {
     applyEnv(incomplete);
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');
 
-    await expect(import('@/lib/env')).rejects.toThrow(
+    await expect(import('@/lib/env-server')).rejects.toThrow(
       /SUPABASE_SERVICE_ROLE_KEY.*required/,
     );
   });
@@ -115,7 +115,9 @@ describe('lib/env.ts boot-time env validation', () => {
     applyEnv(incomplete);
     vi.stubEnv('CRON_SECRET', '');
 
-    await expect(import('@/lib/env')).rejects.toThrow(/CRON_SECRET.*required/);
+    await expect(import('@/lib/env-server')).rejects.toThrow(
+      /CRON_SECRET.*required/,
+    );
   });
 
   it('accepts optional NEXT_PUBLIC_SENTRY_DSN as empty string', async () => {
@@ -123,7 +125,7 @@ describe('lib/env.ts boot-time env validation', () => {
       ...VALID_ENV,
       NEXT_PUBLIC_SENTRY_DSN: '',
     });
-    const { clientEnv } = await import('@/lib/env');
+    const { clientEnv } = await import('@/lib/env-client');
     // empty-string passthrough or undefined — both indicate "not set"
     expect(
       clientEnv.NEXT_PUBLIC_SENTRY_DSN === '' ||
