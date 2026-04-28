@@ -1,0 +1,53 @@
+# Dependabot configuration — explicit hygiene over GitHub UI auto-defaults.
+#
+# Three ecosystems tracked:
+#   - npm: package.json + bun.lock surface
+#   - pip: requirements.txt (Python pipeline)
+#   - github-actions: workflows under .github/workflows/
+#
+# Rationale for explicit config (S10 Wave 0b):
+#   - Prevents drift if GitHub changes UI auto-defaults.
+#   - Adds github-actions ecosystem so Node 20 → 24 deprecation surfaces as
+#     PRs without manual audit (June 2026 default flip; Sept 2026 removal).
+#     See https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+#   - Weekly cadence balances signal vs PR noise.
+#   - Major-version updates separated from minor/patch so breaking changes
+#     are reviewed individually, while non-breaking upgrades batch per week.
+
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    groups:
+      npm-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      pip-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      actions-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
