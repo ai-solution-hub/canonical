@@ -48,6 +48,9 @@ interface ContentItemRow {
   governance_review_status: string | null;
   verified_at: string | null;
   citation_count: number | null;
+  // §5.5 Phase 5: cadence-compliance modifier inputs
+  next_review_date: string | null;
+  review_cadence_days: number | null;
 }
 
 interface GovConfig {
@@ -142,7 +145,9 @@ export async function GET(request: NextRequest) {
       const { data: items, error: fetchError } = await supabase
         .from('content_items')
         .select(
-          'id, title, primary_domain, freshness, classification_confidence, brief, detail, reference, summary, metadata, quality_score, governance_review_status, verified_at, citation_count',
+          // §5.5 Phase 5: include next_review_date + review_cadence_days for
+          // cadence-compliance modifier in calculateAndRoundQualityScore.
+          'id, title, primary_domain, freshness, classification_confidence, brief, detail, reference, summary, metadata, quality_score, governance_review_status, verified_at, citation_count, next_review_date, review_cadence_days',
         )
         .is('archived_at', null)
         .order('id', { ascending: true })
@@ -174,6 +179,9 @@ export async function GET(request: NextRequest) {
           reference: item.reference,
           summary: item.summary,
           citation_count: item.citation_count ?? 0,
+          // §5.5 Phase 5: cadence-compliance modifier
+          next_review_date: item.next_review_date,
+          review_cadence_days: item.review_cadence_days,
         });
 
         const oldScore = item.quality_score;

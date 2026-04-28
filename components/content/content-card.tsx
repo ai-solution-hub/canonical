@@ -54,6 +54,10 @@ function qualityScoreForItem(item: ContentListItem | SearchResult) {
     // detail + reference are not fetched for list views — omitted intentionally
     summary: item.summary,
     citation_count: item.citation_count ?? 0,
+    // §5.5 Phase 5: cadence-compliance modifier — null next_review_date is a
+    // no-op (preservation rule), so passing through is safe regardless.
+    next_review_date: item.next_review_date ?? null,
+    review_cadence_days: item.review_cadence_days ?? null,
   });
 }
 
