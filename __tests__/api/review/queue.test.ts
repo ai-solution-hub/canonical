@@ -600,6 +600,174 @@ describe('GET /api/review/queue — assigned_to_me filter', () => {
 // This test owns the queue-route side of the orthogonality assertion.
 // ===========================================================================
 
+// ===========================================================================
+// S205 WP-E T2 — include_overdue filter
+// Plan: docs/plans/p0-document-control-phase-3-ui-plan.md §T2 (T2-AC2/AC7,
+// H-1, H-2). T0 (RPC stats.overdue) shipped S204; T2 wires the route side.
+// ===========================================================================
+
+describe('GET /api/review/queue — include_overdue filter (S205 WP-E T2)', () => {
+  beforeEach(resetMocks);
+
+  it('uses query.is(verified_at, null) when include_overdue is missing (default off)', async () => {
+    // T2-AC7: missing param resolves to off — the existing default
+    // unverified branch still applies the simple verified_at IS NULL
+    // predicate. No widening, no .or() call for the verification axis.
+    configureRole(mockSupabase, 'editor');
+
+    let thenCallCount = 0;
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1)
+          return resolve({ data: [makeMockItem()], error: null, count: 1 });
+        return resolve({ data: null, error: null, count: 0 });
+      },
+    );
+
+    const req = createTestRequest('/api/review/queue');
+    const res = await getQueue(req);
+
+    expect(res.status).toBe(200);
+
+    // .is('verified_at', null) is the existing predicate.
+    const isCalls = mockSupabase._chain.is.mock.calls as Array<
+      [string, unknown]
+    >;
+    const verifiedAtNull = isCalls.find(
+      ([col, val]) => col === 'verified_at' && val === null,
+    );
+    expect(verifiedAtNull).toBeDefined();
+
+    // Crucially: .or(...) MUST NOT be called for the verification axis.
+    // (.or may be called for other reasons — assert specifically against the
+    // overdue OR clause we're testing.)
+    const orCalls = mockSupabase._chain.or.mock.calls as Array<[string]>;
+    const overdueOr = orCalls.find(
+      ([clause]) =>
+        typeof clause === 'string' &&
+        clause.includes('governance_review_status.eq.review_overdue'),
+    );
+    expect(overdueOr).toBeUndefined();
+  });
+
+  it('treats explicit ?include_overdue=false as off (H-1: no z.coerce.boolean regression)', async () => {
+    // T2-AC7 + H-1: the route MUST NOT use z.coerce.boolean — that helper
+    // returns true for ANY non-empty string including the literal 'false'.
+    // The route mirrors the assigned_to_me string-compare pattern, so
+    // ?include_overdue=false resolves to off and the predicate path is
+    // identical to the missing-param case.
+    configureRole(mockSupabase, 'editor');
+
+    let thenCallCount = 0;
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1)
+          return resolve({ data: [makeMockItem()], error: null, count: 1 });
+        return resolve({ data: null, error: null, count: 0 });
+      },
+    );
+
+    const req = createTestRequest('/api/review/queue', {
+      searchParams: { include_overdue: 'false' },
+    });
+    const res = await getQueue(req);
+
+    expect(res.status).toBe(200);
+
+    // Same expectations as the "missing param" case.
+    const isCalls = mockSupabase._chain.is.mock.calls as Array<
+      [string, unknown]
+    >;
+    const verifiedAtNull = isCalls.find(
+      ([col, val]) => col === 'verified_at' && val === null,
+    );
+    expect(verifiedAtNull).toBeDefined();
+
+    const orCalls = mockSupabase._chain.or.mock.calls as Array<[string]>;
+    const overdueOr = orCalls.find(
+      ([clause]) =>
+        typeof clause === 'string' &&
+        clause.includes('governance_review_status.eq.review_overdue'),
+    );
+    expect(overdueOr).toBeUndefined();
+  });
+
+  it('replaces is(verified_at, null) with the OR predicate when include_overdue=true and status=unverified (H-2)', async () => {
+    // T2-AC2 + H-2: with status='unverified' (default) AND
+    // include_overdue=true, the route MUST swap query.is('verified_at',null)
+    // for query.or('verified_at.is.null,governance_review_status.eq.review_overdue')
+    // so verified-but-overdue rows surface alongside unverified rows.
+    configureRole(mockSupabase, 'editor');
+
+    // Fixture: one unverified row + one verified-but-overdue row. Both
+    // surface under the OR predicate even though the verified row's
+    // verified_at IS NOT NULL — that's the whole point of the widening.
+    const unverifiedRow = makeMockItem({
+      id: '00000000-0000-4000-8000-000000000010',
+      verified_at: null,
+      governance_review_status: 'pending',
+    });
+    const verifiedOverdueRow = makeMockItem({
+      id: '00000000-0000-4000-8000-000000000011',
+      verified_at: '2026-03-01T00:00:00Z',
+      governance_review_status: 'review_overdue',
+    });
+
+    let thenCallCount = 0;
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) {
+          return resolve({
+            data: [unverifiedRow, verifiedOverdueRow],
+            error: null,
+            count: 2,
+          });
+        }
+        return resolve({ data: null, error: null, count: 0 });
+      },
+    );
+
+    const req = createTestRequest('/api/review/queue', {
+      searchParams: { include_overdue: 'true' },
+    });
+    const res = await getQueue(req);
+
+    expect(res.status).toBe(200);
+
+    // (a) The OR clause MUST be applied with the exact PostgREST syntax
+    //     the plan H-2 specifies.
+    const orCalls = mockSupabase._chain.or.mock.calls as Array<[string]>;
+    const overdueOr = orCalls.find(
+      ([clause]) =>
+        clause ===
+        'verified_at.is.null,governance_review_status.eq.review_overdue',
+    );
+    expect(overdueOr).toBeDefined();
+
+    // (b) The simple .is('verified_at', null) predicate MUST NOT be added
+    //     in addition — that would defeat the widening by intersecting
+    //     with the OR clause.
+    const isCalls = mockSupabase._chain.is.mock.calls as Array<
+      [string, unknown]
+    >;
+    const verifiedAtNull = isCalls.find(
+      ([col, val]) => col === 'verified_at' && val === null,
+    );
+    expect(verifiedAtNull).toBeUndefined();
+
+    // (c) Both unverified and verified-but-overdue rows surface in the
+    //     mapped response.
+    const json = await res.json();
+    expect(json.items).toHaveLength(2);
+    const ids = json.items.map((i: { id: string }) => i.id);
+    expect(ids).toContain(unverifiedRow.id);
+    expect(ids).toContain(verifiedOverdueRow.id);
+  });
+});
+
 describe('GET /api/review/queue — orthogonality with governance_review_status (V2-M5)', () => {
   beforeEach(resetMocks);
 

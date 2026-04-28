@@ -83,6 +83,10 @@ export function buildQueueParams(
     }
   }
   if (filters.assigned_to_me) params.set('assigned_to_me', 'true');
+  // S205 WP-E T2 — propagate "Overdue reviews" toggle to the queue route.
+  // Only emit the param when on; off / undefined sends nothing so the
+  // route falls through to its existing `verified_at IS NULL` predicate.
+  if (filters.include_overdue) params.set('include_overdue', 'true');
   if (serverSort) params.set('sort', serverSort);
   return params;
 }

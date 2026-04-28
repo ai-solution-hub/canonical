@@ -174,4 +174,100 @@ describe('ReviewFilters', () => {
       expect(onFiltersChange).toHaveBeenCalledWith({ status: 'unverified' });
     });
   });
+
+  // -------------------------------------------------------------------------
+  // S205 WP-E T2 — "Overdue reviews" toggle
+  // Plan: docs/plans/p0-document-control-phase-3-ui-plan.md §T2 (T2-AC1/4/5/7)
+  // -------------------------------------------------------------------------
+
+  describe('include_overdue toggle (S205 WP-E T2)', () => {
+    it('renders the "Overdue reviews" toggle with aria-checked=false by default', async () => {
+      // T2-AC1 + T2-AC5: toggle exists, has clear text label, and exposes
+      // aria-checked="false" so screen readers communicate the off state.
+      const { user } = renderFilters();
+
+      const filterButton = screen.getByRole('button', { name: /filters/i });
+      await user.click(filterButton);
+
+      const toggle = screen.getByRole('switch', { name: /overdue reviews/i });
+      expect(toggle).toBeInTheDocument();
+      expect(toggle).toHaveAttribute('aria-checked', 'false');
+    });
+
+    it('calls onFiltersChange with include_overdue=true on click-on', async () => {
+      // T2-AC4 (filter-driven query rekeying): clicking the toggle dispatches
+      // the new filter state; the parent's TanStack Query key includes
+      // include_overdue via queueFiltersKey, so a refetch is automatic.
+      const onFiltersChange = vi.fn();
+      const { user } = renderFilters({ status: 'unverified' }, onFiltersChange);
+
+      const filterButton = screen.getByRole('button', { name: /filters/i });
+      await user.click(filterButton);
+
+      const toggle = screen.getByRole('switch', { name: /overdue reviews/i });
+      await user.click(toggle);
+
+      expect(onFiltersChange).toHaveBeenCalledWith(
+        expect.objectContaining({ include_overdue: true }),
+      );
+    });
+
+    it('renders the count pill from stats.overdue when > 0', async () => {
+      // T2-AC4: count badge wired end-to-end from the T0 RPC overdue field.
+      const { user } = renderFilters({ status: 'unverified' }, vi.fn(), {
+        ...baseStats,
+        overdue: 7,
+      });
+
+      const filterButton = screen.getByRole('button', { name: /filters/i });
+      await user.click(filterButton);
+
+      const toggle = screen.getByRole('switch', { name: /overdue reviews/i });
+      // The count pill appears INSIDE the toggle alongside the label,
+      // not on the popover trigger (which shows the active-filter count).
+      expect(within(toggle).getByText('7')).toBeInTheDocument();
+    });
+
+    it('hides the count pill when stats.overdue is 0', async () => {
+      // Pill visibility is gated on overdueCount > 0 — when zero, the user
+      // is not nudged with a meaningless badge. (Matches the assigned_to_me
+      // pattern of suppressing chrome that does not carry a signal.)
+      const { user } = renderFilters({ status: 'unverified' }, vi.fn(), {
+        ...baseStats,
+        overdue: 0,
+      });
+
+      const filterButton = screen.getByRole('button', { name: /filters/i });
+      await user.click(filterButton);
+
+      const toggle = screen.getByRole('switch', { name: /overdue reviews/i });
+      // No numeric badge inside the toggle.
+      expect(within(toggle).queryByText(/^\d+$/)).not.toBeInTheDocument();
+    });
+
+    it('shows toggle as checked when include_overdue is true', async () => {
+      // T2-AC5: aria-checked tracks state.
+      const { user } = renderFilters({
+        status: 'unverified',
+        include_overdue: true,
+      });
+
+      const filterButton = screen.getByRole('button', { name: /filters/i });
+      await user.click(filterButton);
+
+      const toggle = screen.getByRole('switch', { name: /overdue reviews/i });
+      expect(toggle).toHaveAttribute('aria-checked', 'true');
+    });
+
+    it('contributes to the active filter count badge when on', async () => {
+      // include_overdue is treated as an active filter, so the popover
+      // trigger badge counts it (parity with assigned_to_me).
+      renderFilters({ status: 'unverified', include_overdue: true });
+
+      const filterButton = screen.getByRole('button', { name: /filters/i });
+      // Active-filter count badge on the trigger button itself shows "1".
+      const badge = within(filterButton).getByText('1');
+      expect(badge).toBeInTheDocument();
+    });
+  });
 });

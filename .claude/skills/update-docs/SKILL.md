@@ -197,7 +197,7 @@ git diff --name-only HEAD~20 HEAD 2>/dev/null | grep -E "^(app/api|lib/ai|lib/mc
 
 4. If the addition is substantial (a whole new feature area, not a tweak), flag
    it in the continuation prompt that you are about to create during /handoff so
-   a dedicated documentation sub-session can be planned. The table in 'Step 5:
+   a dedicated documentation sub-session can be planned. The table in 'Step 6:
    Item 2' will also need to be updated to include the new path/functional area.
 
 ```bash
@@ -209,7 +209,98 @@ git diff --quiet docs/product-functionality/ || \
 
 ---
 
-## Step 7: Update Product Backlog (Conditional)
+## Step 6.5: Detect Reference Doc Drift (Conditional)
+
+**Purpose:** Flag tracked canonical reference docs whose source-of-truth
+code/schema/env-vars changed this session without the doc being touched.
+Detection only — no rewrites.
+
+**Why a separate step (not folded into Step 6):** Step 6 product-functionality
+docs are session-dated snapshots that flag updates with
+`[NEEDS REVIEW — updated S{NNN}]`. Reference docs are canonical present-tense —
+they carry only a `<!-- Last verified: ... -->` header, never session markers in
+body. Folding risks future agents applying snapshot semantics to canonical docs.
+
+**Tracked-doc list:** sourced from `lib/docs/tracked-reference-docs.ts`
+(`TRACKED_REFERENCE_DOCS`) — the same constant the edit-coupled freshness guard
+test (`__tests__/docs/reference-doc-edit-coupled-freshness.test.ts`) uses.
+Adding/removing tracked docs touches that file only; both this step and the
+guard pick up changes automatically.
+
+**Procedure:**
+
+1. Identify changed source paths in this session's commits:
+
+```bash
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT" && git diff --name-only HEAD~30 HEAD 2>/dev/null
+```
+
+2. Map paths → tracked reference docs via this table:
+
+| Path pattern                                                                                                                                      | Reference doc(s)                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `supabase/migrations/*.sql`, `supabase/types/database.types.ts`                                                                                   | `SCHEMA-QUICK-REFERENCE.md`                                  |
+| `lib/ai/**`, `app/api/ai/**`                                                                                                                      | `ai-integration-layers.md`, `ai-integration-strategy.md`     |
+| `scripts/kb_pipeline/classify*.py`, `lib/ai/classify*.ts`, `scripts/tests/fixtures/taxonomy_snapshot.json`, `lib/taxonomy/*`                      | `classification-architecture.md`, `classification-prompt.md` |
+| `app/api/items/**`, `app/api/upload/**`, `app/api/ingest/**`, `lib/mcp/tools/content.ts`, `scripts/kb_pipeline/pipeline.py`, `scripts/ingest*.py` | `data-entry-points.md`                                       |
+| `lib/entities/**`, `lib/extraction/**`, `app/api/entities/**`                                                                                     | `entity-type-taxonomy-spec.md`                               |
+| `lib/validation/schemas.ts`, `types/**`                                                                                                           | `field-consumer-dependency-map.md`                           |
+| `.env.example`, `scripts/**` (CLI flag changes)                                                                                                   | `runbooks/local-development.md`                              |
+| `supabase/**`, `.github/workflows/*staging*`                                                                                                      | `runbooks/staging-refresh.md`                                |
+| `.github/workflows/**`, GitHub env-var/secret changes                                                                                             | `runbooks/github-environments.md`                            |
+
+3. For each affected reference doc:
+   - **If the doc was touched in this session's commits:** the edit-coupled
+     freshness guard (WP2b) already enforced a `<!-- Last verified -->` header
+     bump in the same commit. **No action needed.**
+   - **If the doc was NOT touched but a mapped source path changed:** append a
+     single line to the upcoming handoff prompt (Step 11) under a **"Reference
+     doc drift"** section, formatted as:
+
+     ```
+     <doc-path>: drifted via <changed-source-path>
+     ```
+
+4. **Detection only — no auto-rewrite.** Doc rewrites happen either:
+   - In the originating session (when the author edits the doc and bumps the
+     `<!-- Last verified -->` header), or
+   - In a periodic `/kpf:refresh-reference-docs` run (which spawns 4 parallel
+     agents to diff claimed facts vs current code, rewrite in place, and bump
+     headers).
+
+   Step 6.5 is purely a drift detector. Surfacing the list to the next session's
+   prompt is the trigger to schedule a refresh.
+
+**Worked example (hypothetical):** A session committed
+`supabase/migrations/20260428_add_index.sql` and `lib/ai/classify-content.ts`,
+but didn't touch any tracked reference doc. The mapping yields:
+
+- `supabase/migrations/20260428_add_index.sql` → `SCHEMA-QUICK-REFERENCE.md`
+- `lib/ai/classify-content.ts` → `ai-integration-layers.md`,
+  `ai-integration-strategy.md`
+
+Step 6.5 emits to the handoff prompt:
+
+```markdown
+### Reference doc drift
+
+- `docs/reference/SCHEMA-QUICK-REFERENCE.md`: drifted via
+  `supabase/migrations/20260428_add_index.sql`
+- `docs/reference/ai-integration-layers.md`: drifted via
+  `lib/ai/classify-content.ts`
+- `docs/reference/ai-integration-strategy.md`: drifted via
+  `lib/ai/classify-content.ts`
+```
+
+When the drift list crosses ~5 entries, or quarterly, schedule a
+`/kpf:refresh-reference-docs` run. Drift items live in the next continuation
+prompt **only** — never duplicated into roadmap or backlog (memory
+`feedback_action_items_single_location`).
+
+---
+
+## Step 8: Update Product Backlog (Conditional)
 
 **File:** `docs/reference/product-backlog.md`
 
@@ -233,7 +324,7 @@ Read the file, then for each item that was identified in this session:
 
 ---
 
-## Step 8: Update Wave Status Ledgers (Conditional)
+## Step 9: Update Wave Status Ledgers (Conditional)
 
 **Directory:** `docs/audits/*/STATUS.md`
 
@@ -297,7 +388,7 @@ git diff --quiet docs/audits/ || \
 
 ---
 
-## Step 9: Commit Reference Doc Changes
+## Step 10: Commit Reference Doc Changes
 
 Stage the canonical docs.
 
@@ -312,7 +403,7 @@ git diff --quiet docs/reference/ || \
 
 ---
 
-## Step 10: Report and Chain to Handoff
+## Step 11: Report and Chain to Handoff
 
 Present a summary to the user:
 

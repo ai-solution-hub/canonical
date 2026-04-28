@@ -16,6 +16,8 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createMcpClient, getMcpUserId, checkMcpRole } from '@/lib/mcp/auth';
 import { sb, tryQuery } from '@/lib/supabase/safe';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
+import { recordPipelineRun } from '@/lib/pipeline/record-run';
+import type { PipelineRunStatus } from '@/lib/pipeline/record-run';
 import type { Database, Json } from '@/supabase/types/database.types';
 import {
   formatContentItem,
@@ -254,7 +256,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
     {
       title: 'Create Content Item',
       description:
-        'Create a new content item in the knowledge base. Content should be in markdown format (the canonical storage format). Requires editor or admin role. The item will be automatically embedded for search unless created as a draft. Set publication_status to "draft" to create items that are excluded from search and visible only in the review queue\'s Drafts filter — useful for batch content creation that needs review before going live. Use batch_tag to group related draft items (e.g. "reorient-2026-03") and source_document to record provenance. Choose content_type carefully: use q_a_pair for question-answer pairs, case_study for project examples, policy for governance documents, certification for accreditations, capability for service descriptions. Use the kb://taxonomy resource to see valid domain and subtopic values.',
+        'Create a new content item in the knowledge base. Content should be in markdown format (the canonical storage format). Requires editor or admin role. The item will be automatically embedded for search unless created as a draft. Set publication_status to "draft" to create items that are excluded from search and visible only in the review queue\'s Drafts filter — useful for batch content creation that needs review before going live. Use batch_tag to group related draft items (e.g. "reorient-2026-03"). For provenance, supply one of the typed fields source_url (for URL-derived content), source_file (for file-derived content), or source_document_id (FK to source_documents.id) — see ep2-markdown-ui-ingest-spec.md §7.3 for parity with the markdown UI ingest path. Choose content_type carefully: use q_a_pair for question-answer pairs, case_study for project examples, policy for governance documents, certification for accreditations, capability for service descriptions. Use the kb://taxonomy resource to see valid domain and subtopic values.',
       inputSchema: {
         title: z.string().min(1).max(500).describe('Title of the content item'),
         content: z
@@ -308,12 +310,41 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           .describe(
             'Tag to group related items (e.g. "reorient-2026-03"). Stored in metadata.batch_tag for filtering.',
           ),
-        source_document: z
+        source_url: z
+          .string()
+          .url()
+          .max(2048)
+          .optional()
+          .describe(
+            'Canonical URL of the source. Mirrors content_items.source_url. See ep2-markdown-ui-ingest-spec.md §7.3.',
+          ),
+        source_file: z
           .string()
           .max(500)
           .optional()
           .describe(
-            'Source document name or path for provenance tracking. Stored in metadata.source_document.',
+            'Original filename or relative path. Mirrors content_items.source_file. See ep2-markdown-ui-ingest-spec.md §7.3.',
+          ),
+        source_document_id: z
+          .string()
+          .uuid()
+          .optional()
+          .describe(
+            'FK to source_documents.id. Mirrors content_items.source_document_id. See ep2-markdown-ui-ingest-spec.md §7.3.',
+          ),
+        // S205 WP-A1 (spec §3.1 AC1.5/AC1.7): the legacy `source_document` arg
+        // is removed from the supported input. We declare it here so Zod
+        // surfaces a validation error advertising the three typed
+        // replacement fields when a legacy caller sends it.
+        source_document: z
+          .unknown()
+          .refine((v) => v === undefined, {
+            message:
+              'The `source_document` parameter has been removed. Use one of `source_url` (for URL-derived items), `source_file` (for file-derived items), or `source_document_id` (FK to source_documents.id) instead. See ep2-markdown-ui-ingest-spec.md §7.3.',
+          })
+          .optional()
+          .describe(
+            'REMOVED. Use `source_url`, `source_file`, or `source_document_id` instead. See ep2-markdown-ui-ingest-spec.md §7.3.',
           ),
         skip_dedup: z
           .boolean()
@@ -394,11 +425,12 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           }
         }
 
-        // Build metadata with optional batch_tag, source_document, dedup ref
+        // Build metadata with optional batch_tag and dedup ref. The legacy
+        // `source_document` blob is gone — provenance now lives on the typed
+        // columns `source_url`, `source_file`, `source_document_id` per
+        // S205 WP-A1 (spec §3.1 / §5.2).
         const metadata: Record<string, string> = {};
         if (args.batch_tag) metadata.batch_tag = args.batch_tag;
-        if (args.source_document)
-          metadata.source_document = args.source_document;
         if (dedupStamp.suspected_duplicate_of) {
           metadata.suspected_duplicate_of = dedupStamp.suspected_duplicate_of;
         }
@@ -422,6 +454,12 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             ...(args.priority && { priority: args.priority }),
             ...(embedding && { embedding: JSON.stringify(embedding) }),
             ...(isDraft && { publication_status: 'draft' }),
+            // S205 WP-A1: typed provenance columns (spec §5.2 step 3).
+            ...(args.source_url && { source_url: args.source_url }),
+            ...(args.source_file && { source_file: args.source_file }),
+            ...(args.source_document_id && {
+              source_document_id: args.source_document_id,
+            }),
             ...(Object.keys(metadata).length > 0 && {
               metadata: metadata as unknown as Json,
             }),
@@ -441,6 +479,25 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           .single();
 
         if (error || !item) {
+          // S205 WP-A2 (spec §5.3 step 5): record the failed insert before
+          // bailing so the dashboard sees the run.
+          await recordPipelineRun({
+            supabase,
+            pipelineName: 'mcp_create_content_item',
+            status: 'failed',
+            itemsProcessed: 1,
+            itemsCreated: null,
+            errorMessage:
+              error?.message ?? 'content_items insert returned no row',
+            result: {
+              source_url: args.source_url ?? null,
+              source_file: args.source_file ?? null,
+              source_document_id: args.source_document_id ?? null,
+              batch_tag: args.batch_tag ?? null,
+              dedup_status: dedupStamp.dedup_status,
+              skipped_reason: null,
+            } as Json,
+          });
           return {
             content: [
               {
@@ -630,6 +687,31 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           }
         }
 
+        // S205 WP-A2 (spec §3.2 / §5.3): record the pipeline run on the
+        // success path. Status mapping per AC2.3:
+        //   warnings.length > 0 → 'completed_with_errors'
+        //   warnings.length === 0 → 'completed'
+        // Draft branch records skipped_reason='draft' per AC2.5 so dashboards
+        // can distinguish draft creates from full-pipeline creates.
+        const pipelineStatus: PipelineRunStatus =
+          warnings.length > 0 ? 'completed_with_errors' : 'completed';
+        await recordPipelineRun({
+          supabase,
+          pipelineName: 'mcp_create_content_item',
+          status: pipelineStatus,
+          itemsProcessed: 1,
+          itemsCreated: [item.id],
+          errorMessage: warnings.length > 0 ? warnings.join('; ') : null,
+          result: {
+            source_url: args.source_url ?? null,
+            source_file: args.source_file ?? null,
+            source_document_id: args.source_document_id ?? null,
+            batch_tag: args.batch_tag ?? null,
+            dedup_status: dedupStamp.dedup_status,
+            skipped_reason: isDraft ? 'draft' : null,
+          } as Json,
+        });
+
         const draftNote = isDraft
           ? '\n\n**Status:** Draft — excluded from search. Use `update_governance_status` to publish when ready.'
           : '';
@@ -664,7 +746,11 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             // misled the LLM caller about post-create state.
             publication_status: isDraft ? 'draft' : 'published',
             batch_tag: args.batch_tag ?? null,
-            source_document: args.source_document ?? null,
+            // S205 WP-A1: surface typed provenance columns so callers can
+            // verify what was persisted (replaces metadata.source_document).
+            source_url: args.source_url ?? null,
+            source_file: args.source_file ?? null,
+            source_document_id: args.source_document_id ?? null,
             suggested_layer: suggestedLayerKey ?? null,
             guide_sections:
               guideSectionSuggestions.length > 0

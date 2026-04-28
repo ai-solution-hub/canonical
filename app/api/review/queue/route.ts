@@ -54,6 +54,12 @@ export async function GET(request: NextRequest) {
     const sourceFileParam = searchParams.get('source_file');
     const sourceDocumentIdParam = searchParams.get('source_document_id');
     const assignedToMe = searchParams.get('assigned_to_me') === 'true';
+    // S205 WP-E T2 plan §T2 (H-1): mirror the assigned_to_me string-compare
+    // pattern. Treat only the literal 'true' as on; '?include_overdue=false'
+    // and missing param both resolve to off. `z.coerce.boolean()` is unsafe
+    // here because it returns true for any non-empty string including
+    // the literal 'false'.
+    const includeOverdue = searchParams.get('include_overdue') === 'true';
 
     // If assigned_to_me is active, look up the user's active assignments and
     // merge their filter criteria (domains, content_types) into the query.
@@ -178,8 +184,24 @@ export async function GET(request: NextRequest) {
     }
 
     // Apply verification status filter
+    //
+    // S205 WP-E T2 plan §T2 (H-2): when status='unverified' AND
+    // include_overdue=true, broaden the verified_at predicate so that
+    // verified-but-overdue rows surface alongside unverified rows. A row
+    // can have `verified_at IS NOT NULL` and still be in
+    // `governance_review_status = 'review_overdue'` once its review cadence
+    // elapses; without this widening the toggle would silently exclude
+    // exactly the rows it advertises. For status='verified' or 'all',
+    // include_overdue is a no-op super-set (verified-overdue rows already
+    // pass the verified filter; 'all' has no verification filter).
     if (status === 'unverified') {
-      query = query.is('verified_at', null);
+      if (includeOverdue) {
+        query = query.or(
+          'verified_at.is.null,governance_review_status.eq.review_overdue',
+        );
+      } else {
+        query = query.is('verified_at', null);
+      }
     } else if (status === 'verified') {
       query = query.not('verified_at', 'is', null);
     }
