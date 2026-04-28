@@ -79,6 +79,20 @@ interface EvalSummary {
 
 // ── Main ───────────────────────────────────────────────────────────────────
 
+// ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
+
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+
+function assertEnvFlag(env: string, url: string | undefined): void {
+  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+    console.error(
+      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/eval-tag-morphology-adoption.ts --env=prod`,
+    );
+    process.exit(1);
+  }
+}
+
 async function main() {
   const { values } = parseArgs({
     args: process.argv.slice(2),
@@ -86,6 +100,7 @@ async function main() {
       'insert-flags': { type: 'boolean', default: false },
       limit: { type: 'string', default: '' },
       help: { type: 'boolean', default: false },
+      env: { type: 'string', default: '' },
     },
     strict: true,
   });
@@ -97,6 +112,7 @@ Usage: bun run scripts/eval-tag-morphology-adoption.ts [options]
 Options:
   --insert-flags   Insert disagreements into tag_morphology_drift_flags
   --limit N        Process at most N content_items rows
+  --env=prod       Asserts SUPABASE_URL points at prod ('${PROD_PROJECT_REF}')
   --help           Show this help
 
 Examples:
@@ -110,9 +126,10 @@ Examples:
   const LIMIT = values.limit ? parseInt(values.limit, 10) : 0;
 
   const supabaseUrl =
-    process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_PUBLISHABLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
     console.error(
@@ -120,6 +137,8 @@ Examples:
     );
     process.exit(1);
   }
+
+  assertEnvFlag(values.env ?? '', supabaseUrl);
 
   // tag_morphology_drift_flags is a new table not yet in database.types.ts;
   // we cast the supabase client to any for that table only (CLAUDE.md
@@ -209,10 +228,7 @@ Examples:
   const auditDir = path.join(process.cwd(), 'docs', 'audits');
   fs.mkdirSync(auditDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const outPath = path.join(
-    auditDir,
-    `tag-morphology-eval-${stamp}.json`,
-  );
+  const outPath = path.join(auditDir, `tag-morphology-eval-${stamp}.json`);
   fs.writeFileSync(outPath, JSON.stringify(summary, null, 2), 'utf-8');
 
   console.log('\n' + '─'.repeat(60));

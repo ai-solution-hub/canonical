@@ -37,6 +37,10 @@ from kb_pipeline.classify import (
     load_entity_aliases,
 )
 
+# Per WP-S5.3 D-21 F-1: --env=prod flag asserts SUPABASE_URL contains
+# the prod project ref before any DB writes.
+PROD_PROJECT_URL_FRAGMENT = "rovrymhhffssilaftdwd"
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -52,9 +56,27 @@ def main() -> int:
         default="q_a_pair",
         help="content_type filter (default q_a_pair)",
     )
+    parser.add_argument(
+        "--env",
+        choices=["prod", "staging", "auto"],
+        default="auto",
+        help=(
+            "With --env=prod, asserts SUPABASE_URL points at prod and "
+            "refuses to run otherwise. --env=staging and --env=auto "
+            "are non-asserting (trust env). Default 'auto'."
+        ),
+    )
     args = parser.parse_args()
 
-    url = os.environ["NEXT_PUBLIC_SUPABASE_URL"]
+    url = os.environ.get("SUPABASE_URL") or os.environ["NEXT_PUBLIC_SUPABASE_URL"]
+    if args.env == "prod" and PROD_PROJECT_URL_FRAGMENT not in url:
+        sys.exit(
+            f"--env=prod set but SUPABASE_URL does not contain "
+            f"'{PROD_PROJECT_URL_FRAGMENT}'. Run with explicit override:\n"
+            f"  SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> "
+            f"python3 scripts/backfill_entities_qa.py"
+        )
+
     key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
     sb = create_client(url, key)
 

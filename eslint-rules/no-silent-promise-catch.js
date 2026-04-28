@@ -36,7 +36,8 @@ module.exports = {
         if (node.arguments.length !== 1) return;
         const arg = node.arguments[0];
         if (
-          (arg.type === 'ArrowFunctionExpression' || arg.type === 'FunctionExpression') &&
+          (arg.type === 'ArrowFunctionExpression' ||
+            arg.type === 'FunctionExpression') &&
           arg.params.length === 0
         ) {
           context.report({ node: arg, messageId: 'silentCatch' });

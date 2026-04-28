@@ -105,8 +105,7 @@ describe('ContentEditor markdown round-trip — GFM tables', () => {
     const tableNode = json.content?.find((n) => n.type === 'table');
     expect(tableNode, 'expected a table node in editor JSON').toBeDefined();
 
-    const rows =
-      tableNode?.content?.filter((n) => n.type === 'tableRow') ?? [];
+    const rows = tableNode?.content?.filter((n) => n.type === 'tableRow') ?? [];
     expect(rows.length).toBe(4);
 
     const headerRow = rows[0];

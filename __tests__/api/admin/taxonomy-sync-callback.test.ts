@@ -19,11 +19,12 @@ import {
 // variables they reference must also be hoisted via vi.hoisted().
 // ---------------------------------------------------------------------------
 
-const { mockCaptureMessage, mockCaptureException, mockComputeTaxonomyHash } = vi.hoisted(() => ({
-  mockCaptureMessage: vi.fn(),
-  mockCaptureException: vi.fn(),
-  mockComputeTaxonomyHash: vi.fn(),
-}));
+const { mockCaptureMessage, mockCaptureException, mockComputeTaxonomyHash } =
+  vi.hoisted(() => ({
+    mockCaptureMessage: vi.fn(),
+    mockCaptureException: vi.fn(),
+    mockComputeTaxonomyHash: vi.fn(),
+  }));
 
 // Module-level mock client — NOT referenced inside vi.mock() factories
 // (the factories use inline vi.fn() instead)
@@ -88,7 +89,11 @@ function signPayload(rawBody: string, secret: string): string {
 
 function makeRequest(
   payload: CallbackPayload,
-  options: { secret?: string; omitSignature?: boolean; signatureOverride?: string } = {},
+  options: {
+    secret?: string;
+    omitSignature?: boolean;
+    signatureOverride?: string;
+  } = {},
 ): NextRequest {
   const rawBody = JSON.stringify(payload);
   const secret = options.secret ?? TEST_SECRET;
@@ -111,7 +116,9 @@ function makeRequest(
   );
 }
 
-function makeSuccessPayload(overrides: Partial<CallbackPayload> = {}): CallbackPayload {
+function makeSuccessPayload(
+  overrides: Partial<CallbackPayload> = {},
+): CallbackPayload {
   return {
     run_id: TEST_RUN_ID,
     status: 'success',
@@ -121,7 +128,9 @@ function makeSuccessPayload(overrides: Partial<CallbackPayload> = {}): CallbackP
   };
 }
 
-function makeFailedPayload(overrides: Partial<CallbackPayload> = {}): CallbackPayload {
+function makeFailedPayload(
+  overrides: Partial<CallbackPayload> = {},
+): CallbackPayload {
   return {
     run_id: TEST_RUN_ID,
     status: 'failed',
@@ -145,8 +154,9 @@ describe('POST /api/admin/taxonomy-sync/callback', () => {
 
     // Reset mock chain
     mockSupabase._chain.single.mockResolvedValue({ data: null, error: null });
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null, count: 0 }),
     );
     mockCaptureMessage.mockClear();
     mockCaptureException.mockClear();
@@ -205,7 +215,12 @@ describe('POST /api/admin/taxonomy-sync/callback', () => {
 
     it('uses raw body bytes for HMAC, not parsed JSON', async () => {
       // Construct a payload with specific formatting that would change if re-stringified
-      const rawBody = '{"run_id":"' + TEST_RUN_ID + '","status":"success","timestamp":' + FIXED_NOW + ',"new_hash":"abc123"}';
+      const rawBody =
+        '{"run_id":"' +
+        TEST_RUN_ID +
+        '","status":"success","timestamp":' +
+        FIXED_NOW +
+        ',"new_hash":"abc123"}';
       const signature = signPayload(rawBody, TEST_SECRET);
 
       const req = new NextRequest(
@@ -311,16 +326,34 @@ describe('POST /api/admin/taxonomy-sync/callback', () => {
       // 2. taxonomy_subtopics SELECT (for hash computation)
       // 3. taxonomy_sync_state UPDATE with DB-derived hash
       // 4. pipeline_runs UPDATE with completed status
-      const opLog: Array<{ table: string; op: string; payload?: Record<string, unknown> }> = [];
+      const opLog: Array<{
+        table: string;
+        op: string;
+        payload?: Record<string, unknown>;
+      }> = [];
 
       mockComputeTaxonomyHash.mockReturnValue('db-derived-hash-xyz');
 
       mockSupabase.from.mockImplementation((table: string) => {
         const chain: Record<string, ReturnType<typeof vi.fn>> = {};
         const chainable = [
-          'insert', 'upsert', 'delete',
-          'neq', 'in', 'is', 'not', 'ilike', 'contains',
-          'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+          'insert',
+          'upsert',
+          'delete',
+          'neq',
+          'in',
+          'is',
+          'not',
+          'ilike',
+          'contains',
+          'gte',
+          'lte',
+          'gt',
+          'lt',
+          'or',
+          'order',
+          'limit',
+          'range',
         ];
         for (const m of chainable) {
           chain[m] = vi.fn().mockReturnValue(chain);
@@ -335,7 +368,9 @@ describe('POST /api/admin/taxonomy-sync/callback', () => {
           return chain;
         });
         chain.single = vi.fn().mockResolvedValue({ data: null, error: null });
-        chain.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+        chain.maybeSingle = vi
+          .fn()
+          .mockResolvedValue({ data: null, error: null });
         chain.then = vi.fn((resolve: (v: unknown) => void) =>
           resolve({ data: [], error: null }),
         );
@@ -343,7 +378,9 @@ describe('POST /api/admin/taxonomy-sync/callback', () => {
       });
 
       // Payload new_hash is advisory — callback should ignore it and use DB-derived hash
-      const payload = makeSuccessPayload({ new_hash: 'payload-hash-should-be-ignored' });
+      const payload = makeSuccessPayload({
+        new_hash: 'payload-hash-should-be-ignored',
+      });
       const req = makeRequest(payload);
 
       const res = await POST(req);

@@ -39,7 +39,9 @@ const mocks = vi.hoisted(() => {
     chain,
     createChain,
     createMcpClient: vi.fn().mockReturnValue(mockSupabaseClient),
-    getMcpUserId: vi.fn().mockReturnValue('a0000000-0000-4000-8000-000000000001'),
+    getMcpUserId: vi
+      .fn()
+      .mockReturnValue('a0000000-0000-4000-8000-000000000001'),
     checkMcpRole: vi.fn().mockResolvedValue('editor'),
   };
 });
@@ -52,15 +54,18 @@ vi.mock('@/lib/mcp/auth', () => ({
 }));
 
 vi.mock('@/lib/validation/layer-schemas', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/validation/layer-schemas')>();
+  const actual =
+    await importOriginal<typeof import('@/lib/validation/layer-schemas')>();
   return {
     ...actual,
-    fetchActiveLayerKeys: vi.fn().mockResolvedValue([
-      'sales_brief',
-      'bid_detail',
-      'company_reference',
-      'research',
-    ]),
+    fetchActiveLayerKeys: vi
+      .fn()
+      .mockResolvedValue([
+        'sales_brief',
+        'bid_detail',
+        'company_reference',
+        'research',
+      ]),
   };
 });
 
@@ -584,7 +589,10 @@ describe('Guide MCP tools', () => {
         guideChain.eq = vi.fn().mockReturnValue(guideChain);
         guideChain.select = vi.fn().mockReturnValue(guideChain);
         guideChain.then = vi.fn((resolve: (v: unknown) => void) =>
-          resolve({ data: null, error: { message: 'duplicate key', code: '23505' } }),
+          resolve({
+            data: null,
+            error: { message: 'duplicate key', code: '23505' },
+          }),
         );
         return guideChain;
       });

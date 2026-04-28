@@ -210,11 +210,7 @@ export async function POST(
 
       // Update bid status to questions_extracted (only if transition is valid)
       const currentBid = await sb(
-        supabase
-          .from('workspaces')
-          .select('status')
-          .eq('id', id)
-          .maybeSingle(),
+        supabase.from('workspaces').select('status').eq('id', id).maybeSingle(),
         'bids.questions.extract.workspace.read',
       );
 

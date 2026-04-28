@@ -65,7 +65,9 @@ export interface UrlFilterConfig<T extends Record<string, unknown>> {
   /** Parser for each filter key (from URL string to typed value) */
   parsers?: Partial<Record<keyof T, (raw: string) => unknown>>;
   /** Serialiser for each filter key (from typed value to URL string or undefined to delete) */
-  serialisers?: Partial<Record<keyof T, (value: unknown) => string | undefined>>;
+  serialisers?: Partial<
+    Record<keyof T, (value: unknown) => string | undefined>
+  >;
 }
 
 export interface UrlFilterReturn<T extends Record<string, unknown>> {

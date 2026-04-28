@@ -57,25 +57,120 @@ const SECTION_FILTER_MAP: Array<{
   subtopicFilter: string;
   expectedLayer: string;
 }> = [
-  { displayOrder: 1, sectionName: 'Elevator Pitch', subtopicFilter: 'functionality', expectedLayer: 'sales_brief' },
-  { displayOrder: 2, sectionName: 'Key Features', subtopicFilter: 'functionality', expectedLayer: 'sales_brief' },
-  { displayOrder: 3, sectionName: 'Differentiators', subtopicFilter: 'approach', expectedLayer: 'sales_brief' },
-  { displayOrder: 4, sectionName: 'Target Audience', subtopicFilter: 'company-info', expectedLayer: 'sales_brief' },
-  { displayOrder: 5, sectionName: 'Use Cases', subtopicFilter: 'functionality', expectedLayer: 'bid_detail' },
-  { displayOrder: 6, sectionName: 'Pricing', subtopicFilter: 'financial-standing', expectedLayer: 'company_reference' },
-  { displayOrder: 7, sectionName: 'Objection Handling', subtopicFilter: 'approach', expectedLayer: 'sales_brief' },
-  { displayOrder: 8, sectionName: 'Demo Flow', subtopicFilter: 'usability', expectedLayer: 'sales_brief' },
-  { displayOrder: 9, sectionName: 'Competitor Comparison', subtopicFilter: 'standards', expectedLayer: 'bid_detail' },
-  { displayOrder: 10, sectionName: 'Success Stories', subtopicFilter: 'references', expectedLayer: 'sales_brief' },
-  { displayOrder: 11, sectionName: 'Upsell Paths', subtopicFilter: 'company-info', expectedLayer: 'sales_brief' },
-  { displayOrder: 12, sectionName: 'Technical Spec', subtopicFilter: 'technical', expectedLayer: 'bid_detail' },
-  { displayOrder: 13, sectionName: 'Security & Compliance', subtopicFilter: 'cyber-security', expectedLayer: 'bid_detail' },
-  { displayOrder: 14, sectionName: 'Implementation', subtopicFilter: 'deployment', expectedLayer: 'bid_detail' },
-  { displayOrder: 15, sectionName: 'SLAs', subtopicFilter: 'sla', expectedLayer: 'company_reference' },
-  { displayOrder: 16, sectionName: 'Integrations', subtopicFilter: 'integration', expectedLayer: 'bid_detail' },
-  { displayOrder: 17, sectionName: 'Data Handling', subtopicFilter: 'data-protection', expectedLayer: 'company_reference' },
-  { displayOrder: 18, sectionName: 'Accessibility', subtopicFilter: 'usability', expectedLayer: 'bid_detail' },
-  { displayOrder: 19, sectionName: 'Certifications', subtopicFilter: 'certification', expectedLayer: 'company_reference' },
+  {
+    displayOrder: 1,
+    sectionName: 'Elevator Pitch',
+    subtopicFilter: 'functionality',
+    expectedLayer: 'sales_brief',
+  },
+  {
+    displayOrder: 2,
+    sectionName: 'Key Features',
+    subtopicFilter: 'functionality',
+    expectedLayer: 'sales_brief',
+  },
+  {
+    displayOrder: 3,
+    sectionName: 'Differentiators',
+    subtopicFilter: 'approach',
+    expectedLayer: 'sales_brief',
+  },
+  {
+    displayOrder: 4,
+    sectionName: 'Target Audience',
+    subtopicFilter: 'company-info',
+    expectedLayer: 'sales_brief',
+  },
+  {
+    displayOrder: 5,
+    sectionName: 'Use Cases',
+    subtopicFilter: 'functionality',
+    expectedLayer: 'bid_detail',
+  },
+  {
+    displayOrder: 6,
+    sectionName: 'Pricing',
+    subtopicFilter: 'financial-standing',
+    expectedLayer: 'company_reference',
+  },
+  {
+    displayOrder: 7,
+    sectionName: 'Objection Handling',
+    subtopicFilter: 'approach',
+    expectedLayer: 'sales_brief',
+  },
+  {
+    displayOrder: 8,
+    sectionName: 'Demo Flow',
+    subtopicFilter: 'usability',
+    expectedLayer: 'sales_brief',
+  },
+  {
+    displayOrder: 9,
+    sectionName: 'Competitor Comparison',
+    subtopicFilter: 'standards',
+    expectedLayer: 'bid_detail',
+  },
+  {
+    displayOrder: 10,
+    sectionName: 'Success Stories',
+    subtopicFilter: 'references',
+    expectedLayer: 'sales_brief',
+  },
+  {
+    displayOrder: 11,
+    sectionName: 'Upsell Paths',
+    subtopicFilter: 'company-info',
+    expectedLayer: 'sales_brief',
+  },
+  {
+    displayOrder: 12,
+    sectionName: 'Technical Spec',
+    subtopicFilter: 'technical',
+    expectedLayer: 'bid_detail',
+  },
+  {
+    displayOrder: 13,
+    sectionName: 'Security & Compliance',
+    subtopicFilter: 'cyber-security',
+    expectedLayer: 'bid_detail',
+  },
+  {
+    displayOrder: 14,
+    sectionName: 'Implementation',
+    subtopicFilter: 'deployment',
+    expectedLayer: 'bid_detail',
+  },
+  {
+    displayOrder: 15,
+    sectionName: 'SLAs',
+    subtopicFilter: 'sla',
+    expectedLayer: 'company_reference',
+  },
+  {
+    displayOrder: 16,
+    sectionName: 'Integrations',
+    subtopicFilter: 'integration',
+    expectedLayer: 'bid_detail',
+  },
+  {
+    displayOrder: 17,
+    sectionName: 'Data Handling',
+    subtopicFilter: 'data-protection',
+    expectedLayer: 'company_reference',
+  },
+  {
+    displayOrder: 18,
+    sectionName: 'Accessibility',
+    subtopicFilter: 'usability',
+    expectedLayer: 'bid_detail',
+  },
+  {
+    displayOrder: 19,
+    sectionName: 'Certifications',
+    subtopicFilter: 'certification',
+    expectedLayer: 'company_reference',
+  },
 ];
 
 /**
@@ -84,21 +179,49 @@ const SECTION_FILTER_MAP: Array<{
  */
 const VALID_SUBTOPICS = new Set([
   // product-feature domain
-  'functionality', 'reporting', 'technical', 'usability',
+  'functionality',
+  'reporting',
+  'technical',
+  'usability',
   // corporate domain
-  'company-info', 'insurance', 'references', 'staffing',
-  'methodology', 'supply-chain', 'financial-standing',
+  'company-info',
+  'insurance',
+  'references',
+  'staffing',
+  'methodology',
+  'supply-chain',
+  'financial-standing',
   // security domain
-  'access-control', 'cyber-security', 'data-protection', 'encryption', 'iso-27001',
+  'access-control',
+  'cyber-security',
+  'data-protection',
+  'encryption',
+  'iso-27001',
   // support domain
-  'helpdesk', 'incident', 'maintenance', 'sla',
+  'helpdesk',
+  'incident',
+  'maintenance',
+  'sla',
   // compliance domain
-  'audit', 'certification', 'environmental', 'equalities',
-  'health-and-safety', 'modern-slavery', 'regulatory', 'safeguarding', 'standards',
+  'audit',
+  'certification',
+  'environmental',
+  'equalities',
+  'health-and-safety',
+  'modern-slavery',
+  'regulatory',
+  'safeguarding',
+  'standards',
   // implementation domain
-  'deployment', 'integration', 'migration', 'onboarding',
+  'deployment',
+  'integration',
+  'migration',
+  'onboarding',
   // methodology domain
-  'approach', 'delivery', 'project-management', 'quality',
+  'approach',
+  'delivery',
+  'project-management',
+  'quality',
 ]);
 
 /**
@@ -107,8 +230,8 @@ const VALID_SUBTOPICS = new Set([
  * but content loading is pending.
  */
 const CONTENT_POPULATION_PENDING_SECTIONS = new Set([
-  'Pricing',        // financial-standing + company_reference
-  'Data Handling',  // data-protection + company_reference
+  'Pricing', // financial-standing + company_reference
+  'Data Handling', // data-protection + company_reference
   'Certifications', // certification + company_reference
 ]);
 
@@ -122,7 +245,7 @@ function asSupabase(mock: MockSupabaseClient) {
 
 /** Build a mock guide_sections row for the suggestGuideSections query */
 function mockProductGuideSection(
-  section: typeof SECTION_FILTER_MAP[0],
+  section: (typeof SECTION_FILTER_MAP)[0],
   guideKey: keyof typeof PRODUCT_GUIDE_IDS,
 ) {
   return {
@@ -164,31 +287,54 @@ describe('Product Guide Section Completeness', () => {
 
   it('every section has a non-empty subtopic_filter', () => {
     for (const section of SECTION_FILTER_MAP) {
-      expect(section.subtopicFilter, `${section.sectionName} subtopicFilter should be non-empty`).toBeTruthy();
-      expect(section.subtopicFilter.length, `${section.sectionName} subtopicFilter should not be empty string`).toBeGreaterThan(0);
+      expect(
+        section.subtopicFilter,
+        `${section.sectionName} subtopicFilter should be non-empty`,
+      ).toBeTruthy();
+      expect(
+        section.subtopicFilter.length,
+        `${section.sectionName} subtopicFilter should not be empty string`,
+      ).toBeGreaterThan(0);
     }
   });
 
   it('every section has a non-empty expected_layer', () => {
     for (const section of SECTION_FILTER_MAP) {
-      expect(section.expectedLayer, `${section.sectionName} expectedLayer should be non-empty`).toBeTruthy();
+      expect(
+        section.expectedLayer,
+        `${section.sectionName} expectedLayer should be non-empty`,
+      ).toBeTruthy();
     }
   });
 
   it('display_order is sequential 1-19 with no gaps', () => {
-    const orders = SECTION_FILTER_MAP.map(s => s.displayOrder);
+    const orders = SECTION_FILTER_MAP.map((s) => s.displayOrder);
     expect(orders).toEqual(Array.from({ length: 19 }, (_, i) => i + 1));
   });
 
   it('section names match the known scaffold', () => {
     const expected = [
-      'Elevator Pitch', 'Key Features', 'Differentiators', 'Target Audience',
-      'Use Cases', 'Pricing', 'Objection Handling', 'Demo Flow',
-      'Competitor Comparison', 'Success Stories', 'Upsell Paths',
-      'Technical Spec', 'Security & Compliance', 'Implementation', 'SLAs',
-      'Integrations', 'Data Handling', 'Accessibility', 'Certifications',
+      'Elevator Pitch',
+      'Key Features',
+      'Differentiators',
+      'Target Audience',
+      'Use Cases',
+      'Pricing',
+      'Objection Handling',
+      'Demo Flow',
+      'Competitor Comparison',
+      'Success Stories',
+      'Upsell Paths',
+      'Technical Spec',
+      'Security & Compliance',
+      'Implementation',
+      'SLAs',
+      'Integrations',
+      'Data Handling',
+      'Accessibility',
+      'Certifications',
     ];
-    expect(SECTION_FILTER_MAP.map(s => s.sectionName)).toEqual(expected);
+    expect(SECTION_FILTER_MAP.map((s) => s.sectionName)).toEqual(expected);
   });
 });
 
@@ -207,14 +353,24 @@ describe('Product Guide Section Taxonomy Validity', () => {
   });
 
   it('all unique subtopic_filter values are valid', () => {
-    const uniqueSubtopics = new Set(SECTION_FILTER_MAP.map(s => s.subtopicFilter));
+    const uniqueSubtopics = new Set(
+      SECTION_FILTER_MAP.map((s) => s.subtopicFilter),
+    );
     for (const subtopic of uniqueSubtopics) {
-      expect(VALID_SUBTOPICS.has(subtopic), `Subtopic '${subtopic}' not found in taxonomy`).toBe(true);
+      expect(
+        VALID_SUBTOPICS.has(subtopic),
+        `Subtopic '${subtopic}' not found in taxonomy`,
+      ).toBe(true);
     }
   });
 
   it('expected_layer values are from the known vocabulary', () => {
-    const validLayers = new Set(['sales_brief', 'bid_detail', 'company_reference', 'research']);
+    const validLayers = new Set([
+      'sales_brief',
+      'bid_detail',
+      'company_reference',
+      'research',
+    ]);
     for (const section of SECTION_FILTER_MAP) {
       expect(
         validLayers.has(section.expectedLayer),
@@ -230,9 +386,13 @@ describe('Product Guide Section Taxonomy Validity', () => {
 
 describe('Product Guide Section Semantic Mapping', () => {
   it('sales-brief sections map to customer-facing subtopics', () => {
-    const salesBriefSections = SECTION_FILTER_MAP.filter(s => s.expectedLayer === 'sales_brief');
+    const salesBriefSections = SECTION_FILTER_MAP.filter(
+      (s) => s.expectedLayer === 'sales_brief',
+    );
     // Sales brief sections should use subtopics appropriate for customer-facing content
-    const salesSubtopics = new Set(salesBriefSections.map(s => s.subtopicFilter));
+    const salesSubtopics = new Set(
+      salesBriefSections.map((s) => s.subtopicFilter),
+    );
     // These are reasonable sales-level subtopics
     expect(salesSubtopics).toContain('functionality');
     expect(salesSubtopics).toContain('usability');
@@ -241,8 +401,12 @@ describe('Product Guide Section Semantic Mapping', () => {
   });
 
   it('bid-detail sections map to technical/detailed subtopics', () => {
-    const bidDetailSections = SECTION_FILTER_MAP.filter(s => s.expectedLayer === 'bid_detail');
-    const bidSubtopics = new Set(bidDetailSections.map(s => s.subtopicFilter));
+    const bidDetailSections = SECTION_FILTER_MAP.filter(
+      (s) => s.expectedLayer === 'bid_detail',
+    );
+    const bidSubtopics = new Set(
+      bidDetailSections.map((s) => s.subtopicFilter),
+    );
     expect(bidSubtopics).toContain('technical');
     expect(bidSubtopics).toContain('cyber-security');
     expect(bidSubtopics).toContain('deployment');
@@ -250,8 +414,12 @@ describe('Product Guide Section Semantic Mapping', () => {
   });
 
   it('company-reference sections map to governance/corporate subtopics', () => {
-    const companyRefSections = SECTION_FILTER_MAP.filter(s => s.expectedLayer === 'company_reference');
-    const companySubtopics = new Set(companyRefSections.map(s => s.subtopicFilter));
+    const companyRefSections = SECTION_FILTER_MAP.filter(
+      (s) => s.expectedLayer === 'company_reference',
+    );
+    const companySubtopics = new Set(
+      companyRefSections.map((s) => s.subtopicFilter),
+    );
     expect(companySubtopics).toContain('sla');
     expect(companySubtopics).toContain('financial-standing');
     expect(companySubtopics).toContain('data-protection');
@@ -259,25 +427,31 @@ describe('Product Guide Section Semantic Mapping', () => {
   });
 
   it('Technical Spec maps to technical subtopic', () => {
-    const techSpec = SECTION_FILTER_MAP.find(s => s.sectionName === 'Technical Spec');
+    const techSpec = SECTION_FILTER_MAP.find(
+      (s) => s.sectionName === 'Technical Spec',
+    );
     expect(techSpec?.subtopicFilter).toBe('technical');
     expect(techSpec?.expectedLayer).toBe('bid_detail');
   });
 
   it('Security & Compliance maps to cyber-security subtopic', () => {
-    const sec = SECTION_FILTER_MAP.find(s => s.sectionName === 'Security & Compliance');
+    const sec = SECTION_FILTER_MAP.find(
+      (s) => s.sectionName === 'Security & Compliance',
+    );
     expect(sec?.subtopicFilter).toBe('cyber-security');
     expect(sec?.expectedLayer).toBe('bid_detail');
   });
 
   it('SLAs maps to sla subtopic at company_reference layer', () => {
-    const slas = SECTION_FILTER_MAP.find(s => s.sectionName === 'SLAs');
+    const slas = SECTION_FILTER_MAP.find((s) => s.sectionName === 'SLAs');
     expect(slas?.subtopicFilter).toBe('sla');
     expect(slas?.expectedLayer).toBe('company_reference');
   });
 
   it('Data Handling maps to data-protection subtopic', () => {
-    const dh = SECTION_FILTER_MAP.find(s => s.sectionName === 'Data Handling');
+    const dh = SECTION_FILTER_MAP.find(
+      (s) => s.sectionName === 'Data Handling',
+    );
     expect(dh?.subtopicFilter).toBe('data-protection');
     expect(dh?.expectedLayer).toBe('company_reference');
   });
@@ -295,14 +469,16 @@ describe('Product Guide RPC Resolution Simulation', () => {
   });
 
   it.each(
-    SECTION_FILTER_MAP
-      .filter(s => !CONTENT_POPULATION_PENDING_SECTIONS.has(s.sectionName))
-      .map(s => [s.sectionName, s.subtopicFilter, s.expectedLayer] as const),
+    SECTION_FILTER_MAP.filter(
+      (s) => !CONTENT_POPULATION_PENDING_SECTIONS.has(s.sectionName),
+    ).map((s) => [s.sectionName, s.subtopicFilter, s.expectedLayer] as const),
   )(
     'section "%s" (subtopic=%s, layer=%s) produces exact match for matching content',
     async (sectionName, subtopicFilter, expectedLayer) => {
       // Build mock section data for LMS Product Guide
-      const section = SECTION_FILTER_MAP.find(s => s.sectionName === sectionName)!;
+      const section = SECTION_FILTER_MAP.find(
+        (s) => s.sectionName === sectionName,
+      )!;
       const mockSection = mockProductGuideSection(section, 'lms');
 
       configureSectionResponse(mockClient, [mockSection]);
@@ -317,8 +493,11 @@ describe('Product Guide RPC Resolution Simulation', () => {
       const results = await suggestGuideSections(asSupabase(mockClient), input);
 
       expect(results.length).toBeGreaterThanOrEqual(1);
-      const match = results.find(r => r.sectionName === sectionName);
-      expect(match, `Expected to find match for section "${sectionName}"`).toBeDefined();
+      const match = results.find((r) => r.sectionName === sectionName);
+      expect(
+        match,
+        `Expected to find match for section "${sectionName}"`,
+      ).toBeDefined();
       expect(match!.matchStrength).toBe('exact');
     },
   );
@@ -326,7 +505,9 @@ describe('Product Guide RPC Resolution Simulation', () => {
   it('content-population-pending sections still produce exact matches when content exists', async () => {
     // Even the 3 pending sections will work once content is loaded at the right layer
     for (const pendingSectionName of CONTENT_POPULATION_PENDING_SECTIONS) {
-      const section = SECTION_FILTER_MAP.find(s => s.sectionName === pendingSectionName)!;
+      const section = SECTION_FILTER_MAP.find(
+        (s) => s.sectionName === pendingSectionName,
+      )!;
       const mockSection = mockProductGuideSection(section, 'lms');
 
       const freshMock = createMockSupabaseClient();
@@ -340,8 +521,11 @@ describe('Product Guide RPC Resolution Simulation', () => {
 
       const results = await suggestGuideSections(asSupabase(freshMock), input);
       expect(results.length).toBeGreaterThanOrEqual(1);
-      const match = results.find(r => r.sectionName === pendingSectionName);
-      expect(match, `Expected to find match for pending section "${pendingSectionName}"`).toBeDefined();
+      const match = results.find((r) => r.sectionName === pendingSectionName);
+      expect(
+        match,
+        `Expected to find match for pending section "${pendingSectionName}"`,
+      ).toBeDefined();
       expect(match!.matchStrength).toBe('exact');
     }
   });
@@ -364,7 +548,9 @@ describe('Product Guide RPC Resolution Simulation', () => {
   });
 
   it('item with wrong layer produces partial match (subtopic matches)', async () => {
-    const section = SECTION_FILTER_MAP.find(s => s.sectionName === 'Technical Spec')!;
+    const section = SECTION_FILTER_MAP.find(
+      (s) => s.sectionName === 'Technical Spec',
+    )!;
     const mockSection = mockProductGuideSection(section, 'advancedAudits');
 
     configureSectionResponse(mockClient, [mockSection]);
@@ -390,7 +576,11 @@ describe('Product Guide Cross-Guide Uniformity', () => {
     // This test encodes the key constraint: LMS, Websites, and Advanced Audits
     // have IDENTICAL section names, display_order, expected_layer, and now
     // subtopic_filter values. The migration updates all 3 in each statement.
-    const guideKeys: (keyof typeof PRODUCT_GUIDE_IDS)[] = ['lms', 'websites', 'advancedAudits'];
+    const guideKeys: (keyof typeof PRODUCT_GUIDE_IDS)[] = [
+      'lms',
+      'websites',
+      'advancedAudits',
+    ];
 
     for (const guideKey of guideKeys) {
       for (const section of SECTION_FILTER_MAP) {
@@ -404,7 +594,11 @@ describe('Product Guide Cross-Guide Uniformity', () => {
   });
 
   it('all 3 guides have domain_filter = product-feature', () => {
-    const guideKeys: (keyof typeof PRODUCT_GUIDE_IDS)[] = ['lms', 'websites', 'advancedAudits'];
+    const guideKeys: (keyof typeof PRODUCT_GUIDE_IDS)[] = [
+      'lms',
+      'websites',
+      'advancedAudits',
+    ];
     for (const guideKey of guideKeys) {
       const section = mockProductGuideSection(SECTION_FILTER_MAP[0], guideKey);
       expect(section.guides.domain_filter).toBe(PRODUCT_DOMAIN);
@@ -423,8 +617,13 @@ describe('Content-Population Pending Sections', () => {
 
   it('all pending sections are at company_reference layer', () => {
     for (const pendingName of CONTENT_POPULATION_PENDING_SECTIONS) {
-      const section = SECTION_FILTER_MAP.find(s => s.sectionName === pendingName);
-      expect(section, `Section "${pendingName}" not found in filter map`).toBeDefined();
+      const section = SECTION_FILTER_MAP.find(
+        (s) => s.sectionName === pendingName,
+      );
+      expect(
+        section,
+        `Section "${pendingName}" not found in filter map`,
+      ).toBeDefined();
       expect(
         section!.expectedLayer,
         `Pending section "${pendingName}" should be at company_reference layer`,
@@ -435,13 +634,17 @@ describe('Content-Population Pending Sections', () => {
   it('pending sections have semantically correct subtopic_filter values', () => {
     // Even though these sections have 0 items today, the subtopic is intentional
     const expectedMapping: Record<string, string> = {
-      'Pricing': 'financial-standing',
+      Pricing: 'financial-standing',
       'Data Handling': 'data-protection',
-      'Certifications': 'certification',
+      Certifications: 'certification',
     };
 
-    for (const [sectionName, expectedSubtopic] of Object.entries(expectedMapping)) {
-      const section = SECTION_FILTER_MAP.find(s => s.sectionName === sectionName);
+    for (const [sectionName, expectedSubtopic] of Object.entries(
+      expectedMapping,
+    )) {
+      const section = SECTION_FILTER_MAP.find(
+        (s) => s.sectionName === sectionName,
+      );
       expect(section?.subtopicFilter).toBe(expectedSubtopic);
     }
   });
@@ -463,11 +666,13 @@ describe('Migration Idempotency', () => {
     // is all-NULL and the ending state is all-populated.
 
     // Starting state: all NULL
-    const startingNulls = SECTION_FILTER_MAP.filter(_ => true); // all
+    const startingNulls = SECTION_FILTER_MAP.filter((_) => true); // all
     expect(startingNulls).toHaveLength(19);
 
     // Ending state: all populated
-    const populatedAfter = SECTION_FILTER_MAP.filter(s => s.subtopicFilter !== null);
+    const populatedAfter = SECTION_FILTER_MAP.filter(
+      (s) => s.subtopicFilter !== null,
+    );
     expect(populatedAfter).toHaveLength(19);
   });
 });

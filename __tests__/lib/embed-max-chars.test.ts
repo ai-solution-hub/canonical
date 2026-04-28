@@ -67,9 +67,11 @@ vi.mock('@/lib/content/strip-markdown', () => ({
 }));
 
 vi.mock('@/lib/ai/skills/loader', () => ({
-  loadSkill: vi.fn().mockResolvedValue(
-    'Classify content.\n\n{TAXONOMY}\n\n{CLIENT_DISAMBIGUATION}\n\nPrefer "{CLIENT_ORGANISATION_NAME}" not "{CLIENT_ORGANISATION_SHORT}", "{CLIENT_PRODUCT_NAME}" not "{CLIENT_PRODUCT_SHORT}".',
-  ),
+  loadSkill: vi
+    .fn()
+    .mockResolvedValue(
+      'Classify content.\n\n{TAXONOMY}\n\n{CLIENT_DISAMBIGUATION}\n\nPrefer "{CLIENT_ORGANISATION_NAME}" not "{CLIENT_ORGANISATION_SHORT}", "{CLIENT_PRODUCT_NAME}" not "{CLIENT_PRODUCT_SHORT}".',
+    ),
 }));
 
 vi.mock('@/lib/entities/entity-aliases', async (importOriginal) => {

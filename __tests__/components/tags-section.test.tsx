@@ -180,7 +180,9 @@ describe('TagsSection', () => {
     // Old stats tiles should NOT exist
     expect(screen.queryByText('Total tags')).not.toBeInTheDocument();
     expect(screen.queryByText('Duplicate groups')).not.toBeInTheDocument();
-    expect(screen.queryByText('Singleton tags (hidden by default)')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Singleton tags (hidden by default)'),
+    ).not.toBeInTheDocument();
   });
 
   // ─── AC1: Two tabs — "Clean up" and "Browse all" ───
@@ -192,30 +194,51 @@ describe('TagsSection', () => {
     render(<TagsSection />, { wrapper: Wrapper });
 
     await waitFor(() => {
-      expect(screen.getByRole('tab', { name: /clean up/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('tab', { name: /clean up/i }),
+      ).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('tab', { name: /browse all/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('tab', { name: /browse all/i }),
+    ).toBeInTheDocument();
 
     // Old tabs should NOT exist
-    expect(screen.queryByRole('tab', { name: /^duplicates$/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: /by domain/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: /all tags/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: /bulk actions/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('tab', { name: /^duplicates$/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('tab', { name: /by domain/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('tab', { name: /all tags/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('tab', { name: /bulk actions/i }),
+    ).not.toBeInTheDocument();
   });
 
   // ─── AC1: Clean up tab merges duplicates + domain view + bulk actions ───
 
   it('shows duplicates, domain view, and bulk actions within Clean up tab', async () => {
     const tags = createTagData(3);
-    const dupes = [{ canonical: 'test', variants: ['Test'], variant_count: 1, total_usage: 5 }];
+    const dupes = [
+      {
+        canonical: 'test',
+        variants: ['Test'],
+        variant_count: 1,
+        total_usage: 5,
+      },
+    ];
     setupFetchResponses(tags, dupes, createDomainGroups());
 
     const { Wrapper } = createQueryWrapper();
     render(<TagsSection />, { wrapper: Wrapper });
 
     await waitFor(() => {
-      expect(screen.getByRole('tab', { name: /clean up/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('tab', { name: /clean up/i }),
+      ).toBeInTheDocument();
     });
 
     // Clean up tab should be active by default when duplicates exist
@@ -229,14 +252,23 @@ describe('TagsSection', () => {
   it('switching to Browse all and back preserves Clean up content', async () => {
     const user = userEvent.setup();
     const tags = createTagData(3);
-    const dupes = [{ canonical: 'test', variants: ['Test'], variant_count: 1, total_usage: 5 }];
+    const dupes = [
+      {
+        canonical: 'test',
+        variants: ['Test'],
+        variant_count: 1,
+        total_usage: 5,
+      },
+    ];
     setupFetchResponses(tags, dupes, createDomainGroups());
 
     const { Wrapper } = createQueryWrapper();
     render(<TagsSection />, { wrapper: Wrapper });
 
     await waitFor(() => {
-      expect(screen.getByRole('tab', { name: /clean up/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('tab', { name: /clean up/i }),
+      ).toBeInTheDocument();
     });
 
     // Switch to Browse all
@@ -267,7 +299,9 @@ describe('TagsSection', () => {
     render(<TagsSection />, { wrapper: Wrapper });
 
     await waitFor(() => {
-      expect(screen.getByRole('tab', { name: /browse all/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('tab', { name: /browse all/i }),
+      ).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole('tab', { name: /browse all/i }));
@@ -294,7 +328,9 @@ describe('TagsSection', () => {
     render(<TagsSection />, { wrapper: Wrapper });
 
     await waitFor(() => {
-      expect(screen.getByRole('tab', { name: /browse all/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('tab', { name: /browse all/i }),
+      ).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole('tab', { name: /browse all/i }));
@@ -304,7 +340,9 @@ describe('TagsSection', () => {
     });
 
     // Should have a button to delete singletons (not just informational)
-    const deleteBtn = screen.getByRole('button', { name: /delete.*singleton/i });
+    const deleteBtn = screen.getByRole('button', {
+      name: /delete.*singleton/i,
+    });
     expect(deleteBtn).toBeInTheDocument();
   });
 
@@ -319,7 +357,9 @@ describe('TagsSection', () => {
     render(<TagsSection />, { wrapper: Wrapper });
 
     await waitFor(() => {
-      expect(screen.getByRole('tab', { name: /browse all/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('tab', { name: /browse all/i }),
+      ).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole('tab', { name: /browse all/i }));
@@ -347,7 +387,9 @@ describe('TagsSection', () => {
     render(<TagsSection />, { wrapper: Wrapper });
 
     await waitFor(() => {
-      expect(screen.getByRole('tab', { name: /browse all/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('tab', { name: /browse all/i }),
+      ).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole('tab', { name: /browse all/i }));
@@ -361,7 +403,9 @@ describe('TagsSection', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Merge Tag')).toBeInTheDocument();
-      expect(screen.getByPlaceholderText('Target tag name...')).toBeInTheDocument();
+      expect(
+        screen.getByPlaceholderText('Target tag name...'),
+      ).toBeInTheDocument();
     });
   });
 
@@ -376,7 +420,9 @@ describe('TagsSection', () => {
     render(<TagsSection />, { wrapper: Wrapper });
 
     await waitFor(() => {
-      expect(screen.getByRole('tab', { name: /browse all/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('tab', { name: /browse all/i }),
+      ).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole('tab', { name: /browse all/i }));
@@ -402,17 +448,28 @@ describe('TagsSection', () => {
     const { container } = render(<TagsSection />, { wrapper: Wrapper });
 
     await waitFor(() => {
-      expect(screen.getByRole('tab', { name: /clean up/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('tab', { name: /clean up/i }),
+      ).toBeInTheDocument();
     });
 
     // No entity-management data-testids or content
-    expect(container.querySelector('[data-testid*="entity"]')).not.toBeInTheDocument();
+    expect(
+      container.querySelector('[data-testid*="entity"]'),
+    ).not.toBeInTheDocument();
   });
 
   // ─── Default tab selection ───
 
   it('defaults to Clean up tab when duplicates exist', async () => {
-    const dupes = [{ canonical: 'test', variants: ['Test'], variant_count: 1, total_usage: 5 }];
+    const dupes = [
+      {
+        canonical: 'test',
+        variants: ['Test'],
+        variant_count: 1,
+        total_usage: 5,
+      },
+    ];
     setupFetchResponses(createTagData(), dupes);
 
     const { Wrapper } = createQueryWrapper();

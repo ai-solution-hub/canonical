@@ -59,7 +59,9 @@ export async function PATCH(
       .from('taxonomy_subtopics')
       .update(updates)
       .eq('id', id)
-      .select('id, domain_id, name, display_order, is_active, provenance, description')
+      .select(
+        'id, domain_id, name, display_order, is_active, provenance, description',
+      )
       .single();
 
     if (error) {

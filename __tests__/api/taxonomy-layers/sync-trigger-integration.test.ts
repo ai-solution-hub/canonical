@@ -24,8 +24,7 @@ import { createTestRequest, createTestParams } from '../../helpers/mock-next';
 const mockEnqueueTaxonomySync = vi.fn();
 
 vi.mock('@/lib/taxonomy/sync-trigger', () => ({
-  enqueueTaxonomySync: (...args: unknown[]) =>
-    mockEnqueueTaxonomySync(...args),
+  enqueueTaxonomySync: (...args: unknown[]) => mockEnqueueTaxonomySync(...args),
   computeTaxonomyHash: vi.fn().mockReturnValue('mock-hash'),
 }));
 
@@ -120,9 +119,8 @@ function resetMocks() {
     data: null,
     error: null,
   });
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 }
 
@@ -288,8 +286,7 @@ describe('enqueueTaxonomySync wiring across 9 routes', () => {
 
       // Individual .update().eq() calls resolve via chain.then
       mockSupabase._chain.then.mockImplementation(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: null, error: null }),
+        (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
       );
 
       const req = createTestRequest('/api/taxonomy/reorder', {
@@ -402,8 +399,7 @@ describe('enqueueTaxonomySync wiring across 9 routes', () => {
 
       // Delete: .delete().eq() resolves via .then
       mockSupabase._chain.then.mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: null, error: null }),
+        (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
       );
 
       const req = createTestRequest(`/api/layers/${VALID_UUID}`, {
@@ -426,8 +422,7 @@ describe('enqueueTaxonomySync wiring across 9 routes', () => {
 
       // Promise.all updates — each .update().eq() resolves via .then
       mockSupabase._chain.then.mockImplementation(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: null, error: null }),
+        (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
       );
 
       const req = createTestRequest('/api/layers/reorder', {

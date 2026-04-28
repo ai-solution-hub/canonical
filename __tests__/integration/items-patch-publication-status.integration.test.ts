@@ -66,7 +66,10 @@ import {
 // ---------------------------------------------------------------------------
 
 const { authCookies, cachedSessions } = vi.hoisted(() => ({
-  authCookies: new Map<string, { name: string; value: string }>() as AuthCookieStore,
+  authCookies: new Map<
+    string,
+    { name: string; value: string }
+  >() as AuthCookieStore,
   cachedSessions: {
     admin: new Map(),
     editor: new Map(),
@@ -104,9 +107,9 @@ let TEST_USER_1_ID = '';
 // elsewhere in the integration suite.
 const HAS_REQUIRED_ENV = Boolean(
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY &&
-    process.env.SUPABASE_SERVICE_ROLE_KEY &&
-    process.env.TEST_USER_1_PASSWORD,
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY &&
+  process.env.SUPABASE_SERVICE_ROLE_KEY &&
+  process.env.TEST_USER_1_PASSWORD,
 );
 const describeIfEnv = HAS_REQUIRED_ENV ? describe : describe.skip;
 
@@ -225,10 +228,7 @@ afterAll(async () => {
     .from('content_history')
     .delete()
     .in('content_item_id', seededIds);
-  await serviceClient
-    .from('content_items')
-    .delete()
-    .in('id', seededIds);
+  await serviceClient.from('content_items').delete().in('id', seededIds);
 }, 30_000);
 
 // ---------------------------------------------------------------------------
@@ -238,145 +238,143 @@ afterAll(async () => {
 describeIfEnv(
   'items PATCH publication_status — full DB path (S202 §5.2 Phase 2 / T6 V1-M2)',
   () => {
-    it(
-      'happy path: draft → in_review → published → archived → published with audit log + trigger interaction',
-      async () => {
-        const itemId = await seedItem('draft', 'happy-path-lifecycle');
+    it('happy path: draft → in_review → published → archived → published with audit log + trigger interaction', async () => {
+      const itemId = await seedItem('draft', 'happy-path-lifecycle');
 
-        // ---------------- draft → in_review ----------------
+      // ---------------- draft → in_review ----------------
+      {
+        const res = await patchPublicationStatus(itemId, 'in_review');
+        expect(res.status, await res.clone().text()).toBe(200);
+        const json = (await res.json()) as { success: boolean };
+        expect(json.success).toBe(true);
+
+        const { data, error } = await serviceClient
+          .from('content_items')
+          .select(
+            'publication_status, archived_at, archived_by, archive_reason',
+          )
+          .eq('id', itemId)
+          .single();
+        expect(error).toBeNull();
+        expect(data?.publication_status).toBe('in_review');
+        expect(data?.archived_at).toBeNull();
+      }
+
+      // ---------------- in_review → published ----------------
+      {
+        const res = await patchPublicationStatus(itemId, 'published');
+        expect(res.status, await res.clone().text()).toBe(200);
+
+        const { data } = await serviceClient
+          .from('content_items')
+          .select('publication_status, archived_at')
+          .eq('id', itemId)
+          .single();
+        expect(data?.publication_status).toBe('published');
+        expect(data?.archived_at).toBeNull();
+      }
+
+      // ---------------- published → archived (with reason) ----------------
+      {
+        const archiveReason = 'V1-M2 lifecycle test archive reason';
+        const beforeArchiveMs = Date.now();
+        const res = await patchPublicationStatus(itemId, 'archived', {
+          archive_reason: archiveReason,
+        });
+        expect(res.status, await res.clone().text()).toBe(200);
+
+        const { data } = await serviceClient
+          .from('content_items')
+          .select(
+            'publication_status, archived_at, archived_by, archive_reason',
+          )
+          .eq('id', itemId)
+          .single();
+        expect(data?.publication_status).toBe('archived');
+        // Side-effect helper stamps archived_at first; the §6.6 trigger
+        // sees archived_at already populated and is a no-op (Direction 1
+        // idempotency — caller-provided value preserved).
+        expect(data?.archived_at).not.toBeNull();
+        const archivedTs = new Date(data!.archived_at as string).getTime();
+        expect(archivedTs).toBeGreaterThanOrEqual(beforeArchiveMs - 5_000);
+        expect(archivedTs).toBeLessThanOrEqual(Date.now() + 5_000);
+        expect(data?.archived_by).toBe(TEST_USER_1_ID);
+        expect(data?.archive_reason).toBe(archiveReason);
+      }
+
+      // ---------------- archived → published (un-archive) ----------------
+      {
+        const res = await patchPublicationStatus(itemId, 'published');
+        expect(res.status, await res.clone().text()).toBe(200);
+
+        const { data } = await serviceClient
+          .from('content_items')
+          .select(
+            'publication_status, archived_at, archived_by, archive_reason',
+          )
+          .eq('id', itemId)
+          .single();
+        expect(data?.publication_status).toBe('published');
+        // applyTransitionSideEffects sets archived_at: null; the trigger
+        // sees publication_status moving away from 'archived' (Direction 2)
+        // and reinforces the clear. End state: archived_at IS NULL.
+        expect(data?.archived_at).toBeNull();
+        // Audit retention: archived_by + archive_reason preserved per
+        // helper contract (and spec §3.2 D-9 rationale).
+        expect(data?.archived_by).toBe(TEST_USER_1_ID);
+        expect(data?.archive_reason).toBe(
+          'V1-M2 lifecycle test archive reason',
+        );
+      }
+
+      // ---------------- content_history audit log ----------------
+      // Four PATCH transitions ⇒ four content_history rows tagged
+      // change_type='publication_state'. Each must carry the canonical
+      // change_reason "Transition from <from> to <to>"; the archive
+      // transition appends "(reason: …)" per route logic.
+      const { data: history, error: historyErr } = await serviceClient
+        .from('content_history')
+        .select('change_type, change_reason, change_summary, version')
+        .eq('content_item_id', itemId)
+        .eq('change_type', 'publication_state')
+        .order('version', { ascending: true });
+
+      expect(historyErr).toBeNull();
+      expect(history).toBeTruthy();
+      expect(history!.length).toBe(4);
+
+      const expectedTransitions = [
+        { from: 'draft', to: 'in_review', withReason: false },
+        { from: 'in_review', to: 'published', withReason: false },
         {
-          const res = await patchPublicationStatus(itemId, 'in_review');
-          expect(res.status, await res.clone().text()).toBe(200);
-          const json = (await res.json()) as { success: boolean };
-          expect(json.success).toBe(true);
+          from: 'published',
+          to: 'archived',
+          withReason: true,
+          reasonText: 'V1-M2 lifecycle test archive reason',
+        },
+        { from: 'archived', to: 'published', withReason: false },
+      ];
 
-          const { data, error } = await serviceClient
-            .from('content_items')
-            .select('publication_status, archived_at, archived_by, archive_reason')
-            .eq('id', itemId)
-            .single();
-          expect(error).toBeNull();
-          expect(data?.publication_status).toBe('in_review');
-          expect(data?.archived_at).toBeNull();
-        }
+      for (let i = 0; i < expectedTransitions.length; i++) {
+        const row = history![i]!;
+        const expected = expectedTransitions[i]!;
+        expect(row.change_type).toBe('publication_state');
+        const expectedReason = expected.withReason
+          ? `Transition from ${expected.from} to ${expected.to} (reason: ${expected.reasonText})`
+          : `Transition from ${expected.from} to ${expected.to}`;
+        expect(row.change_reason).toBe(expectedReason);
+        expect(row.change_summary).toBe(
+          `Publication status: ${expected.from} -> ${expected.to}`,
+        );
+      }
 
-        // ---------------- in_review → published ----------------
-        {
-          const res = await patchPublicationStatus(itemId, 'published');
-          expect(res.status, await res.clone().text()).toBe(200);
-
-          const { data } = await serviceClient
-            .from('content_items')
-            .select('publication_status, archived_at')
-            .eq('id', itemId)
-            .single();
-          expect(data?.publication_status).toBe('published');
-          expect(data?.archived_at).toBeNull();
-        }
-
-        // ---------------- published → archived (with reason) ----------------
-        {
-          const archiveReason = 'V1-M2 lifecycle test archive reason';
-          const beforeArchiveMs = Date.now();
-          const res = await patchPublicationStatus(itemId, 'archived', {
-            archive_reason: archiveReason,
-          });
-          expect(res.status, await res.clone().text()).toBe(200);
-
-          const { data } = await serviceClient
-            .from('content_items')
-            .select(
-              'publication_status, archived_at, archived_by, archive_reason',
-            )
-            .eq('id', itemId)
-            .single();
-          expect(data?.publication_status).toBe('archived');
-          // Side-effect helper stamps archived_at first; the §6.6 trigger
-          // sees archived_at already populated and is a no-op (Direction 1
-          // idempotency — caller-provided value preserved).
-          expect(data?.archived_at).not.toBeNull();
-          const archivedTs = new Date(data!.archived_at as string).getTime();
-          expect(archivedTs).toBeGreaterThanOrEqual(beforeArchiveMs - 5_000);
-          expect(archivedTs).toBeLessThanOrEqual(Date.now() + 5_000);
-          expect(data?.archived_by).toBe(TEST_USER_1_ID);
-          expect(data?.archive_reason).toBe(archiveReason);
-        }
-
-        // ---------------- archived → published (un-archive) ----------------
-        {
-          const res = await patchPublicationStatus(itemId, 'published');
-          expect(res.status, await res.clone().text()).toBe(200);
-
-          const { data } = await serviceClient
-            .from('content_items')
-            .select(
-              'publication_status, archived_at, archived_by, archive_reason',
-            )
-            .eq('id', itemId)
-            .single();
-          expect(data?.publication_status).toBe('published');
-          // applyTransitionSideEffects sets archived_at: null; the trigger
-          // sees publication_status moving away from 'archived' (Direction 2)
-          // and reinforces the clear. End state: archived_at IS NULL.
-          expect(data?.archived_at).toBeNull();
-          // Audit retention: archived_by + archive_reason preserved per
-          // helper contract (and spec §3.2 D-9 rationale).
-          expect(data?.archived_by).toBe(TEST_USER_1_ID);
-          expect(data?.archive_reason).toBe(
-            'V1-M2 lifecycle test archive reason',
-          );
-        }
-
-        // ---------------- content_history audit log ----------------
-        // Four PATCH transitions ⇒ four content_history rows tagged
-        // change_type='publication_state'. Each must carry the canonical
-        // change_reason "Transition from <from> to <to>"; the archive
-        // transition appends "(reason: …)" per route logic.
-        const { data: history, error: historyErr } = await serviceClient
-          .from('content_history')
-          .select('change_type, change_reason, change_summary, version')
-          .eq('content_item_id', itemId)
-          .eq('change_type', 'publication_state')
-          .order('version', { ascending: true });
-
-        expect(historyErr).toBeNull();
-        expect(history).toBeTruthy();
-        expect(history!.length).toBe(4);
-
-        const expectedTransitions = [
-          { from: 'draft', to: 'in_review', withReason: false },
-          { from: 'in_review', to: 'published', withReason: false },
-          {
-            from: 'published',
-            to: 'archived',
-            withReason: true,
-            reasonText: 'V1-M2 lifecycle test archive reason',
-          },
-          { from: 'archived', to: 'published', withReason: false },
-        ];
-
-        for (let i = 0; i < expectedTransitions.length; i++) {
-          const row = history![i]!;
-          const expected = expectedTransitions[i]!;
-          expect(row.change_type).toBe('publication_state');
-          const expectedReason = expected.withReason
-            ? `Transition from ${expected.from} to ${expected.to} (reason: ${expected.reasonText})`
-            : `Transition from ${expected.from} to ${expected.to}`;
-          expect(row.change_reason).toBe(expectedReason);
-          expect(row.change_summary).toBe(
-            `Publication status: ${expected.from} -> ${expected.to}`,
-          );
-        }
-
-        // Versions must be monotonically increasing (the auto_version
-        // BEFORE-INSERT trigger plus our explicit version param). At a
-        // minimum: each subsequent version > the prior version.
-        for (let i = 1; i < history!.length; i++) {
-          expect(history![i]!.version).toBeGreaterThan(history![i - 1]!.version);
-        }
-      },
-      60_000,
-    );
+      // Versions must be monotonically increasing (the auto_version
+      // BEFORE-INSERT trigger plus our explicit version param). At a
+      // minimum: each subsequent version > the prior version.
+      for (let i = 1; i < history!.length; i++) {
+        expect(history![i]!.version).toBeGreaterThan(history![i - 1]!.version);
+      }
+    }, 60_000);
 
     it('CHECK enforcement: direct INSERT with invalid publication_status is rejected', async () => {
       // This exercises the DB CHECK directly (bypassing the PATCH handler).

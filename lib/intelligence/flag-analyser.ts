@@ -137,9 +137,10 @@ export class FlagAnalysisError extends Error {
 /** Format a single flag as a short text block for the Claude prompt. Mirrors
  *  the format documented in the spec §5 "Flagged article formatting". */
 function formatFlag(flag: FlagAnalysisFlag): string {
-  const notes = flag.userNotes && flag.userNotes.trim().length > 0
-    ? flag.userNotes
-    : 'No notes provided';
+  const notes =
+    flag.userNotes && flag.userNotes.trim().length > 0
+      ? flag.userNotes
+      : 'No notes provided';
   return [
     `[${flag.flagType}] "${flag.articleTitle}"`,
     `  Source: ${flag.sourceName}`,
@@ -244,7 +245,11 @@ function stripCodeFences(text: string): string {
 
 /** Convert the snake_case JSON Claude returns into the camelCase shape the
  *  Zod schema enforces. Anything missing falls through and trips Zod. */
-function normaliseAnalysisJson(parsed: unknown, analysedFlagCount: number, truncated: boolean): unknown {
+function normaliseAnalysisJson(
+  parsed: unknown,
+  analysedFlagCount: number,
+  truncated: boolean,
+): unknown {
   if (parsed === null || typeof parsed !== 'object') return parsed;
   const obj = parsed as Record<string, unknown>;
 
@@ -405,8 +410,7 @@ export async function analyseFeedFlags(
     });
 
     const firstBlock = response.content[0];
-    rawText =
-      firstBlock && firstBlock.type === 'text' ? firstBlock.text : '';
+    rawText = firstBlock && firstBlock.type === 'text' ? firstBlock.text : '';
   } catch (err) {
     throw new FlagAnalysisError(
       `Claude API call failed during flag analysis: ${err instanceof Error ? err.message : String(err)}`,

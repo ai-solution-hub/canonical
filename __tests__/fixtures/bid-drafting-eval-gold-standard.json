@@ -509,10 +509,7 @@
       "structure": 4,
       "overall": 4
     },
-    "expected_kb_items_used": [
-      "da331dda-fe1f-4d80-8072-2e787539003c",
-      "fb007646-5e5d-4f2a-ac64-c482d1900444"
-    ],
+    "expected_kb_items_used": ["da331dda-fe1f-4d80-8072-2e787539003c", "fb007646-5e5d-4f2a-ac64-c482d1900444"],
     "notes": "Shortest response (200 word limit). Tests concise reference response. Deliberately avoids fabricating specific client names — references KB content about named clients without revealing confidential details. Scores lower because it is necessarily brief."
   },
   {

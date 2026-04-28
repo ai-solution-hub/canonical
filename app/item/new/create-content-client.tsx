@@ -454,248 +454,251 @@ export function CreateContentClient() {
                   layout="compact"
                 />
 
-            {/* Title / Question */}
-            <div ref={basicsRef} data-step="1" className="space-y-2">
-              <Label htmlFor="title">
-                {isQAPair ? 'Question' : 'Title'}{' '}
-                <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="title"
-                {...register('title')}
-                placeholder={
-                  isQAPair ? 'Enter the question...' : 'Enter title...'
-                }
-                autoFocus
-                maxLength={500}
-                aria-invalid={!!errors.title || undefined}
-                aria-describedby={
-                  [errors.title ? 'title-error' : '', 'title-char-count']
-                    .filter(Boolean)
-                    .join(' ') || undefined
-                }
-                className={errors.title ? 'border-destructive' : ''}
-              />
-              <div className="flex items-center justify-between">
-                {errors.title ? (
-                  <p
-                    id="title-error"
-                    className="text-destructive text-sm"
-                    role="alert"
+                {/* Title / Question */}
+                <div ref={basicsRef} data-step="1" className="space-y-2">
+                  <Label htmlFor="title">
+                    {isQAPair ? 'Question' : 'Title'}{' '}
+                    <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="title"
+                    {...register('title')}
+                    placeholder={
+                      isQAPair ? 'Enter the question...' : 'Enter title...'
+                    }
+                    autoFocus
+                    maxLength={500}
+                    aria-invalid={!!errors.title || undefined}
+                    aria-describedby={
+                      [errors.title ? 'title-error' : '', 'title-char-count']
+                        .filter(Boolean)
+                        .join(' ') || undefined
+                    }
+                    className={errors.title ? 'border-destructive' : ''}
+                  />
+                  <div className="flex items-center justify-between">
+                    {errors.title ? (
+                      <p
+                        id="title-error"
+                        className="text-destructive text-sm"
+                        role="alert"
+                      >
+                        {isQAPair
+                          ? errors.title.message?.replace('Title', 'Question')
+                          : errors.title.message}
+                      </p>
+                    ) : (
+                      <span />
+                    )}
+                    <span
+                      id="title-char-count"
+                      className={`text-xs ${title.length >= 450 ? 'text-status-warning' : 'text-muted-foreground'}`}
+                      aria-live="polite"
+                    >
+                      {title.length} / 500
+                    </span>
+                  </div>
+                </div>
+
+                {/* Content Type */}
+                <div className="space-y-2">
+                  <Label htmlFor="content-type">
+                    Content Type <span className="text-destructive">*</span>
+                  </Label>
+                  <Select
+                    value={contentType}
+                    onValueChange={(val) => {
+                      setValue('content_type', val, {
+                        shouldValidate: true,
+                        shouldDirty: true,
+                        shouldTouch: true,
+                      });
+                    }}
                   >
-                    {isQAPair
-                      ? errors.title.message?.replace('Title', 'Question')
-                      : errors.title.message}
-                  </p>
-                ) : (
-                  <span />
+                    <SelectTrigger
+                      id="content-type"
+                      onBlur={() => trigger('content_type')}
+                      className={
+                        errors.content_type ? 'border-destructive' : ''
+                      }
+                      aria-invalid={!!errors.content_type || undefined}
+                      aria-describedby={
+                        errors.content_type ? 'content-type-error' : undefined
+                      }
+                    >
+                      <SelectValue placeholder="Select content type..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectLabel>Common</SelectLabel>
+                        {COMMON_TYPES.map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {formatContentType(type)}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                      <SelectGroup>
+                        <SelectLabel>More types</SelectLabel>
+                        {VALID_CONTENT_TYPES.filter(
+                          (t) =>
+                            !(COMMON_TYPES as readonly string[]).includes(t),
+                        ).map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {formatContentType(type)}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  {errors.content_type && (
+                    <p
+                      id="content-type-error"
+                      className="text-destructive text-sm"
+                      role="alert"
+                    >
+                      {errors.content_type.message}
+                    </p>
+                  )}
+                </div>
+
+                {/* Content / Answer */}
+                <div ref={contentRef} data-step="2" className="space-y-2">
+                  <Label id="content-editor-label">
+                    {isQAPair ? 'Answer' : 'Content'}{' '}
+                    <span className="text-destructive">*</span>
+                  </Label>
+                  <div onBlur={() => trigger('content')}>
+                    <ContentEditor
+                      content={contentValue}
+                      onChange={(val: string) => {
+                        setValue('content', val, {
+                          shouldValidate: true,
+                          shouldDirty: true,
+                        });
+                      }}
+                      placeholder={
+                        isQAPair ? 'Write the answer...' : 'Start writing...'
+                      }
+                      minHeight="300px"
+                      labelId="content-editor-label"
+                    />
+                  </div>
+                  {errors.content && (
+                    <p
+                      id="content-error"
+                      className="text-destructive text-sm"
+                      role="alert"
+                    >
+                      {isQAPair
+                        ? errors.content.message?.replace('Content', 'Answer')
+                        : errors.content.message}
+                    </p>
+                  )}
+                </div>
+
+                {/* More details toggle */}
+                <button
+                  ref={detailsRef as React.RefObject<HTMLButtonElement>}
+                  data-step="3"
+                  type="button"
+                  onClick={() => setShowMoreDetails(!showMoreDetails)}
+                  aria-expanded={showMoreDetails}
+                  className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+                >
+                  {showMoreDetails ? (
+                    <ChevronUp className="size-4" />
+                  ) : (
+                    <ChevronDown className="size-4" />
+                  )}
+                  Classification, tags, and source info
+                </button>
+
+                {showMoreDetails && (
+                  <div className="space-y-6">
+                    <ClassificationFieldset
+                      primaryDomain={primaryDomain ?? ''}
+                      setPrimaryDomain={(val) =>
+                        setValue('primary_domain', val, { shouldDirty: true })
+                      }
+                      primarySubtopic={watch('primary_subtopic') ?? ''}
+                      setPrimarySubtopic={(val) =>
+                        setValue('primary_subtopic', val, { shouldDirty: true })
+                      }
+                      keywordsInput={watch('keywords_input') ?? ''}
+                      setKeywordsInput={(val) =>
+                        setValue('keywords_input', val, { shouldDirty: true })
+                      }
+                      domainNames={domainNames}
+                      subtopicNames={subtopicNames}
+                      formatDomainName={formatDomainName}
+                      formatSubtopic={formatSubtopic}
+                    />
+
+                    <ProvenanceFieldset
+                      authorName={watch('author_name') ?? ''}
+                      setAuthorName={(val) =>
+                        setValue('author_name', val, { shouldDirty: true })
+                      }
+                      sourceUrl={watch('source_url') ?? ''}
+                      setSourceUrl={(val) =>
+                        setValue('source_url', val, { shouldDirty: true })
+                      }
+                      tags={tags}
+                      setTags={(val) =>
+                        setValue('user_tags', val, { shouldDirty: true })
+                      }
+                      tagsInput={tagsInput ?? ''}
+                      setTagsInput={(val) =>
+                        setValue('tags_input', val, { shouldDirty: true })
+                      }
+                      priority={watch('priority') ?? ''}
+                      setPriority={(val) =>
+                        setValue(
+                          'priority',
+                          val as '' | 'high' | 'medium' | 'low',
+                          { shouldDirty: true },
+                        )
+                      }
+                      sourceUrlError={errors.source_url?.message}
+                    />
+
+                    <ProgressiveDepthFieldset
+                      brief={watch('brief') ?? ''}
+                      setBrief={(val) =>
+                        setValue('brief', val, { shouldDirty: true })
+                      }
+                      detail={watch('detail') ?? ''}
+                      setDetail={(val) =>
+                        setValue('detail', val, { shouldDirty: true })
+                      }
+                      reference={watch('reference') ?? ''}
+                      setReference={(val) =>
+                        setValue('reference', val, { shouldDirty: true })
+                      }
+                      briefError={errors.brief?.message}
+                      detailError={errors.detail?.message}
+                      referenceError={errors.reference?.message}
+                    />
+                  </div>
                 )}
-                <span
-                  id="title-char-count"
-                  className={`text-xs ${title.length >= 450 ? 'text-status-warning' : 'text-muted-foreground'}`}
-                  aria-live="polite"
-                >
-                  {title.length} / 500
-                </span>
-              </div>
-            </div>
 
-            {/* Content Type */}
-            <div className="space-y-2">
-              <Label htmlFor="content-type">
-                Content Type <span className="text-destructive">*</span>
-              </Label>
-              <Select
-                value={contentType}
-                onValueChange={(val) => {
-                  setValue('content_type', val, {
-                    shouldValidate: true,
-                    shouldDirty: true,
-                    shouldTouch: true,
-                  });
-                }}
-              >
-                <SelectTrigger
-                  id="content-type"
-                  onBlur={() => trigger('content_type')}
-                  className={errors.content_type ? 'border-destructive' : ''}
-                  aria-invalid={!!errors.content_type || undefined}
-                  aria-describedby={
-                    errors.content_type ? 'content-type-error' : undefined
+                {/* Bottom bar: AI options + save buttons */}
+                <SaveActionsBar
+                  autoSummarise={autoSummarise}
+                  setAutoSummarise={(val) =>
+                    setValue('auto_summarise', val, { shouldDirty: true })
                   }
-                >
-                  <SelectValue placeholder="Select content type..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectLabel>Common</SelectLabel>
-                    {COMMON_TYPES.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {formatContentType(type)}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                  <SelectGroup>
-                    <SelectLabel>More types</SelectLabel>
-                    {VALID_CONTENT_TYPES.filter(
-                      (t) => !(COMMON_TYPES as readonly string[]).includes(t),
-                    ).map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {formatContentType(type)}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              {errors.content_type && (
-                <p
-                  id="content-type-error"
-                  className="text-destructive text-sm"
-                  role="alert"
-                >
-                  {errors.content_type.message}
-                </p>
-              )}
-            </div>
-
-            {/* Content / Answer */}
-            <div ref={contentRef} data-step="2" className="space-y-2">
-              <Label id="content-editor-label">
-                {isQAPair ? 'Answer' : 'Content'}{' '}
-                <span className="text-destructive">*</span>
-              </Label>
-              <div onBlur={() => trigger('content')}>
-                <ContentEditor
-                  content={contentValue}
-                  onChange={(val: string) => {
-                    setValue('content', val, {
-                      shouldValidate: true,
-                      shouldDirty: true,
-                    });
-                  }}
-                  placeholder={
-                    isQAPair ? 'Write the answer...' : 'Start writing...'
+                  saveAsDraft={saveAsDraft}
+                  setSaveAsDraft={(val) =>
+                    setValue('save_as_draft', val, { shouldDirty: true })
                   }
-                  minHeight="300px"
-                  labelId="content-editor-label"
+                  canSave={canSave}
+                  isSaving={isSaving}
+                  isSavingAndContinue={isSavingAndContinue}
+                  onSaveAndContinue={() =>
+                    handleSubmit((data) => onSubmit(data, true))()
+                  }
                 />
-              </div>
-              {errors.content && (
-                <p
-                  id="content-error"
-                  className="text-destructive text-sm"
-                  role="alert"
-                >
-                  {isQAPair
-                    ? errors.content.message?.replace('Content', 'Answer')
-                    : errors.content.message}
-                </p>
-              )}
-            </div>
-
-            {/* More details toggle */}
-            <button
-              ref={detailsRef as React.RefObject<HTMLButtonElement>}
-              data-step="3"
-              type="button"
-              onClick={() => setShowMoreDetails(!showMoreDetails)}
-              aria-expanded={showMoreDetails}
-              className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
-            >
-              {showMoreDetails ? (
-                <ChevronUp className="size-4" />
-              ) : (
-                <ChevronDown className="size-4" />
-              )}
-              Classification, tags, and source info
-            </button>
-
-            {showMoreDetails && (
-              <div className="space-y-6">
-                <ClassificationFieldset
-                  primaryDomain={primaryDomain ?? ''}
-                  setPrimaryDomain={(val) =>
-                    setValue('primary_domain', val, { shouldDirty: true })
-                  }
-                  primarySubtopic={watch('primary_subtopic') ?? ''}
-                  setPrimarySubtopic={(val) =>
-                    setValue('primary_subtopic', val, { shouldDirty: true })
-                  }
-                  keywordsInput={watch('keywords_input') ?? ''}
-                  setKeywordsInput={(val) =>
-                    setValue('keywords_input', val, { shouldDirty: true })
-                  }
-                  domainNames={domainNames}
-                  subtopicNames={subtopicNames}
-                  formatDomainName={formatDomainName}
-                  formatSubtopic={formatSubtopic}
-                />
-
-                <ProvenanceFieldset
-                  authorName={watch('author_name') ?? ''}
-                  setAuthorName={(val) =>
-                    setValue('author_name', val, { shouldDirty: true })
-                  }
-                  sourceUrl={watch('source_url') ?? ''}
-                  setSourceUrl={(val) =>
-                    setValue('source_url', val, { shouldDirty: true })
-                  }
-                  tags={tags}
-                  setTags={(val) =>
-                    setValue('user_tags', val, { shouldDirty: true })
-                  }
-                  tagsInput={tagsInput ?? ''}
-                  setTagsInput={(val) =>
-                    setValue('tags_input', val, { shouldDirty: true })
-                  }
-                  priority={watch('priority') ?? ''}
-                  setPriority={(val) =>
-                    setValue(
-                      'priority',
-                      val as '' | 'high' | 'medium' | 'low',
-                      { shouldDirty: true },
-                    )
-                  }
-                  sourceUrlError={errors.source_url?.message}
-                />
-
-                <ProgressiveDepthFieldset
-                  brief={watch('brief') ?? ''}
-                  setBrief={(val) =>
-                    setValue('brief', val, { shouldDirty: true })
-                  }
-                  detail={watch('detail') ?? ''}
-                  setDetail={(val) =>
-                    setValue('detail', val, { shouldDirty: true })
-                  }
-                  reference={watch('reference') ?? ''}
-                  setReference={(val) =>
-                    setValue('reference', val, { shouldDirty: true })
-                  }
-                  briefError={errors.brief?.message}
-                  detailError={errors.detail?.message}
-                  referenceError={errors.reference?.message}
-                />
-              </div>
-            )}
-
-            {/* Bottom bar: AI options + save buttons */}
-            <SaveActionsBar
-              autoSummarise={autoSummarise}
-              setAutoSummarise={(val) =>
-                setValue('auto_summarise', val, { shouldDirty: true })
-              }
-              saveAsDraft={saveAsDraft}
-              setSaveAsDraft={(val) =>
-                setValue('save_as_draft', val, { shouldDirty: true })
-              }
-              canSave={canSave}
-              isSaving={isSaving}
-              isSavingAndContinue={isSavingAndContinue}
-              onSaveAndContinue={() =>
-                handleSubmit((data) => onSubmit(data, true))()
-              }
-            />
               </form>
             </FormProvider>
           </>

@@ -31,9 +31,7 @@ describe('SI-M5: validateFeedUrl', () => {
   });
 
   it('validates a valid RSS feed URL', async () => {
-    const { validateFeedUrl } = await import(
-      '@/lib/intelligence/feed-poller'
-    );
+    const { validateFeedUrl } = await import('@/lib/intelligence/feed-poller');
 
     mockFetch.mockResolvedValueOnce({
       ok: true,
@@ -51,9 +49,7 @@ describe('SI-M5: validateFeedUrl', () => {
   });
 
   it('validates a valid Atom feed URL', async () => {
-    const { validateFeedUrl } = await import(
-      '@/lib/intelligence/feed-poller'
-    );
+    const { validateFeedUrl } = await import('@/lib/intelligence/feed-poller');
 
     mockFetch.mockResolvedValueOnce({
       ok: true,
@@ -70,15 +66,12 @@ describe('SI-M5: validateFeedUrl', () => {
   });
 
   it('rejects a URL that returns non-RSS content', async () => {
-    const { validateFeedUrl } = await import(
-      '@/lib/intelligence/feed-poller'
-    );
+    const { validateFeedUrl } = await import('@/lib/intelligence/feed-poller');
 
     mockFetch.mockResolvedValueOnce({
       ok: true,
       headers: new Headers({ 'content-type': 'text/html' }),
-      text: () =>
-        Promise.resolve('<html><body>Not a feed</body></html>'),
+      text: () => Promise.resolve('<html><body>Not a feed</body></html>'),
     });
 
     const result = await validateFeedUrl('https://example.com/page');
@@ -87,9 +80,7 @@ describe('SI-M5: validateFeedUrl', () => {
   });
 
   it('rejects a URL that returns HTTP error', async () => {
-    const { validateFeedUrl } = await import(
-      '@/lib/intelligence/feed-poller'
-    );
+    const { validateFeedUrl } = await import('@/lib/intelligence/feed-poller');
 
     mockFetch.mockResolvedValueOnce({
       ok: false,
@@ -103,9 +94,7 @@ describe('SI-M5: validateFeedUrl', () => {
   });
 
   it('handles timeout gracefully', async () => {
-    const { validateFeedUrl } = await import(
-      '@/lib/intelligence/feed-poller'
-    );
+    const { validateFeedUrl } = await import('@/lib/intelligence/feed-poller');
 
     const abortError = new DOMException('Aborted', 'AbortError');
     mockFetch.mockRejectedValueOnce(abortError);
@@ -116,9 +105,7 @@ describe('SI-M5: validateFeedUrl', () => {
   });
 
   it('handles network errors gracefully', async () => {
-    const { validateFeedUrl } = await import(
-      '@/lib/intelligence/feed-poller'
-    );
+    const { validateFeedUrl } = await import('@/lib/intelligence/feed-poller');
 
     mockFetch.mockRejectedValueOnce(new Error('DNS resolution failed'));
 
@@ -130,9 +117,7 @@ describe('SI-M5: validateFeedUrl', () => {
   });
 
   it('accepts XML content with xml content-type', async () => {
-    const { validateFeedUrl } = await import(
-      '@/lib/intelligence/feed-poller'
-    );
+    const { validateFeedUrl } = await import('@/lib/intelligence/feed-poller');
 
     mockFetch.mockResolvedValueOnce({
       ok: true,

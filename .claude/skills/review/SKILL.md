@@ -1,7 +1,11 @@
 ---
 name: review
-description: Review recent code changes against Knowledge Hub project standards. Reads check files from `.claude/checks/` and evaluates the diff, producing a pass/fail report. Invoke with `/review` or when asked to "review changes", "check my code", or "run project checks".
-argument-hint: "[optional: git ref range, e.g. HEAD~3, or a branch name]"
+description:
+  Review recent code changes against Knowledge Hub project standards. Reads
+  check files from `.claude/checks/` and evaluates the diff, producing a
+  pass/fail report. Invoke with `/review` or when asked to "review changes",
+  "check my code", or "run project checks".
+argument-hint: '[optional: git ref range, e.g. HEAD~3, or a branch name]'
 allowed-tools: Bash(git *), Bash(wc -l *), Bash(cat *), Read, Glob, Grep
 ---
 
@@ -10,7 +14,9 @@ allowed-tools: Bash(git *), Bash(wc -l *), Bash(cat *), Read, Glob, Grep
 Evaluate recent code changes against the project's quality checks.
 
 Arguments (optional): $ARGUMENTS
-- If no arguments given, auto-detect: use `git diff main` if on a branch, or `git diff HEAD~5` if on main.
+
+- If no arguments given, auto-detect: use `git diff main` if on a branch, or
+  `git diff HEAD~5` if on main.
 - If a git ref is given (e.g. `HEAD~3`, `feature-branch`), use `git diff <ref>`.
 
 ## Step 1: Load Check Files
@@ -22,6 +28,7 @@ ls .claude/checks/*.md
 ```
 
 Read each check file in full. Each contains:
+
 - A title and purpose
 - Numbered rules
 - Examples of violations and correct patterns
@@ -56,18 +63,21 @@ Determine the appropriate diff command:
    ```
 
 Also get the list of changed files:
+
 ```bash
 git diff --name-only <ref>
 ```
 
 And get the full diff with context for analysis:
+
 ```bash
 git diff -U5 <ref>
 ```
 
 ## Step 3: Evaluate Each Check
 
-For **each** check file (project-specific + global), evaluate every rule against the diff:
+For **each** check file (project-specific + global), evaluate every rule against
+the diff:
 
 1. Read the check file's rules
 2. Scan the diff for violations of each rule
@@ -77,15 +87,18 @@ For **each** check file (project-specific + global), evaluate every rule against
    - The file path and line number (from the diff)
    - A brief description of the violation
    - The severity (error or warning, as defined in the check file)
-4. If a rule is not applicable to the changed files (e.g. no Image components changed), mark it as "not applicable"
+4. If a rule is not applicable to the changed files (e.g. no Image components
+   changed), mark it as "not applicable"
 
-**Important:** Only flag violations in **new or modified lines** (lines starting with `+` in the diff). Do not flag issues in removed lines or unchanged context.
+**Important:** Only flag violations in **new or modified lines** (lines starting
+with `+` in the diff). Do not flag issues in removed lines or unchanged context.
 
 ## Step 4: Produce the Report
 
 Output a structured report with:
 
 ### Summary
+
 - Total checks evaluated
 - Total rules checked
 - Passed / Failed / Not Applicable counts
@@ -105,6 +118,7 @@ For each check file, output:
 ```
 
 Use this formatting:
+
 - **PASS** — Rule satisfied in all changed files
 - **FAIL** — Error-level violation found (blocks merge)
 - **WARN** — Warning-level violation found (should fix but not blocking)
@@ -133,7 +147,10 @@ For unfixable issues (e.g. missing tests), describe what needs to be done.
 ## Notes
 
 - Be strict on error-level rules, lenient on warnings
-- Context matters: a `color` CSS property is fine (that is CSS, not a variable name), but a `color` TypeScript variable name or UI string is a violation
-- Check files may reference specific project paths — verify those paths still exist before flagging
+- Context matters: a `color` CSS property is fine (that is CSS, not a variable
+  name), but a `color` TypeScript variable name or UI string is a violation
+- Check files may reference specific project paths — verify those paths still
+  exist before flagging
 - If `.claude/checks/` is empty or missing, report that no checks are configured
-- This project is multi-user — pay special attention to role checks and user-scoping
+- This project is multi-user — pay special attention to role checks and
+  user-scoping

@@ -574,12 +574,5 @@
     "product_description",
     "document"
   ],
-  "platforms": [
-    "web",
-    "email",
-    "manual",
-    "upload",
-    "extraction",
-    "other"
-  ]
+  "platforms": ["web", "email", "manual", "upload", "extraction", "other"]
 }

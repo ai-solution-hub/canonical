@@ -118,10 +118,7 @@ function PipelineHealthTabInner() {
   );
 
   // Rollup comes from the first page (full window, no pagination)
-  const rollup = useMemo(
-    () => data?.pages[0]?.rollup ?? [],
-    [data?.pages],
-  );
+  const rollup = useMemo(() => data?.pages[0]?.rollup ?? [], [data?.pages]);
 
   // Available kinds for the filter — derive from rollup
   const availableKinds = useMemo(
@@ -141,10 +138,7 @@ function PipelineHealthTabInner() {
         <div className="h-10 animate-pulse rounded-md bg-muted" />
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 3 }, (_, i) => (
-            <div
-              key={i}
-              className="h-36 animate-pulse rounded-lg bg-muted"
-            />
+            <div key={i} className="h-36 animate-pulse rounded-lg bg-muted" />
           ))}
         </div>
         <div className="h-64 animate-pulse rounded-lg bg-muted" />
@@ -225,9 +219,7 @@ function PipelineHealthTabInner() {
 export default function PipelineHealthTab() {
   return (
     <Suspense
-      fallback={
-        <div className="h-64 animate-pulse rounded-lg bg-muted" />
-      }
+      fallback={<div className="h-64 animate-pulse rounded-lg bg-muted" />}
     >
       <PipelineHealthTabInner />
     </Suspense>

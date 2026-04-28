@@ -45,7 +45,10 @@ vi.mock('@/lib/search-history', () => ({
 // counts (chip composite falls back to taxonomy names).
 vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
-    rpc: vi.fn(async () => ({ data: { domain: {}, content_type: {}, platform: {} }, error: null })),
+    rpc: vi.fn(async () => ({
+      data: { domain: {}, content_type: {}, platform: {} },
+      error: null,
+    })),
   }),
 }));
 
@@ -220,7 +223,9 @@ describe('SearchPromptCards', () => {
     it('fallback set: 4 cards (1 chipComposite + 3 filter + 0 search)', () => {
       renderCards({ primaryFocus: null, role: 'editor' });
       expect(screen.getByText('Browse by domain')).toBeInTheDocument();
-      expect(screen.getByText('Find policies and standards')).toBeInTheDocument();
+      expect(
+        screen.getByText('Find policies and standards'),
+      ).toBeInTheDocument();
       expect(screen.getByText('Recent case studies')).toBeInTheDocument();
       expect(screen.getByText('Q&A library')).toBeInTheDocument();
       expect(
@@ -435,17 +440,17 @@ describe('SearchPromptCards', () => {
         const { unmount } = renderCards({ primaryFocus: focus, role: 'admin' });
         // Collect every h-like text node — headings are rendered as <p class="...font-medium">
         screen.getAllByText(/.+/).forEach((node) => {
-          if (
-            node.tagName === 'P' &&
-            node.className.includes('font-medium')
-          ) {
+          if (node.tagName === 'P' && node.className.includes('font-medium')) {
             allTitles.push(node.textContent ?? '');
           }
         });
         unmount();
       }
-      const offendingTitles = allTitles.filter((t) =>
-        /\bsector\b/i.test(t) && t !== 'Sector intelligence' && t !== 'Sector narratives',
+      const offendingTitles = allTitles.filter(
+        (t) =>
+          /\bsector\b/i.test(t) &&
+          t !== 'Sector intelligence' &&
+          t !== 'Sector narratives',
       );
       expect(offendingTitles).toEqual([]);
     });

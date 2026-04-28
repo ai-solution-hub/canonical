@@ -301,9 +301,7 @@ export function CommandPalette() {
                       <Command.Item
                         value="Provenance audit log activity"
                         onSelect={() =>
-                          runCommand(() =>
-                            router.push('/provenance?tab=audit'),
-                          )
+                          runCommand(() => router.push('/provenance?tab=audit'))
                         }
                         className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
                       >

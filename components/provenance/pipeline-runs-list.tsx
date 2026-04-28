@@ -10,8 +10,7 @@ import type { PipelineRunDetail } from './pipeline-failure-drawer';
 
 function formatDuration(startedAt: string, completedAt: string | null): string {
   if (!completedAt) return '--';
-  const ms =
-    new Date(completedAt).getTime() - new Date(startedAt).getTime();
+  const ms = new Date(completedAt).getTime() - new Date(startedAt).getTime();
   if (ms < 1000) return `${ms}ms`;
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
   return `${(ms / 60_000).toFixed(1)}m`;

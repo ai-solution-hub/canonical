@@ -26,7 +26,8 @@ interface DisputeRow {
 
 const STATUS_STYLES: Record<string, string> = {
   open: 'bg-[var(--color-status-warning)]/15 text-[var(--color-status-warning)]',
-  resolved: 'bg-[var(--color-status-success)]/15 text-[var(--color-status-success)]',
+  resolved:
+    'bg-[var(--color-status-success)]/15 text-[var(--color-status-success)]',
   rejected: 'bg-muted text-muted-foreground',
 };
 
@@ -119,7 +120,11 @@ export default function DisputesTabStub() {
             No disputes yet. The dispute workflow ships in Wave C.
           </p>
         ) : (
-          <ul className="space-y-3" role="list" aria-label="Classification disputes">
+          <ul
+            className="space-y-3"
+            role="list"
+            aria-label="Classification disputes"
+          >
             {disputes.map((dispute) => (
               <li
                 key={dispute.id}
@@ -150,11 +155,14 @@ export default function DisputesTabStub() {
                       className="text-xs text-muted-foreground"
                       dateTime={dispute.created_at}
                     >
-                      {new Date(dispute.created_at).toLocaleDateString('en-GB', {
-                        day: '2-digit',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
+                      {new Date(dispute.created_at).toLocaleDateString(
+                        'en-GB',
+                        {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                        },
+                      )}
                     </time>
                   </div>
                 </div>

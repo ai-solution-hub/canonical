@@ -94,15 +94,11 @@ export function EmptyState({
   if (!hasFilters) {
     return (
       <SharedEmptyState
-        icon={
-          <Archive className="size-10 text-muted-foreground/50" />
-        }
+        icon={<Archive className="size-10 text-muted-foreground/50" />}
         title="No content yet"
         description="Content added to the knowledge base will appear here."
         primaryCta={
-          canEdit
-            ? { label: 'Add content', href: '/item/new' }
-            : undefined
+          canEdit ? { label: 'Add content', href: '/item/new' } : undefined
         }
         secondaryCta={
           canEdit

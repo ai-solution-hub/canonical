@@ -208,7 +208,9 @@ describe('PipelineExtractionResult parity fixtures', () => {
       });
 
       it('word_count matches (±1)', () => {
-        expect(Math.abs(result.word_count - expected.word_count)).toBeLessThanOrEqual(1);
+        expect(
+          Math.abs(result.word_count - expected.word_count),
+        ).toBeLessThanOrEqual(1);
       });
 
       it('headings length matches', () => {

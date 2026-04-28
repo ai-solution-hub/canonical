@@ -2,7 +2,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
-import { getPipelineHealth, getSourceHealthSummary } from '@/lib/intelligence/health';
+import {
+  getPipelineHealth,
+  getSourceHealthSummary,
+} from '@/lib/intelligence/health';
 
 type RouteContext = { params: Promise<{ id: string }> };
 

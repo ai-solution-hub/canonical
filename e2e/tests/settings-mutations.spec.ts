@@ -292,9 +292,7 @@ test.describe('Settings -- Quality Review (Governance)', () => {
       // Each row has a domain name and a preset badge (Light-touch or Strict)
       const firstItem = listItems.first();
       await expect(firstItem.locator('.text-sm.font-medium')).toBeVisible();
-      await expect(
-        firstItem.locator('[data-slot="badge"]'),
-      ).toBeVisible();
+      await expect(firstItem.locator('[data-slot="badge"]')).toBeVisible();
     } else {
       // Empty state is acceptable — verify its content
       await expect(emptyState).toBeVisible();

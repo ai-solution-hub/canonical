@@ -359,7 +359,17 @@ describe('GET /api/review/queue — assigned_to_me filter', () => {
     };
 
     // Wire up assignment chain methods to return themselves
-    for (const method of ['select', 'eq', 'neq', 'in', 'is', 'not', 'or', 'order', 'range'] as const) {
+    for (const method of [
+      'select',
+      'eq',
+      'neq',
+      'in',
+      'is',
+      'not',
+      'or',
+      'order',
+      'range',
+    ] as const) {
       if (method !== 'then') {
         (assignmentChain as Record<string, ReturnType<typeof vi.fn>>)[method] =
           vi.fn().mockReturnValue(assignmentChain);
@@ -445,9 +455,7 @@ describe('GET /api/review/queue — assigned_to_me filter', () => {
     expect(json.has_more).toBe(false);
 
     // Verify content_items was never queried — no from('content_items') call
-    const fromCalls = mockSupabase.from.mock.calls.map(
-      (c: unknown[]) => c[0],
-    );
+    const fromCalls = mockSupabase.from.mock.calls.map((c: unknown[]) => c[0]);
     expect(fromCalls).not.toContain('content_items');
   });
 

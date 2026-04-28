@@ -93,8 +93,7 @@ export function buildCoreContentItems(timestamps: {
       title: 'Project Management Approach',
       content_type: 'q_a_pair',
       primary_domain: 'Technical Capability',
-      summary:
-        'Q&A pair about project management methodology and governance.',
+      summary: 'Q&A pair about project management methodology and governance.',
       platform: 'manual',
       content:
         'Q: Describe your project management approach.\nA: We follow PRINCE2 with agile delivery sprints.',
@@ -633,16 +632,15 @@ export function buildEntityRelationships(): EntityRelationshipShape[] {
   ];
 }
 
-export function buildIntelligenceFeedArticles(
-  now: string,
-): FeedArticleShape[] {
+export function buildIntelligenceFeedArticles(now: string): FeedArticleShape[] {
   return [
     {
       title: 'Major Cyber Security Regulation Update',
       external_url: 'https://example.com/articles/cyber-regulation',
       relevance_score: 0.92,
       relevance_category: 'high',
-      ai_summary: 'New regulations requiring enhanced security measures for UK public sector contractors.',
+      ai_summary:
+        'New regulations requiring enhanced security measures for UK public sector contractors.',
       matched_categories: ['Cyber Security', 'Regulation'],
       passed: true,
       published_at: now,
@@ -653,7 +651,8 @@ export function buildIntelligenceFeedArticles(
       external_url: 'https://example.com/articles/cloud-trends',
       relevance_score: 0.78,
       relevance_category: 'medium',
-      ai_summary: 'Analysis of cloud infrastructure spending trends among UK SMBs.',
+      ai_summary:
+        'Analysis of cloud infrastructure spending trends among UK SMBs.',
       matched_categories: ['Cloud Infrastructure', 'Market Analysis'],
       passed: true,
       published_at: now,

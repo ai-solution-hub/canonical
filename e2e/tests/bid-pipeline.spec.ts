@@ -290,7 +290,9 @@ test.describe('Bid creation form', () => {
     const createWithoutDocButton = dialog.getByRole('button', {
       name: /Create Without Document/,
     });
-    const nextButton = dialog.getByRole('button', { name: /Next: Upload Tender/ });
+    const nextButton = dialog.getByRole('button', {
+      name: /Next: Upload Tender/,
+    });
     await expect(createWithoutDocButton).toBeDisabled();
     await expect(nextButton).toBeDisabled();
 
@@ -579,7 +581,10 @@ test.describe('Bid create happy path submit (8.0.3)', () => {
   test.afterEach(async () => {
     const supabase = createServiceClient();
     try {
-      await supabase.from('workspaces').delete().like('name', `${NAME_PREFIX}%`);
+      await supabase
+        .from('workspaces')
+        .delete()
+        .like('name', `${NAME_PREFIX}%`);
     } catch (err) {
       // Cleanup must never mask test failures
       console.error('8.0.3 cleanup failed:', err);
@@ -681,7 +686,10 @@ test.describe('Bid create happy path submit (8.0.3)', () => {
     // ASSERTION: URL matches /bid/<uuid> exactly
     const url = new URL(page.url());
     const uuidMatch = url.pathname.match(/^\/bid\/([0-9a-f-]{36})$/);
-    expect(uuidMatch, `URL ${url.pathname} must match /bid/<uuid>`).not.toBeNull();
+    expect(
+      uuidMatch,
+      `URL ${url.pathname} must match /bid/<uuid>`,
+    ).not.toBeNull();
     const workspaceId = uuidMatch![1];
 
     // ASSERTION: workspaces row exists with the correct name, type=bid,

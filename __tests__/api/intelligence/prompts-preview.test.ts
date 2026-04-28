@@ -12,10 +12,7 @@ import {
   configureRole,
   configureUnauthenticated,
 } from '../../helpers/mock-supabase';
-import {
-  createTestRequest,
-  createTestParams,
-} from '../../helpers/mock-next';
+import { createTestRequest, createTestParams } from '../../helpers/mock-next';
 
 // ---------------------------------------------------------------------------
 // Mock scoreRelevance BEFORE importing the route. vi.hoisted keeps the mock
@@ -91,7 +88,9 @@ const VALID_BODY = {
  *   2. company_profiles ... .maybeSingle()        → profile row
  *   3. feed_articles ... .limit(sampleSize)       → resolves via chain.then
  */
-function configureSuccessfulPreviewChain(articles: ReturnType<typeof mockArticles>) {
+function configureSuccessfulPreviewChain(
+  articles: ReturnType<typeof mockArticles>,
+) {
   // 1) workspace lookup (maybeSingle)
   mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
     data: MOCK_WORKSPACE,

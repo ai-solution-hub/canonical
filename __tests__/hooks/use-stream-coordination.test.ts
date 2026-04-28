@@ -1247,15 +1247,16 @@ describe('useStreamCoordination', () => {
         if (method === 'PATCH' || method === 'POST') {
           return { ok: true, json: async () => ({}) };
         }
-        if (url.match(/\/api\/bids\/[^/]+$/))
-          return mockBidResponse();
+        if (url.match(/\/api\/bids\/[^/]+$/)) return mockBidResponse();
         if (url.includes('/questions')) return mockQuestionsResponse();
         if (url.includes('/responses/')) {
           responseCallCount += 1;
           if (responseCallCount === 1) {
             return mockResponseData({ response_text: '<p>Original draft</p>' });
           }
-          return mockResponseData({ response_text: '<p>Regenerated draft</p>' });
+          return mockResponseData({
+            response_text: '<p>Regenerated draft</p>',
+          });
         }
         if (url.includes('/bids/')) return mockBidResponse();
         return { ok: false, json: async () => ({}) };
@@ -1338,15 +1339,16 @@ describe('useStreamCoordination', () => {
         if (method === 'PATCH' || method === 'POST') {
           return { ok: true, json: async () => ({}) };
         }
-        if (url.match(/\/api\/bids\/[^/]+$/))
-          return mockBidResponse();
+        if (url.match(/\/api\/bids\/[^/]+$/)) return mockBidResponse();
         if (url.includes('/questions')) return mockQuestionsResponse();
         if (url.includes('/responses/')) {
           responseCallCount += 1;
           if (responseCallCount === 1) {
             return mockResponseData({ response_text: '<p>Original draft</p>' });
           }
-          return mockResponseData({ response_text: '<p>Server-side update</p>' });
+          return mockResponseData({
+            response_text: '<p>Server-side update</p>',
+          });
         }
         if (url.includes('/bids/')) return mockBidResponse();
         return { ok: false, json: async () => ({}) };
@@ -1392,9 +1394,9 @@ describe('useStreamCoordination', () => {
   describe('normaliseForComparison', () => {
     it('strips tags and returns plain text', () => {
       expect(normaliseForComparison('<p>Hello</p>')).toBe('Hello');
-      expect(normaliseForComparison('<p>Hello <strong>World</strong></p>')).toBe(
-        'Hello World',
-      );
+      expect(
+        normaliseForComparison('<p>Hello <strong>World</strong></p>'),
+      ).toBe('Hello World');
     });
 
     it('treats empty string and Tiptap empty doc as equivalent', () => {
@@ -1447,9 +1449,7 @@ describe('useStreamCoordination', () => {
       expect(normaliseForComparison('<p>Tom &amp; Jerry</p>')).toBe(
         'Tom & Jerry',
       );
-      expect(normaliseForComparison('<p>&lt;angle&gt;</p>')).toBe(
-        '<angle>',
-      );
+      expect(normaliseForComparison('<p>&lt;angle&gt;</p>')).toBe('<angle>');
     });
 
     it('ignores attribute differences because tags are stripped', () => {
@@ -1458,9 +1458,9 @@ describe('useStreamCoordination', () => {
       expect(
         normaliseForComparison('<p style="text-align:left">Hello</p>'),
       ).toBe(normaliseForComparison('<p>Hello</p>'));
-      expect(
-        normaliseForComparison('<p class="tiptap-p">Hello</p>'),
-      ).toBe(normaliseForComparison('<p>Hello</p>'));
+      expect(normaliseForComparison('<p class="tiptap-p">Hello</p>')).toBe(
+        normaliseForComparison('<p>Hello</p>'),
+      );
     });
 
     it('distinguishes genuinely different content', () => {

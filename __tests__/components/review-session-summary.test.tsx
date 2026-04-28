@@ -155,4 +155,3 @@ describe('formatDuration', () => {
     expect(formatDuration(3600000)).toBe('1h 0m 0s');
   });
 });
-

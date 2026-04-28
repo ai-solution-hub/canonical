@@ -27,7 +27,8 @@ export function useUrlFilters<T extends Record<string, unknown>>(
     const keys = Object.keys(defaultValues) as Array<keyof T>;
 
     for (const key of keys) {
-      const paramName = (paramMap?.[key] as string | undefined) ?? (key as string);
+      const paramName =
+        (paramMap?.[key] as string | undefined) ?? (key as string);
       const raw = searchParams.get(paramName);
       const parser = parsers?.[key];
 

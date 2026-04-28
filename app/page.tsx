@@ -9,10 +9,7 @@ import { UnifiedAttentionSection } from '@/components/dashboard/unified-attentio
 import { ComplianceStatusSection } from '@/components/dashboard/compliance-status-section';
 import { Skeleton } from '@/components/ui/skeleton';
 import { fetchUnifiedDashboardData } from '@/lib/dashboard';
-import {
-  deriveIsKBEmpty,
-  deriveIsFirstLogin,
-} from '@/lib/dashboard-signals';
+import { deriveIsKBEmpty, deriveIsFirstLogin } from '@/lib/dashboard-signals';
 import { buildAttentionItems } from '@/lib/attention';
 import { ReorientSection } from '@/components/dashboard/reorient-section';
 import { DashboardFirstRunCard } from '@/components/dashboard/dashboard-first-run-card';
@@ -22,7 +19,10 @@ import { WarningsBanner } from '@/components/dashboard/warnings-banner';
 import { McpSetupNudge } from '@/components/shell/mcp-setup-nudge';
 import { PipelineRunsPanel } from '@/components/intelligence/pipeline-runs-panel';
 import { OrganisationProfileNudge } from '@/components/dashboard/organisation-profile-nudge';
-import { getOrganisationProfile, isProfileComplete } from '@/lib/organisation-profile';
+import {
+  getOrganisationProfile,
+  isProfileComplete,
+} from '@/lib/organisation-profile';
 import type { ReorientData } from '@/types/reorient';
 
 // ---------------------------------------------------------------------------
@@ -65,11 +65,16 @@ async function getDashboardData() {
 
   // Organisation profile check for dashboard nudge (P1-15).
   // Best-effort — failure returns null (treated as incomplete).
-  const orgProfile = isAdmin || role === 'editor'
-    ? await getOrganisationProfile(supabase)
-    : null;
+  const orgProfile =
+    isAdmin || role === 'editor'
+      ? await getOrganisationProfile(supabase)
+      : null;
 
-  return { unified, roleWarnings, orgProfileComplete: isProfileComplete(orgProfile) };
+  return {
+    unified,
+    roleWarnings,
+    orgProfileComplete: isProfileComplete(orgProfile),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -144,10 +149,7 @@ async function DashboardContent() {
   // `warnings: [...roleWarnings, ...dashboard.errors]` envelope built by
   // `app/api/dashboard/route.ts:71-84` so the page render and the client
   // refresh path surface the same partial-failure messages.
-  const warnings: readonly string[] = [
-    ...roleWarnings,
-    ...unified.errors,
-  ];
+  const warnings: readonly string[] = [...roleWarnings, ...unified.errors];
 
   // Build attention items from unified source data.
   const allItems = buildAttentionItems({
@@ -203,10 +205,7 @@ async function DashboardContent() {
           Gated on KB having ≥1 item (P0-14) — no point nudging when empty.
           No wrapper div — component returns null when hidden, avoiding a
           phantom margin gap in the layout. */}
-      <McpSetupNudge
-        className="mt-6"
-        hasContent={!isKBEmpty}
-      />
+      <McpSetupNudge className="mt-6" hasContent={!isKBEmpty} />
 
       {/* First-run welcome card — role-branched onboarding for first-time
           admin/editor users. Viewers see a one-liner in ReorientSection

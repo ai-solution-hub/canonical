@@ -72,8 +72,12 @@ export function TagsSection() {
     setSingletonDeleteDialog(false);
 
     const singletonTags = tags.filter((t) => t.count === 1);
-    const aiSingletons = singletonTags.filter((t) => t.source === 'ai').map((t) => t.tag);
-    const userSingletons = singletonTags.filter((t) => t.source === 'user').map((t) => t.tag);
+    const aiSingletons = singletonTags
+      .filter((t) => t.source === 'ai')
+      .map((t) => t.tag);
+    const userSingletons = singletonTags
+      .filter((t) => t.source === 'user')
+      .map((t) => t.tag);
 
     const errors: string[] = [];
     let totalAffected = 0;
@@ -139,24 +143,24 @@ export function TagsSection() {
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="right" className="max-w-xs">
-                  Tags are generated automatically when content is ingested.
-                  Use Clean up to merge duplicates and tidy domain-grouped
-                  tags. Browse all shows the full tag list with search and
-                  sort.
+                  Tags are generated automatically when content is ingested. Use
+                  Clean up to merge duplicates and tidy domain-grouped tags.
+                  Browse all shows the full tag list with search and sort.
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </h3>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          {stats.total.toLocaleString()} tags across{' '}
-          {stats.domainCount} domain{stats.domainCount !== 1 ? 's' : ''}
+          {stats.total.toLocaleString()} tags across {stats.domainCount} domain
+          {stats.domainCount !== 1 ? 's' : ''}
           {duplicates.length > 0 && (
             <>
               {' '}
               &middot;{' '}
               <span className="text-freshness-aging">
-                {duplicates.length} duplicate group{duplicates.length !== 1 ? 's' : ''}
+                {duplicates.length} duplicate group
+                {duplicates.length !== 1 ? 's' : ''}
               </span>
             </>
           )}
@@ -232,7 +236,8 @@ export function TagsSection() {
               {deletingSingletons ? (
                 <Loader2 className="mr-2 size-4 animate-spin" />
               ) : null}
-              Delete {stats.singletons} singleton{stats.singletons !== 1 ? 's' : ''}
+              Delete {stats.singletons} singleton
+              {stats.singletons !== 1 ? 's' : ''}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,9 +1,6 @@
 import { test as baseTest, expect } from '@playwright/test';
 import { test as authTest } from '../fixtures';
-import {
-  getVisibleNavLinks,
-  isMobileViewport,
-} from '../helpers/responsive';
+import { getVisibleNavLinks, isMobileViewport } from '../helpers/responsive';
 import { hideDevOverlays } from '../helpers/dev-overlays';
 
 /**

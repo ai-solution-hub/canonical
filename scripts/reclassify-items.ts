@@ -23,8 +23,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 import { classifyContent } from '@/lib/ai/classify';
 
-const PIPELINE_SERVICE_ACCOUNT_USER_ID =
-  'a0000000-0000-4000-8000-000000000001';
+const PIPELINE_SERVICE_ACCOUNT_USER_ID = 'a0000000-0000-4000-8000-000000000001';
 
 function loadEnvFile(path: string): void {
   try {
@@ -63,17 +62,39 @@ function parseItemIds(): string[] {
         .filter(Boolean);
     }
   }
-  console.error('Usage: reclassify-items.ts --item-ids=<uuid-or-prefix>,...');
+  console.error(
+    'Usage: reclassify-items.ts --item-ids=<uuid-or-prefix>,... [--env=prod]',
+  );
   process.exit(2);
+}
+
+// ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
+
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+
+function parseEnvFlag(argv: string[]): string {
+  const eqArg = argv.find((a) => a.startsWith('--env='));
+  if (eqArg) return eqArg.slice('--env='.length);
+  const idx = argv.indexOf('--env');
+  if (idx >= 0 && argv[idx + 1]) return argv[idx + 1];
+  return '';
+}
+
+function assertEnvFlag(env: string, url: string | undefined): void {
+  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+    console.error(
+      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/reclassify-items.ts --env=prod`,
+    );
+    process.exit(2);
+  }
 }
 
 async function resolveIds(
   supabase: ReturnType<typeof createClient<Database>>,
   prefixes: string[],
 ): Promise<string[]> {
-  const { data, error } = await supabase
-    .from('content_items')
-    .select('id');
+  const { data, error } = await supabase.from('content_items').select('id');
   if (error) {
     throw new Error(`Failed to fetch content_items: ${error.message}`);
   }
@@ -92,9 +113,7 @@ async function resolveIds(
 async function fetchHolderMetadata(
   supabase: ReturnType<typeof createClient<Database>>,
   itemId: string,
-): Promise<
-  Array<{ canonical_name: string; metadata: unknown }>
-> {
+): Promise<Array<{ canonical_name: string; metadata: unknown }>> {
   const { data, error } = await supabase
     .from('entity_mentions')
     .select('canonical_name, metadata')
@@ -108,12 +127,14 @@ async function fetchHolderMetadata(
 }
 
 async function main(): Promise<void> {
-  const url = process.env.SUPABASE_URL;
+  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
     console.error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set');
     process.exit(2);
   }
+
+  assertEnvFlag(parseEnvFlag(process.argv.slice(2)), url);
   const supabase = createClient<Database>(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });

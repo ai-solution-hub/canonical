@@ -169,12 +169,10 @@ function buildMockSupabase(options: {
 
 async function primePipelineMocks() {
   const { pollFeed } = await import('@/lib/intelligence/feed-poller');
-  const { extractContent } = await import(
-    '@/lib/intelligence/content-extractor'
-  );
-  const { embeddingPreFilter, scoreRelevance } = await import(
-    '@/lib/intelligence/relevance-scorer'
-  );
+  const { extractContent } =
+    await import('@/lib/intelligence/content-extractor');
+  const { embeddingPreFilter, scoreRelevance } =
+    await import('@/lib/intelligence/relevance-scorer');
   const { classifyContent } = await import('@/lib/ai/classify');
 
   vi.mocked(pollFeed).mockResolvedValue({

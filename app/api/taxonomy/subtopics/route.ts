@@ -62,7 +62,9 @@ export async function POST(request: NextRequest) {
         is_active: true,
         provenance: 'client',
       })
-      .select('id, domain_id, name, display_order, is_active, provenance, description')
+      .select(
+        'id, domain_id, name, display_order, is_active, provenance, description',
+      )
       .single();
 
     if (error) {

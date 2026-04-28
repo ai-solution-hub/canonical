@@ -11,15 +11,8 @@
 
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import {
-  createMcpClient,
-  getMcpUserId,
-  getMcpUserRole,
-} from '@/lib/mcp/auth';
-import {
-  setSupersession,
-  SupersessionError,
-} from '@/lib/supersession/set';
+import { createMcpClient, getMcpUserId, getMcpUserRole } from '@/lib/mcp/auth';
+import { setSupersession, SupersessionError } from '@/lib/supersession/set';
 import { SupabaseError } from '@/lib/supabase/safe';
 import {
   type ToolExtra,
@@ -124,7 +117,9 @@ export async function registerSupersessionTools(
         };
 
         return {
-          content: [{ type: 'text' as const, text: formatSupersedeResult(result) }],
+          content: [
+            { type: 'text' as const, text: formatSupersedeResult(result) },
+          ],
           structuredContent: toStructuredContent(result),
         };
       } catch (err) {

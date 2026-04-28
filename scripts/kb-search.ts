@@ -185,7 +185,16 @@ function parseArgs(): CliArgs {
   if (isNaN(limit) || limit < 1) limit = 10;
   if (isNaN(threshold) || threshold < 0 || threshold > 1) threshold = 0.25;
 
-  return { query, limit, domain, full, json, threshold, includeSuperseded, env };
+  return {
+    query,
+    limit,
+    domain,
+    full,
+    json,
+    threshold,
+    includeSuperseded,
+    env,
+  };
 }
 
 function printUsage(): void {
@@ -256,14 +265,23 @@ function formatDate(dateStr: string | null): string {
 // ── Main ──
 
 async function main(): Promise<void> {
-  const { query, limit, domain, full, json, threshold, includeSuperseded, env } =
-    parseArgs();
+  const {
+    query,
+    limit,
+    domain,
+    full,
+    json,
+    threshold,
+    includeSuperseded,
+    env,
+  } = parseArgs();
 
   // Validate env
   const supabaseUrl =
     process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey =
-    process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    process.env.SUPABASE_PUBLISHABLE_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   const openaiKey = process.env.OPENAI_API_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
@@ -370,9 +388,7 @@ async function main(): Promise<void> {
 
   // Formatted text output
   const domainNote = domain ? ` | domain: "${domain}"` : '';
-  const supersededNote = includeSuperseded
-    ? ''
-    : ' | excluding superseded';
+  const supersededNote = includeSuperseded ? '' : ' | excluding superseded';
   console.log(
     `Found ${filtered.length} results (threshold: ${threshold}${domainNote}${supersededNote})\n`,
   );

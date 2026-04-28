@@ -69,17 +69,12 @@ export function SearchBar({
 
   // Stable reference for empty preview results to avoid downstream
   // re-renders from inline `?? []` (see CLAUDE.md gotcha).
-  const previewResults = useMemo(
-    () => rawPreviewResults,
-    [rawPreviewResults],
-  );
+  const previewResults = useMemo(() => rawPreviewResults, [rawPreviewResults]);
 
   // Whether the preview section should render: inline variant, dropdown
   // open, and query meets minimum length threshold.
   const showPreview =
-    isInline &&
-    showRecent &&
-    query.trim().length >= PREVIEW_MIN_QUERY_LENGTH;
+    isInline && showRecent && query.trim().length >= PREVIEW_MIN_QUERY_LENGTH;
 
   // Sync internal query state when defaultValue changes externally
   // (e.g. prompt card selection in Browse, or URL param change).
@@ -330,7 +325,10 @@ export function SearchBar({
             >
               {previewLoading && previewResults.length === 0 && (
                 <div className="flex items-center gap-2 px-2 py-2 text-xs text-muted-foreground">
-                  <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                  <Loader2
+                    className="size-3.5 animate-spin"
+                    aria-hidden="true"
+                  />
                   Searching...
                 </div>
               )}
@@ -361,8 +359,13 @@ export function SearchBar({
                           activeIndex === idx ? 'bg-accent' : 'hover:bg-accent'
                         }`}
                       >
-                        <ContentTypeIcon contentType={result.content_type} size="size-3.5" />
-                        <span className="min-w-0 flex-1 truncate">{result.title}</span>
+                        <ContentTypeIcon
+                          contentType={result.content_type}
+                          size="size-3.5"
+                        />
+                        <span className="min-w-0 flex-1 truncate">
+                          {result.title}
+                        </span>
                         {result.primary_domain && (
                           <DomainBadge domain={result.primary_domain} />
                         )}
@@ -372,27 +375,28 @@ export function SearchBar({
                 </>
               )}
               {/* "See all results" footer */}
-              {(previewResults.length > 0 || previewLoading) && (() => {
-                itemIndex++;
-                const idx = itemIndex;
-                return (
-                  <button
-                    key="see-all-results"
-                    id={`search-option-${idx}`}
-                    type="button"
-                    role="option"
-                    tabIndex={-1}
-                    aria-selected={activeIndex === idx}
-                    onClick={handleSeeAllResults}
-                    onMouseEnter={() => setActiveIndex(idx)}
-                    className={`mt-1 flex w-full cursor-pointer items-center justify-center rounded-md px-2 py-1.5 text-xs font-medium text-primary transition-colors ${
-                      activeIndex === idx ? 'bg-accent' : 'hover:bg-accent'
-                    }`}
-                  >
-                    See all results
-                  </button>
-                );
-              })()}
+              {(previewResults.length > 0 || previewLoading) &&
+                (() => {
+                  itemIndex++;
+                  const idx = itemIndex;
+                  return (
+                    <button
+                      key="see-all-results"
+                      id={`search-option-${idx}`}
+                      type="button"
+                      role="option"
+                      tabIndex={-1}
+                      aria-selected={activeIndex === idx}
+                      onClick={handleSeeAllResults}
+                      onMouseEnter={() => setActiveIndex(idx)}
+                      className={`mt-1 flex w-full cursor-pointer items-center justify-center rounded-md px-2 py-1.5 text-xs font-medium text-primary transition-colors ${
+                        activeIndex === idx ? 'bg-accent' : 'hover:bg-accent'
+                      }`}
+                    >
+                      See all results
+                    </button>
+                  );
+                })()}
             </div>
           </>
         )}
@@ -484,11 +488,7 @@ export function SearchBar({
   if (variant === 'inline') {
     return (
       <div ref={containerRef} className="relative">
-        <form
-          onSubmit={handleSubmit}
-          role="search"
-          aria-label="Search content"
-        >
+        <form onSubmit={handleSubmit} role="search" aria-label="Search content">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input

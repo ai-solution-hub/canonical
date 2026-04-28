@@ -93,7 +93,8 @@ async function loadWorkspaceContext(
       : DEFAULT_RELEVANCE_THRESHOLD;
 
   const profileId = domainMetadata.company_profile_id as string | undefined;
-  if (!profileId) return { companyContext: null, relevanceThreshold, profileId: null };
+  if (!profileId)
+    return { companyContext: null, relevanceThreshold, profileId: null };
 
   const profile = await sb(
     supabase
@@ -106,7 +107,8 @@ async function loadWorkspaceContext(
     'intelligence.pipeline.company-profile.load',
   );
 
-  if (!profile) return { companyContext: null, relevanceThreshold, profileId: null };
+  if (!profile)
+    return { companyContext: null, relevanceThreshold, profileId: null };
 
   return {
     companyContext: {
@@ -205,7 +207,10 @@ export function inferContentType(
   if (subtopic.includes('compliance') || subtopic.includes('audit')) {
     return 'compliance';
   }
-  if (subtopic.includes('certification') || subtopic.includes('accreditation')) {
+  if (
+    subtopic.includes('certification') ||
+    subtopic.includes('accreditation')
+  ) {
     return 'certification';
   }
 
@@ -301,9 +306,10 @@ export async function processFeedSource(
   // 1. Poll the feed (branch on source_type for web vs RSS)
   let pollResult: PollResult;
   try {
-    pollResult = source.source_type === 'web'
-      ? await pollWebSource(source)
-      : await pollFeed(source);
+    pollResult =
+      source.source_type === 'web'
+        ? await pollWebSource(source)
+        : await pollFeed(source);
   } catch (err) {
     // Record rate-limit errors with a distinct status for monitoring
     if (err instanceof RateLimitError) {
@@ -382,8 +388,7 @@ export async function processFeedSource(
             raw_content: extraction.content,
             relevance_score: 0,
             relevance_category: 'irrelevant' as const,
-            relevance_reasoning:
-              'Content too short for reliable scoring',
+            relevance_reasoning: 'Content too short for reliable scoring',
             matched_categories: [],
             ai_summary: null,
             prompt_version_id: promptVersionId,
@@ -607,11 +612,7 @@ async function storeAsContentItem(
       .update({ content_item_id: existingByUrl.id })
       .eq('workspace_id', source.workspace_id)
       .eq('external_url', normalisedFeedUrl);
-    await ensureWorkspaceLink(
-      supabase,
-      source.workspace_id,
-      existingByUrl.id,
-    );
+    await ensureWorkspaceLink(supabase, source.workspace_id, existingByUrl.id);
     return;
   }
 
@@ -619,7 +620,8 @@ async function storeAsContentItem(
   // stamps `dedup_status='suspected_duplicate'` + records the existing
   // id in `metadata.suspected_duplicate_of`. Insert still proceeds
   // (soft block). Admin override does not apply — RSS is automated.
-  const { checkExactDuplicate, resolveDedupStamp } = await import('@/lib/dedup');
+  const { checkExactDuplicate, resolveDedupStamp } =
+    await import('@/lib/dedup');
   let dedupStamp: {
     dedup_status: 'clean' | 'suspected_duplicate';
     suspected_duplicate_of?: string;
@@ -779,9 +781,7 @@ export async function runPipeline(
     'intelligence.pipeline.queue.in-progress',
   );
 
-  const inProgressSourceIds = new Set(
-    inProgress.map((r) => r.feed_source_id),
-  );
+  const inProgressSourceIds = new Set(inProgress.map((r) => r.feed_source_id));
 
   const allSources = await getDueFeedSources(supabase);
   const sources = allSources.filter((s) => !inProgressSourceIds.has(s.id));

@@ -12,7 +12,8 @@ export default function MetricsPage() {
       <div className="mb-6">
         <p className="text-sm text-muted-foreground">
           See how your workspace is performing — what&apos;s getting through,
-          what&apos;s being filtered out, and how your filter rules are evolving.
+          what&apos;s being filtered out, and how your filter rules are
+          evolving.
         </p>
       </div>
 

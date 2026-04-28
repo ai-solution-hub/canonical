@@ -74,9 +74,7 @@ export function formatGuideDetail(
   // Sections
   if (sections.length > 0) {
     lines.push('', `## Sections (${sections.length})`, '');
-    lines.push(
-      '| # | Section | Required | Layer | Subtopic Filter |',
-    );
+    lines.push('| # | Section | Required | Layer | Subtopic Filter |');
     lines.push('|---|---------|----------|-------|-----------------|');
 
     for (const section of sections) {

@@ -58,11 +58,7 @@ async function verifyToken(
     // to viewer. Any other error is a real DB failure and must reject
     // auth rather than silently downgrade (see comment above).
     if (roleError && roleError.code !== 'PGRST116') {
-      console.error(
-        '[mcp] role lookup failed for user',
-        user.id,
-        roleError,
-      );
+      console.error('[mcp] role lookup failed for user', user.id, roleError);
       return undefined;
     }
 

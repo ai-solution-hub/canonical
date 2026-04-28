@@ -34,9 +34,9 @@ vi.mock('next/headers', () => ({
 }));
 
 vi.mock('@/lib/supersession/set', async () => {
-  const actual = await vi.importActual<
-    typeof import('@/lib/supersession/set')
-  >('@/lib/supersession/set');
+  const actual = await vi.importActual<typeof import('@/lib/supersession/set')>(
+    '@/lib/supersession/set',
+  );
   return {
     ...actual,
     setSupersession: mockSetSupersession,
@@ -253,11 +253,10 @@ describe('PATCH /api/items/[id] — superseded_by branch (S186 WP-B.5)', () => {
       error: null,
     });
     mockSetSupersession.mockRejectedValue(
-      new SupersessionError(
-        'SAME_ID',
-        'Cannot supersede an item with itself',
-        { oldId: OLD_ID, newId: OLD_ID },
-      ),
+      new SupersessionError('SAME_ID', 'Cannot supersede an item with itself', {
+        oldId: OLD_ID,
+        newId: OLD_ID,
+      }),
     );
 
     const res = await PATCH(

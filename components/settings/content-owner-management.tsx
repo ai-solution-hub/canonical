@@ -259,8 +259,8 @@ export function ContentOwnerManagement() {
             <DialogHeader>
               <DialogTitle>Assign content owner</DialogTitle>
               <DialogDescription>
-                Assign unowned content items to a team member, either globally or
-                filtered by domain.
+                Assign unowned content items to a team member, either globally
+                or filtered by domain.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
@@ -269,20 +269,24 @@ export function ContentOwnerManagement() {
                 <Label>Scope</Label>
                 <RadioGroup
                   value={scope}
-                  onValueChange={(v) =>
-                    handleScopeChange(v as AssignScope)
-                  }
+                  onValueChange={(v) => handleScopeChange(v as AssignScope)}
                   className="flex gap-4"
                 >
                   <div className="flex items-center gap-2">
                     <RadioGroupItem value="unowned" id="scope-unowned" />
-                    <Label htmlFor="scope-unowned" className="cursor-pointer font-normal">
+                    <Label
+                      htmlFor="scope-unowned"
+                      className="cursor-pointer font-normal"
+                    >
                       Unowned only
                     </Label>
                   </div>
                   <div className="flex items-center gap-2">
                     <RadioGroupItem value="by_domain" id="scope-by-domain" />
-                    <Label htmlFor="scope-by-domain" className="cursor-pointer font-normal">
+                    <Label
+                      htmlFor="scope-by-domain"
+                      className="cursor-pointer font-normal"
+                    >
                       By domain
                     </Label>
                   </div>
@@ -386,10 +390,7 @@ export function ContentOwnerManagement() {
               >
                 Cancel
               </Button>
-              <Button
-                onClick={handleAssign}
-                disabled={saving || !ownerId}
-              >
+              <Button onClick={handleAssign} disabled={saving || !ownerId}>
                 {saving && <Loader2 className="mr-2 size-4 animate-spin" />}
                 Assign
               </Button>

@@ -95,7 +95,10 @@ import {
 // ---------------------------------------------------------------------------
 
 const { authCookies, cachedSessions } = vi.hoisted(() => ({
-  authCookies: new Map<string, { name: string; value: string }>() as AuthCookieStore,
+  authCookies: new Map<
+    string,
+    { name: string; value: string }
+  >() as AuthCookieStore,
   cachedSessions: {
     admin: new Map(),
     editor: new Map(),
@@ -121,13 +124,10 @@ vi.mock('next/headers', () => ({
 // ---------------------------------------------------------------------------
 
 const { GET: listUsersGET } = await import('@/app/api/admin/users/route');
-const { POST: inviteRoute } = await import(
-  '@/app/api/admin/users/invite/route'
-);
-const {
-  PATCH: patchUserRoute,
-  DELETE: deleteUserRoute,
-} = await import('@/app/api/admin/users/[userId]/route');
+const { POST: inviteRoute } =
+  await import('@/app/api/admin/users/invite/route');
+const { PATCH: patchUserRoute, DELETE: deleteUserRoute } =
+  await import('@/app/api/admin/users/[userId]/route');
 
 import { NextRequest } from 'next/server';
 
@@ -460,14 +460,11 @@ describe('PATCH /api/admin/users/[userId] — real DB', () => {
   });
 
   it('returns 400 for an invalid UUID', async () => {
-    const req = new NextRequest(
-      'http://localhost/api/admin/users/not-a-uuid',
-      {
-        method: 'PATCH',
-        body: JSON.stringify({ role: 'editor' }),
-        headers: { 'content-type': 'application/json' },
-      },
-    );
+    const req = new NextRequest('http://localhost/api/admin/users/not-a-uuid', {
+      method: 'PATCH',
+      body: JSON.stringify({ role: 'editor' }),
+      headers: { 'content-type': 'application/json' },
+    });
     const res = await patchUserRoute(req, {
       params: Promise.resolve({ userId: 'not-a-uuid' }),
     });
@@ -531,8 +528,7 @@ describe('DELETE /api/admin/users/[userId] — real DB', () => {
       // The returned type includes banned_until on user_metadata in
       // some versions — accept either.
       const banned =
-        (data.user as { banned_until?: string | null })?.banned_until ??
-        null;
+        (data.user as { banned_until?: string | null })?.banned_until ?? null;
       expect(banned, 'banned_until should be set after deactivate').not.toBe(
         null,
       );

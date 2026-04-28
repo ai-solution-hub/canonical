@@ -102,7 +102,11 @@ export default function PipelineHealthFilters({
 
       {/* Kind filter pills */}
       {availableKinds.length > 0 && (
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Pipeline filter">
+        <div
+          className="flex flex-wrap gap-1.5"
+          role="group"
+          aria-label="Pipeline filter"
+        >
           {availableKinds.map((kind) => {
             const active = currentKinds.includes(kind);
             return (

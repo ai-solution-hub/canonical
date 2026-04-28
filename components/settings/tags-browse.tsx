@@ -37,15 +37,24 @@ interface TagsBrowseProps {
   isAdmin: boolean;
   singletonCount: number;
   renameMutation: {
-    mutate: (params: { old: string; new: string; type: string }, opts?: { onSuccess?: () => void }) => void;
+    mutate: (
+      params: { old: string; new: string; type: string },
+      opts?: { onSuccess?: () => void },
+    ) => void;
     isPending: boolean;
   };
   mergeMutation: {
-    mutate: (params: { source: string; target: string; type: string }, opts?: { onSuccess?: () => void }) => void;
+    mutate: (
+      params: { source: string; target: string; type: string },
+      opts?: { onSuccess?: () => void },
+    ) => void;
     isPending: boolean;
   };
   deleteMutation: {
-    mutate: (params: { tag: string; type: string }, opts?: { onSuccess?: () => void }) => void;
+    mutate: (
+      params: { tag: string; type: string },
+      opts?: { onSuccess?: () => void },
+    ) => void;
     isPending: boolean;
   };
   onDeleteSingletons: () => void;
@@ -300,11 +309,7 @@ export function TagsBrowse({
         >
           <BarChart3 className="mr-1.5 size-3.5" />
           Count{' '}
-          {sortField === 'count'
-            ? sortOrder === 'desc'
-              ? '↓'
-              : '↑'
-            : ''}
+          {sortField === 'count' ? (sortOrder === 'desc' ? '↓' : '↑') : ''}
         </Button>
         <Button
           variant="outline"
@@ -319,12 +324,7 @@ export function TagsBrowse({
           }}
           className={cn(sortField === 'tag' && 'border-foreground/30')}
         >
-          A-Z{' '}
-          {sortField === 'tag'
-            ? sortOrder === 'asc'
-              ? '↑'
-              : '↓'
-            : ''}
+          A-Z {sortField === 'tag' ? (sortOrder === 'asc' ? '↑' : '↓') : ''}
         </Button>
       </div>
 
@@ -417,9 +417,7 @@ export function TagsBrowse({
                         targetName: '',
                       })
                     }
-                    onDelete={(t) =>
-                      setDeleteDialog({ open: true, tag: t })
-                    }
+                    onDelete={(t) => setDeleteDialog({ open: true, tag: t })}
                   />
                 </div>
               );

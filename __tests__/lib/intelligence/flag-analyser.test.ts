@@ -86,7 +86,8 @@ function buildValidClaudeResponse(overrides?: {
       {
         type: 'text',
         text: JSON.stringify({
-          summary: 'Most flags relate to construction projects in school buildings.',
+          summary:
+            'Most flags relate to construction projects in school buildings.',
           false_positive_patterns:
             fpCount > 0
               ? [
@@ -117,7 +118,8 @@ function buildValidClaudeResponse(overrides?: {
               current_text: 'education policy',
               proposed_text:
                 'safeguarding policy and inspection regimes (KCSIE, CQC)',
-              reasoning: 'Narrows scope away from generic construction projects',
+              reasoning:
+                'Narrows scope away from generic construction projects',
               affected_flags: fpCount + fnCount,
             },
           ],
@@ -274,7 +276,9 @@ describe('analyseFeedFlags', () => {
   });
 
   it('throws FlagAnalysisError(api) when the Claude API call fails', async () => {
-    mocks.createMessage.mockRejectedValueOnce(new Error('Anthropic 529 Overloaded'));
+    mocks.createMessage.mockRejectedValueOnce(
+      new Error('Anthropic 529 Overloaded'),
+    );
 
     let caught: unknown = null;
     try {

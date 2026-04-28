@@ -1,8 +1,8 @@
 # MCP Module
 
 MCP server exposed via Streamable HTTP transport at `/api/mcp/mcp`. Current
-tool, resource, and prompt counts: `docs/generated/mcp-inventory.md`
-(regenerate with `bun run generate:mcp-inventory`).
+tool, resource, and prompt counts: `docs/generated/mcp-inventory.md` (regenerate
+with `bun run generate:mcp-inventory`).
 
 ## Key Files
 
@@ -25,10 +25,10 @@ Entry point: `app/api/mcp/[transport]/route.ts`
 
 ### Tool Registration
 
-Use `defineTool` (or `defineAppTool` for MCP App trigger tools) from
-`./shared`. The wrapper enforces all four `ToolAnnotations` fields at
-compile time via `RequiredToolAnnotations` — pick one of the four named
-constants: `READ_ONLY_ANNOTATIONS`, `SAFE_WRITE_ANNOTATIONS`,
+Use `defineTool` (or `defineAppTool` for MCP App trigger tools) from `./shared`.
+The wrapper enforces all four `ToolAnnotations` fields at compile time via
+`RequiredToolAnnotations` — pick one of the four named constants:
+`READ_ONLY_ANNOTATIONS`, `SAFE_WRITE_ANNOTATIONS`,
 `DESTRUCTIVE_WRITE_ANNOTATIONS`, or `NON_IDEMPOTENT_WRITE_ANNOTATIONS`.
 
 ```typescript
@@ -45,9 +45,9 @@ defineTool(
 );
 ```
 
-**Gotcha:** `destructiveHint` defaults to `true` in the MCP spec. Use one
-of the four named annotation constants via `defineTool` so clients don't
-render read-only tools as destructive.
+**Gotcha:** `destructiveHint` defaults to `true` in the MCP spec. Use one of the
+four named annotation constants via `defineTool` so clients don't render
+read-only tools as destructive.
 
 ### Response Format
 

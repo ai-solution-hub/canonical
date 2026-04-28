@@ -634,12 +634,10 @@ export async function registerAppTools(server: McpServer): Promise<void> {
       try {
         const supabase = createMcpClient(extra.authInfo);
 
-        const { fetchIntelligenceSummary } = await import(
-          '@/lib/intelligence/summary'
-        );
-        const { formatIntelligenceSummary } = await import(
-          '@/lib/mcp/formatters/intelligence'
-        );
+        const { fetchIntelligenceSummary } =
+          await import('@/lib/intelligence/summary');
+        const { formatIntelligenceSummary } =
+          await import('@/lib/mcp/formatters/intelligence');
 
         const data = await fetchIntelligenceSummary(
           supabase,

@@ -15,7 +15,8 @@
 import type { Database } from '@/supabase/types/database.types';
 import { serviceClient } from './service-client';
 
-type ContentItemInsert = Database['public']['Tables']['content_items']['Insert'];
+type ContentItemInsert =
+  Database['public']['Tables']['content_items']['Insert'];
 
 export interface SeedQaPairOptions {
   /** Title (also returned via `currentItem.title` in the PATCH path). */

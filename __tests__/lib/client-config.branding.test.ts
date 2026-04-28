@@ -106,10 +106,7 @@ describe('contrastRatio', () => {
   });
 
   it('returns ~2.85:1 for KH default primary vs light bg', () => {
-    const ratio = contrastRatio(
-      'oklch(0.65 0.16 55)',
-      'oklch(0.94 0.01 48)',
-    );
+    const ratio = contrastRatio('oklch(0.65 0.16 55)', 'oklch(0.94 0.01 48)');
     expect(ratio).toBeCloseTo(2.85, 1);
   });
 
@@ -302,7 +299,10 @@ describe('BrandingConfigSchema', () => {
 
   it('rejects invalid email', () => {
     expect(() =>
-      BrandingConfigSchema.parse({ ...validConfig, supportEmail: 'notanemail' }),
+      BrandingConfigSchema.parse({
+        ...validConfig,
+        supportEmail: 'notanemail',
+      }),
     ).toThrow();
   });
 

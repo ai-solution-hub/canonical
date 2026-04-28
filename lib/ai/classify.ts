@@ -16,7 +16,11 @@ import { resolveAlias, loadAliases } from '@/lib/entities/entity-aliases';
 import { extractEntityContext } from '@/lib/entities/entity-context';
 import { bridgeTemporalReferencesToEntities } from '@/lib/entities/entity-metadata-bridge';
 import { normaliseTag } from '@/lib/validation/schemas';
-import { CLIENT_CONFIG, BRANDING, buildDisambiguationBlock } from '@/lib/client-config';
+import {
+  CLIENT_CONFIG,
+  BRANDING,
+  buildDisambiguationBlock,
+} from '@/lib/client-config';
 import { sb } from '@/lib/supabase/safe';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 
@@ -530,12 +534,8 @@ export function deriveHolderMetadata(
   // classifier output is the intended safeguard, not this map.
   for (const rel of relationships) {
     if (rel.relationship === 'holds') {
-      const targetLower = resolveAlias(
-        canonicalise(rel.target),
-      ).toLowerCase();
-      const sourceLower = resolveAlias(
-        canonicalise(rel.source),
-      ).toLowerCase();
+      const targetLower = resolveAlias(canonicalise(rel.target)).toLowerCase();
+      const sourceLower = resolveAlias(canonicalise(rel.source)).toLowerCase();
       holdsRelsByTarget.set(targetLower, sourceLower);
     }
   }
@@ -561,15 +561,11 @@ export function deriveHolderMetadata(
   }
   for (const rel of relationships) {
     if (HOLDS_SYNONYMS.has(rel.relationship)) {
-      const targetLower = resolveAlias(
-        canonicalise(rel.target),
-      ).toLowerCase();
+      const targetLower = resolveAlias(canonicalise(rel.target)).toLowerCase();
       if (holdsRelsByTarget.has(targetLower)) continue;
       if (!certTargets.has(targetLower)) continue;
 
-      const sourceLower = resolveAlias(
-        canonicalise(rel.source),
-      ).toLowerCase();
+      const sourceLower = resolveAlias(canonicalise(rel.source)).toLowerCase();
       const sourceIsClientOrg = sourceLower === clientOrgLower;
       const sourceIsExtractedOrg = orgSources.has(sourceLower);
       if (!sourceIsClientOrg && !sourceIsExtractedOrg) continue;
@@ -847,7 +843,10 @@ function buildValidationPrompt(
   contentType: string,
 ): string {
   const entityList = entities
-    .map((e, i) => `${i + 1}. "${e.name}" (type: ${e.type}, canonical: "${e.canonical_name}")`)
+    .map(
+      (e, i) =>
+        `${i + 1}. "${e.name}" (type: ${e.type}, canonical: "${e.canonical_name}")`,
+    )
     .join('\n');
 
   return `You are an entity validation assistant for a UK knowledge base. You will review
@@ -1167,15 +1166,30 @@ export async function classifyContent(
   // classification_disambiguation_rules. Placeholders inside the rules
   // (e.g. {CLIENT_PRODUCT_NAME}) are resolved by the .replaceAll chain
   // below after the {CLIENT_DISAMBIGUATION} substitution.
-  const prompt = classificationSkill
-    .replace('{TAXONOMY}', taxonomyStr)
-    .replace('{CLIENT_DISAMBIGUATION}', buildDisambiguationBlock())
-    .replaceAll('{CLIENT_ORGANISATION_NAME}', CLIENT_CONFIG.entity_examples.organisation_name)
-    .replaceAll('{CLIENT_ORGANISATION_SHORT}', CLIENT_CONFIG.entity_examples.organisation_short)
-    .replaceAll('{CLIENT_PRODUCT_NAME}', CLIENT_CONFIG.entity_examples.product_name)
-    .replaceAll('{CLIENT_PRODUCT_SHORT}', CLIENT_CONFIG.entity_examples.product_short)
-    + '\n\n---\n\n' + entityTypesRef
-    + '\n\n---\n\n' + PAYMENT_GATEWAY_PRODUCT_ANCHOR;
+  const prompt =
+    classificationSkill
+      .replace('{TAXONOMY}', taxonomyStr)
+      .replace('{CLIENT_DISAMBIGUATION}', buildDisambiguationBlock())
+      .replaceAll(
+        '{CLIENT_ORGANISATION_NAME}',
+        CLIENT_CONFIG.entity_examples.organisation_name,
+      )
+      .replaceAll(
+        '{CLIENT_ORGANISATION_SHORT}',
+        CLIENT_CONFIG.entity_examples.organisation_short,
+      )
+      .replaceAll(
+        '{CLIENT_PRODUCT_NAME}',
+        CLIENT_CONFIG.entity_examples.product_name,
+      )
+      .replaceAll(
+        '{CLIENT_PRODUCT_SHORT}',
+        CLIENT_CONFIG.entity_examples.product_short,
+      ) +
+    '\n\n---\n\n' +
+    entityTypesRef +
+    '\n\n---\n\n' +
+    PAYMENT_GATEWAY_PRODUCT_ANCHOR;
 
   // Prepare content for classification (truncate at 5000 chars)
   const plainText = stripMarkdown(item.content);
@@ -1340,8 +1354,8 @@ ${contentForClassification}`,
   const pass1Cost = estimateCost(model, pass1Usage);
   console.log(
     `[Pass 1 Classification] ${item.title?.slice(0, 60)} — ` +
-    `${pass1Usage.input_tokens} in / ${pass1Usage.output_tokens} out — ` +
-    `$${pass1Cost.toFixed(4)}`,
+      `${pass1Usage.input_tokens} in / ${pass1Usage.output_tokens} out — ` +
+      `$${pass1Cost.toFixed(4)}`,
   );
 
   const result = extractToolResult<ClassificationResult>(
@@ -1377,7 +1391,10 @@ ${contentForClassification}`,
   const rawKeywords = Array.isArray(aiKw)
     ? (aiKw as string[])
     : typeof aiKw === 'string'
-      ? aiKw.split(',').map((s) => s.trim()).filter(Boolean)
+      ? aiKw
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
       : [];
   const normalisedKeywords = rawKeywords
     .map(normaliseTag)
@@ -1738,7 +1755,8 @@ ${contentForClassification}`,
       const { error: relError } = await supabase
         .from('entity_relationships')
         .upsert(relRows, {
-          onConflict: 'source_entity,relationship_type,target_entity,source_item_id',
+          onConflict:
+            'source_entity,relationship_type,target_entity,source_item_id',
           ignoreDuplicates: true,
         });
 

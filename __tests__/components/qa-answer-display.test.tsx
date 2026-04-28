@@ -242,11 +242,7 @@ describe('QAAnswerDisplay — copy button', () => {
 
   it('hides copy buttons when a field is being edited', () => {
     const inlineEdit = makeInlineEdit({ editingField: 'answer_standard' });
-    render(
-      <QAAnswerDisplay
-        {...makeProps({ inlineEdit, canEdit: true })}
-      />,
-    );
+    render(<QAAnswerDisplay {...makeProps({ inlineEdit, canEdit: true })} />);
     const copyButtons = screen.queryAllByRole('button', { name: /copy/i });
     expect(copyButtons).toHaveLength(0);
   });
@@ -256,11 +252,7 @@ describe('QAAnswerDisplay — copy button', () => {
       editingField: 'answer_standard',
       editValue: 'Editing...',
     });
-    render(
-      <QAAnswerDisplay
-        {...makeProps({ inlineEdit, canEdit: true })}
-      />,
-    );
+    render(<QAAnswerDisplay {...makeProps({ inlineEdit, canEdit: true })} />);
     const badges = screen.getAllByText('Unverified');
     expect(badges).toHaveLength(2);
   });
@@ -273,27 +265,25 @@ describe('QAAnswerDisplay — copy button', () => {
 describe('QAAnswerDisplay — edit button', () => {
   it('does not show edit buttons when canEdit is false', () => {
     const inlineEdit = makeInlineEdit();
-    render(
-      <QAAnswerDisplay {...makeProps({ canEdit: false, inlineEdit })} />,
-    );
-    expect(screen.queryByRole('button', { name: /^edit$/i })).not.toBeInTheDocument();
+    render(<QAAnswerDisplay {...makeProps({ canEdit: false, inlineEdit })} />);
+    expect(
+      screen.queryByRole('button', { name: /^edit$/i }),
+    ).not.toBeInTheDocument();
   });
 
   it('shows edit buttons for both answers when canEdit is true and no field is being edited', () => {
     const inlineEdit = makeInlineEdit();
-    render(
-      <QAAnswerDisplay {...makeProps({ canEdit: true, inlineEdit })} />,
-    );
+    render(<QAAnswerDisplay {...makeProps({ canEdit: true, inlineEdit })} />);
     const editButtons = screen.getAllByRole('button', { name: /^edit$/i });
     expect(editButtons).toHaveLength(2);
   });
 
   it('hides edit buttons when a field is being edited', () => {
     const inlineEdit = makeInlineEdit({ editingField: 'answer_standard' });
-    render(
-      <QAAnswerDisplay {...makeProps({ canEdit: true, inlineEdit })} />,
-    );
-    expect(screen.queryByRole('button', { name: /^edit$/i })).not.toBeInTheDocument();
+    render(<QAAnswerDisplay {...makeProps({ canEdit: true, inlineEdit })} />);
+    expect(
+      screen.queryByRole('button', { name: /^edit$/i }),
+    ).not.toBeInTheDocument();
   });
 
   it('calls startEdit with answer_standard when standard edit button is clicked', async () => {
@@ -301,9 +291,7 @@ describe('QAAnswerDisplay — edit button', () => {
     const inlineEdit = makeInlineEdit();
     const item = makeItem();
     render(
-      <QAAnswerDisplay
-        {...makeProps({ item, canEdit: true, inlineEdit })}
-      />,
+      <QAAnswerDisplay {...makeProps({ item, canEdit: true, inlineEdit })} />,
     );
     const editButtons = screen.getAllByRole('button', { name: /^edit$/i });
     await user.click(editButtons[0]);
@@ -318,9 +306,7 @@ describe('QAAnswerDisplay — edit button', () => {
     const inlineEdit = makeInlineEdit();
     const item = makeItem();
     render(
-      <QAAnswerDisplay
-        {...makeProps({ item, canEdit: true, inlineEdit })}
-      />,
+      <QAAnswerDisplay {...makeProps({ item, canEdit: true, inlineEdit })} />,
     );
     const editButtons = screen.getAllByRole('button', { name: /^edit$/i });
     await user.click(editButtons[1]);
@@ -386,11 +372,7 @@ describe('QAAnswerDisplay — inline editing data flow', () => {
       editingField: 'answer_standard',
       editValue: 'Edited standard answer',
     });
-    render(
-      <QAAnswerDisplay
-        {...makeProps({ canEdit: true, inlineEdit })}
-      />,
-    );
+    render(<QAAnswerDisplay {...makeProps({ canEdit: true, inlineEdit })} />);
     const editorBody = await screen.findByRole('textbox', {
       name: /standard answer/i,
     });
@@ -405,11 +387,7 @@ describe('QAAnswerDisplay — inline editing data flow', () => {
       editingField: 'answer_advanced',
       editValue: 'Edited advanced answer',
     });
-    render(
-      <QAAnswerDisplay
-        {...makeProps({ canEdit: true, inlineEdit })}
-      />,
-    );
+    render(<QAAnswerDisplay {...makeProps({ canEdit: true, inlineEdit })} />);
     const editorBody = await screen.findByRole('textbox', {
       name: /advanced answer/i,
     });
@@ -456,8 +434,9 @@ describe('QAAnswerDisplay — inline editing data flow', () => {
       expect(inlineEdit.setEditValue).toHaveBeenCalled();
     });
     // Verify the markdown content was forwarded (not just a no-op call).
-    const lastCall = (inlineEdit.setEditValue as ReturnType<typeof vi.fn>).mock
-      .calls.at(-1);
+    const lastCall = (
+      inlineEdit.setEditValue as ReturnType<typeof vi.fn>
+    ).mock.calls.at(-1);
     expect(lastCall?.[0]).toContain('typed text');
   });
 
@@ -466,11 +445,7 @@ describe('QAAnswerDisplay — inline editing data flow', () => {
       editingField: 'answer_standard',
       editValue: 'Some text',
     });
-    render(
-      <QAAnswerDisplay
-        {...makeProps({ canEdit: true, inlineEdit })}
-      />,
-    );
+    render(<QAAnswerDisplay {...makeProps({ canEdit: true, inlineEdit })} />);
     expect(screen.getByLabelText(/why change/i)).toBeInTheDocument();
   });
 
@@ -479,11 +454,7 @@ describe('QAAnswerDisplay — inline editing data flow', () => {
       editingField: 'answer_standard',
       editValue: 'Some text',
     });
-    render(
-      <QAAnswerDisplay
-        {...makeProps({ canEdit: true, inlineEdit })}
-      />,
-    );
+    render(<QAAnswerDisplay {...makeProps({ canEdit: true, inlineEdit })} />);
     expect(
       screen.getByText(/changes are saved per field/i),
     ).toBeInTheDocument();
@@ -495,11 +466,7 @@ describe('QAAnswerDisplay — inline editing data flow', () => {
       editingField: 'answer_standard',
       editValue: 'Updated standard answer',
     });
-    render(
-      <QAAnswerDisplay
-        {...makeProps({ canEdit: true, inlineEdit })}
-      />,
-    );
+    render(<QAAnswerDisplay {...makeProps({ canEdit: true, inlineEdit })} />);
 
     // S198 §1.5 WP4: ContentEditor is dynamically imported; await it before
     // touching the change-reason input so the React subtree has settled.
@@ -538,11 +505,7 @@ describe('QAAnswerDisplay — inline editing data flow', () => {
       editingField: 'answer_standard',
       editValue: 'This is the updated answer.',
     });
-    render(
-      <QAAnswerDisplay
-        {...makeProps({ canEdit: true, inlineEdit })}
-      />,
-    );
+    render(<QAAnswerDisplay {...makeProps({ canEdit: true, inlineEdit })} />);
 
     // Click Save without entering a reason
     await user.click(screen.getByRole('button', { name: /^save$/i }));
@@ -562,11 +525,7 @@ describe('QAAnswerDisplay — inline editing data flow', () => {
       editingField: 'answer_standard',
       editValue: 'Some text',
     });
-    render(
-      <QAAnswerDisplay
-        {...makeProps({ canEdit: true, inlineEdit })}
-      />,
-    );
+    render(<QAAnswerDisplay {...makeProps({ canEdit: true, inlineEdit })} />);
 
     await user.click(screen.getByRole('button', { name: /cancel/i }));
 
@@ -579,11 +538,7 @@ describe('QAAnswerDisplay — inline editing data flow', () => {
       editValue: 'Some text',
       isSaving: true,
     });
-    render(
-      <QAAnswerDisplay
-        {...makeProps({ canEdit: true, inlineEdit })}
-      />,
-    );
+    render(<QAAnswerDisplay {...makeProps({ canEdit: true, inlineEdit })} />);
     const saveButton = screen.getByRole('button', { name: /saving/i });
     expect(saveButton).toBeDisabled();
   });
@@ -593,11 +548,7 @@ describe('QAAnswerDisplay — inline editing data flow', () => {
       editingField: 'answer_standard',
       editValue: 'Editing...',
     });
-    render(
-      <QAAnswerDisplay
-        {...makeProps({ canEdit: true, inlineEdit })}
-      />,
-    );
+    render(<QAAnswerDisplay {...makeProps({ canEdit: true, inlineEdit })} />);
     // The original answer text should not be visible — textarea replaces it
     expect(
       screen.queryByText('This is the standard answer.'),
@@ -609,11 +560,7 @@ describe('QAAnswerDisplay — inline editing data flow', () => {
       editingField: 'answer_standard',
       editValue: 'Editing standard...',
     });
-    render(
-      <QAAnswerDisplay
-        {...makeProps({ canEdit: true, inlineEdit })}
-      />,
-    );
+    render(<QAAnswerDisplay {...makeProps({ canEdit: true, inlineEdit })} />);
     expect(
       screen.getByText('This is the advanced answer with more detail.'),
     ).toBeInTheDocument();
@@ -681,9 +628,7 @@ describe('QAAnswerDisplay — AC8 save-safety guard', () => {
       editValue: 'aaa',
     });
     render(
-      <QAAnswerDisplay
-        {...makeProps({ item, canEdit: true, inlineEdit })}
-      />,
+      <QAAnswerDisplay {...makeProps({ item, canEdit: true, inlineEdit })} />,
     );
 
     await screen.findByRole('textbox', { name: /standard answer/i });
@@ -707,9 +652,7 @@ describe('QAAnswerDisplay — AC8 save-safety guard', () => {
       editValue: 'bbb',
     });
     render(
-      <QAAnswerDisplay
-        {...makeProps({ item, canEdit: true, inlineEdit })}
-      />,
+      <QAAnswerDisplay {...makeProps({ item, canEdit: true, inlineEdit })} />,
     );
 
     await screen.findByRole('textbox', { name: /advanced answer/i });
@@ -774,11 +717,7 @@ describe('QAAnswerDisplay — AC9b regen-embedding flag forwarded', () => {
       regenerateEmbedding: true,
       setRegenerateEmbedding: vi.fn(),
     });
-    render(
-      <QAAnswerDisplay
-        {...makeProps({ canEdit: true, inlineEdit })}
-      />,
-    );
+    render(<QAAnswerDisplay {...makeProps({ canEdit: true, inlineEdit })} />);
 
     await screen.findByRole('textbox', { name: /standard answer/i });
     await user.click(screen.getByRole('button', { name: /^save$/i }));
@@ -848,11 +787,7 @@ describe('QAAnswerDisplay — AC13 Cmd/Ctrl+S triggers single PATCH', () => {
       editingField: 'answer_standard',
       editValue: 'This is the updated answer.',
     });
-    render(
-      <QAAnswerDisplay
-        {...makeProps({ canEdit: true, inlineEdit })}
-      />,
-    );
+    render(<QAAnswerDisplay {...makeProps({ canEdit: true, inlineEdit })} />);
 
     // Wait for the dynamically-imported editor to mount + register its
     // document keydown listener.
@@ -879,11 +814,7 @@ describe('QAAnswerDisplay — AC13 Cmd/Ctrl+S triggers single PATCH', () => {
       editingField: 'answer_advanced',
       editValue: 'This is the updated advanced answer.',
     });
-    render(
-      <QAAnswerDisplay
-        {...makeProps({ canEdit: true, inlineEdit })}
-      />,
-    );
+    render(<QAAnswerDisplay {...makeProps({ canEdit: true, inlineEdit })} />);
 
     await screen.findByRole('textbox', { name: /advanced answer/i });
 
@@ -1010,7 +941,8 @@ describe('QAAnswerDisplay — markdown rendering via ContentRenderer', () => {
 
   it('renders unordered list markdown in answers', () => {
     const item = makeItem({
-      answer_standard: 'Key policies:\n\n- Quality management\n- Environmental management\n- Health and safety',
+      answer_standard:
+        'Key policies:\n\n- Quality management\n- Environmental management\n- Health and safety',
       answer_advanced: null,
     });
     render(<QAAnswerDisplay {...makeProps({ item })} />);
@@ -1022,7 +954,8 @@ describe('QAAnswerDisplay — markdown rendering via ContentRenderer', () => {
 
   it('renders table markdown in answers via remark-gfm', () => {
     const item = makeItem({
-      answer_standard: '| Certification | Year |\n|---|---|\n| ISO 9001 | 2024 |\n| ISO 14001 | 2023 |',
+      answer_standard:
+        '| Certification | Year |\n|---|---|\n| ISO 9001 | 2024 |\n| ISO 14001 | 2023 |',
       answer_advanced: null,
     });
     render(<QAAnswerDisplay {...makeProps({ item })} />);
@@ -1041,18 +974,25 @@ describe('QAAnswerDisplay — markdown rendering via ContentRenderer', () => {
     });
     render(<QAAnswerDisplay {...makeProps({ item })} />);
 
-    expect(screen.getByText('This is a plain text answer.')).toBeInTheDocument();
-    expect(screen.getByText('This is a plain advanced answer.')).toBeInTheDocument();
+    expect(
+      screen.getByText('This is a plain text answer.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('This is a plain advanced answer.'),
+    ).toBeInTheDocument();
   });
 
   it('preserves UK English text through ContentRenderer', () => {
     const item = makeItem({
-      answer_standard: 'Our organisation follows colour-coded procedures for behaviour management.',
+      answer_standard:
+        'Our organisation follows colour-coded procedures for behaviour management.',
     });
     render(<QAAnswerDisplay {...makeProps({ item })} />);
 
     expect(
-      screen.getByText('Our organisation follows colour-coded procedures for behaviour management.'),
+      screen.getByText(
+        'Our organisation follows colour-coded procedures for behaviour management.',
+      ),
     ).toBeInTheDocument();
   });
 

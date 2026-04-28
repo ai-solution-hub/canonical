@@ -71,9 +71,7 @@ function makeProps(
 
 async function openDialog() {
   const user = userEvent.setup();
-  await user.click(
-    screen.getByRole('button', { name: /Mark as superseded/i }),
-  );
+  await user.click(screen.getByRole('button', { name: /Mark as superseded/i }));
   return user;
 }
 
@@ -102,15 +100,15 @@ describe('SupersedeContentDialog', () => {
 
     expect(screen.getByText('Mark item as superseded')).toBeInTheDocument();
     expect(screen.getByText(/Old revision/)).toBeInTheDocument();
-    expect(
-      screen.getByTestId('supersede-new-id-input'),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId('supersede-new-id-input')).toBeInTheDocument();
   });
 
   it('blocks submit when UUID is empty', async () => {
     render(<SupersedeContentDialog {...makeProps()} />);
     await openDialog();
-    const confirm = screen.getByRole('button', { name: /Confirm supersession/i });
+    const confirm = screen.getByRole('button', {
+      name: /Confirm supersession/i,
+    });
     expect(confirm).toBeDisabled();
   });
 
@@ -118,17 +116,12 @@ describe('SupersedeContentDialog', () => {
     render(<SupersedeContentDialog {...makeProps()} />);
     const user = await openDialog();
 
-    await user.type(
-      screen.getByTestId('supersede-new-id-input'),
-      'not-a-uuid',
-    );
+    await user.type(screen.getByTestId('supersede-new-id-input'), 'not-a-uuid');
     await user.click(
       screen.getByRole('button', { name: /Confirm supersession/i }),
     );
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      /valid UUID/i,
-    );
+    expect(await screen.findByRole('alert')).toHaveTextContent(/valid UUID/i);
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
@@ -169,9 +162,7 @@ describe('SupersedeContentDialog', () => {
       );
     });
     await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith(
-        'Item marked as superseded',
-      );
+      expect(toast.success).toHaveBeenCalledWith('Item marked as superseded');
       expect(mockRefresh).toHaveBeenCalled();
     });
   });

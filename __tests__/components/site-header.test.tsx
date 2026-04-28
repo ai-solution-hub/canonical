@@ -101,9 +101,9 @@ describe('SiteHeader', () => {
     expect(screen.getAllByText('Q&A Library').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Coverage').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Workspaces').length).toBeGreaterThanOrEqual(1);
-    expect(
-      screen.getAllByText('Change Reports').length,
-    ).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Change Reports').length).toBeGreaterThanOrEqual(
+      1,
+    );
     expect(screen.getAllByText('Review').length).toBeGreaterThanOrEqual(1);
   });
 

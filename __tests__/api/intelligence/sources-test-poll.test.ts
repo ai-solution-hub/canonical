@@ -61,9 +61,8 @@ function resetMocks() {
     data: null,
     error: null,
   });
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 }
 
@@ -95,9 +94,7 @@ describe('Test-poll route branching (WP3C)', () => {
     mockPollWebSource.mockResolvedValueOnce({
       feedSourceId: SOURCE_UUID,
       status: 'success',
-      items: [
-        { title: 'Web Page Title', url: 'https://example.com/page' },
-      ],
+      items: [{ title: 'Web Page Title', url: 'https://example.com/page' }],
       etag: null,
       lastModified: null,
     });

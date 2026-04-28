@@ -41,24 +41,28 @@ describe('eval baseline', () => {
       saveBaseline(
         'test-suite',
         { accuracy: 0.95, precision: 0.9 },
-        { accuracy: { min: 0.9 }, precision: { max_drop: 0.05 } }
+        { accuracy: { min: 0.9 }, precision: { max_drop: 0.05 } },
       );
 
       expect(mockFs.mkdirSync).toHaveBeenCalledWith(
         expect.stringContaining('eval-baselines'),
-        { recursive: true }
+        { recursive: true },
       );
       expect(mockFs.writeFileSync).toHaveBeenCalledWith(
         expect.stringContaining('test-suite.baseline.json'),
         expect.stringContaining('"suite_name": "test-suite"'),
-        'utf-8'
+        'utf-8',
       );
     });
 
     it('skips directory creation if it already exists', () => {
       mockFs.existsSync.mockReturnValue(true);
 
-      saveBaseline('test-suite', { accuracy: 0.95 }, { accuracy: { min: 0.9 } });
+      saveBaseline(
+        'test-suite',
+        { accuracy: 0.95 },
+        { accuracy: { min: 0.9 } },
+      );
 
       expect(mockFs.mkdirSync).not.toHaveBeenCalled();
       expect(mockFs.writeFileSync).toHaveBeenCalled();
@@ -106,18 +110,20 @@ describe('eval baseline', () => {
     };
 
     it('passes when metrics are above minimum threshold', () => {
-      const results = checkRegression(baseline, { accuracy: 0.93, recall: 0.85 });
-      const accuracyResult = results.find(
-        (r) => r.metric_name === 'accuracy'
-      );
+      const results = checkRegression(baseline, {
+        accuracy: 0.93,
+        recall: 0.85,
+      });
+      const accuracyResult = results.find((r) => r.metric_name === 'accuracy');
       expect(accuracyResult?.passed).toBe(true);
     });
 
     it('fails when metrics drop below minimum threshold', () => {
-      const results = checkRegression(baseline, { accuracy: 0.85, recall: 0.85 });
-      const accuracyResult = results.find(
-        (r) => r.metric_name === 'accuracy'
-      );
+      const results = checkRegression(baseline, {
+        accuracy: 0.85,
+        recall: 0.85,
+      });
+      const accuracyResult = results.find((r) => r.metric_name === 'accuracy');
       expect(accuracyResult?.passed).toBe(false);
       expect(accuracyResult?.current_value).toBe(0.85);
     });
@@ -130,20 +136,28 @@ describe('eval baseline', () => {
         thresholds: { accuracy: { min: 0.9, max_drop: 0.05 } },
       };
       const results = checkRegression(bothThresholds, { accuracy: 0.93 });
-      const accuracyResults = results.filter((r) => r.metric_name === 'accuracy');
+      const accuracyResults = results.filter(
+        (r) => r.metric_name === 'accuracy',
+      );
       expect(accuracyResults).toHaveLength(1);
     });
 
     it('passes when drop is within max_drop tolerance', () => {
       // Baseline recall = 0.85, current = 0.82, drop = 0.03, max_drop = 0.05
-      const results = checkRegression(baseline, { accuracy: 0.95, recall: 0.82 });
+      const results = checkRegression(baseline, {
+        accuracy: 0.95,
+        recall: 0.82,
+      });
       const recallResult = results.find((r) => r.metric_name === 'recall');
       expect(recallResult?.passed).toBe(true);
     });
 
     it('fails when drop exceeds max_drop tolerance', () => {
       // Baseline recall = 0.85, current = 0.75, drop = 0.10, max_drop = 0.05
-      const results = checkRegression(baseline, { accuracy: 0.95, recall: 0.75 });
+      const results = checkRegression(baseline, {
+        accuracy: 0.95,
+        recall: 0.75,
+      });
       const recallResult = results.find((r) => r.metric_name === 'recall');
       expect(recallResult?.passed).toBe(false);
       expect(recallResult?.delta).toBeCloseTo(-0.1);
@@ -164,7 +178,10 @@ describe('eval baseline', () => {
   });
 
   describe('evalPassed', () => {
-    const makeResult = (metrics: Record<string, number>, passed = true): EvalResult => ({
+    const makeResult = (
+      metrics: Record<string, number>,
+      passed = true,
+    ): EvalResult => ({
       suite_name: 'test',
       timestamp: '2026-04-01T00:00:00.000Z',
       total_items: 10,
@@ -203,7 +220,7 @@ describe('eval baseline', () => {
       };
 
       // Accuracy dropped to 0.80, below min of 0.9
-      const result = makeResult({ accuracy: 0.80 });
+      const result = makeResult({ accuracy: 0.8 });
       expect(evalPassed(result, baseline)).toBe(false);
     });
 

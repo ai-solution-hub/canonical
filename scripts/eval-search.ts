@@ -23,7 +23,11 @@ import { resolve } from 'path';
 import { createClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
 import { precisionAtK } from '../lib/eval/metrics';
-import { loadBaseline, saveBaseline, checkRegression } from '../lib/eval/baseline';
+import {
+  loadBaseline,
+  saveBaseline,
+  checkRegression,
+} from '../lib/eval/baseline';
 import { printReport, printJsonReport } from '../lib/eval/reporter';
 import type { EvalResult, RegressionResult } from '../lib/eval/types';
 
@@ -121,7 +125,10 @@ function createServiceClient() {
 
 // ── Embedding ───────────────────────────────────────────────────────
 
-async function generateEmbedding(openai: OpenAI, text: string): Promise<number[]> {
+async function generateEmbedding(
+  openai: OpenAI,
+  text: string,
+): Promise<number[]> {
   const response = await openai.embeddings.create({
     model: 'text-embedding-3-large',
     input: text,
@@ -154,7 +161,10 @@ async function executeSearch(
 
 // ── Scoring ─────────────────────────────────────────────────────────
 
-function scoreCase(testCase: SearchTestCase, results: SearchResult[]): CaseScore {
+function scoreCase(
+  testCase: SearchTestCase,
+  results: SearchResult[],
+): CaseScore {
   const details: string[] = [];
 
   // Min/max results compliance
@@ -171,12 +181,17 @@ function scoreCase(testCase: SearchTestCase, results: SearchResult[]): CaseScore
 
   // Domain accuracy: proportion of results in expected domains
   const expectedDomains = new Set(testCase.expectations.expected_domains);
-  const domainMatches = results.filter((r) => expectedDomains.has(r.primary_domain)).length;
-  const domainAccuracy = results.length > 0 ? domainMatches / results.length : 0;
+  const domainMatches = results.filter((r) =>
+    expectedDomains.has(r.primary_domain),
+  ).length;
+  const domainAccuracy =
+    results.length > 0 ? domainMatches / results.length : 0;
 
   if (domainAccuracy < 0.5 && results.length > 0) {
     const actualDomains = [...new Set(results.map((r) => r.primary_domain))];
-    details.push(`Domain accuracy: ${(domainAccuracy * 100).toFixed(0)}% (expected: ${[...expectedDomains].join(', ')}, got: ${actualDomains.join(', ')})`);
+    details.push(
+      `Domain accuracy: ${(domainAccuracy * 100).toFixed(0)}% (expected: ${[...expectedDomains].join(', ')}, got: ${actualDomains.join(', ')})`,
+    );
   }
 
   // MRR and Precision@K using relevance judgements
@@ -184,7 +199,10 @@ function scoreCase(testCase: SearchTestCase, results: SearchResult[]): CaseScore
   let pAt5 = 0;
   let pAt10 = 0;
 
-  if (testCase.relevance_judgements && testCase.relevance_judgements.length > 0) {
+  if (
+    testCase.relevance_judgements &&
+    testCase.relevance_judgements.length > 0
+  ) {
     const judgementMap = new Map(
       testCase.relevance_judgements.map((j) => [j.content_item_id, j]),
     );
@@ -227,10 +245,10 @@ function scoreCase(testCase: SearchTestCase, results: SearchResult[]): CaseScore
 const SUITE_NAME = 'search';
 
 const THRESHOLDS: Record<string, { min?: number; max_drop?: number }> = {
-  mrr: { min: 0.40, max_drop: 0.10 },
-  precision_at_5: { min: 0.30, max_drop: 0.10 },
-  domain_accuracy: { min: 0.50, max_drop: 0.10 },
-  min_results_compliance: { min: 0.80, max_drop: 0.05 },
+  mrr: { min: 0.4, max_drop: 0.1 },
+  precision_at_5: { min: 0.3, max_drop: 0.1 },
+  domain_accuracy: { min: 0.5, max_drop: 0.1 },
+  min_results_compliance: { min: 0.8, max_drop: 0.05 },
 };
 
 async function main() {
@@ -310,7 +328,9 @@ async function main() {
 
     if (verbose && !jsonOutput) {
       const status = score.min_results_met ? 'OK' : 'FAIL';
-      console.log(`${status} (${score.result_count} results, MRR=${score.mrr_value.toFixed(2)})`);
+      console.log(
+        `${status} (${score.result_count} results, MRR=${score.mrr_value.toFixed(2)})`,
+      );
     }
   }
 
@@ -331,25 +351,32 @@ async function main() {
     return s.mrr_value;
   });
 
-  const avgMrr = allQueryResults.length > 0
-    ? allQueryResults.reduce((sum, v) => sum + v, 0) / allQueryResults.length
-    : 0;
+  const avgMrr =
+    allQueryResults.length > 0
+      ? allQueryResults.reduce((sum, v) => sum + v, 0) / allQueryResults.length
+      : 0;
 
-  const avgPAt5 = casesWithJudgements.length > 0
-    ? casesWithJudgements.reduce((sum, s) => sum + s.precision_at_5, 0) / casesWithJudgements.length
-    : 0;
+  const avgPAt5 =
+    casesWithJudgements.length > 0
+      ? casesWithJudgements.reduce((sum, s) => sum + s.precision_at_5, 0) /
+        casesWithJudgements.length
+      : 0;
 
-  const avgPAt10 = casesWithJudgements.length > 0
-    ? casesWithJudgements.reduce((sum, s) => sum + s.precision_at_10, 0) / casesWithJudgements.length
-    : 0;
+  const avgPAt10 =
+    casesWithJudgements.length > 0
+      ? casesWithJudgements.reduce((sum, s) => sum + s.precision_at_10, 0) /
+        casesWithJudgements.length
+      : 0;
 
-  const avgDomainAcc = scores.length > 0
-    ? scores.reduce((sum, s) => sum + s.domain_accuracy, 0) / scores.length
-    : 0;
+  const avgDomainAcc =
+    scores.length > 0
+      ? scores.reduce((sum, s) => sum + s.domain_accuracy, 0) / scores.length
+      : 0;
 
-  const minResultsCompliance = scores.length > 0
-    ? scores.filter((s) => s.min_results_met).length / scores.length
-    : 0;
+  const minResultsCompliance =
+    scores.length > 0
+      ? scores.filter((s) => s.min_results_met).length / scores.length
+      : 0;
 
   const metrics: Record<string, number> = {
     mrr: avgMrr,
@@ -363,7 +390,11 @@ async function main() {
   const failures: string[] = [];
   for (const [metricName, threshold] of Object.entries(THRESHOLDS)) {
     const value = metrics[metricName];
-    if (value !== undefined && threshold.min !== undefined && value < threshold.min) {
+    if (
+      value !== undefined &&
+      threshold.min !== undefined &&
+      value < threshold.min
+    ) {
       failures.push(
         `${metricName} ${(value * 100).toFixed(1)}% below minimum ${(threshold.min * 100).toFixed(0)}%`,
       );
@@ -409,10 +440,18 @@ async function main() {
 
     // Per-category breakdown
     console.log('--- PER-CATEGORY BREAKDOWN ---\n');
-    const byCategory = new Map<string, { total: number; mrrSum: number; domainSum: number; minResultsOk: number }>();
+    const byCategory = new Map<
+      string,
+      { total: number; mrrSum: number; domainSum: number; minResultsOk: number }
+    >();
     for (const s of scores) {
       if (!byCategory.has(s.category)) {
-        byCategory.set(s.category, { total: 0, mrrSum: 0, domainSum: 0, minResultsOk: 0 });
+        byCategory.set(s.category, {
+          total: 0,
+          mrrSum: 0,
+          domainSum: 0,
+          minResultsOk: 0,
+        });
       }
       const entry = byCategory.get(s.category)!;
       entry.total++;

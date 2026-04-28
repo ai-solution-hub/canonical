@@ -1,8 +1,5 @@
 import { NextResponse } from 'next/server';
-import {
-  getAuthenticatedClient,
-  authFailureResponse,
-} from '@/lib/auth';
+import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import {
   fetchUnifiedDashboardData,
@@ -65,10 +62,7 @@ export async function GET() {
     // failing query (e.g. my_recent_work) does not silently render as an
     // empty section. The UI is expected to render `warnings[]` as a banner.
     if (dashboard.errors.length > 0) {
-      console.warn(
-        'Dashboard partial failure:',
-        dashboard.errors.join('; '),
-      );
+      console.warn('Dashboard partial failure:', dashboard.errors.join('; '));
     }
 
     return NextResponse.json(

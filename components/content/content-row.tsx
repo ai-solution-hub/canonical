@@ -190,7 +190,11 @@ export const ContentRow = memo(function ContentRow({
             ) : answerSnippet ? (
               <span className="flex items-center gap-1">
                 <span className="font-medium">A:</span>
-                <span className="truncate">{renderText(answerSnippet ? stripMarkdown(answerSnippet) : '')}</span>
+                <span className="truncate">
+                  {renderText(
+                    answerSnippet ? stripMarkdown(answerSnippet) : '',
+                  )}
+                </span>
               </span>
             ) : item.source_document ? (
               <span className="flex items-center gap-1">

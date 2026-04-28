@@ -23,9 +23,8 @@ import {
 const mockSupabase: MockSupabaseClient = createMockSupabaseClient();
 
 vi.mock('@/lib/auth', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/auth')>(
-    '@/lib/auth',
-  );
+  const actual =
+    await vi.importActual<typeof import('@/lib/auth')>('@/lib/auth');
   return {
     ...actual,
     getAuthorisedClient: vi.fn(),
@@ -49,15 +48,23 @@ const TEST_USER_ID = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 
 const MOCK_DOMAINS = [
   {
-    id: '1', name: 'Construction', description: 'Building sector',
-    key_signal: 'signal', display_order: 1, is_active: true,
+    id: '1',
+    name: 'Construction',
+    description: 'Building sector',
+    key_signal: 'signal',
+    display_order: 1,
+    is_active: true,
   },
 ];
 
 const MOCK_SUBTOPICS = [
   {
-    id: '10', domain_id: '1', name: 'Tenders',
-    description: 'Tender docs', display_order: 1, is_active: true,
+    id: '10',
+    domain_id: '1',
+    name: 'Tenders',
+    description: 'Tender docs',
+    display_order: 1,
+    is_active: true,
   },
 ];
 
@@ -76,9 +83,26 @@ function configureAdminAuth() {
 function makeChain(terminalData: unknown) {
   const chain: Record<string, ReturnType<typeof vi.fn>> = {};
   const chainable = [
-    'select', 'insert', 'update', 'upsert', 'delete',
-    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
   ];
   for (const m of chainable) {
     chain[m] = vi.fn().mockReturnValue(chain);
@@ -106,7 +130,10 @@ function makeChain(terminalData: unknown) {
  * 3. from('taxonomy_subtopics').select(...) — fetch subtopics
  * 4. from('taxonomy_sync_state').select(...).limit(1).single() — fetch state
  */
-function configureStatusFetch(syncHash: string, lastSyncAt: string | null = null) {
+function configureStatusFetch(
+  syncHash: string,
+  lastSyncAt: string | null = null,
+) {
   // Track stale sweep calls for assertion
   const pipelineChain = makeChain(null);
   const sweepUpdateMock = pipelineChain.update;
@@ -168,9 +195,8 @@ describe('GET /api/admin/taxonomy-sync/status', () => {
     it('returns in_sync: true when hashes match', async () => {
       configureAdminAuth();
 
-      const { computeTaxonomyHash } = await import(
-        '@/lib/taxonomy/sync-trigger'
-      );
+      const { computeTaxonomyHash } =
+        await import('@/lib/taxonomy/sync-trigger');
       const matchingHash = computeTaxonomyHash({
         domains: MOCK_DOMAINS,
         subtopics: MOCK_SUBTOPICS,
@@ -191,9 +217,8 @@ describe('GET /api/admin/taxonomy-sync/status', () => {
     it('returns in_sync: false with both hashes when they differ', async () => {
       configureAdminAuth();
 
-      const { computeTaxonomyHash } = await import(
-        '@/lib/taxonomy/sync-trigger'
-      );
+      const { computeTaxonomyHash } =
+        await import('@/lib/taxonomy/sync-trigger');
       const currentHash = computeTaxonomyHash({
         domains: MOCK_DOMAINS,
         subtopics: MOCK_SUBTOPICS,
@@ -216,9 +241,8 @@ describe('GET /api/admin/taxonomy-sync/status', () => {
     it('sweeps running rows older than 10 minutes to failed with workflow_callback_timeout', async () => {
       configureAdminAuth();
 
-      const { computeTaxonomyHash } = await import(
-        '@/lib/taxonomy/sync-trigger'
-      );
+      const { computeTaxonomyHash } =
+        await import('@/lib/taxonomy/sync-trigger');
       const matchingHash = computeTaxonomyHash({
         domains: MOCK_DOMAINS,
         subtopics: MOCK_SUBTOPICS,
@@ -241,9 +265,8 @@ describe('GET /api/admin/taxonomy-sync/status', () => {
     it('executes stale sweep before returning status', async () => {
       configureAdminAuth();
 
-      const { computeTaxonomyHash } = await import(
-        '@/lib/taxonomy/sync-trigger'
-      );
+      const { computeTaxonomyHash } =
+        await import('@/lib/taxonomy/sync-trigger');
       const matchingHash = computeTaxonomyHash({
         domains: MOCK_DOMAINS,
         subtopics: MOCK_SUBTOPICS,
@@ -262,7 +285,10 @@ describe('GET /api/admin/taxonomy-sync/status', () => {
           return makeChain(MOCK_SUBTOPICS);
         }
         if (table === 'taxonomy_sync_state') {
-          return makeChain({ last_sync_hash: matchingHash, last_sync_at: null });
+          return makeChain({
+            last_sync_hash: matchingHash,
+            last_sync_at: null,
+          });
         }
         return mockSupabase._chain;
       });

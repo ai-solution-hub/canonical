@@ -98,7 +98,8 @@ describe('Classification Eval — Unit Tests', () => {
     it('returns a non-zero cost for a fixture with title only', () => {
       const item: GoldItem = {
         content_item_id: '5b4e37ad-5f6a-4bc5-b0ba-9623165d533a',
-        title: 'Schools Week Report — Academy Trust Governance Reforms Under New DfE Framework',
+        title:
+          'Schools Week Report — Academy Trust Governance Reforms Under New DfE Framework',
         content_type: 'article',
         expected_domain: 'sector-news',
         expected_subtopic: 'education-sector-audits',
@@ -222,8 +223,12 @@ describe('Classification Eval — Unit Tests', () => {
       const item2 = estimateItemCost(items[1], 'claude-sonnet-4-5');
 
       expect(total.itemCount).toBe(2);
-      expect(total.totalInputTokens).toBe(item1.inputTokens + item2.inputTokens);
-      expect(total.totalOutputTokens).toBe(item1.outputTokens + item2.outputTokens);
+      expect(total.totalInputTokens).toBe(
+        item1.inputTokens + item2.inputTokens,
+      );
+      expect(total.totalOutputTokens).toBe(
+        item1.outputTokens + item2.outputTokens,
+      );
       expect(total.totalCostUsd).toBeCloseTo(item1.costUsd + item2.costUsd, 6);
     });
 
@@ -310,120 +315,112 @@ describe.skipIf(!isLiveMockEnabled)(
 
 const isEvalEnabled = process.env.EVAL_CLASSIFICATION === '1';
 
-describe.skipIf(!isEvalEnabled)(
-  'Classification Eval (gold standard)',
-  () => {
-    let goldStandard: GoldItem[];
-    let dbMap: Map<string, DbRow>;
+describe.skipIf(!isEvalEnabled)('Classification Eval (gold standard)', () => {
+  let goldStandard: GoldItem[];
+  let dbMap: Map<string, DbRow>;
 
-    beforeAll(async () => {
-      // Load gold standard fixture
-      const fixturePath = resolve(
-        __dirname,
-        '../fixtures/classification-eval-gold-standard.json',
+  beforeAll(async () => {
+    // Load gold standard fixture
+    const fixturePath = resolve(
+      __dirname,
+      '../fixtures/classification-eval-gold-standard.json',
+    );
+    goldStandard = JSON.parse(readFileSync(fixturePath, 'utf-8'));
+
+    // Load classifications from DB using service client
+    const { createClient } = await import('@supabase/supabase-js');
+
+    const url =
+      process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!url || !key) {
+      throw new Error(
+        'Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY for eval',
       );
-      goldStandard = JSON.parse(readFileSync(fixturePath, 'utf-8'));
+    }
 
-      // Load classifications from DB using service client
-      const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(url, key, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
 
-      const url =
-        process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-      const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    // Cached path: only items that exist in the DB. Live-only fixtures are
+    // intentionally skipped here — they are exercised by the live runner.
+    const itemIds = goldStandard
+      .filter((g) => !g.live_only)
+      .map((g) => g.content_item_id);
+    const { data, error } = await supabase
+      .from('content_items')
+      .select(
+        'id, primary_domain, primary_subtopic, secondary_domain, classification_confidence, ai_keywords',
+      )
+      .in('id', itemIds);
 
-      if (!url || !key) {
-        throw new Error(
-          'Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY for eval',
-        );
+    if (error) throw new Error(`DB fetch failed: ${error.message}`);
+
+    dbMap = new Map();
+    for (const row of data ?? []) {
+      dbMap.set(row.id as string, row as DbRow);
+    }
+  });
+
+  it('should meet minimum domain accuracy (>70%)', () => {
+    const evaluated = goldStandard.filter((g) => dbMap.has(g.content_item_id));
+    const correct = evaluated.filter(
+      (g) => dbMap.get(g.content_item_id)!.primary_domain === g.expected_domain,
+    );
+
+    const accuracy =
+      evaluated.length > 0 ? correct.length / evaluated.length : 0;
+    console.log(
+      `Domain accuracy: ${(accuracy * 100).toFixed(1)}% (${correct.length}/${evaluated.length})`,
+    );
+    expect(accuracy).toBeGreaterThan(0.7);
+  });
+
+  it('should meet minimum subtopic accuracy (>50%)', () => {
+    const evaluated = goldStandard.filter((g) => dbMap.has(g.content_item_id));
+    const correct = evaluated.filter(
+      (g) =>
+        dbMap.get(g.content_item_id)!.primary_subtopic === g.expected_subtopic,
+    );
+
+    const accuracy =
+      evaluated.length > 0 ? correct.length / evaluated.length : 0;
+    console.log(
+      `Subtopic accuracy: ${(accuracy * 100).toFixed(1)}% (${correct.length}/${evaluated.length})`,
+    );
+    expect(accuracy).toBeGreaterThan(0.5);
+  });
+
+  it('should have gold standard with adequate coverage', () => {
+    expect(goldStandard.length).toBeGreaterThanOrEqual(50);
+
+    // Check domain coverage
+    const domains = new Set(goldStandard.map((g) => g.expected_domain));
+    expect(domains.size).toBeGreaterThanOrEqual(7);
+  });
+
+  it('should report confidence calibration', () => {
+    const evaluated = goldStandard.filter((g) => dbMap.has(g.content_item_id));
+
+    let totalConfidence = 0;
+    let count = 0;
+
+    for (const gold of evaluated) {
+      const db = dbMap.get(gold.content_item_id)!;
+      if (db.classification_confidence !== null) {
+        totalConfidence += db.classification_confidence;
+        count++;
       }
+    }
 
-      const supabase = createClient(url, key, {
-        auth: { persistSession: false, autoRefreshToken: false },
-      });
+    const avgConfidence = count > 0 ? totalConfidence / count : 0;
+    console.log(
+      `Average classification confidence: ${(avgConfidence * 100).toFixed(1)}% (${count} items with confidence)`,
+    );
 
-      // Cached path: only items that exist in the DB. Live-only fixtures are
-      // intentionally skipped here — they are exercised by the live runner.
-      const itemIds = goldStandard
-        .filter((g) => !g.live_only)
-        .map((g) => g.content_item_id);
-      const { data, error } = await supabase
-        .from('content_items')
-        .select(
-          'id, primary_domain, primary_subtopic, secondary_domain, classification_confidence, ai_keywords',
-        )
-        .in('id', itemIds);
-
-      if (error) throw new Error(`DB fetch failed: ${error.message}`);
-
-      dbMap = new Map();
-      for (const row of data ?? []) {
-        dbMap.set(row.id as string, row as DbRow);
-      }
-    });
-
-    it('should meet minimum domain accuracy (>70%)', () => {
-      const evaluated = goldStandard.filter((g) =>
-        dbMap.has(g.content_item_id),
-      );
-      const correct = evaluated.filter(
-        (g) => dbMap.get(g.content_item_id)!.primary_domain === g.expected_domain,
-      );
-
-      const accuracy = evaluated.length > 0 ? correct.length / evaluated.length : 0;
-      console.log(
-        `Domain accuracy: ${(accuracy * 100).toFixed(1)}% (${correct.length}/${evaluated.length})`,
-      );
-      expect(accuracy).toBeGreaterThan(0.7);
-    });
-
-    it('should meet minimum subtopic accuracy (>50%)', () => {
-      const evaluated = goldStandard.filter((g) =>
-        dbMap.has(g.content_item_id),
-      );
-      const correct = evaluated.filter(
-        (g) =>
-          dbMap.get(g.content_item_id)!.primary_subtopic ===
-          g.expected_subtopic,
-      );
-
-      const accuracy = evaluated.length > 0 ? correct.length / evaluated.length : 0;
-      console.log(
-        `Subtopic accuracy: ${(accuracy * 100).toFixed(1)}% (${correct.length}/${evaluated.length})`,
-      );
-      expect(accuracy).toBeGreaterThan(0.5);
-    });
-
-    it('should have gold standard with adequate coverage', () => {
-      expect(goldStandard.length).toBeGreaterThanOrEqual(50);
-
-      // Check domain coverage
-      const domains = new Set(goldStandard.map((g) => g.expected_domain));
-      expect(domains.size).toBeGreaterThanOrEqual(7);
-    });
-
-    it('should report confidence calibration', () => {
-      const evaluated = goldStandard.filter((g) =>
-        dbMap.has(g.content_item_id),
-      );
-
-      let totalConfidence = 0;
-      let count = 0;
-
-      for (const gold of evaluated) {
-        const db = dbMap.get(gold.content_item_id)!;
-        if (db.classification_confidence !== null) {
-          totalConfidence += db.classification_confidence;
-          count++;
-        }
-      }
-
-      const avgConfidence = count > 0 ? totalConfidence / count : 0;
-      console.log(
-        `Average classification confidence: ${(avgConfidence * 100).toFixed(1)}% (${count} items with confidence)`,
-      );
-
-      // Log only — no threshold assertion for confidence calibration
-      expect(count).toBeGreaterThan(0);
-    });
-  },
-);
+    // Log only — no threshold assertion for confidence calibration
+    expect(count).toBeGreaterThan(0);
+  });
+});

@@ -535,32 +535,32 @@ describe('shouldExcludeEntity', () => {
         entity('Principle of Least Privilege', 'methodology'),
       ),
     ).toBe(true);
-    expect(
-      shouldExcludeEntity(entity('Defence in Depth', 'methodology')),
-    ).toBe(true);
+    expect(shouldExcludeEntity(entity('Defence in Depth', 'methodology'))).toBe(
+      true,
+    );
     expect(shouldExcludeEntity(entity('Zero Trust', 'framework'))).toBe(true);
   });
 
   it('excludes generic technology categories', () => {
-    expect(
-      shouldExcludeEntity(entity('cloud computing', 'technology')),
-    ).toBe(true);
+    expect(shouldExcludeEntity(entity('cloud computing', 'technology'))).toBe(
+      true,
+    );
     expect(
       shouldExcludeEntity(entity('artificial intelligence', 'technology')),
     ).toBe(true);
-    expect(
-      shouldExcludeEntity(entity('machine learning', 'technology')),
-    ).toBe(true);
+    expect(shouldExcludeEntity(entity('machine learning', 'technology'))).toBe(
+      true,
+    );
     expect(shouldExcludeEntity(entity('blockchain', 'technology'))).toBe(true);
   });
 
   it('excludes service tiers and generic descriptors', () => {
-    expect(
-      shouldExcludeEntity(entity('standard support', 'product')),
-    ).toBe(true);
-    expect(
-      shouldExcludeEntity(entity('premium support', 'product')),
-    ).toBe(true);
+    expect(shouldExcludeEntity(entity('standard support', 'product'))).toBe(
+      true,
+    );
+    expect(shouldExcludeEntity(entity('premium support', 'product'))).toBe(
+      true,
+    );
   });
 
   it('excludes programming languages as protocols', () => {
@@ -572,9 +572,7 @@ describe('shouldExcludeEntity', () => {
     expect(shouldExcludeEntity(entity('England', 'sector'))).toBe(true);
     expect(shouldExcludeEntity(entity('Wales', 'sector'))).toBe(true);
     expect(
-      shouldExcludeEntity(
-        entity('European Economic Area', 'sector'),
-      ),
+      shouldExcludeEntity(entity('European Economic Area', 'sector')),
     ).toBe(true);
   });
 

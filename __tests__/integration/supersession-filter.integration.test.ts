@@ -48,8 +48,7 @@ beforeAll(async () => {
     throw new Error(`Could not list users: ${userErr.message}`);
   }
 
-  testUserId =
-    userList.users.find((u) => u.email === adminEmail)?.id ?? null;
+  testUserId = userList.users.find((u) => u.email === adminEmail)?.id ?? null;
 
   if (!testUserId) {
     throw new Error(
@@ -182,14 +181,11 @@ describe('Supersession filter — hybrid_search', () => {
 
 describe('Supersession filter — search_for_bid_response', () => {
   it('default call hides the superseded row', async () => {
-    const { data, error } = await serviceClient.rpc(
-      'search_for_bid_response',
-      {
-        query_embedding: JSON.stringify(embedding),
-        query_text: UNIQUE_KEYWORD,
-        limit_count: 100,
-      },
-    );
+    const { data, error } = await serviceClient.rpc('search_for_bid_response', {
+      query_embedding: JSON.stringify(embedding),
+      query_text: UNIQUE_KEYWORD,
+      limit_count: 100,
+    });
 
     expect(error).toBeNull();
     const ids = (data as Array<{ id: string }>).map((r) => r.id);
@@ -199,15 +195,12 @@ describe('Supersession filter — search_for_bid_response', () => {
   }, 30_000);
 
   it('include_superseded=true surfaces the superseded row again', async () => {
-    const { data, error } = await serviceClient.rpc(
-      'search_for_bid_response',
-      {
-        query_embedding: JSON.stringify(embedding),
-        query_text: UNIQUE_KEYWORD,
-        limit_count: 100,
-        include_superseded: true,
-      },
-    );
+    const { data, error } = await serviceClient.rpc('search_for_bid_response', {
+      query_embedding: JSON.stringify(embedding),
+      query_text: UNIQUE_KEYWORD,
+      limit_count: 100,
+      include_superseded: true,
+    });
 
     expect(error).toBeNull();
     const ids = (data as Array<{ id: string }>).map((r) => r.id);

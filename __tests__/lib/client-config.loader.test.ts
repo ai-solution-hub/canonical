@@ -31,9 +31,7 @@ describe('loadBranding', () => {
   it('emits console.warn for KH default primary (below 3:1)', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     loadBranding('default');
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('[branding]'),
-    );
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[branding]'));
     warnSpy.mockRestore();
   });
 

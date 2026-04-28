@@ -61,7 +61,8 @@ describe('VALID_PUBLICATION_STATUSES', () => {
     // assignable to the generated column type. The generated type is
     // `string`, so this is a one-way check — but it ensures we never
     // accidentally widen the tuple beyond what the column accepts.
-    type ColumnType = Database['public']['Tables']['content_items']['Row']['publication_status'];
+    type ColumnType =
+      Database['public']['Tables']['content_items']['Row']['publication_status'];
     const sample = VALID_PUBLICATION_STATUSES[0] satisfies ColumnType;
     expect(typeof sample).toBe('string');
   });
@@ -91,19 +92,39 @@ describe('computeAllowedTransitions — full matrix (AC3.1, AC3.2)', () => {
     expected: readonly PublicationStatus[];
   }> = [
     // From draft
-    { currentStatus: 'draft', role: 'admin', expected: ['in_review', 'published'] },
+    {
+      currentStatus: 'draft',
+      role: 'admin',
+      expected: ['in_review', 'published'],
+    },
     { currentStatus: 'draft', role: 'editor', expected: ['in_review'] },
     { currentStatus: 'draft', role: 'viewer', expected: [] },
     // From in_review
-    { currentStatus: 'in_review', role: 'admin', expected: ['published', 'draft'] },
-    { currentStatus: 'in_review', role: 'editor', expected: ['published', 'draft'] },
+    {
+      currentStatus: 'in_review',
+      role: 'admin',
+      expected: ['published', 'draft'],
+    },
+    {
+      currentStatus: 'in_review',
+      role: 'editor',
+      expected: ['published', 'draft'],
+    },
     { currentStatus: 'in_review', role: 'viewer', expected: [] },
     // From published
-    { currentStatus: 'published', role: 'admin', expected: ['archived', 'draft'] },
+    {
+      currentStatus: 'published',
+      role: 'admin',
+      expected: ['archived', 'draft'],
+    },
     { currentStatus: 'published', role: 'editor', expected: [] },
     { currentStatus: 'published', role: 'viewer', expected: [] },
     // From archived
-    { currentStatus: 'archived', role: 'admin', expected: ['published', 'draft'] },
+    {
+      currentStatus: 'archived',
+      role: 'admin',
+      expected: ['published', 'draft'],
+    },
     { currentStatus: 'archived', role: 'editor', expected: [] },
     { currentStatus: 'archived', role: 'viewer', expected: [] },
   ];
@@ -118,7 +139,9 @@ describe('computeAllowedTransitions — full matrix (AC3.1, AC3.2)', () => {
 
   it('every spec-disallowed transition is absent from every role (AC3.2)', () => {
     // Spec §3.2 disallowed list — must be empty across ALL roles.
-    const disallowedPairs: ReadonlyArray<[PublicationStatus, PublicationStatus]> = [
+    const disallowedPairs: ReadonlyArray<
+      [PublicationStatus, PublicationStatus]
+    > = [
       ['draft', 'archived'],
       ['in_review', 'archived'],
       ['archived', 'in_review'],
@@ -142,18 +165,30 @@ describe('computeAllowedTransitions — specific role-gate ACs', () => {
 
   it('AC3.4: `draft → published` allowed for admin only (editor returns empty for that target)', () => {
     expect(computeAllowedTransitions('draft', 'admin')).toContain('published');
-    expect(computeAllowedTransitions('draft', 'editor')).not.toContain('published');
-    expect(computeAllowedTransitions('draft', 'viewer')).not.toContain('published');
+    expect(computeAllowedTransitions('draft', 'editor')).not.toContain(
+      'published',
+    );
+    expect(computeAllowedTransitions('draft', 'viewer')).not.toContain(
+      'published',
+    );
   });
 
   it('AC3.5: `published → archived` allowed for admin only', () => {
-    expect(computeAllowedTransitions('published', 'admin')).toContain('archived');
-    expect(computeAllowedTransitions('published', 'editor')).not.toContain('archived');
-    expect(computeAllowedTransitions('published', 'viewer')).not.toContain('archived');
+    expect(computeAllowedTransitions('published', 'admin')).toContain(
+      'archived',
+    );
+    expect(computeAllowedTransitions('published', 'editor')).not.toContain(
+      'archived',
+    );
+    expect(computeAllowedTransitions('published', 'viewer')).not.toContain(
+      'archived',
+    );
   });
 
   it('AC3.6: `archived → published` admin-only, plus `archived → draft` admin-only', () => {
-    expect(computeAllowedTransitions('archived', 'admin')).toContain('published');
+    expect(computeAllowedTransitions('archived', 'admin')).toContain(
+      'published',
+    );
     expect(computeAllowedTransitions('archived', 'admin')).toContain('draft');
     expect(computeAllowedTransitions('archived', 'editor')).toEqual([]);
     expect(computeAllowedTransitions('archived', 'viewer')).toEqual([]);
@@ -176,7 +211,9 @@ describe('applyTransitionSideEffects', () => {
   });
 
   describe('non-archive transitions — no archive-metadata mutation', () => {
-    const noArchiveTransitions: ReadonlyArray<[PublicationStatus, PublicationStatus]> = [
+    const noArchiveTransitions: ReadonlyArray<
+      [PublicationStatus, PublicationStatus]
+    > = [
       ['draft', 'in_review'],
       ['draft', 'published'],
       ['in_review', 'draft'],
@@ -242,7 +279,11 @@ describe('applyTransitionSideEffects', () => {
   });
 
   describe('un-archive transitions (AC3.6)', () => {
-    const unarchiveTargets: readonly PublicationStatus[] = ['published', 'draft', 'in_review'];
+    const unarchiveTargets: readonly PublicationStatus[] = [
+      'published',
+      'draft',
+      'in_review',
+    ];
 
     it.each(unarchiveTargets)(
       'archived → %s clears archived_at to null while preserving archived_by + archive_reason',

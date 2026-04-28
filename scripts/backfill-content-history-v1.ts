@@ -152,10 +152,7 @@ export function assertNotRetiredProject(url: string | undefined): void {
  *   SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<prod-key> \
  *     bun run scripts/backfill-content-history-v1.ts --env=prod
  */
-export function assertEnvFlag(
-  env: string,
-  url: string | undefined,
-): void {
+export function assertEnvFlag(env: string, url: string | undefined): void {
   if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
     console.error(
       `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
@@ -257,7 +254,8 @@ async function main() {
 
   // v1.1 W3e M-1 fix: prefer SUPABASE_URL (matches spec §7.1/§7.3 override pattern); fall back to
   // NEXT_PUBLIC_SUPABASE_URL when only the publishable-side is set.
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl =
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   assertEnvComplete(supabaseUrl, supabaseKey);
@@ -288,7 +286,9 @@ async function main() {
 
     const { data, error } = await supabase
       .from('content_items')
-      .select('id, title, content, brief, detail, reference, created_at, governance_review_status')
+      .select(
+        'id, title, content, brief, detail, reference, created_at, governance_review_status',
+      )
       .or('governance_review_status.is.null,governance_review_status.neq.draft')
       .not('title', 'like', '[E2E%')
       .not('title', 'like', '[SUPERSEDE%')
@@ -372,7 +372,10 @@ async function main() {
   const totalBatches = Math.ceil(candidates.length / args.batchSize);
 
   for (let b = 0; b < totalBatches; b++) {
-    const batch = candidates.slice(b * args.batchSize, (b + 1) * args.batchSize);
+    const batch = candidates.slice(
+      b * args.batchSize,
+      (b + 1) * args.batchSize,
+    );
     const rows = batch.map(buildHistoryRow);
 
     const { data, error } = await supabase
@@ -398,7 +401,9 @@ async function main() {
 
     const n = data?.length ?? batch.length;
     inserted += n;
-    console.log(`[batch ${b + 1}/${totalBatches}] Inserted ${n} v1 history rows`);
+    console.log(
+      `[batch ${b + 1}/${totalBatches}] Inserted ${n} v1 history rows`,
+    );
   }
 
   console.log();

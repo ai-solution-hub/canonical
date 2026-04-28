@@ -80,10 +80,9 @@ describe('useDebouncedPreview', () => {
   it('debounces at the configured interval (300ms default)', async () => {
     const { Wrapper } = createQueryWrapper();
 
-    renderHook(
-      () => useDebouncedPreview('risk assessment'),
-      { wrapper: Wrapper },
-    );
+    renderHook(() => useDebouncedPreview('risk assessment'), {
+      wrapper: Wrapper,
+    });
 
     // No fetch should have been called immediately
     expect(mockFetch).not.toHaveBeenCalled();
@@ -159,10 +158,9 @@ describe('useDebouncedPreview', () => {
   it('uses custom minLength', async () => {
     const { Wrapper } = createQueryWrapper();
 
-    renderHook(
-      () => useDebouncedPreview('ri', { minLength: 2 }),
-      { wrapper: Wrapper },
-    );
+    renderHook(() => useDebouncedPreview('ri', { minLength: 2 }), {
+      wrapper: Wrapper,
+    });
 
     await advanceAndFlush(350);
 
@@ -232,12 +230,20 @@ describe('useDebouncedPreview', () => {
 
   it('returns cached results without a second fetch for same query within staleTime', async () => {
     const mockResults = [
-      { id: 'item-1', title: 'Risk Guide', content_type: 'article', primary_domain: 'governance' },
+      {
+        id: 'item-1',
+        title: 'Risk Guide',
+        content_type: 'article',
+        primary_domain: 'governance',
+      },
     ];
     mockFetch.mockResolvedValue(createPreviewResponse(mockResults));
 
     // Shared wrapper with long gcTime + staleTime so cache persists across unmount/remount
-    const { Wrapper } = createQueryWrapper({ staleTime: 30_000, gcTime: 300_000 });
+    const { Wrapper } = createQueryWrapper({
+      staleTime: 30_000,
+      gcTime: 300_000,
+    });
 
     // First render — fetches
     const { result, unmount } = renderHook(

@@ -58,7 +58,9 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function mockStatusResponse(data: typeof DRIFT_RESPONSE | typeof IN_SYNC_RESPONSE) {
+function mockStatusResponse(
+  data: typeof DRIFT_RESPONSE | typeof IN_SYNC_RESPONSE,
+) {
   fetchMock.mockImplementation((url: string) => {
     if (url === '/api/admin/taxonomy-sync/status') {
       return Promise.resolve({
@@ -159,8 +161,7 @@ describe('TaxonomyDriftBanner', () => {
       if (url === '/api/admin/taxonomy-sync' && init?.method === 'POST') {
         return Promise.resolve({
           ok: true,
-          json: () =>
-            Promise.resolve({ dispatched: true, run_id: 'run-1' }),
+          json: () => Promise.resolve({ dispatched: true, run_id: 'run-1' }),
         });
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });

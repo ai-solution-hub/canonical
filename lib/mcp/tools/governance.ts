@@ -396,7 +396,7 @@ export async function registerGovernanceTools(
               //     governance_review_status clear (matches T8a draft writer
               //     so publish-then-draft round-trips correctly).
               //   - `'published'` / `'in_review'`: no `publication_status`
-                // mutation — clear governance_review_status only (legacy
+              // mutation — clear governance_review_status only (legacy
               //     change-management semantics).
               if (row.publication_status === 'archived') {
                 items.push({

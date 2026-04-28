@@ -232,9 +232,7 @@ describe('BidCreationWizard', () => {
 
     await user.type(screen.getByLabelText(/Bid Name/), 'Quick Bid');
     await user.type(screen.getByLabelText(/Buyer/), 'HMRC');
-    await user.click(
-      screen.getByRole('button', { name: /Start Blank Bid/ }),
-    );
+    await user.click(screen.getByRole('button', { name: /Start Blank Bid/ }));
 
     await waitFor(() => {
       expect(onCreated).toHaveBeenCalledWith(created);
@@ -254,9 +252,7 @@ describe('BidCreationWizard', () => {
     await user.type(screen.getByLabelText(/Bid Name/), 'Blank Path');
     await user.type(screen.getByLabelText(/Buyer/), 'MOD');
 
-    await user.click(
-      screen.getByRole('button', { name: /Start Blank Bid/ }),
-    );
+    await user.click(screen.getByRole('button', { name: /Start Blank Bid/ }));
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledOnce();

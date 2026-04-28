@@ -60,6 +60,20 @@ function loadEnv() {
 
 loadEnv();
 
+// ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
+
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+
+function assertEnvFlag(env: string, url: string | undefined): void {
+  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+    console.error(
+      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/backfill-canonicalise-ai-keywords.ts --env=prod`,
+    );
+    process.exit(1);
+  }
+}
+
 // ── Normalisation logic (exported for testing) ─────────────────────────────
 
 /**
@@ -92,6 +106,7 @@ async function main() {
       apply: { type: 'boolean', default: false },
       limit: { type: 'string', default: '' },
       help: { type: 'boolean', default: false },
+      env: { type: 'string', default: '' },
     },
     strict: true,
   });
@@ -103,6 +118,10 @@ Usage: bun run scripts/backfill-canonicalise-ai-keywords.ts [options]
 Options:
   --apply       Write changes to the database (default: dry run)
   --limit N     Process at most N rows
+  --env=prod    Asserts SUPABASE_URL points at current prod
+                ('${PROD_PROJECT_REF}'). Override invocation:
+                SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key>
+                bun run scripts/backfill-canonicalise-ai-keywords.ts --env=prod
   --help        Show this help message
 
 Examples:
@@ -116,20 +135,29 @@ Examples:
   const DRY_RUN = !values.apply;
   const LIMIT = values.limit ? parseInt(values.limit, 10) : 0;
 
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+  const supabaseUrl =
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_PUBLISHABLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
-    console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY environment variables.');
+    console.error(
+      'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY environment variables.',
+    );
     process.exit(1);
   }
+
+  assertEnvFlag(values.env ?? '', supabaseUrl);
 
   const supabase = createClient<Database>(supabaseUrl, supabaseKey);
 
   console.log('='.repeat(60));
   console.log('BACKFILL: Canonicalise ai_keywords');
   console.log('='.repeat(60));
-  console.log(`  Mode:  ${DRY_RUN ? 'DRY RUN (no writes)' : 'APPLY (writing changes)'}`);
+  console.log(
+    `  Mode:  ${DRY_RUN ? 'DRY RUN (no writes)' : 'APPLY (writing changes)'}`,
+  );
   if (LIMIT > 0) console.log(`  Limit: ${LIMIT} rows`);
   console.log();
 
@@ -206,7 +234,9 @@ Examples:
   console.log('BACKFILL COMPLETE');
   console.log('='.repeat(60));
   console.log(`  Rows scanned:   ${rows.length}`);
-  console.log(`  Rows updated:   ${updatedCount}${DRY_RUN ? ' (dry run — no writes)' : ''}`);
+  console.log(
+    `  Rows updated:   ${updatedCount}${DRY_RUN ? ' (dry run — no writes)' : ''}`,
+  );
   console.log(`  Rows skipped:   ${skippedCount}`);
   if (errorCount > 0) {
     console.log(`  Errors:         ${errorCount}`);

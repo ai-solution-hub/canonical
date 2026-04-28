@@ -98,7 +98,8 @@ export const STARTER_PACKS: StarterPack[] = [
         url: 'https://news.google.com/rss/search?q=site:tes.com+education+news&hl=en-GB&gl=GB&ceid=GB:en',
         source_type: 'rss',
         polling_interval_minutes: 60,
-        notes: 'TES education news via Google News — native RSS feed discontinued',
+        notes:
+          'TES education news via Google News — native RSS feed discontinued',
       },
     ],
   },
@@ -136,7 +137,8 @@ export const STARTER_PACKS: StarterPack[] = [
         url: 'https://www.gov.uk/search/news-and-communications.atom?organisations%5B%5D=care-quality-commission&content_purpose_supergroup%5B%5D=news_stories',
         source_type: 'rss',
         polling_interval_minutes: 120,
-        notes: 'Atom feed from GOV.UK — CQC news stories filtered for safeguarding relevance',
+        notes:
+          'Atom feed from GOV.UK — CQC news stories filtered for safeguarding relevance',
       },
       {
         name: 'LADO Updates (Google News)',
@@ -166,7 +168,8 @@ export const STARTER_PACKS: StarterPack[] = [
         url: 'https://www.gov.uk/search/news-and-communications.atom?organisations%5B%5D=care-quality-commission&content_purpose_supergroup%5B%5D=press_releases_and_notices',
         source_type: 'rss',
         polling_interval_minutes: 120,
-        notes: 'Atom feed from GOV.UK — CQC press releases and official notices',
+        notes:
+          'Atom feed from GOV.UK — CQC press releases and official notices',
       },
       {
         name: 'CQC Inspections (Google News)',
@@ -188,7 +191,8 @@ export const STARTER_PACKS: StarterPack[] = [
         url: 'https://www.lgcplus.com/feed/',
         source_type: 'rss',
         polling_interval_minutes: 60,
-        notes: 'Local government sector news — cross-sector relevance for health and social care',
+        notes:
+          'Local government sector news — cross-sector relevance for health and social care',
       },
     ],
   },

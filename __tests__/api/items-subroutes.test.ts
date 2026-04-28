@@ -38,13 +38,18 @@ vi.mock('@/lib/rate-limit', () => ({
 }));
 
 vi.mock('@/lib/validation/layer-schemas', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/validation/layer-schemas')>(
-    '@/lib/validation/layer-schemas',
-  );
+  const actual = await vi.importActual<
+    typeof import('@/lib/validation/layer-schemas')
+  >('@/lib/validation/layer-schemas');
   return {
     ...actual,
     fetchActiveLayerKeys: vi.fn(() =>
-      Promise.resolve(['sales_brief', 'bid_detail', 'company_reference', 'research']),
+      Promise.resolve([
+        'sales_brief',
+        'bid_detail',
+        'company_reference',
+        'research',
+      ]),
     ),
   };
 });
@@ -835,7 +840,8 @@ describe('PATCH /api/items/[id]/metadata', () => {
   it('returns 503 when layer vocabulary is unavailable', async () => {
     configureRole(mockSupabase, 'editor');
 
-    const { fetchActiveLayerKeys } = await import('@/lib/validation/layer-schemas');
+    const { fetchActiveLayerKeys } =
+      await import('@/lib/validation/layer-schemas');
     vi.mocked(fetchActiveLayerKeys).mockRejectedValueOnce(
       new Error('Layer vocabulary fetch failed: connection refused'),
     );

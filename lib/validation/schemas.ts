@@ -387,7 +387,8 @@ export const ItemUpdateBodySchema = z
       } else if (typeof data.value !== 'string') {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: 'next_review_date value must be an ISO-8601 date string or null',
+          message:
+            'next_review_date value must be an ISO-8601 date string or null',
           path: ['value'],
         });
       } else {
@@ -404,7 +405,8 @@ export const ItemUpdateBodySchema = z
         if (!roundTripValid) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: 'next_review_date value must be a valid ISO-8601 calendar date (YYYY-MM-DD)',
+            message:
+              'next_review_date value must be a valid ISO-8601 calendar date (YYYY-MM-DD)',
             path: ['value'],
           });
         }
@@ -421,7 +423,7 @@ export const ItemUpdateBodySchema = z
       if (data.value === null) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "publication_status cannot be null",
+          message: 'publication_status cannot be null',
           path: ['value'],
         });
       } else if (
@@ -446,7 +448,8 @@ export const ItemUpdateBodySchema = z
       } else if (typeof data.value !== 'string') {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: 'review_cadence_days value must be an integer string or null',
+          message:
+            'review_cadence_days value must be an integer string or null',
           path: ['value'],
         });
       } else {
@@ -961,7 +964,10 @@ export const CompanyProfileUpdateSchema = z.object({
     .optional(),
   description: z.string().max(2000).optional(),
   website_url: z.string().url().optional().or(z.literal('')),
-  sectors: z.array(z.string()).min(1, 'At least one sector is required').optional(),
+  sectors: z
+    .array(z.string())
+    .min(1, 'At least one sector is required')
+    .optional(),
   services: z.array(z.string()).optional(),
   certifications: z.array(z.string()).optional(),
   geographic_scope: z.array(z.string()).optional(),
@@ -976,7 +982,10 @@ export const CompanyProfileUpdateSchema = z.object({
     .optional(),
   target_customers: z.string().max(1000).optional(),
   value_proposition: z.string().max(2000).optional(),
-  key_topics: z.array(z.string()).min(1, 'At least one key topic is required').optional(),
+  key_topics: z
+    .array(z.string())
+    .min(1, 'At least one key topic is required')
+    .optional(),
 });
 
 // ──────────────────────────────────────────

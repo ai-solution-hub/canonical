@@ -7,7 +7,12 @@ import {
   guideSectionsReorderSchema,
 } from '@/lib/validation/guide-schemas';
 
-const TEST_LAYER_KEYS = ['sales_brief', 'bid_detail', 'company_reference', 'research'];
+const TEST_LAYER_KEYS = [
+  'sales_brief',
+  'bid_detail',
+  'company_reference',
+  'research',
+];
 
 describe('guideCreateSchema', () => {
   it('accepts valid guide input', () => {
@@ -193,7 +198,10 @@ describe('buildGuideSectionSchema', () => {
   });
 
   it('accepts a custom layer key added by admin', () => {
-    const schema = buildGuideSectionSchema([...TEST_LAYER_KEYS, 'custom_new_layer']);
+    const schema = buildGuideSectionSchema([
+      ...TEST_LAYER_KEYS,
+      'custom_new_layer',
+    ]);
     const result = schema.safeParse({
       section_name: 'Custom Section',
       expected_layer: 'custom_new_layer',
@@ -270,7 +278,10 @@ describe('buildGuideSectionUpdateSchema', () => {
   });
 
   it('accepts a custom layer key added by admin', () => {
-    const schema = buildGuideSectionUpdateSchema([...TEST_LAYER_KEYS, 'admin_added']);
+    const schema = buildGuideSectionUpdateSchema([
+      ...TEST_LAYER_KEYS,
+      'admin_added',
+    ]);
     const result = schema.safeParse({
       expected_layer: 'admin_added',
     });

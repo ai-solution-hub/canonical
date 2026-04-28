@@ -51,12 +51,9 @@ beforeAll(async () => {
 
 describe('get_user_display_names — live SQL function', () => {
   it('returns one row per input UUID, preserving unknowns (C-1 fix)', async () => {
-    const { data, error } = await serviceClient.rpc(
-      'get_user_display_names',
-      {
-        user_ids: [PIPELINE_UUID, TEST_USER_1, UNKNOWN_UUID],
-      },
-    );
+    const { data, error } = await serviceClient.rpc('get_user_display_names', {
+      user_ids: [PIPELINE_UUID, TEST_USER_1, UNKNOWN_UUID],
+    });
 
     expect(error).toBeNull();
     expect(data).not.toBeNull();
@@ -70,10 +67,9 @@ describe('get_user_display_names — live SQL function', () => {
   });
 
   it('labels the pipeline service account "Pipeline (system)"', async () => {
-    const { data, error } = await serviceClient.rpc(
-      'get_user_display_names',
-      { user_ids: [PIPELINE_UUID] },
-    );
+    const { data, error } = await serviceClient.rpc('get_user_display_names', {
+      user_ids: [PIPELINE_UUID],
+    });
 
     expect(error).toBeNull();
     expect(data).not.toBeNull();
@@ -86,10 +82,9 @@ describe('get_user_display_names — live SQL function', () => {
   });
 
   it('resolves TEST_USER_1 via the user_roles → raw_user_meta_data → email COALESCE chain', async () => {
-    const { data, error } = await serviceClient.rpc(
-      'get_user_display_names',
-      { user_ids: [TEST_USER_1] },
-    );
+    const { data, error } = await serviceClient.rpc('get_user_display_names', {
+      user_ids: [TEST_USER_1],
+    });
 
     expect(error).toBeNull();
     expect(data).not.toBeNull();
@@ -105,10 +100,9 @@ describe('get_user_display_names — live SQL function', () => {
   });
 
   it('returns "A team member" for an unknown UUID', async () => {
-    const { data, error } = await serviceClient.rpc(
-      'get_user_display_names',
-      { user_ids: [UNKNOWN_UUID] },
-    );
+    const { data, error } = await serviceClient.rpc('get_user_display_names', {
+      user_ids: [UNKNOWN_UUID],
+    });
 
     expect(error).toBeNull();
     expect(data).not.toBeNull();
@@ -121,10 +115,9 @@ describe('get_user_display_names — live SQL function', () => {
   });
 
   it('returns an empty array for an empty input array', async () => {
-    const { data, error } = await serviceClient.rpc(
-      'get_user_display_names',
-      { user_ids: [] },
-    );
+    const { data, error } = await serviceClient.rpc('get_user_display_names', {
+      user_ids: [],
+    });
 
     expect(error).toBeNull();
     expect(data).toEqual([]);
@@ -136,18 +129,17 @@ describe('get_user_display_names — live SQL function', () => {
     // `unnest(user_ids)`, so a caller passing duplicates gets duplicate
     // rows. This is intentional: we move the dedup responsibility to
     // the wrapper, where it's cheap and testable in isolation.
-    const { data, error } = await serviceClient.rpc(
-      'get_user_display_names',
-      { user_ids: [PIPELINE_UUID, PIPELINE_UUID, TEST_USER_1] },
-    );
+    const { data, error } = await serviceClient.rpc('get_user_display_names', {
+      user_ids: [PIPELINE_UUID, PIPELINE_UUID, TEST_USER_1],
+    });
 
     expect(error).toBeNull();
     expect(data).not.toBeNull();
     expect(data!.length).toBe(3);
     const pipelineRows = data!.filter((r) => r.user_id === PIPELINE_UUID);
     expect(pipelineRows.length).toBe(2);
-    expect(pipelineRows.every((r) => r.display_name === 'Pipeline (system)')).toBe(
-      true,
-    );
+    expect(
+      pipelineRows.every((r) => r.display_name === 'Pipeline (system)'),
+    ).toBe(true);
   });
 });

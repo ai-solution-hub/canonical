@@ -199,8 +199,7 @@ async function runTransition({
   const itemRow = {
     id: TEST_ITEM_ID,
     publication_status: fromStatus,
-    archived_at:
-      fromStatus === 'archived' ? '2026-01-01T00:00:00.000Z' : null,
+    archived_at: fromStatus === 'archived' ? '2026-01-01T00:00:00.000Z' : null,
     archived_by: fromStatus === 'archived' ? TEST_USER_ID : null,
     archive_reason: fromStatus === 'archived' ? 'previously archived' : null,
     title: 'Test item',
@@ -359,21 +358,18 @@ describe('update_publication_status — admin role (all transitions)', () => {
     ['archived', 'draft'],
   ];
 
-  it.each(adminAllowed)(
-    'admin can transition %s -> %s',
-    async (from, to) => {
-      const { res, updatePayload } = await runTransition({
-        role: 'admin',
-        fromStatus: from,
-        newStatus: to,
-      });
+  it.each(adminAllowed)('admin can transition %s -> %s', async (from, to) => {
+    const { res, updatePayload } = await runTransition({
+      role: 'admin',
+      fromStatus: from,
+      newStatus: to,
+    });
 
-      expect(res.isError).toBeUndefined();
-      expect(res.structuredContent?.previous_status).toBe(from);
-      expect(res.structuredContent?.new_status).toBe(to);
-      expect(updatePayload?.publication_status).toBe(to);
-    },
-  );
+    expect(res.isError).toBeUndefined();
+    expect(res.structuredContent?.previous_status).toBe(from);
+    expect(res.structuredContent?.new_status).toBe(to);
+    expect(updatePayload?.publication_status).toBe(to);
+  });
 });
 
 describe('update_publication_status — editor role (restricted matrix)', () => {

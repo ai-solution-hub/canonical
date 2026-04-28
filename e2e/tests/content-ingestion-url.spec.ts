@@ -143,7 +143,10 @@ async function deleteByUrl(url: string): Promise<void> {
       .from('content_history')
       .delete()
       .eq('content_item_id', item.id as string);
-    await svc.from('content_items').delete().eq('id', item.id as string);
+    await svc
+      .from('content_items')
+      .delete()
+      .eq('id', item.id as string);
   }
 }
 

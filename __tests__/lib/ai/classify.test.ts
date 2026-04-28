@@ -42,9 +42,7 @@ describe('deriveHolderMetadata', () => {
   const selfOrgName = BRANDING.organisationName;
 
   it('sets holder = "self" when holds source matches client org name', () => {
-    const rows: EntityMentionRow[] = [
-      row({ canonical_name: 'iso 27001' }),
-    ];
+    const rows: EntityMentionRow[] = [row({ canonical_name: 'iso 27001' })];
     const rels: ExtractedRelationship[] = [
       { source: selfOrgName, relationship: 'holds', target: 'ISO 27001' },
     ];
@@ -56,11 +54,13 @@ describe('deriveHolderMetadata', () => {
   });
 
   it('sets holder = "supplier" with supplier_name when source differs from client org', () => {
-    const rows: EntityMentionRow[] = [
-      row({ canonical_name: 'iso 27001' }),
-    ];
+    const rows: EntityMentionRow[] = [row({ canonical_name: 'iso 27001' })];
     const rels: ExtractedRelationship[] = [
-      { source: 'example-datacentre Europe', relationship: 'holds', target: 'ISO 27001' },
+      {
+        source: 'example-datacentre Europe',
+        relationship: 'holds',
+        target: 'ISO 27001',
+      },
     ];
 
     const count = deriveHolderMetadata(rows, rels);
@@ -73,9 +73,7 @@ describe('deriveHolderMetadata', () => {
   });
 
   it('leaves metadata unset when no matching holds relationship exists', () => {
-    const rows: EntityMentionRow[] = [
-      row({ canonical_name: 'iso 27001' }),
-    ];
+    const rows: EntityMentionRow[] = [row({ canonical_name: 'iso 27001' })];
     const rels: ExtractedRelationship[] = [
       { source: selfOrgName, relationship: 'complies_with', target: 'GDPR' },
     ];
@@ -124,9 +122,7 @@ describe('deriveHolderMetadata', () => {
   });
 
   it('resolves target via canonicalise + resolveAlias (case-insensitive)', () => {
-    const rows: EntityMentionRow[] = [
-      row({ canonical_name: 'iso 27001' }),
-    ];
+    const rows: EntityMentionRow[] = [row({ canonical_name: 'iso 27001' })];
     // Use non-canonical casing in the relationship target
     const rels: ExtractedRelationship[] = [
       { source: selfOrgName, relationship: 'holds', target: 'iso27001' },
@@ -140,9 +136,7 @@ describe('deriveHolderMetadata', () => {
   });
 
   it('returns 0 for an empty relationships array', () => {
-    const rows: EntityMentionRow[] = [
-      row({ canonical_name: 'iso 27001' }),
-    ];
+    const rows: EntityMentionRow[] = [row({ canonical_name: 'iso 27001' })];
 
     const count = deriveHolderMetadata(rows, []);
 
@@ -156,9 +150,7 @@ describe('deriveHolderMetadata', () => {
   // ---------------------------------------------------------------------
 
   it('accepts `complies_with` as holds-synonym for cert targets (self)', () => {
-    const rows: EntityMentionRow[] = [
-      row({ canonical_name: 'iso 27001' }),
-    ];
+    const rows: EntityMentionRow[] = [row({ canonical_name: 'iso 27001' })];
     const rels: ExtractedRelationship[] = [
       {
         source: selfOrgName,
@@ -263,9 +255,7 @@ describe('deriveHolderMetadata', () => {
     // Two rels for ISO 27001: a canonical `holds` (self) + a synonym
     // `complies_with` (different source). Holds must win — synonyms are
     // only a fallback when no canonical holds exists.
-    const rows: EntityMentionRow[] = [
-      row({ canonical_name: 'iso 27001' }),
-    ];
+    const rows: EntityMentionRow[] = [row({ canonical_name: 'iso 27001' })];
     const rels: ExtractedRelationship[] = [
       { source: selfOrgName, relationship: 'holds', target: 'ISO 27001' },
       {
@@ -284,9 +274,7 @@ describe('deriveHolderMetadata', () => {
   it('ignores non-synonym rel_types for cert targets', () => {
     // `delivers_to`, `uses`, `supersedes` etc. must never derive holder
     // metadata regardless of target.
-    const rows: EntityMentionRow[] = [
-      row({ canonical_name: 'iso 27001' }),
-    ];
+    const rows: EntityMentionRow[] = [row({ canonical_name: 'iso 27001' })];
     const rels: ExtractedRelationship[] = [
       { source: selfOrgName, relationship: 'references', target: 'ISO 27001' },
       { source: selfOrgName, relationship: 'requires', target: 'ISO 27001' },
@@ -299,9 +287,7 @@ describe('deriveHolderMetadata', () => {
   });
 
   it('synonym resolves target via canonicalise + resolveAlias', () => {
-    const rows: EntityMentionRow[] = [
-      row({ canonical_name: 'iso 27001' }),
-    ];
+    const rows: EntityMentionRow[] = [row({ canonical_name: 'iso 27001' })];
     const rels: ExtractedRelationship[] = [
       { source: selfOrgName, relationship: 'evidences', target: 'iso27001' },
     ];

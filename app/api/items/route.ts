@@ -148,7 +148,9 @@ export async function POST(request: NextRequest) {
         ...(secondary_subtopic && { secondary_subtopic }),
         ...(priority && { priority }),
         ...(user_tags?.length && { user_tags }),
-        ...(normalisedAiKeywords?.length && { ai_keywords: normalisedAiKeywords }),
+        ...(normalisedAiKeywords?.length && {
+          ai_keywords: normalisedAiKeywords,
+        }),
         ...(author_name && { author_name }),
         ...(source_url && { source_url }),
         ...(brief && { brief }),
@@ -214,8 +216,7 @@ export async function POST(request: NextRequest) {
     // legacy governance_review_status='draft' read remains until Phase 1f
     // NULLs the legacy column.
     const isDraft =
-      publication_status === 'draft' ||
-      governance_review_status === 'draft';
+      publication_status === 'draft' || governance_review_status === 'draft';
     if (!isDraft) {
       try {
         const { regenerateChunks } = await import('@/lib/content/chunk-store');
@@ -227,9 +228,7 @@ export async function POST(request: NextRequest) {
           content,
         );
         if (chunkResult.errors.length > 0) {
-          warnings.push(
-            `Chunking: ${chunkResult.errors.length} error(s)`,
-          );
+          warnings.push(`Chunking: ${chunkResult.errors.length} error(s)`);
         }
       } catch (chunkErr) {
         console.error(`Chunking failed for ${newItem.id}:`, chunkErr);

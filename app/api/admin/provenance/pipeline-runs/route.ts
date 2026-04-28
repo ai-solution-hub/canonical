@@ -108,9 +108,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const listResult = await tryQuery(listQuery, 'provenance.pipelineRuns.list');
+    const listResult = await tryQuery(
+      listQuery,
+      'provenance.pipelineRuns.list',
+    );
 
-    let rows: typeof listResult extends { ok: true; data: infer D } ? D : never[] = [];
+    let rows: typeof listResult extends { ok: true; data: infer D }
+      ? D
+      : never[] = [];
     let hasMore = false;
     let nextCursor: { started_at: string; id: string } | null = null;
 
@@ -183,10 +188,7 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     return NextResponse.json(
       {
-        error: safeErrorMessage(
-          err,
-          'Failed to load pipeline runs',
-        ),
+        error: safeErrorMessage(err, 'Failed to load pipeline runs'),
       },
       { status: 500 },
     );

@@ -578,7 +578,11 @@ export function LibraryContent() {
             icon={<BookOpen className="size-8" aria-hidden />}
             title="Your Q&A library is empty"
             description="Import Q&A pairs to build your bid response library."
-            primaryCta={canEdit ? { label: 'Import Q&A pack', href: '/item/new?tab=batch' } : undefined}
+            primaryCta={
+              canEdit
+                ? { label: 'Import Q&A pack', href: '/item/new?tab=batch' }
+                : undefined
+            }
             headingLevel="h3"
           />
         ) : groupedItems ? (

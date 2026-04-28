@@ -58,31 +58,25 @@ function TabPlaceholder({ label }: { label: string }) {
 
 const PerItemTab = dynamic(
   () =>
-    import('@/components/provenance/per-item-tab').catch(
-      () => ({
-        default: () => <TabPlaceholder label="Per-item" />,
-      }),
-    ),
+    import('@/components/provenance/per-item-tab').catch(() => ({
+      default: () => <TabPlaceholder label="Per-item" />,
+    })),
   { loading: () => <TabSkeleton /> },
 );
 
 const PipelineHealthTab = dynamic(
   () =>
-    import('@/components/provenance/pipeline-health-tab').catch(
-      () => ({
-        default: () => <TabPlaceholder label="Pipeline Health" />,
-      }),
-    ),
+    import('@/components/provenance/pipeline-health-tab').catch(() => ({
+      default: () => <TabPlaceholder label="Pipeline Health" />,
+    })),
   { loading: () => <TabSkeleton /> },
 );
 
 const AuditTab = dynamic(
   () =>
-    import('@/components/provenance/audit-tab').catch(
-      () => ({
-        default: () => <TabPlaceholder label="Audit" />,
-      }),
-    ),
+    import('@/components/provenance/audit-tab').catch(() => ({
+      default: () => <TabPlaceholder label="Audit" />,
+    })),
   { loading: () => <TabSkeleton /> },
 );
 

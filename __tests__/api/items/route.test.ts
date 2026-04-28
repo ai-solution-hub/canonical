@@ -6,9 +6,7 @@
  * Spec: docs/specs/p0-tag-canonicalisation-classify-time-spec.md ss10.6 EP3.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import {
-  createMockSupabaseClient,
-} from '../../helpers/mock-supabase';
+import { createMockSupabaseClient } from '../../helpers/mock-supabase';
 import { createTestRequest } from '../../helpers/mock-next';
 
 // ---------------------------------------------------------------------------
@@ -145,9 +143,8 @@ beforeEach(() => {
     error: null,
   });
   mockSupabase._chain.then.mockReset();
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 });
 

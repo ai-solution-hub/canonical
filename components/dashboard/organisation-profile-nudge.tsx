@@ -84,7 +84,10 @@ export function OrganisationProfileNudge({
       data-testid="organisation-profile-nudge"
     >
       <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent">
-        <Building2 className="size-5 text-accent-foreground" aria-hidden="true" />
+        <Building2
+          className="size-5 text-accent-foreground"
+          aria-hidden="true"
+        />
       </div>
 
       <div className="min-w-0 flex-1">

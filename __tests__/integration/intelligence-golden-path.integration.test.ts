@@ -85,10 +85,7 @@ afterAll(async () => {
 
     // 3. feed_sources (references workspaces)
     if (feedSourceId) {
-      await serviceClient
-        .from('feed_sources')
-        .delete()
-        .eq('id', feedSourceId);
+      await serviceClient.from('feed_sources').delete().eq('id', feedSourceId);
     }
 
     // 4. Entity data for content items (CASCADE from content_item deletion,
@@ -176,458 +173,456 @@ afterAll(async () => {
 // Golden Path Sequential Test Suite
 // ---------------------------------------------------------------------------
 
-describe.skipIf(!ENABLED)(
-  'SI Golden Path Real DB Integration',
-  () => {
-    // -----------------------------------------------------------------------
-    // Step 1: Create intelligence workspace
-    // -----------------------------------------------------------------------
-    it('Step 1: Create intelligence workspace', async () => {
+describe.skipIf(!ENABLED)('SI Golden Path Real DB Integration', () => {
+  // -----------------------------------------------------------------------
+  // Step 1: Create intelligence workspace
+  // -----------------------------------------------------------------------
+  it('Step 1: Create intelligence workspace', async () => {
+    const { data, error } = await serviceClient
+      .from('workspaces')
+      .insert({
+        name: `${TEST_PREFIX} Test Intelligence Workspace`,
+        type: 'intelligence',
+        domain_metadata: {},
+      })
+      .select('id')
+      .single();
+
+    expect(error).toBeNull();
+    expect(data).toBeTruthy();
+    expect(data!.id).toBeTruthy();
+
+    workspaceId = data!.id;
+
+    // Re-query to confirm workspace exists with correct type
+    const { data: verify, error: verifyErr } = await serviceClient
+      .from('workspaces')
+      .select('id, name, type')
+      .eq('id', workspaceId)
+      .single();
+
+    expect(verifyErr).toBeNull();
+    expect(verify?.type).toBe('intelligence');
+    expect(verify?.name).toContain(TEST_PREFIX);
+  });
+
+  // -----------------------------------------------------------------------
+  // Step 2: Add feed source
+  // -----------------------------------------------------------------------
+  it('Step 2: Add feed source linked to workspace', async () => {
+    expect(workspaceId).toBeTruthy();
+
+    const { data, error } = await serviceClient
+      .from('feed_sources')
+      .insert({
+        workspace_id: workspaceId!,
+        name: `${TEST_PREFIX} Test RSS Feed`,
+        url: 'https://example.com/test-feed.xml',
+        source_type: 'rss',
+        polling_interval_minutes: 60,
+      })
+      .select(
+        'id, workspace_id, consecutive_failures, article_count, is_active',
+      )
+      .single();
+
+    expect(error).toBeNull();
+    expect(data).toBeTruthy();
+    expect(data!.id).toBeTruthy();
+
+    feedSourceId = data!.id;
+
+    // Verify defaults
+    expect(data!.workspace_id).toBe(workspaceId);
+    expect(data!.consecutive_failures).toBe(0);
+    expect(data!.article_count).toBe(0);
+    expect(data!.is_active).toBe(true);
+  });
+
+  // -----------------------------------------------------------------------
+  // Step 3: Simulate article ingestion (direct insert)
+  // -----------------------------------------------------------------------
+  it('Step 3: Insert 3 feed articles (2 passed, 1 filtered)', async () => {
+    expect(workspaceId).toBeTruthy();
+    expect(feedSourceId).toBeTruthy();
+
+    const articles = [
+      {
+        workspace_id: workspaceId!,
+        feed_source_id: feedSourceId!,
+        external_url: `https://example.com/${TEST_PREFIX}/article-1`,
+        title: `${TEST_PREFIX} UK Government Cyber Security Strategy 2026`,
+        raw_content:
+          'The UK Government has published its updated Cyber Security Strategy for 2026. ' +
+          'The strategy outlines new requirements for public sector organisations to achieve ' +
+          'Cyber Essentials Plus certification by March 2027.',
+        relevance_score: 0.85,
+        relevance_category: 'high' as const,
+        relevance_reasoning: 'Directly relevant to security sector',
+        matched_categories: ['cyber security', 'government policy'],
+        passed: true,
+        published_at: new Date().toISOString(),
+      },
+      {
+        workspace_id: workspaceId!,
+        feed_source_id: feedSourceId!,
+        external_url: `https://example.com/${TEST_PREFIX}/article-2`,
+        title: `${TEST_PREFIX} NHS Digital Transformation Programme Update`,
+        raw_content:
+          'NHS England has announced new procurement frameworks for digital health services. ' +
+          'The programme includes a focus on interoperability standards and data sharing agreements ' +
+          'between trusts.',
+        relevance_score: 0.62,
+        relevance_category: 'medium' as const,
+        relevance_reasoning: 'Related to healthcare IT procurement',
+        matched_categories: ['healthcare', 'procurement'],
+        passed: true,
+        published_at: new Date().toISOString(),
+      },
+      {
+        workspace_id: workspaceId!,
+        feed_source_id: feedSourceId!,
+        external_url: `https://example.com/${TEST_PREFIX}/article-3`,
+        title: `${TEST_PREFIX} Celebrity Chef Opens New Restaurant`,
+        raw_content:
+          'A new restaurant has opened in central London serving modern British cuisine.',
+        relevance_score: 0.05,
+        relevance_category: 'irrelevant' as const,
+        relevance_reasoning: 'No connection to company interests',
+        matched_categories: [],
+        passed: false,
+        published_at: new Date().toISOString(),
+      },
+    ];
+
+    for (const article of articles) {
       const { data, error } = await serviceClient
-        .from('workspaces')
+        .from('feed_articles')
+        .insert(article)
+        .select('id')
+        .single();
+
+      expect(error).toBeNull();
+      expect(data).toBeTruthy();
+      feedArticleIds.push(data!.id);
+    }
+
+    // Re-query by workspace_id to confirm all 3 articles
+    const { data: allArticles, error: queryErr } = await serviceClient
+      .from('feed_articles')
+      .select('id, passed')
+      .eq('workspace_id', workspaceId!);
+
+    expect(queryErr).toBeNull();
+    expect(allArticles).toBeTruthy();
+    expect(allArticles!.length).toBe(3);
+
+    // Article 3 (last) has passed = false
+    const filteredArticles = allArticles!.filter((a) => !a.passed);
+    expect(filteredArticles.length).toBe(1);
+  });
+
+  // -----------------------------------------------------------------------
+  // Step 4: Create content items for passed articles
+  // -----------------------------------------------------------------------
+  it('Step 4: Create content items for passed articles', async () => {
+    expect(feedArticleIds.length).toBe(3);
+
+    // Query passed articles
+    const { data: passedArticles } = await serviceClient
+      .from('feed_articles')
+      .select('id, title, raw_content, external_url, published_at')
+      .eq('workspace_id', workspaceId!)
+      .eq('passed', true);
+
+    expect(passedArticles).toBeTruthy();
+    expect(passedArticles!.length).toBe(2);
+
+    for (const article of passedArticles!) {
+      // Create content item
+      const { data: contentItem, error } = await serviceClient
+        .from('content_items')
         .insert({
-          name: `${TEST_PREFIX} Test Intelligence Workspace`,
-          type: 'intelligence',
-          domain_metadata: {},
+          title: article.title,
+          content: article.raw_content,
+          content_type: 'article',
+          source_url: article.external_url,
+          metadata: {
+            source: 'intelligence_pipeline',
+            feed_source_id: feedSourceId,
+            feed_source_name: `${TEST_PREFIX} Test RSS Feed`,
+            published_at: article.published_at,
+          },
+        })
+        .select('id')
+        .single();
+
+      expect(error).toBeNull();
+      expect(contentItem).toBeTruthy();
+      contentItemIds.push(contentItem!.id);
+
+      // Link back to feed_article
+      const { error: updateErr } = await serviceClient
+        .from('feed_articles')
+        .update({ content_item_id: contentItem!.id })
+        .eq('id', article.id);
+
+      expect(updateErr).toBeNull();
+    }
+
+    expect(contentItemIds.length).toBe(2);
+
+    // Verify content items have correct metadata
+    for (const itemId of contentItemIds) {
+      const { data: item } = await serviceClient
+        .from('content_items')
+        .select('content_type, source_url, metadata')
+        .eq('id', itemId)
+        .single();
+
+      expect(item).toBeTruthy();
+      expect(item!.content_type).toBe('article');
+      const meta = item!.metadata as Record<string, unknown>;
+      expect(meta?.source).toBe('intelligence_pipeline');
+    }
+  });
+
+  // -----------------------------------------------------------------------
+  // Step 5: Classify content items (real AI API call)
+  // -----------------------------------------------------------------------
+  it('Step 5: Classify content items', async () => {
+    expect(contentItemIds.length).toBe(2);
+
+    for (const itemId of contentItemIds) {
+      const result = await classifyContent({
+        supabase: serviceClient,
+        itemId,
+        force: true,
+        userId: TEST_USER_ID,
+      });
+
+      // AI is non-deterministic -- use flexible assertions
+      expect(result.primary_domain).toBeTruthy();
+      expect(result.primary_subtopic).toBeTruthy();
+      expect(result.classification_confidence).toBeGreaterThan(0);
+
+      // Verify the DB was updated
+      const { data: classified } = await serviceClient
+        .from('content_items')
+        .select('primary_domain, primary_subtopic, classified_at, embedding')
+        .eq('id', itemId)
+        .single();
+
+      expect(classified?.primary_domain).toBeTruthy();
+      expect(classified?.primary_subtopic).toBeTruthy();
+      expect(classified?.classified_at).toBeTruthy();
+      expect(classified?.embedding).toBeTruthy();
+    }
+  }, 90_000);
+
+  // -----------------------------------------------------------------------
+  // Step 6: Link content items to workspace via junction table
+  // -----------------------------------------------------------------------
+  it('Step 6: Link content items to workspace via junction table', async () => {
+    expect(workspaceId).toBeTruthy();
+    expect(contentItemIds.length).toBe(2);
+
+    for (const itemId of contentItemIds) {
+      const { data, error } = await serviceClient
+        .from('content_item_workspaces')
+        .insert({
+          workspace_id: workspaceId!,
+          content_item_id: itemId,
         })
         .select('id')
         .single();
 
       expect(error).toBeNull();
       expect(data).toBeTruthy();
-      expect(data!.id).toBeTruthy();
+      contentItemWorkspaceIds.push(data!.id);
+    }
 
-      workspaceId = data!.id;
+    // Verify both junction rows exist
+    const { data: junctionRows } = await serviceClient
+      .from('content_item_workspaces')
+      .select('content_item_id')
+      .eq('workspace_id', workspaceId!);
 
-      // Re-query to confirm workspace exists with correct type
-      const { data: verify, error: verifyErr } = await serviceClient
-        .from('workspaces')
-        .select('id, name, type')
-        .eq('id', workspaceId)
-        .single();
+    expect(junctionRows).toBeTruthy();
+    expect(junctionRows!.length).toBe(2);
 
-      expect(verifyErr).toBeNull();
-      expect(verify?.type).toBe('intelligence');
-      expect(verify?.name).toContain(TEST_PREFIX);
-    });
+    const linkedIds = junctionRows!.map((r) => r.content_item_id);
+    for (const itemId of contentItemIds) {
+      expect(linkedIds).toContain(itemId);
+    }
+  });
 
-    // -----------------------------------------------------------------------
-    // Step 2: Add feed source
-    // -----------------------------------------------------------------------
-    it('Step 2: Add feed source linked to workspace', async () => {
-      expect(workspaceId).toBeTruthy();
+  // -----------------------------------------------------------------------
+  // Step 7: Verify workspace-scoped article query
+  // -----------------------------------------------------------------------
+  it('Step 7: Verify workspace-scoped article query', async () => {
+    expect(workspaceId).toBeTruthy();
 
-      const { data, error } = await serviceClient
-        .from('feed_sources')
-        .insert({
-          workspace_id: workspaceId!,
-          name: `${TEST_PREFIX} Test RSS Feed`,
-          url: 'https://example.com/test-feed.xml',
-          source_type: 'rss',
-          polling_interval_minutes: 60,
-        })
-        .select('id, workspace_id, consecutive_failures, article_count, is_active')
-        .single();
+    const { data: allArticles, error: allErr } = await serviceClient
+      .from('feed_articles')
+      .select('id, title, passed, relevance_score, content_item_id')
+      .eq('workspace_id', workspaceId!);
 
-      expect(error).toBeNull();
-      expect(data).toBeTruthy();
-      expect(data!.id).toBeTruthy();
+    expect(allErr).toBeNull();
+    expect(allArticles).toBeTruthy();
+    expect(allArticles!.length).toBe(3);
 
-      feedSourceId = data!.id;
+    const { data: passedArticles, error: passedErr } = await serviceClient
+      .from('feed_articles')
+      .select('id, title, content_item_id')
+      .eq('workspace_id', workspaceId!)
+      .eq('passed', true);
 
-      // Verify defaults
-      expect(data!.workspace_id).toBe(workspaceId);
-      expect(data!.consecutive_failures).toBe(0);
-      expect(data!.article_count).toBe(0);
-      expect(data!.is_active).toBe(true);
-    });
+    expect(passedErr).toBeNull();
+    expect(passedArticles).toBeTruthy();
+    expect(passedArticles!.length).toBe(2);
 
-    // -----------------------------------------------------------------------
-    // Step 3: Simulate article ingestion (direct insert)
-    // -----------------------------------------------------------------------
-    it('Step 3: Insert 3 feed articles (2 passed, 1 filtered)', async () => {
-      expect(workspaceId).toBeTruthy();
-      expect(feedSourceId).toBeTruthy();
+    // All passed articles have content_item_id set
+    for (const article of passedArticles!) {
+      expect(article.content_item_id).toBeTruthy();
+    }
 
-      const articles = [
-        {
-          workspace_id: workspaceId!,
-          feed_source_id: feedSourceId!,
-          external_url: `https://example.com/${TEST_PREFIX}/article-1`,
-          title: `${TEST_PREFIX} UK Government Cyber Security Strategy 2026`,
-          raw_content:
-            'The UK Government has published its updated Cyber Security Strategy for 2026. ' +
-            'The strategy outlines new requirements for public sector organisations to achieve ' +
-            'Cyber Essentials Plus certification by March 2027.',
-          relevance_score: 0.85,
-          relevance_category: 'high' as const,
-          relevance_reasoning: 'Directly relevant to security sector',
-          matched_categories: ['cyber security', 'government policy'],
-          passed: true,
-          published_at: new Date().toISOString(),
-        },
-        {
-          workspace_id: workspaceId!,
-          feed_source_id: feedSourceId!,
-          external_url: `https://example.com/${TEST_PREFIX}/article-2`,
-          title: `${TEST_PREFIX} NHS Digital Transformation Programme Update`,
-          raw_content:
-            'NHS England has announced new procurement frameworks for digital health services. ' +
-            'The programme includes a focus on interoperability standards and data sharing agreements ' +
-            'between trusts.',
-          relevance_score: 0.62,
-          relevance_category: 'medium' as const,
-          relevance_reasoning: 'Related to healthcare IT procurement',
-          matched_categories: ['healthcare', 'procurement'],
-          passed: true,
-          published_at: new Date().toISOString(),
-        },
-        {
-          workspace_id: workspaceId!,
-          feed_source_id: feedSourceId!,
-          external_url: `https://example.com/${TEST_PREFIX}/article-3`,
-          title: `${TEST_PREFIX} Celebrity Chef Opens New Restaurant`,
-          raw_content: 'A new restaurant has opened in central London serving modern British cuisine.',
-          relevance_score: 0.05,
-          relevance_category: 'irrelevant' as const,
-          relevance_reasoning: 'No connection to company interests',
-          matched_categories: [],
-          passed: false,
-          published_at: new Date().toISOString(),
-        },
-      ];
+    // The filtered article has no content_item_id
+    const { data: filteredArticles } = await serviceClient
+      .from('feed_articles')
+      .select('id, content_item_id')
+      .eq('workspace_id', workspaceId!)
+      .eq('passed', false);
 
-      for (const article of articles) {
-        const { data, error } = await serviceClient
-          .from('feed_articles')
-          .insert(article)
-          .select('id')
-          .single();
+    expect(filteredArticles).toBeTruthy();
+    expect(filteredArticles!.length).toBe(1);
+    expect(filteredArticles![0].content_item_id).toBeNull();
+  });
 
-        expect(error).toBeNull();
-        expect(data).toBeTruthy();
-        feedArticleIds.push(data!.id);
-      }
+  // -----------------------------------------------------------------------
+  // Step 8: Verify intelligence summary aggregation
+  // -----------------------------------------------------------------------
+  it('Step 8: Verify intelligence summary aggregation', async () => {
+    expect(workspaceId).toBeTruthy();
 
-      // Re-query by workspace_id to confirm all 3 articles
-      const { data: allArticles, error: queryErr } = await serviceClient
-        .from('feed_articles')
-        .select('id, passed')
-        .eq('workspace_id', workspaceId!);
-
-      expect(queryErr).toBeNull();
-      expect(allArticles).toBeTruthy();
-      expect(allArticles!.length).toBe(3);
-
-      // Article 3 (last) has passed = false
-      const filteredArticles = allArticles!.filter((a) => !a.passed);
-      expect(filteredArticles.length).toBe(1);
-    });
-
-    // -----------------------------------------------------------------------
-    // Step 4: Create content items for passed articles
-    // -----------------------------------------------------------------------
-    it('Step 4: Create content items for passed articles', async () => {
-      expect(feedArticleIds.length).toBe(3);
-
-      // Query passed articles
-      const { data: passedArticles } = await serviceClient
-        .from('feed_articles')
-        .select('id, title, raw_content, external_url, published_at')
-        .eq('workspace_id', workspaceId!)
-        .eq('passed', true);
-
-      expect(passedArticles).toBeTruthy();
-      expect(passedArticles!.length).toBe(2);
-
-      for (const article of passedArticles!) {
-        // Create content item
-        const { data: contentItem, error } = await serviceClient
-          .from('content_items')
-          .insert({
-            title: article.title,
-            content: article.raw_content,
-            content_type: 'article',
-            source_url: article.external_url,
-            metadata: {
-              source: 'intelligence_pipeline',
-              feed_source_id: feedSourceId,
-              feed_source_name: `${TEST_PREFIX} Test RSS Feed`,
-              published_at: article.published_at,
-            },
-          })
-          .select('id')
-          .single();
-
-        expect(error).toBeNull();
-        expect(contentItem).toBeTruthy();
-        contentItemIds.push(contentItem!.id);
-
-        // Link back to feed_article
-        const { error: updateErr } = await serviceClient
-          .from('feed_articles')
-          .update({ content_item_id: contentItem!.id })
-          .eq('id', article.id);
-
-        expect(updateErr).toBeNull();
-      }
-
-      expect(contentItemIds.length).toBe(2);
-
-      // Verify content items have correct metadata
-      for (const itemId of contentItemIds) {
-        const { data: item } = await serviceClient
-          .from('content_items')
-          .select('content_type, source_url, metadata')
-          .eq('id', itemId)
-          .single();
-
-        expect(item).toBeTruthy();
-        expect(item!.content_type).toBe('article');
-        const meta = item!.metadata as Record<string, unknown>;
-        expect(meta?.source).toBe('intelligence_pipeline');
-      }
-    });
-
-    // -----------------------------------------------------------------------
-    // Step 5: Classify content items (real AI API call)
-    // -----------------------------------------------------------------------
-    it(
-      'Step 5: Classify content items',
-      async () => {
-        expect(contentItemIds.length).toBe(2);
-
-        for (const itemId of contentItemIds) {
-          const result = await classifyContent({
-            supabase: serviceClient,
-            itemId,
-            force: true,
-            userId: TEST_USER_ID,
-          });
-
-          // AI is non-deterministic -- use flexible assertions
-          expect(result.primary_domain).toBeTruthy();
-          expect(result.primary_subtopic).toBeTruthy();
-          expect(result.classification_confidence).toBeGreaterThan(0);
-
-          // Verify the DB was updated
-          const { data: classified } = await serviceClient
-            .from('content_items')
-            .select('primary_domain, primary_subtopic, classified_at, embedding')
-            .eq('id', itemId)
-            .single();
-
-          expect(classified?.primary_domain).toBeTruthy();
-          expect(classified?.primary_subtopic).toBeTruthy();
-          expect(classified?.classified_at).toBeTruthy();
-          expect(classified?.embedding).toBeTruthy();
-        }
-      },
-      90_000,
+    const summary = await fetchIntelligenceSummary(
+      serviceClient,
+      workspaceId!,
+      '30d',
+      10,
     );
 
-    // -----------------------------------------------------------------------
-    // Step 6: Link content items to workspace via junction table
-    // -----------------------------------------------------------------------
-    it('Step 6: Link content items to workspace via junction table', async () => {
-      expect(workspaceId).toBeTruthy();
-      expect(contentItemIds.length).toBe(2);
+    expect(summary.workspace_id).toBe(workspaceId);
+    expect(summary.workspace_name).toContain(TEST_PREFIX);
+    expect(summary.total_ingested).toBe(3);
+    expect(summary.total_passed).toBe(2);
+    expect(summary.total_filtered).toBe(1);
 
-      for (const itemId of contentItemIds) {
-        const { data, error } = await serviceClient
-          .from('content_item_workspaces')
-          .insert({
-            workspace_id: workspaceId!,
-            content_item_id: itemId,
-          })
-          .select('id')
-          .single();
+    // filter_ratio = 1/3 ~= 0.333
+    expect(summary.filter_ratio).toBeCloseTo(1 / 3, 2);
 
-        expect(error).toBeNull();
-        expect(data).toBeTruthy();
-        contentItemWorkspaceIds.push(data!.id);
-      }
+    // by_source should have exactly 1 entry (our single feed source)
+    expect(summary.by_source.length).toBe(1);
+    expect(summary.by_source[0].article_count).toBe(3);
 
-      // Verify both junction rows exist
-      const { data: junctionRows } = await serviceClient
-        .from('content_item_workspaces')
-        .select('content_item_id')
-        .eq('workspace_id', workspaceId!);
+    // top_articles should only contain passed articles (2)
+    expect(summary.top_articles.length).toBe(2);
 
-      expect(junctionRows).toBeTruthy();
-      expect(junctionRows!.length).toBe(2);
+    // Sorted by relevance descending
+    expect(summary.top_articles[0].relevance_score).toBeGreaterThanOrEqual(
+      summary.top_articles[1].relevance_score,
+    );
+  });
 
-      const linkedIds = junctionRows!.map((r) => r.content_item_id);
-      for (const itemId of contentItemIds) {
-        expect(linkedIds).toContain(itemId);
-      }
-    });
+  // -----------------------------------------------------------------------
+  // Step 9: Verify workspace-scoped content item query
+  // -----------------------------------------------------------------------
+  it('Step 9: Verify workspace-scoped content item query via junction', async () => {
+    expect(workspaceId).toBeTruthy();
 
-    // -----------------------------------------------------------------------
-    // Step 7: Verify workspace-scoped article query
-    // -----------------------------------------------------------------------
-    it('Step 7: Verify workspace-scoped article query', async () => {
-      expect(workspaceId).toBeTruthy();
+    const { data: workspaceItems, error } = await serviceClient
+      .from('content_item_workspaces')
+      .select('content_item_id')
+      .eq('workspace_id', workspaceId!);
 
-      const { data: allArticles, error: allErr } = await serviceClient
-        .from('feed_articles')
-        .select('id, title, passed, relevance_score, content_item_id')
-        .eq('workspace_id', workspaceId!);
+    expect(error).toBeNull();
+    expect(workspaceItems).toBeTruthy();
+    expect(workspaceItems!.length).toBe(2);
 
-      expect(allErr).toBeNull();
-      expect(allArticles).toBeTruthy();
-      expect(allArticles!.length).toBe(3);
+    const itemIds = workspaceItems!.map((r) => r.content_item_id);
+    for (const id of contentItemIds) {
+      expect(itemIds).toContain(id);
+    }
+  });
 
-      const { data: passedArticles, error: passedErr } = await serviceClient
-        .from('feed_articles')
-        .select('id, title, content_item_id')
-        .eq('workspace_id', workspaceId!)
-        .eq('passed', true);
+  // -----------------------------------------------------------------------
+  // Step 10: Full chain verification
+  // -----------------------------------------------------------------------
+  it('Step 10: Full chain verification', async () => {
+    expect(workspaceId).toBeTruthy();
 
-      expect(passedErr).toBeNull();
-      expect(passedArticles).toBeTruthy();
-      expect(passedArticles!.length).toBe(2);
+    // Workspace exists with correct type
+    const { data: ws } = await serviceClient
+      .from('workspaces')
+      .select('id, type')
+      .eq('id', workspaceId!)
+      .single();
+    expect(ws).toBeTruthy();
+    expect(ws!.type).toBe('intelligence');
 
-      // All passed articles have content_item_id set
-      for (const article of passedArticles!) {
-        expect(article.content_item_id).toBeTruthy();
-      }
+    // Feed source linked to workspace
+    const { data: source } = await serviceClient
+      .from('feed_sources')
+      .select('id, workspace_id')
+      .eq('id', feedSourceId!)
+      .single();
+    expect(source).toBeTruthy();
+    expect(source!.workspace_id).toBe(workspaceId);
 
-      // The filtered article has no content_item_id
-      const { data: filteredArticles } = await serviceClient
-        .from('feed_articles')
-        .select('id, content_item_id')
-        .eq('workspace_id', workspaceId!)
-        .eq('passed', false);
+    // 3 feed articles (2 passed, 1 filtered)
+    const { data: articles } = await serviceClient
+      .from('feed_articles')
+      .select('id, passed')
+      .eq('workspace_id', workspaceId!);
+    expect(articles!.length).toBe(3);
+    expect(articles!.filter((a) => a.passed).length).toBe(2);
+    expect(articles!.filter((a) => !a.passed).length).toBe(1);
 
-      expect(filteredArticles).toBeTruthy();
-      expect(filteredArticles!.length).toBe(1);
-      expect(filteredArticles![0].content_item_id).toBeNull();
-    });
-
-    // -----------------------------------------------------------------------
-    // Step 8: Verify intelligence summary aggregation
-    // -----------------------------------------------------------------------
-    it('Step 8: Verify intelligence summary aggregation', async () => {
-      expect(workspaceId).toBeTruthy();
-
-      const summary = await fetchIntelligenceSummary(
-        serviceClient,
-        workspaceId!,
-        '30d',
-        10,
-      );
-
-      expect(summary.workspace_id).toBe(workspaceId);
-      expect(summary.workspace_name).toContain(TEST_PREFIX);
-      expect(summary.total_ingested).toBe(3);
-      expect(summary.total_passed).toBe(2);
-      expect(summary.total_filtered).toBe(1);
-
-      // filter_ratio = 1/3 ~= 0.333
-      expect(summary.filter_ratio).toBeCloseTo(1 / 3, 2);
-
-      // by_source should have exactly 1 entry (our single feed source)
-      expect(summary.by_source.length).toBe(1);
-      expect(summary.by_source[0].article_count).toBe(3);
-
-      // top_articles should only contain passed articles (2)
-      expect(summary.top_articles.length).toBe(2);
-
-      // Sorted by relevance descending
-      expect(summary.top_articles[0].relevance_score).toBeGreaterThanOrEqual(
-        summary.top_articles[1].relevance_score,
-      );
-    });
-
-    // -----------------------------------------------------------------------
-    // Step 9: Verify workspace-scoped content item query
-    // -----------------------------------------------------------------------
-    it('Step 9: Verify workspace-scoped content item query via junction', async () => {
-      expect(workspaceId).toBeTruthy();
-
-      const { data: workspaceItems, error } = await serviceClient
-        .from('content_item_workspaces')
-        .select('content_item_id')
-        .eq('workspace_id', workspaceId!);
-
-      expect(error).toBeNull();
-      expect(workspaceItems).toBeTruthy();
-      expect(workspaceItems!.length).toBe(2);
-
-      const itemIds = workspaceItems!.map((r) => r.content_item_id);
-      for (const id of contentItemIds) {
-        expect(itemIds).toContain(id);
-      }
-    });
-
-    // -----------------------------------------------------------------------
-    // Step 10: Full chain verification
-    // -----------------------------------------------------------------------
-    it('Step 10: Full chain verification', async () => {
-      expect(workspaceId).toBeTruthy();
-
-      // Workspace exists with correct type
-      const { data: ws } = await serviceClient
-        .from('workspaces')
-        .select('id, type')
-        .eq('id', workspaceId!)
+    // 2 content items with classification data
+    for (const itemId of contentItemIds) {
+      const { data: item } = await serviceClient
+        .from('content_items')
+        .select(
+          'id, primary_domain, primary_subtopic, embedding, classified_at',
+        )
+        .eq('id', itemId)
         .single();
-      expect(ws).toBeTruthy();
-      expect(ws!.type).toBe('intelligence');
+      expect(item).toBeTruthy();
+      expect(item!.primary_domain).toBeTruthy();
+      expect(item!.primary_subtopic).toBeTruthy();
+      expect(item!.classified_at).toBeTruthy();
+      expect(item!.embedding).toBeTruthy();
+    }
 
-      // Feed source linked to workspace
-      const { data: source } = await serviceClient
-        .from('feed_sources')
-        .select('id, workspace_id')
-        .eq('id', feedSourceId!)
-        .single();
-      expect(source).toBeTruthy();
-      expect(source!.workspace_id).toBe(workspaceId);
+    // 2 junction rows
+    const { data: junctions } = await serviceClient
+      .from('content_item_workspaces')
+      .select('content_item_id')
+      .eq('workspace_id', workspaceId!);
+    expect(junctions!.length).toBe(2);
 
-      // 3 feed articles (2 passed, 1 filtered)
-      const { data: articles } = await serviceClient
-        .from('feed_articles')
-        .select('id, passed')
-        .eq('workspace_id', workspaceId!);
-      expect(articles!.length).toBe(3);
-      expect(articles!.filter((a) => a.passed).length).toBe(2);
-      expect(articles!.filter((a) => !a.passed).length).toBe(1);
-
-      // 2 content items with classification data
-      for (const itemId of contentItemIds) {
-        const { data: item } = await serviceClient
-          .from('content_items')
-          .select('id, primary_domain, primary_subtopic, embedding, classified_at')
-          .eq('id', itemId)
-          .single();
-        expect(item).toBeTruthy();
-        expect(item!.primary_domain).toBeTruthy();
-        expect(item!.primary_subtopic).toBeTruthy();
-        expect(item!.classified_at).toBeTruthy();
-        expect(item!.embedding).toBeTruthy();
-      }
-
-      // 2 junction rows
-      const { data: junctions } = await serviceClient
-        .from('content_item_workspaces')
-        .select('content_item_id')
-        .eq('workspace_id', workspaceId!);
-      expect(junctions!.length).toBe(2);
-
-      // Summary aggregation works
-      const summary = await fetchIntelligenceSummary(
-        serviceClient,
-        workspaceId!,
-        '30d',
-        10,
-      );
-      expect(summary.total_ingested).toBe(3);
-      expect(summary.total_passed).toBe(2);
-      expect(summary.total_filtered).toBe(1);
-    });
-  },
-);
+    // Summary aggregation works
+    const summary = await fetchIntelligenceSummary(
+      serviceClient,
+      workspaceId!,
+      '30d',
+      10,
+    );
+    expect(summary.total_ingested).toBe(3);
+    expect(summary.total_passed).toBe(2);
+    expect(summary.total_filtered).toBe(1);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Edge Case Tests

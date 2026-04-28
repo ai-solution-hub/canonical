@@ -109,10 +109,7 @@ describe('SignOutButton', () => {
       const onBeforeNavigate = vi.fn();
       const user = userEvent.setup();
       render(
-        <SignOutButton
-          variant="mobile"
-          onBeforeNavigate={onBeforeNavigate}
-        />,
+        <SignOutButton variant="mobile" onBeforeNavigate={onBeforeNavigate} />,
       );
 
       await user.click(screen.getByRole('button', { name: 'Sign out' }));

@@ -1,8 +1,8 @@
 # Entity Type Reference
 
 This document provides detailed definitions for the 12 entity types used in
-Knowledge Hub content classification. Load this alongside the main classification
-skill when entity extraction accuracy is critical.
+Knowledge Hub content classification. Load this alongside the main
+classification skill when entity extraction accuracy is critical.
 
 Each type includes a diagnostic test question, inclusion/exclusion examples, and
 boundary case resolutions derived from the authoritative entity type taxonomy
@@ -27,6 +27,7 @@ division), "senior management" (informal grouping), "public sector" (sector, not
 organisation), "Bedford Technology Park" (location)
 
 **Boundary cases:**
+
 - CREST as organisation vs certification: "a member of CREST" = organisation;
   "CREST-accredited" = certification. Context determines type.
 - BSI as organisation vs standard prefix: BSI is the British Standards
@@ -46,8 +47,8 @@ certifying body after assessment against defined criteria.
 assessed against criteria, and that can be displayed as a credential? Does it
 have an issuing body, a validity period, and a renewal cycle?"
 
-**Include:** ISO 27001 (when held), Cyber Essentials, Cyber Essentials Plus,
-PCI DSS, SOC 2, CREST accreditation, CISSP
+**Include:** ISO 27001 (when held), Cyber Essentials, Cyber Essentials Plus, PCI
+DSS, SOC 2, CREST accreditation, CISSP
 
 **Exclude:** ISMS/QMS/EMS (management systems, not certifications — extract the
 underlying cert instead), "completed GDPR awareness training" (training
@@ -55,6 +56,7 @@ activity), "GDPR compliant" (compliance status — the regulation is type
 `regulation`)
 
 **Boundary cases:**
+
 - ISO 27001 as certification vs standard: holding the certification or
   undergoing audits = `certification`. Discussing the published requirements or
   clauses = `standard`. In bid documents, prefer `certification`.
@@ -83,9 +85,10 @@ interest" (GDPR sub-concepts), "data subject access request" (mechanism within
 GDPR), "county lines criminal exploitation" (safeguarding topic, not regulation)
 
 **Boundary cases:**
+
 - Statutory guidance vs framework: legal consequence is the deciding factor.
-  "Working Together to Safeguard Children" has legal force = `regulation`.
-  "NCSC 10 Steps to Cyber Security" does not = `framework`.
+  "Working Together to Safeguard Children" has legal force = `regulation`. "NCSC
+  10 Steps to Cyber Security" does not = `framework`.
 - PPN (Procurement Policy Notes): binding on government buyers with contractual
   consequences. Type as `regulation`.
 - Data Protection Act 2018 vs GDPR: both valid as separate regulations.
@@ -94,9 +97,9 @@ GDPR), "county lines criminal exploitation" (safeguarding topic, not regulation)
 
 ### framework
 
-**Definition:** A published, externally maintained, structured set of principles,
-practices, or assessment criteria that organisations can voluntarily adopt — but
-that does not carry legal force and is not a certifiable standard.
+**Definition:** A published, externally maintained, structured set of
+principles, practices, or assessment criteria that organisations can voluntarily
+adopt — but that does not carry legal force and is not a certifiable standard.
 
 **The Test:** "Is this a structured body of guidance, published by an external
 organisation, that another organisation could independently choose to adopt? AND
@@ -111,12 +114,13 @@ concept), "Records of Processing Activity" (GDPR artefact), "CIA Triad"
 (security principle, not framework)
 
 **Boundary cases:**
+
 - OWASP as framework vs organisation: "OWASP Top 10 vulnerabilities" =
   framework. "OWASP publishes..." = organisation.
 - PRINCE2 as framework vs methodology: type as `methodology` — its primary
   identity is a project management approach.
-- Statutory guidance that looks like a framework: if non-compliance carries legal
-  consequences, it is `regulation`, not `framework`.
+- Statutory guidance that looks like a framework: if non-compliance carries
+  legal consequences, it is `regulation`, not `framework`.
 
 ---
 
@@ -134,11 +138,12 @@ something it offers to clients?"
 SOC, incident response services, ISO 27001 implementation support, security
 consultancy
 
-**Exclude:** Information Security Policy (internal policy — Rule 3), "encryption"
-(generic concept), "Data Protection Officer" (job title — Rule 4), "data wiping"
-(activity in passing), "information security" (abstract domain)
+**Exclude:** Information Security Policy (internal policy — Rule 3),
+"encryption" (generic concept), "Data Protection Officer" (job title — Rule 4),
+"data wiping" (activity in passing), "information security" (abstract domain)
 
 **Boundary cases:**
+
 - "Penetration testing" as capability vs concept: "we provide penetration
   testing services" = capability. "Penetration testing should be conducted
   annually" = generic concept. When in doubt, exclude.
@@ -166,6 +171,7 @@ person? NOT a job title, role description, or generic reference?"
 "IT Director" (job title)
 
 **Boundary cases:**
+
 - Name with title embedded: "Matthew Burgess, Managing Director" — extract
   "Matthew Burgess" as `person`. Do not extract "Managing Director" separately.
 - Canonical name consistency: "Matthew Burgess", "Matt Burgess", "Matthew (MD,
@@ -193,6 +199,7 @@ JavaScript/Python (programming languages), "cloud computing" (generic category),
 "encryption" (concept, not named product)
 
 **Boundary cases:**
+
 - Azure vs "cloud computing": "Azure" = specific named platform (`technology`).
   "Cloud computing" = generic category — exclude.
 - SIEM as technology vs concept: prefer extracting the specific product name
@@ -220,6 +227,7 @@ Technology Park" (location), "example-client Audit System" (product, not project
 "G-Cloud Lot 2" (framework category)
 
 **Boundary cases:**
+
 - Named project vs generic activity: "Our ISO 27001 implementation project" is
   borderline. If it has a specific project name, extract it. If described
   generically, exclude.
@@ -245,6 +253,7 @@ description), "county lines criminal exploitation" (social issue), overly broad
 categories used as catch-alls
 
 **Boundary cases:**
+
 - "NHS" as sector vs organisation: NHS is an `organisation`. "Healthcare" is a
   `sector`. "We deliver to the NHS" = extract NHS as organisation. "We work in
   the healthcare sector" = extract healthcare as sector.
@@ -268,10 +277,11 @@ feature set, and a target customer?"
 to clients), named service packages with distinct brand identity
 
 **Exclude:** "professional indemnity insurance" (insurance category), "standard
-support" (pricing tier), "content management system" (generic category),
-"single sign-on" (feature, not product), internal tools not sold to clients
+support" (pricing tier), "content management system" (generic category), "single
+sign-on" (feature, not product), internal tools not sold to clients
 
 **Boundary cases:**
+
 - Product vs technology: products are things the org sells; technologies are
   things the org uses. Azure = `technology`. example-client Audit System = `product`.
   SharePoint can be either depending on context.
@@ -282,15 +292,15 @@ support" (pricing tier), "content management system" (generic category),
 
 ### standard
 
-**Definition:** A published, voluntary technical specification, code of practice,
-or normative document issued by a recognised standards body (ISO, BSI, W3C,
-IEEE, HL7) that defines requirements, guidelines, or characteristics.
+**Definition:** A published, voluntary technical specification, code of
+practice, or normative document issued by a recognised standards body (ISO, BSI,
+W3C, IEEE, HL7) that defines requirements, guidelines, or characteristics.
 
 **The Test:** "Is this a specific, numbered document published by a standards
 body? Can I find it in a standards catalogue with a document number?"
 
-**Include:** BS 5839, BS 5306, WCAG 2.1, WCAG 2.2, HL7, FHIR, IEEE 802.11,
-ISO 27001 (when discussing the published specification's content)
+**Include:** BS 5839, BS 5306, WCAG 2.1, WCAG 2.2, HL7, FHIR, IEEE 802.11, ISO
+27001 (when discussing the published specification's content)
 
 **Exclude:** "Clear Desk Policy" (internal policy — Rule 3), "non-disclosure
 agreement" (contract type), AES-256 (algorithm specification), HTTPS (protocol),
@@ -298,9 +308,10 @@ GDPR (regulation with legal force — use `regulation`), ITIL (management
 framework — use `framework`)
 
 **Boundary cases:**
+
 - ISO 27001 as standard vs certification: discussing the published document's
-  requirements = `standard`. Discussing holding the certification = `certification`.
-  In bid documents, prefer `certification`.
+  requirements = `standard`. Discussing holding the certification =
+  `certification`. In bid documents, prefer `certification`.
 - WCAG as standard vs regulation: WCAG remains a `standard` (published by W3C)
   even when regulations mandate compliance. The regulation is a separate entity.
 - "BS EN ISO 27001" and "ISO 27001" are the same standard — canonicalise to the
@@ -328,11 +339,12 @@ DevSecOps, Design Thinking, User-Centred Design
 methodologies)
 
 **Boundary cases:**
+
 - Agile as methodology vs generic adjective: "we use Agile methodology" =
   methodology. "We take an agile approach to..." (lowercase, generic) = not a
   named methodology. Look for capitalisation and context.
 - PRINCE2 as methodology vs framework: PRINCE2 is primarily a project management
   methodology. Type as `methodology`.
 - CIA Triad is NOT a methodology — it is a security model/concept. Exclude.
-- DevOps as methodology vs culture: "our DevOps methodology" = methodology.
-  "A DevOps culture" (generic) = consider excluding.
+- DevOps as methodology vs culture: "our DevOps methodology" = methodology. "A
+  DevOps culture" (generic) = consider excluding.

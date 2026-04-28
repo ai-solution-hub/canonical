@@ -76,7 +76,6 @@ interface CertificationSummaryCardProps {
   onEditEntity?: (canonicalName: string) => void;
 }
 
-
 // ---------------------------------------------------------------------------
 // Date formatting
 // ---------------------------------------------------------------------------

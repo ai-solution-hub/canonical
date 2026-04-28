@@ -567,10 +567,7 @@ describe('markdownToDocxParagraphs', () => {
   });
 
   it('handles GFM pipe tables as plain-text rows', () => {
-    const md =
-      '| Col1 | Col2 |\n' +
-      '| --- | --- |\n' +
-      '| A | B |';
+    const md = '| Col1 | Col2 |\n' + '| --- | --- |\n' + '| A | B |';
     const result = markdownToDocxParagraphs(md);
     // Header row + data row (separator row is skipped)
     expect(result).toHaveLength(2);

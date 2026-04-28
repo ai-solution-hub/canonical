@@ -854,9 +854,7 @@ describe('BidDetailPage', () => {
         }),
       );
       renderWithQuery(<BidDetailPage params={mockParams} />);
-      expect(
-        screen.getByText('Start answering questions'),
-      ).toBeInTheDocument();
+      expect(screen.getByText('Start answering questions')).toBeInTheDocument();
     });
 
     it('still renders Submission Readiness on Overview', () => {

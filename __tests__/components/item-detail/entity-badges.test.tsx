@@ -50,9 +50,7 @@ describe('EntityBadges — error handling', () => {
     render(<EntityBadges contentItemId="item-xyz" />);
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/couldn't load entities/i),
-      ).toBeInTheDocument();
+      expect(screen.getByText(/couldn't load entities/i)).toBeInTheDocument();
     });
 
     expect(mockCaptureClientException).toHaveBeenCalledTimes(1);
@@ -77,9 +75,7 @@ describe('EntityBadges — error handling', () => {
     render(<EntityBadges contentItemId="item-xyz" />);
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/couldn't load entities/i),
-      ).toBeInTheDocument();
+      expect(screen.getByText(/couldn't load entities/i)).toBeInTheDocument();
     });
 
     await userEvent.click(screen.getByRole('button', { name: /retry/i }));
@@ -89,9 +85,7 @@ describe('EntityBadges — error handling', () => {
     });
     // After successful retry (empty result), empty state is shown
     await waitFor(() => {
-      expect(
-        screen.getByText(/no entities detected/i),
-      ).toBeInTheDocument();
+      expect(screen.getByText(/no entities detected/i)).toBeInTheDocument();
     });
   });
 });

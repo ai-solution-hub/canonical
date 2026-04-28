@@ -103,8 +103,7 @@ const CLIENT_ORG_LOWER = 'Example Client Ltd';
  * Pipeline service account UUID for `classifyContent` calls.
  * Provisioned by: supabase/migrations/20260406180000_create_pipeline_service_account.sql
  */
-const PIPELINE_SERVICE_ACCOUNT_USER_ID =
-  'a0000000-0000-4000-8000-000000000001';
+const PIPELINE_SERVICE_ACCOUNT_USER_ID = 'a0000000-0000-4000-8000-000000000001';
 
 /**
  * Short-form prefixes for the 2 residual items from spec §13.4.
@@ -194,7 +193,11 @@ interface RunOutput {
   items_evaluated: number;
   thresholds: {
     holder_coverage: { expected: number; actual: number; passed: boolean };
-    positive_control_recall: { expected: number; actual: number; passed: boolean };
+    positive_control_recall: {
+      expected: number;
+      actual: number;
+      passed: boolean;
+    };
     precision: { expected: number; actual: number; passed: boolean };
     residual_correction: { expected: number; actual: number; passed: boolean };
   };
@@ -227,14 +230,20 @@ function parseArgs(): CliArgs {
     if (arg.startsWith('--mode=')) {
       const value = arg.slice('--mode='.length);
       if (value !== 'snapshot' && value !== 'run') {
-        logError(`Invalid --mode value: "${value}". Must be "snapshot" or "run".`);
+        logError(
+          `Invalid --mode value: "${value}". Must be "snapshot" or "run".`,
+        );
         process.exit(2);
       }
       mode = value;
     } else if (arg.startsWith('--output=')) {
       output = arg.slice('--output='.length);
     } else if (arg.startsWith('--item-ids=')) {
-      itemIds = arg.slice('--item-ids='.length).split(',').map(s => s.trim()).filter(Boolean);
+      itemIds = arg
+        .slice('--item-ids='.length)
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
     } else if (arg === '--dry-run') {
       dryRun = true;
     } else if (arg.startsWith('--env=')) {
@@ -366,7 +375,9 @@ async function fetchHoldsRelationships(
 ): Promise<HoldsRelationship[]> {
   const { data, error } = await supabase
     .from('entity_relationships')
-    .select('id, source_entity, target_entity, relationship_type, source_item_id, confidence')
+    .select(
+      'id, source_entity, target_entity, relationship_type, source_item_id, confidence',
+    )
     .eq('relationship_type', 'holds')
     .order('source_entity');
 
@@ -386,11 +397,15 @@ async function fetchEntityMentions(
 ): Promise<EntityMention[]> {
   const { data, error } = await supabase
     .from('entity_mentions')
-    .select('id, content_item_id, entity_type, entity_name, canonical_name, confidence, context_snippet, metadata')
+    .select(
+      'id, content_item_id, entity_type, entity_name, canonical_name, confidence, context_snippet, metadata',
+    )
     .eq('content_item_id', itemId);
 
   if (error) {
-    throw new Error(`Failed to fetch entity_mentions for ${itemId}: ${error.message}`);
+    throw new Error(
+      `Failed to fetch entity_mentions for ${itemId}: ${error.message}`,
+    );
   }
 
   return (data ?? []) as EntityMention[];
@@ -410,7 +425,9 @@ async function fetchItemTitle(
     .maybeSingle();
 
   if (error) {
-    throw new Error(`Failed to fetch content_items title for ${itemId}: ${error.message}`);
+    throw new Error(
+      `Failed to fetch content_items title for ${itemId}: ${error.message}`,
+    );
   }
 
   return data?.title ?? null;
@@ -439,13 +456,10 @@ function groupBySourceItem(
  * Resolve full item IDs from short prefixes by matching against the
  * known set of item IDs from holds relationships.
  */
-function resolveItemIds(
-  prefixes: string[],
-  knownIds: string[],
-): string[] {
+function resolveItemIds(prefixes: string[], knownIds: string[]): string[] {
   const resolved: string[] = [];
   for (const prefix of prefixes) {
-    const matches = knownIds.filter(id => id.startsWith(prefix));
+    const matches = knownIds.filter((id) => id.startsWith(prefix));
     if (matches.length === 1) {
       resolved.push(matches[0]);
     } else if (matches.length === 0) {
@@ -453,7 +467,9 @@ function resolveItemIds(
       // or a residual item not in the holds set)
       resolved.push(prefix);
     } else {
-      logError(`Ambiguous prefix "${prefix}" matches ${matches.length} items: ${matches.join(', ')}`);
+      logError(
+        `Ambiguous prefix "${prefix}" matches ${matches.length} items: ${matches.join(', ')}`,
+      );
       process.exit(2);
     }
   }
@@ -471,12 +487,12 @@ function resolveItemIds(
 async function resolveResidualItemIds(
   supabase: SupabaseClient<Database>,
 ): Promise<string[]> {
-  const { data, error } = await supabase
-    .from('content_items')
-    .select('id');
+  const { data, error } = await supabase.from('content_items').select('id');
 
   if (error) {
-    log(`Warning: could not fetch content_items for residual lookup: ${error.message}`);
+    log(
+      `Warning: could not fetch content_items for residual lookup: ${error.message}`,
+    );
     return [];
   }
 
@@ -485,15 +501,17 @@ async function resolveResidualItemIds(
     return [];
   }
 
-  const allIds = data.map(r => r.id);
+  const allIds = data.map((r) => r.id);
   const resolved: string[] = [];
 
   for (const prefix of RESIDUAL_SHORT_PREFIXES) {
-    const matches = allIds.filter(id => id.startsWith(prefix));
+    const matches = allIds.filter((id) => id.startsWith(prefix));
     if (matches.length === 0) {
       log(`Warning: no content_items match residual prefix "${prefix}".`);
     } else if (matches.length > 1) {
-      log(`Warning: ambiguous residual prefix "${prefix}" matches ${matches.length} items. Using first.`);
+      log(
+        `Warning: ambiguous residual prefix "${prefix}" matches ${matches.length} items. Using first.`,
+      );
       resolved.push(matches[0]);
     } else {
       resolved.push(matches[0]);
@@ -559,7 +577,9 @@ async function runSnapshot(
   log(`Found ${allHolds.length} holds relationships.`);
 
   const holdsByItem = groupBySourceItem(allHolds);
-  log(`Found ${holdsByItem.size} unique content items with holds relationships.`);
+  log(
+    `Found ${holdsByItem.size} unique content items with holds relationships.`,
+  );
 
   // Determine target item set
   let targetItemIds: string[];
@@ -654,7 +674,9 @@ async function runEvaluation(
   log(`Found ${allHolds.length} holds relationships.`);
 
   const holdsByItem = groupBySourceItem(allHolds);
-  log(`Found ${holdsByItem.size} unique content items with holds relationships.`);
+  log(
+    `Found ${holdsByItem.size} unique content items with holds relationships.`,
+  );
 
   // Determine target item set
   let targetItemIds: string[];
@@ -721,7 +743,9 @@ async function runEvaluation(
     const itemId = targetItemIds[i];
     const isResidual = residualIds.includes(itemId);
     const isPositiveControl = positiveControlIds.includes(itemId);
-    log(`Processing ${i + 1}/${targetItemIds.length}: ${itemId}${isResidual ? ' [RESIDUAL]' : ''}${isPositiveControl ? ' [POSITIVE-CONTROL]' : ''}`);
+    log(
+      `Processing ${i + 1}/${targetItemIds.length}: ${itemId}${isResidual ? ' [RESIDUAL]' : ''}${isPositiveControl ? ' [POSITIVE-CONTROL]' : ''}`,
+    );
 
     if (args.dryRun) {
       perItem.push({
@@ -768,10 +792,10 @@ async function runEvaluation(
 
       // Evaluate cert mentions
       const certMentions = mentions.filter(
-        m => m.entity_type === 'certification',
+        (m) => m.entity_type === 'certification',
       );
-      const certMentionsLinkedToHolds = certMentions.filter(
-        m => certNamesWithHolds.has(m.canonical_name.toLowerCase()),
+      const certMentionsLinkedToHolds = certMentions.filter((m) =>
+        certNamesWithHolds.has(m.canonical_name.toLowerCase()),
       );
 
       let itemCertWithHolder = 0;
@@ -832,7 +856,9 @@ async function runEvaluation(
           const holder = metadata?.holder as string | null | undefined;
           if (holder === 'self') {
             residualItemsCorrected.add(itemId);
-            log(`  Residual item ${itemId}: ISO 27001 has holder='self' (PASS)`);
+            log(
+              `  Residual item ${itemId}: ISO 27001 has holder='self' (PASS)`,
+            );
           } else {
             log(
               `  Residual item ${itemId}: ISO 27001 holder='${holder ?? 'null'}' (FAIL — expected 'self')`,
@@ -969,7 +995,7 @@ async function runEvaluation(
     },
   };
 
-  const allPassed = Object.values(thresholds).every(t => t.passed);
+  const allPassed = Object.values(thresholds).every((t) => t.passed);
 
   const output: RunOutput = {
     generated_at: new Date().toISOString(),
@@ -987,8 +1013,7 @@ async function runEvaluation(
 
   // Write structured report
   const today = new Date().toISOString().split('T')[0];
-  const reportPath =
-    args.output ?? `docs/audits/ts-eval-run-${today}.json`;
+  const reportPath = args.output ?? `docs/audits/ts-eval-run-${today}.json`;
 
   const json = JSON.stringify(output, null, 2);
   mkdirSync(dirname(reportPath), { recursive: true });

@@ -146,7 +146,9 @@ function MarkdownFields({
   const ingestionDate = createdAt ? formatDateUK(createdAt) : null;
   return (
     <>
-      {sourceFile && <MetadataRow label="Source file">{sourceFile}</MetadataRow>}
+      {sourceFile && (
+        <MetadataRow label="Source file">{sourceFile}</MetadataRow>
+      )}
       {sourceFolder && (
         <MetadataRow label="Source folder">{sourceFolder}</MetadataRow>
       )}
@@ -175,8 +177,7 @@ function FeedArticleFields({
   const feedName =
     feedArticle?.feed_source?.name ?? feedSourceNameFallback ?? null;
   const feedUrl = feedArticle?.feed_source?.url ?? null;
-  const publishedIso =
-    feedArticle?.published_at ?? publishedFallback ?? null;
+  const publishedIso = feedArticle?.published_at ?? publishedFallback ?? null;
   const publishedUk = publishedIso ? formatDateUK(publishedIso) : null;
 
   const empty = !sourceUrl || sourceUrl.trim() === '';
@@ -221,7 +222,8 @@ function GenericArticleFields({
   const ogType = metadata?.og_type as string | undefined;
   const hasReaderHtml = !!metadata?.reader_html;
 
-  const hasFields = extractionSource || ogDescription || ogType || hasReaderHtml;
+  const hasFields =
+    extractionSource || ogDescription || ogType || hasReaderHtml;
   if (!hasFields) return null;
 
   return (
@@ -397,9 +399,7 @@ export function SourceMetadata({
         feedSourceNameFallback={
           (meta?.feed_source_name as string | undefined) ?? null
         }
-        publishedFallback={
-          (meta?.published_at as string | undefined) ?? null
-        }
+        publishedFallback={(meta?.published_at as string | undefined) ?? null}
         sourceUrl={sourceUrl}
         canEdit={effectiveCanEdit}
       />
@@ -446,10 +446,7 @@ export function SourceMetadata({
           <dl className="flex flex-col gap-3 text-sm">
             {platformFields}
             {!typeBlockRendersSourceUrl && (
-              <SourceUrlRow
-                sourceUrl={sourceUrl}
-                contentType={contentType}
-              />
+              <SourceUrlRow sourceUrl={sourceUrl} contentType={contentType} />
             )}
             <IngestionSourceRow
               rawSource={ingestionSourceRaw}

@@ -46,7 +46,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -84,7 +84,8 @@ jobs:
       - name: Send success callback
         if: success()
         env:
-          TAXONOMY_SYNC_CALLBACK_SECRET: ${{ secrets.TAXONOMY_SYNC_CALLBACK_SECRET }}
+          TAXONOMY_SYNC_CALLBACK_SECRET:
+            ${{ secrets.TAXONOMY_SYNC_CALLBACK_SECRET }}
         run: |
           TIMESTAMP=$(date +%s%3N)
           # new_hash intentionally omitted — the callback route computes the
@@ -102,8 +103,11 @@ jobs:
       - name: Send failure callback
         if: failure()
         env:
-          TAXONOMY_SYNC_CALLBACK_SECRET: ${{ secrets.TAXONOMY_SYNC_CALLBACK_SECRET }}
-          GH_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TAXONOMY_SYNC_CALLBACK_SECRET:
+            ${{ secrets.TAXONOMY_SYNC_CALLBACK_SECRET }}
+          GH_RUN_URL:
+            https://github.com/${{ github.repository }}/actions/runs/${{
+            github.run_id }}
         run: |
           TIMESTAMP=$(date +%s%3N)
           ERROR_MSG="Workflow failed — check ${GH_RUN_URL}"

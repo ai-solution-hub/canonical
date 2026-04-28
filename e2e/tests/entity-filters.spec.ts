@@ -325,9 +325,7 @@ test.describe('Entity co-occurrence in filter panel', () => {
     const entitiesGroup = sheet.getByRole('group', { name: 'Entities' });
 
     // At least one entity button should now be pressed
-    const pressedEntity = entitiesGroup.locator(
-      'button[aria-pressed="true"]',
-    );
+    const pressedEntity = entitiesGroup.locator('button[aria-pressed="true"]');
     await expect(pressedEntity.first()).toBeVisible({ timeout: 5000 });
   });
 });

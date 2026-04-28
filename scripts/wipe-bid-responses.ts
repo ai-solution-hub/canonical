@@ -117,7 +117,8 @@ const STAGING_PROJECT_REF = 'turayklvaunphgbgscat';
 
 // v1.1 W3e M-1 fix: read SUPABASE_URL ?? NEXT_PUBLIC_SUPABASE_URL so spec §7.1/§7.3 override examples
 // (`SUPABASE_URL=<prod-url> bun run ...`) match the resolved variable.
-const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseUrl =
+  process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl) {
@@ -254,7 +255,10 @@ async function convertResponses(): Promise<void> {
     }
 
     // Convert response_text_advanced if it looks like HTML
-    if (row.response_text_advanced && row.response_text_advanced.includes('<')) {
+    if (
+      row.response_text_advanced &&
+      row.response_text_advanced.includes('<')
+    ) {
       updates.response_text_advanced = turndown.turndown(
         row.response_text_advanced,
       );
@@ -263,13 +267,17 @@ async function convertResponses(): Promise<void> {
 
     if (!needsUpdate) {
       skipped++;
-      console.log(`  [${converted + skipped}/${responses.length}] ${row.id} — skipped (not HTML)`);
+      console.log(
+        `  [${converted + skipped}/${responses.length}] ${row.id} — skipped (not HTML)`,
+      );
       continue;
     }
 
     if (DRY_RUN) {
       converted++;
-      console.log(`  [${converted + skipped}/${responses.length}] ${row.id} — would convert`);
+      console.log(
+        `  [${converted + skipped}/${responses.length}] ${row.id} — would convert`,
+      );
       continue;
     }
 
@@ -285,7 +293,9 @@ async function convertResponses(): Promise<void> {
     }
 
     converted++;
-    console.log(`  [${converted + skipped}/${responses.length}] ${row.id} — converted`);
+    console.log(
+      `  [${converted + skipped}/${responses.length}] ${row.id} — converted`,
+    );
   }
 
   const prefix = DRY_RUN ? '[DRY RUN] Would convert' : 'Converted';
@@ -338,9 +348,7 @@ async function wipeResponses(): Promise<void> {
     .select();
 
   if (histError) {
-    console.error(
-      `ERROR deleting bid_response_history: ${histError.message}`,
-    );
+    console.error(`ERROR deleting bid_response_history: ${histError.message}`);
     console.error(
       'bid_responses were NOT deleted. Partial state: history deletion may have partially completed.',
     );
@@ -380,7 +388,9 @@ async function main(): Promise<void> {
   }
 
   if (CONVERT) {
-    console.log(`Mode: convert (HTML → markdown)${DRY_RUN ? ' [DRY RUN]' : ''}\n`);
+    console.log(
+      `Mode: convert (HTML → markdown)${DRY_RUN ? ' [DRY RUN]' : ''}\n`,
+    );
     await convertResponses();
   } else {
     console.log(`Mode: wipe${DRY_RUN ? ' [DRY RUN]' : ''}\n`);

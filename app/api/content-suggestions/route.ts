@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  getAuthenticatedClient,
-  authFailureResponse,
-} from '@/lib/auth';
+import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth';
 import { generateContentSuggestions } from '@/lib/content/content-suggestions';
 import { safeErrorMessage } from '@/lib/error';
 import { parseSearchParams } from '@/lib/validation';

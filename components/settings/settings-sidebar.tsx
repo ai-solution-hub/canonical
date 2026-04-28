@@ -59,7 +59,13 @@ interface SectionDef {
 
 const ALL_SECTIONS: SectionDef[] = [
   { id: 'profile', label: 'Profile', icon: User, group: 'personal' },
-  { id: 'organisation', label: 'Organisation', icon: Building2, group: 'personal', adminOrEditorOnly: true },
+  {
+    id: 'organisation',
+    label: 'Organisation',
+    icon: Building2,
+    group: 'personal',
+    adminOrEditorOnly: true,
+  },
   { id: 'connections', label: 'Connections', icon: Plug, group: 'personal' },
   {
     id: 'content-organisation',

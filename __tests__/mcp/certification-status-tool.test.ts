@@ -629,9 +629,9 @@ describe('get_certification_status — holder coverage (OPS-24)', () => {
     expect(resultWithSuppliers.content[0].text).toContain(
       'Supplier Certifications',
     );
-    expect(
-      resultWithSuppliers.structuredContent.certifications[0].holder,
-    ).toBe('supplier');
+    expect(resultWithSuppliers.structuredContent.certifications[0].holder).toBe(
+      'supplier',
+    );
     expect(
       resultWithSuppliers.structuredContent.certifications[0].supplier_name,
     ).toBe('example-datacentre london docklands');

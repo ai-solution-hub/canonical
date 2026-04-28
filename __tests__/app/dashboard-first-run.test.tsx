@@ -47,18 +47,18 @@ describe('Dashboard first-run signals', () => {
   });
 
   it('derives isKBEmpty=false when any freshness bucket is non-zero', () => {
-    expect(
-      deriveIsKBEmpty({ fresh: 1, aging: 0, stale: 0, expired: 0 }),
-    ).toBe(false);
-    expect(
-      deriveIsKBEmpty({ fresh: 0, aging: 3, stale: 0, expired: 0 }),
-    ).toBe(false);
-    expect(
-      deriveIsKBEmpty({ fresh: 0, aging: 0, stale: 1, expired: 0 }),
-    ).toBe(false);
-    expect(
-      deriveIsKBEmpty({ fresh: 0, aging: 0, stale: 0, expired: 1 }),
-    ).toBe(false);
+    expect(deriveIsKBEmpty({ fresh: 1, aging: 0, stale: 0, expired: 0 })).toBe(
+      false,
+    );
+    expect(deriveIsKBEmpty({ fresh: 0, aging: 3, stale: 0, expired: 0 })).toBe(
+      false,
+    );
+    expect(deriveIsKBEmpty({ fresh: 0, aging: 0, stale: 1, expired: 0 })).toBe(
+      false,
+    );
+    expect(deriveIsKBEmpty({ fresh: 0, aging: 0, stale: 0, expired: 1 })).toBe(
+      false,
+    );
   });
 
   it('derives isFirstLogin=true when user has no prior activity', () => {

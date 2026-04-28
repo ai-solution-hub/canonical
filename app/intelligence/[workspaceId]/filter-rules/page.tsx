@@ -52,10 +52,14 @@ export default function PromptsPage() {
   // ---------------------------------------------------------------
   // Data: prompts + unresolved flags
   // ---------------------------------------------------------------
-  const { data: prompts, isLoading: promptsLoading } = useFeedPrompts(workspaceId);
-  const { data: flags, isLoading: flagsLoading } = useWorkspaceFlags(workspaceId, {
-    resolved: false,
-  });
+  const { data: prompts, isLoading: promptsLoading } =
+    useFeedPrompts(workspaceId);
+  const { data: flags, isLoading: flagsLoading } = useWorkspaceFlags(
+    workspaceId,
+    {
+      resolved: false,
+    },
+  );
 
   const activePrompt = useMemo(
     () => prompts?.find((p) => p.is_active) ?? null,
@@ -179,7 +183,10 @@ export default function PromptsPage() {
             ) : (
               <ChevronRight className="size-4" aria-hidden="true" />
             )}
-            <Pencil className="size-4 text-muted-foreground" aria-hidden="true" />
+            <Pencil
+              className="size-4 text-muted-foreground"
+              aria-hidden="true"
+            />
             <span>Advanced: edit prompt directly</span>
           </button>
           {showAdvanced && (

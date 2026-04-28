@@ -142,9 +142,7 @@ function parseMarkdownInline(text: string): TextRun[] {
   if (lastIndex < text.length) {
     const remaining = text.slice(lastIndex);
     if (remaining.length > 0) {
-      runs.push(
-        new TextRun({ text: remaining, font: 'Calibri', size: 22 }),
-      );
+      runs.push(new TextRun({ text: remaining, font: 'Calibri', size: 22 }));
     }
   }
 

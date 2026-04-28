@@ -187,7 +187,10 @@ export function configureRole(
 export function configureUnauthenticated(client: MockSupabaseClient) {
   client.auth.getUser.mockResolvedValueOnce({
     data: { user: null },
-    error: { name: 'AuthSessionMissingError', message: 'Auth session missing!' },
+    error: {
+      name: 'AuthSessionMissingError',
+      message: 'Auth session missing!',
+    },
   });
 }
 

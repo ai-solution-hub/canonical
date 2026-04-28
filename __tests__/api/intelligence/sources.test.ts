@@ -35,7 +35,9 @@ vi.mock('next/headers', () => ({
 }));
 
 vi.mock('@/lib/intelligence/feed-poller', () => ({
-  validateFeedUrl: vi.fn().mockResolvedValue({ valid: true, title: 'Test Feed', articleCount: 10 }),
+  validateFeedUrl: vi
+    .fn()
+    .mockResolvedValue({ valid: true, title: 'Test Feed', articleCount: 10 }),
 }));
 
 // ---------------------------------------------------------------------------
@@ -276,7 +278,11 @@ describe('Intelligence Feed Sources API', () => {
       });
       // Source insert
       mockSupabase._chain.single.mockResolvedValueOnce({
-        data: { ...MOCK_SOURCE, source_type: 'web', polling_interval_minutes: 360 },
+        data: {
+          ...MOCK_SOURCE,
+          source_type: 'web',
+          polling_interval_minutes: 360,
+        },
         error: null,
       });
 
@@ -305,7 +311,9 @@ describe('Intelligence Feed Sources API', () => {
         },
       );
       expect(insertCall).toBeDefined();
-      expect((insertCall![0] as Record<string, unknown>).polling_interval_minutes).toBe(360);
+      expect(
+        (insertCall![0] as Record<string, unknown>).polling_interval_minutes,
+      ).toBe(360);
     });
 
     it('respects explicit polling_interval_minutes for web source (T16)', async () => {
@@ -317,7 +325,11 @@ describe('Intelligence Feed Sources API', () => {
       });
       // Source insert
       mockSupabase._chain.single.mockResolvedValueOnce({
-        data: { ...MOCK_SOURCE, source_type: 'web', polling_interval_minutes: 120 },
+        data: {
+          ...MOCK_SOURCE,
+          source_type: 'web',
+          polling_interval_minutes: 120,
+        },
         error: null,
       });
 

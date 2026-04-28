@@ -107,7 +107,9 @@ export async function PATCH(
           'Failed to fetch max content_history version:',
           maxVersionError,
         );
-        warnings.push('Owner change saved, but version history was not recorded');
+        warnings.push(
+          'Owner change saved, but version history was not recorded',
+        );
       } else {
         const nextVersion = ((maxVersionData?.version as number) ?? 0) + 1;
 

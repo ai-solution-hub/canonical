@@ -36,7 +36,7 @@ export function loadBaseline(suiteName: string): EvalBaseline | null {
 export function saveBaseline(
   suiteName: string,
   metrics: Record<string, number>,
-  thresholds: Record<string, { min?: number; max_drop?: number }>
+  thresholds: Record<string, { min?: number; max_drop?: number }>,
 ): void {
   if (!existsSync(BASELINE_DIR)) {
     mkdirSync(BASELINE_DIR, { recursive: true });
@@ -64,7 +64,7 @@ export function saveBaseline(
  */
 export function checkRegression(
   baseline: EvalBaseline,
-  currentMetrics: Record<string, number>
+  currentMetrics: Record<string, number>,
 ): RegressionResult[] {
   const results: RegressionResult[] = [];
 
@@ -115,7 +115,7 @@ export function checkRegression(
  */
 export function evalPassed(
   result: EvalResult,
-  baseline: EvalBaseline | null
+  baseline: EvalBaseline | null,
 ): boolean {
   if (!baseline) {
     return result.passed;

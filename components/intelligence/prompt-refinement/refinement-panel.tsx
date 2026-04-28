@@ -88,10 +88,7 @@ export function RefinementPanel({
   // ---------------------------------------------------------------
   // Derived state
   // ---------------------------------------------------------------
-  const safeFlags = useMemo(
-    () => flags ?? EMPTY_FLAGS,
-    [flags],
-  );
+  const safeFlags = useMemo(() => flags ?? EMPTY_FLAGS, [flags]);
 
   const unresolvedFlags = useMemo(
     () => safeFlags.filter((flag) => !flag.resolved),
@@ -239,16 +236,17 @@ export function RefinementPanel({
           </h2>
         </header>
         <p className="text-sm text-muted-foreground">
-          No unresolved flags. Filter rules are performing well. Flag
-          articles as false positives or false negatives from the Articles
-          tab to start collecting feedback.
+          No unresolved flags. Filter rules are performing well. Flag articles
+          as false positives or false negatives from the Articles tab to start
+          collecting feedback.
         </p>
       </section>
     );
   }
 
   const unresolvedCount = unresolvedFlags.length;
-  const flagNoun = unresolvedCount === 1 ? 'unresolved flag' : 'unresolved flags';
+  const flagNoun =
+    unresolvedCount === 1 ? 'unresolved flag' : 'unresolved flags';
   const fpNoun =
     falsePositiveCount === 1 ? 'false positive' : 'false positives';
   const fnNoun =
@@ -287,9 +285,9 @@ export function RefinementPanel({
           />
           <p>
             Only {unresolvedCount} {unresolvedCount === 1 ? 'flag' : 'flags'}{' '}
-            available. For reliable analysis, we recommend accumulating at
-            least 3 flags before running an analysis. You can still proceed,
-            but the recommendations may not generalise well.
+            available. For reliable analysis, we recommend accumulating at least
+            3 flags before running an analysis. You can still proceed, but the
+            recommendations may not generalise well.
           </p>
         </div>
       )}
@@ -317,10 +315,7 @@ export function RefinementPanel({
           data-testid="analysing-skeleton"
         >
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2
-              className="size-4 animate-spin"
-              aria-hidden="true"
-            />
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
             Analysing flagged articles…
           </p>
           <Skeleton className="h-24 w-full" />
@@ -333,13 +328,10 @@ export function RefinementPanel({
           role="alert"
           className="flex items-start gap-2 rounded-md border border-status-error/30 bg-status-error/10 p-3 text-sm text-status-error"
         >
-          <AlertCircle
-            className="mt-0.5 size-4 shrink-0"
-            aria-hidden="true"
-          />
+          <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <p>
-            Analysis failed. Please try again — if the problem persists,
-            check the admin logs.
+            Analysis failed. Please try again — if the problem persists, check
+            the admin logs.
           </p>
         </div>
       )}
@@ -387,13 +379,10 @@ export function RefinementPanel({
           role="alert"
           className="flex items-start gap-2 rounded-md border border-status-error/30 bg-status-error/10 p-3 text-sm text-status-error"
         >
-          <AlertCircle
-            className="mt-0.5 size-4 shrink-0"
-            aria-hidden="true"
-          />
+          <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <p>
-            Preview failed. The analysis is still available — you can apply
-            it without previewing, or try the preview again.
+            Preview failed. The analysis is still available — you can apply it
+            without previewing, or try the preview again.
           </p>
         </div>
       )}
@@ -410,10 +399,7 @@ export function RefinementPanel({
           >
             {isApplying || resolveFlagsMutation.isPending ? (
               <>
-                <Loader2
-                  className="size-4 animate-spin"
-                  aria-hidden="true"
-                />
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
                 Applying…
               </>
             ) : (

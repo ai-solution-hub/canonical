@@ -329,7 +329,8 @@ describe('QARow', () => {
   it('renders markdown in expanded advanced answer via ContentRenderer', async () => {
     const user = userEvent.setup();
     const item = createQAItem({
-      answer_advanced: 'Our approach includes:\n\n- Regular audits\n- Staff training\n- Documentation review',
+      answer_advanced:
+        'Our approach includes:\n\n- Regular audits\n- Staff training\n- Documentation review',
     });
     render(<QARow item={item} />);
 

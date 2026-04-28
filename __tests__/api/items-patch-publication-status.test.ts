@@ -158,9 +158,8 @@ beforeEach(() => {
     error: null,
   });
   mockSupabase._chain.then.mockReset();
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: null, error: null, count: 0 }),
   );
 });
 

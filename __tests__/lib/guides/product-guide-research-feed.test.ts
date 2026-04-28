@@ -29,10 +29,7 @@ const MIGRATION_FILENAME =
 // Read the migration file once
 // ---------------------------------------------------------------------------
 
-const migrationsDir = path.resolve(
-  __dirname,
-  '../../../supabase/migrations',
-);
+const migrationsDir = path.resolve(__dirname, '../../../supabase/migrations');
 const migrationPath = path.join(migrationsDir, MIGRATION_FILENAME);
 
 let migrationSql: string;
@@ -149,10 +146,7 @@ describe('Product Guide Research Feed migration', () => {
  * Extract the SQL block for a specific guide_id's INSERT statement.
  * Looks for the INSERT INTO ... ; block containing this guide_id.
  */
-function extractGuideBlock(
-  sql: string,
-  guideId: string,
-): string | null {
+function extractGuideBlock(sql: string, guideId: string): string | null {
   // Split on INSERT INTO statements, keeping the delimiter
   const insertBlocks = sql.split(/(?=INSERT\s+INTO\s+guide_sections)/i);
   for (const block of insertBlocks) {
@@ -166,4 +160,3 @@ function extractGuideBlock(
   }
   return null;
 }
-

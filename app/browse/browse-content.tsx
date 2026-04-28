@@ -574,7 +574,10 @@ export function BrowseContent() {
               </p>
             </div>
           ) : (
-            <EmptyState hasFilters={activeFilterCount > 0 || showUnreadOnly} canEdit={canEdit} />
+            <EmptyState
+              hasFilters={activeFilterCount > 0 || showUnreadOnly}
+              canEdit={canEdit}
+            />
           )
         ) : (
           <div className="transition-opacity duration-150">

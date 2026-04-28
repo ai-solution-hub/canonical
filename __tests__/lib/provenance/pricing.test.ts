@@ -20,13 +20,7 @@ describe('estimateClassifyCost', () => {
   });
 
   it('includes cache creation and read tokens in cost', () => {
-    const cost = estimateClassifyCost(
-      500,
-      100,
-      1000,
-      2000,
-      'claude-opus-4-6',
-    );
+    const cost = estimateClassifyCost(500, 100, 1000, 2000, 'claude-opus-4-6');
     expect(cost).not.toBeNull();
     // 500 * 15/1M + 100 * 75/1M + 1000 * 18.75/1M + 2000 * 1.5/1M
     // = 0.0075 + 0.0075 + 0.01875 + 0.003 = 0.03675

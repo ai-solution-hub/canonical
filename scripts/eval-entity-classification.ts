@@ -52,8 +52,7 @@ import { COST_PER_MILLION } from '../lib/ai/pricing';
  *
  * The user has admin role in `user_roles` so RLS allows write access.
  */
-const PIPELINE_SERVICE_ACCOUNT_USER_ID =
-  'a0000000-0000-4000-8000-000000000001';
+const PIPELINE_SERVICE_ACCOUNT_USER_ID = 'a0000000-0000-4000-8000-000000000001';
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -138,12 +137,12 @@ loadEnvFile(`${PROJECT_ROOT}.env`);
 const SUITE_NAME = 'entity-classification';
 
 const THRESHOLDS: Record<string, { min?: number; max_drop?: number }> = {
-  precision: { min: 0.40, max_drop: 0.05 },
+  precision: { min: 0.4, max_drop: 0.05 },
   recall: { min: 0.35, max_drop: 0.05 },
   f1: { min: 0.35, max_drop: 0.05 },
-  type_accuracy: { min: 0.80, max_drop: 0.05 },
-  exclusion_compliance: { min: 0.50, max_drop: 0.10 },
-  cross_item_consistency: { min: 0.80, max_drop: 0.10 },
+  type_accuracy: { min: 0.8, max_drop: 0.05 },
+  exclusion_compliance: { min: 0.5, max_drop: 0.1 },
+  cross_item_consistency: { min: 0.8, max_drop: 0.1 },
 };
 
 // ── Canonicalisation ────────────────────────────────────────────────
@@ -250,26 +249,42 @@ function estimateLiveCost(itemCount: number): {
     (estimatedInputTokens / 1_000_000) * rates.input +
     (estimatedOutputTokens / 1_000_000) * rates.output;
 
-  return { model, estimatedInputTokens, estimatedOutputTokens, estimatedCostUsd };
+  return {
+    model,
+    estimatedInputTokens,
+    estimatedOutputTokens,
+    estimatedCostUsd,
+  };
 }
 
 /**
  * Prompt user for confirmation before running live classification.
  */
-async function confirmLiveRun(costEstimate: {
-  model: string;
-  estimatedInputTokens: number;
-  estimatedOutputTokens: number;
-  estimatedCostUsd: number;
-}, itemCount: number): Promise<boolean> {
+async function confirmLiveRun(
+  costEstimate: {
+    model: string;
+    estimatedInputTokens: number;
+    estimatedOutputTokens: number;
+    estimatedCostUsd: number;
+  },
+  itemCount: number,
+): Promise<boolean> {
   console.log('\n--- LIVE MODE COST ESTIMATE ---\n');
   console.log(`  Items to classify:       ${itemCount}`);
   console.log(`  Model:                   ${costEstimate.model}`);
-  console.log(`  Est. input tokens:       ${costEstimate.estimatedInputTokens.toLocaleString()}`);
-  console.log(`  Est. output tokens:      ${costEstimate.estimatedOutputTokens.toLocaleString()}`);
-  console.log(`  Est. cost:               $${costEstimate.estimatedCostUsd.toFixed(4)} USD`);
+  console.log(
+    `  Est. input tokens:       ${costEstimate.estimatedInputTokens.toLocaleString()}`,
+  );
+  console.log(
+    `  Est. output tokens:      ${costEstimate.estimatedOutputTokens.toLocaleString()}`,
+  );
+  console.log(
+    `  Est. cost:               $${costEstimate.estimatedCostUsd.toFixed(4)} USD`,
+  );
   console.log(`  Rate limit:              1 req/sec`);
-  console.log(`  Est. time:               ~${Math.ceil(itemCount * 1.5)} seconds\n`);
+  console.log(
+    `  Est. time:               ~${Math.ceil(itemCount * 1.5)} seconds\n`,
+  );
 
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   return new Promise((resolve) => {
@@ -568,8 +583,12 @@ function printEntityDetail(
   console.log(`  False negatives:          ${metrics.total_false_negatives}`);
   console.log(`  Correctly typed:          ${metrics.total_correctly_typed}`);
   console.log(`  Type errors:              ${metrics.total_type_errors}`);
-  console.log(`  Exclusion successes:      ${metrics.total_exclusion_successes}`);
-  console.log(`  Exclusion failures:       ${metrics.total_exclusion_failures}`);
+  console.log(
+    `  Exclusion successes:      ${metrics.total_exclusion_successes}`,
+  );
+  console.log(
+    `  Exclusion failures:       ${metrics.total_exclusion_failures}`,
+  );
 
   // Per-domain breakdown
   console.log('\n--- PER-DOMAIN BREAKDOWN ---\n');
@@ -751,10 +770,14 @@ async function main() {
       }
     } else {
       // Print cost estimate even with --confirm for logging
-      console.log(`\nLive mode: ${goldStandard.length} items, model=${costEstimate.model}, est. cost=$${costEstimate.estimatedCostUsd.toFixed(4)} USD`);
+      console.log(
+        `\nLive mode: ${goldStandard.length} items, model=${costEstimate.model}, est. cost=$${costEstimate.estimatedCostUsd.toFixed(4)} USD`,
+      );
     }
 
-    console.log(`\nRunning live classification for ${goldStandard.length} items (${validateFlag ? 'with validation' : 'standard'})...\n`);
+    console.log(
+      `\nRunning live classification for ${goldStandard.length} items (${validateFlag ? 'with validation' : 'standard'})...\n`,
+    );
 
     entityMap = new Map();
     let completed = 0;
@@ -788,7 +811,9 @@ async function main() {
       }
     }
 
-    console.log(`\nLive classification complete: ${completed} items processed.\n`);
+    console.log(
+      `\nLive classification complete: ${completed} items processed.\n`,
+    );
   } else {
     // ── Cached mode: read existing entities from DB ──
     console.log(

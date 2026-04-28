@@ -18,8 +18,8 @@ import userEvent from '@testing-library/user-event';
 // vi.hoisted() — mocks referenced in vi.mock() factories
 // ---------------------------------------------------------------------------
 
-const { mockFetch, mockToast, mockSupabaseFrom, mockUseTaxonomy } =
-  vi.hoisted(() => ({
+const { mockFetch, mockToast, mockSupabaseFrom, mockUseTaxonomy } = vi.hoisted(
+  () => ({
     mockFetch: vi.fn(),
     mockToast: {
       success: vi.fn(),
@@ -29,7 +29,8 @@ const { mockFetch, mockToast, mockSupabaseFrom, mockUseTaxonomy } =
     },
     mockSupabaseFrom: vi.fn(),
     mockUseTaxonomy: vi.fn(),
-  }));
+  }),
+);
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
@@ -419,9 +420,7 @@ describe('GovernanceSection', () => {
     expect(
       screen.getByRole('button', { name: 'Recalculate Now' }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByTestId('concept-help-freshness'),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId('concept-help-freshness')).toBeInTheDocument();
   });
 
   it('calls freshness recalculate API and shows success toast', async () => {

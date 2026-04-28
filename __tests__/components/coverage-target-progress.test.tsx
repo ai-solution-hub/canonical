@@ -222,7 +222,9 @@ describe('CoverageTargetProgress', () => {
       />,
     );
 
-    const progressBar = screen.getByLabelText('Item count: current 15, target 10');
+    const progressBar = screen.getByLabelText(
+      'Item count: current 15, target 10',
+    );
     expect(progressBar).toBeInTheDocument();
   });
 
@@ -245,7 +247,9 @@ describe('CoverageTargetProgress', () => {
       />,
     );
 
-    const helpButton = screen.getByRole('button', { name: /what are target goals/i });
+    const helpButton = screen.getByRole('button', {
+      name: /what are target goals/i,
+    });
     expect(helpButton).toBeInTheDocument();
   });
 

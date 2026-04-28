@@ -61,9 +61,7 @@ vi.mock('@/lib/dedup', () => ({
     existingTitle: null,
   }),
   formatDedupWarning: vi.fn().mockReturnValue(null),
-  resolveDedupStamp: vi
-    .fn()
-    .mockReturnValue({ dedup_status: 'clean' }),
+  resolveDedupStamp: vi.fn().mockReturnValue({ dedup_status: 'clean' }),
 }));
 
 vi.mock('@/lib/ai/classify', () => ({
@@ -168,9 +166,8 @@ function setupMocks() {
     error: null,
   });
   mockSupabase._chain.then.mockReset();
-  mockSupabase._chain.then.mockImplementation(
-    (resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
   );
 }
 
@@ -322,13 +319,16 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
       expect(contentInsert).toBeDefined();
       // C-1 fix: answer_standard should be the extracted answer portion only,
       // not the full composite "Q: {q}\n\n{answer}" content
-      expect((contentInsert![0] as Record<string, unknown>).answer_standard).toBe('We follow best practice.');
+      expect(
+        (contentInsert![0] as Record<string, unknown>).answer_standard,
+      ).toBe('We follow best practice.');
     });
 
     it('prefers explicit answerStandard over extracting from composite (Option A)', async () => {
       configureRole(mockSupabase, 'editor');
 
-      const compositeContent = 'Q: What is our policy?\n\nWe follow best practice.';
+      const compositeContent =
+        'Q: What is our policy?\n\nWe follow best practice.';
       const explicitAnswer = 'We follow best practice.';
 
       // Pipeline run insert
@@ -388,7 +388,9 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
       );
       expect(contentInsert).toBeDefined();
       // Explicit answerStandard should be used directly, not extracted
-      expect((contentInsert![0] as Record<string, unknown>).answer_standard).toBe(explicitAnswer);
+      expect(
+        (contentInsert![0] as Record<string, unknown>).answer_standard,
+      ).toBe(explicitAnswer);
     });
   });
 
@@ -420,7 +422,9 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
       mockSupabase._chain.then.mockImplementationOnce(
         (resolve: (v: unknown) => void) =>
           resolve({
-            data: [{ id: questionId, question_text: 'What is your waste policy?' }],
+            data: [
+              { id: questionId, question_text: 'What is your waste policy?' },
+            ],
             error: null,
           }),
       );
@@ -463,7 +467,9 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
           (call[0] as Record<string, unknown>).content_type === 'q_a_pair',
       );
       expect(contentInsert).toBeDefined();
-      expect((contentInsert![0] as Record<string, unknown>).answer_standard).toBe(responseText);
+      expect(
+        (contentInsert![0] as Record<string, unknown>).answer_standard,
+      ).toBe(responseText);
     });
   });
 
@@ -473,9 +479,7 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
 
   describe('Path 5 — qa-detection splitIntoQAPairs A: prefix strip', () => {
     it('emits content without A: prefix (canonical shape)', async () => {
-      const { splitIntoQAPairs } = await import(
-        '@/lib/quality/qa-detection'
-      );
+      const { splitIntoQAPairs } = await import('@/lib/quality/qa-detection');
 
       const pairs = [
         {
@@ -502,12 +506,9 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
     });
 
     it('emits content that aligns with PATCH rebuild shape', async () => {
-      const { splitIntoQAPairs } = await import(
-        '@/lib/quality/qa-detection'
-      );
-      const { resolveQuestionForRebuild } = await import(
-        '@/lib/bid-library-ingest/resolve-question'
-      );
+      const { splitIntoQAPairs } = await import('@/lib/quality/qa-detection');
+      const { resolveQuestionForRebuild } =
+        await import('@/lib/bid-library-ingest/resolve-question');
 
       const pairs = [
         {
@@ -536,9 +537,7 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
     });
 
     it('splitIntoQAPairs content round-trips through extractAnswerFromContent correctly', async () => {
-      const { splitIntoQAPairs } = await import(
-        '@/lib/quality/qa-detection'
-      );
+      const { splitIntoQAPairs } = await import('@/lib/quality/qa-detection');
 
       const pairs = [
         {
@@ -656,7 +655,9 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
 
       // Simulate PATCH rebuild with the stored answer_standard
       const rebuilt = `Q: ${question}\n\n${insertData.answer_standard}`;
-      expect(rebuilt).toBe(`Q: What is your waste policy?\n\nWe recycle 90% of waste.`);
+      expect(rebuilt).toBe(
+        `Q: What is your waste policy?\n\nWe recycle 90% of waste.`,
+      );
       expect(rebuilt.match(/Q: /g)).toHaveLength(1);
     });
 
@@ -689,9 +690,7 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
     });
 
     it('Path 5 (qa-detection): composite content round-trips through extract + rebuild', async () => {
-      const { splitIntoQAPairs } = await import(
-        '@/lib/quality/qa-detection'
-      );
+      const { splitIntoQAPairs } = await import('@/lib/quality/qa-detection');
 
       const pairs = [
         {
@@ -731,7 +730,8 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
       // 3. PATCH handler rebuilds content from Q: + answer_standard + answer_advanced
       const question = 'What is your environmental policy?';
       const answerStandard = 'We minimise environmental impact.';
-      const newAnswerAdvanced = 'Our carbon offset programme covers all operations.';
+      const newAnswerAdvanced =
+        'Our carbon offset programme covers all operations.';
 
       // After batch create, stored state:
       // content = "Q: What is your environmental policy?\n\nWe minimise environmental impact."
@@ -774,7 +774,8 @@ describe('Q&A create-path answer_standard alignment (bug B2 fix)', () => {
   describe('Path 4 — MCP create_content_item extraction logic', () => {
     it('extractAnswerFromContent correctly handles MCP composite content', () => {
       // MCP callers may send content in composite Q: format
-      const mcpContent = 'Q: How do you manage subcontractors?\n\nAll subcontractors are vetted and approved.';
+      const mcpContent =
+        'Q: How do you manage subcontractors?\n\nAll subcontractors are vetted and approved.';
       const extracted = extractAnswerFromContent(mcpContent);
       expect(extracted).toBe('All subcontractors are vetted and approved.');
     });

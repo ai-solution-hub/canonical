@@ -41,7 +41,9 @@ function ErrorState({
         Related by Shared Entities
       </h3>
       <div className="mt-2 rounded-lg border bg-card p-4 text-sm text-muted-foreground">
-        <p className="mb-3">Couldn&apos;t load related items. Please try again.</p>
+        <p className="mb-3">
+          Couldn&apos;t load related items. Please try again.
+        </p>
         <Button
           variant="outline"
           size="sm"

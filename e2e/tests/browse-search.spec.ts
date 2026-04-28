@@ -233,7 +233,9 @@ test.describe('Live preview dropdown', () => {
     await searchInput.fill('pol');
 
     // Wait for preview results region to appear (debounce + fetch)
-    const previewRegion = page.locator('[data-testid="preview-results-region"]');
+    const previewRegion = page.locator(
+      '[data-testid="preview-results-region"]',
+    );
     await expect(previewRegion).toBeVisible({ timeout: 5000 });
 
     // Should have at least one preview result link
@@ -262,7 +264,9 @@ test.describe('Live preview dropdown', () => {
     await page.waitForTimeout(500);
 
     // Preview region should NOT appear
-    const previewRegion = page.locator('[data-testid="preview-results-region"]');
+    const previewRegion = page.locator(
+      '[data-testid="preview-results-region"]',
+    );
     await expect(previewRegion).toBeHidden();
 
     // Popular topics may or may not load (depends on API); at minimum,
@@ -284,7 +288,9 @@ test.describe('Live preview dropdown', () => {
     // navigation, which is meaningless without a real click.
     await searchInput.fill('the');
 
-    const previewRegion = page.locator('[data-testid="preview-results-region"]');
+    const previewRegion = page.locator(
+      '[data-testid="preview-results-region"]',
+    );
     await expect(previewRegion).toBeVisible({ timeout: 5000 });
 
     const firstLink = previewRegion.locator('a[href^="/item/"]').first();

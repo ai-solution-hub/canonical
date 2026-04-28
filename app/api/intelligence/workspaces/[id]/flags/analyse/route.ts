@@ -200,8 +200,12 @@ async function loadFlags(
     | null;
 
   return (rows ?? [])
-    .filter((row): row is FlagJoinRow & { feed_articles: NonNullable<FlagJoinRow['feed_articles']> } =>
-      row.feed_articles !== null,
+    .filter(
+      (
+        row,
+      ): row is FlagJoinRow & {
+        feed_articles: NonNullable<FlagJoinRow['feed_articles']>;
+      } => row.feed_articles !== null,
     )
     .map((row) => {
       const article = row.feed_articles;
@@ -281,10 +285,7 @@ export async function POST(
       );
     }
     if (!companyContext) {
-      return errorEnvelope(
-        'Workspace has no linked company profile',
-        400,
-      );
+      return errorEnvelope('Workspace has no linked company profile', 400);
     }
 
     const result = await analyseFeedFlags({
@@ -295,14 +296,10 @@ export async function POST(
 
     return NextResponse.json(result);
   } catch (err) {
-    logBestEffortWarn(
-      'intelligence.flags.analyse',
-      'Flag analysis failed',
-      {
-        workspaceId,
-        err: err instanceof Error ? err.message : String(err),
-      },
-    );
+    logBestEffortWarn('intelligence.flags.analyse', 'Flag analysis failed', {
+      workspaceId,
+      err: err instanceof Error ? err.message : String(err),
+    });
     return errorEnvelope('Failed to analyse flags', 500);
   }
 }

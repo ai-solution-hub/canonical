@@ -352,13 +352,10 @@ export const BrandingConfigSchema = z.object({
     })
     .optional(),
   /** Path to the light-mode logo, relative to public/. */
-  logoUrl: z
-    .string()
-    .startsWith('/')
-    .refine(brandAssetExists, {
-      message:
-        'logoUrl does not resolve to a file under public/. Check the path.',
-    }),
+  logoUrl: z.string().startsWith('/').refine(brandAssetExists, {
+    message:
+      'logoUrl does not resolve to a file under public/. Check the path.',
+  }),
   /** Optional dark-mode logo. If omitted, the light-mode logo is used. */
   logoUrlDark: z
     .string()
@@ -549,12 +546,9 @@ export function validateBrandingContrast(
 export function deriveDarkVariant(primary: string): string {
   const parsed = parseOklch(primary);
   if (!parsed)
-    throw new Error(
-      `deriveDarkVariant called with invalid OKLCH: ${primary}`,
-    );
+    throw new Error(`deriveDarkVariant called with invalid OKLCH: ${primary}`);
   const { l, c, h } = parsed;
-  const shiftedL =
-    l > 0.75 ? Math.max(0.3, l - 0.1) : Math.min(0.85, l + 0.07);
+  const shiftedL = l > 0.75 ? Math.max(0.3, l - 0.1) : Math.min(0.85, l + 0.07);
   return `oklch(${shiftedL.toFixed(3)} ${c} ${h})`;
 }
 

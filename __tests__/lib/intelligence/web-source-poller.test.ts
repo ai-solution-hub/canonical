@@ -115,7 +115,10 @@ describe('pollWebSource', () => {
       metadata: {},
     });
 
-    const sourceNoName = { id: 'web-source-2', url: 'https://example.com/page' };
+    const sourceNoName = {
+      id: 'web-source-2',
+      url: 'https://example.com/page',
+    };
     const result = await pollWebSource(sourceNoName);
     expect(result.status).toBe('success');
     expect(result.items[0].title).toBe('https://example.com/page');
@@ -204,7 +207,9 @@ describe('validateWebUrl', () => {
       headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
     });
 
-    await expect(validateWebUrl('https://example.com')).resolves.toBeUndefined();
+    await expect(
+      validateWebUrl('https://example.com'),
+    ).resolves.toBeUndefined();
     expect(mockFetch).toHaveBeenCalledWith(
       'https://example.com',
       expect.objectContaining({ method: 'HEAD' }),
@@ -245,9 +250,9 @@ describe('validateWebUrl', () => {
       headers: new Headers({}), // no content-type
     });
 
-    await expect(
-      validateWebUrl('https://example.com/binary'),
-    ).rejects.toThrow(/expected HTML content-type/);
+    await expect(validateWebUrl('https://example.com/binary')).rejects.toThrow(
+      /expected HTML content-type/,
+    );
   });
 
   // T11-L1a: 501 on HEAD -> falls back to ranged GET
@@ -263,7 +268,9 @@ describe('validateWebUrl', () => {
       headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
     });
 
-    await expect(validateWebUrl('https://example.com/page')).resolves.toBeUndefined();
+    await expect(
+      validateWebUrl('https://example.com/page'),
+    ).resolves.toBeUndefined();
     expect(mockFetch).toHaveBeenCalledTimes(2);
     expect(mockFetch.mock.calls[0][1]).toMatchObject({ method: 'HEAD' });
     expect(mockFetch.mock.calls[1][1]).toMatchObject({ method: 'GET' });
@@ -282,7 +289,9 @@ describe('validateWebUrl', () => {
       headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
     });
 
-    await expect(validateWebUrl('https://example.com/page')).resolves.toBeUndefined();
+    await expect(
+      validateWebUrl('https://example.com/page'),
+    ).resolves.toBeUndefined();
     expect(mockFetch).toHaveBeenCalledTimes(2);
     expect(mockFetch.mock.calls[0][1]).toMatchObject({ method: 'HEAD' });
     expect(mockFetch.mock.calls[1][1]).toMatchObject({ method: 'GET' });
@@ -312,7 +321,9 @@ describe('validateWebUrl', () => {
       headers: new Headers({ 'content-type': 'text/html' }),
     });
 
-    await expect(validateWebUrl('https://example.com/stream')).resolves.toBeUndefined();
+    await expect(
+      validateWebUrl('https://example.com/stream'),
+    ).resolves.toBeUndefined();
   });
 
   // T11: 405 on HEAD -> falls back to ranged GET, succeeds if GET path works
@@ -330,7 +341,9 @@ describe('validateWebUrl', () => {
       headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
     });
 
-    await expect(validateWebUrl('https://example.com/page')).resolves.toBeUndefined();
+    await expect(
+      validateWebUrl('https://example.com/page'),
+    ).resolves.toBeUndefined();
 
     // Verify two fetch calls: HEAD then GET with Range header
     expect(mockFetch).toHaveBeenCalledTimes(2);
@@ -356,6 +369,8 @@ describe('validateWebUrl', () => {
       headers: new Headers({ 'content-type': 'text/html' }),
     });
 
-    await expect(validateWebUrl('https://example.com')).resolves.toBeUndefined();
+    await expect(
+      validateWebUrl('https://example.com'),
+    ).resolves.toBeUndefined();
   });
 });

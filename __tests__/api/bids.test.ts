@@ -221,9 +221,7 @@ describe('GET /api/bids', () => {
       answered: 2,
     });
 
-    const failed = body.bids.find(
-      (b: { id: string }) => b.id === VALID_UUID,
-    );
+    const failed = body.bids.find((b: { id: string }) => b.id === VALID_UUID);
     expect(failed?.question_stats).toBeNull();
   });
 });

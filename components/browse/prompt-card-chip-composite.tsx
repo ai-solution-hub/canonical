@@ -61,10 +61,7 @@ export function PromptCardChipComposite({
       className="rounded-lg border border-border bg-card p-4 transition-colors"
       data-testid="prompt-card-chip-composite"
     >
-      <p
-        id={CARD_TITLE_ID}
-        className="text-sm font-medium text-foreground"
-      >
+      <p id={CARD_TITLE_ID} className="text-sm font-medium text-foreground">
         {title}
       </p>
       <p className="mt-1 text-xs text-muted-foreground">{description}</p>
@@ -117,9 +114,7 @@ export function PromptCardChipComposite({
                   <button
                     key={domain}
                     type="button"
-                    onClick={() =>
-                      onApplyFilter({ domain: [domain] })
-                    }
+                    onClick={() => onApplyFilter({ domain: [domain] })}
                     aria-label={`Filter to ${displayName}`}
                     className="inline-flex items-center rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium text-foreground transition-colors hover:border-primary/50 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >

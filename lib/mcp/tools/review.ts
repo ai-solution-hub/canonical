@@ -109,8 +109,7 @@ export async function registerReviewTools(server: McpServer): Promise<void> {
             content: [
               {
                 type: 'text' as const,
-                text:
-                  'Flagged items view is not yet available via MCP. Use the web review queue (Status: Flagged) for flagged items — the route joins `ingestion_quality_log` and is not yet mirrored here. All other statuses (unverified, verified, draft, all) work as expected.',
+                text: 'Flagged items view is not yet available via MCP. Use the web review queue (Status: Flagged) for flagged items — the route joins `ingestion_quality_log` and is not yet mirrored here. All other statuses (unverified, verified, draft, all) work as expected.',
               },
             ],
           };
@@ -415,7 +414,9 @@ export async function registerReviewTools(server: McpServer): Promise<void> {
         filter_domains: z
           .array(z.string())
           .default([])
-          .describe('Primary-domain filter (e.g. ["compliance", "audit-content"])'),
+          .describe(
+            'Primary-domain filter (e.g. ["compliance", "audit-content"])',
+          ),
         filter_content_types: z
           .array(z.string())
           .default([])
@@ -488,10 +489,7 @@ export async function registerReviewTools(server: McpServer): Promise<void> {
           countQuery = countQuery.in('primary_domain', args.filter_domains);
         }
         if (args.filter_content_types.length > 0) {
-          countQuery = countQuery.in(
-            'content_type',
-            args.filter_content_types,
-          );
+          countQuery = countQuery.in('content_type', args.filter_content_types);
         }
         if (args.filter_freshness.length > 0) {
           countQuery = countQuery.in('freshness', args.filter_freshness);

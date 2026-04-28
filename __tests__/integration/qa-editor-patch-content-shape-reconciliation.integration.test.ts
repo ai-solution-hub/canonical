@@ -26,7 +26,15 @@
  * @vitest-environment node
  */
 
-import { describe, it, expect, vi, beforeAll, beforeEach, afterAll } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  beforeEach,
+  afterAll,
+} from 'vitest';
 // service-client MUST be imported first — it loads dotenv for all env vars.
 import { serviceClient } from './helpers/service-client';
 import {
@@ -44,7 +52,10 @@ import { cleanupItem, seedQaPairItem } from './helpers/qa-editor-fixtures';
 // ---------------------------------------------------------------------------
 
 const { authCookies, cachedSessions } = vi.hoisted(() => ({
-  authCookies: new Map<string, { name: string; value: string }>() as AuthCookieStore,
+  authCookies: new Map<
+    string,
+    { name: string; value: string }
+  >() as AuthCookieStore,
   cachedSessions: {
     admin: new Map(),
     editor: new Map(),
@@ -136,189 +147,177 @@ function normaliseWhitespace(s: string): string {
 // ---------------------------------------------------------------------------
 
 describe('Q&A editor — PATCH content-shape reconciliation (AC4c + AC5)', () => {
-  it(
-    'Sub-case A: importer-shaped item retains the `Q:` prefix and `\\n\\n` join after a no-op edit',
-    async () => {
-      const seeded = await seedQaPairItem({
-        title: `${TEST_PREFIX} ${QUESTION_TEXT}`,
-        content: CANONICAL_CONTENT,
-        answer_standard: STANDARD_ANSWER,
-        answer_advanced: ADVANCED_ANSWER,
-        created_by: TEST_USER_1_ID,
-      });
-      createdItemIds.push(seeded.id);
+  it('Sub-case A: importer-shaped item retains the `Q:` prefix and `\\n\\n` join after a no-op edit', async () => {
+    const seeded = await seedQaPairItem({
+      title: `${TEST_PREFIX} ${QUESTION_TEXT}`,
+      content: CANONICAL_CONTENT,
+      answer_standard: STANDARD_ANSWER,
+      answer_advanced: ADVANCED_ANSWER,
+      created_by: TEST_USER_1_ID,
+    });
+    createdItemIds.push(seeded.id);
 
-      // PATCH with the same answer_standard value (no-op semantically).
-      const patchReq = new NextRequest(
-        `http://localhost/api/items/${seeded.id}`,
-        {
-          method: 'PATCH',
-          body: JSON.stringify({
-            field: 'answer_standard',
-            value: STANDARD_ANSWER,
-          }),
-          headers: { 'content-type': 'application/json' },
-        },
-      );
-      const patchRes = await patchItem(patchReq, {
-        params: Promise.resolve({ id: seeded.id }),
-      });
-      expect(patchRes.status, await patchRes.clone().text()).toBe(200);
+    // PATCH with the same answer_standard value (no-op semantically).
+    const patchReq = new NextRequest(
+      `http://localhost/api/items/${seeded.id}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          field: 'answer_standard',
+          value: STANDARD_ANSWER,
+        }),
+        headers: { 'content-type': 'application/json' },
+      },
+    );
+    const patchRes = await patchItem(patchReq, {
+      params: Promise.resolve({ id: seeded.id }),
+    });
+    expect(patchRes.status, await patchRes.clone().text()).toBe(200);
 
-      const { data: refreshed, error } = await serviceClient
-        .from('content_items')
-        .select('content, answer_standard, answer_advanced')
-        .eq('id', seeded.id)
-        .single();
-      expect(error).toBeNull();
-      expect(refreshed).toBeTruthy();
+    const { data: refreshed, error } = await serviceClient
+      .from('content_items')
+      .select('content, answer_standard, answer_advanced')
+      .eq('id', seeded.id)
+      .single();
+    expect(error).toBeNull();
+    expect(refreshed).toBeTruthy();
 
-      // AC4c hard assertion: rebuilt content matches the canonical
-      // shape character-for-character (whitespace-normalised). If this
-      // fails, the leading `Q:` prefix has been dropped or the
-      // `\n\n` join has been replaced by a different separator.
-      expect(normaliseWhitespace(refreshed!.content)).toBe(
-        normaliseWhitespace(CANONICAL_CONTENT),
-      );
-      // Also assert raw equality to catch silent whitespace drift
-      // (informational — the AC explicitly normalises whitespace, but
-      // raw equality on a no-op edit means the rebuild is fully
-      // round-trip stable).
-      expect(refreshed!.content).toBe(CANONICAL_CONTENT);
-      expect(refreshed!.answer_standard).toBe(STANDARD_ANSWER);
-      expect(refreshed!.answer_advanced).toBe(ADVANCED_ANSWER);
-    },
-    60_000,
-  );
+    // AC4c hard assertion: rebuilt content matches the canonical
+    // shape character-for-character (whitespace-normalised). If this
+    // fails, the leading `Q:` prefix has been dropped or the
+    // `\n\n` join has been replaced by a different separator.
+    expect(normaliseWhitespace(refreshed!.content)).toBe(
+      normaliseWhitespace(CANONICAL_CONTENT),
+    );
+    // Also assert raw equality to catch silent whitespace drift
+    // (informational — the AC explicitly normalises whitespace, but
+    // raw equality on a no-op edit means the rebuild is fully
+    // round-trip stable).
+    expect(refreshed!.content).toBe(CANONICAL_CONTENT);
+    expect(refreshed!.answer_standard).toBe(STANDARD_ANSWER);
+    expect(refreshed!.answer_advanced).toBe(ADVANCED_ANSWER);
+  }, 60_000);
 
-  it(
-    'Sub-case B: NULL question (no leading Q-line) — `Q:` prefix is omitted, no stray `Q: \\n\\n` stub',
-    async () => {
-      // Seed with content that does NOT begin with `Q: ` and a title
-      // that should not be promoted to a fake question — the resolver
-      // returns the title verbatim, but the spec says the join uses
-      // `if (question) parts.push(...)` so an empty question omits the
-      // prefix. To force the empty-question branch, we use a title
-      // that is empty after trim — except the PATCH `currentItem.title`
-      // is sourced from the row's `title` column. The cleanest way to
-      // exercise the empty-question branch is to seed with `title: ''`.
-      // The schema enforces title > 0 chars on the API write boundary
-      // BUT the DB column accepts empty strings on direct INSERT. Use
-      // the service client to seed.
-      const seeded = await seedQaPairItem({
-        title: '',
-        content: NO_QPREFIX_CONTENT,
-        answer_standard: STANDARD_ANSWER,
-        answer_advanced: ADVANCED_ANSWER,
-        created_by: TEST_USER_1_ID,
-      });
-      createdItemIds.push(seeded.id);
+  it('Sub-case B: NULL question (no leading Q-line) — `Q:` prefix is omitted, no stray `Q: \\n\\n` stub', async () => {
+    // Seed with content that does NOT begin with `Q: ` and a title
+    // that should not be promoted to a fake question — the resolver
+    // returns the title verbatim, but the spec says the join uses
+    // `if (question) parts.push(...)` so an empty question omits the
+    // prefix. To force the empty-question branch, we use a title
+    // that is empty after trim — except the PATCH `currentItem.title`
+    // is sourced from the row's `title` column. The cleanest way to
+    // exercise the empty-question branch is to seed with `title: ''`.
+    // The schema enforces title > 0 chars on the API write boundary
+    // BUT the DB column accepts empty strings on direct INSERT. Use
+    // the service client to seed.
+    const seeded = await seedQaPairItem({
+      title: '',
+      content: NO_QPREFIX_CONTENT,
+      answer_standard: STANDARD_ANSWER,
+      answer_advanced: ADVANCED_ANSWER,
+      created_by: TEST_USER_1_ID,
+    });
+    createdItemIds.push(seeded.id);
 
-      const patchReq = new NextRequest(
-        `http://localhost/api/items/${seeded.id}`,
-        {
-          method: 'PATCH',
-          body: JSON.stringify({
-            field: 'answer_standard',
-            value: STANDARD_ANSWER,
-          }),
-          headers: { 'content-type': 'application/json' },
-        },
-      );
-      const patchRes = await patchItem(patchReq, {
-        params: Promise.resolve({ id: seeded.id }),
-      });
-      expect(patchRes.status, await patchRes.clone().text()).toBe(200);
+    const patchReq = new NextRequest(
+      `http://localhost/api/items/${seeded.id}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          field: 'answer_standard',
+          value: STANDARD_ANSWER,
+        }),
+        headers: { 'content-type': 'application/json' },
+      },
+    );
+    const patchRes = await patchItem(patchReq, {
+      params: Promise.resolve({ id: seeded.id }),
+    });
+    expect(patchRes.status, await patchRes.clone().text()).toBe(200);
 
-      const { data: refreshed, error } = await serviceClient
-        .from('content_items')
-        .select('content')
-        .eq('id', seeded.id)
-        .single();
-      expect(error).toBeNull();
-      expect(refreshed).toBeTruthy();
+    const { data: refreshed, error } = await serviceClient
+      .from('content_items')
+      .select('content')
+      .eq('id', seeded.id)
+      .single();
+    expect(error).toBeNull();
+    expect(refreshed).toBeTruthy();
 
-      // The hard assertion: NO `Q: ` prefix in the rebuilt content,
-      // because the leading-Q-line resolver returned `''` and the
-      // route's `if (question) parts.push(`Q: ${question}`)` branch
-      // skipped the prefix. Equivalently, the rebuilt content is the
-      // pure `<standard>\n\n<advanced>` form.
-      expect(refreshed!.content.startsWith('Q:')).toBe(false);
-      // Crucially: no stray `Q: \n\n` stub at the head of the content.
-      expect(refreshed!.content).not.toMatch(/^Q:\s*\n/);
-      // Whitespace-normalised equality with the no-prefix canonical
-      // form proves the join order + separator are correct.
-      expect(normaliseWhitespace(refreshed!.content)).toBe(
-        normaliseWhitespace(NO_QPREFIX_CONTENT),
-      );
-    },
-    60_000,
-  );
+    // The hard assertion: NO `Q: ` prefix in the rebuilt content,
+    // because the leading-Q-line resolver returned `''` and the
+    // route's `if (question) parts.push(`Q: ${question}`)` branch
+    // skipped the prefix. Equivalently, the rebuilt content is the
+    // pure `<standard>\n\n<advanced>` form.
+    expect(refreshed!.content.startsWith('Q:')).toBe(false);
+    // Crucially: no stray `Q: \n\n` stub at the head of the content.
+    expect(refreshed!.content).not.toMatch(/^Q:\s*\n/);
+    // Whitespace-normalised equality with the no-prefix canonical
+    // form proves the join order + separator are correct.
+    expect(normaliseWhitespace(refreshed!.content)).toBe(
+      normaliseWhitespace(NO_QPREFIX_CONTENT),
+    );
+  }, 60_000);
 
-  it(
-    'Sub-case C (AC5): saving updates only the targeted field — `title` and `priority` are unmodified',
-    async () => {
-      const originalTitle = `${TEST_PREFIX} Sub-case C — original title`;
-      const originalPriority = 'high';
-      const seeded = await seedQaPairItem({
-        title: originalTitle,
-        content: CANONICAL_CONTENT,
-        answer_standard: STANDARD_ANSWER,
-        answer_advanced: ADVANCED_ANSWER,
-        created_by: TEST_USER_1_ID,
-        priority: originalPriority,
-      });
-      createdItemIds.push(seeded.id);
+  it('Sub-case C (AC5): saving updates only the targeted field — `title` and `priority` are unmodified', async () => {
+    const originalTitle = `${TEST_PREFIX} Sub-case C — original title`;
+    const originalPriority = 'high';
+    const seeded = await seedQaPairItem({
+      title: originalTitle,
+      content: CANONICAL_CONTENT,
+      answer_standard: STANDARD_ANSWER,
+      answer_advanced: ADVANCED_ANSWER,
+      created_by: TEST_USER_1_ID,
+      priority: originalPriority,
+    });
+    createdItemIds.push(seeded.id);
 
-      // Confirm the seed actually persisted the priority we asked for
-      // before we exercise the PATCH (a stale fixture would hide the
-      // regression we are guarding against).
-      const { data: pre, error: preErr } = await serviceClient
-        .from('content_items')
-        .select('title, priority')
-        .eq('id', seeded.id)
-        .single();
-      expect(preErr).toBeNull();
-      expect(pre!.title).toBe(originalTitle);
-      expect(pre!.priority).toBe(originalPriority);
+    // Confirm the seed actually persisted the priority we asked for
+    // before we exercise the PATCH (a stale fixture would hide the
+    // regression we are guarding against).
+    const { data: pre, error: preErr } = await serviceClient
+      .from('content_items')
+      .select('title, priority')
+      .eq('id', seeded.id)
+      .single();
+    expect(preErr).toBeNull();
+    expect(pre!.title).toBe(originalTitle);
+    expect(pre!.priority).toBe(originalPriority);
 
-      const updatedAdvanced = `${ADVANCED_ANSWER}\n\nAddendum: edited by test C.`;
-      const patchReq = new NextRequest(
-        `http://localhost/api/items/${seeded.id}`,
-        {
-          method: 'PATCH',
-          body: JSON.stringify({
-            field: 'answer_advanced',
-            value: updatedAdvanced,
-          }),
-          headers: { 'content-type': 'application/json' },
-        },
-      );
-      const patchRes = await patchItem(patchReq, {
-        params: Promise.resolve({ id: seeded.id }),
-      });
-      expect(patchRes.status, await patchRes.clone().text()).toBe(200);
+    const updatedAdvanced = `${ADVANCED_ANSWER}\n\nAddendum: edited by test C.`;
+    const patchReq = new NextRequest(
+      `http://localhost/api/items/${seeded.id}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          field: 'answer_advanced',
+          value: updatedAdvanced,
+        }),
+        headers: { 'content-type': 'application/json' },
+      },
+    );
+    const patchRes = await patchItem(patchReq, {
+      params: Promise.resolve({ id: seeded.id }),
+    });
+    expect(patchRes.status, await patchRes.clone().text()).toBe(200);
 
-      const { data: post, error: postErr } = await serviceClient
-        .from('content_items')
-        .select('title, priority, answer_advanced, answer_standard, content')
-        .eq('id', seeded.id)
-        .single();
-      expect(postErr).toBeNull();
-      expect(post).toBeTruthy();
+    const { data: post, error: postErr } = await serviceClient
+      .from('content_items')
+      .select('title, priority, answer_advanced, answer_standard, content')
+      .eq('id', seeded.id)
+      .single();
+    expect(postErr).toBeNull();
+    expect(post).toBeTruthy();
 
-      // AC5 hard assertions: non-targeted columns are unmodified.
-      expect(post!.title).toBe(originalTitle);
-      expect(post!.priority).toBe(originalPriority);
-      // The targeted column reflects the new value.
-      expect(post!.answer_advanced).toBe(updatedAdvanced);
-      // The other answer column was NOT touched (still the seed value).
-      expect(post!.answer_standard).toBe(STANDARD_ANSWER);
-      // The rebuilt content carries the new advanced answer.
-      expect(post!.content).toContain('Addendum: edited by test C.');
-      // And still starts with the canonical Q-prefix.
-      expect(post!.content.startsWith(`Q: ${QUESTION_TEXT}`)).toBe(true);
-    },
-    60_000,
-  );
+    // AC5 hard assertions: non-targeted columns are unmodified.
+    expect(post!.title).toBe(originalTitle);
+    expect(post!.priority).toBe(originalPriority);
+    // The targeted column reflects the new value.
+    expect(post!.answer_advanced).toBe(updatedAdvanced);
+    // The other answer column was NOT touched (still the seed value).
+    expect(post!.answer_standard).toBe(STANDARD_ANSWER);
+    // The rebuilt content carries the new advanced answer.
+    expect(post!.content).toContain('Addendum: edited by test C.');
+    // And still starts with the canonical Q-prefix.
+    expect(post!.content.startsWith(`Q: ${QUESTION_TEXT}`)).toBe(true);
+  }, 60_000);
 });

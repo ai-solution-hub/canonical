@@ -108,10 +108,12 @@ export async function fetchIntelligenceSummary(
   const articleIds = new Set(articles.map((a) => a.id));
 
   // Count unresolved flags for articles in this workspace
-  const unresolvedFlags = ((flagsResult.data ?? []) as Array<{
-    id: string;
-    feed_article_id: string;
-  }>).filter((f) => articleIds.has(f.feed_article_id)).length;
+  const unresolvedFlags = (
+    (flagsResult.data ?? []) as Array<{
+      id: string;
+      feed_article_id: string;
+    }>
+  ).filter((f) => articleIds.has(f.feed_article_id)).length;
 
   // 4. Aggregate totals
   const totalIngested = articles.length;
@@ -160,8 +162,7 @@ export async function fetchIntelligenceSummary(
     .map((a) => ({
       id: a.id,
       title: a.title,
-      source_name:
-        sourceNameMap.get(a.feed_source_id) ?? 'Unknown Source',
+      source_name: sourceNameMap.get(a.feed_source_id) ?? 'Unknown Source',
       external_url: a.external_url,
       relevance_score: a.relevance_score ?? 0,
       relevance_category: (a.relevance_category ?? 'low') as

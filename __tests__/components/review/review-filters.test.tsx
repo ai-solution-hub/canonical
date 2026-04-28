@@ -76,7 +76,10 @@ describe('ReviewFilters', () => {
     });
 
     it('shows toggle as checked when assigned_to_me filter is active', async () => {
-      const { user } = renderFilters({ status: 'unverified', assigned_to_me: true });
+      const { user } = renderFilters({
+        status: 'unverified',
+        assigned_to_me: true,
+      });
 
       const filterButton = screen.getByRole('button', { name: /filters/i });
       await user.click(filterButton);
@@ -87,10 +90,7 @@ describe('ReviewFilters', () => {
 
     it('calls onFiltersChange with assigned_to_me=true when toggling on', async () => {
       const onFiltersChange = vi.fn();
-      const { user } = renderFilters(
-        { status: 'unverified' },
-        onFiltersChange,
-      );
+      const { user } = renderFilters({ status: 'unverified' }, onFiltersChange);
 
       const filterButton = screen.getByRole('button', { name: /filters/i });
       await user.click(filterButton);

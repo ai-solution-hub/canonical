@@ -47,10 +47,11 @@ loadEnvFile(`${PROJECT_ROOT}.env`);
 
 // ── CLI args ──
 
-function parseArgs(): { dryRun: boolean; batchSize: number } {
+function parseArgs(): { dryRun: boolean; batchSize: number; env: string } {
   const args = process.argv.slice(2);
   let dryRun = false;
   let batchSize = 3;
+  let env = '';
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--dry-run') {
@@ -58,13 +59,32 @@ function parseArgs(): { dryRun: boolean; batchSize: number } {
     } else if (args[i] === '--batch-size' && args[i + 1]) {
       batchSize = parseInt(args[i + 1], 10);
       i++;
+    } else if (args[i] === '--env' && args[i + 1]) {
+      env = args[i + 1];
+      i++;
+    } else if (args[i].startsWith('--env=')) {
+      env = args[i].slice('--env='.length);
     }
   }
 
   if (isNaN(batchSize) || batchSize < 1) batchSize = 3;
   if (batchSize > 10) batchSize = 10;
 
-  return { dryRun, batchSize };
+  return { dryRun, batchSize, env };
+}
+
+// ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
+
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+
+function assertEnvFlag(env: string, url: string | undefined): void {
+  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+    console.error(
+      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/batch-reclassify-keywords.ts --env=prod`,
+    );
+    process.exit(1);
+  }
 }
 
 // ── Helpers ──
@@ -80,7 +100,7 @@ function sleep(ms: number): Promise<void> {
 // ── Main ──
 
 async function main(): Promise<void> {
-  const { dryRun, batchSize } = parseArgs();
+  const { dryRun, batchSize, env } = parseArgs();
 
   // Validate env
   const supabaseUrl =
@@ -89,9 +109,13 @@ async function main(): Promise<void> {
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
-    console.error('Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY in environment');
+    console.error(
+      'Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY in environment',
+    );
     process.exit(1);
   }
+
+  assertEnvFlag(env, supabaseUrl);
   if (!anthropicKey) {
     console.error('Missing ANTHROPIC_API_KEY in environment');
     process.exit(1);

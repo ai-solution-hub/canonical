@@ -193,8 +193,7 @@ export async function recordPipelineRun(
   if (skipSentryAlert) return;
   if (status === 'completed') return;
 
-  const level: 'error' | 'warning' =
-    status === 'failed' ? 'error' : 'warning';
+  const level: 'error' | 'warning' = status === 'failed' ? 'error' : 'warning';
   Sentry.captureMessage(
     `Pipeline ${pipelineName} ${status}${errorMessage ? `: ${errorMessage}` : ''}`,
     {

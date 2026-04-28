@@ -12,11 +12,7 @@ import {
 } from '@/components/ui/select';
 import { DomainBadge } from '@/components/shared/domain-badge';
 import { SourceMetadata } from '@/components/reader/source-metadata';
-import {
-  formatDateUK,
-  formatContentType,
-  formatPlatform,
-} from '@/lib/format';
+import { formatDateUK, formatContentType, formatPlatform } from '@/lib/format';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { FreshnessBadge } from '@/components/shared/freshness-badge';
 import { ExpiryDateDisplay } from '@/components/shared/expiry-date-display';

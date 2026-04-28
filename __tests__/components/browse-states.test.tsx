@@ -87,9 +87,7 @@ describe('EmptyState', () => {
   it('shows description text when no items and no filters', () => {
     render(<EmptyState hasFilters={false} canEdit={false} />);
     expect(
-      screen.getByText(
-        'Content added to the knowledge base will appear here.',
-      ),
+      screen.getByText('Content added to the knowledge base will appear here.'),
     ).toBeInTheDocument();
   });
 
@@ -110,9 +108,7 @@ describe('EmptyState', () => {
   it('hides both CTAs when canEdit is false (viewer)', () => {
     render(<EmptyState hasFilters={false} canEdit={false} />);
     expect(screen.queryByRole('link', { name: 'Add content' })).toBeNull();
-    expect(
-      screen.queryByRole('link', { name: 'Import from URL' }),
-    ).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Import from URL' })).toBeNull();
   });
 
   it('does NOT show Q&A Library cross-link (AC-10 regression)', () => {

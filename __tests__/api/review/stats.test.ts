@@ -64,13 +64,15 @@ function resetMocks() {
  * `overdue` field. Mirrors the JSON shape produced by the SQL RPC at
  * supabase/migrations/20260427230503_extend_review_breakdown_overdue.sql.
  */
-function configureRpcResponse(overrides: {
-  total?: number;
-  verified?: number;
-  flagged?: number;
-  draft?: number;
-  overdue?: number;
-} = {}) {
+function configureRpcResponse(
+  overrides: {
+    total?: number;
+    verified?: number;
+    flagged?: number;
+    draft?: number;
+    overdue?: number;
+  } = {},
+) {
   mockSupabase.rpc.mockResolvedValueOnce({
     data: {
       total: overrides.total ?? 100,

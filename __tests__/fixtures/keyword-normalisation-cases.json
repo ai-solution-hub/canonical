@@ -13,12 +13,24 @@
   { "input": "continuous", "expected": "continuous", "description": "Adjective suffix guard (ous)" },
   { "input": "implementations", "expected": "implementation", "description": "Long plural" },
   { "input": "bus", "expected": "bus", "description": "Short word (<=3 chars)" },
-  { "input": "men", "expected": "men", "description": "Short-word guard (len <= 3) preserves 3-char input — spec §3.1.2" },
-  { "input": "gas", "expected": "gas", "description": "Short-word guard protects gas (Python inflect would mis-strip to 'ga')" },
+  {
+    "input": "men",
+    "expected": "men",
+    "description": "Short-word guard (len <= 3) preserves 3-char input — spec §3.1.2"
+  },
+  {
+    "input": "gas",
+    "expected": "gas",
+    "description": "Short-word guard protects gas (Python inflect would mis-strip to 'ga')"
+  },
   { "input": "", "expected": "", "description": "Empty string" },
   { "input": "a", "expected": "a", "description": "Single char" },
   { "input": "risk assessments", "expected": "risk assessment", "description": "Compound noun - last token plural" },
-  { "input": "audits management", "expected": "audits management", "description": "Compound noun - internal plural preserved" },
+  {
+    "input": "audits management",
+    "expected": "audits management",
+    "description": "Compound noun - internal plural preserved"
+  },
   { "input": "Cyber Essentials Plus", "expected": "Cyber Essentials Plus", "description": "Multi-word proper noun" },
   { "input": "ICO", "expected": "ICO", "description": "Acronym proper noun" },
   { "input": "cloud services", "expected": "cloud service", "description": "Compound plural stripping" },
@@ -71,6 +83,14 @@
   { "input": "basis", "expected": "basis", "description": "Greek singular preserved (would otherwise become 'basi')" },
   { "input": "axis", "expected": "axis", "description": "Greek singular preserved (would otherwise become 'axi')" },
   { "input": "oasis", "expected": "oasis", "description": "Greek singular preserved (would otherwise become 'oasi')" },
-  { "input": "inspection data", "expected": "inspection data", "description": "Compound tag — last-token override preserves 'data'" },
-  { "input": "school data", "expected": "school data", "description": "Compound tag — last-token override preserves 'data'" }
+  {
+    "input": "inspection data",
+    "expected": "inspection data",
+    "description": "Compound tag — last-token override preserves 'data'"
+  },
+  {
+    "input": "school data",
+    "expected": "school data",
+    "description": "Compound tag — last-token override preserves 'data'"
+  }
 ]

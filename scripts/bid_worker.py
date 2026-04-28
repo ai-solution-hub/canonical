@@ -15,6 +15,7 @@ Environment:
   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_PUBLISHABLE_KEY)
 """
 
+import argparse
 import json
 import os
 import subprocess
@@ -27,6 +28,10 @@ from supabase import create_client, Client
 
 POLL_INTERVAL = 2  # seconds
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Per WP-S5.3 D-21 F-1: --env=prod flag asserts SUPABASE_URL contains
+# the prod project ref before entering the polling loop.
+PROD_PROJECT_URL_FRAGMENT = "rovrymhhffssilaftdwd"
 
 # Ensure scripts directory is on sys.path for local imports
 if SCRIPT_DIR not in sys.path:
@@ -359,6 +364,29 @@ def process_job(supabase: Client, job: dict) -> dict:
 
 def main():
     """Main polling loop. Claims and processes jobs from processing_queue."""
+    parser = argparse.ArgumentParser(description="Bid document worker daemon")
+    parser.add_argument(
+        "--env",
+        choices=["prod", "staging", "auto"],
+        default="auto",
+        help=(
+            "With --env=prod, asserts SUPABASE_URL points at prod before "
+            "entering the polling loop. --env=staging and --env=auto are "
+            "non-asserting (trust env). Default 'auto'."
+        ),
+    )
+    args = parser.parse_args()
+
+    if args.env == "prod":
+        url = os.environ.get("SUPABASE_URL", "")
+        if PROD_PROJECT_URL_FRAGMENT not in url:
+            sys.exit(
+                f"--env=prod set but SUPABASE_URL does not contain "
+                f"'{PROD_PROJECT_URL_FRAGMENT}'. Run with explicit override:\n"
+                f"  SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> "
+                f"python3 scripts/bid_worker.py"
+            )
+
     supabase = get_supabase()
     print(
         f"Bid worker started. Polling every {POLL_INTERVAL}s...",

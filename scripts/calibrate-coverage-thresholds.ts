@@ -95,6 +95,7 @@ interface CalibrationArgs {
   min: number;
   max: number;
   step: number;
+  env: string;
 }
 
 function parseArgs(): CalibrationArgs {
@@ -103,6 +104,7 @@ function parseArgs(): CalibrationArgs {
   let min = 0.4;
   let max = 0.8;
   let step = 0.05;
+  let env = '';
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -118,6 +120,11 @@ function parseArgs(): CalibrationArgs {
     } else if (arg === '--step' && args[i + 1]) {
       step = parseFloat(args[i + 1]);
       i++;
+    } else if (arg === '--env' && args[i + 1]) {
+      env = args[i + 1];
+      i++;
+    } else if (arg.startsWith('--env=')) {
+      env = arg.slice('--env='.length);
     } else if (arg === '--help' || arg === '-h') {
       console.log(`Usage: bun run scripts/calibrate_coverage_thresholds.ts [options]
 
@@ -126,12 +133,27 @@ Options:
   --min N            Minimum strong threshold (default: 0.40)
   --max N            Maximum strong threshold (default: 0.80)
   --step N           Threshold step size (default: 0.05)
+  --env=prod         Asserts SUPABASE_URL points at prod ('rovrymhhffssilaftdwd')
   --help, -h         Show this help message`);
       process.exit(0);
     }
   }
 
-  return { templateName, min, max, step };
+  return { templateName, min, max, step, env };
+}
+
+// ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
+
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+
+function assertEnvFlag(env: string, url: string | undefined): void {
+  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+    console.error(
+      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/calibrate-coverage-thresholds.ts --env=prod`,
+    );
+    process.exit(1);
+  }
 }
 
 // ── Data fetching (standalone, no Next.js path aliases) ──
@@ -214,19 +236,22 @@ async function fetchContent(
 // ── Main ──
 
 async function main() {
-  const { templateName, min, max, step } = parseArgs();
+  const { templateName, min, max, step, env } = parseArgs();
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl =
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey =
     process.env.SUPABASE_SERVICE_ROLE_KEY ??
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
     console.error(
-      'Error: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.',
+      'Error: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.',
     );
     process.exit(1);
   }
+
+  assertEnvFlag(env, supabaseUrl);
 
   const supabase = createClient(supabaseUrl, supabaseKey);
 

@@ -191,10 +191,7 @@ export async function bridgeTemporalReferencesToEntities(
       // Determine the effective context type — use the declared type when
       // it is explicit, otherwise attempt keyword inference for ambiguous refs.
       let effectiveType: string = ref.context_type;
-      if (
-        ref.context_type === 'unknown' ||
-        ref.context_type === 'historical'
-      ) {
+      if (ref.context_type === 'unknown' || ref.context_type === 'historical') {
         const inferred = inferContextType(ref.context);
         if (inferred) {
           effectiveType = inferred;

@@ -503,9 +503,7 @@ describe('create_review_assignment MCP tool', () => {
     expect(res.structuredContent?.notification_error).toBe('SMTP down');
     // The assignment itself is recorded successfully
     expect(res.structuredContent?.id).toBe('assignment-abc');
-    expect(res.content[0]?.text).toContain(
-      'Notification failed: SMTP down',
-    );
+    expect(res.content[0]?.text).toContain('Notification failed: SMTP down');
   });
 
   it('surfaces DB insert errors as isError', async () => {

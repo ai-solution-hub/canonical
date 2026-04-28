@@ -64,7 +64,9 @@ describe('extractFromHtml', () => {
   });
 
   it('extracts text content via Turndown', async () => {
-    mockTurndown.mockReturnValue('Full article body text with multiple paragraphs.');
+    mockTurndown.mockReturnValue(
+      'Full article body text with multiple paragraphs.',
+    );
     mockParse.mockReturnValue({
       title: 'Title',
       content: '<p>Full article body text with multiple paragraphs.</p>',
@@ -77,7 +79,9 @@ describe('extractFromHtml', () => {
       '<html><body>...</body></html>',
       'https://example.com',
     );
-    expect(mockTurndown).toHaveBeenCalledWith('<p>Full article body text with multiple paragraphs.</p>');
+    expect(mockTurndown).toHaveBeenCalledWith(
+      '<p>Full article body text with multiple paragraphs.</p>',
+    );
     expect(result.content).toBe(
       'Full article body text with multiple paragraphs.',
     );

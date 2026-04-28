@@ -235,9 +235,7 @@ describe('CommandPalette', () => {
     // Gate is gone: we must not route via the old search fallback which
     // used /browse?q=<encoded query>.
     const pushedPaths = mockRouter.push.mock.calls.map((c) => c[0] as string);
-    expect(
-      pushedPaths.some((p) => p.startsWith('/browse?q=')),
-    ).toBe(false);
+    expect(pushedPaths.some((p) => p.startsWith('/browse?q='))).toBe(false);
   });
 
   it('does not render the "Press Enter to search" fallback copy', async () => {

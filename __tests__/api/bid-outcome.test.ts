@@ -831,9 +831,7 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
   const LONG_RESPONSE =
     '<p>We implement a comprehensive information-security management system aligned with ISO 27001:2022 across all operational areas.</p>';
 
-  function primeBidAndQuestions(
-    responseText: string = LONG_RESPONSE,
-  ): void {
+  function primeBidAndQuestions(responseText: string = LONG_RESPONSE): void {
     // Bid in won state
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: {

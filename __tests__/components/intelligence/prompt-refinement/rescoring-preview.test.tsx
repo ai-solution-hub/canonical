@@ -38,9 +38,7 @@ describe('RescoringPreview', () => {
     // Fixture: 1 newly-filtered (0.82->0.45), 1 newly-passed (0.42->0.71),
     // 3 unchanged (stay on the same side of 0.5).
     expect(
-      screen.getByText(
-        /1 newly filtered, 1 newly passed, 3 unchanged/,
-      ),
+      screen.getByText(/1 newly filtered, 1 newly passed, 3 unchanged/),
     ).toBeInTheDocument();
   });
 
@@ -74,9 +72,7 @@ describe('RescoringPreview', () => {
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     await user.click(toggle);
 
-    expect(
-      screen.getByText('DfE consultation response'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('DfE consultation response')).toBeInTheDocument();
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
   });
 
@@ -86,7 +82,9 @@ describe('RescoringPreview', () => {
     });
     render(<RescoringPreview result={result} />);
     expect(
-      screen.getByText(/Partial preview — some articles could not be re-scored/i),
+      screen.getByText(
+        /Partial preview — some articles could not be re-scored/i,
+      ),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/Article 42 could not be scored: API timeout/),
@@ -96,11 +94,15 @@ describe('RescoringPreview', () => {
   it('formats the average delta with a leading sign', () => {
     const positive = makeRescoringPreviewResponse({ mean_delta: 0.04 });
     const { rerender } = render(<RescoringPreview result={positive} />);
-    expect(screen.getByText(/Average score change: \+0\.04/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Average score change: \+0\.04/),
+    ).toBeInTheDocument();
 
     const negative = makeRescoringPreviewResponse({ mean_delta: -0.12 });
     rerender(<RescoringPreview result={negative} />);
-    expect(screen.getByText(/Average score change: -0\.12/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Average score change: -0\.12/),
+    ).toBeInTheDocument();
   });
 
   it('handles all-unchanged preview without warnings', () => {

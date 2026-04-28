@@ -61,19 +61,13 @@ test.describe('Review page — action bar', () => {
     await expect(
       actionBar.getByRole('button', { name: /Verify/ }),
     ).toBeVisible();
-    await expect(
-      actionBar.getByRole('button', { name: /Flag/ }),
-    ).toBeVisible();
+    await expect(actionBar.getByRole('button', { name: /Flag/ })).toBeVisible();
 
     // Navigation
-    await expect(
-      actionBar.getByRole('button', { name: /Skip/ }),
-    ).toBeVisible();
+    await expect(actionBar.getByRole('button', { name: /Skip/ })).toBeVisible();
 
     // Meta
-    await expect(
-      actionBar.getByRole('button', { name: /Exit/ }),
-    ).toBeVisible();
+    await expect(actionBar.getByRole('button', { name: /Exit/ })).toBeVisible();
   });
 
   test('verify button advances to the next item', async ({
@@ -151,9 +145,9 @@ test.describe('Review page — action bar', () => {
     await cancelButton.click();
 
     // Flag input should be hidden — the Submit button disappearing confirms cancel worked
-    await expect(
-      page.getByRole('button', { name: 'Submit' }),
-    ).not.toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('button', { name: 'Submit' })).not.toBeVisible({
+      timeout: 5000,
+    });
   });
 
   test('skip button advances to the next item without changing status', async ({

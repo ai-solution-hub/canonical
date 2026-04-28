@@ -80,7 +80,8 @@ const SAMPLE_RESPONSE: RescoringPreviewResponse = {
       candidate_score: 0.8,
       score_delta: 0.2,
       existing_reasoning: 'Mentions security but lacks specificity.',
-      candidate_reasoning: 'Directly addresses UK cyber compliance obligations.',
+      candidate_reasoning:
+        'Directly addresses UK cyber compliance obligations.',
     },
     {
       article_id: ARTICLE_ID_2,

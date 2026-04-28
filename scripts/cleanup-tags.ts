@@ -115,9 +115,7 @@ export function processItemKeywords(
   // Step 3: Canonicalise via normaliseTag (spec ss6.6 EP10).
   // Ensures merge outputs (e.g. synonym canonical forms) are in normalised form.
   const afterNormalise = [
-    ...new Set(
-      afterMerge.map(normaliseTag).filter((kw) => kw.length > 0),
-    ),
+    ...new Set(afterMerge.map(normaliseTag).filter((kw) => kw.length > 0)),
   ];
 
   // Check if anything changed
@@ -173,12 +171,27 @@ async function runCli() {
 
   loadEnv();
 
+  // ── --env=prod opt-in (WP-S5.3 D-21 F-1) ───────────────────────────────
+
+  const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+
+  function assertEnvFlag(env: string, url: string | undefined): void {
+    if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+      console.error(
+        `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+          `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/cleanup-tags.ts --env=prod`,
+      );
+      process.exit(1);
+    }
+  }
+
   // ── Args ───────────────────────────────────────────────────────────────
 
   const { values: args } = parseArgs({
     options: {
       apply: { type: 'boolean', default: false },
       help: { type: 'boolean', default: false },
+      env: { type: 'string', default: '' },
     },
     strict: true,
   });
@@ -189,6 +202,10 @@ Usage: bun run scripts/cleanup-tags.ts [options]
 
 Options:
   --apply       Write changes to the database (default is dry run)
+  --env=prod    Asserts SUPABASE_URL points at current prod
+                ('${PROD_PROJECT_REF}'). Override invocation:
+                SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key>
+                bun run scripts/cleanup-tags.ts --env=prod
   --help        Show this help
 `);
     process.exit(0);
@@ -199,15 +216,17 @@ Options:
   // ── Supabase client ────────────────────────────────────────────────────
 
   const supabaseUrl =
-    process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
     console.error(
-      'Missing SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment',
+      'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment',
     );
     process.exit(1);
   }
+
+  assertEnvFlag(args.env ?? '', supabaseUrl);
 
   const supabase = createClient(supabaseUrl, supabaseKey);
 

@@ -260,9 +260,7 @@ describe('EntityBadges', () => {
     render(<EntityBadges contentItemId="item-1" />);
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/couldn't load entities/i),
-      ).toBeInTheDocument();
+      expect(screen.getByText(/couldn't load entities/i)).toBeInTheDocument();
     });
 
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();

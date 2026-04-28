@@ -54,7 +54,10 @@ import {
 // ---------------------------------------------------------------------------
 
 const { authCookies, cachedSessions } = vi.hoisted(() => ({
-  authCookies: new Map<string, { name: string; value: string }>() as AuthCookieStore,
+  authCookies: new Map<
+    string,
+    { name: string; value: string }
+  >() as AuthCookieStore,
   cachedSessions: {
     admin: new Map(),
     editor: new Map(),
@@ -81,12 +84,10 @@ vi.mock('next/headers', () => ({
 // `createClient` dependency.
 // ---------------------------------------------------------------------------
 
-const { POST: displayNamesPost } = await import(
-  '@/app/api/users/display-names/route'
-);
-const { GET: contentOwnerStatsGet } = await import(
-  '@/app/api/content-owners/stats/route'
-);
+const { POST: displayNamesPost } =
+  await import('@/app/api/users/display-names/route');
+const { GET: contentOwnerStatsGet } =
+  await import('@/app/api/content-owners/stats/route');
 
 import { NextRequest } from 'next/server';
 

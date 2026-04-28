@@ -67,10 +67,7 @@ export async function PATCH(
 
     if (guideError) {
       if (guideError.code === 'PGRST116') {
-        return NextResponse.json(
-          { error: 'Guide not found' },
-          { status: 404 },
-        );
+        return NextResponse.json({ error: 'Guide not found' }, { status: 404 });
       }
       console.error('Guide lookup failed:', guideError);
       return NextResponse.json(
@@ -152,10 +149,7 @@ export async function DELETE(
 
     if (guideError) {
       if (guideError.code === 'PGRST116') {
-        return NextResponse.json(
-          { error: 'Guide not found' },
-          { status: 404 },
-        );
+        return NextResponse.json({ error: 'Guide not found' }, { status: 404 });
       }
       console.error('Guide lookup failed:', guideError);
       return NextResponse.json(

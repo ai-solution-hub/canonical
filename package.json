@@ -36,6 +36,7 @@
     "knip": "knip --no-config-hints",
     "knip:files": "knip --no-config-hints --include files",
     "knip:exports": "knip --no-config-hints --include exports,types",
+    "ci:knip-check": "bun run scripts/check-knip-baseline.ts",
     "eval:classification": "bun run scripts/eval-classification.ts",
     "eval:summarisation": "bun run scripts/eval-summarisation.ts",
     "eval:search": "bun run scripts/eval-search.ts",

@@ -61,15 +61,7 @@ export function parseImportBatchDate(
   const mi = Number(timePart.slice(2, 4));
   const ss = Number(timePart.slice(4, 6));
   // Calendar-validity check: reject if any component out of range.
-  if (
-    mm < 1 ||
-    mm > 12 ||
-    dd < 1 ||
-    dd > 31 ||
-    hh > 23 ||
-    mi > 59 ||
-    ss > 59
-  ) {
+  if (mm < 1 || mm > 12 || dd < 1 || dd > 31 || hh > 23 || mi > 59 || ss > 59) {
     return null;
   }
   const date = new Date(Date.UTC(yyyy, mm - 1, dd, hh, mi, ss));
@@ -127,7 +119,5 @@ export function detectMarkdownIngest(
   if (!metadata) return false;
   const ingestionSource = metadata.ingestion_source;
   const originalFormat = metadata.original_format;
-  return (
-    ingestionSource === 'markdown_file' || originalFormat === 'markdown'
-  );
+  return ingestionSource === 'markdown_file' || originalFormat === 'markdown';
 }

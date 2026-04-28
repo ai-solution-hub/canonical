@@ -62,7 +62,9 @@ export function generateRss(
     `    <lastBuildDate>${escapeXml(channel.lastBuildDate)}</lastBuildDate>`,
   );
   lines.push(`    <ttl>${channel.ttl}</ttl>`);
-  lines.push(`    <generator>${BRANDING.productName} Sector Intelligence</generator>`);
+  lines.push(
+    `    <generator>${BRANDING.productName} Sector Intelligence</generator>`,
+  );
 
   for (const item of items) {
     lines.push('    <item>');

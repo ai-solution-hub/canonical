@@ -109,10 +109,7 @@ export async function GET() {
     );
 
     const totalRuns = rows.length;
-    const totalFailures = summaries.reduce(
-      (acc, s) => acc + s.failureCount,
-      0,
-    );
+    const totalFailures = summaries.reduce((acc, s) => acc + s.failureCount, 0);
 
     const body: PipelineRunsRecentResponse = {
       windowHours,
@@ -127,10 +124,7 @@ export async function GET() {
   } catch (err) {
     return NextResponse.json(
       {
-        error: safeErrorMessage(
-          err,
-          'Failed to load recent pipeline runs',
-        ),
+        error: safeErrorMessage(err, 'Failed to load recent pipeline runs'),
       },
       { status: 500 },
     );

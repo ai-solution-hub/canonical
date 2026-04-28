@@ -1,8 +1,7 @@
 # example-client Design -- Compliance, Governance, and Certifications
 
-**Company:** Example Client Ltd
-**Source:** https://www.client.example/ and related public sources
-**Research date:** 2026-02-14
+**Company:** Example Client Ltd **Source:** https://www.client.example/ and
+related public sources **Research date:** 2026-02-14
 
 ---
 
@@ -10,13 +9,14 @@
 
 ### ISO Certifications
 
-| Certification | Standard | Status |
-|--------------|----------|--------|
-| Quality Management | ISO 9001:2015 | Active (integrated management system) |
-| Information Security | ISO 27001:2013 | Active (integrated management system) |
-| Environmental Management | ISO 14001 | Achieved October 2025 |
+| Certification            | Standard       | Status                                |
+| ------------------------ | -------------- | ------------------------------------- |
+| Quality Management       | ISO 9001:2015  | Active (integrated management system) |
+| Information Security     | ISO 27001:2013 | Active (integrated management system) |
+| Environmental Management | ISO 14001      | Achieved October 2025                 |
 
-- Certifications undergo renewal audits every three years with annual surveillance audits
+- Certifications undergo renewal audits every three years with annual
+  surveillance audits
 
 ### Cyber Security
 
@@ -32,7 +32,9 @@
 
 ### Disaster Recovery
 
-- Comprehensive DR plan developed from industry-recognised methodologies including ISO 27000 standards
-- Designed to fortify business continuity for critical production services, systems, and platforms
+- Comprehensive DR plan developed from industry-recognised methodologies
+  including ISO 27000 standards
+- Designed to fortify business continuity for critical production services,
+  systems, and platforms
 
 ---

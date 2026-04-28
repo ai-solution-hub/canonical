@@ -24,7 +24,15 @@
  * @vitest-environment node
  */
 
-import { describe, it, expect, vi, beforeAll, beforeEach, afterAll } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  beforeEach,
+  afterAll,
+} from 'vitest';
 // service-client MUST be imported first — it loads dotenv for all env vars.
 import { serviceClient } from './helpers/service-client';
 import {
@@ -46,7 +54,10 @@ import { cleanupItem } from './helpers/qa-editor-fixtures';
 // ---------------------------------------------------------------------------
 
 const { authCookies, cachedSessions } = vi.hoisted(() => ({
-  authCookies: new Map<string, { name: string; value: string }>() as AuthCookieStore,
+  authCookies: new Map<
+    string,
+    { name: string; value: string }
+  >() as AuthCookieStore,
   cachedSessions: {
     admin: new Map(),
     editor: new Map(),
@@ -114,101 +125,97 @@ afterAll(async () => {
 // ---------------------------------------------------------------------------
 
 describe('Q&A editor — POST /api/items populates answer_standard (AC4b)', () => {
-  it(
-    'POST creates a q_a_pair with answer_standard === content; subsequent PATCH does not destroy content',
-    async () => {
-      // -------- Step 1: POST a new q_a_pair item -----------------------
-      const createBody = {
-        title: `${TEST_PREFIX} Sample question?`,
-        content:
-          'Q: Sample question?\n\nThe original creation answer is at least ' +
-          'two hundred characters long so the WP1 length-ratio guard does ' +
-          'not block the subsequent PATCH edit. This sentence pads the ' +
-          'body comfortably above the 0.8 baseline-ratio threshold.',
-        content_type: 'q_a_pair' as const,
-        // Disable AI side-effects so the test is fast and deterministic
-        // (the Q&A path under test is the storage shape of
-        // answer_standard, not the AI pipeline).
-        auto_classify: false,
-        auto_summarise: false,
-        auto_embed: false,
-      };
-      const createReq = new NextRequest('http://localhost/api/items', {
-        method: 'POST',
-        body: JSON.stringify(createBody),
-        headers: { 'content-type': 'application/json' },
-      });
-      const createRes = await createItemPost(createReq);
-      expect(createRes.status, await createRes.clone().text()).toBe(201);
-      const createBodyJson = (await createRes.json()) as { id: string };
-      expect(createBodyJson.id).toBeTruthy();
-      createdItemIds.push(createBodyJson.id);
-      const itemId = createBodyJson.id;
+  it('POST creates a q_a_pair with answer_standard === content; subsequent PATCH does not destroy content', async () => {
+    // -------- Step 1: POST a new q_a_pair item -----------------------
+    const createBody = {
+      title: `${TEST_PREFIX} Sample question?`,
+      content:
+        'Q: Sample question?\n\nThe original creation answer is at least ' +
+        'two hundred characters long so the WP1 length-ratio guard does ' +
+        'not block the subsequent PATCH edit. This sentence pads the ' +
+        'body comfortably above the 0.8 baseline-ratio threshold.',
+      content_type: 'q_a_pair' as const,
+      // Disable AI side-effects so the test is fast and deterministic
+      // (the Q&A path under test is the storage shape of
+      // answer_standard, not the AI pipeline).
+      auto_classify: false,
+      auto_summarise: false,
+      auto_embed: false,
+    };
+    const createReq = new NextRequest('http://localhost/api/items', {
+      method: 'POST',
+      body: JSON.stringify(createBody),
+      headers: { 'content-type': 'application/json' },
+    });
+    const createRes = await createItemPost(createReq);
+    expect(createRes.status, await createRes.clone().text()).toBe(201);
+    const createBodyJson = (await createRes.json()) as { id: string };
+    expect(createBodyJson.id).toBeTruthy();
+    createdItemIds.push(createBodyJson.id);
+    const itemId = createBodyJson.id;
 
-      // -------- Step 2: assert answer_standard === content -------------
-      const { data: persisted, error: persistedErr } = await serviceClient
-        .from('content_items')
-        .select('content, answer_standard, answer_advanced, content_type')
-        .eq('id', itemId)
-        .single();
-      expect(persistedErr).toBeNull();
-      expect(persisted).toBeTruthy();
-      expect(persisted!.content_type).toBe('q_a_pair');
-      // Load-bearing AC4b assertion: the create-path alignment fix means
-      // the freshly-created Q&A item has `answer_standard` populated to
-      // exactly the same string as `content`. If this fails, the S192
-      // creation-path bug has regressed and the next PATCH would silently
-      // destroy the content body.
-      expect(persisted!.answer_standard).toBe(persisted!.content);
-      expect(persisted!.answer_standard).toBe(createBody.content);
-      // Advanced is opt-in only; should be null on a fresh create.
-      expect(persisted!.answer_advanced).toBeNull();
+    // -------- Step 2: assert answer_standard === content -------------
+    const { data: persisted, error: persistedErr } = await serviceClient
+      .from('content_items')
+      .select('content, answer_standard, answer_advanced, content_type')
+      .eq('id', itemId)
+      .single();
+    expect(persistedErr).toBeNull();
+    expect(persisted).toBeTruthy();
+    expect(persisted!.content_type).toBe('q_a_pair');
+    // Load-bearing AC4b assertion: the create-path alignment fix means
+    // the freshly-created Q&A item has `answer_standard` populated to
+    // exactly the same string as `content`. If this fails, the S192
+    // creation-path bug has regressed and the next PATCH would silently
+    // destroy the content body.
+    expect(persisted!.answer_standard).toBe(persisted!.content);
+    expect(persisted!.answer_standard).toBe(createBody.content);
+    // Advanced is opt-in only; should be null on a fresh create.
+    expect(persisted!.answer_advanced).toBeNull();
 
-      // -------- Step 3: PATCH a non-empty edit to answer_standard -----
-      const newAnswerStandard =
-        'The edited answer is also intentionally long to stay above the ' +
-        '0.8 baseline-ratio guard. A second sentence makes sure no save-' +
-        'safety guard fires on this clean round-trip test.';
-      const patchReq = new NextRequest(`http://localhost/api/items/${itemId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          field: 'answer_standard',
-          value: newAnswerStandard,
-        }),
-        headers: { 'content-type': 'application/json' },
-      });
-      const patchRes = await patchItem(patchReq, {
-        params: Promise.resolve({ id: itemId }),
-      });
-      expect(patchRes.status, await patchRes.clone().text()).toBe(200);
+    // -------- Step 3: PATCH a non-empty edit to answer_standard -----
+    const newAnswerStandard =
+      'The edited answer is also intentionally long to stay above the ' +
+      '0.8 baseline-ratio guard. A second sentence makes sure no save-' +
+      'safety guard fires on this clean round-trip test.';
+    const patchReq = new NextRequest(`http://localhost/api/items/${itemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        field: 'answer_standard',
+        value: newAnswerStandard,
+      }),
+      headers: { 'content-type': 'application/json' },
+    });
+    const patchRes = await patchItem(patchReq, {
+      params: Promise.resolve({ id: itemId }),
+    });
+    expect(patchRes.status, await patchRes.clone().text()).toBe(200);
 
-      // -------- Step 4: re-read & assert content is non-empty ----------
-      const { data: postPatch, error: postPatchErr } = await serviceClient
-        .from('content_items')
-        .select('content, answer_standard, answer_advanced')
-        .eq('id', itemId)
-        .single();
-      expect(postPatchErr).toBeNull();
-      expect(postPatch).toBeTruthy();
-      // Hard assertion: content must NOT be empty post-save. A regression
-      // of the create-path alignment fix would leave answer_standard NULL
-      // before the PATCH; the rebuild then writes
-      // `Q: ...\n\n<new>\n\n<NULL>` filtered through `if (advanced)` —
-      // which evaluates falsy and the join would produce just the new
-      // text, NOT empty. But if the rebuild itself were bypassed, content
-      // would still hold the OLD body. The strongest guard: assert
-      // content includes the new edit AND is not empty.
-      expect(postPatch!.content).toBeTruthy();
-      expect(postPatch!.content.length).toBeGreaterThan(0);
-      expect(postPatch!.content).toContain(newAnswerStandard);
-      // answer_standard should reflect the new value.
-      expect(postPatch!.answer_standard).toBe(newAnswerStandard);
-      // Sanity: the rebuild kept the leading `Q: ` prefix because the
-      // pre-edit content started with `Q: Sample question?`.
-      expect(postPatch!.content.startsWith('Q: Sample question?')).toBe(true);
-    },
-    60_000,
-  );
+    // -------- Step 4: re-read & assert content is non-empty ----------
+    const { data: postPatch, error: postPatchErr } = await serviceClient
+      .from('content_items')
+      .select('content, answer_standard, answer_advanced')
+      .eq('id', itemId)
+      .single();
+    expect(postPatchErr).toBeNull();
+    expect(postPatch).toBeTruthy();
+    // Hard assertion: content must NOT be empty post-save. A regression
+    // of the create-path alignment fix would leave answer_standard NULL
+    // before the PATCH; the rebuild then writes
+    // `Q: ...\n\n<new>\n\n<NULL>` filtered through `if (advanced)` —
+    // which evaluates falsy and the join would produce just the new
+    // text, NOT empty. But if the rebuild itself were bypassed, content
+    // would still hold the OLD body. The strongest guard: assert
+    // content includes the new edit AND is not empty.
+    expect(postPatch!.content).toBeTruthy();
+    expect(postPatch!.content.length).toBeGreaterThan(0);
+    expect(postPatch!.content).toContain(newAnswerStandard);
+    // answer_standard should reflect the new value.
+    expect(postPatch!.answer_standard).toBe(newAnswerStandard);
+    // Sanity: the rebuild kept the leading `Q: ` prefix because the
+    // pre-edit content started with `Q: Sample question?`.
+    expect(postPatch!.content.startsWith('Q: Sample question?')).toBe(true);
+  }, 60_000);
 
   it('refuses anonymous requests (regression guard for the auth wrapper)', async () => {
     authCookies.clear();

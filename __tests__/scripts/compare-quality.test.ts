@@ -316,7 +316,9 @@ describe('computePairStats heading ratio', () => {
   });
 });
 
-function mkSnapshot(overrides: Partial<ContentSnapshotLike>): ContentSnapshotLike {
+function mkSnapshot(
+  overrides: Partial<ContentSnapshotLike>,
+): ContentSnapshotLike {
   return {
     id: 'id',
     title: 'title',

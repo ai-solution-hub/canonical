@@ -39,15 +39,17 @@ const nextConfig: NextConfig = {
 // next.config.ts runs at build orchestration time and importing serverEnv
 // would force a Zod parse of every required server var just to construct
 // the Next config — needlessly tight coupling for optional Sentry knobs.
-export default withBundleAnalyzer(withSentryConfig(nextConfig, {
-  silent: true,
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
-  authToken: process.env.SENTRY_AUTH_TOKEN,
-  release: {
-    name: process.env.VERCEL_GIT_COMMIT_SHA,
-  },
-  sourcemaps: {
-    disable: !process.env.SENTRY_AUTH_TOKEN,
-  },
-}));
+export default withBundleAnalyzer(
+  withSentryConfig(nextConfig, {
+    silent: true,
+    org: process.env.SENTRY_ORG,
+    project: process.env.SENTRY_PROJECT,
+    authToken: process.env.SENTRY_AUTH_TOKEN,
+    release: {
+      name: process.env.VERCEL_GIT_COMMIT_SHA,
+    },
+    sourcemaps: {
+      disable: !process.env.SENTRY_AUTH_TOKEN,
+    },
+  }),
+);

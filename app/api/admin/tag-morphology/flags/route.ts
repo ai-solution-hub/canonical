@@ -74,7 +74,10 @@ export async function GET(request: NextRequest) {
     // directly because it does not need `count`.
     const result = await query;
     if (result.error) {
-      throw new SupabaseError(result.error, 'tag_morphology_drift_flags.select');
+      throw new SupabaseError(
+        result.error,
+        'tag_morphology_drift_flags.select',
+      );
     }
 
     return NextResponse.json({

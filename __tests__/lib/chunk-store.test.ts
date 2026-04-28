@@ -165,11 +165,13 @@ interface CallRecord {
   filters?: Record<string, unknown>;
 }
 
-function makeRecordingSupabase(options: {
-  insertResponse?: { data: unknown; error: unknown };
-  updateResponse?: { data: unknown; error: unknown };
-  deleteResponse?: { data: unknown; error: unknown };
-} = {}) {
+function makeRecordingSupabase(
+  options: {
+    insertResponse?: { data: unknown; error: unknown };
+    updateResponse?: { data: unknown; error: unknown };
+    deleteResponse?: { data: unknown; error: unknown };
+  } = {},
+) {
   const calls: CallRecord[] = [];
   const insertResponse = options.insertResponse ?? {
     data: [{ id: 'uuid-0', position: 0 }],
@@ -192,7 +194,10 @@ function makeRecordingSupabase(options: {
       _op: null as CallRecord['op'] | null,
       _payload: undefined as unknown,
       _filters: {} as Record<string, unknown>,
-      _response: { data: null, error: null } as { data: unknown; error: unknown },
+      _response: { data: null, error: null } as {
+        data: unknown;
+        error: unknown;
+      },
       insert(payload: unknown) {
         this._op = 'insert';
         this._payload = payload;

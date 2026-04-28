@@ -114,9 +114,7 @@ describe('useContentSelection', () => {
 
   it('clears selection when resetDeps change', () => {
     let dep = 'domain-a';
-    const { result, rerender } = renderHook(() =>
-      useContentSelection([dep]),
-    );
+    const { result, rerender } = renderHook(() => useContentSelection([dep]));
     act(() => result.current.toggleSelect('x'));
     expect(result.current.selectedIds.size).toBe(1);
 

@@ -81,7 +81,9 @@ vi.mock('@/components/ui/select', () => ({
     <>{children}</>
   ),
   SelectValue: () => null,
-  SelectContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  SelectContent: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
   SelectItem: ({
     children,
     value,
@@ -112,7 +114,10 @@ vi.mock('@/components/ui/switch', () => ({
 
 vi.mock('lucide-react', () => ({
   CheckCircle2: (props: Record<string, unknown>) => (
-    <span data-testid="check-circle-icon" aria-hidden={props['aria-hidden'] as string} />
+    <span
+      data-testid="check-circle-icon"
+      aria-hidden={props['aria-hidden'] as string}
+    />
   ),
 }));
 
@@ -318,9 +323,7 @@ describe('FeedSourceForm', () => {
       expect(
         screen.queryByRole('button', { name: 'Cancel' }),
       ).not.toBeInTheDocument();
-      expect(
-        screen.getByRole('button', { name: 'Close' }),
-      ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
 
       // Submit becomes "Add Another" so the user knows clicking again creates
       // a NEW feed (not a duplicate of the one they just added).

@@ -109,9 +109,7 @@ async function fetchAndFormatContentItems(
 
   // Reorder to match input ID order
   const idOrder = new Map(itemIds.map((id, index) => [id, index]));
-  items.sort(
-    (a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0),
-  );
+  items.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0));
 
   return { count: items.length, items, not_found: notFound };
 }
@@ -259,7 +257,11 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         'Create a new content item in the knowledge base. Content should be in markdown format (the canonical storage format). Requires editor or admin role. The item will be automatically embedded for search unless created as a draft. Set publication_status to "draft" to create items that are excluded from search and visible only in the review queue\'s Drafts filter — useful for batch content creation that needs review before going live. Use batch_tag to group related draft items (e.g. "reorient-2026-03") and source_document to record provenance. Choose content_type carefully: use q_a_pair for question-answer pairs, case_study for project examples, policy for governance documents, certification for accreditations, capability for service descriptions. Use the kb://taxonomy resource to see valid domain and subtopic values.',
       inputSchema: {
         title: z.string().min(1).max(500).describe('Title of the content item'),
-        content: z.string().min(1).max(500000).describe('The content text in markdown format'),
+        content: z
+          .string()
+          .min(1)
+          .max(500000)
+          .describe('The content text in markdown format'),
         content_type: z
           .enum([
             'article',
@@ -372,7 +374,10 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             dedupExistingTitle = dedupCheck.existingTitle;
           }
         } catch (dedupErr) {
-          console.error('MCP create_content_item dedup check failed:', dedupErr);
+          console.error(
+            'MCP create_content_item dedup check failed:',
+            dedupErr,
+          );
         }
 
         // Skip embedding for drafts — generated on publish to save API cost
@@ -558,12 +563,10 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           // Uses service client to bypass RLS (the chunks table mirrors
           // content_items permissions but a service client avoids edge cases).
           try {
-            const { regenerateChunks } = await import(
-              '@/lib/content/chunk-store'
-            );
-            const { createServiceClient } = await import(
-              '@/lib/supabase/server'
-            );
+            const { regenerateChunks } =
+              await import('@/lib/content/chunk-store');
+            const { createServiceClient } =
+              await import('@/lib/supabase/server');
             const chunkServiceClient = createServiceClient();
             const chunkResult = await regenerateChunks(
               chunkServiceClient,
@@ -571,9 +574,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
               args.content,
             );
             if (chunkResult.errors.length > 0) {
-              warnings.push(
-                `Chunking: ${chunkResult.errors.length} error(s)`,
-              );
+              warnings.push(`Chunking: ${chunkResult.errors.length} error(s)`);
             }
           } catch (chunkErr) {
             console.error(

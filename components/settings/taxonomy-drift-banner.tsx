@@ -6,7 +6,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { queryKeys } from '@/lib/query/query-keys';
-import { fetchTaxonomySyncStatus, mutationFetchJson } from '@/lib/query/fetchers';
+import {
+  fetchTaxonomySyncStatus,
+  mutationFetchJson,
+} from '@/lib/query/fetchers';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -49,15 +52,14 @@ export function TaxonomyDriftBanner({ className }: TaxonomyDriftBannerProps) {
 
   const regenerateMutation = useMutation({
     mutationFn: () =>
-      mutationFetchJson<{ dispatched: boolean; reason?: string; run_id?: string }>(
-        '/api/admin/taxonomy-sync',
-        {},
-      ),
+      mutationFetchJson<{
+        dispatched: boolean;
+        reason?: string;
+        run_id?: string;
+      }>('/api/admin/taxonomy-sync', {}),
     onSuccess: (result) => {
       if (result.dispatched) {
-        toast.success(
-          'Sync dispatched -- changes will deploy in ~2–3 minutes',
-        );
+        toast.success('Sync dispatched -- changes will deploy in ~2–3 minutes');
       } else {
         toast.success('Taxonomy is already in sync');
       }
@@ -114,9 +116,7 @@ export function TaxonomyDriftBanner({ className }: TaxonomyDriftBannerProps) {
                 className={`size-3.5${regenerateMutation.isPending ? ' animate-spin' : ''}`}
                 aria-hidden="true"
               />
-              {regenerateMutation.isPending
-                ? 'Dispatching…'
-                : 'Regenerate now'}
+              {regenerateMutation.isPending ? 'Dispatching…' : 'Regenerate now'}
             </Button>
           </div>
         </div>

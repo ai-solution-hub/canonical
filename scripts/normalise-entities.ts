@@ -149,11 +149,14 @@ async function main() {
 
   // v1.1 W3e M-1 fix: read SUPABASE_URL ?? NEXT_PUBLIC_SUPABASE_URL so spec §7.1/§7.3 override
   // examples (`SUPABASE_URL=<prod-url> bun run ...`) match the resolved variable.
-  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl =
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
-    console.error('Missing SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+    console.error(
+      'Missing SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY',
+    );
     process.exit(1);
   }
 

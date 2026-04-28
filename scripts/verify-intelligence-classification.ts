@@ -232,7 +232,13 @@ export function formatReport(result: VerificationResult): string {
     ([, a], [, b]) => b - a,
   );
   if (domainEntries.length > 0) {
-    lines.push('', '## Domain Distribution', '', '| Domain | Count |', '| --- | --- |');
+    lines.push(
+      '',
+      '## Domain Distribution',
+      '',
+      '| Domain | Count |',
+      '| --- | --- |',
+    );
     for (const [domain, count] of domainEntries) {
       lines.push(`| ${domain} | ${count} |`);
     }
@@ -319,11 +325,26 @@ export function formatReport(result: VerificationResult): string {
 // CLI execution
 // ---------------------------------------------------------------------------
 
+// ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
+
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+
+function assertEnvFlag(env: string, url: string | undefined): void {
+  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+    console.error(
+      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/verify-intelligence-classification.ts --env=prod`,
+    );
+    process.exit(1);
+  }
+}
+
 async function main(): Promise<void> {
   // Parse CLI args
   const args = process.argv.slice(2);
   let workspaceId: string | undefined;
   let limit = 200;
+  let env = '';
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--workspace-id' && args[i + 1]) {
@@ -332,18 +353,26 @@ async function main(): Promise<void> {
     } else if (args[i] === '--limit' && args[i + 1]) {
       limit = parseInt(args[i + 1], 10);
       i++;
+    } else if (args[i] === '--env' && args[i + 1]) {
+      env = args[i + 1];
+      i++;
+    } else if (args[i].startsWith('--env=')) {
+      env = args[i].slice('--env='.length);
     }
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl =
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
     console.error(
-      'Error: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.',
+      'Error: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.',
     );
     process.exit(1);
   }
+
+  assertEnvFlag(env, supabaseUrl);
 
   const supabase = createClient(supabaseUrl, supabaseKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -359,9 +388,8 @@ async function main(): Promise<void> {
     articlesQuery = articlesQuery.eq('workspace_id', workspaceId);
   }
 
-  const { data: feedArticles, error: feedError } = await articlesQuery.limit(
-    limit,
-  );
+  const { data: feedArticles, error: feedError } =
+    await articlesQuery.limit(limit);
 
   if (feedError) {
     console.error(`Failed to query feed_articles: ${feedError.message}`);
@@ -445,7 +473,12 @@ async function main(): Promise<void> {
   );
 
   // 6. Analyse and format report
-  const result = analyseItems(items, validDomains, validSubtopics, entityTypeDist);
+  const result = analyseItems(
+    items,
+    validDomains,
+    validSubtopics,
+    entityTypeDist,
+  );
   const report = formatReport(result);
 
   console.log(report);

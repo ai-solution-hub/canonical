@@ -62,7 +62,10 @@ export type UserRole = 'admin' | 'editor' | 'viewer';
  * Viewer rows are universally empty (read-only role).
  */
 const TRANSITION_MATRIX: Readonly<
-  Record<PublicationStatus, Readonly<Record<UserRole, readonly PublicationStatus[]>>>
+  Record<
+    PublicationStatus,
+    Readonly<Record<UserRole, readonly PublicationStatus[]>>
+  >
 > = {
   draft: {
     admin: ['in_review', 'published'],
@@ -172,7 +175,10 @@ export type SideEffectPayload = {
  *   500 chars per Zod schema). Only stamped on `published → archived`.
  */
 export function applyTransitionSideEffects(
-  basePayload: { publication_status: PublicationStatus } & Record<string, unknown>,
+  basePayload: { publication_status: PublicationStatus } & Record<
+    string,
+    unknown
+  >,
   fromState: PublicationStatus,
   toState: PublicationStatus,
   userId: string,

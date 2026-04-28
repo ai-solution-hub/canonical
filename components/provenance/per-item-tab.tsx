@@ -3,12 +3,7 @@
 import { useState } from 'react';
 import { Search } from 'lucide-react';
 import { useItemProvenance } from '@/hooks/provenance/use-item-provenance';
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-} from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import PerItemField from '@/components/provenance/per-item-field';
 
@@ -130,7 +125,10 @@ export default function PerItemTab() {
       {selectedItemId && isLoading && <PerItemSkeleton />}
 
       {selectedItemId && isError && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center" role="alert">
+        <div
+          className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center"
+          role="alert"
+        >
           <p className="text-sm text-destructive">
             {(error as Error)?.message?.includes('404')
               ? 'This item no longer exists.'
@@ -144,9 +142,7 @@ export default function PerItemTab() {
       {selectedItemId && data && !isLoading && (
         <div className="space-y-4">
           {/* Item header */}
-          <p className="text-xs text-muted-foreground">
-            Item: {data.itemId}
-          </p>
+          <p className="text-xs text-muted-foreground">Item: {data.itemId}</p>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {/* Classification card */}
@@ -180,7 +176,9 @@ export default function PerItemTab() {
                     label="Classified at"
                     value={
                       data.classification.classifiedAt
-                        ? new Date(data.classification.classifiedAt).toLocaleDateString('en-GB')
+                        ? new Date(
+                            data.classification.classifiedAt,
+                          ).toLocaleDateString('en-GB')
                         : null
                     }
                   />
@@ -250,9 +248,11 @@ export default function PerItemTab() {
                   <PerItemField
                     label="Estimated cost"
                     value={(() => {
-                      const classifyCost = data.processing.estimatedClassifyCost;
+                      const classifyCost =
+                        data.processing.estimatedClassifyCost;
                       const embedCost = data.processing.estimatedEmbedCost;
-                      if (classifyCost === null && embedCost === null) return null;
+                      if (classifyCost === null && embedCost === null)
+                        return null;
                       const total = (classifyCost ?? 0) + (embedCost ?? 0);
                       return formatCost(total);
                     })()}
@@ -274,7 +274,8 @@ export default function PerItemTab() {
                 ) : (
                   <div className="space-y-3">
                     <p className="text-xs text-muted-foreground">
-                      {data.drafting.totalDraftCount} linked response{data.drafting.totalDraftCount !== 1 ? 's' : ''}
+                      {data.drafting.totalDraftCount} linked response
+                      {data.drafting.totalDraftCount !== 1 ? 's' : ''}
                     </p>
                     {data.drafting.recentDrafts.map((draft) => (
                       <div
@@ -289,7 +290,9 @@ export default function PerItemTab() {
                           </span>
                           {draft.draftedAt && (
                             <span className="shrink-0 text-muted-foreground">
-                              {new Date(draft.draftedAt).toLocaleDateString('en-GB')}
+                              {new Date(draft.draftedAt).toLocaleDateString(
+                                'en-GB',
+                              )}
                             </span>
                           )}
                         </div>

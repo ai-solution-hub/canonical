@@ -338,5 +338,4 @@ describe('ContentTabs', () => {
       expect(screen.queryByText('Auto-summary')).not.toBeInTheDocument();
     });
   });
-
 });

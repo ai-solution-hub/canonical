@@ -17,9 +17,7 @@ const mocks = vi.hoisted(() => {
   };
 
   const rpcMock = vi.fn().mockResolvedValue({ data: [], error: null });
-  const generateEmbeddingMock = vi
-    .fn()
-    .mockResolvedValue([0.1, 0.2, 0.3]);
+  const generateEmbeddingMock = vi.fn().mockResolvedValue([0.1, 0.2, 0.3]);
 
   const mockSupabaseClient = {
     from: vi.fn().mockReturnValue(chainMethods),
@@ -98,7 +96,8 @@ function makeRpcChunk(overrides: Record<string, unknown> = {}) {
     heading_text: 'Evacuation Procedures',
     heading_level: 2,
     heading_path: ['Fire Safety Policy', 'Evacuation Procedures'],
-    content: 'In the event of fire, staff must follow the nearest marked route.',
+    content:
+      'In the event of fire, staff must follow the nearest marked route.',
     position: 2,
     char_count: 65,
     word_count: 12,
@@ -165,14 +164,13 @@ describe('search_content_chunks tool handler', () => {
       error: { message: 'boom' },
     });
 
-    const result = (await handler(
-      { query: 'anything' },
-      extra,
-    )) as ToolResult;
+    const result = (await handler({ query: 'anything' }, extra)) as ToolResult;
 
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain('boom');
-    expect(result.content[0].text.toLowerCase()).toContain('chunk search failed');
+    expect(result.content[0].text.toLowerCase()).toContain(
+      'chunk search failed',
+    );
   });
 
   it('passes content_item_id through to the RPC filter_content_item_id param', async () => {
@@ -273,10 +271,7 @@ describe('search_content_chunks tool handler', () => {
     const handler = mockServer.getHandler('search_content_chunks')!;
     mocks.rpcMock.mockResolvedValueOnce({ data: null, error: null });
 
-    const result = (await handler(
-      { query: 'any' },
-      extra,
-    )) as ToolResult;
+    const result = (await handler({ query: 'any' }, extra)) as ToolResult;
 
     expect(result.isError).toBeUndefined();
     expect(result.structuredContent!.count).toBe(0);

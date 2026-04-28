@@ -74,9 +74,7 @@ export default function PipelineFailureDrawer({
 
         <div className="flex-1 overflow-y-auto px-4 pb-4">
           {/* Timestamps */}
-          <Section label="Started">
-            {formatTimestamp(run.started_at)}
-          </Section>
+          <Section label="Started">{formatTimestamp(run.started_at)}</Section>
           {run.completed_at && (
             <Section label="Completed">
               {formatTimestamp(run.completed_at)}
@@ -94,14 +92,10 @@ export default function PipelineFailureDrawer({
 
           {/* Metadata */}
           {run.items_processed !== null && (
-            <Section label="Items processed">
-              {run.items_processed}
-            </Section>
+            <Section label="Items processed">{run.items_processed}</Section>
           )}
           {run.items_created && run.items_created.length > 0 && (
-            <Section label="Items created">
-              {run.items_created.length}
-            </Section>
+            <Section label="Items created">{run.items_created.length}</Section>
           )}
           {run.source_filename && (
             <Section label="Source file">{run.source_filename}</Section>
@@ -117,9 +111,7 @@ export default function PipelineFailureDrawer({
             </Section>
           )}
           {run.cost !== null && (
-            <Section label="Cost">
-              ${run.cost.toFixed(4)}
-            </Section>
+            <Section label="Cost">${run.cost.toFixed(4)}</Section>
           )}
 
           {/* Collapsible result JSON */}
@@ -184,13 +176,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function CollapsibleJson({
-  label,
-  data,
-}: {
-  label: string;
-  data: unknown;
-}) {
+function CollapsibleJson({ label, data }: { label: string; data: unknown }) {
   const [expanded, setExpanded] = useState(false);
   return (
     <div className="mt-3">

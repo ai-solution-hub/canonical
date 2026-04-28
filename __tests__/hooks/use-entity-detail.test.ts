@@ -334,10 +334,9 @@ describe('useEntityDetail', () => {
         json: () => Promise.resolve(MOCK_ENTITY_DETAIL),
       });
 
-      const { result } = renderHook(
-        () => useEntityDetail('ISO 27001', true),
-        { wrapper: Wrapper },
-      );
+      const { result } = renderHook(() => useEntityDetail('ISO 27001', true), {
+        wrapper: Wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -373,10 +372,18 @@ describe('useEntityDetail', () => {
 
       // Optimistic update should appear immediately
       await waitFor(() => {
-        const cachedDetail = queryClient.getQueryData(['entities', 'detail', 'ISO 27001']);
+        const cachedDetail = queryClient.getQueryData([
+          'entities',
+          'detail',
+          'ISO 27001',
+        ]);
         expect(cachedDetail).toBeDefined();
-        expect((cachedDetail as Record<string, unknown>).effective_type).toBe('regulation');
-        expect((cachedDetail as Record<string, unknown>).has_type_override).toBe(true);
+        expect((cachedDetail as Record<string, unknown>).effective_type).toBe(
+          'regulation',
+        );
+        expect(
+          (cachedDetail as Record<string, unknown>).has_type_override,
+        ).toBe(true);
       });
 
       // Verify the PATCH call was made correctly
@@ -406,10 +413,9 @@ describe('useEntityDetail', () => {
         json: () => Promise.resolve(MOCK_ENTITY_DETAIL),
       });
 
-      const { result } = renderHook(
-        () => useEntityDetail('ISO 27001', true),
-        { wrapper: Wrapper },
-      );
+      const { result } = renderHook(() => useEntityDetail('ISO 27001', true), {
+        wrapper: Wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
@@ -419,8 +425,7 @@ describe('useEntityDetail', () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 500,
-        json: () =>
-          Promise.resolve({ error: 'Database connection failed' }),
+        json: () => Promise.resolve({ error: 'Database connection failed' }),
       });
 
       // Mock the refetch after invalidation (returns original data)
@@ -441,7 +446,11 @@ describe('useEntityDetail', () => {
 
       // After rollback + invalidation refetch, cache should hold the original type
       await waitFor(() => {
-        const detail = queryClient.getQueryData(['entities', 'detail', 'ISO 27001']) as Record<string, unknown> | undefined;
+        const detail = queryClient.getQueryData([
+          'entities',
+          'detail',
+          'ISO 27001',
+        ]) as Record<string, unknown> | undefined;
         expect(detail?.effective_type).toBe('certification');
       });
 
@@ -469,10 +478,9 @@ describe('useEntityDetail', () => {
         json: () => Promise.resolve(entityWithCitations),
       });
 
-      const { result } = renderHook(
-        () => useEntityDetail('ISO 27001', true),
-        { wrapper: Wrapper },
-      );
+      const { result } = renderHook(() => useEntityDetail('ISO 27001', true), {
+        wrapper: Wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);

@@ -886,8 +886,7 @@ describe('getTopQualityActions', () => {
         primary_subtopic: null,
         freshness: 'expired',
         classification_confidence: 0.9,
-        summary:
-          'A comprehensive summary of the content that is long enough.',
+        summary: 'A comprehensive summary of the content that is long enough.',
         brief: 'Brief',
         detail: 'Detail',
         reference: 'Reference',

@@ -60,7 +60,9 @@ describe('lib/auth helpers', () => {
     });
 
     it('returns reason=auth_service_failed on a real auth-service error', async () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {});
       configureAuthServiceError(mockSupabase);
       const result = await getAuthenticatedClient();
       expect(result.success).toBe(false);

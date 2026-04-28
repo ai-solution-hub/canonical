@@ -643,20 +643,21 @@ describe('MCP App contract: IntelligenceSummaryData', () => {
   });
 
   it('handles empty top_articles array', () => {
-    const data: ServerIntelligenceSummaryData & ClientIntelligenceSummaryData = {
-      workspace_id: 'ws-empty',
-      workspace_name: 'Empty Workspace',
-      period: '7d',
-      period_label: 'Last 7 days',
-      total_ingested: 0,
-      total_passed: 0,
-      total_filtered: 0,
-      filter_ratio: 0,
-      by_category: {},
-      by_source: [],
-      top_articles: [],
-      unresolved_flags: 0,
-    };
+    const data: ServerIntelligenceSummaryData & ClientIntelligenceSummaryData =
+      {
+        workspace_id: 'ws-empty',
+        workspace_name: 'Empty Workspace',
+        period: '7d',
+        period_label: 'Last 7 days',
+        total_ingested: 0,
+        total_passed: 0,
+        total_filtered: 0,
+        filter_ratio: 0,
+        by_category: {},
+        by_source: [],
+        top_articles: [],
+        unresolved_flags: 0,
+      };
     expect(data.top_articles).toHaveLength(0);
     expect(data.total_ingested).toBe(0);
   });

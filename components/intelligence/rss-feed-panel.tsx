@@ -1,13 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import {
-  Copy,
-  Check,
-  Rss,
-  ExternalLink,
-  AlertTriangle,
-} from 'lucide-react';
+import { Copy, Check, Rss, ExternalLink, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
@@ -105,8 +99,8 @@ function FeedRow({ label, description, url, sensitive = false }: FeedRowProps) {
           />
           <span>
             This feed shows borderline articles and the criteria they were
-            judged against — share only with internal stakeholders. A
-            competitor subscribing to this URL could learn what you monitor.
+            judged against — share only with internal stakeholders. A competitor
+            subscribing to this URL could learn what you monitor.
           </span>
         </p>
       )}

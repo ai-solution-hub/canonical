@@ -88,10 +88,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const raw = await request.json().catch((_err) => null);
     if (raw === null) {
-      return NextResponse.json(
-        { error: 'Invalid JSON body' },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
     const parsed = parseBody(BulkResolveFlagsSchema, raw);
     if (!parsed.success) return parsed.response;

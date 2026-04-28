@@ -167,15 +167,13 @@ async function deleteCreatedItem(item: CreatedItem): Promise<void> {
     await svc.storage.from('documents').remove([item.storagePath]);
   }
   if (item.sourceDocumentId) {
-    await svc
-      .from('source_documents')
-      .delete()
-      .eq('id', item.sourceDocumentId);
+    await svc.from('source_documents').delete().eq('id', item.sourceDocumentId);
   }
   await svc.from('content_history').delete().eq('content_item_id', item.itemId);
-  await svc.from('pipeline_runs').delete().contains('items_created', [
-    item.itemId,
-  ]);
+  await svc
+    .from('pipeline_runs')
+    .delete()
+    .contains('items_created', [item.itemId]);
   await svc.from('content_items').delete().eq('id', item.itemId);
 }
 
@@ -232,7 +230,8 @@ test.describe('Content ingestion -- 8.0.4 file upload', () => {
     // 3. Click Upload and wait for the /api/upload response.
     const uploadResponsePromise = page.waitForResponse(
       (resp) =>
-        resp.url().includes('/api/upload') && resp.request().method() === 'POST',
+        resp.url().includes('/api/upload') &&
+        resp.request().method() === 'POST',
       { timeout: 120_000 },
     );
     await page.getByRole('button', { name: /^Upload/ }).click();

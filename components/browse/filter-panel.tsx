@@ -533,9 +533,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
                             : 'border-border bg-muted text-foreground hover:bg-accent'
                         }`}
                       >
-                        <span
-                          className={`size-2 rounded-full ${opt.colour}`}
-                        />
+                        <span className={`size-2 rounded-full ${opt.colour}`} />
                         {opt.label}
                       </button>
                     );
@@ -555,9 +553,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
                           <button
                             key={workspace.id}
                             type="button"
-                            onClick={() =>
-                              handleWorkspaceChange(workspace.id)
-                            }
+                            onClick={() => handleWorkspaceChange(workspace.id)}
                             aria-pressed={isActive}
                             className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
                               isActive

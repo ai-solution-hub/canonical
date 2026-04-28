@@ -172,6 +172,7 @@ export interface CliArgs {
   includeChecks: string[];
   excludeChecks: string[];
   help: boolean;
+  env: string;
 }
 
 export function parseCli(argv: string[]): CliArgs {
@@ -186,6 +187,7 @@ export function parseCli(argv: string[]): CliArgs {
       'include-check': { type: 'string', multiple: true },
       'exclude-check': { type: 'string', multiple: true },
       help: { type: 'boolean' },
+      env: { type: 'string' },
     },
     strict: true,
     allowPositionals: false,
@@ -193,7 +195,9 @@ export function parseCli(argv: string[]): CliArgs {
 
   const format = (values.format ?? 'markdown') as Format;
   if (format !== 'markdown' && format !== 'json') {
-    throw new Error(`Invalid --format '${format}'. Must be 'markdown' or 'json'.`);
+    throw new Error(
+      `Invalid --format '${format}'. Must be 'markdown' or 'json'.`,
+    );
   }
 
   const failOn = (values['fail-on'] ?? 'must-pass') as FailOn;
@@ -212,7 +216,22 @@ export function parseCli(argv: string[]): CliArgs {
     includeChecks: (values['include-check'] as string[] | undefined) ?? [],
     excludeChecks: (values['exclude-check'] as string[] | undefined) ?? [],
     help: Boolean(values.help),
+    env: (values.env as string | undefined) ?? '',
   };
+}
+
+// ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
+
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+
+function assertEnvFlag(env: string, url: string | undefined): void {
+  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+    console.error(
+      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/quality-gate.ts --env=prod`,
+    );
+    process.exit(1);
+  }
 }
 
 const HELP_TEXT = `
@@ -318,14 +337,16 @@ export function severityFor(
 // Supabase client
 // ---------------------------------------------------------------------------
 
-export function createSb(): { sb: SupabaseClient; projectId: string } {
-  const url = process.env.SUPABASE_URL;
+export function createSb(env = ''): { sb: SupabaseClient; projectId: string } {
+  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
     throw new Error(
       'Both SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY env vars are required.',
     );
   }
+
+  assertEnvFlag(env, url);
 
   const projectId = extractProjectId(url);
   const sb = createClient(url, key, {
@@ -404,11 +425,7 @@ function formatError(err: unknown): string {
   return String(err);
 }
 
-function makeFail(
-  name: string,
-  severity: Severity,
-  err: unknown,
-): CheckResult {
+function makeFail(name: string, severity: Severity, err: unknown): CheckResult {
   return {
     name,
     severity,
@@ -484,7 +501,9 @@ async function fetchAllInBatches<T = Record<string, unknown>>(
  *  identify themselves. These inflate corpus counts and cause false-positive
  *  quality-gate failures. Applied to every generic check; NOT applied to
  *  audit-content checks (which scope via source_file / user_tags already). */
-export function excludeArtefacts<Q extends { not: (...args: any[]) => Q }>(q: Q): Q {
+export function excludeArtefacts<Q extends { not: (...args: any[]) => Q }>(
+  q: Q,
+): Q {
   return q.not('title', 'like', '[E2E%').not('title', 'like', '[SUPERSEDE%');
 }
 
@@ -498,7 +517,9 @@ async function countNonDraftByType(
       excludeArtefacts(
         q
           .select('content_type, governance_review_status')
-          .or('governance_review_status.is.null,governance_review_status.neq.draft'),
+          .or(
+            'governance_review_status.is.null,governance_review_status.neq.draft',
+          ),
       ),
   );
   const counts: Record<string, number> = {};
@@ -541,7 +562,8 @@ export async function corpus_counts(ctx: GateContext): Promise<CheckResult> {
       name: 'corpus_counts',
       severity,
       status: failures.length ? 'fail' : warnings.length ? 'warn' : 'pass',
-      threshold: 'per-type ranges from scripts/config/quality-gate/corpus-expected.json',
+      threshold:
+        'per-type ranges from scripts/config/quality-gate/corpus-expected.json',
       observed: lines.join(' '),
       diagnostic: failures.length
         ? failures.join('; ')
@@ -570,7 +592,9 @@ export async function embedding_coverage(
         .from('content_items')
         .select('id', { count: 'exact', head: true })
         .is('embedding', null)
-        .or('governance_review_status.is.null,governance_review_status.neq.draft'),
+        .or(
+          'governance_review_status.is.null,governance_review_status.neq.draft',
+        ),
     );
     if (countErr) throw countErr;
     const missing = count ?? 0;
@@ -596,9 +620,10 @@ export async function embedding_coverage(
       status: missing > 0 ? 'fail' : 'pass',
       threshold: 'missing = 0',
       observed: `missing=${missing}`,
-      diagnostic: missing > 0
-        ? `Published items without embedding (sample): ${affected}`
-        : '',
+      diagnostic:
+        missing > 0
+          ? `Published items without embedding (sample): ${affected}`
+          : '',
       duration_ms: now() - t0,
     };
   } catch (err) {
@@ -607,9 +632,7 @@ export async function embedding_coverage(
 }
 
 /** 3.3 chunk_coverage — every published item has ≥1 content_chunks row. */
-export async function chunk_coverage(
-  ctx: GateContext,
-): Promise<CheckResult> {
+export async function chunk_coverage(ctx: GateContext): Promise<CheckResult> {
   const t0 = now();
   const severity = severityFor(ctx.profileDef, 'chunk_coverage');
   try {
@@ -621,7 +644,9 @@ export async function chunk_coverage(
       excludeArtefacts(
         q
           .select('id, title, content_type')
-          .or('governance_review_status.is.null,governance_review_status.neq.draft'),
+          .or(
+            'governance_review_status.is.null,governance_review_status.neq.draft',
+          ),
       ),
     );
     if (items.length === 0) {
@@ -689,7 +714,9 @@ export async function entity_mention_coverage(
         excludeArtefacts(
           q
             .select('id, content_type')
-            .or('governance_review_status.is.null,governance_review_status.neq.draft')
+            .or(
+              'governance_review_status.is.null,governance_review_status.neq.draft',
+            )
             .not('classified_at', 'is', null),
         ),
     );
@@ -761,7 +788,9 @@ export async function entity_relationship_coverage(
         excludeArtefacts(
           q
             .select('id, content_type')
-            .or('governance_review_status.is.null,governance_review_status.neq.draft')
+            .or(
+              'governance_review_status.is.null,governance_review_status.neq.draft',
+            )
             .not('classified_at', 'is', null),
         ),
     );
@@ -896,7 +925,9 @@ export async function guide_domain_filter_resolves(
           .from('content_items')
           .select('id', { count: 'exact', head: true })
           .eq('primary_domain', domain)
-          .or('governance_review_status.is.null,governance_review_status.neq.draft'),
+          .or(
+            'governance_review_status.is.null,governance_review_status.neq.draft',
+          ),
       );
       if (cerr) throw cerr;
       if ((count ?? 0) === 0) {
@@ -924,7 +955,9 @@ export async function dedup_status_reconciled(
   const t0 = now();
   const severity = severityFor(ctx.profileDef, 'dedup_status_reconciled');
   try {
-    const threshold = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const threshold = new Date(
+      Date.now() - 7 * 24 * 60 * 60 * 1000,
+    ).toISOString();
     const { data, error } = await excludeArtefacts(
       ctx.sb
         .from('content_items')
@@ -1034,7 +1067,9 @@ export async function history_v1_present(
         excludeArtefacts(
           q
             .select('id, title')
-            .or('governance_review_status.is.null,governance_review_status.neq.draft'),
+            .or(
+              'governance_review_status.is.null,governance_review_status.neq.draft',
+            ),
         ),
     );
 
@@ -1059,9 +1094,7 @@ export async function history_v1_present(
       status: missing.length ? 'fail' : 'pass',
       threshold: '0 published items without content_history v=1',
       observed: `missing=${missing.length} of ${items.length}`,
-      diagnostic: missing.length
-        ? `Items without v1 history: ${sample}`
-        : '',
+      diagnostic: missing.length ? `Items without v1 history: ${sample}` : '',
       duration_ms: now() - t0,
     };
   } catch (err) {
@@ -1082,7 +1115,9 @@ export async function classified_but_no_confidence(
         .select('id, title, content_type, classified_at, updated_at')
         .not('classified_at', 'is', null)
         .is('classification_confidence', null)
-        .or('governance_review_status.is.null,governance_review_status.neq.draft'),
+        .or(
+          'governance_review_status.is.null,governance_review_status.neq.draft',
+        ),
     ).limit(50);
     if (error) throw error;
     const rows = data ?? [];
@@ -1097,7 +1132,8 @@ export async function classified_but_no_confidence(
       name: 'classified_but_no_confidence',
       severity,
       status: rows.length ? 'fail' : 'pass',
-      threshold: '0 rows with classified_at != NULL AND classification_confidence = NULL',
+      threshold:
+        '0 rows with classified_at != NULL AND classification_confidence = NULL',
       observed: `found=${rows.length}`,
       diagnostic: rows.length
         ? `Partial classify writes: ${sample} — check classifier write path`
@@ -1110,9 +1146,7 @@ export async function classified_but_no_confidence(
 }
 
 /** 3.12 summary_coverage — classified items should have summary. */
-export async function summary_coverage(
-  ctx: GateContext,
-): Promise<CheckResult> {
+export async function summary_coverage(ctx: GateContext): Promise<CheckResult> {
   const t0 = now();
   const severity = severityFor(ctx.profileDef, 'summary_coverage');
   try {
@@ -1122,7 +1156,9 @@ export async function summary_coverage(
         .select('id, title, content_type, classified_at')
         .not('classified_at', 'is', null)
         .is('summary', null)
-        .or('governance_review_status.is.null,governance_review_status.neq.draft'),
+        .or(
+          'governance_review_status.is.null,governance_review_status.neq.draft',
+        ),
     ).limit(50);
     if (error) throw error;
     const rows = data ?? [];
@@ -1240,10 +1276,7 @@ export async function audit_per_file_qa_count(
     );
     const counts: Record<string, number> = {};
     for (const r of rows) {
-      const group = matchFileGroup(
-        r.source_file,
-        ctx.auditContent.file_groups,
-      );
+      const group = matchFileGroup(r.source_file, ctx.auditContent.file_groups);
       if (group) counts[group] = (counts[group] ?? 0) + 1;
     }
     const failures: string[] = [];
@@ -1251,7 +1284,9 @@ export async function audit_per_file_qa_count(
     for (const [group, def] of Object.entries(ctx.auditContent.file_groups)) {
       const n = counts[group] ?? 0;
       const ok = n >= def.qa_count.min && n <= def.qa_count.max;
-      lines.push(`${group}=${n}∈[${def.qa_count.min},${def.qa_count.max}]${ok ? '✓' : '✗'}`);
+      lines.push(
+        `${group}=${n}∈[${def.qa_count.min},${def.qa_count.max}]${ok ? '✓' : '✗'}`,
+      );
       if (!ok) {
         failures.push(
           `${group} observed=${n} expected=[${def.qa_count.min},${def.qa_count.max}] (${def.description})`,
@@ -1302,10 +1337,7 @@ export async function audit_classification_confidence(
     );
     const byGroup: Record<string, { hi: number; total: number }> = {};
     for (const r of rows) {
-      const group = matchFileGroup(
-        r.source_file,
-        ctx.auditContent.file_groups,
-      );
+      const group = matchFileGroup(r.source_file, ctx.auditContent.file_groups);
       if (!group) continue;
       byGroup[group] ??= { hi: 0, total: 0 };
       byGroup[group].total += 1;
@@ -1358,10 +1390,7 @@ export async function audit_required_entities(
         'audit-content config missing',
       );
     }
-    const corpusItems = await loadAuditCorpusItems(
-      ctx.sb,
-      ctx.auditContent,
-    );
+    const corpusItems = await loadAuditCorpusItems(ctx.sb, ctx.auditContent);
     const itemIds = corpusItems.map((r) => r.id);
     const mentionRows = await fetchAllInBatches<{
       canonical_name: string;
@@ -1431,10 +1460,7 @@ export async function audit_required_relationships(
   ctx: GateContext,
 ): Promise<CheckResult> {
   const t0 = now();
-  const severity = severityFor(
-    ctx.profileDef,
-    'audit_required_relationships',
-  );
+  const severity = severityFor(ctx.profileDef, 'audit_required_relationships');
   try {
     if (!ctx.auditContent) {
       return makeSkip(
@@ -1443,10 +1469,7 @@ export async function audit_required_relationships(
         'audit-content config missing',
       );
     }
-    const corpusItems = await loadAuditCorpusItems(
-      ctx.sb,
-      ctx.auditContent,
-    );
+    const corpusItems = await loadAuditCorpusItems(ctx.sb, ctx.auditContent);
     const itemIds = corpusItems.map((r) => r.id);
     const relRows = await fetchAllInBatches<{ relationship_type: string }>(
       ctx.sb,
@@ -1463,9 +1486,10 @@ export async function audit_required_relationships(
     const missingRequired = ctx.auditContent.required_relationship_types.filter(
       (t) => !foundTypes.has(t.toLowerCase()),
     );
-    const missingShould = ctx.auditContent.should_pass_relationship_types.filter(
-      (t) => !foundTypes.has(t.toLowerCase()),
-    );
+    const missingShould =
+      ctx.auditContent.should_pass_relationship_types.filter(
+        (t) => !foundTypes.has(t.toLowerCase()),
+      );
     const status: Status = missingRequired.length
       ? 'fail'
       : missingShould.length
@@ -1485,7 +1509,8 @@ export async function audit_required_relationships(
       name: 'audit_required_relationships',
       severity,
       status,
-      threshold: 'all required relationship types present in corpus entity_relationships',
+      threshold:
+        'all required relationship types present in corpus entity_relationships',
       observed: `required_missing=${missingRequired.length} should_missing=${missingShould.length}`,
       diagnostic,
       duration_ms: now() - t0,
@@ -1521,10 +1546,7 @@ export async function audit_chunk_count_per_doc(
     );
     const groupToIds: Record<string, string[]> = {};
     for (const r of itemsRows) {
-      const group = matchFileGroup(
-        r.source_file,
-        ctx.auditContent.file_groups,
-      );
+      const group = matchFileGroup(r.source_file, ctx.auditContent.file_groups);
       if (!group) continue;
       (groupToIds[group] ??= []).push(r.id);
     }
@@ -1586,10 +1608,7 @@ export async function audit_cross_doc_dedup_ratio(
         'audit-content config missing',
       );
     }
-    const corpusItems = await loadAuditCorpusItems(
-      ctx.sb,
-      ctx.auditContent,
-    );
+    const corpusItems = await loadAuditCorpusItems(ctx.sb, ctx.auditContent);
     const total = corpusItems.length;
     if (total === 0) {
       return {
@@ -1598,7 +1617,8 @@ export async function audit_cross_doc_dedup_ratio(
         status: 'warn',
         threshold: 'within [0, 0.25]',
         observed: 'corpus empty — no items matched audit scope',
-        diagnostic: 'Audit corpus contains 0 items — verify source_file / user_tags wiring',
+        diagnostic:
+          'Audit corpus contains 0 items — verify source_file / user_tags wiring',
         duration_ms: now() - t0,
       };
     }
@@ -1648,10 +1668,7 @@ export async function audit_unresolved_dedup_24h(
     const cutoff = new Date(
       Date.now() - ctx.auditContent.unresolved_dedup_age_hours * 60 * 60 * 1000,
     ).toISOString();
-    const corpusItems = await loadAuditCorpusItems(
-      ctx.sb,
-      ctx.auditContent,
-    );
+    const corpusItems = await loadAuditCorpusItems(ctx.sb, ctx.auditContent);
     const stale = corpusItems.filter(
       (r) =>
         r.dedup_status === 'suspected_duplicate' &&
@@ -1701,7 +1718,10 @@ export const GENERIC_CHECKS: Array<{ name: string; fn: CheckFn }> = [
 
 export const AUDIT_CHECKS: Array<{ name: string; fn: CheckFn }> = [
   { name: 'audit_per_file_qa_count', fn: audit_per_file_qa_count },
-  { name: 'audit_classification_confidence', fn: audit_classification_confidence },
+  {
+    name: 'audit_classification_confidence',
+    fn: audit_classification_confidence,
+  },
   { name: 'audit_required_entities', fn: audit_required_entities },
   { name: 'audit_required_relationships', fn: audit_required_relationships },
   { name: 'audit_chunk_count_per_doc', fn: audit_chunk_count_per_doc },
@@ -1745,7 +1765,9 @@ export function overallVerdict(
     const anyFail = results.some((r) => r.status === 'fail');
     if (anyFail) return 'fail';
   }
-  const anyWarn = results.some((r) => r.status === 'warn' || r.status === 'fail');
+  const anyWarn = results.some(
+    (r) => r.status === 'warn' || r.status === 'fail',
+  );
   return anyWarn ? 'warn' : 'pass';
 }
 
@@ -1772,7 +1794,9 @@ export function renderMarkdown(
   lines.push(`**Run ID:** ${envelope.run_id}`);
   lines.push(`**Git SHA:** ${envelope.git_sha || '(not in git worktree)'}`);
   lines.push(`**Overall:** ${envelope.overall.toUpperCase()}`);
-  lines.push(`**Run duration:** ${(envelope.run_duration_ms / 1000).toFixed(2)}s`);
+  lines.push(
+    `**Run duration:** ${(envelope.run_duration_ms / 1000).toFixed(2)}s`,
+  );
   lines.push('');
   lines.push('## Summary');
   lines.push('');
@@ -1888,7 +1912,7 @@ export async function runGate(
   const profileName = args.profile ?? args.threshold ?? 're-ingest';
   const profileDef = resolveProfile(profiles, profileName);
 
-  const { sb, projectId } = createSb();
+  const { sb, projectId } = createSb(args.env);
 
   let auditContent: AuditContentExpected | undefined;
   if (isAuditProfile) {

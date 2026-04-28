@@ -22,7 +22,10 @@ test.describe('§1.20 Browse Cards cold-start interactions', () => {
     await page.goto('/browse');
     // Wait for the page to render the item count or the prompt cards.
     await expect(
-      page.getByTestId('search-prompt-cards').or(page.getByText(/^\d+ items?$/)).first(),
+      page
+        .getByTestId('search-prompt-cards')
+        .or(page.getByText(/^\d+ items?$/))
+        .first(),
     ).toBeVisible({ timeout: 15000 });
   });
 
@@ -33,9 +36,7 @@ test.describe('§1.20 Browse Cards cold-start interactions', () => {
     // test account is admin, so it may see any persona. We click the
     // card by title; the click target is rendered via `data-testid` that
     // varies by persona. Query by accessible name instead.
-    const qaCard = page
-      .getByRole('button', { name: /^Q&A library$/ })
-      .first();
+    const qaCard = page.getByRole('button', { name: /^Q&A library$/ }).first();
     await expect(qaCard).toBeVisible();
     await qaCard.click();
 
@@ -47,9 +48,7 @@ test.describe('§1.20 Browse Cards cold-start interactions', () => {
     authenticatedPage: page,
   }) => {
     // (a) Click Q&A card on a fresh /browse → URL carries include_qa=true.
-    const qaCard = page
-      .getByRole('button', { name: /^Q&A library$/ })
-      .first();
+    const qaCard = page.getByRole('button', { name: /^Q&A library$/ }).first();
     await expect(qaCard).toBeVisible();
     await qaCard.click();
     await expect(page).toHaveURL(/include_qa=true/);
@@ -114,7 +113,9 @@ test.describe('§1.20 Browse Cards cold-start interactions', () => {
 
     // Click the first chip by accessible name (`Filter to <display>`).
     const firstChip = chipCard
-      .getByRole('button', { name: new RegExp(`filter to ${displayName}`, 'i') })
+      .getByRole('button', {
+        name: new RegExp(`filter to ${displayName}`, 'i'),
+      })
       .first();
     await expect(firstChip).toBeVisible();
     await firstChip.click();

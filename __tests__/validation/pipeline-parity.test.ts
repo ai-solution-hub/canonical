@@ -361,9 +361,7 @@ describe('Pipeline Parity', () => {
     const pyContent = readSource('scripts/kb_pipeline/config.py');
 
     // TS: return process.env.AI_EMBEDDING_MODEL ?? 'text-embedding-3-large';
-    const tsMatch = tsContent.match(
-      /AI_EMBEDDING_MODEL\s*\?\?\s*'([^']+)'/,
-    );
+    const tsMatch = tsContent.match(/AI_EMBEDDING_MODEL\s*\?\?\s*'([^']+)'/);
     expect(
       tsMatch,
       'Could not find AI_EMBEDDING_MODEL default in lib/ai/embed.ts',

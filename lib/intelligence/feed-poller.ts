@@ -141,7 +141,8 @@ export async function validateFeedUrl(
     } catch {
       return {
         valid: false,
-        error: 'URL returned XML but it could not be parsed as an RSS or Atom feed',
+        error:
+          'URL returned XML but it could not be parsed as an RSS or Atom feed',
       };
     }
   } catch (err) {
@@ -201,7 +202,10 @@ export async function pollFeed(source: FeedSourceRef): Promise<PollResult> {
       rateLimiter.recordRateLimit(source.url);
       throw new RateLimitError(
         new URL(source.url).hostname,
-        retryAfterMs || rateLimiter.getRequiredDelay(new URL(source.url).hostname.toLowerCase()),
+        retryAfterMs ||
+          rateLimiter.getRequiredDelay(
+            new URL(source.url).hostname.toLowerCase(),
+          ),
       );
     }
 
@@ -301,7 +305,9 @@ export async function validateWebUrl(url: string): Promise<void> {
     );
   }
 
-  const contentType = (response.headers.get('content-type') ?? '').toLowerCase();
+  const contentType = (
+    response.headers.get('content-type') ?? ''
+  ).toLowerCase();
   const isHtml = HTML_CONTENT_TYPES.some((ct) => contentType.startsWith(ct));
   if (!isHtml) {
     throw new Error(

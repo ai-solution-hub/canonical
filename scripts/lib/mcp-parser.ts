@@ -32,33 +32,35 @@ export interface ToolAnnotations {
 // `__tests__/mcp/tool-annotations-coverage.test.ts` which exercises the
 // real constants at runtime, so a drift between this table and shared.ts
 // would surface there first.
-const RESOLVED_ANNOTATION_CONSTANTS: Record<string, Required<ToolAnnotations>> =
-  {
-    READ_ONLY_ANNOTATIONS: {
-      readOnlyHint: true,
-      idempotentHint: true,
-      destructiveHint: false,
-      openWorldHint: false,
-    },
-    SAFE_WRITE_ANNOTATIONS: {
-      readOnlyHint: false,
-      idempotentHint: true,
-      destructiveHint: false,
-      openWorldHint: false,
-    },
-    DESTRUCTIVE_WRITE_ANNOTATIONS: {
-      readOnlyHint: false,
-      idempotentHint: false,
-      destructiveHint: true,
-      openWorldHint: false,
-    },
-    NON_IDEMPOTENT_WRITE_ANNOTATIONS: {
-      readOnlyHint: false,
-      idempotentHint: false,
-      destructiveHint: false,
-      openWorldHint: false,
-    },
-  };
+const RESOLVED_ANNOTATION_CONSTANTS: Record<
+  string,
+  Required<ToolAnnotations>
+> = {
+  READ_ONLY_ANNOTATIONS: {
+    readOnlyHint: true,
+    idempotentHint: true,
+    destructiveHint: false,
+    openWorldHint: false,
+  },
+  SAFE_WRITE_ANNOTATIONS: {
+    readOnlyHint: false,
+    idempotentHint: true,
+    destructiveHint: false,
+    openWorldHint: false,
+  },
+  DESTRUCTIVE_WRITE_ANNOTATIONS: {
+    readOnlyHint: false,
+    idempotentHint: false,
+    destructiveHint: true,
+    openWorldHint: false,
+  },
+  NON_IDEMPOTENT_WRITE_ANNOTATIONS: {
+    readOnlyHint: false,
+    idempotentHint: false,
+    destructiveHint: false,
+    openWorldHint: false,
+  },
+};
 
 export interface ToolEntry {
   name: string;
@@ -708,7 +710,9 @@ function parseToolBlock(
       // Named constant — resolve the four canonical identifiers.
       const identMatch = afterAnnot
         .slice(probe)
-        .match(/^(READ_ONLY_ANNOTATIONS|SAFE_WRITE_ANNOTATIONS|DESTRUCTIVE_WRITE_ANNOTATIONS|NON_IDEMPOTENT_WRITE_ANNOTATIONS)\b/);
+        .match(
+          /^(READ_ONLY_ANNOTATIONS|SAFE_WRITE_ANNOTATIONS|DESTRUCTIVE_WRITE_ANNOTATIONS|NON_IDEMPOTENT_WRITE_ANNOTATIONS)\b/,
+        );
       if (identMatch) {
         const resolved = RESOLVED_ANNOTATION_CONSTANTS[identMatch[1]];
         annotations.readOnlyHint = resolved.readOnlyHint;

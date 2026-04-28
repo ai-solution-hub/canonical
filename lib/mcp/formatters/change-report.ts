@@ -35,10 +35,7 @@ export interface ChangeReportData {
 // Formatter
 // ---------------------------------------------------------------------------
 
-function formatItemTable(
-  items: ChangeReportItem[],
-  dateLabel: string,
-): string {
+function formatItemTable(items: ChangeReportItem[], dateLabel: string): string {
   if (items.length === 0) return '';
 
   const lines: string[] = [
@@ -62,9 +59,7 @@ export function formatChangeReport(data: ChangeReportData): string {
   const endDate = formatDateUK(data.end_date);
   const domainLabel = data.domain ?? 'All';
   const keywordsLabel =
-    data.keywords && data.keywords.length > 0
-      ? data.keywords.join(', ')
-      : null;
+    data.keywords && data.keywords.length > 0 ? data.keywords.join(', ') : null;
 
   const lines: string[] = [
     `# Change Report (last ${data.period_days} day${data.period_days === 1 ? '' : 's'})`,

@@ -1,4 +1,7 @@
-import type { PostgrestError, PostgrestSingleResponse } from '@supabase/supabase-js';
+import type {
+  PostgrestError,
+  PostgrestSingleResponse,
+} from '@supabase/supabase-js';
 
 /**
  * Branded error class thrown by `sb()` on any Supabase failure.

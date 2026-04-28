@@ -1,8 +1,5 @@
 import { NextResponse } from 'next/server';
-import {
-  getAuthenticatedClient,
-  authFailureResponse,
-} from '@/lib/auth';
+import { getAuthenticatedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import {
   deriveExpiryStatus,

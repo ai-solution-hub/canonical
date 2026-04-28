@@ -88,15 +88,25 @@ describe('parseCliArgs', () => {
   });
 
   it('rejects --batch-size below 1', () => {
-    expect(() => parseCliArgs(['--batch-size', '0'])).toThrow(/between 1 and 100/);
+    expect(() => parseCliArgs(['--batch-size', '0'])).toThrow(
+      /between 1 and 100/,
+    );
   });
 
   it('rejects --batch-size above 100', () => {
-    expect(() => parseCliArgs(['--batch-size', '101'])).toThrow(/between 1 and 100/);
+    expect(() => parseCliArgs(['--batch-size', '101'])).toThrow(
+      /between 1 and 100/,
+    );
   });
 
   it('combines multiple flags', () => {
-    const args = parseCliArgs(['--dry-run', '--limit', '10', '--batch-size', '25']);
+    const args = parseCliArgs([
+      '--dry-run',
+      '--limit',
+      '10',
+      '--batch-size',
+      '25',
+    ]);
     expect(args).toEqual({
       limit: 10,
       dryRun: true,

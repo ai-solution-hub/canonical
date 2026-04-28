@@ -41,8 +41,14 @@ export async function POST(request: NextRequest) {
   // 3. Verify server has the HMAC secret configured
   const secret = process.env.TAXONOMY_SYNC_CALLBACK_SECRET;
   if (!secret) {
-    Sentry.captureMessage('TAXONOMY_SYNC_CALLBACK_SECRET not configured', 'error');
-    return NextResponse.json({ error: 'server_misconfigured' }, { status: 500 });
+    Sentry.captureMessage(
+      'TAXONOMY_SYNC_CALLBACK_SECRET not configured',
+      'error',
+    );
+    return NextResponse.json(
+      { error: 'server_misconfigured' },
+      { status: 500 },
+    );
   }
 
   // 4. Compute expected HMAC-SHA256 of raw body
@@ -145,7 +151,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       {
-        error: safeErrorMessage(err, 'Failed to process taxonomy sync callback'),
+        error: safeErrorMessage(
+          err,
+          'Failed to process taxonomy sync callback',
+        ),
       },
       { status: 500 },
     );

@@ -67,8 +67,7 @@ function extractToolNamesFromSource(): Set<string> {
 function extractPromptNamesFromSource(): Set<string> {
   const promptNames = new Set<string>();
   const content = readFileSync(RESOURCES_FILE, 'utf8');
-  const registerPromptPattern =
-    /server\.registerPrompt\(\s*\n?\s*'([^']+)'/g;
+  const registerPromptPattern = /server\.registerPrompt\(\s*\n?\s*'([^']+)'/g;
 
   let match: RegExpExecArray | null;
   while ((match = registerPromptPattern.exec(content)) !== null) {
@@ -308,10 +307,7 @@ describe('MCP Resource Templates Fixture Sync', () => {
 });
 
 describe('Classification Skill Inlined Content', () => {
-  const INLINED_FILE = join(
-    PROJECT_ROOT,
-    'lib/ai/skills/inlined.generated.ts',
-  );
+  const INLINED_FILE = join(PROJECT_ROOT, 'lib/ai/skills/inlined.generated.ts');
 
   it('inlined skills bundle should contain Holder Disambiguation rule', () => {
     const content = readFileSync(INLINED_FILE, 'utf8');

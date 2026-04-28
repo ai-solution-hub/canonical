@@ -105,7 +105,9 @@ describe('Classification skill file', () => {
     const classifyPath = join(__dirname, '../../lib/ai/classify.ts');
     const classifySource = await readFile(classifyPath, 'utf-8');
 
-    expect(classifySource).toContain("loadSkill('classification-entity-types')");
+    expect(classifySource).toContain(
+      "loadSkill('classification-entity-types')",
+    );
     // Also verify it calls loadSkill('classification') (the main skill)
     expect(classifySource).toContain("loadSkill('classification')");
   });
@@ -241,11 +243,12 @@ describe('Classification entity types reference', () => {
       expect(typeIndex).toBeGreaterThan(-1);
 
       // Find the next type section (or end of file)
-      const nextTypeIndex = requiredTypes
-        .filter((t) => t !== type)
-        .map((t) => entityTypesContent.indexOf(`### ${t}`, typeIndex + 1))
-        .filter((i) => i > typeIndex)
-        .sort((a, b) => a - b)[0] ?? entityTypesContent.length;
+      const nextTypeIndex =
+        requiredTypes
+          .filter((t) => t !== type)
+          .map((t) => entityTypesContent.indexOf(`### ${t}`, typeIndex + 1))
+          .filter((i) => i > typeIndex)
+          .sort((a, b) => a - b)[0] ?? entityTypesContent.length;
 
       const section = entityTypesContent.slice(typeIndex, nextTypeIndex);
       expect(section).toContain('**The Test:**');
@@ -270,11 +273,12 @@ describe('Classification entity types reference', () => {
 
     for (const type of requiredTypes) {
       const typeIndex = entityTypesContent.indexOf(`### ${type}`);
-      const nextTypeIndex = requiredTypes
-        .filter((t) => t !== type)
-        .map((t) => entityTypesContent.indexOf(`### ${t}`, typeIndex + 1))
-        .filter((i) => i > typeIndex)
-        .sort((a, b) => a - b)[0] ?? entityTypesContent.length;
+      const nextTypeIndex =
+        requiredTypes
+          .filter((t) => t !== type)
+          .map((t) => entityTypesContent.indexOf(`### ${t}`, typeIndex + 1))
+          .filter((i) => i > typeIndex)
+          .sort((a, b) => a - b)[0] ?? entityTypesContent.length;
 
       const section = entityTypesContent.slice(typeIndex, nextTypeIndex);
       expect(section).toContain('**Include:**');
@@ -300,11 +304,12 @@ describe('Classification entity types reference', () => {
 
     for (const type of requiredTypes) {
       const typeIndex = entityTypesContent.indexOf(`### ${type}`);
-      const nextTypeIndex = requiredTypes
-        .filter((t) => t !== type)
-        .map((t) => entityTypesContent.indexOf(`### ${t}`, typeIndex + 1))
-        .filter((i) => i > typeIndex)
-        .sort((a, b) => a - b)[0] ?? entityTypesContent.length;
+      const nextTypeIndex =
+        requiredTypes
+          .filter((t) => t !== type)
+          .map((t) => entityTypesContent.indexOf(`### ${t}`, typeIndex + 1))
+          .filter((i) => i > typeIndex)
+          .sort((a, b) => a - b)[0] ?? entityTypesContent.length;
 
       const section = entityTypesContent.slice(typeIndex, nextTypeIndex);
       expect(section).toContain('**Boundary cases:**');
@@ -357,9 +362,8 @@ describe('Classification skill few-shot examples', () => {
     const examplesEnd = skillContent.indexOf('## Handling Special Cases');
     const examplesSection = skillContent.slice(examplesStart, examplesEnd);
 
-    const boundaryMentions = (
-      examplesSection.match(/boundary case/gi) || []
-    ).length;
+    const boundaryMentions = (examplesSection.match(/boundary case/gi) || [])
+      .length;
     expect(boundaryMentions).toBeGreaterThanOrEqual(2);
   });
 
@@ -443,7 +447,9 @@ describe('Classification skill placeholder interpolation', () => {
 
     const interpolated = skillContent.replace('{TAXONOMY}', sampleTaxonomy);
 
-    expect(interpolated).toContain('- security: cyber-security, data-protection');
+    expect(interpolated).toContain(
+      '- security: cyber-security, data-protection',
+    );
     expect(interpolated).toContain('- corporate: financial, staffing');
     expect(interpolated).not.toContain('{TAXONOMY}');
   });

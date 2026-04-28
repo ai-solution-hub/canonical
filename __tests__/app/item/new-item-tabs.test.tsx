@@ -38,14 +38,24 @@ vi.mock('@/components/create-content/url-ingest-form', () => ({
 }));
 
 vi.mock('@/components/create-content/upload-tab-content', () => ({
-  UploadTabContent: ({ onSwitchTab }: { onSwitchTab?: (tab: string) => void }) => (
+  UploadTabContent: ({
+    onSwitchTab,
+  }: {
+    onSwitchTab?: (tab: string) => void;
+  }) => (
     <div data-testid="upload-tab-content">
       {onSwitchTab && (
         <>
-          <button data-testid="upload-switch-url" onClick={() => onSwitchTab('url')}>
+          <button
+            data-testid="upload-switch-url"
+            onClick={() => onSwitchTab('url')}
+          >
             Try URL instead
           </button>
-          <button data-testid="upload-switch-write" onClick={() => onSwitchTab('write')}>
+          <button
+            data-testid="upload-switch-write"
+            onClick={() => onSwitchTab('write')}
+          >
             Write manually
           </button>
         </>
@@ -68,9 +78,15 @@ describe('NewItemTabs', () => {
   it('renders all four tab triggers', () => {
     render(<NewItemTabs />);
 
-    expect(screen.getByRole('tab', { name: /write content/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /import from url/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /upload file/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('tab', { name: /write content/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('tab', { name: /import from url/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('tab', { name: /upload file/i }),
+    ).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /batch q&a/i })).toBeInTheDocument();
   });
 
@@ -127,9 +143,10 @@ describe('NewItemTabs', () => {
     render(<NewItemTabs />);
 
     // Default is write
-    expect(
-      screen.getByRole('tab', { name: /write content/i }),
-    ).toHaveAttribute('data-state', 'active');
+    expect(screen.getByRole('tab', { name: /write content/i })).toHaveAttribute(
+      'data-state',
+      'active',
+    );
 
     // Click URL tab
     await user.click(screen.getByRole('tab', { name: /import from url/i }));
@@ -137,9 +154,10 @@ describe('NewItemTabs', () => {
     expect(
       screen.getByRole('tab', { name: /import from url/i }),
     ).toHaveAttribute('data-state', 'active');
-    expect(
-      screen.getByRole('tab', { name: /write content/i }),
-    ).toHaveAttribute('data-state', 'inactive');
+    expect(screen.getByRole('tab', { name: /write content/i })).toHaveAttribute(
+      'data-state',
+      'inactive',
+    );
     expect(screen.getByTestId('url-ingest-form')).toBeInTheDocument();
   });
 
@@ -157,9 +175,10 @@ describe('NewItemTabs', () => {
     });
     await user.click(uploadSuggestion);
 
-    expect(
-      screen.getByRole('tab', { name: /upload file/i }),
-    ).toHaveAttribute('data-state', 'active');
+    expect(screen.getByRole('tab', { name: /upload file/i })).toHaveAttribute(
+      'data-state',
+      'active',
+    );
     expect(screen.getByTestId('upload-tab-content')).toBeInTheDocument();
   });
 
@@ -175,9 +194,10 @@ describe('NewItemTabs', () => {
     // Click the mock suggest-manual button
     await user.click(screen.getByTestId('url-suggest-manual'));
 
-    expect(
-      screen.getByRole('tab', { name: /write content/i }),
-    ).toHaveAttribute('data-state', 'active');
+    expect(screen.getByRole('tab', { name: /write content/i })).toHaveAttribute(
+      'data-state',
+      'active',
+    );
     expect(screen.getByTestId('create-content-client')).toBeInTheDocument();
   });
 
@@ -186,9 +206,10 @@ describe('NewItemTabs', () => {
     render(<NewItemTabs defaultTab="upload" />);
 
     // Upload tab is active
-    expect(
-      screen.getByRole('tab', { name: /upload file/i }),
-    ).toHaveAttribute('data-state', 'active');
+    expect(screen.getByRole('tab', { name: /upload file/i })).toHaveAttribute(
+      'data-state',
+      'active',
+    );
 
     // Click the mock switch-to-url button
     await user.click(screen.getByTestId('upload-switch-url'));
@@ -205,8 +226,9 @@ describe('NewItemTabs', () => {
     // Click the mock switch-to-write button
     await user.click(screen.getByTestId('upload-switch-write'));
 
-    expect(
-      screen.getByRole('tab', { name: /write content/i }),
-    ).toHaveAttribute('data-state', 'active');
+    expect(screen.getByRole('tab', { name: /write content/i })).toHaveAttribute(
+      'data-state',
+      'active',
+    );
   });
 });

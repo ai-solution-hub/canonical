@@ -3,14 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { BRANDING } from '@/lib/client-config';
-import {
-  X,
-  Clock,
-  Users,
-  History,
-  Compass,
-  UserCircle,
-} from 'lucide-react';
+import { X, Clock, Users, History, Compass, UserCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatRelativeDate } from '@/lib/format';
 import { useDisplayNames } from '@/hooks/use-display-names';
@@ -236,7 +229,10 @@ interface ReorientSectionProps {
   hideFirstLoginMessage?: boolean;
 }
 
-export function ReorientSection({ data, hideFirstLoginMessage }: ReorientSectionProps) {
+export function ReorientSection({
+  data,
+  hideFirstLoginMessage,
+}: ReorientSectionProps) {
   const hydrated = useHydrated();
   const [dismissed, setDismissed] = useState(() => {
     if (typeof window === 'undefined') return false;

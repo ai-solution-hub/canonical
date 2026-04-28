@@ -106,10 +106,9 @@ describe('useUrlFilters', () => {
 
     act(() => result.current.setFilters({ domain: 'Health' }));
 
-    expect(mockReplace).toHaveBeenCalledWith(
-      '/test?domain=Health',
-      { scroll: false },
-    );
+    expect(mockReplace).toHaveBeenCalledWith('/test?domain=Health', {
+      scroll: false,
+    });
   });
 
   it('uses paramMap when writing', () => {
@@ -117,10 +116,9 @@ describe('useUrlFilters', () => {
 
     act(() => result.current.setFilters({ search: 'keyword' }));
 
-    expect(mockReplace).toHaveBeenCalledWith(
-      '/test?q=keyword',
-      { scroll: false },
-    );
+    expect(mockReplace).toHaveBeenCalledWith('/test?q=keyword', {
+      scroll: false,
+    });
   });
 
   it('deletes params when value is undefined', () => {
@@ -129,10 +127,7 @@ describe('useUrlFilters', () => {
 
     act(() => result.current.setFilters({ domain: undefined }));
 
-    expect(mockReplace).toHaveBeenCalledWith(
-      '/test',
-      { scroll: false },
-    );
+    expect(mockReplace).toHaveBeenCalledWith('/test', { scroll: false });
   });
 
   // -----------------------------------------------------------------------
@@ -158,10 +153,9 @@ describe('useUrlFilters', () => {
 
     act(() => result.current.setFilters({ tags: ['a', 'b'] }));
 
-    expect(mockReplace).toHaveBeenCalledWith(
-      '/test?tags=a%2Cb',
-      { scroll: false },
-    );
+    expect(mockReplace).toHaveBeenCalledWith('/test?tags=a%2Cb', {
+      scroll: false,
+    });
   });
 
   // -----------------------------------------------------------------------

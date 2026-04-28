@@ -197,12 +197,8 @@ export function GovernanceSection() {
    * Resolve a preset label for display. Falls back to inferPreset
    * for rows that were created before the preset column existed.
    */
-  function getPresetForConfig(
-    config: GovernanceConfigEntry,
-  ): GovernancePreset {
-    return (
-      (config.preset as GovernancePreset) ?? inferPreset(config.posture)
-    );
+  function getPresetForConfig(config: GovernanceConfigEntry): GovernancePreset {
+    return (config.preset as GovernancePreset) ?? inferPreset(config.posture);
   }
 
   if (loading) {
@@ -263,9 +259,7 @@ export function GovernanceSection() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {isEditing
-                  ? 'Edit Governance Config'
-                  : 'Add Governance Config'}
+                {isEditing ? 'Edit Governance Config' : 'Add Governance Config'}
               </DialogTitle>
               <DialogDescription>
                 Choose a governance preset for this domain.

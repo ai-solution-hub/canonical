@@ -59,9 +59,7 @@ describe('VersionHistory — error handling', () => {
   });
 
   it('shows error state and reports telemetry when the list fails to load', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('network down'));
+    const fetchMock = vi.fn().mockRejectedValueOnce(new Error('network down'));
     vi.stubGlobal('fetch', fetchMock);
 
     render(
@@ -172,6 +170,8 @@ describe('VersionHistory — error handling', () => {
         }),
       );
     });
-    expect(mockToastError).toHaveBeenCalledWith('Failed to load version detail');
+    expect(mockToastError).toHaveBeenCalledWith(
+      'Failed to load version detail',
+    );
   });
 });

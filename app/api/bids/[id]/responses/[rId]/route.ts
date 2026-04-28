@@ -84,9 +84,7 @@ export async function GET(
       const contentItems = await sb(
         supabase
           .from('content_items')
-          .select(
-            'id, suggested_title, content_type, primary_domain, summary',
-          )
+          .select('id, suggested_title, content_type, primary_domain, summary')
           .in('id', response.source_content_ids),
         'bids.response.detail.sourceContent',
       );

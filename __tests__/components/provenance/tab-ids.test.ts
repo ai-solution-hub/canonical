@@ -24,9 +24,7 @@ describe('PROVENANCE_TABS', () => {
   });
 
   it('marks cost and disputes as stubs', () => {
-    const stubs = PROVENANCE_TABS.filter(
-      (t) => 'stub' in t && t.stub === true,
-    );
+    const stubs = PROVENANCE_TABS.filter((t) => 'stub' in t && t.stub === true);
     const stubIds = stubs.map((t) => t.id);
     expect(stubIds).toEqual(expect.arrayContaining(['cost', 'disputes']));
     expect(stubs).toHaveLength(2);

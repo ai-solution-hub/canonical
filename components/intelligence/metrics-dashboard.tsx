@@ -87,14 +87,16 @@ export function MetricsDashboard({ workspaceId }: MetricsDashboardProps) {
           ))}
         </div>
       )}
-      {metricsQuery.isError && !metricsQuery.isLoading && !metricsQuery.data && (
-        <div
-          role="alert"
-          className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"
-        >
-          Metrics are temporarily unavailable. Please refresh to try again.
-        </div>
-      )}
+      {metricsQuery.isError &&
+        !metricsQuery.isLoading &&
+        !metricsQuery.data && (
+          <div
+            role="alert"
+            className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"
+          >
+            Metrics are temporarily unavailable. Please refresh to try again.
+          </div>
+        )}
 
       {/* Filter ratio trend chart */}
       <div>

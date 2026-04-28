@@ -202,8 +202,7 @@ describe('PUT /api/organisation/profile', () => {
     });
     // resolveUniqueSlug — no collision
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
     // insert().select().single() returns created profile
     mockSupabase._chain.single.mockResolvedValueOnce({
@@ -244,8 +243,7 @@ describe('PUT /api/organisation/profile', () => {
     });
     // resolveUniqueSlug — no collision
     mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null }),
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     );
     // update().eq().select().single() returns updated profile
     mockSupabase._chain.single.mockResolvedValueOnce({

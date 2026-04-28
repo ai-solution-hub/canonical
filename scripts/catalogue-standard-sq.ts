@@ -92,17 +92,43 @@ loadEnv();
 
 // ── CLI args ───────────────────────────────────────────────────────────────
 
-function parseCliArgs(): { dryRun: boolean; skipEmbeddings: boolean } {
+function parseCliArgs(): {
+  dryRun: boolean;
+  skipEmbeddings: boolean;
+  env: string;
+} {
   const args = process.argv.slice(2);
   let dryRun = false;
   let skipEmbeddings = false;
+  let env = '';
 
-  for (const arg of args) {
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
     if (arg === '--dry-run') dryRun = true;
-    if (arg === '--skip-embeddings') skipEmbeddings = true;
+    else if (arg === '--skip-embeddings') skipEmbeddings = true;
+    else if (arg === '--env' && args[i + 1]) {
+      env = args[i + 1];
+      i++;
+    } else if (arg.startsWith('--env=')) {
+      env = arg.slice('--env='.length);
+    }
   }
 
-  return { dryRun, skipEmbeddings };
+  return { dryRun, skipEmbeddings, env };
+}
+
+// ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
+
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+
+function assertEnvFlag(env: string, url: string | undefined): void {
+  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+    console.error(
+      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/catalogue-standard-sq.ts --env=prod`,
+    );
+    process.exit(1);
+  }
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -2080,7 +2106,7 @@ function buildEmbeddingInput(req: TemplateRequirement): string {
 // ── Main ───────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-  const { dryRun, skipEmbeddings } = parseCliArgs();
+  const { dryRun, skipEmbeddings, env } = parseCliArgs();
 
   console.log('═══════════════════════════════════════════════════════════');
   console.log('  Standard Selection Questionnaire (PPN 03/24) Cataloguing');
@@ -2154,7 +2180,7 @@ async function main(): Promise<void> {
   // ── Supabase client ──
 
   const supabaseUrl =
-    process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
@@ -2163,6 +2189,8 @@ async function main(): Promise<void> {
     );
     process.exit(1);
   }
+
+  assertEnvFlag(env, supabaseUrl);
 
   const supabase = createClient(supabaseUrl, supabaseKey);
 

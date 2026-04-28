@@ -53,7 +53,10 @@ function ErrorState({
   className?: string;
 }) {
   return (
-    <section className={className} aria-label="Entities mentioned in this content">
+    <section
+      className={className}
+      aria-label="Entities mentioned in this content"
+    >
       <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
         Entities
       </h3>

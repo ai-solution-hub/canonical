@@ -98,14 +98,37 @@ interface Snapshot {
   items: Record<string, SnapshotItem>;
 }
 
+// ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
+
+const PROD_PROJECT_REF = 'rovrymhhffssilaftdwd';
+
+function parseEnvFlag(argv: string[]): string {
+  const eqArg = argv.find((a) => a.startsWith('--env='));
+  if (eqArg) return eqArg.slice('--env='.length);
+  const idx = argv.indexOf('--env');
+  if (idx >= 0 && argv[idx + 1]) return argv[idx + 1];
+  return '';
+}
+
+function assertEnvFlag(env: string, url: string | undefined): void {
+  if (env === 'prod' && !(url ?? '').includes(PROD_PROJECT_REF)) {
+    console.error(
+      `--env=prod set but SUPABASE_URL does not include '${PROD_PROJECT_REF}'.\n` +
+        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/restore-eval-corrupted-items.ts --env=prod`,
+    );
+    process.exit(2);
+  }
+}
+
 async function main(): Promise<void> {
-  const url =
-    process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
+  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
     console.error('Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY');
     process.exit(2);
   }
+
+  assertEnvFlag(parseEnvFlag(process.argv.slice(2)), url);
 
   const supabase = createClient<Database>(url, key, {
     auth: { persistSession: false },
@@ -117,7 +140,9 @@ async function main(): Promise<void> {
     CORRUPTED_ITEM_IDS === 'ALL'
       ? Object.keys(snapshot.items)
       : CORRUPTED_ITEM_IDS;
-  console.log(`[restore] Restoring ${targetItemIds.length} items from snapshot`);
+  console.log(
+    `[restore] Restoring ${targetItemIds.length} items from snapshot`,
+  );
 
   let restoredItems = 0;
   let restoredMentions = 0;

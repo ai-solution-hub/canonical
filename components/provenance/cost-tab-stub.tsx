@@ -56,9 +56,8 @@ export default function CostTabStub() {
           .filter((c): c is number => c !== null);
 
         setData({
-          totalCost: costs.length > 0
-            ? costs.reduce((sum, c) => sum + c, 0)
-            : null,
+          totalCost:
+            costs.length > 0 ? costs.reduce((sum, c) => sum + c, 0) : null,
           runCount: rows.length,
         });
       } catch (err) {
@@ -118,7 +117,8 @@ export default function CostTabStub() {
                 ${data.totalCost.toFixed(4)}
               </span>
               <span className="text-sm text-muted-foreground">
-                across {data.runCount} pipeline {data.runCount === 1 ? 'run' : 'runs'}
+                across {data.runCount} pipeline{' '}
+                {data.runCount === 1 ? 'run' : 'runs'}
               </span>
             </div>
           </div>
