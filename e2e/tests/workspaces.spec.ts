@@ -14,7 +14,7 @@ import { isMobileViewport } from '../helpers/responsive';
 // 1. Workspaces Page
 // ---------------------------------------------------------------------------
 
-test.describe('Workspaces page', () => {
+test.describe('Workspaces page', { tag: '@smoke' }, () => {
   test('workspaces page loads with heading and description', async ({
     authenticatedPage: page,
   }) => {
@@ -153,7 +153,7 @@ test.describe('Workspaces page', () => {
 // 2. Viewer Access
 // ---------------------------------------------------------------------------
 
-test.describe('Workspaces -- viewer access', () => {
+test.describe('Workspaces -- viewer access', { tag: '@smoke' }, () => {
   test('viewer can access workspaces page', async ({ viewerPage: page }) => {
     await page.goto('/workspaces');
 

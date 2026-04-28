@@ -10,7 +10,7 @@ import { getSettingsNav, isMobileViewport } from '../helpers/responsive';
  * Test users: user1=admin, user2=editor, user3=viewer (all in user_roles).
  */
 
-test.describe('Viewer role restrictions', () => {
+test.describe('Viewer role restrictions', { tag: '@smoke' }, () => {
   test('viewer cannot see Review in navigation', async ({
     viewerPage: page,
   }) => {
@@ -58,7 +58,7 @@ test.describe('Viewer role restrictions', () => {
   });
 });
 
-test.describe('Editor role access', () => {
+test.describe('Editor role access', { tag: '@smoke' }, () => {
   test('editor can access the review page', async ({ editorPage: page }) => {
     await page.goto('/review');
 
@@ -87,7 +87,7 @@ test.describe('Editor role access', () => {
   });
 });
 
-test.describe('Admin role full access', () => {
+test.describe('Admin role full access', { tag: '@smoke' }, () => {
   test('admin can access the review page', async ({
     authenticatedPage: page,
   }) => {

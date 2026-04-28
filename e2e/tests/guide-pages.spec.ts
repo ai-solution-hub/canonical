@@ -15,7 +15,7 @@ import { test, expect } from '../fixtures';
 // 1. /guide redirect
 // ---------------------------------------------------------------------------
 
-test.describe('Guide listing redirect', () => {
+test.describe('Guide listing redirect', { tag: '@smoke' }, () => {
   test('/guide redirects to /coverage?tab=guides', async ({
     authenticatedPage: page,
   }) => {
@@ -35,7 +35,7 @@ test.describe('Guide listing redirect', () => {
 // 2. Guide Detail Page
 // ---------------------------------------------------------------------------
 
-test.describe('Guide detail page', () => {
+test.describe('Guide detail page', { tag: '@smoke' }, () => {
   test('guide detail page loads with guide name and metadata', async ({
     authenticatedPage: page,
   }) => {
