@@ -302,7 +302,7 @@ describe('ReviewCadenceBadge', () => {
   // -----------------------------------------------------------------
   // T1-AC: UK date format — DD/MM/YYYY
   // -----------------------------------------------------------------
-  it('formats the date as DD/MM/YYYY (UK)', () => {
+  it('renders no badge for dates > 30 days out (T1-AC4 boundary)', () => {
     render(
       <ReviewCadenceBadge
         nextReviewDate="2026-12-03"
@@ -310,8 +310,7 @@ describe('ReviewCadenceBadge', () => {
         now={FIXED_NOW}
       />,
     );
-    // The date is > 30 days out from FIXED_NOW (2026-04-28), so this
-    // renders nothing. Use a closer date instead.
+    // 2026-12-03 is ~219 days from FIXED_NOW (2026-04-28) → no badge per T1-AC4.
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
   });
 

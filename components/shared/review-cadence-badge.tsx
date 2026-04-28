@@ -120,7 +120,7 @@ export function ReviewCadenceBadge({
         role="img"
         aria-label={text}
         className={cn(
-          'inline-flex items-center gap-1 rounded border border-freshness-aging-bg bg-freshness-aging-bg px-1.5 py-0.5 text-[10px] font-medium text-freshness-aging',
+          'inline-flex items-center gap-1 rounded border border-freshness-aging bg-freshness-aging-bg px-1.5 py-0.5 text-[10px] font-medium text-freshness-aging',
           className,
         )}
       >
