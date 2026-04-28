@@ -231,6 +231,51 @@ describe('content_history.change_reason guard (S153)', () => {
   });
 
   // ─────────────────────────────────────────────────────────────────────
+  // S207 WP-A Phase 4 (Plan Task 4.2) — pin trigger-derived canonical
+  // change_reason values.
+  //
+  // Post-WP-A4, the v1 history row is written by
+  // `trg_content_items_ensure_v1_history` (via the rewritten function
+  // `ensure_v1_history_at_commit`). The function emits
+  //   change_reason='initial_ingest'   when NEW.ingest_source IS NOT NULL
+  //   change_reason='auto_v1_on_insert' otherwise (legacy fallback)
+  // per spec §3.4 AC4.2 + AC4.8 case (b). Both values are documented in
+  // `docs/reference/data-entry-points.md` Appendix D.
+  //
+  // The trigger source lives in migration 20260428174512 (rewrites the
+  // S186 function from migration 20260422060118). Pin both literals here
+  // so a typo in the trigger function's CASE expression would fail this
+  // guard.
+  // ─────────────────────────────────────────────────────────────────────
+  it('migration 20260428174512 trigger emits canonical initial_ingest + auto_v1_on_insert change_reason values', () => {
+    const migrationPath = path.join(
+      REPO_ROOT,
+      'supabase/migrations/20260428174512_add_ingest_source_to_content_items.sql',
+    );
+    const sql = readFileSync(migrationPath, 'utf-8');
+
+    // The CASE expression maps NEW.ingest_source IS NOT NULL → 'initial_ingest'.
+    expect(
+      sql,
+      `${migrationPath} should emit change_reason='initial_ingest' for non-NULL ingest_source`,
+    ).toMatch(/'initial_ingest'/);
+
+    // Fallback for legacy/null rows.
+    expect(
+      sql,
+      `${migrationPath} should preserve the 'auto_v1_on_insert' fallback for NULL ingest_source`,
+    ).toMatch(/'auto_v1_on_insert'/);
+
+    // Sanity: neither literal is a comment-only mention — both appear inside
+    // the function body (CASE expression). The CASE WHEN/THEN structure must
+    // be present for the trigger to compile correctly.
+    expect(
+      sql,
+      `${migrationPath} should contain the CASE expression that maps ingest_source to change_reason`,
+    ).toMatch(/CASE[\s\S]*WHEN\s+NEW\.ingest_source\s+IS\s+NOT\s+NULL/);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────
   // S207 WP-A4 (Plan Task 3.2) — Python parity: ingest_source written by
   // every Python caller of insert_content_item() / supabase.table.insert()
   //
