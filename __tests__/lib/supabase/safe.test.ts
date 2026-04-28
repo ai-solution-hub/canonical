@@ -34,8 +34,11 @@ describe('sb()', () => {
       status: 500,
       statusText: 'Error',
     });
-    await expect(sb(query, 'test.nope')).rejects.toBeInstanceOf(SupabaseError);
-    await expect(sb(query, 'test.nope')).rejects.toMatchObject({
+    // Cast through unknown — narrow literal error shape lacks PostgrestError's
+    // exact discriminant; semantically valid for the wrapper under test.
+    const q = query as unknown as Parameters<typeof sb<null>>[0];
+    await expect(sb(q, 'test.nope')).rejects.toBeInstanceOf(SupabaseError);
+    await expect(sb(q, 'test.nope')).rejects.toMatchObject({
       code: '42P01',
       message: expect.stringContaining('[test.nope]'),
     });
@@ -56,7 +59,7 @@ describe('sb()', () => {
       statusText: '',
     });
     try {
-      await sb(query);
+      await sb(query as unknown as Parameters<typeof sb<null>>[0]);
     } catch (err) {
       expect((err as SupabaseError).cause).toBe(pgError);
     }
@@ -101,7 +104,10 @@ describe('tryQuery()', () => {
       status: 500,
       statusText: '',
     });
-    const result = await tryQuery(query, 'test');
+    const result = await tryQuery(
+      query as unknown as Parameters<typeof tryQuery<null>>[0],
+      'test',
+    );
     expect(isOk(result)).toBe(false);
     if (!isOk(result)) {
       expect(result.error).toBeInstanceOf(SupabaseError);
