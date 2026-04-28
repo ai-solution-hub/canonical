@@ -92,7 +92,22 @@ export function formatZodErrors(error: z.ZodError): string {
 }
 
 function parseClientEnv(): ClientEnv {
-  const result = clientSchema.safeParse(process.env);
+  // Each `process.env.NEXT_PUBLIC_X` MUST be a literal accessor — Next.js
+  // statically substitutes literal accesses with their build-time string at
+  // compile time. Passing the whole `process.env` object to `safeParse` does
+  // NOT trigger substitution (the compiler can't see which keys you'll read),
+  // so at browser runtime `process.env` is the empty polyfill `{}` and Zod
+  // throws with every field undefined. P0 production bug; fixed by enumerating
+  // each field literal here.
+  const result = clientSchema.safeParse({
+    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+    NEXT_PUBLIC_CLIENT_ID: process.env.NEXT_PUBLIC_CLIENT_ID,
+    NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
+    NEXT_PUBLIC_E2E: process.env.NEXT_PUBLIC_E2E,
+  });
   if (!result.success) {
     throw new Error(
       `Invalid client env (NEXT_PUBLIC_*) — fix the following:\n${formatZodErrors(result.error)}`,
