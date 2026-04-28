@@ -60,6 +60,16 @@ export interface ItemProvenanceResponse {
     estimatedEmbedCost: number | null;
   };
 
+  // Review schedule provenance (P0 Document Control §5.5 Phase 3 T4)
+  reviewSchedule: {
+    /** ISO date string (DATE column) — next scheduled review, or null if not scheduled. */
+    nextReviewDate: string | null;
+    /** Cadence in days (1–1095), or null when no recurring review is configured. */
+    reviewCadenceDays: number | null;
+    /** ISO timestamp of last SME verification, or null if never reviewed. */
+    lastReviewedAt: string | null;
+  };
+
   // Drafting provenance
   drafting: {
     recentDrafts: BidDraftInfo[];
@@ -121,7 +131,10 @@ export async function getItemProvenance(
         classification_cache_creation_tokens,
         classification_cache_read_tokens,
         embedding_model,
-        embedding_tokens`,
+        embedding_tokens,
+        next_review_date,
+        review_cadence_days,
+        verified_at`,
       )
       .eq('id', itemId)
       .maybeSingle(),
@@ -267,6 +280,11 @@ export async function getItemProvenance(
       embeddingTokens: item.embedding_tokens,
       estimatedClassifyCost: estimatedClassifyCostValue,
       estimatedEmbedCost: estimatedEmbedCostValue,
+    },
+    reviewSchedule: {
+      nextReviewDate: item.next_review_date,
+      reviewCadenceDays: item.review_cadence_days,
+      lastReviewedAt: item.verified_at,
     },
     drafting: {
       recentDrafts,

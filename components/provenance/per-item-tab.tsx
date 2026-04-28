@@ -36,6 +36,51 @@ function formatConfidence(value: number | null): string | null {
 }
 
 // ---------------------------------------------------------------------------
+// Review-schedule formatting (T4-AC1/AC2/AC3)
+// ---------------------------------------------------------------------------
+
+function formatDateUK(value: string | null): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString('en-GB');
+}
+
+/** T4-AC1 — "{DD/MM/YYYY}" or "Not scheduled". */
+function formatNextReviewDate(nextReviewDate: string | null): string {
+  return formatDateUK(nextReviewDate) ?? 'Not scheduled';
+}
+
+/**
+ * T4-AC2 — Render the review cadence in human-readable form.
+ *
+ * - Both fields null → "No cadence set"
+ * - `review_cadence_days IS NULL` but `next_review_date` set → "One-off review"
+ * - Otherwise → "Every {N} days ({M} months)" where M = round(N/30)
+ *
+ * Pluralisation: "1 day"/"N days", "1 month"/"M months".
+ */
+function formatReviewCadence(
+  reviewCadenceDays: number | null,
+  nextReviewDate: string | null,
+): string {
+  if (reviewCadenceDays === null) {
+    return nextReviewDate ? 'One-off review' : 'No cadence set';
+  }
+
+  const days = reviewCadenceDays;
+  const months = Math.round(days / 30);
+  const dayWord = days === 1 ? 'day' : 'days';
+  const monthWord = months === 1 ? 'month' : 'months';
+  return `Every ${days} ${dayWord} (${months} ${monthWord})`;
+}
+
+/** T4-AC3 — "{DD/MM/YYYY}" derived from `verified_at`, or "Never reviewed". */
+function formatLastReviewed(lastReviewedAt: string | null): string {
+  return formatDateUK(lastReviewedAt) ?? 'Never reviewed';
+}
+
+// ---------------------------------------------------------------------------
 // Loading skeleton
 // ---------------------------------------------------------------------------
 
@@ -310,6 +355,36 @@ export default function PerItemTab() {
                     ))}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Review Schedule card — P0 Document Control §5.5 Phase 3 T4 */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Review Schedule</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <dl className="space-y-0.5">
+                  <PerItemField
+                    label="Next review date"
+                    value={formatNextReviewDate(
+                      data.reviewSchedule.nextReviewDate,
+                    )}
+                  />
+                  <PerItemField
+                    label="Review cadence"
+                    value={formatReviewCadence(
+                      data.reviewSchedule.reviewCadenceDays,
+                      data.reviewSchedule.nextReviewDate,
+                    )}
+                  />
+                  <PerItemField
+                    label="Last reviewed"
+                    value={formatLastReviewed(
+                      data.reviewSchedule.lastReviewedAt,
+                    )}
+                  />
+                </dl>
               </CardContent>
             </Card>
           </div>

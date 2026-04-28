@@ -23,6 +23,7 @@ vi.mock('@/hooks/provenance/use-item-provenance', () => ({
 // ---------------------------------------------------------------------------
 
 import PerItemTab from '@/components/provenance/per-item-tab';
+import type { ItemProvenanceResponse } from '@/lib/provenance/item-provenance';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -46,7 +47,7 @@ function renderWithQuery(ui: React.ReactElement) {
   );
 }
 
-function buildFullData() {
+function buildFullData(): ItemProvenanceResponse {
   return {
     itemId: VALID_UUID,
     classification: {
@@ -70,6 +71,11 @@ function buildFullData() {
       embeddingTokens: 890,
       estimatedClassifyCost: 0.0447,
       estimatedEmbedCost: 0.0001157,
+    },
+    reviewSchedule: {
+      nextReviewDate: '2026-10-23',
+      reviewCadenceDays: 182,
+      lastReviewedAt: '2026-04-23T09:00:00Z',
     },
     drafting: {
       recentDrafts: [
@@ -252,6 +258,11 @@ describe('PerItemTab', () => {
           estimatedClassifyCost: null,
           estimatedEmbedCost: null,
         },
+        reviewSchedule: {
+          nextReviewDate: null,
+          reviewCadenceDays: null,
+          lastReviewedAt: null,
+        },
         drafting: { recentDrafts: [], totalDraftCount: 0 },
       },
       isLoading: false,
@@ -317,6 +328,227 @@ describe('PerItemTab', () => {
       expect(matches.length).toBeGreaterThanOrEqual(1);
       // Both classification and embedding models should show the qualifier
       expect(matches).toHaveLength(2);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // T4 — Review Schedule subsection
+  //
+  // AC1 — Next review date: DD/MM/YYYY or "Not scheduled".
+  // AC2 — Review cadence: "Every {N} days ({M} months)" / "One-off review" /
+  //       "No cadence set" depending on (review_cadence_days, next_review_date)
+  //       combination.
+  // AC3 — Last reviewed: DD/MM/YYYY (from verified_at) or "Never reviewed".
+  // -------------------------------------------------------------------------
+
+  describe('Review Schedule subsection (T4)', () => {
+    function dispatchSearch() {
+      const input = screen.getByLabelText(/content item uuid/i);
+      fireEvent.change(input, { target: { value: VALID_UUID } });
+      fireEvent.click(screen.getByRole('button', { name: /look up/i }));
+    }
+
+    it('renders the section heading and three rows for fully-populated data', async () => {
+      const data = buildFullData();
+      mockUseItemProvenance.mockReturnValue({
+        data,
+        isLoading: false,
+        isError: false,
+        error: null,
+      });
+
+      renderWithQuery(<PerItemTab />);
+      dispatchSearch();
+
+      await waitFor(() => {
+        // Section heading
+        expect(screen.getByText('Review Schedule')).toBeInTheDocument();
+        // Three labelled rows
+        expect(screen.getByText('Next review date')).toBeInTheDocument();
+        expect(screen.getByText('Review cadence')).toBeInTheDocument();
+        expect(screen.getByText('Last reviewed')).toBeInTheDocument();
+      });
+    });
+
+    it('AC1 + AC2 + AC3: renders dates UK-formatted and cadence "Every 182 days (6 months)" when fully populated', async () => {
+      const data = buildFullData();
+      data.reviewSchedule = {
+        nextReviewDate: '2026-10-23',
+        reviewCadenceDays: 182,
+        lastReviewedAt: '2026-04-23T09:00:00Z',
+      };
+
+      mockUseItemProvenance.mockReturnValue({
+        data,
+        isLoading: false,
+        isError: false,
+        error: null,
+      });
+
+      renderWithQuery(<PerItemTab />);
+      dispatchSearch();
+
+      await waitFor(() => {
+        // AC1 — DD/MM/YYYY
+        expect(screen.getByText('23/10/2026')).toBeInTheDocument();
+        // AC2 — Every {N} days ({M} months) with M = round(182/30) = 6
+        expect(
+          screen.getByText('Every 182 days (6 months)'),
+        ).toBeInTheDocument();
+        // AC3 — DD/MM/YYYY for verified_at
+        expect(screen.getByText('23/04/2026')).toBeInTheDocument();
+      });
+    });
+
+    it('AC2: renders "One-off review" when next_review_date is set but cadence is null', async () => {
+      const data = buildFullData();
+      data.reviewSchedule = {
+        nextReviewDate: '2026-12-01',
+        reviewCadenceDays: null,
+        lastReviewedAt: '2026-04-15T09:00:00Z',
+      };
+
+      mockUseItemProvenance.mockReturnValue({
+        data,
+        isLoading: false,
+        isError: false,
+        error: null,
+      });
+
+      renderWithQuery(<PerItemTab />);
+      dispatchSearch();
+
+      await waitFor(() => {
+        expect(screen.getByText('01/12/2026')).toBeInTheDocument();
+        expect(screen.getByText('One-off review')).toBeInTheDocument();
+        expect(screen.getByText('15/04/2026')).toBeInTheDocument();
+      });
+    });
+
+    it('AC1 + AC2: renders "Not scheduled" + "No cadence set" when both fields are null', async () => {
+      const data = buildFullData();
+      data.reviewSchedule = {
+        nextReviewDate: null,
+        reviewCadenceDays: null,
+        lastReviewedAt: '2026-04-15T09:00:00Z',
+      };
+
+      mockUseItemProvenance.mockReturnValue({
+        data,
+        isLoading: false,
+        isError: false,
+        error: null,
+      });
+
+      renderWithQuery(<PerItemTab />);
+      dispatchSearch();
+
+      await waitFor(() => {
+        expect(screen.getByText('Not scheduled')).toBeInTheDocument();
+        expect(screen.getByText('No cadence set')).toBeInTheDocument();
+        // Last reviewed still surfaces the date
+        expect(screen.getByText('15/04/2026')).toBeInTheDocument();
+      });
+    });
+
+    it('AC3: renders "Never reviewed" when verified_at is null', async () => {
+      const data = buildFullData();
+      data.reviewSchedule = {
+        nextReviewDate: '2026-10-23',
+        reviewCadenceDays: 90,
+        lastReviewedAt: null,
+      };
+
+      mockUseItemProvenance.mockReturnValue({
+        data,
+        isLoading: false,
+        isError: false,
+        error: null,
+      });
+
+      renderWithQuery(<PerItemTab />);
+      dispatchSearch();
+
+      await waitFor(() => {
+        expect(screen.getByText('Never reviewed')).toBeInTheDocument();
+        // round(90/30) = 3 → "(3 months)"
+        expect(
+          screen.getByText('Every 90 days (3 months)'),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it('AC2: pluralises correctly — "Every 1 day (0 months)" for cadence = 1', async () => {
+      const data = buildFullData();
+      data.reviewSchedule = {
+        nextReviewDate: '2026-04-29',
+        reviewCadenceDays: 1,
+        lastReviewedAt: null,
+      };
+
+      mockUseItemProvenance.mockReturnValue({
+        data,
+        isLoading: false,
+        isError: false,
+        error: null,
+      });
+
+      renderWithQuery(<PerItemTab />);
+      dispatchSearch();
+
+      await waitFor(() => {
+        // Math.round(1/30) = 0 → "(0 months)"
+        expect(screen.getByText('Every 1 day (0 months)')).toBeInTheDocument();
+      });
+    });
+
+    it('AC2: pluralises correctly — "Every 30 days (1 month)" for cadence = 30', async () => {
+      const data = buildFullData();
+      data.reviewSchedule = {
+        nextReviewDate: '2026-05-28',
+        reviewCadenceDays: 30,
+        lastReviewedAt: null,
+      };
+
+      mockUseItemProvenance.mockReturnValue({
+        data,
+        isLoading: false,
+        isError: false,
+        error: null,
+      });
+
+      renderWithQuery(<PerItemTab />);
+      dispatchSearch();
+
+      await waitFor(() => {
+        // Math.round(30/30) = 1 → "(1 month)" singular
+        expect(screen.getByText('Every 30 days (1 month)')).toBeInTheDocument();
+      });
+    });
+
+    it('AC1 + AC2 + AC3: handles all-null reviewSchedule (never-scheduled, never-reviewed)', async () => {
+      const data = buildFullData();
+      data.reviewSchedule = {
+        nextReviewDate: null,
+        reviewCadenceDays: null,
+        lastReviewedAt: null,
+      };
+
+      mockUseItemProvenance.mockReturnValue({
+        data,
+        isLoading: false,
+        isError: false,
+        error: null,
+      });
+
+      renderWithQuery(<PerItemTab />);
+      dispatchSearch();
+
+      await waitFor(() => {
+        expect(screen.getByText('Not scheduled')).toBeInTheDocument();
+        expect(screen.getByText('No cadence set')).toBeInTheDocument();
+        expect(screen.getByText('Never reviewed')).toBeInTheDocument();
+      });
     });
   });
 });
