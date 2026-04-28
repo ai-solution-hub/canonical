@@ -46,7 +46,8 @@
     "eval:all": "bun run eval:classification && bun run eval:summarisation && bun run eval:search && bun run eval:bid-drafting && bun run eval:entity",
     "dev:clean": "rm -rf .next && next dev --turbopack",
     "analyze": "ANALYZE=true next build",
-    "build:vercel": "bun run generate:skills && bun run build:mcp-apps && next build"
+    "build:vercel": "bun run generate:skills && bun run build:mcp-apps && next build",
+    "db:row-count-diff": "bun run scripts/db-row-count-diff.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.78.0",
