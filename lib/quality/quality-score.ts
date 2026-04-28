@@ -7,6 +7,12 @@
  *   Citation history (15%).
  *
  * The score is designed for browse-card badges and governance dashboards.
+ *
+ * §5.5 Phase 5: freshness sub-score is additionally modulated by review-cadence
+ * compliance when `next_review_date` is populated. Items without a
+ * `next_review_date` produce identical scores to the pre-Phase 5 model — see
+ * the null guard in `freshnessRaw`. Penalty schedule documented in
+ * `docs/specs/p0-document-control-lifecycle-spec.md` §9.3.
  */
 
 // ---------------------------------------------------------------------------
@@ -21,6 +27,10 @@ export interface QualityScoreInput {
   reference?: string | null;
   summary?: string | null;
   citation_count?: number; // from content_citations or metadata
+  /** ISO date when the item is next due for review (DATE column). §5.5 Phase 5. */
+  next_review_date?: string | null;
+  /** Recurring review cadence in days (null = one-off review). §5.5 Phase 5. */
+  review_cadence_days?: number | null;
 }
 
 export interface QualityScoreResult {
@@ -60,9 +70,59 @@ const FRESHNESS_SCORES: Record<string, number> = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function freshnessRaw(freshness: string | null | undefined): number {
-  if (!freshness) return 100; // new items default to fresh
-  return FRESHNESS_SCORES[freshness] ?? 100;
+/** Milliseconds in one day — used for cadence-compliance day arithmetic. */
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+/**
+ * Compute the cadence-compliance penalty applied to the raw freshness score.
+ *
+ * Returns a non-negative integer to subtract from the base freshness value.
+ * Penalty schedule (spec §9.3):
+ *   - daysUntilDue > 30          → 0   (no penalty)
+ *   - daysUntilDue 1..30         → 0..10 linear (graduated warning)
+ *   - daysUntilDue ≤ 0, overdue ≤ 14 → 15
+ *   - overdue 15..30             → 25
+ *   - overdue > 30               → 40
+ *
+ * Boundary behaviour: `daysUntilDue === 0` is treated as overdue and falls
+ * into the 1..14-day-overdue tier (-15), per spec §9.3 control flow.
+ */
+export function cadenceCompliancePenalty(
+  nextReviewDate: string | null | undefined,
+  now: Date = new Date(),
+): number {
+  if (!nextReviewDate) return 0;
+
+  const reviewTime = new Date(nextReviewDate).getTime();
+  if (Number.isNaN(reviewTime)) return 0; // malformed date — fail open
+
+  const daysUntilDue = Math.floor((reviewTime - now.getTime()) / MS_PER_DAY);
+
+  if (daysUntilDue > 30) return 0;
+  if (daysUntilDue > 0) {
+    // Graduated warning band: -0 (at 30 days) up to -10 (at 1 day).
+    return Math.round((1 - daysUntilDue / 30) * 10);
+  }
+
+  const daysOverdue = Math.abs(daysUntilDue);
+  if (daysOverdue <= 14) return 15;
+  if (daysOverdue <= 30) return 25;
+  return 40;
+}
+
+function freshnessRaw(
+  freshness: string | null | undefined,
+  nextReviewDate?: string | null,
+): number {
+  const baseFreshness = !freshness
+    ? 100 // new items default to fresh
+    : (FRESHNESS_SCORES[freshness] ?? 100);
+
+  // No cadence tracking — preserve pre-Phase 5 behaviour exactly.
+  if (!nextReviewDate) return baseFreshness;
+
+  const penalty = cadenceCompliancePenalty(nextReviewDate);
+  return Math.max(baseFreshness - penalty, 0);
 }
 
 function confidenceRaw(value: number | null | undefined): number {
@@ -118,7 +178,7 @@ export function calculateAndRoundQualityScore(
 export function calculateQualityScore(
   input: QualityScoreInput,
 ): QualityScoreResult {
-  const rawFreshness = freshnessRaw(input.freshness);
+  const rawFreshness = freshnessRaw(input.freshness, input.next_review_date);
   const rawConfidence = confidenceRaw(input.classification_confidence);
   const rawCompleteness = completenessRaw(
     input.brief,
