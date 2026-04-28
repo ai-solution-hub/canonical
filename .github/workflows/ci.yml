@@ -28,6 +28,13 @@ jobs:
       pull-requests: read
 
     steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          # fetch-depth: 0 lets `vitest run --changed origin/<base>` diff
+          # the PR head against the merge base on PR runs.
+          fetch-depth: 0
+
       - name: Detect changed paths
         id: changes
         uses: dorny/paths-filter@v3
@@ -37,13 +44,6 @@ jobs:
               - 'scripts/**/*.py'
               - 'requirements.txt'
               - 'scripts/tests/**'
-
-      - name: Checkout (full history)
-        uses: actions/checkout@v4
-        with:
-          # fetch-depth: 0 lets `vitest run --changed origin/<base>` diff
-          # the PR head against the merge base on PR runs.
-          fetch-depth: 0
 
       # Bun handles dependency install + script execution; Node 22 is required for
       # Vitest 4 + Next.js 16 tooling that does not run on Bun's Node-compat layer.
