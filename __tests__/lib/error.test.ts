@@ -6,8 +6,11 @@
  * to logger.error).
  *
  * Behaviour-preserving rewrite contract: signature unchanged, return
- * string unchanged. The implementation now routes through
- * `logger.error()` which forwards to Sentry at the level wrapper.
+ * string unchanged. The implementation captures errors to Sentry
+ * directly (universal SDK from `@sentry/nextjs` — works in both client
+ * and server bundles). Server routes that want full structured logging
+ * import `logger` from `@/lib/logger` directly inside their catch arm
+ * (Phase 2 migration); safeErrorMessage is the cross-runtime LCD.
  *
  * Tests assert:
  *  1. Production-mode return value = fallback only.
@@ -15,14 +18,7 @@
  *     `Error` instances.
  *  3. Non-Error inputs in dev still return the bare fallback.
  *  4. Undefined NODE_ENV behaves like non-development.
- *  5. Sentry forwarding still fires (delegated to the logger level wrap).
- *
- * We can't `vi.spyOn(logger, 'error')` because the logger is a Proxy that
- * returns a fresh wrapped function on every property read — the spy would
- * never receive the call. Instead, we mock `@sentry/nextjs` and assert on
- * `captureException`: the chain
- *   safeErrorMessage → logger.error → captureForLevel → Sentry.captureException
- * is what proves the delegation works in production.
+ *  5. Sentry capture fires for both Error and non-Error throwables.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -83,7 +79,7 @@ describe('safeErrorMessage', () => {
     expect(result).toBe('Server error');
   });
 
-  it('forwards Error instances to Sentry via the logger error level', () => {
+  it('forwards Error instances to Sentry directly (chokepoint capture)', () => {
     process.env.NODE_ENV = 'production';
     const err = new Error('kaboom');
     safeErrorMessage(err, 'Request failed');

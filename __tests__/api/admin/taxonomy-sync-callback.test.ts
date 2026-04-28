@@ -520,17 +520,14 @@ describe('POST /api/admin/taxonomy-sync/callback', () => {
       const body = await res.json();
       expect(body.error).toBeDefined();
       // The route fires Sentry twice deliberately under W4 Phase 1: once
-      // via the explicit Sentry.captureException with route-specific tags,
-      // and once via safeErrorMessage → logger.error → Sentry forwarding
-      // (structured-logging-spec §4.5). Phase 2 collapses the explicit
-      // call into the logger when the route is migrated; lock the dual
-      // shape in here so the Phase 2 PR has to deliberately update this
-      // assertion when the duplicate is collapsed.
+      // via the explicit Sentry.captureException with route-specific tags
+      // (route.ts:147), and once via safeErrorMessage → Sentry.captureException
+      // with the fallback message in `extra` (lib/error.ts). Phase 2 will
+      // migrate the route to call logger.error directly inside its catch
+      // arm and drop the explicit Sentry call here — at which point this
+      // assertion drops to toHaveBeenCalledTimes(1). Locking the dual
+      // shape in forces the Phase 2 PR to deliberately update this test.
       expect(mockCaptureException).toHaveBeenCalledTimes(2);
-      // Call 1: the route's explicit capture carries route-scoped tags
-      // and extras. Call 2: the helper's logger forwarding has no tags
-      // (scope is applied separately via applyRequestContextToSentry from
-      // the AsyncLocalStorage context).
       expect(mockCaptureException).toHaveBeenNthCalledWith(
         1,
         expect.any(Error),
@@ -539,13 +536,14 @@ describe('POST /api/admin/taxonomy-sync/callback', () => {
           extra: expect.objectContaining({ run_id: expect.any(String) }),
         }),
       );
-      // Helper's call uses Sentry.captureException(err, scopeMutator)
-      // where the 2nd arg is a (scope) => scope callback that sets level
-      // and logger context. Match shape, not callback identity.
       expect(mockCaptureException).toHaveBeenNthCalledWith(
         2,
         expect.any(Error),
-        expect.any(Function),
+        expect.objectContaining({
+          extra: expect.objectContaining({
+            fallback: 'Failed to process taxonomy sync callback',
+          }),
+        }),
       );
     });
   });

@@ -1,4 +1,4 @@
-import { logger } from '@/lib/logger';
+import * as Sentry from '@sentry/nextjs';
 
 /**
  * Returns a safe error message for API responses.
@@ -9,16 +9,22 @@ import { logger } from '@/lib/logger';
  *
  * Phase 1 of structured-logging-spec.md (§4.5):
  *
- * - The previous `console.error` + dynamic Sentry import is replaced by
- *   `logger.error({ err }, fallback)`. The logger's wrapped `error` level
- *   forwards to Sentry automatically (see `lib/logger/sentry-bridge.ts`),
- *   so existing Sentry alerting still fires for every call.
- * - Logger output carries the per-request scope (`requestId` / `userId` /
- *   `route` / `method`) via the AsyncLocalStorage mixin in
- *   `lib/logger/index.ts` — Sentry events from inside this helper inherit
- *   the same scope as tags.
- * - Spec §10 decision 1 ("logger.warn writes to Sentry — CONFIRMED") is
- *   wired in the logger module, not here.
+ * - `safeErrorMessage` runs in BOTH client and server bundles (digest UI
+ *   imports it, so do API routes). Therefore it CANNOT import the
+ *   structured logger directly — `lib/logger/index.ts` pulls in pino +
+ *   `node:async_hooks` which Turbopack cannot bundle for the browser.
+ * - On the server, routes that want full structured logging should
+ *   `import { logger } from '@/lib/logger'` inside their catch arm
+ *   directly. Phase 2 of the spec migrates the high-volume routes to
+ *   do exactly this.
+ * - Here at the chokepoint, we capture the error to Sentry directly via
+ *   the universal SDK (`@sentry/nextjs` exposes the same surface in
+ *   client + server bundles). This preserves the previous "every error
+ *   that flows through `safeErrorMessage` reaches Sentry" guarantee
+ *   without bundling node-only modules into the browser.
+ *
+ * Spec §10 decision 1 ("logger.warn writes to Sentry — CONFIRMED") is
+ * wired in `lib/logger/sentry-bridge.ts` for the server logger path.
  *
  * Return-string behaviour is unchanged: production gets the fallback,
  * development concatenates `${fallback}: ${err.message}` for `Error`
@@ -26,7 +32,13 @@ import { logger } from '@/lib/logger';
  * `__tests__/lib/error.test.ts`).
  */
 export function safeErrorMessage(err: unknown, fallback: string): string {
-  logger.error({ err }, fallback);
+  if (err instanceof Error) {
+    Sentry.captureException(err, { extra: { fallback } });
+  } else {
+    Sentry.captureException(new Error(fallback), {
+      extra: { fallback, cause: err },
+    });
+  }
   if (process.env.NODE_ENV === 'development' && err instanceof Error) {
     return `${fallback}: ${err.message}`;
   }
