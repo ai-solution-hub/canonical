@@ -238,11 +238,10 @@ function TypeEditDialog({
   onComplete: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [selectedType, setSelectedType] = useState('');
-
-  useEffect(() => {
-    if (entity) setSelectedType(entity.entity_type);
-  }, [entity]);
+  // Initialise from the entity prop. The parent uses `key={entity.canonical_name}`
+  // at the call site to force a clean remount when the target entity changes,
+  // avoiding a prop-syncing useEffect.
+  const [selectedType, setSelectedType] = useState(entity?.entity_type ?? '');
 
   const mutation = useMutation<
     EntityTypeChangeResponse,
@@ -636,6 +635,7 @@ export function EntityList() {
       )}
 
       <TypeEditDialog
+        key={typeEditEntity?.canonical_name ?? 'closed'}
         open={!!typeEditEntity}
         onOpenChange={(open) => !open && setTypeEditEntity(null)}
         entity={typeEditEntity}
