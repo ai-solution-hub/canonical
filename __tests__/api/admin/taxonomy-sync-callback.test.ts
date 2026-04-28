@@ -519,13 +519,34 @@ describe('POST /api/admin/taxonomy-sync/callback', () => {
       expect(res.status).toBe(500);
       const body = await res.json();
       expect(body.error).toBeDefined();
-      // The route fires Sentry twice deliberately: once via the explicit
-      // Sentry.captureException with route-specific tags, and once via
-      // safeErrorMessage → logger.error → Sentry forwarding (W4 Phase 1
-      // structured-logging-spec §4.5). Phase 2 will collapse the explicit
-      // call into the logger when the route is migrated; until then, both
-      // fire so we just assert Sentry was notified.
-      expect(mockCaptureException).toHaveBeenCalled();
+      // The route fires Sentry twice deliberately under W4 Phase 1: once
+      // via the explicit Sentry.captureException with route-specific tags,
+      // and once via safeErrorMessage → logger.error → Sentry forwarding
+      // (structured-logging-spec §4.5). Phase 2 collapses the explicit
+      // call into the logger when the route is migrated; lock the dual
+      // shape in here so the Phase 2 PR has to deliberately update this
+      // assertion when the duplicate is collapsed.
+      expect(mockCaptureException).toHaveBeenCalledTimes(2);
+      // Call 1: the route's explicit capture carries route-scoped tags
+      // and extras. Call 2: the helper's logger forwarding has no tags
+      // (scope is applied separately via applyRequestContextToSentry from
+      // the AsyncLocalStorage context).
+      expect(mockCaptureException).toHaveBeenNthCalledWith(
+        1,
+        expect.any(Error),
+        expect.objectContaining({
+          tags: { pipeline: 'taxonomy_sync', phase: 'callback' },
+          extra: expect.objectContaining({ run_id: expect.any(String) }),
+        }),
+      );
+      // Helper's call uses Sentry.captureException(err, scopeMutator)
+      // where the 2nd arg is a (scope) => scope callback that sets level
+      // and logger context. Match shape, not callback identity.
+      expect(mockCaptureException).toHaveBeenNthCalledWith(
+        2,
+        expect.any(Error),
+        expect.any(Function),
+      );
     });
   });
 });

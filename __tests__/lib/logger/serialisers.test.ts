@@ -195,6 +195,29 @@ describe('lib/logger/serialisers', () => {
       }
     });
 
+    it('covers TOP-LEVEL credential and PII fields (depth=1 keys)', () => {
+      // Spec §4.7 enumerates `*.X` patterns which pino matches at depth=2
+      // only. Top-level keys (`logger.error({ password: 'x' })`) need
+      // explicit bare-name entries in REDACT_PATHS. Keep both shapes —
+      // spec is being amended via separate erratum follow-up.
+      const required = [
+        'password',
+        'token',
+        'apiKey',
+        'authorization',
+        'cookie',
+        'email',
+        'organisation_name',
+        'client_name',
+        'holder_name',
+        'author',
+        'created_by',
+      ];
+      for (const path of required) {
+        expect(REDACT_PATHS).toContain(path);
+      }
+    });
+
     it('exposes the censor string', () => {
       expect(REDACT_CENSOR).toBe('[redacted]');
     });

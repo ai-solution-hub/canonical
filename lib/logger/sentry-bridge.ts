@@ -66,6 +66,12 @@ export function applyRequestContextToSentry(): void {
  * pino calls the "merging object" — `err` is the conventional key for
  * the throwable. We accept any of `err`/`error`/`exception` as
  * synonyms.
+ *
+ * No DSN gate: when `NEXT_PUBLIC_SENTRY_DSN` is unset the Sentry SDK
+ * silently noops on `captureException`. The (small) call overhead is
+ * acceptable in exchange for not coupling this hot path to env-var
+ * parsing — same decoupling rationale as the OPS-38 harden of
+ * `sentry.{client,server,edge}.config.ts`.
  */
 export function captureForLevel(
   level: string,

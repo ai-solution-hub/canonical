@@ -2,7 +2,13 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { PUBLIC_ROUTES } from '@/lib/routes';
 import { clientEnv } from '@/lib/env-client';
-import { runWithRequestContext, type RequestContext } from '@/lib/logger';
+// Direct import (not via @/lib/logger barrel) — proxy runs on every request
+// matched by the matcher, so avoid pulling pino's module-load cost into
+// the proxy hot path. CLAUDE.md "no barrel re-exports" rule.
+import {
+  runWithRequestContext,
+  type RequestContext,
+} from '@/lib/logger/request-context';
 
 // Public routes from shared constant, plus /.well-known which is an
 // API-like route that only needs the proxy bypass (no UI guard needed).
