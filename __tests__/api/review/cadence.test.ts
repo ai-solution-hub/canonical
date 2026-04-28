@@ -80,21 +80,24 @@ const OriginalDate = globalThis.Date;
 function mockDateNow() {
   // Create a Date subclass that returns FIXED_NOW when called with no args
   // but delegates to the original for explicit args (e.g. new Date('2026-01-01'))
-  const MockDate = function (...args: ConstructorParameters<typeof Date>) {
+  const MockDateImpl = function (...args: unknown[]) {
     if (args.length === 0) {
       return new OriginalDate(FIXED_NOW);
     }
-    // @ts-expect-error -- spread into Date constructor
-    return new OriginalDate(...args);
-  } as unknown as DateConstructor;
+    return new (OriginalDate as unknown as new (...a: unknown[]) => Date)(
+      ...args,
+    );
+  };
 
-  // Copy static methods and properties
-  MockDate.now = () => FIXED_NOW;
-  MockDate.parse = OriginalDate.parse;
-  MockDate.UTC = OriginalDate.UTC;
-  MockDate.prototype = OriginalDate.prototype;
+  // Copy static methods and properties through any-typed view to bypass
+  // DateConstructor readonly markers
+  const MockDateAny = MockDateImpl as unknown as Record<string, unknown>;
+  MockDateAny.now = () => FIXED_NOW;
+  MockDateAny.parse = OriginalDate.parse;
+  MockDateAny.UTC = OriginalDate.UTC;
+  MockDateAny.prototype = OriginalDate.prototype;
 
-  globalThis.Date = MockDate;
+  globalThis.Date = MockDateImpl as unknown as DateConstructor;
 }
 
 function restoreDateNow() {

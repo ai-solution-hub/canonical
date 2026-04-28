@@ -27,7 +27,8 @@ const {
 vi.mock('sonner', () => ({ toast: mockToast }));
 
 vi.mock('@/lib/client-config', () => ({
-  isFeatureEnabled: (...args: unknown[]) => mockIsFeatureEnabled(...args),
+  isFeatureEnabled: (...args: unknown[]) =>
+    (mockIsFeatureEnabled as (...a: unknown[]) => unknown)(...args),
 }));
 
 vi.mock('@/lib/validation/layer-schemas', () => ({

@@ -118,7 +118,7 @@ vi.mock('@/hooks/browse/use-filter-data', () => ({
 }));
 
 const { mockIsFeatureEnabled } = vi.hoisted(() => ({
-  mockIsFeatureEnabled: vi.fn(() => true),
+  mockIsFeatureEnabled: vi.fn((..._args: unknown[]) => true),
 }));
 
 vi.mock('@/lib/client-config', () => ({

@@ -112,7 +112,8 @@ beforeEach(() => {
   global.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
   // Default fetch responses
-  fetchMock.mockImplementation(async (url: string) => {
+  fetchMock.mockImplementation(async (...args: unknown[]) => {
+    const url = args[0] as string;
     if (typeof url === 'string' && url.includes('/api/content-owners/stats')) {
       return {
         ok: true,
@@ -172,7 +173,8 @@ describe('ContentOwnerManagement', () => {
   });
 
   it('renders empty state when no owners assigned', async () => {
-    fetchMock.mockImplementation(async (url: string) => {
+    fetchMock.mockImplementation(async (...args: unknown[]) => {
+      const url = args[0] as string;
       if (
         typeof url === 'string' &&
         url.includes('/api/content-owners/stats')

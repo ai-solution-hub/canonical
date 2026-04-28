@@ -1,4 +1,3 @@
-// @ts-expect-error - CommonJS rule, no .d.ts
 import rule from '../no-unchecked-supabase-error.js';
 import { RuleTester } from 'eslint';
 
