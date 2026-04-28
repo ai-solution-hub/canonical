@@ -26,6 +26,7 @@ import {
   sidecarFilename,
   resolveCredentials,
   fetchTableInventory,
+  countOneTable,
   countAllTables,
   EXIT_OK,
   EXIT_DRIFT,
@@ -560,6 +561,38 @@ describe('fetchTableInventory', () => {
     await expect(
       fetchTableInventory(mock as unknown as SupabaseClient),
     ).rejects.toThrow(/non-array/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// countOneTable (mocked, direct)
+// ---------------------------------------------------------------------------
+
+describe('countOneTable', () => {
+  it('returns count on success', async () => {
+    const mock = createMockSupabaseClient();
+    mock._chain.then = vi.fn((resolve: (v: unknown) => void) =>
+      resolve({ data: null, error: null, count: 7 }),
+    ) as typeof mock._chain.then;
+    expect(await countOneTable(mock as unknown as SupabaseClient, 't')).toBe(7);
+  });
+
+  it('returns null on relation-not-found (42P01)', async () => {
+    const mock = createMockSupabaseClient();
+    mock._chain.then = vi.fn((resolve: (v: unknown) => void) =>
+      resolve({ data: null, error: { code: '42P01', message: 'relation gone' }, count: null }),
+    ) as typeof mock._chain.then;
+    expect(await countOneTable(mock as unknown as SupabaseClient, 'gone')).toBeNull();
+  });
+
+  it('throws on other PG errors', async () => {
+    const mock = createMockSupabaseClient();
+    mock._chain.then = vi.fn((resolve: (v: unknown) => void) =>
+      resolve({ data: null, error: { code: '42501', message: 'permission denied' }, count: null }),
+    ) as typeof mock._chain.then;
+    await expect(
+      countOneTable(mock as unknown as SupabaseClient, 't'),
+    ).rejects.toThrow(/permission denied/);
   });
 });
 

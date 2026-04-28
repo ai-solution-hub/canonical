@@ -636,7 +636,7 @@ export async function fetchTableInventory(
 }
 
 /** Count rows in a single table. Used by countAllTables (which throttles). */
-async function countOneTable(
+export async function countOneTable(
   client: SimpleSupabaseClient,
   table: string,
 ): Promise<number | null> {

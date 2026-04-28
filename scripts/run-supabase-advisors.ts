@@ -78,6 +78,10 @@ const EXIT_INFRA_ERROR = 2;
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
+// If Supabase ships new advisor categories beyond security + performance
+// (e.g. compliance, deprecation), extend this union and add a corresponding
+// fetch-call site in fetchAllFindings — the Management API endpoint shape is
+// per-type so adding a third requires both.
 type AdvisorType = 'security' | 'performance';
 
 interface AdvisorMetadata {
