@@ -30,9 +30,9 @@ export const test = base.extend<AuthFixtures>({
     // Storage state is already loaded by the project config —
     // just navigate to the app.
     await page.goto('/');
-    await expect(page.getByRole('link', { name: 'Knowledge Hub' })).toBeVisible(
-      { timeout: 10000 },
-    );
+    await expect(
+      page.getByRole('navigation', { name: 'Main navigation' }).first(),
+    ).toBeVisible({ timeout: 10000 });
     await use(page);
   },
 
@@ -42,9 +42,9 @@ export const test = base.extend<AuthFixtures>({
     });
     const page = await ctx.newPage();
     await page.goto('/');
-    await expect(page.getByRole('link', { name: 'Knowledge Hub' })).toBeVisible(
-      { timeout: 10000 },
-    );
+    await expect(
+      page.getByRole('navigation', { name: 'Main navigation' }).first(),
+    ).toBeVisible({ timeout: 10000 });
     await use(page);
     await ctx.close();
   },
@@ -55,9 +55,9 @@ export const test = base.extend<AuthFixtures>({
     });
     const page = await ctx.newPage();
     await page.goto('/');
-    await expect(page.getByRole('link', { name: 'Knowledge Hub' })).toBeVisible(
-      { timeout: 10000 },
-    );
+    await expect(
+      page.getByRole('navigation', { name: 'Main navigation' }).first(),
+    ).toBeVisible({ timeout: 10000 });
     await use(page);
     await ctx.close();
   },
