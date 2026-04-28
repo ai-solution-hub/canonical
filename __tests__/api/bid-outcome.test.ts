@@ -697,6 +697,9 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
         platform: 'extraction',
         created_by: 'test-user-id',
         primary_domain: 'Technology',
+        // S206 WP-A Phase 2 (AC3.7): content_owner_id peer to created_by.
+        // EP10 has NO admin-override semantics — owner is always caller.
+        content_owner_id: 'test-user-id',
       }),
     );
   });

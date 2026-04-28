@@ -21,6 +21,7 @@ import { GovernanceBadge } from '@/components/shared/governance-badge';
 import { ContentOwnerSelector } from '@/components/content/content-owner-selector';
 import { ContentOwnerBadge } from '@/components/content/content-owner-badge';
 import { QualityScoreBreakdown } from '@/components/shared/quality-score-breakdown';
+import { ReviewCadenceEditor } from '@/components/content/review-cadence-editor';
 import { useDisplayNames } from '@/hooks/use-display-names';
 import { createClient } from '@/lib/supabase/client';
 import { captureClientException } from '@/lib/client-telemetry';
@@ -440,6 +441,27 @@ export function MetadataSidebar({
             citation_count: item.citation_count ?? 0,
           }}
         />
+
+        {/* Review schedule — EditorView only.
+            §5.5 Phase 3 T3 of p0-document-control-phase-3-ui-plan.md v1.1.
+            `next_review_date` and `review_cadence_days` are not yet on
+            ItemData (T1 widens those columns); cast at the boundary. */}
+        {!readOnly &&
+          (() => {
+            const itemReview = item as ItemData & {
+              next_review_date?: string | null;
+              review_cadence_days?: number | null;
+            };
+            return (
+              <div>
+                <ReviewCadenceEditor
+                  itemId={item.id}
+                  nextReviewDate={itemReview.next_review_date ?? null}
+                  reviewCadenceDays={itemReview.review_cadence_days ?? null}
+                />
+              </div>
+            );
+          })()}
 
         {/* Quality flags */}
         {qualityFlags.length > 0 && (

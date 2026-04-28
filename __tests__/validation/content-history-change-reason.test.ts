@@ -10,6 +10,21 @@
  * Structural grep rather than per-route mock test — the wiring is
  * mechanical and the risk is that a NEW content_history insert lands
  * without change_reason, silently regressing provenance.
+ *
+ * ──────────────────────────────────────────────────────────────────────
+ * SCOPE: this guard is structural-only. It asserts the presence of the
+ * `change_reason:` key on every TS insert path and the canonical default
+ * on the Python pipeline helper. It does NOT enumerate the canonical
+ * value set — the source of truth for canonical values lives in
+ * `docs/reference/data-entry-points.md` Appendix D.
+ *
+ * S206 WP-A Phase 2 (verifier finding L-1) added the explicit
+ * literal-string scan over the WP-A3 backfill migration so a typo in the
+ * SQL canonical-value usage would fail this guard. Future canonical
+ * values requiring this protection should add their own targeted test
+ * case here (rather than enumerate the full set, which would couple this
+ * guard to docs/reference churn).
+ * ──────────────────────────────────────────────────────────────────────
  */
 
 import { describe, it, expect } from 'vitest';
@@ -193,5 +208,25 @@ describe('content_history.change_reason guard (S153)', () => {
         `${rel} should call run_post_insert (S185 WP-D shared helper)`,
       ).toMatch(/run_post_insert\(/);
     }
+  });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // S206 WP-A Phase 2 verifier finding L-1
+  //
+  // The WP-A3 backfill migration writes `content_history` rows directly
+  // via SQL (not via the Python helper or any TS call site), so it is
+  // outside the structural grep above. Pin the canonical value here so a
+  // typo in the SQL would fail this guard.
+  // ─────────────────────────────────────────────────────────────────────
+  it('migration 20260428145733 uses canonical change_reason backfill_owner_assign_wp_a3', () => {
+    const migrationPath = path.join(
+      REPO_ROOT,
+      'supabase/migrations/20260428145733_backfill_content_owner_id_from_created_by.sql',
+    );
+    const sql = readFileSync(migrationPath, 'utf-8');
+    expect(
+      sql,
+      `${migrationPath} should write the canonical change_reason value`,
+    ).toMatch(/'backfill_owner_assign_wp_a3'/);
   });
 });

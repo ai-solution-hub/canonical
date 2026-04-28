@@ -93,6 +93,12 @@ vi.mock('@/components/shared/quality-score-breakdown', () => ({
   QualityScoreBreakdown: () => <div />,
 }));
 
+// ReviewCadenceEditor uses TanStack Query internally (§5.5 Phase 3 T3); mock
+// it here so this isolated test file does not need a QueryClientProvider.
+vi.mock('@/components/content/review-cadence-editor', () => ({
+  ReviewCadenceEditor: () => <div data-testid="review-cadence-editor-mock" />,
+}));
+
 import { MetadataSidebar } from '@/components/item-detail/metadata-sidebar';
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
 

@@ -10,6 +10,7 @@ import { safeErrorMessage } from '@/lib/error';
 import type { Json } from '@/supabase/types/database.types';
 import { parseBody } from '@/lib/validation';
 import { IngestUrlBodySchema } from '@/lib/validation/ingest-schemas';
+import { resolveContentOwnerId } from '@/lib/auth/owner-default';
 import { validateUrl } from '@/lib/extraction/url-validation';
 import { detectContentType } from '@/lib/extraction/content-type-detect';
 
@@ -35,11 +36,21 @@ export async function POST(request: NextRequest) {
       content_type: requestedContentType,
       user_tags,
       skip_dedup,
+      content_owner_id,
     } = parsed.data;
 
     // Admin-only dedup override (spec §6 D2). Silent-ignore for
     // non-admin — do not 403 a legitimate write.
     const skipDedup = skip_dedup === true && role === 'admin';
+
+    // S206 WP-A Phase 2 (AC3.1) — resolve content owner. Admin caller may
+    // supply an explicit owner UUID; non-admins are silent-forced to
+    // themselves via the helper.
+    const ownerId = resolveContentOwnerId({
+      explicit: content_owner_id,
+      role,
+      userId: user.id,
+    });
 
     // 4. SSRF validation
     const urlCheck = validateUrl(url);
@@ -160,6 +171,7 @@ export async function POST(request: NextRequest) {
       thumbnail_url: extracted.ogImage || undefined,
       captured_date: new Date().toISOString(),
       created_by: user.id,
+      content_owner_id: ownerId,
       dedup_status: dedupStamp.dedup_status,
       ...(user_tags?.length && { user_tags }),
       ...(embeddingValue && { embedding: embeddingValue }),

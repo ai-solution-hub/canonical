@@ -14,6 +14,7 @@ import { createHash } from 'crypto';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createMcpClient, getMcpUserId, checkMcpRole } from '@/lib/mcp/auth';
+import { resolveContentOwnerId } from '@/lib/auth/owner-default';
 import { sb, tryQuery } from '@/lib/supabase/safe';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { recordPipelineRun } from '@/lib/pipeline/record-run';
@@ -352,6 +353,13 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           .describe(
             'Admin-only dedup override (spec §6 D2). When true and the caller is admin, exact-hash match is not stamped. Non-admin requests silently ignore the flag.',
           ),
+        content_owner_id: z
+          .string()
+          .uuid()
+          .optional()
+          .describe(
+            'S206 WP-A Phase 2 (AC3.3): admin-only content owner override. When provided by an admin caller, the new item is owned by the supplied UUID; non-admin callers are silent-forced to their own userId. Defaults to the caller userId when omitted.',
+          ),
       },
       annotations: NON_IDEMPOTENT_WRITE_ANNOTATIONS,
     },
@@ -359,6 +367,25 @@ export async function registerContentTools(server: McpServer): Promise<void> {
       try {
         const role = await checkMcpRole(extra.authInfo, ['admin', 'editor']);
         if (!role) {
+          // S206 WP4 (S205 verifier deferral M-2): emit pipeline_runs row on
+          // auth-fail per AC2.1 ("ALL invocation paths emit pipeline_runs").
+          // Uses the service-role client because the caller is BY DEFINITION
+          // not editor/admin and the `pipeline_runs_insert` RLS policy
+          // requires admin. recordPipelineRun is never-throws so this is
+          // safe even if the audit insert itself fails.
+          const { createServiceClient } = await import('@/lib/supabase/server');
+          await recordPipelineRun({
+            supabase: createServiceClient(),
+            pipelineName: 'mcp_create_content_item',
+            status: 'failed',
+            itemsProcessed: 0,
+            itemsCreated: null,
+            errorMessage: 'permission_denied',
+            result: {
+              phase: 'auth_check',
+              auth_info_present: extra.authInfo != null,
+            } as Json,
+          });
           return {
             content: [
               {
@@ -435,6 +462,15 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           metadata.suspected_duplicate_of = dedupStamp.suspected_duplicate_of;
         }
 
+        // S206 WP-A Phase 2 (AC3.1) — resolve content owner. Admin caller
+        // may supply an explicit owner UUID; non-admins are silent-forced
+        // to their own userId via the helper.
+        const ownerId = resolveContentOwnerId({
+          explicit: args.content_owner_id,
+          role,
+          userId,
+        });
+
         const insertData: Database['public']['Tables']['content_items']['Insert'] =
           {
             title: args.title,
@@ -444,6 +480,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             platform: 'manual',
             captured_date: new Date().toISOString(),
             created_by: userId,
+            content_owner_id: ownerId,
             dedup_status: dedupStamp.dedup_status,
             ...(args.primary_domain && {
               primary_domain: slugifyDomain(args.primary_domain),
@@ -763,6 +800,31 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         };
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
+        // S206 WP4 (S205 verifier deferral M-2): emit pipeline_runs row on
+        // outer-catch per AC2.1. Uses the service-role client to bypass the
+        // admin-only `pipeline_runs_insert` RLS policy — the catch may fire
+        // for an editor caller whose RLS-scoped client cannot write the
+        // audit row. recordPipelineRun is never-throws so this is safe even
+        // if the audit insert itself fails. Wrapped in its own try/catch so
+        // the original error surface (the "Failed to create item" message)
+        // is never replaced by an unrelated audit failure.
+        try {
+          const { createServiceClient } = await import('@/lib/supabase/server');
+          await recordPipelineRun({
+            supabase: createServiceClient(),
+            pipelineName: 'mcp_create_content_item',
+            status: 'failed',
+            itemsProcessed: 0,
+            itemsCreated: null,
+            errorMessage: message,
+            result: { phase: 'handler_catch_all' } as Json,
+          });
+        } catch (auditErr) {
+          console.error(
+            'MCP create_content_item outer-catch pipeline_runs emission failed:',
+            auditErr,
+          );
+        }
         return {
           content: [
             {

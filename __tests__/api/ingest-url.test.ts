@@ -448,6 +448,23 @@ describe('POST /api/ingest/url — Successful Import', () => {
     expect(insertData.created_by).toBe('test-user-id');
   });
 
+  // ───────────────────────────────────────────────────────────────────
+  // S206 WP-A Phase 2 — content_owner_id default at URL ingest EP
+  // ───────────────────────────────────────────────────────────────────
+
+  it('defaults content_owner_id to authenticated user UUID', async () => {
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+
+    const insertData = mockSupabase._chain.insert.mock.calls[0][0];
+    expect(insertData.content_owner_id).toBe('test-user-id');
+    expect(insertData.created_by).toBe('test-user-id');
+  });
+
   it('sets platform to web', async () => {
     const req = createTestRequest('/api/ingest/url', {
       method: 'POST',
@@ -1251,5 +1268,107 @@ describe('POST /api/ingest/url — Dedup soft-block', () => {
     const body = await res.json();
     expect(body.dedup_status).toBe('suspected_duplicate');
     expect(body.suspected_duplicate_of).toBe(EXISTING_ID);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// S206 WP-A Phase 2 verifier finding M-3 — content_owner_id admin-override
+// + silent-force coverage at the URL ingest entry point.
+//
+// Pattern mirrors the Dedup soft-block describe above: a local
+// `primeCommonMocks()` queues the chain in the order the route consumes,
+// so role-mock queueing is owned by each test (rather than the parent
+// describe's beforeEach pre-queuing 'editor').
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('POST /api/ingest/url — content_owner_id admin override', () => {
+  const OTHER_UUID = '11111111-2222-4333-8444-555555555555';
+
+  function primeCommonMocks() {
+    setupSuccessPath();
+
+    // maybeSingle for URL pre-check — no URL match
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+
+    // single for insert — returns new item
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        id: 'new-item-id',
+        title: 'Test Article',
+        content_type: 'article',
+        created_at: '2026-04-28T00:00:00Z',
+      },
+      error: null,
+    });
+
+    // single for quality score fetch
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        freshness: 'fresh',
+        classification_confidence: 0.9,
+        brief: null,
+        detail: null,
+        reference: null,
+        summary: null,
+        citation_count: 0,
+      },
+      error: null,
+    });
+
+    // maybeSingle for domain re-fetch (topic suggestion)
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: {
+        primary_domain: 'General Business',
+        primary_subtopic: 'Strategy',
+      },
+      error: null,
+    });
+
+    // maybeSingle for final item fetch
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: {
+        primary_domain: 'General Business',
+        primary_subtopic: 'Strategy',
+        summary: 'A test summary',
+      },
+      error: null,
+    });
+  }
+
+  it('admin override: explicit content_owner_id is respected when caller is admin', async () => {
+    configureRole(mockSupabase, 'admin');
+    primeCommonMocks();
+
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL, content_owner_id: OTHER_UUID },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+
+    const insertData = mockSupabase._chain.insert.mock.calls[0][0];
+    expect(insertData.content_owner_id).toBe(OTHER_UUID);
+    // created_by always tracks the caller, not the override target
+    expect(insertData.created_by).toBe('test-user-id');
+  });
+
+  it('non-admin override is silent-forced: explicit content_owner_id ignored for editor', async () => {
+    configureRole(mockSupabase, 'editor');
+    primeCommonMocks();
+
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL, content_owner_id: OTHER_UUID },
+    });
+    const res = await POST(req);
+    // Silent-force = legitimate write, not 403
+    expect(res.status).toBe(200);
+
+    const insertData = mockSupabase._chain.insert.mock.calls[0][0];
+    expect(insertData.content_owner_id).toBe('test-user-id');
+    expect(insertData.created_by).toBe('test-user-id');
   });
 });

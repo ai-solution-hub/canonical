@@ -74,6 +74,31 @@ vi.mock('@/components/reader/source-metadata', () => ({
   SourceMetadata: () => <div />,
 }));
 
+// ReviewCadenceEditor uses TanStack Query internally (§5.5 Phase 3 T3); mock
+// it out here so this test file does not need a QueryClientProvider, and so
+// the EditorView/ReaderView mount-gating assertions are independent of the
+// editor's internal behaviour (covered by review-cadence-editor.test.tsx).
+vi.mock('@/components/content/review-cadence-editor', () => ({
+  ReviewCadenceEditor: ({
+    itemId,
+    nextReviewDate,
+    reviewCadenceDays,
+  }: {
+    itemId: string;
+    nextReviewDate: string | null;
+    reviewCadenceDays: number | null;
+  }) => (
+    <div
+      data-testid="review-cadence-editor-mock"
+      data-item-id={itemId}
+      data-next-review-date={nextReviewDate ?? ''}
+      data-review-cadence-days={reviewCadenceDays ?? ''}
+    >
+      Review Cadence Editor (mock)
+    </div>
+  ),
+}));
+
 import { MetadataSidebar } from '@/components/item-detail/metadata-sidebar';
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
 
@@ -433,5 +458,63 @@ describe('MetadataSidebar', () => {
     );
     expect(mockChain.eq).toHaveBeenCalledWith('content_item_id', 'item-xyz');
     expect(mockChain.eq).toHaveBeenCalledWith('resolved', false);
+  });
+
+  // -------------------------------------------------------------------------
+  // §5.5 Phase 3 T3 — ReviewCadenceEditor mount integration
+  // -------------------------------------------------------------------------
+
+  it('mounts ReviewCadenceEditor when readOnly={false} (EditorView)', async () => {
+    const item = createItem({ id: 'item-edit-1' });
+    // Cast item to inject the (not-yet-on-ItemData) cadence fields that T1
+    // widens. The metadata-sidebar mount cast accepts the shape.
+    const itemWithCadence = {
+      ...item,
+      next_review_date: '2026-09-15',
+      review_cadence_days: 90,
+    } as typeof item;
+
+    render(
+      <MetadataSidebar
+        item={itemWithCadence}
+        {...defaultProps}
+        readOnly={false}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(mockFrom).toHaveBeenCalledWith('ingestion_quality_log');
+    });
+
+    const mock = screen.getByTestId('review-cadence-editor-mock');
+    expect(mock).toBeInTheDocument();
+    expect(mock.dataset.itemId).toBe('item-edit-1');
+    expect(mock.dataset.nextReviewDate).toBe('2026-09-15');
+    expect(mock.dataset.reviewCadenceDays).toBe('90');
+  });
+
+  it('does NOT render ReviewCadenceEditor when readOnly={true} (ReaderView)', async () => {
+    const item = createItem();
+    const itemWithCadence = {
+      ...item,
+      next_review_date: '2026-09-15',
+      review_cadence_days: 90,
+    } as typeof item;
+
+    render(
+      <MetadataSidebar
+        item={itemWithCadence}
+        {...defaultProps}
+        readOnly={true}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(mockFrom).toHaveBeenCalledWith('ingestion_quality_log');
+    });
+
+    expect(
+      screen.queryByTestId('review-cadence-editor-mock'),
+    ).not.toBeInTheDocument();
   });
 });

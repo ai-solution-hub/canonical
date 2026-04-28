@@ -51,6 +51,10 @@ export interface ContentListItem {
   layer?: string | null;
   /** Starred flag (promoted from metadata JSONB) */
   starred?: boolean;
+  /** ISO date when the item is next due for review (DATE column) */
+  next_review_date?: string | null;
+  /** Recurring review cadence in days (null = one-off review) */
+  review_cadence_days?: number | null;
 }
 
 /** Content list item with read state */
@@ -213,7 +217,8 @@ export const CONTENT_LIST_COLUMNS = `
   answer_standard, answer_advanced,
   content_owner_id, quality_score,
   source_document_id, citation_count, source_file,
-  layer, starred
+  layer, starred,
+  next_review_date, review_cadence_days
 ` as const;
 
 /** Columns selected for detail view */
