@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { parseBody } from '@/lib/validation';
+import { resolveContentOwnerId } from '@/lib/auth/owner-default';
 import { safeErrorMessage } from '@/lib/error';
 import crypto from 'crypto';
 import type { Database, Json } from '@/supabase/types/database.types';
@@ -60,6 +61,12 @@ const BatchCreateBodySchema = z.object({
    * Applied to every item in the batch.
    */
   skip_dedup: z.boolean().optional(),
+  /**
+   * S206 WP-A Phase 2 (AC3.3) — content owner override. Admin-only;
+   * non-admins are silent-forced to the caller's userId via
+   * `resolveContentOwnerId()`. Applied to every item in the batch.
+   */
+  content_owner_id: z.string().uuid().optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -92,11 +99,26 @@ export async function POST(request: NextRequest) {
     const parsed = parseBody(BatchCreateBodySchema, raw);
     if (!parsed.success) return parsed.response;
 
-    const { items, source_document_id, batch_token, skip_dedup } = parsed.data;
+    const {
+      items,
+      source_document_id,
+      batch_token,
+      skip_dedup,
+      content_owner_id,
+    } = parsed.data;
 
     // Admin-only dedup override (spec §6 D2). Silent-ignore for
     // non-admin — do not 403 a legitimate batch write.
     const skipDedup = skip_dedup === true && role === 'admin';
+
+    // S206 WP-A Phase 2 (AC3.1) — resolve content owner once for the
+    // batch. Admin caller may supply an explicit owner UUID; non-admins
+    // are silent-forced to themselves.
+    const ownerId = resolveContentOwnerId({
+      explicit: content_owner_id,
+      role,
+      userId: user.id,
+    });
     const { checkExactDuplicate, resolveDedupStamp } =
       await import('@/lib/dedup');
 
@@ -225,6 +247,7 @@ export async function POST(request: NextRequest) {
             suggested_title: item.title,
             captured_date: new Date().toISOString(),
             created_by: user.id,
+            content_owner_id: ownerId,
             metadata,
             dedup_status: dedupStamp.dedup_status,
             // P0-BM Phase 3 spec ss4.6 Path 2: populate answer_standard for

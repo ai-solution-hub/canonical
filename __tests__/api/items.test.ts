@@ -363,6 +363,89 @@ describe('POST /api/items', () => {
     expect(insertCall.created_by).toBe('test-user-id');
   });
 
+  // ─────────────────────────────────────────────────────────────────────
+  // S206 WP-A Phase 2 — content_owner_id default + admin override
+  // ─────────────────────────────────────────────────────────────────────
+
+  it('defaults content_owner_id to authenticated user UUID (editor)', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        id: VALID_UUID,
+        title: 'Owner Default',
+        content_type: 'article',
+        created_at: '2026-03-05T12:00:00Z',
+      },
+      error: null,
+    });
+
+    const req = createTestRequest('/api/items', {
+      method: 'POST',
+      body: validCreateBody(),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(201);
+
+    const insertCall = mockSupabase._chain.insert.mock.calls[0][0];
+    expect(insertCall.content_owner_id).toBe('test-user-id');
+    expect(insertCall.created_by).toBe('test-user-id');
+  });
+
+  it('admin override: explicit content_owner_id is respected when caller is admin', async () => {
+    configureRole(mockSupabase, 'admin');
+    const OTHER_UUID = '11111111-2222-4333-8444-555555555555';
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        id: VALID_UUID,
+        title: 'Admin Override',
+        content_type: 'article',
+        created_at: '2026-03-05T12:00:00Z',
+      },
+      error: null,
+    });
+
+    const req = createTestRequest('/api/items', {
+      method: 'POST',
+      body: validCreateBody({ content_owner_id: OTHER_UUID }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(201);
+
+    const insertCall = mockSupabase._chain.insert.mock.calls[0][0];
+    expect(insertCall.content_owner_id).toBe(OTHER_UUID);
+    // created_by always tracks the caller, not the override target
+    expect(insertCall.created_by).toBe('test-user-id');
+  });
+
+  it('non-admin override is silent-forced: explicit content_owner_id ignored for editor', async () => {
+    configureRole(mockSupabase, 'editor');
+    const OTHER_UUID = '11111111-2222-4333-8444-555555555555';
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        id: VALID_UUID,
+        title: 'Silent Force',
+        content_type: 'article',
+        created_at: '2026-03-05T12:00:00Z',
+      },
+      error: null,
+    });
+
+    const req = createTestRequest('/api/items', {
+      method: 'POST',
+      body: validCreateBody({ content_owner_id: OTHER_UUID }),
+    });
+    const res = await POST(req);
+    // Silent-force = legitimate write, not 403
+    expect(res.status).toBe(201);
+
+    const insertCall = mockSupabase._chain.insert.mock.calls[0][0];
+    expect(insertCall.content_owner_id).toBe('test-user-id');
+    expect(insertCall.created_by).toBe('test-user-id');
+  });
+
   it('returns empty warnings array when AI options succeed', async () => {
     configureRole(mockSupabase, 'editor');
 

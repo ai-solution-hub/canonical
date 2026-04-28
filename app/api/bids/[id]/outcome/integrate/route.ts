@@ -210,6 +210,10 @@ export async function POST(
             summary: `Response to bid question: ${questionText.slice(0, 200)}`,
             captured_date: new Date().toISOString(),
             created_by: user.id,
+            // S206 WP-A Phase 2 (AC3.7) — content owner peer to created_by.
+            // EP10 has NO admin-override semantics (per OQ-EP10-OWNER-OVERRIDE
+            // default): the caller is always the owner of integrated KB items.
+            content_owner_id: user.id,
             // P0-BM Phase 3 spec ss4.6 Path 3: populate answer_standard for
             // q_a_pair so first PATCH edit does not destroy creation content
             // (bug B2 fix).

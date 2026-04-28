@@ -8,7 +8,9 @@ import {
   EmbedBodySchema,
   ReviewQueueParamsSchema,
   ReadMarkBodySchema,
+  ItemCreateBodySchema,
   ItemUpdateBodySchema,
+  KBIntegrationBodySchema,
   ActivityParamsSchema,
   QualityFlagsParamsSchema,
   PipelineRunsParamsSchema,
@@ -19,6 +21,7 @@ import {
   WorkspaceItemsParamsSchema,
   EntityCoOccurrenceParamsSchema,
 } from '@/lib/validation/schemas';
+import { IngestUrlBodySchema } from '@/lib/validation/ingest-schemas';
 
 // Helper: generate a valid UUID for tests
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
@@ -866,3 +869,100 @@ describe.each(OFFSET_CLAMPING_SCHEMAS)(
     });
   },
 );
+
+// ──────────────────────────────────────────
+// S206 WP-A Phase 2 (AC3.3) — content_owner_id schema widening
+// ──────────────────────────────────────────
+//
+// 5 of 6 ingest entry-point schemas accept an optional `content_owner_id`
+// (admin-only override; non-admins are silent-forced route-side via
+// `resolveContentOwnerId()`).
+//
+// EP10 (`KBIntegrationBodySchema`) is intentionally NOT widened per H-4
+// fix in the impl plan: bid-outcome integration always sets
+// `content_owner_id = user.id` route-side. Adding the field to the schema
+// would suggest admin-override semantics that the route does not honour.
+
+describe('S206 content_owner_id schema widening', () => {
+  const VALID_OWNER_UUID = '11111111-2222-4333-8444-555555555555';
+  const NON_UUID = 'not-a-uuid';
+
+  const baseItemCreate = {
+    title: 'Test',
+    content: 'Some content body',
+    content_type: 'note' as const,
+  };
+
+  describe('ItemCreateBodySchema (EP1)', () => {
+    it('accepts an optional content_owner_id UUID', () => {
+      const result = ItemCreateBodySchema.safeParse({
+        ...baseItemCreate,
+        content_owner_id: VALID_OWNER_UUID,
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.content_owner_id).toBe(VALID_OWNER_UUID);
+      }
+    });
+
+    it('accepts when content_owner_id is omitted', () => {
+      const result = ItemCreateBodySchema.safeParse(baseItemCreate);
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects a non-UUID content_owner_id', () => {
+      const result = ItemCreateBodySchema.safeParse({
+        ...baseItemCreate,
+        content_owner_id: NON_UUID,
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('IngestUrlBodySchema (EP4)', () => {
+    it('accepts an optional content_owner_id UUID', () => {
+      const result = IngestUrlBodySchema.safeParse({
+        url: 'https://example.com/article',
+        content_owner_id: VALID_OWNER_UUID,
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.content_owner_id).toBe(VALID_OWNER_UUID);
+      }
+    });
+
+    it('rejects a non-UUID content_owner_id', () => {
+      const result = IngestUrlBodySchema.safeParse({
+        url: 'https://example.com/article',
+        content_owner_id: NON_UUID,
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('KBIntegrationBodySchema (EP10) — H-4 NOT widened', () => {
+    // EP10 sets content_owner_id route-side only (peer to created_by).
+    // The schema must not silently accept the field — Zod default strip
+    // mode would drop it but the test confirms a non-UUID value isn't
+    // flagged as an error (because the schema doesn't know about the
+    // field) AND that the parsed output never contains it.
+    it('strips content_owner_id from parsed output (not accepted)', () => {
+      const result = KBIntegrationBodySchema.safeParse({
+        integrations: [
+          {
+            question_id: VALID_OWNER_UUID,
+            action: 'skip' as const,
+          },
+        ],
+        content_owner_id: VALID_OWNER_UUID,
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        // Field is stripped — schema does not declare it.
+        expect(
+          (result.data as { content_owner_id?: string }).content_owner_id,
+        ).toBeUndefined();
+      }
+    });
+  });
+});

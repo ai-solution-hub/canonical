@@ -351,6 +351,93 @@ describe('MCP create_content_item — S205 WP-A1 typed provenance', () => {
       ).toBe(true);
     });
   });
+
+  // ───────────────────────────────────────────────────────────────────
+  // S206 WP-A Phase 2 — content_owner_id default + admin override
+  // ───────────────────────────────────────────────────────────────────
+
+  describe('content_owner_id default + admin override (S206 AC3.1, AC3.3, AC3.8)', () => {
+    const SERVICE_USER_UUID = 'a0000000-0000-4000-8000-000000000001';
+    const OTHER_OWNER_UUID = '11111111-2222-4333-8444-555555555555';
+
+    it('defaults content_owner_id to MCP caller userId (editor)', async () => {
+      const result = await createTool(
+        {
+          title: 'Owner Default',
+          content: LONG_CONTENT,
+          content_type: 'capability',
+        },
+        { authInfo: MOCK_AUTH_INFO },
+      );
+
+      expect(result.isError).toBeFalsy();
+      const insertCall = findContentItemsInsert(mocks.chain.insert);
+      expect(insertCall.content_owner_id).toBe(SERVICE_USER_UUID);
+      expect(insertCall.created_by).toBe(SERVICE_USER_UUID);
+    });
+
+    it('admin override: explicit content_owner_id is respected when caller is admin', async () => {
+      mocks.checkMcpRole.mockResolvedValue('admin');
+
+      const result = await createTool(
+        {
+          title: 'Admin Override',
+          content: LONG_CONTENT,
+          content_type: 'capability',
+          content_owner_id: OTHER_OWNER_UUID,
+        },
+        { authInfo: MOCK_AUTH_INFO },
+      );
+
+      expect(result.isError).toBeFalsy();
+      const insertCall = findContentItemsInsert(mocks.chain.insert);
+      expect(insertCall.content_owner_id).toBe(OTHER_OWNER_UUID);
+      expect(insertCall.created_by).toBe(SERVICE_USER_UUID);
+    });
+
+    it('non-admin override is silent-forced: explicit content_owner_id ignored for editor', async () => {
+      // checkMcpRole defaults to 'editor' in beforeEach
+      const result = await createTool(
+        {
+          title: 'Silent Force',
+          content: LONG_CONTENT,
+          content_type: 'capability',
+          content_owner_id: OTHER_OWNER_UUID,
+        },
+        { authInfo: MOCK_AUTH_INFO },
+      );
+
+      expect(result.isError).toBeFalsy();
+      const insertCall = findContentItemsInsert(mocks.chain.insert);
+      expect(insertCall.content_owner_id).toBe(SERVICE_USER_UUID);
+    });
+
+    it('Zod schema accepts an optional content_owner_id UUID', () => {
+      const schema = z.object(createConfig.inputSchema);
+
+      expect(
+        schema.safeParse({
+          title: 'a',
+          content: LONG_CONTENT,
+          content_type: 'capability',
+          content_owner_id: OTHER_OWNER_UUID,
+        }).success,
+      ).toBe(true);
+    });
+
+    it('Zod schema rejects a non-UUID content_owner_id', () => {
+      const schema = z.object(createConfig.inputSchema);
+
+      expect(
+        schema.safeParse({
+          title: 'a',
+          content: LONG_CONTENT,
+          content_type: 'capability',
+          content_owner_id: 'not-a-uuid',
+        }).success,
+      ).toBe(false);
+    });
+  });
 });
 
 describe('MCP create_content_item — S205 WP-A2 pipeline_runs', () => {

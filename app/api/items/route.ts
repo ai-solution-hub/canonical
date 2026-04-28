@@ -8,6 +8,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { ItemCreateBodySchema, normaliseTag } from '@/lib/validation/schemas';
+import { resolveContentOwnerId } from '@/lib/auth/owner-default';
 import { generateEmbedding } from '@/lib/ai/embed';
 import { stripMarkdown } from '@/lib/content/strip-markdown';
 import { recordPipelineRun } from '@/lib/pipeline/record-run';
@@ -59,11 +60,21 @@ export async function POST(request: NextRequest) {
       ingestion_source,
       source_document_id,
       skip_dedup,
+      content_owner_id,
     } = parsed.data;
 
     // Admin-only dedup override (spec §6 D2). Silent-ignore for
     // non-admin — do not 403 a legitimate write.
     const skipDedup = skip_dedup === true && role === 'admin';
+
+    // S206 WP-A Phase 2 (AC3.1) — resolve content owner. Admin caller may
+    // supply an explicit owner UUID; non-admins are silent-forced to
+    // themselves via the helper. Always returns a valid UUID string.
+    const ownerId = resolveContentOwnerId({
+      explicit: content_owner_id,
+      role,
+      userId: user.id,
+    });
 
     // Generate embedding synchronously before INSERT (fast, ~200ms)
     let embeddingValue: string | undefined;
@@ -135,6 +146,7 @@ export async function POST(request: NextRequest) {
         platform: 'manual',
         captured_date: new Date().toISOString(),
         created_by: user.id,
+        content_owner_id: ownerId,
         metadata: {
           ingestion_source: ingestion_source ?? 'manual',
           ...(dedupStamp.suspected_duplicate_of && {

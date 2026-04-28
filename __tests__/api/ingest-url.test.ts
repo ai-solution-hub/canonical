@@ -448,6 +448,23 @@ describe('POST /api/ingest/url — Successful Import', () => {
     expect(insertData.created_by).toBe('test-user-id');
   });
 
+  // ───────────────────────────────────────────────────────────────────
+  // S206 WP-A Phase 2 — content_owner_id default at URL ingest EP
+  // ───────────────────────────────────────────────────────────────────
+
+  it('defaults content_owner_id to authenticated user UUID', async () => {
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+
+    const insertData = mockSupabase._chain.insert.mock.calls[0][0];
+    expect(insertData.content_owner_id).toBe('test-user-id');
+    expect(insertData.created_by).toBe('test-user-id');
+  });
+
   it('sets platform to web', async () => {
     const req = createTestRequest('/api/ingest/url', {
       method: 'POST',
