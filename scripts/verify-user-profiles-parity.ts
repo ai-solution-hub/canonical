@@ -255,15 +255,17 @@ async function verifyUserProfilesParity(
   let spotCheckTotal = 0;
   if (authCount > 0 && spotCheckLimit > 0) {
     const limit = Math.min(spotCheckLimit, authCount);
-    // Random sample via the RPC pattern would require a server-side helper.
-    // Instead, fetch up to `limit` rows ordered by random offset on
-    // user_profiles (cheap on small tables) and look up the matching
+    // Sample is deterministic-stable (ordered by id) rather than truly random:
+    // PostgREST does not expose `ORDER BY random()` and a server-side helper
+    // would widen the SECURITY DEFINER attack surface for negligible benefit
+    // on a single-tenant table that today holds <10 rows. Look up the matching
     // auth.users rows via auth.admin.getUserById (the same path
     // verifyPipelineUserShape uses — bypasses PostgREST's auth-schema
     // restriction).
     const { data: profileRows, error: profSampleErr } = await client
       .from('user_profiles')
       .select('id, email, full_name')
+      .order('id', { ascending: true })
       .limit(limit);
     if (profSampleErr) {
       throw new Error(
